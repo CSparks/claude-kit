@@ -2,3 +2,25 @@
 {"ts":"2026-07-23T15:08:23.444Z","id":"ad07d5b0d121616b0","status":"in-flight","task":"Sweep workflow repo UI/API","scope":"claude-kit:researcher","background":false,"source":"posttooluse"}
 {"ts":"2026-07-23T15:11:13.542Z","id":"a9d07e672e2fc98dc","status":"done","source":"subagentstop"}
 {"ts":"2026-07-23T15:12:20.778Z","id":"ad07d5b0d121616b0","status":"done","scope":"claude-kit:researcher","source":"subagentstop"}
+{"ts":"2026-07-23T15:19:55.523Z","id":"abf30edd13042f798","status":"in-flight","task":"Implement KIT-T130 comment primitive","scope":"general-purpose","background":false,"source":"posttooluse"}
+{"ts":"2026-07-23T15:20:07.196Z","id":"a4d349dd4bea3ee47","status":"in-flight","task":"Root-cause KIT-T134 central-store gap","scope":"claude-kit:researcher","background":false,"source":"posttooluse"}
+{"ts":"2026-07-23T15:27:44.174Z","id":"a4d349dd4bea3ee47","status":"done","scope":"claude-kit:researcher","source":"subagentstop"}
+{"ts":"2026-07-23T15:35:55.380Z","id":"abf30edd13042f798","status":"done","scope":"general-purpose","source":"subagentstop"}
+{"ts":"2026-07-23T15:37:27.282Z","id":"aeac70a7cd03e8efe","status":"in-flight","task":"Fix KIT-T134 central-store seeding","scope":"general-purpose","background":false,"source":"posttooluse"}
+{"ts":"2026-07-23T16:07:25.106Z","id":"aeac70a7cd03e8efe","status":"done","scope":"general-purpose","source":"subagentstop"}
+{"ts":"2026-07-23T16:09:29.421Z","id":"a105fe9d616efccab","status":"in-flight","task":"Implement KIT-T131 API hub server","scope":"general-purpose","background":false,"source":"posttooluse"}
+{"ts":"2026-07-23T16:39:06.957Z","id":"a105fe9d616efccab","status":"done","scope":"general-purpose","source":"subagentstop"}
+{"ts":"2026-07-23T16:40:07.455Z","id":"a2e54fb3c396058ac","status":"in-flight","task":"Implement KIT-T132 web UI","scope":"general-purpose","background":false,"source":"posttooluse"}
+{"ts":"2026-07-23T16:58:12.852Z","id":"a2e54fb3c396058ac","status":"done","scope":"general-purpose","source":"subagentstop"}
+{"ts":"2026-07-23T17:02:41.013Z","id":"ad11518d81aa1a557","status":"done","source":"subagentstop"}
+{"ts":"2026-07-23T17:57:07.383Z","id":"a56d18c23a7814e23","status":"done","source":"subagentstop"}
+{"ts":"2026-07-23T17:57:25.854Z","id":"a8465f494adb32df7","status":"done","source":"subagentstop"}
+{"ts":"2026-07-23T18:05:23.740Z","id":"a348c56f116b1568c","status":"done","source":"subagentstop"}
+{"ts":"2026-07-23T18:07:42.275Z","id":"adaed8a0fdedb4e22","status":"in-flight","task":"Implement KIT-T144 All view","scope":"general-purpose","background":false,"source":"posttooluse"}
+{"ts":"2026-07-23T18:08:44.679Z","id":"abfd5a6416a1890c6","status":"done","source":"subagentstop"}
+{"ts":"2026-07-23T18:09:33.200Z","id":"a253e2b5b27148cf2","status":"done","source":"subagentstop"}
+{"ts":"2026-07-23T18:10:39.933Z","id":"a0106a4e202b2fee6","status":"done","source":"subagentstop"}
+{"ts":"2026-07-23T18:17:27.261Z","id":"adaed8a0fdedb4e22","status":"done","scope":"general-purpose","source":"subagentstop"}
+{"ts":"2026-07-23T18:18:56.209Z","id":"a77e0763035cd5713","status":"in-flight","task":"Implement UI wave T145-T149","scope":"general-purpose","background":false,"source":"posttooluse"}
+{"ts":"2026-07-23T19:25:09.899Z","id":"a77e0763035cd5713","status":"done","scope":"general-purpose","source":"subagentstop"}
+{"ts":"2026-07-23T19:29:44.532Z","id":"ab02126f5c2e8e439","status":"done","source":"subagentstop"}

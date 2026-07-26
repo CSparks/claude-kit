@@ -15,6 +15,8 @@ export interface ProjectSummary {
   displayName: string; // human tab title (KIT-T137); server defaults it to the key
   openCount: number;
   reviewCount: number;
+  types: string[];      // this project's configured classifications (config.yml) — create-form options
+  priorities: string[]; // config.priorities, highest first
 }
 
 // PATCH /api/projects/:key response (services/writes.mjs setProjectDisplayName).
@@ -41,8 +43,10 @@ export interface StoreItem {
   title: string;
 }
 
-// One acceptance-criterion checkbox, read-only checked state (ticket-parse.mjs parseAcceptance).
+// One acceptance-criterion checkbox (ticket-parse.mjs parseAcceptance). `index` is the addressing
+// key the tick/untick endpoints take — never the array position the client happens to render at.
 export interface AcceptanceCriterion {
+  index: number;
   text: string;
   checked: boolean;
 }
@@ -115,6 +119,26 @@ export interface CommentResult {
   ordinal: number;
   mentions: string[];
   spilled: boolean;
+}
+
+// POST /api/projects/:key/tickets/:id/criteria/:index/{tick,untick} (writes.mjs setTicketCriterion).
+export interface CriterionResult {
+  id: string;
+  index: number;
+  checked: boolean;
+  criterion: string;
+}
+
+// POST /api/projects/:key/tickets/:id/criteria (writes.mjs addTicketCriterion).
+export interface CriterionAddResult {
+  id: string;
+  criterion: string;
+}
+
+// POST /api/projects/:key/tickets (writes.mjs createTicket) — the id is MINTED server-side.
+export interface TicketCreateResult {
+  id: string;
+  file: string;
 }
 
 // POST /api/projects/:key/tickets/:id/status response (services/writes.mjs setTicketStatus).

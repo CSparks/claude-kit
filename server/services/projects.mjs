@@ -4,6 +4,7 @@
 
 import { resolveAgent } from '../../scripts/comments.mjs';
 import { compareIds } from '../../scripts/id-utils.mjs';
+import { readConfig } from '../../scripts/t.mjs';
 import { remoteWebUrl } from '../../hooks/lib.mjs';
 import { withCache, fetchCounts, fetchTickets, fetchTicket, fetchStore } from './cache-read.mjs';
 import { buildTicketDetail } from './ticket-detail.mjs';
@@ -18,12 +19,17 @@ export async function projectSummaries(config) {
   return withCache(config, (handle) =>
     projects.map((p) => {
       const { open, review } = fetchCounts(handle, p.key);
+      // The taxonomy travels with the row so a create form offers THIS project's configured types
+      // and priorities instead of a hardcoded copy that drifts from config.yml (KIT-T153).
+      const cfg = readConfig(p.root || p.aiDir, p.aiDir);
       return {
         key: p.key,
         name: p.name,
         displayName: readDisplayName(p.aiDir, p.key),
         openCount: open,
         reviewCount: review,
+        types: cfg.classifications,
+        priorities: cfg.priorities,
       };
     }));
 }

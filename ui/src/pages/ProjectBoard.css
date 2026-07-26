@@ -13,6 +13,14 @@
 .board-tools { display: flex; align-items: center; gap: 0.6rem; }
 .board-tools .btn { text-decoration: none; white-space: nowrap; }
 
+/* Create-ticket form inside the board's modal (KIT-T153). */
+.new-ticket-form { display: flex; flex-direction: column; gap: 0.8rem; }
+.new-ticket-row { display: flex; gap: 0.8rem; flex-wrap: wrap; }
+.new-ticket-row label,
+.new-ticket-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; color: var(--text-dim); }
+.new-ticket-field textarea { resize: vertical; font-family: inherit; }
+.new-ticket-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+
 @media (max-width: 768px) {
   .board-header { flex-direction: column; align-items: stretch; }
 }

@@ -9,9 +9,11 @@
 // SAME invocation. PROSE sections (Description / Notes body) stay direct-edit (Edit) — the
 // boundary is "enforce structure with a tool, never lock the prose".
 //
-//   t new <type> "<title>" [--root <dir>]          scaffold a ticket (id minted, never picked)
+//   t new <type> "<title>" [--priority <p>] [--root <dir>]   scaffold a ticket (id minted, never picked)
 //   t status <id> <state> [--human] [--note "…"] [--fixed-commit <sha>]
 //   t tick <id> <ordinal|substring> [--note "…"]   check an acceptance box
+//   t untick <id> <ordinal|substring>               uncheck one (ordinal counts CHECKED boxes)
+//   t criterion <id> "<text>"                       append an acceptance criterion
 //   t link <id> <rel> <target>                      supersedes|superseded_by|regressed_from|
 //                                                   causing_commit|fixed_commit|parent|link
 //
@@ -27,6 +29,8 @@ import { execFileSync } from 'node:child_process';
 import { nextId, readIdConfig } from './id-utils.mjs';
 import { buildComment, parseComments, recordAck } from './comments.mjs';
 import { resolveUser } from './identity.mjs';
+import { appendUnderSection, stamp } from './md-body.mjs';
+import { addCriterion, setCriterionAt, tickCriterion, untickCriterion } from './criteria.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z]+-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032
@@ -77,31 +81,12 @@ function addToList(fm, key, value) {
   return fm.replace(re, `$1 [${cur.join(', ')}]`);
 }
 
-// `[2026-06-10 13:42]` — the timestamp shape db-parse.historyEvents parses (date + HH:MM).
-function stamp() {
-  const iso = new Date().toISOString();
-  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
-}
-
-// Append `line` under `## <heading>` in a markdown body, creating the section at the end when
-// it is absent. The section ends at the next `## ` heading or EOF, so a History line lands
-// inside History even when Notes follows it.
-function appendUnderSection(body, heading, line) {
-  const h = `## ${heading}`;
-  const idx = body.indexOf(`${h}\n`) === -1 ? body.indexOf(h) : body.indexOf(`${h}\n`);
-  if (idx === -1) {
-    return `${body.replace(/\s+$/, '')}\n\n${h}\n${line}\n`;
-  }
-  const after = body.indexOf('\n## ', idx + h.length);
-  const end = after === -1 ? body.length : after;
-  const section = body.slice(idx, end).replace(/\s+$/, '');
-  return body.slice(0, idx) + section + `\n${line}\n` + (after === -1 ? '' : body.slice(end));
-}
-
 // --- config (the taxonomy the mutations enforce) -------------------------------------------
 
 // Read just the knobs the mutations need, line-wise (no yaml dep), mirroring the other tooling.
-export function readConfig(root) {
+// `aiDir` is separable from `root` (the readIdConfig precedent) so a CENTRAL notebook — whose store
+// is not `<root>/.ai` — can be read for its taxonomy too.
+export function readConfig(root, aiDir = join(root, '.ai')) {
   const out = {
     flow: ['todo', 'doing', 'review', 'done'],
     humanOnly: [],
@@ -109,10 +94,11 @@ export function readConfig(root) {
     uatDefault: 'required',
     archiveDir: 'tickets/archive',
     classifications: [],
+    priorities: ['critical', 'high', 'medium', 'low'],
   };
   let cfg = '';
   try {
-    cfg = readFileSync(join(root, '.ai', 'config.yml'), 'utf8');
+    cfg = readFileSync(join(aiDir, 'config.yml'), 'utf8');
   } catch {
     return out;
   }
@@ -123,6 +109,7 @@ export function readConfig(root) {
   out.flow = arr(/^\s*flow:\s*\[([^\]]*)\]/m) || out.flow;
   out.humanOnly = arr(/^\s*human_only:\s*\[([^\]]*)\]/m) ?? out.humanOnly;
   out.offBoard = arr(/^\s*off_board:\s*\[([^\]]*)\]/m) || out.offBoard;
+  out.priorities = arr(/^priorities:\s*\[([^\]]*)\]/m) || out.priorities;
   const uat = cfg.match(/^uat:[ \t]*\n(?:[ \t]+.*\n)*?[ \t]+default:[ \t]*(\w+)/m);
   if (uat) out.uatDefault = uat[1];
   const arch = cfg.match(/archive_done_to:[ \t]*(\S+)/);
@@ -171,13 +158,21 @@ export function findTicket(root, id) {
 // frontmatter + the section skeleton. The prose body stays a placeholder the author fills via
 // Edit — this kills the T039-T043 class where a hand-copied template shipped with KIT-T000 and
 // `<short imperative title>` still in the fields.
-export function scaffoldNew(root, type, title) {
-  const { classifications } = readConfig(root);
+export function scaffoldNew(root, type, title, opts = {}) {
+  const { classifications, priorities } = readConfig(root);
   if (!type) throw new Error('t new: a <type> is required');
   if (classifications.length && !classifications.includes(type)) {
     throw new Error(`t new: unknown type '${type}' (config.classifications: ${classifications.join(', ')})`);
   }
   if (!title || !title.trim()) throw new Error('t new: a non-empty "<title>" is required');
+  if (/[\n\r]/.test(title)) throw new Error('t new: a title is a single line — put the detail in the Description');
+  // A caller with more than a title (the web form) seeds priority + Description here rather than
+  // rewriting the file afterwards: the scaffold shape has exactly one owner.
+  const priority = opts.priority ? String(opts.priority).trim() : 'medium';
+  if (!priorities.includes(priority)) {
+    throw new Error(`t new: unknown priority '${priority}' (config.priorities: ${priorities.join(', ')})`);
+  }
+  const description = String(opts.description ?? '').trim() || '<!-- what and why — fill in via Edit -->';
   const id = nextId(root, 'tickets');
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'ticket';
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
@@ -188,7 +183,7 @@ id: ${id}
 title: ${title.trim()}
 type: ${type}
 status: todo
-priority: medium
+priority: ${priority}
 milestone:
 labels: []
 links: []
@@ -200,7 +195,7 @@ updated: ${now}
 ---
 
 ## Description
-<!-- what and why — fill in via Edit -->
+${description}
 
 ## Acceptance Criteria
 <!-- each a checkable observation; t tick checks these as they pass -->
@@ -276,39 +271,34 @@ export function setStatus(root, id, state, opts = {}) {
   return { id, from, to: state, path: movedTo || t.path, archived: !!movedTo, warnings: tailNotes };
 }
 
-// --- t tick --------------------------------------------------------------------------------
+// --- t tick / t untick / t criterion --------------------------------------------------------
 
-// Check an acceptance-criteria box. `selector` is a 1-based ordinal among the `- [ ]` lines, or
-// a substring that uniquely matches one open criterion. Appends a (comment) History line so the
-// tick is auditable. Refuses an out-of-range / ambiguous / already-checked selector loudly.
-export function tick(root, id, selector, opts = {}) {
+// criteria.mjs owns WHICH line a selector means and the History stamp; this layer owns locating
+// the ticket and writing the transformed body back — so the CLI and the web API mutate criteria
+// through the same invariants (KIT-T153).
+function mutateCriteria(root, id, transform) {
   const t = findTicket(root, id);
   if (!t.parts) throw new Error(`${id}: no frontmatter block`);
-  const body = t.parts.rest;
-  const lines = body.split('\n');
-  const boxIdx = [];
-  for (let i = 0; i < lines.length; i++) if (/^\s*-\s*\[ \]/.test(lines[i])) boxIdx.push(i);
-  if (!boxIdx.length) throw new Error(`${id}: no open acceptance criteria to tick`);
-
-  let target;
-  if (/^\d+$/.test(String(selector))) {
-    const n = parseInt(selector, 10);
-    if (n < 1 || n > boxIdx.length) throw new Error(`${id}: ordinal ${n} out of range (1..${boxIdx.length} open criteria)`);
-    target = boxIdx[n - 1];
-  } else {
-    const needle = String(selector).toLowerCase();
-    const hits = boxIdx.filter((i) => lines[i].toLowerCase().includes(needle));
-    if (!hits.length) throw new Error(`${id}: no open criterion matches "${selector}"`);
-    if (hits.length > 1) throw new Error(`${id}: "${selector}" matches ${hits.length} criteria — use an ordinal`);
-    target = hits[0];
-  }
-  const text = lines[target].replace(/^\s*-\s*\[ \]\s*/, '').trim();
-  lines[target] = lines[target].replace('[ ]', '[x]');
-  let newBody = lines.join('\n');
-  newBody = appendUnderSection(newBody, 'History', `- [${stamp()}] (comment) ticked: ${opts.note || text}`);
-  writeFileSync(t.path, t.parts.open + t.parts.fm + t.parts.close + newBody);
-  return { id, ticked: text, path: t.path };
+  const { body, criterion } = transform(t.parts.rest);
+  writeFileSync(t.path, t.parts.open + t.parts.fm + t.parts.close + body);
+  return { id, criterion, path: t.path };
 }
+
+// `selector` is a 1-based ordinal among the criteria eligible for the act (open ones for a tick,
+// checked ones for an untick), or a substring that must match exactly one of them.
+export const tick = (root, id, selector, opts = {}) =>
+  mutateCriteria(root, id, (body) => tickCriterion(body, selector, { ...opts, id }));
+
+export const untick = (root, id, selector, opts = {}) =>
+  mutateCriteria(root, id, (body) => untickCriterion(body, selector, { ...opts, id }));
+
+// Index-addressed toggle for clients that render the criterion list (the web UI) instead of
+// counting open boxes.
+export const setCriterion = (root, id, index, checked, opts = {}) =>
+  mutateCriteria(root, id, (body) => setCriterionAt(body, index, checked, { ...opts, id }));
+
+export const addCriterionTo = (root, id, text, opts = {}) =>
+  mutateCriteria(root, id, (body) => addCriterion(body, text, { ...opts, id }));
 
 // --- t link --------------------------------------------------------------------------------
 
@@ -479,6 +469,7 @@ function parseArgs(argv) {
     if (a === '--human') flags.human = true;
     else if (a === '--note') flags.note = argv[++i];
     else if (a === '--fixed-commit') flags.fixedCommit = argv[++i];
+    else if (a === '--priority') flags.priority = argv[++i];
     else if (a === '--author') flags.author = argv[++i];
     else if (a === '--agent') flags.agent = argv[++i];
     else if (a === '--root') flags.root = argv[++i];
@@ -491,13 +482,13 @@ async function main() {
   const { flags, pos } = parseArgs(process.argv.slice(2));
   const root = flags.root || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|status|tick|link|comment|ack> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name>)';
+  const usage = 'usage: t <new|status|tick|untick|criterion|link|comment|ack> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name>)';
 
   if (!cmd) { console.error(usage); process.exit(2); }
 
   if (cmd === 'new') {
     const [type, ...titleWords] = rest;
-    const { id, path } = scaffoldNew(root, type, titleWords.join(' '));
+    const { id, path } = scaffoldNew(root, type, titleWords.join(' '), flags);
     await refresh(root);
     process.stdout.write(`new: ${id} -> ${path.replace(resolve(root) + '/', '').replace(resolve(root) + '\\', '')}\n`);
     return;
@@ -511,12 +502,21 @@ async function main() {
     for (const w of r.warnings) process.stderr.write(`  ⚠ ${w}\n`);
     return;
   }
-  if (cmd === 'tick') {
+  if (cmd === 'tick' || cmd === 'untick') {
     const [id, selector] = rest;
-    if (!id || selector === undefined) { console.error('usage: t tick <id> <ordinal|substring> [--note "…"]'); process.exit(2); }
-    const r = tick(root, id, selector, flags);
+    if (!id || selector === undefined) { console.error(`usage: t ${cmd} <id> <ordinal|substring> [--note "…"]`); process.exit(2); }
+    const r = (cmd === 'tick' ? tick : untick)(root, id, selector, flags);
     await refresh(root);
-    process.stdout.write(`tick: ${r.id} ✓ ${r.ticked}\n`);
+    process.stdout.write(`${cmd}: ${r.id} ${cmd === 'tick' ? '✓' : '↺'} ${r.criterion}\n`);
+    return;
+  }
+  if (cmd === 'criterion') {
+    const [id, ...textWords] = rest;
+    const text = textWords.join(' ');
+    if (!id || !text.trim()) { console.error('usage: t criterion <id> "<text>"'); process.exit(2); }
+    const r = addCriterionTo(root, id, text, flags);
+    await refresh(root);
+    process.stdout.write(`criterion: ${r.id} + ${r.criterion}\n`);
     return;
   }
   if (cmd === 'link') {

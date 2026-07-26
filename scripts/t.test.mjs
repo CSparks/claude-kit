@@ -9,7 +9,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { scaffoldNew, setStatus, tick, link, lintStoreText, readConfig, findTicket, evidenceFloor } from './t.mjs';
+import {
+  scaffoldNew, setStatus, tick, untick, setCriterion, addCriterionTo, link, lintStoreText,
+  readConfig, findTicket, evidenceFloor,
+} from './t.mjs';
+import { listCriteria } from './criteria.mjs';
 
 const SCRIPT = fileURLToPath(import.meta.url).replace(/\.test\.mjs$/, '.mjs');
 let pass = 0;
@@ -58,7 +62,7 @@ seed.
 ## Acceptance Criteria
 - [ ] first criterion
 - [ ] second criterion done quickly
-
+${extra ? `\n${extra}\n` : ''}
 ## History
 `;
 }
@@ -127,8 +131,63 @@ const tk = project({ uatDefault: 'none' }, { 'KIT-T040': {} });
 const t1 = tick(tk, 'KIT-T040', 1);
 ok('tick: ordinal 1 checks the first box', /- \[x\] first criterion/.test(readFileSync(t1.path, 'utf8')));
 ok('tick: leaves the second box open', /- \[ \] second criterion/.test(readFileSync(t1.path, 'utf8')));
+ok('tick: stamps an auditable History line', /\(comment\) ticked: first criterion/.test(readFileSync(t1.path, 'utf8')));
 ok('tick: substring match checks the right box', /- \[x\] second criterion/.test(readFileSync(tick(tk, 'KIT-T040', 'second').path, 'utf8')));
 ok('tick: out-of-range ordinal throws', threw(() => tick(project({}, { 'KIT-T041': {} }), 'KIT-T041', 9)));
+ok('tick: no open criteria left throws', threw(() => tick(tk, 'KIT-T040', 1)));
+
+// --- untick (KIT-T153): the maintainer can undo a tick, and the undo is itself audited ---
+const un = project({ uatDefault: 'none' }, { 'KIT-T042': {} });
+tick(un, 'KIT-T042', 'first');
+const u1 = untick(un, 'KIT-T042', 'first');
+ok('untick: reopens the box', /- \[ \] first criterion/.test(readFileSync(u1.path, 'utf8')));
+ok('untick: stamps its own History line', /\(comment\) unticked: first criterion/.test(readFileSync(u1.path, 'utf8')));
+ok('untick: ordinal counts CHECKED criteria only', threw(() => untick(un, 'KIT-T042', 1)));
+ok('untick: ambiguous substring throws', threw(() => {
+  const amb = project({}, { 'KIT-T043': {} });
+  tick(amb, 'KIT-T043', 1);
+  tick(amb, 'KIT-T043', 1);
+  untick(amb, 'KIT-T043', 'criterion');
+}));
+
+// --- setCriterion: index-addressed toggle (the API path — indexes ALL criteria, not open ones) ---
+const ix = project({ uatDefault: 'none' }, { 'KIT-T044': {} });
+ok('setCriterion: index 1 checks the second criterion', /- \[x\] second criterion/.test(readFileSync(setCriterion(ix, 'KIT-T044', 1, true).path, 'utf8')));
+ok('setCriterion: index 0 still addresses the first (unshifted by the tick)', /- \[x\] first criterion/.test(readFileSync(setCriterion(ix, 'KIT-T044', 0, true).path, 'utf8')));
+ok('setCriterion: unchecking round-trips', /- \[ \] second criterion/.test(readFileSync(setCriterion(ix, 'KIT-T044', 1, false).path, 'utf8')));
+ok('setCriterion: a no-op flip is refused (stale client)', threw(() => setCriterion(ix, 'KIT-T044', 0, true)));
+ok('setCriterion: an out-of-range index is refused', threw(() => setCriterion(ix, 'KIT-T044', 9, true)));
+
+// --- criteria are scoped to their own section: a checkbox under Plan is NOT a criterion ---
+const sc = project({ uatDefault: 'none' }, { 'KIT-T045': { extra: '## Plan\n- [ ] not a criterion' } });
+ok('scope: listCriteria sees only the AC section', listCriteria(readFileSync(findTicket(sc, 'KIT-T045').path, 'utf8')).length === 2);
+tick(sc, 'KIT-T045', 1);
+tick(sc, 'KIT-T045', 1);
+ok('scope: a Plan checkbox is never ticked', /- \[ \] not a criterion/.test(readFileSync(findTicket(sc, 'KIT-T045').path, 'utf8')));
+
+// --- addCriterionTo: append, fill the scaffold placeholder, reject junk ---
+const ac = project({ uatDefault: 'none' }, { 'KIT-T046': {} });
+const added = addCriterionTo(ac, 'KIT-T046', '  a third criterion  ');
+ok('criterion: appended to the AC section, trimmed', /- \[ \] a third criterion/.test(readFileSync(added.path, 'utf8')));
+ok('criterion: lands under Acceptance Criteria, not History', /## Acceptance Criteria[\s\S]*a third criterion[\s\S]*## History/.test(readFileSync(added.path, 'utf8')));
+ok('criterion: stamps a History line', /\(comment\) criterion added: a third criterion/.test(readFileSync(added.path, 'utf8')));
+ok('criterion: rejects empty text', threw(() => addCriterionTo(ac, 'KIT-T046', '   ')));
+ok('criterion: rejects a multi-line criterion', threw(() => addCriterionTo(ac, 'KIT-T046', 'line one\nline two')));
+const seeded = scaffoldNew(project({ uatDefault: 'none' }, {}), 'feature', 'Fresh ticket');
+const seededRoot = seeded.path.replace(/[\\/]\.ai[\\/]tickets[\\/].*$/, '');
+addCriterionTo(seededRoot, seeded.id, 'the first real criterion');
+const seededText = readFileSync(seeded.path, 'utf8');
+ok('criterion: fills t new\'s empty placeholder instead of leaving a blank row',
+  /- \[ \] the first real criterion/.test(seededText) && !/- \[ \]\s*\n/.test(seededText));
+
+// --- t new: optional priority + description (the web form's fields) ---
+const np = project({ uatDefault: 'none' }, {});
+const withOpts = scaffoldNew(np, 'feature', 'Seeded from a form', { priority: 'high', description: 'why it matters' });
+const withOptsText = readFileSync(withOpts.path, 'utf8');
+ok('new: --priority is written', /priority: high/.test(withOptsText));
+ok('new: a supplied description replaces the placeholder', /## Description\nwhy it matters/.test(withOptsText));
+ok('new: rejects an unknown priority', threw(() => scaffoldNew(np, 'feature', 'x', { priority: 'urgent' })));
+ok('new: rejects a multi-line title', threw(() => scaffoldNew(np, 'feature', 'line one\nline two')));
 
 // --- link: supersedes both sides + shape validation ---
 const lk = project({ uatDefault: 'none' }, { 'KIT-T050': {}, 'KIT-T051': {} });

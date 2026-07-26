@@ -173,6 +173,10 @@ test('GET /api/projects lists the adopted project with open/review counts', asyn
   assert.equal(tst.name, 'test-proj');
   assert.equal(tst.openCount, 3);
   assert.equal(tst.reviewCount, 0);
+  // The store's own taxonomy travels with the row so a create form can't offer a type the server
+  // would reject (KIT-T153) — read from THIS project's config.yml, not a client-side copy.
+  assert.deepEqual(tst.types, ['feature']);
+  assert.deepEqual(tst.priorities, ['critical', 'high', 'medium', 'low']);
 });
 
 test('GET /api/projects/:key/tickets lists tickets, ?status filters', async () => {
@@ -195,9 +199,11 @@ test('GET /api/projects/:key/tickets/:id returns frontmatter + AC checked state 
   assert.equal(d.status, 'doing');
   assert.equal(d.milestone, 'M1');
   assert.match(d.description, /Seed description for TST-T001/);
+  // `index` is the criterion's addressing key for the tick/untick endpoints (KIT-T153) — the
+  // payload states it rather than leaving the client to trust array order.
   assert.deepEqual(d.acceptanceCriteria, [
-    { text: 'first criterion', checked: true },
-    { text: 'second criterion', checked: false },
+    { index: 0, text: 'first criterion', checked: true },
+    { index: 1, text: 'second criterion', checked: false },
   ]);
   assert.match(d.notes, /initial progress note/);
   assert.ok(d.history.some((h) => h.event === 'created'));
@@ -428,4 +434,114 @@ test('PATCH /api/projects/:key round-trips a display name containing a double-qu
   assert.match(cfg, /display_name: "A \\"Quoted\\" Name"/, 'quotes escaped in the config truth');
   const list = await get('/api/projects');
   assert.equal(list.body.data.find((p) => p.key === 'TST').displayName, displayName, 'reads back verbatim');
+});
+
+// ---- acceptance criteria: tick / untick / add from the browser (KIT-T153) ----
+const criteriaOf = async (id) => (await get(`/api/projects/TST/tickets/${id}`)).body.data.acceptanceCriteria;
+
+test('POST criteria/:index/tick is durable in markdown and shows on the next cache-served GET', async () => {
+  const ticked = await post('/api/projects/TST/tickets/TST-T002/criteria/0/tick', {});
+  assert.equal(ticked.status, 200);
+  assert.equal(ticked.body.data.criterion, 'only criterion');
+  assert.equal(ticked.body.data.checked, true);
+
+  assert.deepEqual(await criteriaOf('TST-T002'), [{ index: 0, text: 'only criterion', checked: true }]);
+  const { readFileSync } = await import('node:fs');
+  const raw = readFileSync(join(fixtureRoot, '.ai', 'tickets', 'TST-T002-seed.md'), 'utf8');
+  assert.match(raw, /- \[x\] only criterion/, 'the box is checked in the markdown truth');
+  assert.match(raw, /\(comment\) ticked: only criterion/, 'the tick is stamped in History');
+});
+
+test('POST criteria/:index/untick reopens it and stamps its own History line', async () => {
+  const unticked = await post('/api/projects/TST/tickets/TST-T002/criteria/0/untick', {});
+  assert.equal(unticked.status, 200);
+  assert.equal(unticked.body.data.checked, false);
+  assert.deepEqual(await criteriaOf('TST-T002'), [{ index: 0, text: 'only criterion', checked: false }]);
+  const { readFileSync } = await import('node:fs');
+  const raw = readFileSync(join(fixtureRoot, '.ai', 'tickets', 'TST-T002-seed.md'), 'utf8');
+  assert.match(raw, /\(comment\) unticked: only criterion/);
+});
+
+test('criteria refusals: no-op flip → 409, bad index → 400, unknown ticket → 404', async () => {
+  const stale = await post('/api/projects/TST/tickets/TST-T002/criteria/0/untick', {});
+  assert.equal(stale.status, 409);
+  assert.equal(stale.body.error.code, 'stale_criterion');
+
+  assert.equal((await post('/api/projects/TST/tickets/TST-T002/criteria/9/tick', {})).status, 400);
+  const negative = await post('/api/projects/TST/tickets/TST-T002/criteria/-1/tick', {});
+  assert.equal(negative.status, 400);
+  assert.equal(negative.body.error.code, 'bad_request');
+  assert.equal((await post('/api/projects/TST/tickets/TST-T999/criteria/0/tick', {})).status, 404);
+});
+
+test('POST criteria appends a criterion the detail payload then addresses by index', async () => {
+  const added = await post('/api/projects/TST/tickets/TST-T002/criteria', { text: '  added from the browser  ' });
+  assert.equal(added.status, 201);
+  assert.equal(added.body.data.criterion, 'added from the browser');
+
+  assert.deepEqual(await criteriaOf('TST-T002'), [
+    { index: 0, text: 'only criterion', checked: false },
+    { index: 1, text: 'added from the browser', checked: false },
+  ]);
+  // …and that index is immediately tickable — read and write agree on which line row 1 is.
+  assert.equal((await post('/api/projects/TST/tickets/TST-T002/criteria/1/tick', {})).status, 200);
+  assert.equal((await criteriaOf('TST-T002'))[1].checked, true);
+
+  assert.equal((await post('/api/projects/TST/tickets/TST-T002/criteria', { text: '   ' })).status, 400);
+  assert.equal((await post('/api/projects/TST/tickets/TST-T002/criteria', { text: 'one\ntwo' })).status, 400);
+});
+
+// ---- ticket creation from the browser (KIT-T153) ----
+test('POST /api/projects/:key/tickets mints the id and the new ticket reads back', async () => {
+  const created = await post('/api/projects/TST/tickets', {
+    type: 'feature', title: 'Made from the browser', priority: 'high', description: 'why it matters',
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.data.id, 'TST-T004', 'id minted as max+1, never client-supplied');
+  assert.match(created.body.data.file, /^\.ai\/tickets\/TST-T004-/);
+
+  const detail = await get('/api/projects/TST/tickets/TST-T004');
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.data.status, 'todo');
+  assert.equal(detail.body.data.priority, 'high');
+  assert.match(detail.body.data.description, /why it matters/);
+});
+
+test('create refusals: missing type/title, unknown type, unknown priority → 400', async () => {
+  assert.equal((await post('/api/projects/TST/tickets', { title: 'no type' })).status, 400);
+  assert.equal((await post('/api/projects/TST/tickets', { type: 'feature', title: '  ' })).status, 400);
+  assert.equal((await post('/api/projects/TST/tickets', { type: 'wat', title: 'bad type' })).status, 400);
+  assert.equal(
+    (await post('/api/projects/TST/tickets', { type: 'feature', title: 'bad priority', priority: 'urgent' })).status,
+    400,
+  );
+});
+
+test('a project with no local repo refuses every write with 409 not_writable', async () => {
+  const central = buildApp({
+    ...config,
+    discovery: createStaticDiscovery([{ key: 'RO', name: 'central-only', root: null, aiDir: tmp('kit-api-ro-') }]),
+  });
+  const roServer = central.listen(0, '127.0.0.1');
+  await new Promise((r) => roServer.once('listening', r));
+  const roBase = `http://127.0.0.1:${roServer.address().port}`;
+  const roPost = async (path, payload) => {
+    const res = await fetch(roBase + path, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    return { status: res.status, body: await res.json() };
+  };
+  try {
+    for (const [path, payload] of [
+      ['/api/projects/RO/tickets', { type: 'feature', title: 'nope' }],
+      ['/api/projects/RO/tickets/RO-T001/criteria', { text: 'nope' }],
+      ['/api/projects/RO/tickets/RO-T001/criteria/0/tick', {}],
+    ]) {
+      const r = await roPost(path, payload);
+      assert.equal(r.status, 409, `${path} → 409`);
+      assert.equal(r.body.error.code, 'not_writable');
+    }
+  } finally {
+    roServer.close();
+  }
 });

@@ -47,6 +47,14 @@
 .ac-item { display: flex; gap: 0.55rem; align-items: flex-start; font-size: 0.9rem; line-height: 1.45; }
 .ac-item.checked span { color: var(--text-dim); text-decoration: line-through; }
 .ac-item input { margin-top: 0.2rem; }
+/* The whole criterion is the hit target now that ticking is live (KIT-T153). */
+.ac-item label { display: flex; gap: 0.55rem; align-items: flex-start; cursor: pointer; }
+.ac-item input:disabled { cursor: progress; }
+.ac-item input:disabled + span { opacity: 0.65; }
+
+.criterion-form { margin-top: 0.75rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.criterion-input { flex: 1 1 14rem; }
+.criterion-form .inline-error { flex-basis: 100%; }
 
 .comment-form {
   margin-top: 1.25rem;

@@ -7,6 +7,7 @@
 import type {
   Me, ProjectSummary, ProjectPatchResult, TicketListItem, StoreItem, TicketDetail,
   WaitingGroup, CommentResult, StatusResult, MentionsResponse, AckResult, AckAllResult,
+  CriterionResult, CriterionAddResult, TicketCreateResult,
 } from '../types';
 
 const API_BASE = '/api';
@@ -88,6 +89,32 @@ export function postStatus(
   payload: { status: string; agent: string; comment?: { text: string } },
 ) {
   return request<StatusResult>(`/projects/${key}/tickets/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+// Ticking a criterion is its own verb in the URL, so the tick and the untick are separate audited
+// writes (KIT-T153). A 409 stale_criterion means the view is behind — refetch, don't retry.
+export function postCriterionState(key: string, id: string, index: number, checked: boolean) {
+  return request<CriterionResult>(
+    `/projects/${key}/tickets/${id}/criteria/${index}/${checked ? 'tick' : 'untick'}`,
+    { method: 'POST', body: JSON.stringify({}) },
+  );
+}
+
+export function postCriterion(key: string, id: string, payload: { text: string }) {
+  return request<CriterionAddResult>(`/projects/${key}/tickets/${id}/criteria`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createTicket(
+  key: string,
+  payload: { type: string; title: string; priority?: string; description?: string },
+) {
+  return request<TicketCreateResult>(`/projects/${key}/tickets`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

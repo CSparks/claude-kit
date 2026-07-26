@@ -2,6 +2,8 @@
 // in items_fts). Splits the named sections and reads acceptance-criteria checkbox state — no
 // I/O, no SQLite, so it is trivially unit-testable and shared by the detail assembler.
 
+import { listCriteria } from '../../scripts/criteria.mjs';
+
 // Text of the `## <heading>` section: everything until the next `## ` heading or EOF, trimmed.
 export function sectionText(body, heading) {
   const lines = String(body || '').split('\n');
@@ -13,17 +15,10 @@ export function sectionText(body, heading) {
   return (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
 }
 
-// Acceptance-criteria checkboxes, in order: `- [ ] text` / `- [x] text` under the AC section.
-export function parseAcceptance(body) {
-  const section = sectionText(body, 'Acceptance Criteria');
-  const out = [];
-  for (const line of section.split('\n')) {
-    const m = line.match(/^\s*-\s*\[([ xX])\]\s*(.*)$/);
-    if (!m) continue;
-    out.push({ text: m[2].trim(), checked: m[1].toLowerCase() === 'x' });
-  }
-  return out;
-}
+// Acceptance-criteria checkboxes, in order — delegated to the store's own criteria module so the
+// `index` a client renders is THE index its tick/untick request addresses (KIT-T153). Reading and
+// writing a criterion therefore cannot disagree about which line row N is.
+export const parseAcceptance = (body) => listCriteria(body);
 
 export function parseTicketBody(body) {
   return {

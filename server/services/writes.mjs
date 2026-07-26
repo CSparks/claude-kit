@@ -7,9 +7,10 @@
 // transition → 403, an evidence-floor miss → 422, any other write refusal → 400.
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import {
   comment as tComment, setStatus, readConfig, findTicket,
+  setCriterion as tSetCriterion, addCriterionTo, scaffoldNew,
   EVIDENCE_PATTERNS, NO_TEST_ESCAPE,
 } from '../../scripts/t.mjs';
 import { resolveUser } from '../../scripts/identity.mjs';
@@ -37,6 +38,11 @@ function mapWriteError(e) {
   if (/human_only|--human|maintainer's call|uat=required/i.test(msg)) {
     return new ApiError(STATUS.FORBIDDEN, msg, 'human_only');
   }
+  // A no-op criterion flip means the client's view is behind the markdown (a second tab, a
+  // double-click) — a conflict to reconcile by refetching, not a malformed request.
+  if (/is already (checked|open)/i.test(msg)) {
+    return new ApiError(STATUS.CONFLICT, msg, 'stale_criterion');
+  }
   return new ApiError(STATUS.BAD_REQUEST, msg, 'write_failed');
 }
 
@@ -63,6 +69,61 @@ export async function postComment(config, project, id, { text, author }) {
   }
   await afterWrite(config, root);
   return { id, ref: result.ref, ordinal: result.ordinal, mentions: result.mentions, spilled: result.spilled };
+}
+
+// Criteria writes (KIT-T153). The maintainer ticks a box in the browser; the guards, the
+// History stamp and the AC-section scoping all come from scripts/criteria.mjs via t.mjs, so the
+// browser and the CLI cannot drift. `index` addresses the criterion list the detail payload
+// renders — never an ordinal among open boxes, which shifts under its own writes.
+export async function setTicketCriterion(config, project, id, { index, checked, note }) {
+  const root = requireWritableRoot(project);
+  const at = Number(index);
+  if (!Number.isInteger(at) || at < 0) {
+    throw new ApiError(STATUS.BAD_REQUEST, 'index must be a non-negative integer', 'bad_request');
+  }
+  if (typeof checked !== 'boolean') {
+    throw new ApiError(STATUS.BAD_REQUEST, 'checked must be a boolean', 'bad_request');
+  }
+  let result;
+  try {
+    result = tSetCriterion(root, id, at, checked, { note });
+  } catch (e) {
+    throw mapWriteError(e);
+  }
+  await afterWrite(config, root);
+  return { id, index: at, checked, criterion: result.criterion };
+}
+
+export async function addTicketCriterion(config, project, id, { text }) {
+  const root = requireWritableRoot(project);
+  if (text === undefined || !String(text).trim()) {
+    throw new ApiError(STATUS.BAD_REQUEST, 'text is required', 'bad_request');
+  }
+  let result;
+  try {
+    result = addCriterionTo(root, id, text);
+  } catch (e) {
+    throw mapWriteError(e);
+  }
+  await afterWrite(config, root);
+  return { id, criterion: result.criterion };
+}
+
+// Create a ticket. The id is MINTED by scaffoldNew (KIT-D011: never hand-picked, not even by a
+// client that thinks it knows the next number), and the taxonomy checks — known type, known
+// priority — stay in the CLI's hands.
+export async function createTicket(config, project, { type, title, priority, description }) {
+  const root = requireWritableRoot(project);
+  if (!type || !String(type).trim()) throw new ApiError(STATUS.BAD_REQUEST, 'type is required', 'bad_request');
+  if (!title || !String(title).trim()) throw new ApiError(STATUS.BAD_REQUEST, 'title is required', 'bad_request');
+  let result;
+  try {
+    result = scaffoldNew(root, String(type).trim(), String(title), { priority, description });
+  } catch (e) {
+    throw mapWriteError(e);
+  }
+  await afterWrite(config, root);
+  return { id: result.id, file: relative(root, result.path).split('\\').join('/') };
 }
 
 const UAT_LINE = /^uat:\s*(\w+)/m;

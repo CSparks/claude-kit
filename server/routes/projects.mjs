@@ -8,7 +8,10 @@ import { asyncHandler, send } from '../lib/respond.mjs';
 import { STATUS } from '../lib/status.mjs';
 import { resolveProject } from '../services/discovery.mjs';
 import { projectSummaries, listTickets, getTicketDetail, listStore } from '../services/projects.mjs';
-import { postComment, setTicketStatus, setProjectDisplayName } from '../services/writes.mjs';
+import {
+  postComment, setTicketStatus, setProjectDisplayName,
+  setTicketCriterion, addTicketCriterion, createTicket,
+} from '../services/writes.mjs';
 
 export function projectRoutes(config) {
   const router = Router();
@@ -54,6 +57,30 @@ export function projectRoutes(config) {
     const data = await setTicketStatus(config, project(req), req.params.id, { status, agent, comment });
     send(res, data, { written: true });
   }));
+
+  router.post('/:key/tickets', asyncHandler(async (req, res) => {
+    const { type, title, priority, description } = req.body || {};
+    const data = await createTicket(config, project(req), { type, title, priority, description });
+    send(res, data, { written: true }, STATUS.CREATED);
+  }));
+
+  router.post('/:key/tickets/:id/criteria', asyncHandler(async (req, res) => {
+    const { text } = req.body || {};
+    const data = await addTicketCriterion(config, project(req), req.params.id, { text });
+    send(res, data, { written: true }, STATUS.CREATED);
+  }));
+
+  // Two verbs rather than a PATCH body: the act is in the URL, so a tick and an untick are
+  // distinct, individually auditable requests.
+  for (const [act, checked] of [['tick', true], ['untick', false]]) {
+    router.post(`/:key/tickets/:id/criteria/:index/${act}`, asyncHandler(async (req, res) => {
+      const { note } = req.body || {};
+      const data = await setTicketCriterion(config, project(req), req.params.id, {
+        index: req.params.index, checked, note,
+      });
+      send(res, data, { written: true });
+    }));
+  }
 
   return router;
 }

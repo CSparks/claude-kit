@@ -1,8 +1,8 @@
-// Ticket detail (/p/:key/t/:id): title + frontmatter badges, description, the read-only AC
-// checklist, the time-merged activity stream (History + comments, unread @mentions marked), the
-// comment form, and the status controls. Fetched as the resolved viewer identity (/api/me) so
-// unread-mention state is computed for them. A comment or status write re-fetches, so the durable
-// change shows immediately. Each block is its own component — this file just orchestrates + lays out.
+// Ticket detail (/p/:key/t/:id): title + frontmatter badges, description, the live AC checklist
+// (tick/untick/add — KIT-T153), the time-merged activity stream (History + comments, unread
+// @mentions marked), the comment form, and the status controls. Fetched as the resolved viewer
+// identity (/api/me) so unread-mention state is computed for them. EVERY write re-fetches, so what
+// renders is the markdown truth. Each block is its own component — this file orchestrates + lays out.
 
 import { useCallback, useEffect } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
@@ -13,6 +13,7 @@ import { mergeActivity } from '../lib/activity';
 import { StatusBadge, PriorityBadge, TypeBadge } from '../components/Badge';
 import { Loading, ErrorState } from '../components/AsyncState';
 import { AcceptanceList } from '../components/ticket/AcceptanceList';
+import { CriterionForm } from '../components/ticket/CriterionForm';
 import { ActivityStream } from '../components/ticket/ActivityStream';
 import { CommentForm } from '../components/ticket/CommentForm';
 import { StatusControls } from '../components/ticket/StatusControls';
@@ -75,7 +76,13 @@ export default function TicketDetail() {
 
           <section className="detail-section">
             <h2>Acceptance criteria</h2>
-            <AcceptanceList items={data.acceptanceCriteria} />
+            <AcceptanceList
+              items={data.acceptanceCriteria}
+              projectKey={key}
+              ticketId={id}
+              onChanged={reload}
+            />
+            <CriterionForm projectKey={key} ticketId={id} onAdded={reload} />
           </section>
 
           <section className="detail-section">
