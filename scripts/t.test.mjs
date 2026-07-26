@@ -30,6 +30,7 @@ function threw(fn) {
 const CONFIG = ({ humanOnly = '[]', uatDefault = 'required' }) => `classifications:
   feature: { routes_to: backlog }
   bug:     { routes_to: tickets }
+  question: { routes_to: questions }
 statuses:
   flow: [todo, doing, review, done]
   human_only: ${humanOnly}
@@ -187,6 +188,9 @@ const withOptsText = readFileSync(withOpts.path, 'utf8');
 ok('new: --priority is written', /priority: high/.test(withOptsText));
 ok('new: a supplied description replaces the placeholder', /## Description\nwhy it matters/.test(withOptsText));
 ok('new: rejects an unknown priority', threw(() => scaffoldNew(np, 'feature', 'x', { priority: 'urgent' })));
+// A create FORM only offers board-bound types; the CLI stays permissive over every classification.
+ok('readConfig: ticketTypes drops classifications routed to another store',
+  readConfig(np).ticketTypes.join() === 'feature,bug' && readConfig(np).classifications.includes('question'));
 ok('new: rejects a multi-line title', threw(() => scaffoldNew(np, 'feature', 'line one\nline two')));
 
 // --- link: supersedes both sides + shape validation ---

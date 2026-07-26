@@ -28,7 +28,7 @@ export async function projectSummaries(config) {
         displayName: readDisplayName(p.aiDir, p.key),
         openCount: open,
         reviewCount: review,
-        types: cfg.classifications,
+        types: cfg.ticketTypes,
         priorities: cfg.priorities,
       };
     }));

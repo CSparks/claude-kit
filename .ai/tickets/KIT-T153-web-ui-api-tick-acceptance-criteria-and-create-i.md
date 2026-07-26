@@ -96,6 +96,8 @@ markdown + cache locally but sits uncommitted until a session commits it — the
 the browser can write, the more that gap bites, so it should be triaged next.
 ### comment #1 [2026-07-26 00:14] @claude
 Landed. Evidence: npm test green at the kit root - 739 assertions across 25 suites + 39 node:test cases, exit 0 (scripts/t.test.mjs 72 passed incl. untick/setCriterion/addCriterion/section-scoping; server/server.test.mjs 29 passed incl. every new endpoint and its 409/400/404 refusals). tsc -b + vite build clean. New modules: scripts/md-body.mjs (stamp/appendUnderSection/sectionRange) + scripts/criteria.mjs (the criteria concern, pure body transforms) - extracted rather than grown into t.mjs, which sat at 559 of the 600-line block. server/services/ticket-parse.mjs parseAcceptance now DELEGATES to criteria.listCriteria, so the index a client renders is the index its write addresses by construction. Latent bug fixed on the way: the old tick() scanned the WHOLE body, so a - [ ] under Plan or Notes was tickable; criteria are now section-scoped.
+### comment #2 [2026-07-26 00:20] @claude
+Follow-up from live verification against real stores (fresh server on port 4400, since a stale node from 2026-07-24 still held 4319 and served the old code): project rows resolved types+priorities from each real config.yml and GG-T089 came back indexed 0-7 with EIN (4) and bank account (6) checked. That probe caught a footgun in my own change - the type list carried classifications routed to OTHER stores (question, decision, observation, reminder, scope-change), so the create form could file a question into tickets/. readConfig now also derives ticketTypes (routes_to tickets|backlog only) and the API serves THAT; the CLI stays permissive over every classification. t: 73 passed, server: 29 passed.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -122,3 +124,4 @@ Landed. Evidence: npm test green at the kit root - 739 assertions across 25 suit
 - [2026-07-26 00:14] (comment) ticked: Full suite green — `npm test` at the kit root, with the count cited in History
 - [2026-07-26 00:14] (comment) @claude: Landed. Evidence: npm test green at the kit root - 739 assertions across 25 suites + 39 node:test cases, exit 0 (scripts (full comment #1 in ## Notes)
 - [2026-07-26 00:14] (status) doing → review
+- [2026-07-26 00:20] (comment) @claude: Follow-up from live verification against real stores (fresh server on port 4400, since a stale node from 2026-07-24 stil (full comment #2 in ## Notes)

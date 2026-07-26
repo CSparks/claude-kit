@@ -94,6 +94,7 @@ export function readConfig(root, aiDir = join(root, '.ai')) {
     uatDefault: 'required',
     archiveDir: 'tickets/archive',
     classifications: [],
+    ticketTypes: [],
     priorities: ['critical', 'high', 'medium', 'low'],
   };
   let cfg = '';
@@ -114,7 +115,11 @@ export function readConfig(root, aiDir = join(root, '.ai')) {
   if (uat) out.uatDefault = uat[1];
   const arch = cfg.match(/archive_done_to:[ \t]*(\S+)/);
   if (arch) out.archiveDir = arch[1];
-  // classification keys = the valid `t new` types (two-space-indented under `classifications:`)
+  // classification keys = the valid `t new` types (two-space-indented under `classifications:`).
+  // ticketTypes narrows those to the ones that BELONG on the ticket board (routes_to tickets or
+  // backlog) — a create form offering `question` or `decision` would file the item in the wrong
+  // store; the CLI stays permissive over the full list.
+  const BOARD_ROUTES = ['tickets', 'backlog'];
   const lines = cfg.split('\n');
   let inBlock = false;
   for (const line of lines) {
@@ -122,7 +127,10 @@ export function readConfig(root, aiDir = join(root, '.ai')) {
     if (inBlock) {
       if (/^\S/.test(line)) break;
       const m = line.match(/^\s{2}([A-Za-z][\w-]*):/);
-      if (m) out.classifications.push(m[1]);
+      if (!m) continue;
+      out.classifications.push(m[1]);
+      const route = (line.match(/routes_to:[ \t]*([A-Za-z-]+)/) || [])[1];
+      if (!route || BOARD_ROUTES.includes(route)) out.ticketTypes.push(m[1]);
     }
   }
   return out;

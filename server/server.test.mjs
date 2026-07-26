@@ -31,6 +31,7 @@ function tmp(prefix) {
 
 const CONFIG_YML = `classifications:
   feature: { routes_to: backlog }
+  question: { routes_to: questions }
 statuses:
   flow: [todo, doing, review, done]
   human_only: [done]
@@ -174,7 +175,8 @@ test('GET /api/projects lists the adopted project with open/review counts', asyn
   assert.equal(tst.openCount, 3);
   assert.equal(tst.reviewCount, 0);
   // The store's own taxonomy travels with the row so a create form can't offer a type the server
-  // would reject (KIT-T153) — read from THIS project's config.yml, not a client-side copy.
+  // would reject (KIT-T153) — read from THIS project's config.yml, not a client-side copy. Only
+  // BOARD-bound classifications: `question` routes to the questions store, so it is not a ticket type.
   assert.deepEqual(tst.types, ['feature']);
   assert.deepEqual(tst.priorities, ['critical', 'high', 'medium', 'low']);
 });

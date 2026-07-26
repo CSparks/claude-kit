@@ -41,6 +41,8 @@ Test-fixture scopes DUP/ORI/RCN leak into the PRODUCTION cache: db-cache.test.mj
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+### comment #1 [2026-07-26 00:20] @claude
+Worse than a leak, measured 2026-07-25 during KIT-T153: t.test.mjs fixtures declare ids key KIT, so the CLI-integration test hydrates a TEMP FIXTURE ROOT into the real .cache/workflow.db under the REAL scope - it does not just add junk rows, it REPLACES the live KIT scope. After npm test, /api/projects reported KIT openCount=1 reviewCount=0 (truth: 56/13); the staleness check did not catch it because the fixture write left the cache looking fresh. Repaired with node scripts/hydrate-db.mjs (1029 items). So the fix needs BOTH halves: tests hydrate an isolated temp dbPath (CLAUDE_PLUGIN_ROOT redirect, as server.test.mjs already does), AND fixture scope keys must not collide with real ones.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +55,4 @@ Test-fixture scopes DUP/ORI/RCN leak into the PRODUCTION cache: db-cache.test.mj
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-07-26 00:20] (comment) @claude: Worse than a leak, measured 2026-07-25 during KIT-T153: t.test.mjs fixtures declare ids key KIT, so the CLI-integration  (full comment #1 in ## Notes)
