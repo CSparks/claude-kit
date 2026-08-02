@@ -3,7 +3,7 @@
 // docs get a broken-link check; license/meta + data/config are skipped. Portable
 // (no awk/python). exit 2 = block, 0 = allow. Warnings go to stderr with exit 0.
 
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { payload, projectRoot, gitRoot, pathExcluded, markerExcludedLines, excludeFooter, VENDORED, LOCKFILES, fileExt } from './lib.mjs';
 
@@ -324,9 +324,40 @@ if (sqlStr.length) warns.push({ id: 'sql-injection', msg: 'POSSIBLE string-built
 // claude-kit-ignore-end
 
 // 6. file length — file-keyed; a path glob or whole-file marker exempts it.
+//
+// KIT-T121: an Edit payload carries only the replacement FRAGMENT, so measuring `content`
+// sized the snippet and never the resulting file — hod-chunkgen corridor.rs grew to 2939
+// lines (hard limit 600) through Edits without a single warn. Reconstruct the post-edit
+// text from disk so the gate judges what the file BECOMES. Every other check stays
+// fragment-scoped: they are line-keyed at the diff, and re-scanning whole files would
+// block an unrelated edit on pre-existing violations.
+//
+// String surgery is index-based, never String.replace, so a `$&`/`$1` in the replacement
+// is inserted literally instead of being expanded as a substitution pattern.
+function postEditLines() {
+  const ti = p.tool_input || {};
+  if (typeof ti.content === 'string') return lines.length; // Write: content IS the whole file
+  if (typeof ti.old_string !== 'string') return lines.length;
+  let current;
+  try {
+    current = readFileSync(file, 'utf8');
+  } catch {
+    return lines.length; // unreadable/new file — the fragment is the best available proxy
+  }
+  const next = ti.replace_all
+    ? current.split(ti.old_string).join(ti.new_string ?? '')
+    : (() => {
+      const at = current.indexOf(ti.old_string);
+      if (at === -1) return current; // stale match; the Edit will fail anyway
+      return current.slice(0, at) + (ti.new_string ?? '') + current.slice(at + ti.old_string.length);
+    })();
+  return next.split('\n').length;
+}
+
 if (!excludedFile('file-length')) {
-  if (lines.length > FILE_HARD) viols.push({ id: 'file-length', msg: `File length ${lines.length} exceeds hard limit ${FILE_HARD} — split into cohesive modules.` });
-  else if (lines.length > FILE_SOFT) warns.push({ id: 'file-length', msg: `File length ${lines.length} exceeds soft limit ${FILE_SOFT} — consider splitting.` });
+  const len = postEditLines();
+  if (len > FILE_HARD) viols.push({ id: 'file-length', msg: `File length ${len} exceeds hard limit ${FILE_HARD} — split into cohesive modules.` });
+  else if (len > FILE_SOFT) warns.push({ id: 'file-length', msg: `File length ${len} exceeds soft limit ${FILE_SOFT} — consider splitting.` });
 }
 
 finish(viols, warns);

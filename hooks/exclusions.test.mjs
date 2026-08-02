@@ -47,6 +47,16 @@ function runPreWrite(root, relPath, content) {
   return r.status;
 }
 
+// Run pre-write against an Edit payload (fragment, not whole file); return the exit code.
+function runEdit(root, absPath, oldString, newString) {
+  const r = spawnSync(process.execPath, [HOOK], {
+    cwd: root,
+    input: JSON.stringify({ tool_input: { file_path: absPath, old_string: oldString, new_string: newString } }),
+    encoding: 'utf8',
+  });
+  return r.status;
+}
+
 // A bare magic constant on a non-declaration line — the canonical violation.
 const OFFENDING = 'function f(x) {\n  return x * 1337;\n}\n';
 
@@ -105,6 +115,29 @@ try {
   expect('excludeFooter names the check-id', footer.includes('id: magic-numbers'), true);
   expect('excludeFooter shows the yaml surface', footer.includes('.claude-kit-ignore.yaml'), true);
   expect('excludeFooter shows the marker surface', footer.includes('claude-kit-ignore-start magic-numbers'), true);
+
+  // --- 5. file-length is measured on the RESULT of an Edit, not the fragment (KIT-T121) --
+  // Before the fix the gate sized `new_string`, so a two-line Edit onto an already-huge
+  // file always looked tiny and files grew past the hard limit unchecked.
+  const lenRepo = makeRepo(null);
+  const huge = join(lenRepo, 'src', 'other', 'huge.ts');
+  writeFileSync(huge, 'const a = someCall();\n'.repeat(700));
+  expect('file-length: a small Edit onto an over-limit file BLOCKS',
+    runEdit(lenRepo, huge, 'const a = someCall();\n', 'const a = someCall();\nconst b = someCall();\n'), 2);
+
+  const small = join(lenRepo, 'src', 'other', 'small.ts');
+  writeFileSync(small, 'const a = someCall();\n'.repeat(10));
+  expect('file-length: the same Edit onto a small file is allowed',
+    runEdit(lenRepo, small, 'const a = someCall();\n', 'const a = someCall();\nconst b = someCall();\n'), 0);
+
+  // A fragment big enough to trip the gate on its own must NOT block when the file it
+  // lands in stays small — proof the check reads the result rather than the payload.
+  expect('file-length: an over-limit FRAGMENT is judged by the resulting file',
+    runEdit(lenRepo, small, 'const a = someCall();\n', 'const a = someCall();\n'), 0);
+
+  // An Edit whose old_string is absent leaves the file unchanged — must not block.
+  expect('file-length: a stale (non-matching) Edit does not block',
+    runEdit(lenRepo, small, 'no-such-anchor-in-file', 'x\n'), 0);
 } finally {
   for (const d of fixtures) {
     try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ }
