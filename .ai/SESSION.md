@@ -41,11 +41,25 @@ Updated: 2026-08-02 | Branch: main @ origin (7c5ca72) | Active: KIT-T142 in revi
 - A stale `node server/index.mjs` from 2026-07-24 may still hold :4319 and serve
   pre-T153 code. Use `KIT_SERVER_PORT=4400` for any live check.
 
+## Gate false-positives — 2 of 4 landed
+- **KIT-T121 REVIEW (083c1ab)** — file-length judged the Edit FRAGMENT, so corridor.rs
+  reached 2939 lines against a 600 hard limit without one warn. It now reconstructs the
+  post-edit text from disk (index-based surgery, never `String.replace`, so a `$&` in the
+  replacement stays literal). Scoped to file-length only — the other checks are line-keyed
+  at the diff, and whole-file rescans would block unrelated edits on old violations.
+- **KIT-T114 REVIEW (f99ed19)** — the reported YAML case was ALREADY covered (line 184
+  exits early for DATA). Real gaps were classes an extension test can't express: nginx
+  `.conf`, `Dockerfile` (no extension at all), shell-family scripts with no native linter.
+  Added conf/properties/env to DATA, an INFRA_BASENAME regex, and a SHELL_LIKE set
+  (ps1/psm1/bat/cmd) exempt from magic-numbers ONLY — rot-marker/dead-code still apply.
+
 ## Next 3 steps
-1. **Gate false-positives** (Chris picked these, NOT started): KIT-T121 (file-length gate
-   blind to Edits — measures the fragment, not the resulting file), KIT-T111/T114/KIT-T155
-   (magic-numbers fires on config/infra and inside ignore blocks). Hit T114 personally
-   today: the gate blocked `-Depth 5` in a throwaway scratchpad script.
+1. **KIT-T155 + KIT-T111 — the remaining two gate bugs.** T155 (magic-numbers blocks Edit
+   diffs inside `claude-kit-ignore-start/end` blocks) shares a root with the T121 fix just
+   landed: on an Edit, `markerExcludedLines(content)` sees only the FRAGMENT, so a marker
+   block living in the file is invisible. Likely fix is reading enclosing markers from
+   disk and mapping fragment lines onto file lines. T111 is the file-level marker not
+   honored when it carries trailing em-dash text.
 2. KIT-T164 — scope hydrate-at-source to registered project roots, or key rows by
    resolved root path instead of a self-declared `ids.key`.
 3. KIT-T162 / KIT-T117 — next-id must not mint an already-claimed id.
