@@ -58,6 +58,12 @@ how this hid for a month).
 1.
 
 ## Notes
+- [2026-08-02 21:53] (comment) folded from triage: WINDOWS CRLF BREAKS t.mjs FRONTMATTER PARSING - t status / t comment / t tick fail with 'no frontmatter block' on any store file that has CRLF line endings, which on Windows is EVERY file git checks out (core.autocrlf). Files t.mjs itself just wrote are LF and work, so the bug is invisible until you touch an older ticket. MEASURED on hustle-or-die: HOD-T400 (LF, 0 CRLF) updates fine; HOD-T355 (19 CRLF, 8 LF) fails. IMPACT is not cosmetic - this silently prevents ticket status/comment updates on Windows, which is a direct contributing cause of stale statuses (HOD-T400 sat 'doing' 233h; HOD-T355 stayed 'todo' for 17 days after its research doc HOD-R078 was delivered, which in turn caused a downstream process failure where finished research was re-proposed as new work). FIX: normalize line endings before the frontmatter regex in frontmatter.mjs (and audit md-body.mjs / criteria.mjs for the same assumption), plus a regression test with a CRLF fixture. --priority high
+- [2026-08-02 21:53] (comment) folded from triage: t.mjs / frontmatter.mjs cannot parse CRLF ticket files: status/comment fail with 'no frontmatter block to update'. Lived: GG-T076..T079 (written 2026-07-14 on Windows) were un-updatable until hand-normalized to LF. Fix: frontmatter parser accepts \r?\n line endings (and/or t.mjs normalizes on write). Note these four also sat in status 'superseded' with empty superseded_by - check whether the CRLF parse failure is HOW they got a wrong status the indexer could not correct.
+
+
+ADDENDUM (same session): root cause confirmed - claude-kit-data checkouts on this machine run core.autocrlf=true (git warned LF-will-be-CRLF on every ticket file at commit 50d81b2). So ANY fresh checkout / git touch converts ALL ticket files to CRLF and t.mjs stops being able to update them. Fix must be parser-side (accept ?
+) AND repo-side (.gitattributes: *.md text eol=lf in claude-kit-data).
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 

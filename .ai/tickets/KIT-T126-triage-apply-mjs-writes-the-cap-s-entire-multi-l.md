@@ -75,6 +75,7 @@ this ticket is the kit-side root-cause fix + regression test.
 1.
 
 ## Notes
+- [2026-08-02 21:53] (comment) folded from triage: triage.mjs --apply writes multi-line markdown cap text into ticket frontmatter title unsanitized — a cap whose text starts '# Heading' + bullet body produced 'title: # ...' (YAML comment = BLANK title) and dumped the whole body INSIDE the frontmatter block (HOD-T422..T425, 2026-07-23 triage of 40 caps). Title extraction must take the first line, strip leading '#', quote it, and cap length; body stays in ## Description only. Hand-repaired the 4 HOD tickets same day.
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
