@@ -21,6 +21,13 @@ const Q_CLI = fileURLToPath(import.meta.url).replace(/comments\.test\.mjs$/, 'q.
 let pass = 0;
 let fail = 0;
 const fixtures = [];
+
+// KIT-T142: the spawned t/q CLIs refresh the cache at defaultDbPath(), which resolves under
+// CLAUDE_PLUGIN_ROOT and is inherited by these children. The fixture config declares a real
+// project key, so without the redirect this suite REPLACES that scope in the live cache.
+const PLUGIN_ROOT = mkdtempSync(join(tmpdir(), 'kit-comments-plugin-'));
+process.env.CLAUDE_PLUGIN_ROOT = PLUGIN_ROOT;
+fixtures.push(PLUGIN_ROOT);
 function ok(name, cond) {
   if (cond) { pass++; console.log('  ok    ' + name); }
   else { fail++; console.log('  FAIL  ' + name); }

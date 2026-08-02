@@ -4,9 +4,9 @@
 // refresh — that side effect is CLI-only). One integration case shells the real CLI to prove
 // the refresh wiring regenerates the board. exit 0 = all pass.
 
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import {
@@ -19,6 +19,14 @@ const SCRIPT = fileURLToPath(import.meta.url).replace(/\.test\.mjs$/, '.mjs');
 let pass = 0;
 let fail = 0;
 const fixtures = [];
+
+// KIT-T142: the CLI's refresh wiring hydrates into defaultDbPath(), which resolves under
+// CLAUDE_PLUGIN_ROOT. A fixture config declaring a REAL project key would otherwise sync a
+// throwaway temp root into the live cache under that scope — replacing it, not adding to it.
+const PLUGIN_ROOT = mkdtempSync(join(tmpdir(), 'kit-t-plugin-'));
+process.env.CLAUDE_PLUGIN_ROOT = PLUGIN_ROOT;
+fixtures.push(PLUGIN_ROOT);
+const CHILD_ENV = { ...process.env, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT };
 function ok(name, cond) {
   if (cond) { pass++; console.log('  ok    ' + name); }
   else { fail++; console.log('  FAIL  ' + name); }
@@ -236,14 +244,24 @@ ok('evidenceFloor: per-ticket uat=required override closes at review', evidenceF
 
 // --- integration: the real CLI regenerates the board (refresh wiring) ---
 const cli = project({ uatDefault: 'none' }, { 'KIT-T001': {} });
+const liveDb = join(dirname(dirname(SCRIPT)), '.cache', 'workflow.db');
+const liveBefore = existsSync(liveDb) ? statSync(liveDb).mtimeMs : null;
 try {
-  execFileSync('node', [SCRIPT, 'status', 'KIT-T001', 'doing', '--root', cli], { stdio: 'pipe' });
+  execFileSync('node', [SCRIPT, 'status', 'KIT-T001', 'doing', '--root', cli], { stdio: 'pipe', env: CHILD_ENV });
   const idx = readFileSync(join(cli, '.ai', 'tickets', 'INDEX.md'), 'utf8');
   ok('CLI: status regenerates INDEX.md (board) in the same invocation', /KIT-T001/.test(idx) && /doing/.test(idx));
 } catch (e) {
   ok('CLI: status regenerates INDEX.md (board) in the same invocation', false);
   console.log('     ' + (e.stderr ? e.stderr.toString().split('\n')[0] : e.message));
 }
+
+// KIT-T142 regression: the fixture above declares ids.key "KIT" — the REAL project key. Before
+// the CLAUDE_PLUGIN_ROOT redirect this run replaced the live KIT scope (measured openCount
+// 56 → 1). Assert the refresh landed in the sandbox and never reached the session's cache.
+ok('KIT-T142: CLI refresh writes the redirected cache, not the live one',
+  existsSync(join(PLUGIN_ROOT, '.cache', 'workflow.db')));
+ok('KIT-T142: the live session cache is untouched by the suite',
+  liveBefore === null || statSync(liveDb).mtimeMs === liveBefore);
 
 for (const d of fixtures) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\nt: ${pass} passed, ${fail} failed`);

@@ -22,6 +22,15 @@ let fail = 0;
 // so without this the suite would pollute the maintainer's registry with throwaway fixtures.
 const TMP_REG = join(mkdtempSync(join(tmpdir(), 'kit-reg-')), 'registry.json');
 fixtures.push(dirname(TMP_REG));
+
+// KIT-T142: hooks that write item files hydrate their store into defaultDbPath(), which
+// resolves under CLAUDE_PLUGIN_ROOT. Redirect it process-wide BEFORE ENV is built so every
+// spawned hook — not just the hydrate-cache block below — lands in a throwaway DB. Without
+// this, a fixture store declaring a real project key REPLACES that scope in the live cache.
+const TMP_PLUGIN_ROOT = mkdtempSync(join(tmpdir(), 'kit-hooks-plugin-'));
+process.env.CLAUDE_PLUGIN_ROOT = TMP_PLUGIN_ROOT;
+fixtures.push(TMP_PLUGIN_ROOT);
+
 const ENV = { ...process.env, CLAUDE_KIT_REGISTRY: TMP_REG };
 
 function hook(name, payload, cwd, extraEnv) {
