@@ -24,7 +24,17 @@ const FILE_SOFT = 300; // warn: nudge to small files — better token use + code
 const ALLOWED = new Set(['-1', '0', '1', '2']);
 const NATIVE_LINTED = new Set(['rs', 'py', 'go', 'sh', 'bash', 'zsh']);
 const DOC = new Set(['md', 'markdown', 'mdx', 'txt', 'rst', 'adoc']);
-const DATA = new Set(['json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'csv', 'ini', 'cfg']);
+// KIT-T114: `conf`/`properties`/`env` join the config family. An nginx `listen 443 ssl;`
+// or a `rsa_key_size=4096` is a required literal, not an extractable constant.
+const DATA = new Set(['json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'csv', 'ini', 'cfg', 'conf', 'properties', 'env']);
+// Infra files carrying config in a name rather than an extension — `Dockerfile` has no
+// ext at all, so the DATA check above can never reach them. `EXPOSE 3000` takes a literal.
+const INFRA_BASENAME = /^(Dockerfile|Containerfile|Makefile|Procfile|\.env)(\..*)?$/i;
+// Shell-family scripts. sh/bash/zsh already skip magic-numbers via NATIVE_LINTED; these
+// have the same property (ports, key sizes, retry counts are idiomatic literals) but no
+// native linter, so they get the magic-numbers exemption ONLY — rot markers and dead-code
+// traces still apply.
+const SHELL_LIKE = new Set(['ps1', 'psm1', 'bat', 'cmd']);
 const MARKUP = new Set(['html', 'htm', 'xhtml', 'svg']); // markup, not logic — numbers in text/attrs aren't magic constants
 // Plain CSS has no first-class variables (custom properties are optional), so a one-off
 // literal value (font-size: 30px) is idiomatic, not a magic number — exempt it.
@@ -181,7 +191,7 @@ if (DOC.has(ext)) {
   }
   process.exit(0);
 }
-if (DATA.has(ext) || MARKUP.has(ext) || PLAIN_STYLE.has(ext)) process.exit(0); // config/data/markup/plain-css is not logic-source
+if (DATA.has(ext) || MARKUP.has(ext) || PLAIN_STYLE.has(ext) || INFRA_BASENAME.test(base)) process.exit(0); // config/data/markup/plain-css/infra is not logic-source
 
 // Shared reporter: warnings to stderr (exit 0), violations block (exit 2).
 // Entries are { id, msg } so every message can name its check for exclusion.
@@ -291,7 +301,7 @@ if (dead.length) viols.push({ id: 'dead-code', msg: 'Dead-code trace comments (d
 // heredoc carried "60-75k"/"70k"/"5-line"). `codeOnly` blanks every non-code span
 // (keeping newlines so line numbers stay true) so the scan never sees those. The
 // declaration/assignment skips below stay line-keyed against the ORIGINAL line.
-if (!NATIVE_LINTED.has(ext) && !isTest && !isMig && !excludedFile('magic-numbers')) {
+if (!NATIVE_LINTED.has(ext) && !SHELL_LIKE.has(ext) && !isTest && !isMig && !excludedFile('magic-numbers')) {
   const codeLines = codeOnly(content).split('\n');
   const hits = [];
   for (let i = 0; i < lines.length && hits.length < MAX_SHOWN; i++) {

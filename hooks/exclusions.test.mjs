@@ -138,6 +138,31 @@ try {
   // An Edit whose old_string is absent leaves the file unchanged — must not block.
   expect('file-length: a stale (non-matching) Edit does not block',
     runEdit(lenRepo, small, 'no-such-anchor-in-file', 'x\n'), 0);
+
+  // --- 6. config/infra literals are not magic numbers (KIT-T114) -----------------------
+  // A Dockerfile EXPOSE, an nginx listen port and a bootstrap key size are REQUIRED
+  // literals — none can be replaced by a named constant, so the gate must not block them.
+  const infra = makeRepo(null);
+  expect('magic-numbers: nginx .conf listen port is allowed',
+    runPreWrite(infra, 'src/other/nginx.conf', 'server {\n  listen 443 ssl;\n  listen 80;\n}\n'), 0);
+  expect('magic-numbers: Dockerfile EXPOSE is allowed',
+    runPreWrite(infra, 'Dockerfile', 'FROM node:22\nEXPOSE 3000\n'), 0);
+  expect('magic-numbers: a suffixed Dockerfile.prod is allowed',
+    runPreWrite(infra, 'Dockerfile.prod', 'FROM node:22\nEXPOSE 8443\n'), 0);
+  expect('magic-numbers: a PowerShell literal is allowed',
+    runPreWrite(infra, 'src/other/deploy.ps1', '$data | ConvertTo-Json -Depth 5\nStart-Sleep 30\n'), 0);
+
+  // The exemption is scoped to magic-numbers ONLY — a shell-like script still gets the
+  // rot-marker check. Asserting that requires the literal token, so this one line is
+  // marker-excluded, the same dogfood pre-write.mjs applies to its own check definitions.
+  // claude-kit-ignore-start todo-markers
+  expect('rot markers still block in a PowerShell script',
+    runPreWrite(infra, 'src/other/rot.ps1', '# TODO: finish this\n'), 2);
+  // claude-kit-ignore-end
+
+  // And real source is untouched by the widened config family.
+  expect('magic-numbers: a bare literal in .ts still blocks',
+    runPreWrite(infra, 'src/other/logic.ts', 'function f(x) {\n  return x * 1337;\n}\n'), 2);
 } finally {
   for (const d of fixtures) {
     try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ }
