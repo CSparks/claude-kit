@@ -45,7 +45,7 @@ reach MIT by construction — when unsure, it stays out.
   `decisions/` stay settled — cite, don't re-debate.
 
 ## Setting up / maintaining
-- New machine: install the **plugin** (`/plugin marketplace add depixeled-chris/claude-kit`
+- New machine: install the **plugin** (`/plugin marketplace add CSparks/claude-kit`
   → `/plugin install claude-kit@claude-kit` → `/reload-plugins`), then run
   `node bootstrap.mjs` once for `~/.claude/CLAUDE.md` + private overlay + statusline.
   Merge `user-config/settings.recommended.json`; add the printed `cap` alias.

@@ -14,5 +14,8 @@
   },
   "optionalDependencies": {
     "web-tree-sitter": "0.22.6"
+  },
+  "devDependencies": {
+    "eslint": "^10.8.0"
   }
 }

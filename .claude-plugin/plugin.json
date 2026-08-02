@@ -4,10 +4,10 @@
   "description": "A repeatable, context-durable Claude Code workflow: capture fast, defer by default, drain automatically, never lose context to compaction. Atomic .ai/ stores with generated indexes, portable Node enforcement hooks (orient/commit-gate/flush/quality), and a shared library of generic agents + skills.",
   "author": {
     "name": "Chris Sparks",
-    "url": "https://github.com/depixeled-chris"
+    "url": "https://github.com/CSparks"
   },
-  "homepage": "https://github.com/depixeled-chris/claude-kit",
-  "repository": "https://github.com/depixeled-chris/claude-kit",
+  "homepage": "https://github.com/CSparks/claude-kit",
+  "repository": "https://github.com/CSparks/claude-kit",
   "license": "MIT",
   "keywords": [
     "claude-code",
