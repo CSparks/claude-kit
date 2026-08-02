@@ -1,51 +1,60 @@
 # SESSION HANDOFF — claude-kit
 
-Updated: 2026-07-25 | Branch: main @ origin (278b75a) | Active: KIT-T153 in review
+Updated: 2026-08-02 | Branch: main @ origin (7c5ca72) | Active: KIT-T142 in review
 
 ## Current state
-- **KIT-T153 REVIEW (db6ebcc + 278b75a, pushed)** — the web UI/API can now tick,
-  untick and add acceptance criteria and create tickets. Chris's ask: he could not
-  check off GG-T089's EIN / bank-account criteria himself.
-  - New `scripts/criteria.mjs` (the criteria concern, pure body→body transforms) +
-    `scripts/md-body.mjs` (stamp / appendUnderSection / sectionRange) — extracted
-    rather than grown into t.mjs, which was 559 lines against the 600 block.
-  - `t untick <id> <sel>`, `t criterion <id> "<text>"`, `t new … --priority`.
-  - API: `POST /tickets`, `POST /tickets/:id/criteria`,
-    `POST /tickets/:id/criteria/:index/{tick,untick}`.
-  - `ticket-parse.parseAcceptance` DELEGATES to `criteria.listCriteria`, so a
-    rendered criterion `index` IS the index a write addresses. DTO exposes it.
-  - Project rows carry `types` (board-bound classifications only) + `priorities`
-    from each store's own config.yml — no client-side copy of the taxonomy.
-  - Evidence: `npm test` exit 0 — 739 assertions / 25 suites + 39 node:test cases;
-    t 73, server 29; `tsc -b` + vite build clean.
-  - Fixed on the way: `tick()` used to scan the WHOLE body, so a `- [ ]` under Plan
-    or Notes was tickable. Criteria are section-scoped now.
-- **GG-T089** (groovegrid, data repo c18ac03): EIN + Mercury bank account criteria
-  ticked for Chris — 7/8. Only the single-member company agreement is open.
+- **KIT-T142 REVIEW (8249cd5, pushed) — the suite no longer clobbers the live cache.**
+  Bisected all 36 suites counting scope rows directly in SQLite (q.mjs's staleness
+  auto-rehydrate masks the damage otherwise). FOUR offenders, not one:
+  `test-hooks.mjs` (211→3), `comments.test.mjs` (211→1), `begin-task.test.mjs`
+  (211→1), `t.test.mjs`. Each spawns a CLI/hook whose refresh calls
+  `hydrate({ dbPath: defaultDbPath() })`; the fixture config declares `ids.key: "KIT"`,
+  so hydrating a temp fixture REPLACED the live KIT scope.
+  - Fix: redirect `CLAUDE_PLUGIN_ROOT` to a throwaway dir process-wide in each suite
+    (children inherit), plus an explicit `CHILD_ENV` on t.test.mjs's execFileSync.
+  - Fixture keys deliberately NOT renamed: fixture ids and real ticket citations
+    overlap in these files (KIT-T050/T051 are both), so a bulk rename corrupts
+    provenance. Isolation makes the collision unreachable.
+  - Evidence: `npm test` exit 0, zero failures, KIT rows 211 → 211; bisect reports
+    "none — the suite leaves the KIT scope intact".
+- **Inbox drained to 0 (7c5ca72).** 11 caps → KIT-T158..T164 + KIT-D047, with 3 folds
+  (dup triage-title cap → KIT-T126; both CRLF caps → KIT-T124). Declined every inferred
+  provenance: all candidates claimed `regressed_from=KIT-T025` ("dedup strategy"), a
+  weak guess that would have become auditable-but-wrong history.
 
 ## Landmines found today (logged, not fixed)
-- **KIT-T142 (comment #1): `npm test` CORRUPTS the live cache.** `t.test.mjs`
-  fixtures declare `ids.key: "KIT"`, so the CLI-integration test hydrates a temp
-  fixture root into the real `.cache/workflow.db` under the REAL scope — it
-  REPLACES the live KIT rows (measured: openCount 56→1, staleness check blind to
-  it). Repair: `node scripts/hydrate-db.mjs`. Fix needs both halves — isolated temp
-  dbPath in tests (as server.test.mjs already does) AND non-colliding fixture keys.
-- **A stale `node server/index.mjs` from 2026-07-24 20:23 still holds :4319** and
-  serves pre-T153 code. Any live check must use a spare port
-  (`KIT_SERVER_PORT=4400`) or Chris restarts it.
-- Untriaged inbox cap, now more urgent: API markdown writes are never
-  git-committed (`inbox/2026-07-23-2043-api-markdown-writes…`). The more the
-  browser can write, the more that machine-local gap bites.
+- **KIT-T164 — hydrate-at-source clobbers a scope from ANY `.ai/` store on disk.** This
+  is the REAL root cause; KIT-T142 was only its test-shaped symptom. `writeItemFile`
+  (hooks/lib.mjs:308) resolves the store via `storeRoot()` (lib.mjs:358), which returns
+  any ancestor holding `.ai/config.yml` — including a scratchpad fixture — then hydrates
+  it into the live DB. MEASURED: a single Edit to a scratchpad fixture declaring
+  `ids.key: "KIT"` took the live scope 56 → 1. No test suite involved. Repair is
+  `node scripts/hydrate-db.mjs`.
+- **CRLF/BOM frontmatter break is LIVE, not fixed** — hit it twice today writing fixtures
+  with PowerShell `Set-Content -Encoding utf8` (PS 5.1 emits a BOM): `t status` failed
+  with "no frontmatter block to update". KIT-T124 carries both folded caps. Use
+  `New-Object System.Text.UTF8Encoding($false)` when writing store files from PowerShell.
+- **Duplicate ids blocked the commit gate.** A 15:42 triage batch on 2026-07-23 minted
+  KIT-T136–139 already claimed that morning by web-UI tickets. The UI ones are cited in
+  six commits, the triage ones only in the generated board → triage batch re-keyed to
+  **KIT-T154–157** with `aka:` backlinks. Live instance of KIT-T117 / KIT-T162.
+- A stale `node server/index.mjs` from 2026-07-24 may still hold :4319 and serve
+  pre-T153 code. Use `KIT_SERVER_PORT=4400` for any live check.
 
 ## Next 3 steps
-1. Chris UATs KIT-T153 in the browser (restart the server first), then `/done`.
-2. Triage the inbox — 7 caps, the API-auto-commit one first.
-3. Drain: KIT-T142 (cache clobber, high) then KIT-T150 / KIT-T143.
+1. **Gate false-positives** (Chris picked these, NOT started): KIT-T121 (file-length gate
+   blind to Edits — measures the fragment, not the resulting file), KIT-T111/T114/KIT-T155
+   (magic-numbers fires on config/infra and inside ignore blocks). Hit T114 personally
+   today: the gate blocked `-Depth 5` in a throwaway scratchpad script.
+2. KIT-T164 — scope hydrate-at-source to registered project roots, or key rows by
+   resolved root path instead of a self-declared `ids.key`.
+3. KIT-T162 / KIT-T117 — next-id must not mint an already-claimed id.
 
 ## Carry-over
-- 72 tickets in review awaiting Chris's `/done`; oldest 44d.
-- Zombie `doing`: GG-T097 (GG-T089 reconciled today — legitimately in flight,
-  waiting on the company agreement).
-- Memory + maintenance weekly reviews are due (session-start nag, 20 gaps in this
-  project's maintenance-gaps.log).
-- KIT-T099 open AC: re-run bootstrap on Chris's machines.
+- Chris explicitly deferred the review queue this session ("leave the queue alone");
+  15 KIT tickets sit in review awaiting his `/done`.
+- **CSparks is the GitHub account of record** (KIT-D046, 28b2685). depixeled-chris is
+  2FA-locked and gets no updates; CSparks must never be behind. Audited 2026-08-02:
+  zero commits stranded. Plugin/marketplace/README repointed at CSparks (d5dcf5c).
+- Commit `d5dcf5c` is over-scoped: `git add -A` swept pre-existing package.json/lock
+  changes and 2 inbox captures under a URL-change message. Live instance of KIT-T106.
