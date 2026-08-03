@@ -89,7 +89,19 @@ first. Recommend B because [reason]."
   approval before any action that modifies files.
 - Run builds/tests inside Docker when the project uses it.
 - Node.js is available for bulk scripts.
-- Work until interrupted.
+- **Work until interrupted or COMPLETE.** Stopping is not a checkpoint — it is an action
+  that costs the maintainer a turn, so it needs a reason. Stop ONLY when there is
+  something for them to **decide**, **discuss**, or **test**. If there is none of those,
+  the queue IS the instruction: pull the next item and keep going.
+  - "I finished a ticket" is not a reason to stop — land it and start the next one.
+  - "I should report progress" is not a reason to stop; receipts ride along with the next
+    turn's work, not instead of it.
+  - A landing that IS user-testable is a reason to hand back — the UAT receipt is the point.
+  - A genuine decision goes in an AskUserQuestion (see DECISIONS), never a pause.
+  - Genuinely blocked on something only the maintainer can clear (a credential, an
+    external approval, a judgement call): say so plainly and stop.
+  (Chris, 2026-08-03: "If there's nothing for me to decide, discuss or test, you
+  shouldn't have stopped working" / "Work until interrupted or COMPLETE".)
 
 # DECISIONS — always a questionnaire, always with a recommendation
 - Anything you need the maintainer to **choose, confirm, prioritize, or pick what's next** is a
