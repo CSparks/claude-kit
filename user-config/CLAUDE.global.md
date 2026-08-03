@@ -137,6 +137,28 @@ first. Recommend B because [reason]."
   `[allow-fable: <reason>]` token in the delegation prompt.
 - Don't burn main-thread fable context on basic work — delegate it DOWN the ladder.
 
+## Never dispatch `general-purpose` when a specialist would fit — CREATE the specialist
+`general-purpose` is the **fallback of last resort**, not the default. Before every
+delegation, answer two questions explicitly:
+1. **What thinking level does this actually need?** Pick `model` AND `effort`
+   deliberately (`.ai/config.yml → dispatch.tiers`). A mechanical rename and a
+   subtle-concurrency fix are not the same dispatch. Never inherit by accident.
+2. **Is there an agent one level more specific than "general"?** If a kit agent covers
+   the domain, use it. If none does — **create it in claude-kit** (`agents/<name>.md`,
+   `model:` pinned, tools scoped, domain conventions and past gotchas written in), then
+   dispatch to it. A domain that has come up twice has earned an agent; the second time
+   you write the same brief preamble by hand IS the signal.
+- Kit agents are **cross-project by design** — they live in `claude-kit/agents/` and every
+  adopted repo gets them. Project-local one-offs go to `<repo>/.claude/agents/` via the
+  `scaffold-agent` skill, but prefer the kit when the domain generalises.
+- The payoff is that the agent file carries the domain's conventions and its accumulated
+  gotchas, so each dispatch starts from what was already learned instead of from a brief
+  the main thread retypes and trims. A long hand-written brief to `general-purpose` is a
+  specialist agent that was never written down.
+  (Chris, 2026-08-03: "You should always consider the thinking level need and use
+  specific agents. If we don't have one that is one level more specific for a general
+  task that should have a specialist, create it in Claude Kit and use it.")
+
 # DEVELOPMENT PRINCIPLES
 - One source of truth for every type/model.
 - Extract reusable UI components early.
