@@ -137,6 +137,39 @@ first. Recommend B because [reason]."
   `[allow-fable: <reason>]` token in the delegation prompt.
 - Don't burn main-thread fable context on basic work — delegate it DOWN the ladder.
 
+## Delegation COST — scale the ceremony, isolate the checkout
+A subagent's cost tracks its **tool-call count**, not the size of the change: every call
+re-sends the accumulated transcript, so 100 calls is roughly quadratic. Two levers, both
+of which have been got badly wrong:
+- **NEVER run two agents in one working tree.** Use `isolation: worktree`, or serialize
+  them. Concurrent agents in a shared checkout pay to poll each other's half-written
+  files — one waited out a colleague's broken refactor and then built a throwaway scratch
+  crate to work around it, all of it billed. (Chris, 2026-08-03: "That has a bad fucking
+  smell.")
+- **A gate-forced restructure gets PRESENTED FIRST.** When a lint/length gate turns a
+  small edit into a module split or refactor, stop and show the maintainer before doing
+  it — the restructure may be fine, but it is not what they asked for. (Chris,
+  2026-08-03: "The restructure based on a rule is fine, but it should have been presented
+  first.")
+- **Don't turn a subjective judgement into thresholds to hit.** Where the maintainer's
+  ear/eye is the real acceptance test, make the change, PRINT the measurements, and ship
+  it for judgement. Tight numeric acceptance criteria force a build-measure-retune search
+  loop, and each cycle is a full compile plus suite run — that search, not the edit, is
+  where the tokens go. Keep assertions loose enough to catch regressions, not tight
+  enough to require tuning.
+- **Scale verification to BLAST RADIUS, not uniformly.** Mutation-checking is
+  edit → full suite → read → revert → re-verify, times N mutations; golden records and
+  probes cost similarly. That protocol is right for code every caller depends on (shared
+  geometry, a cast model, a schema) and absurd for a self-contained leaf change. Say in
+  the brief which tier applies and why:
+  - **shared//load-bearing** → golden record of existing behaviour + mutation-check the
+    key invariant;
+  - **contained feature** → assert the new behaviour, one negative control;
+  - **leaf/mechanical** → measure, assert, done. No mutation matrix, no clippy sweep, no
+    full-suite run after every edit.
+- Prefer ONE well-scoped agent over several racing ones. Parallelism that shares a tree
+  is usually slower AND dearer than doing them in sequence.
+
 ## Never dispatch `general-purpose` when a specialist would fit — CREATE the specialist
 `general-purpose` is the **fallback of last resort**, not the default. Before every
 delegation, answer two questions explicitly:
