@@ -48,6 +48,11 @@ process failure; the stale-doing detector (housekeeping + orient) will flag it l
 | [code-reviewer](code-reviewer.md) | Reviews changes for correctness/security/maintainability; reports, doesn't fix | Read, Grep, Glob, Bash |
 | [refactorer](refactorer.md) | Behavior-preserving restructure, verified with tests | Read, Grep, Glob, Edit, Write, Bash |
 | [test-author](test-author.md) | Writes + runs real automated tests (red→green for bugs) | Read, Grep, Glob, Edit, Write, Bash |
+| [game-asset-artist](game-asset-artist.md) | Authors procedural game assets (mesh/material/texture factories); verifies numerically, never visually | Read, Grep, Glob, Edit, Write, Bash |
+
+`game-asset-artist` pins `model: fable` (the others pin `opus`) — asset authoring is
+spatial-reasoning-heavy and it must translate a visual ask into measurable structure
+without ever seeing a render.
 
 ## Project knowledge-agents (KIT-T015)
 

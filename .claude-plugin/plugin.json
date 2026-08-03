@@ -29,6 +29,7 @@
     "./agents/researcher.md",
     "./agents/code-reviewer.md",
     "./agents/refactorer.md",
-    "./agents/test-author.md"
+    "./agents/test-author.md",
+    "./agents/game-asset-artist.md"
   ]
 }

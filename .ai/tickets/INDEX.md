@@ -89,7 +89,7 @@
 | KIT-T044 | superseded | Sessions must be cache-backed, searchable, and history-tracked across sessions (not one overwritten SESSION.md). Today: orient.mjs:100 raw file-reads SESSION.md; the DB cache+FTS ingests only .ai stores (db-parse), so the session summary is never a row, never searchable via q.mjs — a KIT-D024 violation (index is the SOLE read surface). Wanted: (1) session open/close are first-class boundary events; (2) each session = an append/versioned record (clean breaks, queryable history), not a clobbered file; (3) summaries ingested into items+FTS like any store; (4) orient loads the latest session summary FROM the cache, not a raw head() of the file. Touches: new SESSION store + db-parse, hydrate/sync, orient.mjs, flush.mjs. | — |
 | KIT-T060 | superseded | /done command — the human flip's mechanical tail (History line, archive move, index regen) | KIT-T075 |
 
-## Archived (84)
+## Archived (85)
 | id | type | status | priority | title |
 | --- | --- | --- | --- | --- |
 | KIT-T001 | feature | done | high | Scope-aware /prime — lazy default, "what needs me?" briefing, named deep-dive |
@@ -176,3 +176,4 @@
 | KIT-T148 | bug | done | high | Ticket-detail link chips treat commit hashes (fixed_by/causing_commit) as ticket ids — click yields 'no ticket' error |
 | KIT-T149 | feature | done | high | Nav redesign — pinnable tab system as primary nav; secondary nav with dropdowns (project selector, settings) to start |
 | KIT-T151 | bug | done | medium | Dispatch ladder unenforced: delegations inherit fable session model (pin agent tiers + hook gate) |
+| KIT-T165 | feature | done | medium | Game-asset agent in the kit agent library |
