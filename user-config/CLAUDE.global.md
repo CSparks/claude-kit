@@ -157,6 +157,16 @@ of which have been got badly wrong:
   loop, and each cycle is a full compile plus suite run — that search, not the edit, is
   where the tokens go. Keep assertions loose enough to catch regressions, not tight
   enough to require tuning.
+- **A named reference + a named event is a SIGNATURE and a LOCATION — go straight there.**
+  "The device-unplug sound on deposit" gives both the shape (two tones, different pitch,
+  same timbre, rapid succession) and the one waveform it lives in. That is a targeted
+  edit, not an investigation. Building detection machinery to rediscover what was already
+  described is the waste.
+- **If a subjective ask is genuinely NOT obvious, ASK — do not spend.** One clarifying
+  question costs a turn; guessing at scale costs six figures of tokens. Never open-ended
+  search on an unclear subjective brief. (Chris, 2026-08-03: "if it's not immediately
+  obvious when I'm describing something subjective, do not put massive resources into it.
+  Ask for more specifics… This can't happen again.")
 - **Scale verification to BLAST RADIUS, not uniformly.** Mutation-checking is
   edit → full suite → read → revert → re-verify, times N mutations; golden records and
   probes cost similarly. That protocol is right for code every caller depends on (shared
