@@ -13,18 +13,23 @@ import { appendUnderSection, sectionRange, stamp } from './md-body.mjs';
 const HEADING = 'Acceptance Criteria';
 const BOX = /^(?<open>\s*-\s*\[)(?<box>[ xX])(?<close>\]\s*)(?<text>.*)$/;
 
-// Each item keeps the line's own bracket/indent fragments, so rewriting a box reassembles the
-// original line instead of running a regex replace over text that may contain `$` specials.
+// Each item keeps the line's own bracket/indent fragments — including its carriage return, when
+// the file is CRLF — so rewriting a box reassembles the original line instead of running a regex
+// replace over text that may contain `$` specials, and never converts one line's ending.
+// CRLF tolerance is the KIT-T110 rule applied to the body: BOX's `.*$` cannot match a trailing
+// \r, so before this every criterion in a CRLF ticket was invisible — `t tick` reported "no
+// acceptance criteria" and sync-tasks emitted the title fallback instead of the checklist.
 function scan(body) {
   const lines = String(body ?? '').split('\n');
   const range = sectionRange(lines, HEADING);
   const items = [];
   if (range) {
     for (let i = range.start; i < range.end; i++) {
-      const m = lines[i].match(BOX);
+      const cr = lines[i].endsWith('\r') ? '\r' : '';
+      const m = (cr ? lines[i].slice(0, -1) : lines[i]).match(BOX);
       if (!m) continue;
       const { open, box, close, text } = m.groups;
-      items.push({ index: items.length, line: i, open, close, text: text.trim(), checked: box.toLowerCase() === 'x' });
+      items.push({ index: items.length, line: i, open, close, cr, text: text.trim(), checked: box.toLowerCase() === 'x' });
     }
   }
   return { lines, items };
@@ -32,7 +37,7 @@ function scan(body) {
 
 // Exactly one space between `]` and the text (none when the line has no text) — `t new`'s bare
 // `- [ ]` placeholder carries no trailing space, so filling it would otherwise glue the words on.
-const render = (item, box) => `${item.open}${box}${item.close.replace(/\s*$/, item.text ? ' ' : '')}${item.text}`;
+const render = (item, box) => `${item.open}${box}${item.close.replace(/\s*$/, item.text ? ' ' : '')}${item.text}${item.cr || ''}`;
 
 // The rendered criterion list — the SAME indexing the mutators address, so a client's row number
 // and the markdown line can never drift apart.

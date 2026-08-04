@@ -2,7 +2,7 @@
 id: KIT-T169
 title: sync-tasks.mjs emits a corrupted task spec (gridiron-blitz, 2026-08-02): (1) filename→ticket parsing breaks on slugs containing digits — `GB-T011-playcall-single-row-change-v23-regressed-the-2-r.md` becomes ticket "the-2"; (2) it emits tasks for non-tickets INDEX.md ("INDEX Ticket board") and _TEMPLATE.md; (3) a ticket whose Acceptance Criteria are empty contributes a bogus "## Plan" task (it scrapes past the empty checklist into the next heading); (4) ticketStatus is "todo" for every ticket even where frontmatter says doing/review (GB-T001 doing, GB-T003/T005 review per INDEX from the same frontmatter) — status parsing disagrees with index-tickets.mjs. Net effect: hydrating the native list from this spec would create ~76 tasks including garbage. Should share one frontmatter/criteria parser with index-tickets.mjs, skip _TEMPLATE/INDEX/generated files, and emit tasks only for active (doing) tickets per the hydrate contract.
 type: bug
-status: todo
+status: doing
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes: KIT-T120
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-04T15:20:02.031Z
-updated: 2026-08-04T15:20:02.031Z
+updated: 2026-08-04T16:23:54Z
 ---
 
 ## Description
@@ -53,3 +53,4 @@ sync-tasks.mjs emits a corrupted task spec (gridiron-blitz, 2026-08-02): (1) fil
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 16:23] (status) todo → doing
