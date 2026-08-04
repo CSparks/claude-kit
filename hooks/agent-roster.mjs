@@ -12,7 +12,8 @@
 // FAIL-OPEN on EVERYTHING (try/catch, exit 0). A durability hook must never wedge a session or
 // block a delegation; the worst case is a missing/extra roster row the orchestrator reconciles.
 
-import { gitRoot, adopted, payload, recordAgent, updateAgent, ID_CITE_SRC } from './lib.mjs';
+import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, partitionAgents, ID_CITE_SRC } from './lib.mjs';
+import { dispatchTargetRoot } from './dispatch-target.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
 const ID_CITE_RE = new RegExp(ID_CITE_SRC); // at least one ticket/decision id anywhere in the brief
@@ -50,7 +51,12 @@ function recordDispatch(root, p) {
     const task = clip(firstString(inp.description, inp.task, inp.title, inp.prompt) || '(no description)', TASK_LABEL_MAX);
     const scope = firstString(inp.subagent_type, inp.agent_type, inp.subagentType, inp.type) || 'general';
     const background = isBackground(inp);
-    recordAgent(root, { id, status: 'in-flight', task, scope, background, source: 'posttooluse' });
+    // WHICH TREE this agent lands in (KIT-T177). The roster lives in the DISPATCHING repo, so
+    // without these two fields a reader cannot tell a colleague in this checkout from an agent
+    // with its own worktree or one sent into another repo entirely.
+    const isolation = firstString(inp.isolation);
+    const targetRoot = dispatchTargetRoot(root, inp);
+    recordAgent(root, { id, status: dispatchStatus(root, id), task, scope, background, isolation, targetRoot, source: 'posttooluse' });
     // Advisory: a delegation with no ticket id is ungrounded work — warn, never block (exit 0).
     const brief = firstString(inp.description, inp.task, inp.title, inp.prompt) || '';
     if (brief && !ID_CITE_RE.test(brief)) {
@@ -73,6 +79,22 @@ function recordStop(root, p) {
   } catch {
     /* fail-open */
   }
+}
+
+// The harness delivers PostToolUse(Task) when the tool RESULT lands, so a SYNCHRONOUS delegation's
+// dispatch row is appended AFTER its own SubagentStop row — observed 2-3s later, 8 times in the
+// stiletto roster (2026-08-03/04). Latest-row-wins then resurrects a finished agent as in-flight
+// forever, which is what made shared-tree-dispatch block an empty tree (KIT-T177). So record the
+// status the roster ALREADY knows rather than asserting in-flight over the top of it; the terminal
+// set stays lib's (partitionAgents), never a second copy here.
+function dispatchStatus(root, id) {
+  try {
+    const known = readAgents(root).find((r) => r.id === id);
+    if (known && partitionAgents([known]).finished.length) return String(known.status);
+  } catch {
+    /* unreadable roster — a fresh delegation is in-flight */
+  }
+  return 'in-flight';
 }
 
 function isBackground(inp) {

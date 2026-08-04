@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { recordAgent, updateAgent, readAgents, partitionAgents, agentsPath, AGENT_STALE_MS } from './lib.mjs';
+import { sameTree } from './dispatch-target.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROSTER_HOOK = join(HERE, 'agent-roster.mjs');
@@ -52,6 +53,10 @@ function makeRepo({ adopt = true, commit = false } = {}) {
   }
   return dir;
 }
+
+// git's canonical root — the form the hooks record. On Windows it differs from mkdtemp's 8.3
+// short path: git expands the short segments and reports forward slashes.
+const gitTop = (dir) => execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8' }).trim();
 
 function hook(hookPath, payload, cwd) {
   const r = spawnSync(process.execPath, [hookPath], { input: JSON.stringify(payload), cwd, encoding: 'utf8', env: ENV });
@@ -128,6 +133,58 @@ try {
     hook(ROSTER_HOOK, { hook_event_name: 'PostToolUse', tool_name: 'Task', tool_input: { prompt: 'a foreground task with no id' } }, d2);
     const r2 = readAgents(d2);
     ok('hook: a delegation with no returned handle still records a trackable row', r2.length === 1 && r2[0].status === 'in-flight' && /^agent-/.test(r2[0].id));
+
+    // KIT-T177 — the row carries WHICH TREE the agent lands in, so a reader can tell a colleague
+    // in this checkout from one with its own worktree or one sent into another repo.
+    {
+      const dw = makeRepo();
+      hook(ROSTER_HOOK, {
+        hook_event_name: 'PostToolUse', tool_name: 'Task',
+        tool_input: { description: 'port the mesh (KIT-T177)', subagent_type: 'general-purpose', isolation: 'worktree' },
+        tool_response: { agent_id: 'iso01' },
+      }, dw);
+      const row = readAgents(dw)[0];
+      ok('tree: a worktree dispatch records isolation on the row', row.isolation === 'worktree');
+      ok('tree: a dispatch records its target repo root', sameTree(row.targetRoot, gitTop(dw)));
+
+      const dh = makeRepo();
+      const other = gitTop(makeRepo());
+      hook(ROSTER_HOOK, {
+        hook_event_name: 'PostToolUse', tool_name: 'Task',
+        tool_input: { prompt: `Implement KIT-T177 in \`${other}\``, subagent_type: 'general-purpose' },
+        tool_response: { agent_id: 'tgt01' },
+      }, dh);
+      ok('tree: a brief naming another repo root records THAT tree', sameTree(readAgents(dh)[0].targetRoot, other));
+
+      const dm = makeRepo();
+      hook(ROSTER_HOOK, {
+        hook_event_name: 'PostToolUse', tool_name: 'Task',
+        tool_input: { prompt: 'audit KIT-T177 against C:\\nope\\not\\a\\repo', subagent_type: 'general-purpose' },
+        tool_response: { agent_id: 'tgt02' },
+      }, dm);
+      ok('tree: an unresolvable path falls back to the dispatching tree', sameTree(readAgents(dm)[0].targetRoot, gitTop(dm)));
+    }
+
+    // KIT-T177 — THE COMPLETION BUG. PostToolUse(Task) fires when the tool RESULT lands, so a
+    // SYNCHRONOUS delegation's dispatch row is appended AFTER its own SubagentStop row. Under
+    // latest-row-wins that resurrected a finished agent as in-flight forever, which is what made
+    // shared-tree-dispatch block an empty tree.
+    {
+      const ds = makeRepo();
+      hook(ROSTER_HOOK, { hook_event_name: 'SubagentStop', agent_id: 'sync01', agent_type: 'general-purpose' }, ds);
+      hook(ROSTER_HOOK, {
+        hook_event_name: 'PostToolUse', tool_name: 'Task',
+        tool_input: { description: 'a synchronous run (KIT-T177)', subagent_type: 'general-purpose' },
+        tool_response: { agent_id: 'sync01' },
+      }, ds);
+      const rows = readAgents(ds);
+      ok('completion: an out-of-order dispatch row does not resurrect a finished agent',
+        rows.length === 1 && rows[0].status === 'done');
+      ok('completion: the late dispatch row still enriches the finished row',
+        rows[0].task === 'a synchronous run (KIT-T177)');
+      ok('completion: the resurrected-agent fix leaves it OUT of the in-flight partition',
+        partitionAgents(rows).inFlight.length === 0);
+    }
 
     // Fail-open: unadopted repo is a silent no-op; a garbage payload never wedges.
     ok('hook: unadopted repo no-ops', hook(ROSTER_HOOK, { hook_event_name: 'PostToolUse', tool_name: 'Task', tool_input: {} }, makeRepo({ adopt: false })).code === 0);

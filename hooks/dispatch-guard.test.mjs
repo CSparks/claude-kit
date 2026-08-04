@@ -4,8 +4,9 @@
 //   missing transcripts, unadopted repos, malformed payloads.
 // cold-worktree-build: BLOCK a worktree dispatch into a Cargo workspace; ALLOW when the brief
 //   provisions CARGO_TARGET_DIR, on [cold-build-ok], on a non-Rust repo, via the ignore file.
-// shared-tree-dispatch: BLOCK a non-worktree dispatch while the roster shows a live agent;
-//   ALLOW on worktree isolation, [shared-tree-ok], an empty/stale/finished/corrupt roster.
+// shared-tree-dispatch: BLOCK a non-worktree dispatch while the roster shows a live agent IN THIS
+//   TREE; ALLOW on worktree isolation, [shared-tree-ok], an empty/stale/finished/corrupt roster,
+//   and (KIT-T177) on a row that is worktree-isolated or aimed at another repo.
 // Run: node hooks/dispatch-guard.test.mjs
 
 import { spawnSync, execFileSync } from 'node:child_process';
@@ -136,6 +137,25 @@ expect('allows when the in-flight row is stale (>2h)', run(roster(makeRepo(), [i
 expect('allows when the agent finished (terminal row)', run(roster(makeRepo(), [inFlightRow(), { ts: new Date().toISOString(), id: 'agent-live', status: 'done' }]), shared).code, 0);
 expect('allows on a corrupt roster line (fail-open)', run(roster(makeRepo(), ['{ not json at all', '']), shared).code, 0);
 expect('allows when a row has no parseable timestamp', run(roster(makeRepo(), [{ id: 'agent-x', status: 'in-flight', ts: 'not-a-date' }]), shared).code, 0);
+
+// --- KIT-T177: the roster is session-scoped, the RULE is tree-scoped -------------
+// One live false positive (stiletto 2026-08-04) fired on a genuinely empty tree by counting three
+// rows that were never colleagues: a collected agent, an agent in its OWN worktree, and an agent
+// dispatched into a DIFFERENT repo. One regression case each.
+const gitTop = (dir) => execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8' }).trim();
+const elsewhere = gitTop(makeRepo());
+const sameTree = makeRepo();
+roster(sameTree, [inFlightRow(0, { targetRoot: gitTop(sameTree) })]);
+
+expect('allows when the live row is worktree-isolated (its own checkout)', run(roster(makeRepo(), [inFlightRow(0, { isolation: 'worktree' })]), shared).code, 0);
+expect('allows when the live row targets another repo', run(roster(makeRepo(), [inFlightRow(0, { targetRoot: elsewhere })]), shared).code, 0);
+expect('blocks when the live row targets THIS tree', run(sameTree, shared).code, 2);
+expect('allows when the NEW dispatch is aimed at another repo root', run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\`` }).code, 0);
+expect('blocks an old-format row with neither field (conservative)', run(roster(makeRepo(), [inFlightRow()]), shared).code, 2);
+expect('an old-format row still ages out at 2h', run(roster(makeRepo(), [inFlightRow(3 * HOURS, { targetRoot: undefined })]), shared).code, 0);
+expect('a row with an unparseable isolation value still counts (fail toward the halt)', run(roster(makeRepo(), [inFlightRow(0, { isolation: 42 })]), shared).code, 2);
+expect('the tree-scoped filter still fails open on a corrupt roster', run(roster(makeRepo(), ['{ not json', JSON.stringify(inFlightRow(0, { isolation: 'worktree' }))]), shared).code, 0);
+expect('block message names the tree it scoped to', run(sameTree, shared).err.includes(gitTop(sameTree)) ? 1 : 0, 1);
 
 const sharedMsg = run(busy, shared).err;
 expect('shared-tree message names the one-agent-per-tree rule', /two agents in one working tree/i.test(sharedMsg) ? 1 : 0, 1);

@@ -15,6 +15,7 @@ import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, partitionAgents } from './lib.mjs';
+import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
 
 const LADDER_CHECK = 'dispatch-ladder';
 const COLD_BUILD_CHECK = 'cold-worktree-build';
@@ -98,7 +99,7 @@ function ladderBlock(root, input, prompt, p) {
 // of silent cold build, rustc at 3.3 GB RSS, every second billed. The remedy is cheap and
 // belongs in the BRIEF — a shared CARGO_TARGET_DIR makes the same dispatch incremental.
 function coldWorktreeBlock(root, input, prompt) {
-  if (!isWorktree(input)) return null;
+  if (!isWorktreeIsolation(input.isolation)) return null;
   if (!existsSync(join(root, 'Cargo.toml'))) return null; // not a Rust workspace — no cold graph to pay for
   if (/CARGO_TARGET_DIR/.test(prompt)) return null; // the brief provisions the cache
   if (/\[cold-build-ok\b/i.test(prompt)) return null;
@@ -129,16 +130,17 @@ function coldWorktreeBlock(root, input, prompt) {
 // in-flight work. Lived failure (2026-08-03): a billed agent waited out a colleague's broken
 // refactor, then built a throwaway scratch crate to work around it — all of it billed.
 function sharedTreeBlock(root, input, prompt) {
-  if (isWorktree(input)) return null; // its own checkout — this IS the remedy
+  if (isWorktreeIsolation(input.isolation)) return null; // its own checkout — this IS the remedy
   if (/\[shared-tree-ok\b/i.test(prompt)) return null;
   if (pathExcluded(root, SHARED_TREE_CHECK, root)) return null;
   const now = Date.now();
-  const live = liveAgents(root, now);
+  const tree = dispatchTargetRoot(root, input);
+  const live = liveAgents(root, now, tree);
   if (!live.length) return null;
 
   return [
     `BLOCKED: ${live.length} agent(s) already in flight in this working tree.`,
-    `  agent: ${label(input)}   roster: .ai/agents.jsonl`,
+    `  agent: ${label(input)}   tree: ${tree}   roster: .ai/agents.jsonl`,
     ...live.map((r) => `    • ${r.id} (${r.scope || 'general'}, ${minutesAgo(r, now)}m ago) — ${String(r.task || '(no description)').slice(0, ROSTER_TASK_CHARS)}`),
     '',
     "NEVER run two agents in one working tree: one HEAD, one index. They pay to poll each",
@@ -156,16 +158,23 @@ function sharedTreeBlock(root, input, prompt) {
   ].join('\n');
 }
 
-// The roster's live rows: in-flight (no terminal row) AND young enough to still be running.
+// The roster's rows that are genuine COLLEAGUES IN `tree`: in-flight (no terminal row), young
+// enough to still be running, and landing in this same checkout — not off in their own worktree,
+// not aimed at another repo (KIT-T177; the roster is session-scoped, the rule is tree-scoped).
 // Reads through lib's roster accessor — the same path agent-roster.mjs writes, so a centralized
 // .ai/ (junction to the data repo) resolves identically. FAIL-OPEN: a missing/corrupt roster,
 // or a row with no parseable timestamp, yields nothing to block on.
-function liveAgents(root, nowMs) {
+//
+// RESIDUAL: a row whose agent never emits a terminal event (the harness does not guarantee
+// SubagentStop for every dispatch shape) still counts until the stale window ages it out. That
+// is the deliberate conservative side — visible in the block message, escapable per dispatch.
+function liveAgents(root, nowMs, tree) {
   try {
     const { inFlight } = partitionAgents(readAgents(root), nowMs);
     return inFlight.filter((r) => {
       const t = Date.parse(r.firstSeen || r.ts || '');
-      return Number.isFinite(t) && nowMs - t < SHARED_TREE_WINDOW_MS;
+      if (!Number.isFinite(t) || nowMs - t >= SHARED_TREE_WINDOW_MS) return false;
+      return rowSharesTree(r, tree);
     });
   } catch {
     return [];
@@ -175,10 +184,6 @@ function liveAgents(root, nowMs) {
 function minutesAgo(row, nowMs) {
   const t = Date.parse(row.firstSeen || row.ts || '');
   return Number.isFinite(t) ? Math.max(0, Math.round((nowMs - t) / MS_PER_MIN)) : 0;
-}
-
-function isWorktree(input) {
-  return /^worktree$/i.test(String(input.isolation || '').trim());
 }
 
 function label(input) {
