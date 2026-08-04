@@ -256,6 +256,10 @@ ok('CRLF: the new status is written to the frontmatter', /^status: doing\r?$/m.t
 ok('CRLF: the (status) History line is appended', /\(status\) todo → doing/.test(readFileSync(crlfMoved.path, 'utf8')));
 comment(crlfRoot, 'KIT-T060', 'a note on the crlf ticket', { author: 'test' });
 ok('CRLF: t comment round-trips too', /\(comment\).*crlf ticket/.test(readFileSync(crlfMoved.path, 'utf8')));
+// criteria.mjs was blind to the trailing \r too — every box read as "no acceptance criteria".
+const crlfTicked = readFileSync(tick(crlfRoot, 'KIT-T060', 1).path, 'utf8');
+ok('CRLF: t tick round-trips', /- \[x\] first criterion/.test(crlfTicked));
+ok('CRLF: the rewritten criterion keeps its \\r\\n ending', /- \[x\] first criterion\r\n/.test(crlfTicked));
 
 // A template-derived ticket keeps the template's trailing `# …` comments. The local field() this
 // file used to carry read them as part of the VALUE, so `status` was the whole comment string.
