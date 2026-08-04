@@ -4,6 +4,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, readdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { idExists, fileForId } from '../id-utils.mjs';
 import { slugify, capTitle } from './cap-text.mjs';
 
 const ID_STORES = ['tickets', 'decisions', 'notes', 'questions']; // stores whose files start with an id
@@ -57,6 +58,16 @@ function appendProvenance(fm, prov) {
 export function writeFromTemplate({ aiDir, store, id, type, status, priority, title, links, text, provenance }) {
   const storeDir = join(aiDir, store);
   mkdirSync(storeDir, { recursive: true });
+  // REFUSE a taken id (KIT-T166). The slug differs per capture, so a colliding create lands
+  // beside the original rather than over it — which is how five duplicate-id GB tickets sat on
+  // the board for three weeks with INDEX showing only one of each. A mis-minted id is a hard
+  // error naming the casualty, never a quiet second file wearing a live id.
+  if (idExists(aiDir, id)) {
+    throw new Error(
+      `refusing to create '${id}': that id already exists (${fileForId(aiDir, id)}). ` +
+      'The allocator handed back a used id — re-hydrate the cache (node scripts/hydrate-db.mjs) and retry.',
+    );
+  }
   const tplPath = join(storeDir, '_TEMPLATE.md');
   const now = new Date().toISOString();
   const linkList = `[${(links || []).join(', ')}]`;

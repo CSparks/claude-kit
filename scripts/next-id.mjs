@@ -17,7 +17,7 @@
 // or DB is present — same answer either way (the cache is derived from the same scan).
 // Pair with check-ids.mjs for the integrity half.
 
-import { nextId, nextReminderId, readIdConfig, STORE_TYPE } from './id-utils.mjs';
+import { nextReminderId, readIdConfig, maxStoreNum, formatItemId, STORE_TYPE } from './id-utils.mjs';
 import { query } from './q.mjs';
 
 const DEDUP_HINT_MAX = 5; // cap surfaced duplicate candidates — a hint, not a dump
@@ -53,15 +53,22 @@ try {
   if (!STORE_TYPE[store]) {
     throw new Error(`unknown store '${store}' (one of: ${Object.keys(STORE_TYPE).join(', ')})`);
   }
-  const { key } = readIdConfig(root);
+  const { key, pad } = readIdConfig(root);
   if (!key) throw new Error(`no ids.key in ${root}/.ai/config.yml`);
 
   // O(1) cache path (KIT-T026): --root pins the local scope so next-id derives from THIS
-  // project's counter even though the shared cache is cross-scope. Falls back to the full
-  // markdown scan (nextId) when no engine/DB is present — same answer, derived from the
-  // same items.
+  // project's counter even though the shared cache is cross-scope.
+  //
+  // The cache may only RAISE the counter, never lower it (KIT-T166). It is a derived index, and
+  // a stale one — clobbered, unhydrated, or dated by another machine through the shared data
+  // repo — reported a max below the files on disk and re-minted GB-T001..T005 over five live
+  // tickets. So the on-disk max is the floor and the cache is an upper bound layered on top;
+  // when they agree (the normal case) this costs one directory scan and changes nothing.
   const { rows, cached } = await query('next-id', [key, store], { root });
-  const id = cached && rows[0] && rows[0].id ? rows[0].id : nextId(root, store);
+  const cachedNum = cached && rows[0] && String(rows[0].id || '').startsWith(`${key}-${STORE_TYPE[store]}`)
+    ? Number(rows[0].num) || 0
+    : 0;
+  const id = formatItemId(key, store, Math.max(maxStoreNum(root, store) + 1, cachedNum), pad);
 
   // Dedup hint (KIT-T024, generalized to every store in KIT-T025): for a NEW item with a
   // proposed title, surface likely existing duplicates IN THE SAME STORE on stderr —

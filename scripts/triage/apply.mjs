@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { resolveEngine } from '../db-engine.mjs';
 import { hydrate } from '../hydrate-db.mjs';
-import { readIdConfig, STORE_TYPE, compareIds } from '../id-utils.mjs';
+import { readIdConfig, maxStoreNum, formatItemId, compareIds } from '../id-utils.mjs';
 import { openHandle } from './handle.mjs';
 import { loadScope, scopeIndex, ROUTE_STORE } from './config.mjs';
 import { capText, capTitle, truncate } from './cap-text.mjs';
@@ -17,17 +17,20 @@ import { commitApply } from './commit.mjs';
 const OPEN_STATUSES = ['todo', 'doing', 'review'];
 const TITLE_COL = 60;
 
-// Batch-aware: within one apply() run the cache is NOT re-synced between creates, so MAX(num)
-// from the DB alone collides every create onto the same id (KIT-T009). `alloc` carries the last
-// id handed out per scope/store this run, so sequential creates get sequential ids.
-function nextId(db, scope, store, root, alloc) {
+// The batch allocator. Three floors, all of which have been the cause of a real collision:
+//   • the CACHE's MAX(num) — fast, but derived, and wrong whenever it is stale;
+//   • the files ON DISK — the truth, and the floor a stale cache silently sank below when
+//     triage re-minted GB-T001..T005 over five live tickets (KIT-T166);
+//   • `alloc`, this run's high-water mark per scope/store — the cache is not re-synced between
+//     creates, so without it every create in one batch lands on the same id (KIT-T009).
+// Exported so the allocator is testable directly, without driving a whole --apply batch.
+export function mintId(db, scope, store, root, alloc, aiDir) {
   const row = db.all('SELECT MAX(num) AS m FROM items WHERE scope = ? AND store = ?', [scope, store])[0];
   const key = `${scope}/${store}`;
-  const next = Math.max(row && row.m ? row.m : 0, alloc.get(key) || 0) + 1;
+  const onDisk = maxStoreNum(root, store, aiDir);
+  const next = Math.max(row && row.m ? row.m : 0, onDisk, alloc.get(key) || 0) + 1;
   alloc.set(key, next);
-  const { pad } = readIdConfig(root);
-  const letter = STORE_TYPE[store] || store;
-  return `${scope}-${letter}${String(next).padStart(pad, '0')}`;
+  return formatItemId(scope, store, next, readIdConfig(root).pad);
 }
 
 function resolveRouteStore(decision, sc) {
@@ -56,7 +59,7 @@ function provenanceOf(d) {
 
 function createItem(db, cap, sc, d, alloc, extraLinks = []) {
   const store = resolveRouteStore(d, sc);
-  const id = nextId(db, cap.scope, store, sc.root, alloc);
+  const id = mintId(db, cap.scope, store, sc.root, alloc, sc.aiDir);
   const text = capText(cap.body);
   // title = the cap's one-line LABEL; text = the whole capture, which belongs in the body only.
   // Passing the raw text as the title is what broke 39 items' frontmatter across two runs (KIT-T126).
@@ -101,7 +104,18 @@ export async function apply({ decisionsPath, json, dbPath }) {
       if (!cap) { receipts.push({ capId: d.capId, scope: '?', action: d.action || 'create', dest: 'cap not found' }); continue; }
       const sc = configs.get(cap.scope);
       if (!sc) { receipts.push({ capId: d.capId, scope: cap.scope, action: 'skip', dest: 'unknown scope' }); continue; }
-      const dest = enact(handle, d, cap, sc, alloc);
+      // A refused create (id collision — KIT-T166) fails THAT cap, not the batch: the cap stays
+      // in the inbox for a retry after a re-hydrate, and the error is carried in its receipt so
+      // it is impossible to miss in the output.
+      let dest;
+      try {
+        dest = enact(handle, d, cap, sc, alloc);
+      } catch (e) {
+        const msg = e && e.message ? e.message : String(e);
+        process.stderr.write(`triage: ${d.capId} NOT applied — ${msg}\n`);
+        receipts.push({ capId: d.capId, scope: cap.scope, action: d.action || 'create', dest: `ERROR: ${msg}`, capFile: cap.file });
+        continue;
+      }
       const movedTo = moveCapToTriaged(sc.aiDir, cap.file);
       receipts.push({ capId: d.capId, scope: cap.scope, action: d.action || 'create', dest, movedTo, capFile: cap.file });
     }

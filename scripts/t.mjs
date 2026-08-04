@@ -26,7 +26,7 @@ import { readFileSync, writeFileSync, renameSync, mkdirSync, readdirSync, exists
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { nextId, readIdConfig } from './id-utils.mjs';
+import { nextId, readIdConfig, idExists, fileForId } from './id-utils.mjs';
 import { splitFrontmatter, field } from './frontmatter.mjs';
 import { buildComment, parseComments, recordAck } from './comments.mjs';
 import { resolveUser } from './identity.mjs';
@@ -178,6 +178,12 @@ export function scaffoldNew(root, type, title, opts = {}) {
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const path = join(root, '.ai', 'tickets', `${id}-${slug}.md`);
   if (existsSync(path)) throw new Error(`t new: ${path} already exists`);
+  // The slug varies per title, so the path check above misses a same-id/different-slug
+  // collision — the shape that put five duplicate-id tickets on gridiron's board (KIT-T166).
+  const aiDir = join(root, '.ai');
+  if (idExists(aiDir, id)) {
+    throw new Error(`t new: refusing to create '${id}' — that id already exists (${fileForId(aiDir, id)})`);
+  }
   const doc = `---
 id: ${id}
 title: ${title.trim()}

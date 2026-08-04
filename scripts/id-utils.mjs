@@ -242,6 +242,40 @@ export function checkIds(root, aiDir = join(root, '.ai')) {
   };
 }
 
+// The highest id number a store holds ON DISK, across its live and archived files. This is the
+// ONE floor every allocator must clear (KIT-T166): the cache is derived, and a derived counter
+// that has gone stale — clobbered, never hydrated, or carrying another machine's mtimes through
+// the shared data repo — is what re-minted GB-T001..T005 over five existing tickets. Files are
+// the truth, so the files decide the floor; a cache may only ever raise it.
+export function maxStoreNum(root, store, aiDir = join(root, '.ai')) {
+  let max = 0;
+  for (const it of scanStores(root, aiDir)) {
+    if (it.store !== store) continue;
+    const m = (it.id || '').match(/(\d+)$/);
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return max;
+}
+
+// Render an id from its parts — the single formatter behind every allocator.
+export function formatItemId(key, store, num, pad = 3) {
+  return `${key}-${STORE_TYPE[store] || store}${String(num).padStart(pad, '0')}`;
+}
+
+// Does any file in this store already carry `id`, by frontmatter or by filename? The refusal
+// backstop behind the allocators (KIT-T166): a create path must never last-writer-wins onto a
+// live item, however the id it was handed was derived.
+export function idExists(aiDir, id) {
+  return scanStores(null, aiDir).some((it) => it.id === id || it.fileId === id);
+}
+
+// The store-relative path of the file holding `id`, for a collision message that names the
+// casualty instead of just the id.
+export function fileForId(aiDir, id) {
+  const hit = scanStores(null, aiDir).find((it) => it.id === id || it.fileId === id);
+  return hit ? `${hit.sub}/${hit.file}` : '';
+}
+
 // The next free id for a store: max trailing number + 1 (KIT-T004). Gaps from
 // deletions are intentionally not reused — a returned id is always fresh.
 export function nextId(root, store) {
@@ -255,13 +289,7 @@ export function nextId(root, store) {
     `add an ids block to that file, e.g.:\n` +
     `  ids:\n    key: HOD   # your project's 2-4 letter prefix\n    pad: 3`,
   );
-  let max = 0;
-  for (const it of scanStores(root)) {
-    if (it.store !== store) continue;
-    const m = (it.id || '').match(/(\d+)$/);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
-  }
-  return `${key}-${letter}${String(max + 1).padStart(pad, '0')}`;
+  return formatItemId(key, store, maxStoreNum(root, store) + 1, pad);
 }
 
 // Reminders are the one store on a FIXED, UNKEYED id (KIT-T090): `REM-###`, NOT
