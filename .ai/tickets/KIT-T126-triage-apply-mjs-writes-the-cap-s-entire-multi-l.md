@@ -20,7 +20,7 @@ no blank/non-key lines (would have caught this and the CRLF bug both).
 All 31 were hand-repaired 2026-07-14 (status-anchored strip + one-line title);
 this ticket is the kit-side root-cause fix + regression test.
 type: bug
-status: todo
+status: doing
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -38,7 +38,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:46:37.012Z
-updated: 2026-07-14T17:46:37.012Z
+updated: 2026-08-04T16:23:53Z
 ---
 
 ## Description
@@ -93,3 +93,4 @@ Recurred 2026-08-04 in the cross-project triage run: all 8 items created from mu
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-08-04 15:26] (comment) @chris: Recurred 2026-08-04 in the cross-project triage run: all 8 items created from multi-line caps got the full cap text writ (full comment #1 in ## Notes)
+- [2026-08-04 16:23] (status) todo → doing

@@ -10,7 +10,7 @@ import { hydrate } from '../hydrate-db.mjs';
 import { readIdConfig, STORE_TYPE, compareIds } from '../id-utils.mjs';
 import { openHandle } from './handle.mjs';
 import { loadScope, scopeIndex, ROUTE_STORE } from './config.mjs';
-import { capText, truncate } from './cap-text.mjs';
+import { capText, capTitle, truncate } from './cap-text.mjs';
 import { writeFromTemplate, foldNote, supersede, markSupersedes, moveCapToTriaged } from './write-item.mjs';
 import { commitApply } from './commit.mjs';
 
@@ -58,9 +58,11 @@ function createItem(db, cap, sc, d, alloc, extraLinks = []) {
   const store = resolveRouteStore(d, sc);
   const id = nextId(db, cap.scope, store, sc.root, alloc);
   const text = capText(cap.body);
+  // title = the cap's one-line LABEL; text = the whole capture, which belongs in the body only.
+  // Passing the raw text as the title is what broke 39 items' frontmatter across two runs (KIT-T126).
   const rel = writeFromTemplate({
     aiDir: sc.aiDir, store, id, type: d.classification, status: sc.flowHead,
-    priority: priorityOf(d, sc), title: text, links: [...(d.links || []), ...extraLinks].filter(Boolean), text,
+    priority: priorityOf(d, sc), title: capTitle(text), links: [...(d.links || []), ...extraLinks].filter(Boolean), text,
     provenance: provenanceOf(d),
   });
   return { id, rel };

@@ -4,7 +4,7 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync, readdirSync } from 'node:fs';
 import { join, basename } from 'node:path';
-import { slugify } from './cap-text.mjs';
+import { slugify, capTitle } from './cap-text.mjs';
 
 const ID_STORES = ['tickets', 'decisions', 'notes', 'questions']; // stores whose files start with an id
 const FM_END = '\n---'; // closing frontmatter fence (after the opening one)
@@ -12,9 +12,23 @@ const DATE_LEN = 10;    // YYYY-MM-DD
 const STAMP_LEN = 16;   // YYYY-MM-DDTHH:MM
 const FM_SKIP = 3;      // skip the opening '---\n' when searching for the closing fence
 
+// A store template's body slot: the FIRST angle-bracket prompt (`<what and why>`, `<what was
+// decided>`, `<the question>`, `<the observation — …>`). Written as one rule rather than an
+// alternation of known slots — the enumeration is what let `<what was decided>` slip through, so
+// every created DECISION shipped with the placeholder intact while its content lived only in the
+// broken title (KIT-T126). `(?!!)` keeps an HTML comment (`<!-- … -->`) from matching.
+const BODY_SLOT = /<(?!!)[^<>\n]+>/;
+
+// A frontmatter scalar is ONE LINE, always. Multi-line input here is what dumped whole cap
+// bodies INSIDE the frontmatter block, pushing the real keys below the prose (KIT-T126).
+const oneLine = (val) => String(val ?? '').replace(/\s*\r?\n\s*/g, ' ').trim();
+
 function setField(block, key, val) {
+  const v = oneLine(val);
   const re = new RegExp(`^(${key}:)([^\\n]*)$`, 'm');
-  return re.test(block) ? block.replace(re, `$1 ${val}`) : `${block}\n${key}: ${val}`;
+  // Function replacement, not a `$1 …` string: a value carrying `$&`/`$1` (cap prose can) would
+  // otherwise be interpreted as a replacement pattern.
+  return re.test(block) ? block.replace(re, (m, k) => `${k} ${v}`) : `${block}\n${key}: ${v}`;
 }
 
 // Backward-provenance fields a triaged bug may carry (KIT-T065). When an ACCEPTED inference (or a
@@ -46,6 +60,8 @@ export function writeFromTemplate({ aiDir, store, id, type, status, priority, ti
   const tplPath = join(storeDir, '_TEMPLATE.md');
   const now = new Date().toISOString();
   const linkList = `[${(links || []).join(', ')}]`;
+  // Idempotent when the caller already derived one (triage does): capTitle of a title is itself.
+  const label = capTitle(title);
   let content;
   if (existsSync(tplPath)) {
     const tpl = readFileSync(tplPath, 'utf8');
@@ -56,22 +72,23 @@ export function writeFromTemplate({ aiDir, store, id, type, status, priority, ti
     if (/^type:/m.test(fm) && type) fm = setField(fm, 'type', type);
     if (/^status:/m.test(fm) && status) fm = setField(fm, 'status', status);
     if (/^priority:/m.test(fm) && priority) fm = setField(fm, 'priority', priority);
-    if (/^title:/m.test(fm)) fm = setField(fm, 'title', title);
+    if (/^title:/m.test(fm)) fm = setField(fm, 'title', label);
     if (/^date:/m.test(fm)) fm = setField(fm, 'date', now.slice(0, DATE_LEN));
     if (/^created:/m.test(fm)) fm = setField(fm, 'created', now);
     if (/^updated:/m.test(fm)) fm = setField(fm, 'updated', now);
     if (/^links:/m.test(fm)) fm = setField(fm, 'links', linkList);
     fm = appendProvenance(fm, provenance);
-    const body = rest.replace(/<what and why>|<the observation[^>]*>|<the question>/i, text);
+    // Function replacement: the cap text is arbitrary prose and may contain `$&`/`$1`.
+    const body = rest.replace(BODY_SLOT, () => text);
     content = `${fm}${body}`;
   } else {
     let fm = ['---', `id: ${id}`, type ? `type: ${type}` : null, status ? `status: ${status}` : null,
-      priority ? `priority: ${priority}` : null, `title: ${title}`, `links: ${linkList}`,
+      priority ? `priority: ${priority}` : null, `title: ${label}`, `links: ${linkList}`,
       `created: ${now}`, '---'].filter(Boolean).join('\n');
     fm = appendProvenance(fm.replace(/\n---$/, ''), provenance) + '\n---';
     content = `${fm}\n\n## Description\n${text}\n`;
   }
-  const rel = `${store}/${id}-${slugify(title)}.md`;
+  const rel = `${store}/${id}-${slugify(label)}.md`;
   writeFileSync(join(aiDir, rel), content);
   return rel;
 }

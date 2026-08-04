@@ -17,6 +17,7 @@ const CONFIG_YML = `classifications:
   bug:        { routes_to: tickets,  priority: high,   blocking: never }
   feature:    { routes_to: backlog,  priority: medium, blocking: never }
   question:   { routes_to: questions, blocking: never }
+  decision:   { routes_to: decisions, blocking: never }
 statuses:
   flow: [todo, doing, review, done]
 drain:
@@ -44,6 +45,23 @@ updated: <YYYY-MM-DDThh:mm:ssZ>
 ## Notes
 `;
 
+// The decision store's own shape — its body slot is `**Decision:** <what was decided>`, which the
+// old enumerated placeholder list did not know about (KIT-T126).
+const DECISION_TEMPLATE = `---
+id: TST-D000
+title: <short title>
+date: <YYYY-MM-DD>
+supersedes:        # DEC-### this replaces, or blank
+source:            # commit hash / doc path / "conversation YYYY-MM-DD"
+---
+
+**Decision:** <what was decided>
+
+**Why:** <the reason — and what was rejected, and why>
+
+<!-- One decision per file (atomic — KIT-D009). -->
+`;
+
 let dir; // temp project root holding .ai
 let aiDir;
 let dbPath;
@@ -58,6 +76,7 @@ before(() => {
   for (const s of ['inbox', 'tickets', 'questions', 'notes', 'decisions']) mkdirSync(join(aiDir, s), { recursive: true });
   writeFileSync(join(aiDir, 'config.yml'), CONFIG_YML);
   writeFileSync(join(aiDir, 'tickets', '_TEMPLATE.md'), TICKET_TEMPLATE);
+  writeFileSync(join(aiDir, 'decisions', '_TEMPLATE.md'), DECISION_TEMPLATE);
 
   // An existing ticket the dedup probe should surface for a same-topic cap.
   writeFileSync(join(aiDir, 'tickets', 'TST-T001-headlight-flicker.md'),
@@ -103,7 +122,7 @@ test('--plan groups inbox by scope, marks (bug) deterministic, flags untyped, su
   assert.equal(idea.needsClassification, true, 'an untyped cap needs LLM classification');
   assert.deepEqual(
     idea.allowedClassifications.sort(),
-    ['bug', 'feature', 'question'],
+    ['bug', 'decision', 'feature', 'question'],
     'the LLM is handed the scope’s allowed classifications',
   );
 });
@@ -338,6 +357,118 @@ test('provenance: inference degrades to NO candidates on a non-git / cold dir, n
   // A bogus path must not throw either.
   const out2 = await inferProvenance('x', join(cold, 'does-not-exist'));
   assert.deepEqual(out2.candidates, [], 'a missing repo root still resolves to no candidates');
+});
+
+// --- KIT-T126: a cap's title is ONE LINE; the capture itself belongs in the body ----------------
+// Apply used to hand the whole cap text to the `title:` scalar. A multi-line cap therefore wrote
+// its 2nd..Nth lines INSIDE the frontmatter block, pushing `type:`/`status:` below the prose — 31
+// items corrupted on 2026-07-14, 8 more on 2026-08-04 (HOD-T432/T433/T434/T436, HOD-D100/D101/D103,
+// KIT-T175), every one hand-repaired. A cap opening `# Heading` was worse: YAML read the title as a
+// comment, so the board showed a blank row. And DECISION creates additionally kept the template's
+// `<what was decided>` placeholder, so the content lived NOWHERE but the broken title.
+
+const MULTILINE_CAP = `# roads should be graded, not raw terrain
+- the mesh follows the heightmap today
+- it should follow a smoothed spline
+- see src/render/roads.ts`;
+
+// Every non-empty line of a frontmatter block must be a `key:` line. This is the invariant the bug
+// violated, and it catches the whole failure class (embedded prose, a `#`-led title, a CRLF split).
+function frontmatterViolations(text) {
+  const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return ['no frontmatter block at all'];
+  return m[1].split('\n').map((l) => l.replace(/\r$/, '')).filter((l) => l.trim() && !/^[A-Za-z_][\w-]*:/.test(l));
+}
+
+test('capTitle: one line, heading stripped, argv debris cut, length-capped at a word boundary', async () => {
+  const { capTitle } = await import('./triage/cap-text.mjs');
+  assert.equal(capTitle(MULTILINE_CAP), 'roads should be graded, not raw terrain',
+    'the first line wins and the leading `#` (a YAML comment) is stripped');
+  assert.ok(!capTitle(MULTILINE_CAP).includes('\n'), 'a title never contains a newline');
+  assert.equal(capTitle('\n\n   # later first line   \nrest'), 'later first line', 'leading blank lines are skipped');
+  assert.equal(capTitle('t.mjs is unwritable on CRLF --body Repro in inv4d3rs: rewrote 4 files'),
+    't.mjs is unwritable on CRLF', 'flags cap.mjs does not take are argv debris, not title prose');
+  assert.equal(capTitle('headlight flicker at dusk   type: bug'), 'headlight flicker at dusk',
+    'a trailing `type:` tail is metadata, not title prose');
+  assert.equal(capTitle('a  b\tc'), 'a b c', 'internal whitespace collapses to single spaces');
+  assert.equal(capTitle(''), 'untitled capture', 'an empty cap still yields a usable label');
+
+  const long = `${'alpha bravo '.repeat(40)}omega`; // 480+ chars, single line
+  const cut = capTitle(long);
+  assert.ok(cut.length <= 140, `a long single-line cap is capped (got ${cut.length})`);
+  assert.ok(cut.endsWith('…'), 'truncation is marked');
+  assert.ok(!/\S…$/.test(cut) || cut.slice(0, -1).endsWith('bravo') || cut.slice(0, -1).endsWith('alpha'),
+    'the cut lands on a word boundary, not mid-word');
+});
+
+test('--apply: a MULTI-LINE cap yields a one-line ticket title and puts the whole capture in the body', async () => {
+  const { plan } = await import('./triage/plan.mjs');
+  const { apply } = await import('./triage/apply.mjs');
+
+  cap('2026-06-04-0001-graded-roads.md', `(bug) ${MULTILINE_CAP}\n`);
+  await plan({ scopeFilter: 'TST', json: true, dbPath });
+
+  const decisionsPath = join(dir, 'decisions-multiline.json');
+  writeFileSync(decisionsPath, JSON.stringify([
+    { capId: 'TST-INBOX-2026-06-04-0001-graded-roads', classification: 'bug', action: 'create' },
+  ]));
+  const { applied } = await apply({ decisionsPath, json: true, dbPath });
+  const created = applied.find((r) => r.action === 'create');
+  const text = readFileSync(join(aiDir, created.dest), 'utf8');
+
+  assert.deepEqual(frontmatterViolations(text), [], 'no prose leaked into the frontmatter block');
+  assert.match(text, /^title: roads should be graded, not raw terrain$/m, 'the title is the first line, `#` stripped');
+  assert.doesNotMatch(text, /^title:\s*#/m, 'a `#`-led title would parse as a YAML comment (blank board row)');
+  assert.match(text, /^type: bug$/m, 'the real keys are still keys, not prose pushed below the capture');
+  // The capture itself survives IN FULL — the title is a label, never the record.
+  for (const line of MULTILINE_CAP.split('\n')) assert.ok(text.includes(line), `body keeps: ${line}`);
+  assert.match(text, /## Description[\s\S]*smoothed spline/, 'the full text lands under ## Description');
+  assert.doesNotMatch(text, /<what and why>/, 'the template placeholder is consumed');
+  assert.ok(created.dest.length < 90, `the filename slug is bounded too (${created.dest})`);
+});
+
+test('--apply: a DECISION create fills the **Decision:** body — never ships `<what was decided>`', async () => {
+  const { plan } = await import('./triage/plan.mjs');
+  const { apply } = await import('./triage/apply.mjs');
+
+  cap('2026-06-04-0002-capture-first.md', `(decision) ${MULTILINE_CAP}\n`);
+  await plan({ scopeFilter: 'TST', json: true, dbPath });
+
+  const decisionsPath = join(dir, 'decisions-decision.json');
+  writeFileSync(decisionsPath, JSON.stringify([
+    { capId: 'TST-INBOX-2026-06-04-0002-capture-first', classification: 'decision', action: 'create' },
+  ]));
+  const { applied } = await apply({ decisionsPath, json: true, dbPath });
+  const created = applied.find((r) => r.action === 'create');
+
+  assert.match(created.dest, /^decisions\/TST-D\d+-/, 'a decision classification routes to the decisions store');
+  const text = readFileSync(join(aiDir, created.dest), 'utf8');
+  assert.deepEqual(frontmatterViolations(text), [], 'no prose leaked into the decision frontmatter');
+  assert.match(text, /^title: roads should be graded, not raw terrain$/m, 'one-line title here too');
+  assert.doesNotMatch(text, /<what was decided>/, 'the placeholder is REPLACED, not shipped alongside a broken title');
+  assert.match(text, /\*\*Decision:\*\*[\s\S]*smoothed spline/, 'the cap text lands in the Decision block, verbatim');
+  for (const line of MULTILINE_CAP.split('\n')) assert.ok(text.includes(line), `decision body keeps: ${line}`);
+});
+
+test('--apply: a SINGLE-line but enormous cap is truncated in the title and kept whole in the body', async () => {
+  const { plan } = await import('./triage/plan.mjs');
+  const { apply } = await import('./triage/apply.mjs');
+
+  const huge = `the pause menu resume button does nothing after a level restart ${'and then some more detail '.repeat(12)}end`;
+  cap('2026-06-04-0003-huge-single-line.md', `(bug) ${huge}\n`);
+  await plan({ scopeFilter: 'TST', json: true, dbPath });
+
+  const decisionsPath = join(dir, 'decisions-huge.json');
+  writeFileSync(decisionsPath, JSON.stringify([
+    { capId: 'TST-INBOX-2026-06-04-0003-huge-single-line', classification: 'bug', action: 'create' },
+  ]));
+  const { applied } = await apply({ decisionsPath, json: true, dbPath });
+  const text = readFileSync(join(aiDir, applied.find((r) => r.action === 'create').dest), 'utf8');
+
+  const title = text.match(/^title: (.*)$/m)[1];
+  assert.ok(title.length <= 140, `an enormous single-line cap still yields a bounded title (${title.length})`);
+  assert.ok(title.startsWith('the pause menu resume button does nothing'), 'the title leads with the actual ask');
+  assert.ok(text.includes(huge), 'the untruncated capture is preserved in the body');
 });
 
 test('provenance: an accepted link lands in frontmatter with the provenance marker (inferred vs given)', async () => {
