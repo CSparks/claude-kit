@@ -2,7 +2,7 @@
 id: KIT-T166
 title: next-id minted colliding ticket IDs — gridiron-blitz triage on 2026-07-14 re-minted GB-T001..T005 over the existing 2026-06 GB-T001..T006 (five duplicate-id ticket files sat on the board for 3 weeks; INDEX silently showed only one set). Renumbered by hand to GB-T007..T011 on 2026-08-02. Root cause needs kit-side investigation: counter likely derived from stale/other-machine state (macOS↔Windows shared data repo) or a leftover of the ids.key KEY→GB rename (see gridiron SESSION.md 2026-06-03 note). next-id must derive from the max existing id in tickets/ at mint time, and triage should refuse to create a file whose id already exists.
 type: bug
-status: todo
+status: doing
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-04T15:20:02.010Z
-updated: 2026-08-04T15:20:02.010Z
+updated: 2026-08-04T20:20:11Z
 ---
 
 ## Description
@@ -53,3 +53,4 @@ next-id minted colliding ticket IDs — gridiron-blitz triage on 2026-07-14 re-m
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 20:20] (status) todo → doing

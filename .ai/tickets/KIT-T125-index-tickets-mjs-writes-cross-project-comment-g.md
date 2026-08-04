@@ -16,7 +16,7 @@ discoverable via q.mjs usage) — hence captured here.
 
 [re-capped 2026-07-14 from groovegrid inbox at triage — cap said KIT-scope, triage cannot rescope]
 type: bug
-status: todo
+status: doing
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -34,7 +34,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:46:37.007Z
-updated: 2026-07-14T17:46:37.007Z
+updated: 2026-08-04T20:20:12Z
 ---
 
 ## Description
@@ -82,3 +82,4 @@ discoverable via q.mjs usage) — hence captured here.
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 20:20] (status) todo → doing

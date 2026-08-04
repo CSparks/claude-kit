@@ -2,7 +2,7 @@
 id: KIT-T164
 title: hydrate-at-source clobbers a live cache scope from ANY .ai/ store on disk, not just tests. writeItemFile (hooks/lib.mjs:308) and ingest-data.mjs resolve the store via storeRoot() (lib.mjs:358), which returns the nearest ancestor holding .ai/config.yml — ANY directory anywhere qualifies, including a throwaway fixture in a temp/scratchpad dir. They then hydrate that root into defaultDbPath(), and hydrate replaces rows for whatever scope the store declares in ids.key. MEASURED 2026-08-02: a single Edit to a scratchpad fixture whose config declared ids.key KIT took the live KIT scope from openCount 56 to 1. No test suite involved — one file edit. KIT-T142 frames this as a test-isolation problem, but tests are only one caller; the real defect is that the scope key alone decides which rows are replaced, with no check that the store root is a REGISTERED/adopted project. Two roots claiming the same key means last-writer-wins, wholesale, silently. Repair is node scripts/hydrate-db.mjs. FIX DIRECTION: hydrate-at-source must verify the resolved storeRoot is a known adopted project root (registry lookup) before writing, and/or hydrate must key rows by resolved root path rather than trusting a self-declared ids.key.
 type: bug
-status: todo
+status: doing
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-02T21:53:15.863Z
-updated: 2026-08-02T21:53:15.863Z
+updated: 2026-08-04T20:20:11Z
 ---
 
 ## Description
@@ -53,3 +53,4 @@ hydrate-at-source clobbers a live cache scope from ANY .ai/ store on disk, not j
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 20:20] (status) todo → doing
