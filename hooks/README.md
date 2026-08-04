@@ -20,6 +20,7 @@ the tool payload from stdin, decides, and exits (`exit 2` = block, `0` = allow).
 | `PostToolUse` (Task) + `SubagentStop` | agent-roster | Append each delegated subagent (task, scope, handle, status) to the durable roster `.ai/agents.jsonl`, and mark its completion — so a `/clear` mid-delegation never orphans the work; orient replays it on resume (KIT-T014; fail-open, never blocks a delegation). |
 | `PreToolUse` (Bash\|PowerShell) | license-guard | Block `npm install` / `cargo add` of a GPL/LGPL/AGPL/unlicensed dependency (KIT-T022). Looks up the package license via the registry; fails open if offline. Escape: `[allow-license: reason]` or `CLAUDE_KIT_ALLOW_LICENSE=1`. Nudges to update `THIRD_PARTY_LICENSES` on permissive adds. |
 | `PreToolUse` (Bash) | commit-gate | Block a `git commit` of code not tied to a ticket / plan-of-record (override `[no-log: reason]`). |
+| `PreToolUse` (Task\|Agent) | dispatch-guard | Gate the three dispatch shapes that burn money (KIT-T151/KIT-T176) — see **Dispatch checks** below. Blocks; fail-open; escapes are inline prompt tokens. |
 | `PreToolUse` (AskUserQuestion) | question-gate | Block a non-compliant questionnaire (KIT-T086): every question must mark its recommended option on the LABEL (prefix `(Recommended)`), and — single-select — list it FIRST. Catches the lived bug of putting the marker in the option DESCRIPTION (where it never renders). Agent-discipline rule — fires regardless of `.ai/` adoption; fail-open. |
 | `PreCompact` | flush | Force a `.ai/SESSION.md` flush before context is lost. |
 | `Stop` | housekeeping + flush + sync-data | Nag if a weekly review is overdue; **flush**'s SESSION-anchor ratchet nudges once when work landed this turn but `SESSION.md` wasn't touched (KIT-T014); **auto-commit + push `claude-kit-data`** when the centralized data repo is dirty (D-008), so a turn's `.ai/` edits persist without manual ceremony. |
@@ -29,6 +30,18 @@ resolving project-local first, then a global install — so a `.cmd`-shimmed glo
 Windows (which `execFileSync` can't spawn) works without ever invoking a shell.
 `lint`/`jscpd` are advisory and intentionally **not** gated on `.ai/` (they run in any
 repo, like `pre-write`); only the enforcement hooks no-op on unadopted repos.
+
+## Dispatch checks (`dispatch-guard`)
+A delegation's cost is decided at ONE choke point — the Agent/Task dispatch — so every
+dispatch rule is enforced there. Each check is independent (own escape token, own
+exclusion key) and every one is a **block**, per the halts-not-warnings contract; all three
+fail open on a malformed payload or an unreadable file.
+
+| Check-id | Blocks | Escape token |
+| --- | --- | --- |
+| `dispatch-ladder` | The **silent fable inherit** (KIT-T151): no `model` on the call, no `model:` pin in the agent's definition, and the session transcript's latest turn is fable. An explicit model — fable included — always passes; a chosen tier is a deliberate choice. | `[allow-fable: <reason>]` in the prompt, or `CLAUDE_KIT_ALLOW_FABLE=1` |
+| `cold-worktree-build` | `isolation: "worktree"` into a repo with a root `Cargo.toml` when the brief never mentions `CARGO_TARGET_DIR` (KIT-T176). A fresh worktree has no `target/`, so the agent pays a **cold build of the whole dependency graph** — lived case 2026-08-04: a Bevy workspace sat 30+ min silent, rustc at 3.3 GB RSS, all billed. Fix in the BRIEF: point `CARGO_TARGET_DIR` at the main checkout's `target/`. | `[cold-build-ok: <reason>]` in the prompt |
+| `shared-tree-dispatch` | A dispatch **without** worktree isolation while `.ai/agents.jsonl` (the roster `agent-roster` writes) holds an in-flight row younger than 2h (KIT-T176). One agent per working tree — two share one HEAD + index and pay to poll each other's half-written files; lived case 2026-08-03: a billed agent waited out a colleague's broken refactor, then built a throwaway scratch crate around it. Rows older than 2h are treated as abandoned and ignored. | `[shared-tree-ok: <reason>]` in the prompt |
 
 ## Rules
 - **Opt-in-aware:** first thing each hook does is `exit 0` unless `.ai/` (or a
@@ -84,6 +97,7 @@ file-length:
 | `commit-gate` | `commit-log` | path glob (an excluded code path doesn't require a citation) |
 | `license-guard` | `license-guard` | path glob (an excluded path skips the dep-name check for local/vendored deps) |
 | `request-gate` | `request-capture` | repo-wide glob over `.ai/` disables the gate (like `capture.enabled: false`) |
+| `dispatch-guard` | `dispatch-ladder` · `cold-worktree-build` · `shared-tree-dispatch` | path glob matched against the REPO ROOT (`- "**"` disables a check for the repo); prefer the inline prompt token for a one-off |
 
 **lib helpers** (`hooks/lib.mjs`): `loadIgnoreConfig(root)` → `{ checkId: globs[] }`;
 `pathExcluded(root, checkId, filePath)` → bool; `markerExcludedLines(source, checkId)` →

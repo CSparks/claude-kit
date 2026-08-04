@@ -1,7 +1,11 @@
-// Automated test for the dispatch-ladder gate (hooks/dispatch-guard.mjs). Asserts:
-// BLOCK on explicit fable and on a model-less delegation inheriting a fable session;
-// ALLOW on explicit opus, frontmatter-pinned kit agents, non-fable sessions, the
-// [allow-fable] escape, missing transcripts, unadopted repos, and malformed payloads.
+// Automated test for the dispatch gate (hooks/dispatch-guard.mjs) — all three checks.
+// dispatch-ladder: BLOCK on a model-less delegation inheriting a fable session; ALLOW on
+//   explicit models, frontmatter-pinned kit agents, non-fable sessions, [allow-fable],
+//   missing transcripts, unadopted repos, malformed payloads.
+// cold-worktree-build: BLOCK a worktree dispatch into a Cargo workspace; ALLOW when the brief
+//   provisions CARGO_TARGET_DIR, on [cold-build-ok], on a non-Rust repo, via the ignore file.
+// shared-tree-dispatch: BLOCK a non-worktree dispatch while the roster shows a live agent;
+//   ALLOW on worktree isolation, [shared-tree-ok], an empty/stale/finished/corrupt roster.
 // Run: node hooks/dispatch-guard.test.mjs
 
 import { spawnSync, execFileSync } from 'node:child_process';
@@ -11,12 +15,30 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const HOOK = fileURLToPath(new URL('./dispatch-guard.mjs', import.meta.url));
+const HOURS = 60 * 60 * 1000;
 let failures = 0;
 
-function makeRepo({ adopt = true } = {}) {
+function makeRepo({ adopt = true, cargo = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'dg-'));
   execFileSync('git', ['init', '-q'], { cwd: dir });
   if (adopt) mkdirSync(join(dir, '.ai'), { recursive: true });
+  if (cargo) writeFileSync(join(dir, 'Cargo.toml'), '[workspace]\nmembers = ["game"]\n');
+  return dir;
+}
+
+// Append roster rows the way agent-roster.mjs does: one JSON object per line, latest row per
+// id wins, `ts` carries the delegation time.
+function roster(dir, rows) {
+  writeFileSync(join(dir, '.ai', 'agents.jsonl'), rows.map((r) => (typeof r === 'string' ? r : JSON.stringify(r))).join('\n') + '\n');
+  return dir;
+}
+
+function inFlightRow(agesMs = 0, extra = {}) {
+  return { ts: new Date(Date.now() - agesMs).toISOString(), id: 'agent-live', status: 'in-flight', task: 'refactor the mesh factory', scope: 'refactorer', ...extra };
+}
+
+function ignoreFile(dir, checkId) {
+  writeFileSync(join(dir, '.claude-kit-ignore.yaml'), `${checkId}:\n  - "**"\n`);
   return dir;
 }
 
@@ -80,5 +102,50 @@ const msg = run(d, { subagent_type: 'general-purpose', prompt: 'x' }, fable).err
 expect("block message names the fix (model:'opus')", /model:'opus'/.test(msg) ? 1 : 0, 1);
 expect('block message names the escape token', /\[allow-fable/.test(msg) ? 1 : 0, 1);
 expect('block message carries the exclude footer', /dispatch-ladder/.test(msg) ? 1 : 0, 1);
+
+// --- cold-worktree-build (KIT-T176) ---------------------------------------------
+const rust = makeRepo({ cargo: true });
+const plain = makeRepo();
+const wt = { subagent_type: 'general-purpose', model: 'opus', isolation: 'worktree', prompt: 'port the drill mesh (KIT-T176)' };
+
+expect('blocks a worktree dispatch into a Cargo workspace', run(rust, wt).code, 2);
+expect('allows when the brief provisions CARGO_TARGET_DIR', run(rust, { ...wt, prompt: 'port the drill mesh — export CARGO_TARGET_DIR=../main/target first' }).code, 0);
+expect('allows the [cold-build-ok: reason] escape', run(rust, { ...wt, prompt: 'one-off audit [cold-build-ok: no cargo run needed]' }).code, 0);
+expect('allows a worktree dispatch in a non-Rust repo', run(plain, wt).code, 0);
+expect('allows a non-worktree dispatch in a Cargo workspace', run(rust, { subagent_type: 'general-purpose', model: 'opus', prompt: 'x' }).code, 0);
+expect('allows via the ignore file (cold-worktree-build)', run(ignoreFile(makeRepo({ cargo: true }), 'cold-worktree-build'), wt).code, 0);
+expect('allows on malformed stdin with a Cargo repo (fail-open)', runRaw(rust, '{not json').code, 0);
+
+const coldMsg = run(rust, wt).err;
+expect('cold-build message names CARGO_TARGET_DIR', /CARGO_TARGET_DIR/.test(coldMsg) ? 1 : 0, 1);
+expect('cold-build message cites the lived 30+ min burn', /30\+ minutes/.test(coldMsg) ? 1 : 0, 1);
+expect('cold-build message names the escape token', /\[cold-build-ok/.test(coldMsg) ? 1 : 0, 1);
+expect('cold-build message carries the exclude footer', /id: cold-worktree-build/.test(coldMsg) ? 1 : 0, 1);
+
+// --- shared-tree-dispatch (KIT-T176) --------------------------------------------
+const busy = roster(makeRepo(), [inFlightRow()]);
+const shared = { subagent_type: 'general-purpose', model: 'opus', prompt: 'add the ore-seam test (KIT-T176)' };
+
+expect('blocks a second dispatch while an agent is in flight', run(busy, shared).code, 2);
+expect('allows a worktree dispatch while an agent is in flight', run(busy, { ...shared, isolation: 'worktree' }).code, 0);
+expect('allows the [shared-tree-ok: reason] escape', run(busy, { ...shared, prompt: 'read-only sweep [shared-tree-ok: no writes]' }).code, 0);
+expect('allows via the ignore file (shared-tree-dispatch)', run(ignoreFile(roster(makeRepo(), [inFlightRow()]), 'shared-tree-dispatch'), shared).code, 0);
+expect('allows with no roster at all', run(makeRepo(), shared).code, 0);
+expect('allows with an empty roster', run(roster(makeRepo(), []), shared).code, 0);
+expect('allows when the in-flight row is stale (>2h)', run(roster(makeRepo(), [inFlightRow(3 * HOURS)]), shared).code, 0);
+expect('allows when the agent finished (terminal row)', run(roster(makeRepo(), [inFlightRow(), { ts: new Date().toISOString(), id: 'agent-live', status: 'done' }]), shared).code, 0);
+expect('allows on a corrupt roster line (fail-open)', run(roster(makeRepo(), ['{ not json at all', '']), shared).code, 0);
+expect('allows when a row has no parseable timestamp', run(roster(makeRepo(), [{ id: 'agent-x', status: 'in-flight', ts: 'not-a-date' }]), shared).code, 0);
+
+const sharedMsg = run(busy, shared).err;
+expect('shared-tree message names the one-agent-per-tree rule', /two agents in one working tree/i.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message lists the in-flight agent', /agent-live/.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message names the worktree remedy', /isolation: "worktree"/.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message names the escape token', /\[shared-tree-ok/.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message carries the exclude footer', /id: shared-tree-dispatch/.test(sharedMsg) ? 1 : 0, 1);
+
+// A busy tree that is also unadopted stays silent — the global install never punishes a
+// repo that hasn't opted in.
+expect('allows on an unadopted repo with a Cargo.toml', run(makeRepo({ adopt: false, cargo: true }), wt).code, 0);
 
 process.exit(failures ? 1 : 0);
