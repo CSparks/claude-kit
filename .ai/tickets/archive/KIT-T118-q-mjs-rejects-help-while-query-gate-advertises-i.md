@@ -2,7 +2,7 @@
 id: KIT-T118
 title: q.mjs rejects --help while query-gate advertises it -- gate block message says 'node q.mjs --help # the full query surface' but q.mjs treats --help as an unknown query (exit 1) and only prints a terse usage line on empty argv. Live hit 2026-07-05 (HOD session): agent following the gate's own guidance got an error. Fix: --help/-h/help print the full query surface (the header doc) to stdout, exit 0.
 type: bug
-status: todo
+status: done
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.711Z
-updated: 2026-07-14T17:40:14.711Z
+updated: 2026-08-04T16:17:53Z
+fixed_commit: 569656d
 ---
 
 ## Description
@@ -53,3 +54,6 @@ q.mjs rejects --help while query-gate advertises it -- gate block message says '
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 15:53] (status) todo → doing
+- [2026-08-04 16:17] (status) doing → done
+- [2026-08-04 16:17] (comment) code fix landed 9371fc6 (--help/-h/help print the full query surface to stdout, exit 0); locked down in 569656d with the tests it never had. Also satisfies KIT-T083 (duplicate ask). Tests: scripts/q.test.mjs - exit 0 + surface on stdout for all three spellings, every dispatched verb documented, the new fts --scope flag documented, bare invocation still exit 2 with usage on stderr. q: 35 passed, 0 failed; full npm test 0 failed.
