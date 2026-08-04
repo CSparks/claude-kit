@@ -1,11 +1,11 @@
 ---
-id: KIT-D047
+id: KIT-D049
 title: Never dispatch general-purpose when a specialist would fit — create the specialist
 type: decision
 status: accepted
 decided: 2026-08-03
 decided_by: Chris
-links: [KIT-D035, KIT-D042, KIT-D043, KIT-T151, KIT-D046]
+links: [KIT-D035, KIT-D042, KIT-D043, KIT-T151, KIT-D048]
 ---
 
 ## Decision

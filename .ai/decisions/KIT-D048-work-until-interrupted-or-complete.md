@@ -1,5 +1,5 @@
 ---
-id: KIT-D046
+id: KIT-D048
 title: Work until interrupted or COMPLETE — stopping needs a reason
 type: decision
 status: accepted
