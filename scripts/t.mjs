@@ -27,6 +27,7 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { nextId, readIdConfig } from './id-utils.mjs';
+import { splitFrontmatter, field } from './frontmatter.mjs';
 import { buildComment, parseComments, recordAck } from './comments.mjs';
 import { resolveUser } from './identity.mjs';
 import { appendUnderSection, stamp } from './md-body.mjs';
@@ -48,19 +49,10 @@ const LINK_RELS = {
   fixed_commit: 'sha',
 };
 
-// --- frontmatter primitives (same line-wise, dependency-free shape the rest of the tooling
-// uses; kept local so this tool has no cross-script coupling beyond id allocation) ----------
-
-function splitFrontmatter(text) {
-  const m = text.match(/^(---\n)([\s\S]*?)(\n---)/);
-  if (!m) return null;
-  return { open: m[1], fm: m[2], close: m[3], rest: text.slice(m[0].length) };
-}
-
-function field(fm, key) {
-  const m = fm.match(new RegExp(`^${key}:[ \\t]*(.*)$`, 'm'));
-  return m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
-}
+// --- frontmatter WRITERS (the readers come from frontmatter.mjs — KIT-T110) -----------------
+// The local reader copies this file carried were LF-only: a ticket whose delimiters end CRLF
+// (any Windows editor, any autocrlf checkout) matched nothing, so every mutation died with
+// "no frontmatter block to update" while the block looked perfectly valid on inspection.
 
 // Set a scalar in place, preserving the existing (possibly empty) line; append the key at the
 // end of the block when absent. Mirrors reconcile-supersede.setField so an edge written here

@@ -2,7 +2,7 @@
 id: KIT-T110
 title: tech-debt: consolidate frontmatter parsing — the field() YAML inline-comment-strip bug fixed in index-tickets.mjs (KIT-T063) exists latently in t.mjs, reconcile-supersede.mjs, id-utils.mjs, sync-tasks.mjs. One shared frontmatter helper (KIT-T059-style) prevents recurrence.
 type: tech-debt
-status: todo
+status: doing
 priority: low
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.686Z
-updated: 2026-07-14T17:40:14.686Z
+updated: 2026-08-04T16:23:54Z
 ---
 
 ## Description
@@ -54,3 +54,4 @@ tech-debt: consolidate frontmatter parsing — the field() YAML inline-comment-s
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 16:23] (status) todo → doing

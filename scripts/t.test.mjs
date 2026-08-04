@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import {
   scaffoldNew, setStatus, tick, untick, setCriterion, addCriterionTo, link, lintStoreText,
-  readConfig, findTicket, evidenceFloor,
+  readConfig, findTicket, evidenceFloor, comment,
 } from './t.mjs';
 import { listCriteria } from './criteria.mjs';
 
@@ -241,6 +241,29 @@ ok('evidenceFloor: a test path satisfies the floor', ef('done', '', 'covered by 
 ok('evidenceFloor: the [no-test:] escape satisfies the floor', ef('done', '', '[no-test: pure doc edit]').needsEvidence === false);
 ok('evidenceFloor: doing is NOT the closing state under uat=none', ef('doing', '', 'wip').atClosing === false);
 ok('evidenceFloor: per-ticket uat=required override closes at review', evidenceFloor('---\nid: KIT-T1\nstatus: review\nuat: required\n---\nno tests here', 'none').needsEvidence === true);
+
+// --- KIT-T110: the shared frontmatter parser (CRLF-tolerant + comment-aware) ---
+// The live Windows trap this closes: any editor / autocrlf checkout that rewrites a ticket with
+// \r\n made it PERMANENTLY unwritable through the CLI — t.mjs's local LF-only `^---\n` matched
+// nothing, so every mutation died with "no frontmatter block to update" while the block looked
+// perfectly valid on inspection (repro in inv4d3rs, 2026-08-03).
+const crlfRoot = project({ uatDefault: 'none' }, {});
+writeFileSync(join(crlfRoot, '.ai', 'tickets', 'KIT-T060-crlf.md'), ticketDoc('KIT-T060').replace(/\n/g, '\r\n'));
+ok('CRLF: findTicket parses the frontmatter block instead of returning null', !!findTicket(crlfRoot, 'KIT-T060').parts);
+const crlfMoved = setStatus(crlfRoot, 'KIT-T060', 'doing');
+ok('CRLF: t status round-trips (was "no frontmatter block to update")', crlfMoved.from === 'todo' && crlfMoved.to === 'doing');
+ok('CRLF: the new status is written to the frontmatter', /^status: doing\r?$/m.test(readFileSync(crlfMoved.path, 'utf8')));
+ok('CRLF: the (status) History line is appended', /\(status\) todo → doing/.test(readFileSync(crlfMoved.path, 'utf8')));
+comment(crlfRoot, 'KIT-T060', 'a note on the crlf ticket', { author: 'test' });
+ok('CRLF: t comment round-trips too', /\(comment\).*crlf ticket/.test(readFileSync(crlfMoved.path, 'utf8')));
+
+// A template-derived ticket keeps the template's trailing `# …` comments. The local field() this
+// file used to carry read them as part of the VALUE, so `status` was the whole comment string.
+const cmtRoot = project({ uatDefault: 'none' }, {});
+writeFileSync(join(cmtRoot, '.ai', 'tickets', 'KIT-T061-commented.md'),
+  ticketDoc('KIT-T061').replace('status: todo', 'status: todo           # todo | doing | review | done'));
+ok('comment-aware: an inline YAML comment is not part of the scalar',
+  setStatus(cmtRoot, 'KIT-T061', 'doing').from === 'todo');
 
 // --- integration: the real CLI regenerates the board (refresh wiring) ---
 const cli = project({ uatDefault: 'none' }, { 'KIT-T001': {} });

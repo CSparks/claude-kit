@@ -15,6 +15,10 @@
 
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
+// The ONE comment-aware, CRLF-tolerant parser (KIT-T107/KIT-T110). The local copies removed
+// here were LF-only, so a CRLF ticket scanned as having NO frontmatter — its id fell back to
+// the filename and its `type:`/`status:` read as empty (silent integrity blind spot).
+import { frontmatterBlock, field } from './frontmatter.mjs';
 
 // STORE_TYPE drives ID ALLOCATION (the <KEY>-<TYPE><NUM> letter), so only the stores that
 // mint frontmatter ids belong here. The cache must index MORE than these — inbox caps and
@@ -74,16 +78,6 @@ export function readIdConfig(root, aiDir = join(root, '.ai')) {
   return { key, pad };
 }
 
-function frontmatter(text) {
-  const m = text.match(/^---\n([\s\S]*?)\n---/);
-  return m ? m[1] : '';
-}
-
-function field(fm, key) {
-  const m = fm.match(new RegExp(`^${key}:[ \\t]*(.*)$`, 'm'));
-  return m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
-}
-
 // The leading id token of a filename: HOD-T045-foo.md -> HOD-T045 (also legacy
 // R045 / D-010 forms, so a mid-migration store still scans).
 function idFromFilename(f) {
@@ -106,7 +100,7 @@ export function scanStores(root, aiDir = join(root, '.ai')) {
       if (!existsSync(dir)) continue;
       for (const f of readdirSync(dir)) {
         if (extname(f) !== '.md' || SKIP.has(f)) continue;
-        const fmId = field(frontmatter(readFileSync(join(dir, f), 'utf8')), 'id');
+        const fmId = field(frontmatterBlock(readFileSync(join(dir, f), 'utf8')), 'id');
         const fileId = idFromFilename(f);
         items.push({ id: fmId || fileId, store, sub, file: f, fmId, fileId });
       }
@@ -211,7 +205,7 @@ export function findRegressionGaps(aiDir) {
       if (extname(f) !== '.md' || SKIP.has(f)) continue;
       let text;
       try { text = readFileSync(join(dir, f), 'utf8'); } catch { continue; }
-      const fm = frontmatter(text);
+      const fm = frontmatterBlock(text);
       if (!fm) continue;
       const type = field(fm, 'type');
       if (type !== 'regression') continue;

@@ -13,6 +13,10 @@
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+// The ONE comment-aware, CRLF-tolerant parser (KIT-T107/KIT-T110). The local copies removed
+// here were LF-only and comment-blind, so a CRLF ticket emitted nothing and a template-derived
+// `status: todo   # todo | doing | …` read as the whole comment string.
+import { frontmatterBlock, field } from './frontmatter.mjs';
 
 const DEFAULT_MAP = { todo: 'pending', doing: 'in_progress', review: 'completed', done: 'completed' };
 
@@ -41,18 +45,13 @@ function loadConfig() {
   return { prefix, map };
 }
 
-function field(fmText, key) {
-  const m = fmText.match(new RegExp(`^${key}:[ \\t]*(.+)$`, 'm'));
-  return m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
-}
-
 const { prefix, map } = loadConfig();
 const files = existsSync(ticketsDir) ? readdirSync(ticketsDir).filter((f) => f.endsWith('.md')) : [];
 const tasks = [];
 
 for (const f of files) {
   const text = readFileSync(join(ticketsDir, f), 'utf8');
-  const fm = (text.match(/^---\n([\s\S]*?)\n---/) || [null, ''])[1];
+  const fm = frontmatterBlock(text);
   const id = field(fm, 'id') || (f.match(/[A-Za-z]+-\d+/) || [])[0] || f.replace(/\.md$/, '');
   const status = field(fm, 'status') || 'todo';
   const title = field(fm, 'title') || (text.match(/^#\s+(.+)$/m) || [])[1] || id;

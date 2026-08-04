@@ -4,9 +4,10 @@
 // bugs: reconcile-supersede's field() read the _TEMPLATE's trailing comment on
 // `superseded_by:` as a real pointer (mass phantom-supersede, 2026-07-14), and every
 // LF-only `^---\n` block regex silently returned NO frontmatter for a file whose first
-// line ends CRLF (KIT-T124: junk board rows, duplicate-id aborts). Consumers:
-// db-parse.mjs, index-tickets.mjs, reconcile-supersede.mjs — import from here, never
-// re-derive (KIT-T110 finishes the job for t.mjs/sync-tasks/id-utils).
+// line ends CRLF (KIT-T124: junk board rows, duplicate-id aborts). Consumers: db-parse.mjs,
+// index-tickets.mjs, reconcile-supersede.mjs, t.mjs, sync-tasks.mjs, id-utils.mjs — import
+// from here, never re-derive. KIT-T110 retired the last three copies; t.mjs's LF-only one had
+// already made every CRLF ticket unwritable through the CLI ("no frontmatter block to update").
 
 // The frontmatter block's inner text, or '' when the file has none. Tolerates \r\n on
 // the delimiter lines — Windows editors and autocrlf checkouts produce them routinely.
