@@ -1,20 +1,6 @@
 ---
-id: KIT-T125
-title: index-tickets.mjs writes cross-project + comment-garbage SUPERSEDED chains
-
-Running `node D:\dev\claude-kit\scripts\index-tickets.mjs D:\dev\groovegrid`
-(repo with 2 GG tickets, zero supersessions) produced .ai/SUPERSEDED.md
-containing KIT-* chains from another project AND a chain parsed from the
-ticket template's comment line:
-  "# ticket id this one RETIRES (set on the NEWER ticket)" → KIT-T044
-Two defects: (1) supersession chains leak across project scopes instead of
-being filtered to the target repo's key; (2) the parser reads frontmatter
-comments / _TEMPLATE.md as real values. Fix at the kit source per the hook
-contract, not per-project. Could not locate the kit's own inbox from the
-groovegrid session (D:\dev\claude-kit has no .ai/; central store path not
-discoverable via q.mjs usage) — hence captured here.
-
-[re-capped 2026-07-14 from groovegrid inbox at triage — cap said KIT-scope, triage cannot rescope]
+id: KIT-T167
+title: query-gate false positive: `Get-ChildItem -Recurse D:\dev\claude-kit-data\projects\gridiron-blitz` (listing a project's .ai workflow DATA dir to inventory tickets) was BLOCKED as "grepping the source tree to discover code" (check-id: source-discovery, 2026-08-02). Workflow-data inventory is exactly what the .ai contract asks for at session start and code-graph cannot answer it. The gate should exempt .ai/ paths, the claude-kit-data store, and other non-source data directories from source-discovery.
 type: bug
 status: todo
 priority: high
@@ -25,34 +11,20 @@ parent:                # id of the parent item (epic/request) this belongs to �
 introduced_by:         # bug provenance: ticket@commit or ticket-id that introduced this bug (KIT-T095)
 produced_by:           # doc provenance: id of the source doc/item that produced this work item (KIT-T095)
 informs: []            # doc provenance: ids of work items this item feeds — reverse of produced_by (KIT-T095)
-links: []
+links: [KIT-T114]
 files: []              # repo-root-relative paths this ticket touches
 tier:                  # OPTIONAL dispatch firepower: light | standard | deep — expands to (model, effort)
                        # via config.dispatch.tiers (KIT-T034). Blank = config.dispatch.default_tier[type].
-model:                 # OPTIONAL override: opus | sonnet | haiku — pins the subagent model, beating tier.
+model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pins the subagent model, beating tier.
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
-created: 2026-07-14T17:46:37.007Z
-updated: 2026-07-14T17:46:37.007Z
+created: 2026-08-04T15:20:02.015Z
+updated: 2026-08-04T15:20:02.015Z
 ---
 
 ## Description
-index-tickets.mjs writes cross-project + comment-garbage SUPERSEDED chains
-
-Running `node D:\dev\claude-kit\scripts\index-tickets.mjs D:\dev\groovegrid`
-(repo with 2 GG tickets, zero supersessions) produced .ai/SUPERSEDED.md
-containing KIT-* chains from another project AND a chain parsed from the
-ticket template's comment line:
-  "# ticket id this one RETIRES (set on the NEWER ticket)" → KIT-T044
-Two defects: (1) supersession chains leak across project scopes instead of
-being filtered to the target repo's key; (2) the parser reads frontmatter
-comments / _TEMPLATE.md as real values. Fix at the kit source per the hook
-contract, not per-project. Could not locate the kit's own inbox from the
-groovegrid session (D:\dev\claude-kit has no .ai/; central store path not
-discoverable via q.mjs usage) — hence captured here.
-
-[re-capped 2026-07-14 from groovegrid inbox at triage — cap said KIT-scope, triage cannot rescope]
+query-gate false positive: `Get-ChildItem -Recurse D:\dev\claude-kit-data\projects\gridiron-blitz` (listing a project's .ai workflow DATA dir to inventory tickets) was BLOCKED as "grepping the source tree to discover code" (check-id: source-discovery, 2026-08-02). Workflow-data inventory is exactly what the .ai contract asks for at session start and code-graph cannot answer it. The gate should exempt .ai/ paths, the claude-kit-data store, and other non-source data directories from source-discovery.
 
 ## Acceptance Criteria
 <!-- Each must be a checkable observation. Claude ticks these as it satisfies them.
@@ -67,7 +39,6 @@ discoverable via q.mjs usage) — hence captured here.
 1.
 
 ## Notes
-- [2026-08-04 15:20] (comment) folded from triage: index-tickets.mjs writes CROSS-PROJECT supersede chains into a single project's SUPERSEDED.md — running it in gridiron-blitz (2026-08-02) produced SUPERSEDED.md listing DUP-T005→DUP-T001, GG-T015→GG-T014, GG-D029→GG-T152, KIT-T037→KIT-T014, KIT-T060→KIT-T075, RCN-T001→RCN-T002 — none of them gridiron tickets. Its summary line also self-contradicts: "20 active, 0 superseded ... SUPERSEDED.md (6 chain(s))". The indexer (or its "cache was stale — rehydrated" cache layer) is reading the whole data store, not the current project.
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 

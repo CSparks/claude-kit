@@ -1,23 +1,9 @@
 ---
-id: KIT-T125
-title: index-tickets.mjs writes cross-project + comment-garbage SUPERSEDED chains
-
-Running `node D:\dev\claude-kit\scripts\index-tickets.mjs D:\dev\groovegrid`
-(repo with 2 GG tickets, zero supersessions) produced .ai/SUPERSEDED.md
-containing KIT-* chains from another project AND a chain parsed from the
-ticket template's comment line:
-  "# ticket id this one RETIRES (set on the NEWER ticket)" → KIT-T044
-Two defects: (1) supersession chains leak across project scopes instead of
-being filtered to the target repo's key; (2) the parser reads frontmatter
-comments / _TEMPLATE.md as real values. Fix at the kit source per the hook
-contract, not per-project. Could not locate the kit's own inbox from the
-groovegrid session (D:\dev\claude-kit has no .ai/; central store path not
-discoverable via q.mjs usage) — hence captured here.
-
-[re-capped 2026-07-14 from groovegrid inbox at triage — cap said KIT-scope, triage cannot rescope]
-type: bug
+id: KIT-T168
+title: code-graph is JS/TS-only and in a rewritten repo it silently serves the SUPERSEDED tree as authoritative — gridiron-blitz is now a Rust app at root src/ (46 .rs files) with the old TS app moved to legacy/, and code-graph answers `entry-points` and `defines checkTackleAndScore` from legacy/ with zero warning (2026-08-02). KIT-T085 already carve-outs rust greps, but the "query the graph FIRST" mandate + query-gate steer straight into stale answers here. Wanted, in order of value: (1) WARN when the indexed tree is confined to a legacy*/ subtree or when the majority language of the repo is un-indexed; (2) `surface <path>` on a nonexistent path should say path-not-found, not return [] (silent-empty reads as "no public surface"); (3) Rust indexing (even symbols-only via tree-sitter) so graph-first works in Rust repos.
+type: feature
 status: todo
-priority: high
+priority: medium
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
 aka: []                # prior ids/labels this item was known by (populated by rekey-ids)
@@ -25,34 +11,20 @@ parent:                # id of the parent item (epic/request) this belongs to �
 introduced_by:         # bug provenance: ticket@commit or ticket-id that introduced this bug (KIT-T095)
 produced_by:           # doc provenance: id of the source doc/item that produced this work item (KIT-T095)
 informs: []            # doc provenance: ids of work items this item feeds — reverse of produced_by (KIT-T095)
-links: []
+links: [KIT-T101]
 files: []              # repo-root-relative paths this ticket touches
 tier:                  # OPTIONAL dispatch firepower: light | standard | deep — expands to (model, effort)
                        # via config.dispatch.tiers (KIT-T034). Blank = config.dispatch.default_tier[type].
-model:                 # OPTIONAL override: opus | sonnet | haiku — pins the subagent model, beating tier.
+model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pins the subagent model, beating tier.
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
-created: 2026-07-14T17:46:37.007Z
-updated: 2026-07-14T17:46:37.007Z
+created: 2026-08-04T15:20:02.026Z
+updated: 2026-08-04T15:20:02.026Z
 ---
 
 ## Description
-index-tickets.mjs writes cross-project + comment-garbage SUPERSEDED chains
-
-Running `node D:\dev\claude-kit\scripts\index-tickets.mjs D:\dev\groovegrid`
-(repo with 2 GG tickets, zero supersessions) produced .ai/SUPERSEDED.md
-containing KIT-* chains from another project AND a chain parsed from the
-ticket template's comment line:
-  "# ticket id this one RETIRES (set on the NEWER ticket)" → KIT-T044
-Two defects: (1) supersession chains leak across project scopes instead of
-being filtered to the target repo's key; (2) the parser reads frontmatter
-comments / _TEMPLATE.md as real values. Fix at the kit source per the hook
-contract, not per-project. Could not locate the kit's own inbox from the
-groovegrid session (D:\dev\claude-kit has no .ai/; central store path not
-discoverable via q.mjs usage) — hence captured here.
-
-[re-capped 2026-07-14 from groovegrid inbox at triage — cap said KIT-scope, triage cannot rescope]
+code-graph is JS/TS-only and in a rewritten repo it silently serves the SUPERSEDED tree as authoritative — gridiron-blitz is now a Rust app at root src/ (46 .rs files) with the old TS app moved to legacy/, and code-graph answers `entry-points` and `defines checkTackleAndScore` from legacy/ with zero warning (2026-08-02). KIT-T085 already carve-outs rust greps, but the "query the graph FIRST" mandate + query-gate steer straight into stale answers here. Wanted, in order of value: (1) WARN when the indexed tree is confined to a legacy*/ subtree or when the majority language of the repo is un-indexed; (2) `surface <path>` on a nonexistent path should say path-not-found, not return [] (silent-empty reads as "no public surface"); (3) Rust indexing (even symbols-only via tree-sitter) so graph-first works in Rust repos.
 
 ## Acceptance Criteria
 <!-- Each must be a checkable observation. Claude ticks these as it satisfies them.
@@ -67,7 +39,6 @@ discoverable via q.mjs usage) — hence captured here.
 1.
 
 ## Notes
-- [2026-08-04 15:20] (comment) folded from triage: index-tickets.mjs writes CROSS-PROJECT supersede chains into a single project's SUPERSEDED.md — running it in gridiron-blitz (2026-08-02) produced SUPERSEDED.md listing DUP-T005→DUP-T001, GG-T015→GG-T014, GG-D029→GG-T152, KIT-T037→KIT-T014, KIT-T060→KIT-T075, RCN-T001→RCN-T002 — none of them gridiron tickets. Its summary line also self-contradicts: "20 active, 0 superseded ... SUPERSEDED.md (6 chain(s))". The indexer (or its "cache was stale — rehydrated" cache layer) is reading the whole data store, not the current project.
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 

@@ -1,20 +1,6 @@
 ---
-id: KIT-T125
-title: index-tickets.mjs writes cross-project + comment-garbage SUPERSEDED chains
-
-Running `node D:\dev\claude-kit\scripts\index-tickets.mjs D:\dev\groovegrid`
-(repo with 2 GG tickets, zero supersessions) produced .ai/SUPERSEDED.md
-containing KIT-* chains from another project AND a chain parsed from the
-ticket template's comment line:
-  "# ticket id this one RETIRES (set on the NEWER ticket)" → KIT-T044
-Two defects: (1) supersession chains leak across project scopes instead of
-being filtered to the target repo's key; (2) the parser reads frontmatter
-comments / _TEMPLATE.md as real values. Fix at the kit source per the hook
-contract, not per-project. Could not locate the kit's own inbox from the
-groovegrid session (D:\dev\claude-kit has no .ai/; central store path not
-discoverable via q.mjs usage) — hence captured here.
-
-[re-capped 2026-07-14 from groovegrid inbox at triage — cap said KIT-scope, triage cannot rescope]
+id: KIT-T174
+title: q fts has no scope filter, so a project search returns every other project's hits --body q --help shows scope/store filters on SOME subcommands but NOT the one that needs it most: 'open [scope]' takes a scope, 'similar --store <s>', 'sessions --project <s>' — but 'fts <query...>' takes none. Repro from inv4d3rs: 'q fts warp' returned HOD-T224, HOD-T015, GG-T097, HOD-T111, GG-T095, HOD-N001 and ZERO INV rows; 'q fts door' returned 12 rows, all JV/HOD/KIT. Passing a scope as a leading term ('q fts INV warp') does not filter — it is searched as a term and returns nothing. The data supports it: items has a 'scope' column (pragma_table_info confirms id, scope, store, type, status, priority, title, parent, milestone, num, archived, file). Workaround is dropping to 'q sql SELECT ... WHERE scope=...', which is exactly the escape hatch the query-gate exists to make unnecessary. Ask: 'q fts [--scope <s>] <query...>', defaulting to the cwd project's scope when run inside an adopted repo. Cost of the gap: an agent forced onto q by the store-grep gate reads a screen of other projects' tickets and can wrongly conclude its own project has nothing.
 type: bug
 status: todo
 priority: high
@@ -29,30 +15,16 @@ links: []
 files: []              # repo-root-relative paths this ticket touches
 tier:                  # OPTIONAL dispatch firepower: light | standard | deep — expands to (model, effort)
                        # via config.dispatch.tiers (KIT-T034). Blank = config.dispatch.default_tier[type].
-model:                 # OPTIONAL override: opus | sonnet | haiku — pins the subagent model, beating tier.
+model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pins the subagent model, beating tier.
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
-created: 2026-07-14T17:46:37.007Z
-updated: 2026-07-14T17:46:37.007Z
+created: 2026-08-04T15:20:02.059Z
+updated: 2026-08-04T15:20:02.059Z
 ---
 
 ## Description
-index-tickets.mjs writes cross-project + comment-garbage SUPERSEDED chains
-
-Running `node D:\dev\claude-kit\scripts\index-tickets.mjs D:\dev\groovegrid`
-(repo with 2 GG tickets, zero supersessions) produced .ai/SUPERSEDED.md
-containing KIT-* chains from another project AND a chain parsed from the
-ticket template's comment line:
-  "# ticket id this one RETIRES (set on the NEWER ticket)" → KIT-T044
-Two defects: (1) supersession chains leak across project scopes instead of
-being filtered to the target repo's key; (2) the parser reads frontmatter
-comments / _TEMPLATE.md as real values. Fix at the kit source per the hook
-contract, not per-project. Could not locate the kit's own inbox from the
-groovegrid session (D:\dev\claude-kit has no .ai/; central store path not
-discoverable via q.mjs usage) — hence captured here.
-
-[re-capped 2026-07-14 from groovegrid inbox at triage — cap said KIT-scope, triage cannot rescope]
+q fts has no scope filter, so a project search returns every other project's hits --body q --help shows scope/store filters on SOME subcommands but NOT the one that needs it most: 'open [scope]' takes a scope, 'similar --store <s>', 'sessions --project <s>' — but 'fts <query...>' takes none. Repro from inv4d3rs: 'q fts warp' returned HOD-T224, HOD-T015, GG-T097, HOD-T111, GG-T095, HOD-N001 and ZERO INV rows; 'q fts door' returned 12 rows, all JV/HOD/KIT. Passing a scope as a leading term ('q fts INV warp') does not filter — it is searched as a term and returns nothing. The data supports it: items has a 'scope' column (pragma_table_info confirms id, scope, store, type, status, priority, title, parent, milestone, num, archived, file). Workaround is dropping to 'q sql SELECT ... WHERE scope=...', which is exactly the escape hatch the query-gate exists to make unnecessary. Ask: 'q fts [--scope <s>] <query...>', defaulting to the cwd project's scope when run inside an adopted repo. Cost of the gap: an agent forced onto q by the store-grep gate reads a screen of other projects' tickets and can wrongly conclude its own project has nothing.
 
 ## Acceptance Criteria
 <!-- Each must be a checkable observation. Claude ticks these as it satisfies them.
@@ -67,7 +39,6 @@ discoverable via q.mjs usage) — hence captured here.
 1.
 
 ## Notes
-- [2026-08-04 15:20] (comment) folded from triage: index-tickets.mjs writes CROSS-PROJECT supersede chains into a single project's SUPERSEDED.md — running it in gridiron-blitz (2026-08-02) produced SUPERSEDED.md listing DUP-T005→DUP-T001, GG-T015→GG-T014, GG-D029→GG-T152, KIT-T037→KIT-T014, KIT-T060→KIT-T075, RCN-T001→RCN-T002 — none of them gridiron tickets. Its summary line also self-contradicts: "20 active, 0 superseded ... SUPERSEDED.md (6 chain(s))". The indexer (or its "cache was stale — rehydrated" cache layer) is reading the whole data store, not the current project.
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
