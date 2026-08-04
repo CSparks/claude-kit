@@ -20,7 +20,7 @@ no blank/non-key lines (would have caught this and the CRLF bug both).
 All 31 were hand-repaired 2026-07-14 (status-anchored strip + one-line title);
 this ticket is the kit-side root-cause fix + regression test.
 type: bug
-status: doing
+status: done
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -38,7 +38,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:46:37.012Z
-updated: 2026-08-04T16:23:53Z
+updated: 2026-08-04T16:42:34Z
+fixed_commit: f1dcd2b
 ---
 
 ## Description
@@ -94,3 +95,5 @@ Recurred 2026-08-04 in the cross-project triage run: all 8 items created from mu
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-08-04 15:26] (comment) @chris: Recurred 2026-08-04 in the cross-project triage run: all 8 items created from multi-line caps got the full cap text writ (full comment #1 in ## Notes)
 - [2026-08-04 16:23] (status) todo → doing
+- [2026-08-04 16:42] (status) doing → done
+- [2026-08-04 16:42] (comment) fixed in f1dcd2b — cap-text.capTitle() derives a one-line title (first non-empty line, leading '#' stripped, argv/meta tails cut, 140-char word-boundary cap); apply.createItem uses it while the full capture still goes to the body; write-item.setField enforces 'a frontmatter scalar is one line' for every key and the template body slot is one rule, so a created DECISION never ships '<what was decided>'. Before/after on a 4-line cap: prose inside the frontmatter block + 'title: #' (blank YAML title) + untouched placeholder -> clean one-line title + '**Decision:** <full cap verbatim>'. Covered by scripts/triage.test.mjs (4 new cases, 14 passed, 0 failed; all 4 fail against the pre-fix files). Full npm test: 0 failed.

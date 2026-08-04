@@ -2,7 +2,7 @@
 id: KIT-T169
 title: sync-tasks.mjs emits a corrupted task spec (gridiron-blitz, 2026-08-02): (1) filename→ticket parsing breaks on slugs containing digits — `GB-T011-playcall-single-row-change-v23-regressed-the-2-r.md` becomes ticket "the-2"; (2) it emits tasks for non-tickets INDEX.md ("INDEX Ticket board") and _TEMPLATE.md; (3) a ticket whose Acceptance Criteria are empty contributes a bogus "## Plan" task (it scrapes past the empty checklist into the next heading); (4) ticketStatus is "todo" for every ticket even where frontmatter says doing/review (GB-T001 doing, GB-T003/T005 review per INDEX from the same frontmatter) — status parsing disagrees with index-tickets.mjs. Net effect: hydrating the native list from this spec would create ~76 tasks including garbage. Should share one frontmatter/criteria parser with index-tickets.mjs, skip _TEMPLATE/INDEX/generated files, and emit tasks only for active (doing) tickets per the hydrate contract.
 type: bug
-status: doing
+status: done
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes: KIT-T120
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-04T15:20:02.031Z
-updated: 2026-08-04T16:23:54Z
+updated: 2026-08-04T16:42:16Z
+fixed_commit: 891647e
 ---
 
 ## Description
@@ -54,3 +55,5 @@ sync-tasks.mjs emits a corrupted task spec (gridiron-blitz, 2026-08-02): (1) fil
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-08-04 16:23] (status) todo → doing
+- [2026-08-04 16:42] (status) doing → done
+- [2026-08-04 16:42] (comment) fixed in 891647e (+ b7b249a) — id from frontmatter not filename, INDEX/_TEMPLATE/id-less files skipped, criteria read via criteria.mjs (section-scoped, empty placeholder emits no phantom '## Plan' task), status from the shared parser, only 'doing' tickets emitted. Fixture repro before/after: 15 tasks (incl. ticket 'the-2', 'INDEX Ticket board', 'SYT-T003 ## Plan') -> 3 correct tasks. KIT-T120's phantom-tasks-from-non-ticket-files symptom is covered by the 'skip: INDEX.md / _TEMPLATE.md / no-frontmatter-id contributes no task' cases. Covered by scripts/sync-tasks.test.mjs (new, 19 passed, 0 failed) + scripts/t.test.mjs (83 passed). Full npm test: 0 failed.
