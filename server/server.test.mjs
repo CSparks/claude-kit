@@ -8,7 +8,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -106,6 +106,15 @@ function makeWaitingRegistry() {
 process.env.CLAUDE_KIT_REGISTRY = makeWaitingRegistry();
 
 const fixtureRoot = makeFixture();
+// The API reads the shared cache through dbOpen, which represents REGISTERED projects only
+// (KIT-T164) — an unregistered store is served from the markdown scan instead, and the cache-
+// backed endpoints have nothing to answer from. A real served project is registered, so the
+// fixture is too; it goes in the same throwaway registry, never the machine's.
+{
+  const reg = JSON.parse(readFileSync(process.env.CLAUDE_KIT_REGISTRY, 'utf8'));
+  reg.projects['test-proj'] = fixtureRoot;
+  writeFileSync(process.env.CLAUDE_KIT_REGISTRY, JSON.stringify(reg));
+}
 const discovery = createStaticDiscovery([
   { key: 'TST', name: 'test-proj', root: fixtureRoot, aiDir: join(fixtureRoot, '.ai') },
 ]);

@@ -7,6 +7,12 @@
 //   node scripts/hydrate-db.mjs --root <dir>     # hydrate ONE .ai root only (single-scope)
 //   node scripts/hydrate-db.mjs --db <path>      # write the db somewhere else
 //   node scripts/hydrate-db.mjs --if-stale       # skip if no store file is newer than db
+//   node scripts/hydrate-db.mjs --root <dir> --allow-unregistered   # repair: force an unadopted root in
+//
+// SHARED-CACHE GUARD (KIT-T164): a `--root` hydrate into the DEFAULT db is refused unless that
+// root is a REGISTERED project (see isRegisteredStore). A store names its own scope, and a
+// single-root hydrate replaces that scope wholesale — so an unadopted directory claiming a live
+// key could erase it. Naming your own `--db` is unrestricted; the shared cache is not.
 //
 // CROSS-SCOPE (KIT-T031): with no --root, the cache indexes EVERY registered project's
 // stores (the registry's projects + central data, via projectAiDirs()) PLUS claude-kit's
@@ -26,7 +32,7 @@
 //   * FTS5 replaces workflow's substring search — the agent-retrieval driver.
 // DROPPED from workflow: the ORM, write-back, and DB-as-source — all edits go to markdown.
 
-import { mkdirSync, statSync, existsSync, rmSync, readdirSync } from 'node:fs';
+import { mkdirSync, statSync, existsSync, rmSync, readdirSync, realpathSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rowFromScan } from './db-parse.mjs';
@@ -175,6 +181,36 @@ export function hydrationSources(root) {
   });
 }
 
+// One comparable form for a path: resolved, de-linked (a repo's .ai is usually a junction into
+// the central data repo), and case-folded on Windows.
+function canonPath(p) {
+  let out = resolve(p);
+  try { out = realpathSync(out); } catch { /* absent — the resolved form is the best we have */ }
+  return process.platform === 'win32' ? out.toLowerCase() : out;
+}
+
+// Is this store root one the machine has ADOPTED — i.e. does its .ai appear in the project
+// registry (or is it the kit's own)? KIT-T164: a store declares its own scope via ids.key, and
+// a single-root hydrate REPLACES every row for the scope it declares. Since storeRoot() accepts
+// the nearest ancestor holding .ai/config.yml, any throwaway directory on disk can claim a live
+// key — and one Edit inside it wipes that scope wholesale (MEASURED: KIT went 56 open → 1).
+// Registration is the only signal that separates a real project from a squatter, so it gates
+// writes to the SHARED cache. Cross-scope hydrates are already registry-driven, so an
+// unregistered store was never reachable there either — this closes the write-site hole.
+// Is this the SHARED cache — the one every registered project's rows live in — as opposed to a
+// caller-owned db (a test fixture's, an explicit `--db`)? Only the shared one needs guarding.
+export function isSharedDb(dbPath) {
+  return canonPath(dbPath) === canonPath(defaultDbPath());
+}
+
+export function isRegisteredStore(root) {
+  if (!root) return false;
+  const known = new Set([canonPath(join(KIT_ROOT, '.ai'))]);
+  for (const { aiDir } of projectAiDirs()) known.add(canonPath(aiDir));
+  // <root>/.ai for an in-repo store; root itself for a central-data store (which IS the .ai dir).
+  return known.has(canonPath(join(root, '.ai'))) || known.has(canonPath(root));
+}
+
 // Insert one parsed item's rows across every table. The inverse of deleteItemRows — together
 // they make a per-file re-parse a delete-then-insert of EXACTLY that item's rows, leaving
 // every other item untouched (the KIT-T026 efficiency invariant).
@@ -266,7 +302,21 @@ function openForSync(open, dbPath) {
 // have their rows removed, unchanged files are skipped entirely (never read, never written).
 // A full populate happens only as the natural result of syncing into a fresh/empty DB, so
 // `rm db + sync` still reproduces the cache exactly.
-export async function hydrate({ root, dbPath = defaultDbPath(), ifStale = false } = {}) {
+export async function hydrate({ root, dbPath = defaultDbPath(), ifStale = false, allowUnregistered = false } = {}) {
+  // KIT-T164 — the shared cache is only writable by ADOPTED stores. A single-root hydrate
+  // replaces every row for the scope that root's config declares, so an unregistered store
+  // claiming a live key would delete that scope's real rows as "missing". Gated on the SHARED
+  // db only: a caller that names its own dbPath (every test fixture, `--db`) owns that file and
+  // is free to hydrate anything into it. Refusing is a SKIP, not a throw — the caller's file
+  // write already succeeded and must not be undone by a cache side-effect (fail-open).
+  if (root && !allowUnregistered && isSharedDb(dbPath) && !isRegisteredStore(root)) {
+    process.stderr.write(
+      `hydrate-db: '${root}' is not a registered project — its .ai store was NOT hydrated into the shared cache.\n` +
+      `  It declares a scope key of its own, and hydrating it would replace that whole scope's rows (KIT-T164).\n` +
+      `  Adopt it (node scripts/init-project.mjs) or hydrate to a private cache (--db <path>).\n`,
+    );
+    return { ok: false, reason: 'unregistered-root', root, dbPath };
+  }
   const open = await resolveEngine();
   if (!open) {
     return { ok: false, reason: 'no-engine', engine: null };
@@ -367,12 +417,19 @@ async function main() {
   let root; // undefined → cross-scope (all registered projects + kit); --root forces single
   let dbPath = defaultDbPath();
   let ifStale = false;
+  let allowUnregistered = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--root') root = args[++i];
     else if (args[i] === '--db') dbPath = args[++i];
     else if (args[i] === '--if-stale') ifStale = true;
+    else if (args[i] === '--allow-unregistered') allowUnregistered = true;
   }
-  const r = await hydrate({ root, dbPath, ifStale });
+  const r = await hydrate({ root, dbPath, ifStale, allowUnregistered });
+  if (!r.ok && r.reason === 'unregistered-root') {
+    process.stderr.write(
+      'hydrate-db: pass --allow-unregistered to hydrate it anyway (it WILL replace that scope\'s rows).\n');
+    process.exit(1);
+  }
   if (!r.ok && r.reason === 'no-engine') {
     process.stderr.write(
       'hydrate-db: no SQLite engine (install better-sqlite3 or run on Node 22+ for node:sqlite).\n' +

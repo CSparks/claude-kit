@@ -61,7 +61,17 @@ function makeRepo() {
   // Minimal ticket template for triage --apply
   writeFileSync(join(root, '.ai', 'tickets', '_TEMPLATE.md'),
     `---\nid: TST-T000\ntitle: <short imperative title>\ntype: bug\nstatus: todo\npriority: medium\nlinks: []\ncreated: <YYYY-MM-DDThh:mm:ssZ>\nupdated: <YYYY-MM-DDThh:mm:ssZ>\n---\n\n## Description\n<what and why>\n\n## Notes\n`);
+  // Adopted AND registered (KIT-T164): hydrate-at-source only writes a shared cache for a store
+  // the registry names, so the write-site guarantee below is asserted on a store that qualifies.
+  // The registry lives inside the fixture, so it is thrown away with it.
+  writeFileSync(join(root, 'projects.json'), JSON.stringify({ projects: { 'src-fixture': root } }));
   return root;
+}
+
+// The env a spawned CLI child runs under: its own plugin root (so defaultDbPath() is the
+// fixture's db) and its own registry (so no real project is visible, and this one is).
+function childEnv(root) {
+  return { ...process.env, CLAUDE_KIT_REGISTRY: join(root, 'projects.json'), CLAUDE_PLUGIN_ROOT: root };
 }
 
 // Isolated DB path under the throwaway repo (not the kit-root default).
@@ -129,7 +139,7 @@ await testAsync('cap: spawning cap creates the inbox item and it is in the DB di
   execFileSync(process.execPath, [CAP, 'bug', 'login redirect loops after sso'], {
     cwd: root,
     encoding: 'utf8',
-    env: { ...process.env, CLAUDE_KIT_REGISTRY: join(tmpdir(), 'no-kit-reg.json'), CLAUDE_PLUGIN_ROOT: root },
+    env: childEnv(root),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -154,7 +164,7 @@ await testAsync('t new: spawning t new creates the ticket and it is in the DB di
   execFileSync(process.execPath, [T, 'new', 'bug', 'login redirect loops after sso'], {
     cwd: root,
     encoding: 'utf8',
-    env: { ...process.env, CLAUDE_KIT_REGISTRY: join(tmpdir(), 'no-kit-reg.json'), CLAUDE_PLUGIN_ROOT: root },
+    env: childEnv(root),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -174,7 +184,7 @@ await testAsync('t status: spawning t status updates the DB directly after', asy
   // Seed a ticket first via t new.
   execFileSync(process.execPath, [T, 'new', 'bug', 'a ticket to advance'], {
     cwd: root, encoding: 'utf8',
-    env: { ...process.env, CLAUDE_KIT_REGISTRY: join(tmpdir(), 'no-kit-reg.json'), CLAUDE_PLUGIN_ROOT: root },
+    env: childEnv(root),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
@@ -183,7 +193,7 @@ await testAsync('t status: spawning t status updates the DB directly after', asy
   // Now change status to doing.
   execFileSync(process.execPath, [T, 'status', 'TST-T001', 'doing'], {
     cwd: root, encoding: 'utf8',
-    env: { ...process.env, CLAUDE_KIT_REGISTRY: join(tmpdir(), 'no-kit-reg.json'), CLAUDE_PLUGIN_ROOT: root },
+    env: childEnv(root),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 

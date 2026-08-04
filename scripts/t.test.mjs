@@ -26,7 +26,18 @@ const fixtures = [];
 const PLUGIN_ROOT = mkdtempSync(join(tmpdir(), 'kit-t-plugin-'));
 process.env.CLAUDE_PLUGIN_ROOT = PLUGIN_ROOT;
 fixtures.push(PLUGIN_ROOT);
-const CHILD_ENV = { ...process.env, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT };
+// KIT-T164 pairs with that redirect: only a REGISTERED store may hydrate into a shared cache, so
+// a fixture must be named in a throwaway registry to reach even the sandboxed one — and the real
+// registry (with its real project paths) stays out of the run entirely.
+const REGISTRY = join(PLUGIN_ROOT, 'projects.json');
+writeFileSync(REGISTRY, JSON.stringify({ projects: {} }, null, 2));
+process.env.CLAUDE_KIT_REGISTRY = REGISTRY;
+const CHILD_ENV = { ...process.env, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_KIT_REGISTRY: REGISTRY };
+function registerFixture(name, root) {
+  const reg = JSON.parse(readFileSync(REGISTRY, 'utf8'));
+  reg.projects[name] = root;
+  writeFileSync(REGISTRY, JSON.stringify(reg, null, 2));
+}
 function ok(name, cond) {
   if (cond) { pass++; console.log('  ok    ' + name); }
   else { fail++; console.log('  FAIL  ' + name); }
@@ -271,6 +282,7 @@ ok('comment-aware: an inline YAML comment is not part of the scalar',
 
 // --- integration: the real CLI regenerates the board (refresh wiring) ---
 const cli = project({ uatDefault: 'none' }, { 'KIT-T001': {} });
+registerFixture('t-cli-fixture', cli);
 const liveDb = join(dirname(dirname(SCRIPT)), '.cache', 'workflow.db');
 const liveBefore = existsSync(liveDb) ? statSync(liveDb).mtimeMs : null;
 try {

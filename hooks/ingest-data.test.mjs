@@ -21,6 +21,12 @@ const HOOK = join(HERE, 'ingest-data.mjs');
 // .cache/workflow.db). defaultDbPath() honors CLAUDE_PLUGIN_ROOT, so point the spawned hook
 // at a throwaway plugin root — its db lands in <tmp>/.cache/workflow.db, never the real one.
 const PLUGIN_ROOT = mkdtempSync(join(tmpdir(), 'kit-ingest-root-'));
+// …and from the real project REGISTRY (KIT-T164). The registry decides which stores may hydrate
+// into the shared cache AND which scopes a cross-scope hydrate pulls in, so a test that inherits
+// the machine's real one would both drag every live project into its temp db and depend on this
+// machine's project list. A throwaway registry names only this test's fixture.
+const REGISTRY = join(PLUGIN_ROOT, 'projects.json');
+writeFileSync(REGISTRY, JSON.stringify({ projects: {} }, null, 2));
 
 let pass = 0;
 let fail = 0;
@@ -42,7 +48,7 @@ function fire(filePath, raw, extraEnv = {}) {
   return spawnSync(process.execPath, [HOOK], {
     input: raw !== undefined ? raw : JSON.stringify({ tool_input: { file_path: filePath } }),
     encoding: 'utf8',
-    env: { ...process.env, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, ...extraEnv },
+    env: { ...process.env, CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT, CLAUDE_KIT_REGISTRY: REGISTRY, ...extraEnv },
   });
 }
 
@@ -147,6 +153,9 @@ if (!engine) {
   const ai = join(proj, '.ai');
   mkdirSync(join(ai, 'inbox'), { recursive: true });
   writeFileSync(join(ai, 'config.yml'), 'ids:\n  key: "ING"\n  pad: 3\n');
+  // Adopted AND registered: the write-site hydrate only writes the shared cache for a store the
+  // registry knows (KIT-T164), which is what stops a stray .ai on disk from replacing a live scope.
+  writeFileSync(REGISTRY, JSON.stringify({ projects: { 'ingest-fixture': proj } }, null, 2));
   const cap = join(ai, 'inbox', '2026-06-05-1200-flux-capacitor.md');
 
   await test('editing a store file ingests it into the cache immediately', () => {

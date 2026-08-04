@@ -40,7 +40,7 @@ import { existsSync, statSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveEngine } from './db-engine.mjs';
-import { hydrate, defaultDbPath, hydrationSources } from './hydrate-db.mjs';
+import { hydrate, defaultDbPath, hydrationSources, isRegisteredStore, isSharedDb } from './hydrate-db.mjs';
 import { readIdConfig, statStoreFiles } from './id-utils.mjs';
 import { fallback } from './q-fallback.mjs';
 import {
@@ -79,6 +79,13 @@ function newestAcross(sources) {
 export async function dbOpen(root, dbPath) {
   const open = await resolveEngine();
   if (!open) return { handle: null, wasStale: false };
+  // The shared cache holds REGISTERED projects only (KIT-T164) — an unregistered root may not
+  // hydrate into it, so it cannot be represented there and must not be ANSWERED from there
+  // either: those rows would be some other project's. Degrade to the markdown scan, which is
+  // already q's first-class fail-open path and is exact for a single root.
+  if (root && isSharedDb(dbPath) && !isRegisteredStore(root)) {
+    return { handle: null, wasStale: false, unregistered: true };
+  }
   // Backstop/audit for out-of-band drift (git pull / another machine / parallel session).
   // In-process writes hydrate at the mutation site via writeItemFile — KIT-T096.
   const wasStale = !existsSync(dbPath) || statSync(dbPath).mtimeMs < newestAcross(hydrationSources(root));
@@ -187,23 +194,29 @@ function cannedQueries(root) {
     // Regression chain data for index-tickets (KIT-T026): every ticket with its upward
     // regressed_from + caused_by/fixed_by commit refs, pulled from the links edges. The
     // indexer assembles the chains; this just serves the per-id provenance from the cache.
-    regressions: (db) => db.all(
+    // `scope` confines it to ONE project — the cache is cross-scope, and these rows are
+    // written straight into a single project's generated views (KIT-T125).
+    regressions: (db, scope) => db.all(
       `SELECT i.id, i.title,
               rf.to_id AS regressed_from, cb.to_id AS causing_commit, fb.to_id AS fixed_commit
        FROM items i
        LEFT JOIN links rf ON rf.from_id = i.id AND rf.rel = 'regressed_from'
        LEFT JOIN links cb ON cb.from_id = i.id AND cb.rel = 'caused_by'
        LEFT JOIN links fb ON fb.from_id = i.id AND fb.rel = 'fixed_by'
-       WHERE i.store = 'tickets' ORDER BY i.id`),
+       WHERE i.store = 'tickets'${scope ? ' AND i.scope = ?' : ''} ORDER BY i.id`,
+      scope ? [scope] : []),
 
     // Supersede chain data for index-tickets (KIT-T024): every ticket's outbound supersedes
     // pointer (newer -> the older one it retires). index-tickets assembles older→newer chains
-    // from these the same way it builds regression chains from regressed_from.
-    supersedes: (db) => db.all(
+    // from these the same way it builds regression chains from regressed_from. Scoped for the
+    // same reason as `regressions` — unscoped, one repo's SUPERSEDED.md listed DUP/GG/KIT/RCN
+    // chains it has no relationship to (KIT-T125/KIT-T154).
+    supersedes: (db, scope) => db.all(
       `SELECT i.id, i.status, i.title, s.to_id AS supersedes
        FROM items i
        LEFT JOIN links s ON s.from_id = i.id AND s.rel = 'supersedes'
-       WHERE i.store = 'tickets' ORDER BY i.id`),
+       WHERE i.store = 'tickets'${scope ? ' AND i.scope = ?' : ''} ORDER BY i.id`,
+      scope ? [scope] : []),
 
     // Dedup detector (KIT-T024, generalized to all stores in KIT-T025): FTS-rank likely
     // duplicates of a free-text proposal, confined to the target store. SUGGEST-ONLY —
@@ -406,8 +419,13 @@ async function main() {
   }
 
   if (cmd === 'sql') {
-    const { handle } = noDb ? { handle: null } : await dbOpen(root, dbPath);
-    if (!handle) { process.stderr.write('q: ad-hoc SQL needs a SQLite engine (none found).\n'); process.exit(1); }
+    const { handle, unregistered } = noDb ? { handle: null } : await dbOpen(root, dbPath);
+    if (!handle) {
+      process.stderr.write(unregistered
+        ? `q: '${root}' is not a registered project — the shared cache holds no rows for it, so ad-hoc SQL has nothing to answer from (KIT-T164).\n`
+        : 'q: ad-hoc SQL needs a SQLite engine (none found).\n');
+      process.exit(1);
+    }
     const sql = args.join(' ');
     if (!/^\s*(select|with|pragma|explain)\b/i.test(sql)) { process.stderr.write('q: only read-only SQL (SELECT/WITH/PRAGMA/EXPLAIN) — the cache is never written back.\n'); handle.close(); process.exit(1); }
     printRows(handle.all(sql), json);
