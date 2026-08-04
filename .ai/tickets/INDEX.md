@@ -78,7 +78,7 @@
 | KIT-T171 | bug | todo | high | process: main went red because code referenced a file a BACKGROUND agent was still authoring (gridiron 2026-08-02: `mod schools;` declared, agent owned schools.rs, Chris's cargo run hit E0583). Rule to codify: never commit/leave the tree referencing an async deliverable — land a compiling placeholder in the same edit that adds the reference, or don't add the reference until the artifact exists. Hook angle: a Stop-gate `cargo check` (or build-tool equivalent) for repos with .ai/ would have caught the red tree before the turn ended. |
 | KIT-T175 | feature | todo | medium | init-project CLAUDE.md gains an agent-facing "Data repo (git)" section — junction layout, sync-data auto-commit, pathspec etiquette, push runbook |
 | KIT-T176 | feature | review | high | dispatch-guard blocks the two dispatch shapes that have burned real money |
-| KIT-T177 | bug | doing | high | shared-tree-dispatch filters by actual tree — roster rows record isolation + repo root + completion |
+| KIT-T177 | bug | review | high | shared-tree-dispatch filters by actual tree — roster rows record isolation + repo root + completion |
 
 ## Superseded (9)
 | id | status | title | superseded by |
