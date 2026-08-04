@@ -78,6 +78,8 @@ this ticket is the kit-side root-cause fix + regression test.
 - [2026-08-02 21:53] (comment) folded from triage: triage.mjs --apply writes multi-line markdown cap text into ticket frontmatter title unsanitized — a cap whose text starts '# Heading' + bullet body produced 'title: # ...' (YAML comment = BLANK title) and dumped the whole body INSIDE the frontmatter block (HOD-T422..T425, 2026-07-23 triage of 40 caps). Title extraction must take the first line, strip leading '#', quote it, and cap length; body stays in ## Description only. Hand-repaired the 4 HOD tickets same day.
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+### comment #1 [2026-08-04 15:26] @chris
+Recurred 2026-08-04 in the cross-project triage run: all 8 items created from multi-line caps got the full cap text written into the title: scalar (HOD-T432/T433/T434/T436, HOD-D100/D101/D103, KIT-T175), breaking their frontmatter; decision files additionally got template-placeholder bodies. Repaired by hand same run (one-line titles; decision bodies filled). Single-line caps produce valid but enormous title scalars (HOD-D098/D099 shortened by hand too).
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -90,3 +92,4 @@ this ticket is the kit-side root-cause fix + regression test.
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 15:26] (comment) @chris: Recurred 2026-08-04 in the cross-project triage run: all 8 items created from multi-line caps got the full cap text writ (full comment #1 in ## Notes)

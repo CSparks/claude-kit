@@ -2,7 +2,7 @@
 id: KIT-T120
 title: bug: sync-tasks.mjs emits phantom tasks from non-ticket files
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -18,7 +18,7 @@ tier:                  # OPTIONAL dispatch firepower: light | standard | deep �
 model:                 # OPTIONAL override: opus | sonnet | haiku — pins the subagent model, beating tier.
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
-superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
+superseded_by: KIT-T169
 created: 2026-07-14T17:40:14.718Z
 updated: 2026-07-14T17:40:14.718Z
 ---

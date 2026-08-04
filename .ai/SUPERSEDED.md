@@ -8,6 +8,9 @@ superseded when a newer one sets `supersedes:` (or it carries `superseded_by:` /
 - **DUP-T005**  →  **DUP-T001**  · 1 superseded
 - **GG-T015**  →  **GG-T014**  · 1 superseded
 - **GG-D029**  →  **GG-T152**  · 1 superseded
+- **INV-T014**  →  **INV-T019**  · 1 superseded
 - **KIT-T037**  →  **KIT-T014**  · 1 superseded
 - **KIT-T060**  →  **KIT-T075**  · 1 superseded
+- **KIT-T120**  →  **KIT-T169**  · 1 superseded
 - **RCN-T001**  →  **RCN-T002**  · 1 superseded
+- **ST-T042**  →  **ST-T043**  · 1 superseded
