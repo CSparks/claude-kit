@@ -156,6 +156,15 @@ try {
       }, dh);
       ok('tree: a brief naming another repo root records THAT tree', sameTree(readAgents(dh)[0].targetRoot, other));
 
+      const dn = makeRepo();
+      const nested = join(gitTop(makeRepo()), 'src', 'thing.mjs');
+      hook(ROSTER_HOOK, {
+        hook_event_name: 'PostToolUse', tool_name: 'Task',
+        tool_input: { prompt: `see \`${nested}\` for context (KIT-T177)`, subagent_type: 'general-purpose' },
+        tool_response: { agent_id: 'tgt03' },
+      }, dn);
+      ok('tree: a FILE inside another repo does not retarget the dispatch', sameTree(readAgents(dn)[0].targetRoot, gitTop(dn)));
+
       const dm = makeRepo();
       hook(ROSTER_HOOK, {
         hook_event_name: 'PostToolUse', tool_name: 'Task',
