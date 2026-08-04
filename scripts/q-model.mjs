@@ -3,7 +3,9 @@
 // fallback (q-fallback.mjs) must agree on. Living in one module is what makes cache-vs-scan
 // parity (KIT-T026) structural instead of a convention two copies keep drifting from.
 
+import { resolve } from 'node:path';
 import { readIdConfig, STORE_TYPE, compareIds } from './id-utils.mjs';
+import { storeRoot } from '../hooks/lib.mjs';
 
 export const OPEN = ['todo', 'doing', 'review'];
 export const FTS_LIMIT = 25;        // cap FTS hits — a retrieval list, not a full dump
@@ -27,6 +29,71 @@ export function ftsOrQuery(text) {
 export function parseSimilar(text) {
   const m = String(text || '').match(/^\s*--store\s+(\S+)\s*([\s\S]*)$/);
   return { store: m ? m[1] : 'tickets', query: (m ? m[2] : text).trim() };
+}
+
+// A caller-quoted "phrase" (optionally prefix-suffixed) or one whitespace-delimited word.
+const FTS_TOKEN = /"[^"]*"\*?|\S+/g;
+// FTS5 boolean operators are recognized ONLY in upper case, so a lowercase `and` is an
+// ordinary word and gets quoted like any other. NEAR is deliberately absent: its real form is
+// `NEAR(a b, N)`, not an infix, so passing a bare NEAR through would itself be a syntax error.
+const FTS_BOOLEAN = new Set(['AND', 'OR', 'NOT']);
+const INDEXABLE = /[\p{L}\p{N}]/u;
+
+// The MATCH expression for `q fts` (KIT-T172). User terms used to reach MATCH RAW, so any
+// punctuation was parsed as FTS5 SYNTAX: `fts "no ask-first gate"` made SQLite read `first`
+// as a column name and die with `no such column: first` — and hyphens are everywhere in
+// ticket titles (ask-first, low-poly, file-length). Every user token is now a QUOTED FTS5
+// string (internal `"` doubled); FTS5 tokenizes a quoted string as a PHRASE, so `ask-first`
+// searches the adjacent pair "ask first" — the intended meaning — instead of injecting an
+// operator. Deliberately preserved, because they are the query surface rather than injection:
+//   * a trailing `*` — `widget*` becomes `"widget"*`, still a prefix search;
+//   * an UPPERCASE AND / OR / NOT, kept as the operator;
+//   * a token the caller already quoted, passed through untouched.
+// Tokens with nothing indexable are dropped, as are dangling/doubled operators (each is a
+// syntax error on its own). An empty query becomes `""`, which matches nothing — the same
+// no-false-hits contract ftsOrQuery has.
+export function ftsMatchQuery(text) {
+  const out = [];
+  for (const tok of String(text || '').match(FTS_TOKEN) || []) {
+    if (FTS_BOOLEAN.has(tok)) {
+      if (out.length && !FTS_BOOLEAN.has(out[out.length - 1])) out.push(tok);
+      continue;
+    }
+    if (tok.startsWith('"')) { out.push(tok); continue; }
+    const prefix = tok.endsWith('*');
+    const body = (prefix ? tok.slice(0, -1) : tok).replace(/"/g, '""');
+    if (!INDEXABLE.test(body)) continue;
+    out.push(`"${body}"${prefix ? '*' : ''}`);
+  }
+  while (out.length && FTS_BOOLEAN.has(out[out.length - 1])) out.pop();
+  return out.length ? out.join(' ') : '""';
+}
+
+// The id-prefix scope of the project a directory belongs to, or '' outside an adopted repo.
+// Walks UP to the nearest ancestor holding .ai/config.yml, so running from a subdirectory
+// still resolves to the project's key.
+export function defaultScope(root) {
+  const dir = storeRoot(resolve(root || process.cwd()));
+  return (dir && readIdConfig(dir).key) || '';
+}
+
+// `fts [--scope <s>] <query...>` (KIT-T174) — split the scope filter off the free-text query
+// in ONE place so the cache and markdown-scan paths filter identically. The cache is
+// CROSS-SCOPE by design (every adopted project in one DB), so an unfiltered `fts warp` run
+// inside project INV answered with HOD/GG/JV hits and ZERO INV rows — an agent forced onto
+// `q` by the store-grep gate reads a screen of other projects' tickets and concludes its own
+// project has nothing. Default is therefore the cwd project's scope; `--scope all` (or running
+// outside any adopted repo, where there is no key to default to) searches every scope.
+export function parseFts(text, root) {
+  const toks = String(text || '').match(FTS_TOKEN) || [];
+  const terms = [];
+  let scope;
+  for (let i = 0; i < toks.length; i++) {
+    if (toks[i] === '--scope' && i + 1 < toks.length) { scope = toks[++i]; continue; }
+    terms.push(toks[i]);
+  }
+  if (scope === undefined) scope = defaultScope(root);
+  return { scope: /^all$/i.test(scope) ? '' : scope, query: terms.join(' ') };
 }
 
 export function storeForType(type) {
@@ -96,6 +163,24 @@ export const isTrailTarget = (t) => ID_SHAPE.test(t) || SHA_SHAPE.test(t);
 export const SUMMARY_CLIP = 80; // chars of the one-line gist a trail shows — a CLUE, not the full record
 export const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 
+// One trail row. Token-frugal: show the node's `summary` (or a clipped title) — the GIST —
+// plus a `more` clue (✎ = there's a fuller body to drill into). The agent opens a node's
+// full text only when the summary says it needs it (KIT-D028 trail-on-action).
+function trailRow(id, node, rel, depth) {
+  const isCommit = SHA_SHAPE.test(id);
+  const gist = node ? (node.summary || node.title || '') : (isCommit ? '(commit)' : '(not in cache: ' + id + ')');
+  const bodyLen = node ? (node.bodyLen ?? (node.body ? node.body.length : 0)) : 0;
+  const summaryWasClipped = node && !node.summary && String(node.title || '').length > SUMMARY_CLIP;
+  return {
+    id,
+    store: node ? node.store : (isCommit ? 'commit' : 'missing'),
+    rel,
+    depth,
+    summary: clip(gist, SUMMARY_CLIP),
+    more: bodyLen > 0 || summaryWasClipped ? '✎' : '',
+  };
+}
+
 export function walkAncestry(startId, getEdges, getNode) {
   const seen = new Set([startId]);
   const out = [];
@@ -106,29 +191,23 @@ export function walkAncestry(startId, getEdges, getNode) {
       for (const [rel, to] of getEdges(id)) {
         if (!ANCESTOR_RELS.has(rel) || seen.has(to) || !isTrailTarget(to)) continue;
         seen.add(to);
-        const node = getNode(to);
-        const isCommit = /^[0-9a-f]{7,40}$/i.test(to);
-        // Token-frugal: show the node's `summary` (or a clipped title) — the GIST — plus a
-        // `more` clue (✎ = there's a fuller body to drill into). The agent opens a node's
-        // full text only when the summary says it needs it (KIT-D028 trail-on-action).
-        const gist = node ? (node.summary || node.title || '') : (isCommit ? '(commit)' : '(not in cache: ' + to + ')');
-        const bodyLen = node ? (node.bodyLen ?? (node.body ? node.body.length : 0)) : 0;
-        const summaryWasClipped = node && !node.summary && String(node.title || '').length > SUMMARY_CLIP;
-        out.push({
-          id: to,
-          store: node ? node.store : (isCommit ? 'commit' : 'missing'),
-          rel,
-          depth: depth + 1,
-          summary: clip(gist, SUMMARY_CLIP),
-          more: bodyLen > 0 || summaryWasClipped ? '✎' : '',
-        });
+        out.push(trailRow(to, getNode(to), rel, depth + 1));
         next.push([to, depth + 1]);
       }
     }
     frontier = next;
   }
   // Decisions + docs first (the context the agent must see before acting), then by depth/id.
-  return out.sort((a, b) => storeRank(a.store) - storeRank(b.store) || a.depth - b.depth || compareIds(a.id, b.id));
+  out.sort((a, b) => storeRank(a.store) - storeRank(b.store) || a.depth - b.depth || compareIds(a.id, b.id));
+
+  // ORIGIN row (KIT-T173): the queried item itself, depth 0, rel `self`, ahead of its
+  // ancestors. Without it a trail on an id with NO outbound antecedents — every decision, any
+  // freshly-captured ticket — printed "(no results)", which reads as "the store doesn't have
+  // this" and sends the agent back to opening files, exactly what the query-gate forbids. The
+  // orient banner advertises decision ids, so those ids in particular must be walkable. An id
+  // the store genuinely lacks still yields nothing — "(no results)" then means what it says.
+  const origin = getNode(startId);
+  return origin ? [trailRow(startId, origin, 'self', 0), ...out] : out;
 }
 
 // Missing numbers within each (scope,store) sequence — reported, never auto-filled

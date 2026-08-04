@@ -98,7 +98,9 @@ function findTicketFile(root, id) {
 async function getTrail(id, root) {
   try {
     const { rows } = await query('trail', [id], { cwdRoot: root });
-    return Array.isArray(rows) ? rows : [];
+    // Drop the `self` origin row (KIT-T173): the brief already leads with this ticket, so
+    // the GOVERNING trail is its ancestors only.
+    return Array.isArray(rows) ? rows.filter((r) => r.rel !== 'self') : [];
   } catch {
     return []; // fail-open: a missing/stale cache is not a handoff blocker
   }

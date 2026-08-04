@@ -13,7 +13,7 @@ import { mentionsForAgent, readReceipts } from './comments.mjs';
 import { governing, drift } from './q-governing.mjs';
 import {
   OPEN, FTS_LIMIT, MIN_TERM_LEN, ALNUM_TERM, SUMMARY_CLIP,
-  parseSimilar, storeForType, formatId, compareOpen, isSuperseded, edgesOf, clip, walkAncestry,
+  parseSimilar, parseFts, storeForType, formatId, compareOpen, isSuperseded, edgesOf, clip, walkAncestry,
 } from './q-model.mjs';
 
 export function fallback(cmd, args, root) {
@@ -55,8 +55,11 @@ export function fallback(cmd, args, root) {
         (x) => byId.get(x),
       );
     case 'fts': {
-      const needle = args.join(' ').toLowerCase();
-      return items.filter((i) => (`${i.title} ${i.body}`).toLowerCase().includes(needle))
+      // Same `--scope` split as the cache path (KIT-T174); the scan needs no FTS escaping
+      // because it never builds a MATCH expression — it substring-matches the raw terms.
+      const { scope, query } = parseFts(args.join(' '), root);
+      const needle = query.toLowerCase();
+      return items.filter((i) => (!scope || i.scope === scope) && (`${i.title} ${i.body}`).toLowerCase().includes(needle))
         .slice(0, FTS_LIMIT).map((i) => ({ id: i.id, type: i.type, status: i.status, title: i.title }));
     }
     case 'rundown': {

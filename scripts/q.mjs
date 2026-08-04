@@ -11,7 +11,7 @@
 //   node scripts/q.mjs drift                        # OPEN items naming a structural target path ABSENT from the tree (decided ≠ actual)
 //   node scripts/q.mjs by-commit <sha>              # tickets caused-by / fixed-by <sha>
 //   node scripts/q.mjs doc-trail <id>               # history events for <id>, newest first
-//   node scripts/q.mjs fts <query...>               # full-text search title+body
+//   node scripts/q.mjs fts [--scope <s>] <query...> # full-text search title+body (default scope = the cwd project; `--scope all` = every project)
 //   node scripts/q.mjs similar <title/labels...>    # likely-duplicate ITEMS (dedup, suggest-only)
 //   node scripts/q.mjs similar --store <s> <text>   # …confined to one store (tickets|decisions|notes|questions)
 //   node scripts/q.mjs next-id <scope> <type>       # O(1) next free id (max(num)+1)
@@ -44,7 +44,7 @@ import { hydrate, defaultDbPath, hydrationSources } from './hydrate-db.mjs';
 import { readIdConfig, statStoreFiles } from './id-utils.mjs';
 import { fallback } from './q-fallback.mjs';
 import {
-  OPEN, FTS_LIMIT, ftsOrQuery, parseSimilar, storeForType, formatId,
+  OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, parseFts, storeForType, formatId,
   compareOpen, findGaps, walkAncestry,
 } from './q-model.mjs';
 
@@ -163,10 +163,19 @@ function cannedQueries(root) {
     'doc-trail': (db, id) => db.all(
       'SELECT ts, event, detail FROM history WHERE item_id = ? ORDER BY ts DESC', [id]),
 
-    fts: (db, query) => db.all(
-      `SELECT f.id, i.type, i.status, i.title, snippet(items_fts, ?, '[', ']', '…', ?) AS hit
-       FROM items_fts f JOIN items i ON i.id = f.id
-       WHERE items_fts MATCH ? ORDER BY rank LIMIT ?`, [SNIPPET_COL, SNIPPET_TOKENS, query, FTS_LIMIT]),
+    // Full-text search over title+body. `--scope` confines the hit set to one project
+    // (KIT-T174) and the terms are escaped into an FTS5 phrase expression (KIT-T172) — both
+    // parsed in q-model so the markdown-scan fallback filters and matches the same way.
+    fts: (db, raw) => {
+      const { scope, query } = parseFts(raw, root);
+      const params = [SNIPPET_COL, SNIPPET_TOKENS, ftsMatchQuery(query)];
+      if (scope) params.push(scope);
+      return db.all(
+        `SELECT f.id, i.type, i.status, i.title, snippet(items_fts, ?, '[', ']', '…', ?) AS hit
+         FROM items_fts f JOIN items i ON i.id = f.id
+         WHERE items_fts MATCH ?${scope ? ' AND i.scope = ?' : ''}
+         ORDER BY rank LIMIT ?`, [...params, FTS_LIMIT]);
+    },
 
     rundown: (db) => db.all(
       `SELECT scope,
@@ -318,7 +327,8 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   drift                       OPEN items naming a structural target path ABSENT from the tree
   by-commit <sha>             tickets caused-by / fixed-by <sha>
   doc-trail <id>              history events for <id>, newest first
-  fts <query...>              full-text search title+body
+  fts [--scope <s>] <q...>    full-text search title+body; scope defaults to the cwd
+                              project, --scope all searches every project
   similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only)
   next-id <scope> <type>      O(1) next free id (max(num)+1)
   rundown                     per-scope open-item counts
