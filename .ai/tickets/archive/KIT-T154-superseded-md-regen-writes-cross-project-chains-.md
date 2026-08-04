@@ -2,7 +2,7 @@
 id: KIT-T154
 title: SUPERSEDED.md regen writes cross-project chains into project-template â€” end-task/reconcile board regen added DUP-T005â†’DUP-T001 and RCN-T001â†’RCN-T002 (and earlier GG-T015â†’GG-T014) to project-template/.ai/SUPERSEDED.md, which init-project ships to new repos. Root cause family = KIT-T125 (cross-project writes into the template tree): the regenerator globs supersede chains across ALL known projects instead of scoping to the owning project root. Noticed 2026-07-15 when KIT-T127's end-task regen dirtied the template; polluted lines reverted in the follow-up commit, but they will bounce back on every regen until the scoping bug is fixed at the source.
 type: bug
-status: todo
+status: done
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max â
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-23T15:42:09.412Z
-updated: 2026-07-23T15:42:09.412Z
+updated: 2026-08-04T20:52:03Z
+fixed_commit: a1d33ac
 ---
 
 ## Description
@@ -53,3 +54,5 @@ SUPERSEDED.md regen writes cross-project chains into project-template â€” e
        (fixed)     <sha>                    (regressed) â†’ T-040   (recurred as)
      NEVER edit or delete a prior line â€” this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 20:52] (status) todo → done
+- [2026-08-04 20:52] (comment) Same root-cause family as KIT-T125 and fixed by the same change (ef523aa): the regenerator now filters the supersede/regression queries by the owning project's ids.key, so a regen can no longer write another project's chains into project-template (key KEY). Evidence: the shipped project-template/.ai/SUPERSEDED.md still carried GG-T015->GG-T014, KIT-T037->KIT-T014, KIT-T060->KIT-T075; regenerating a COPY of the template on ef523aa yields '_No superseded tickets yet._' with a consistent '0 superseded ... 0 chain(s)' summary and INDEX/REGRESSIONS/ROADMAP byte-identical, so the polluted lines will not bounce back. Corrected view committed in a1d33ac. Test scripts/index-tickets.test.mjs (34 passed) includes a registered neighbour project whose chains sit in the same cache and must not appear. npm test green: 886 harness assertions + 43 node:test, 0 failed. fixed a1d33ac

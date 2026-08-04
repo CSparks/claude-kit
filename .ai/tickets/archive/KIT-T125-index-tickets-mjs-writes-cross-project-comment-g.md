@@ -16,7 +16,7 @@ discoverable via q.mjs usage) — hence captured here.
 
 [re-capped 2026-07-14 from groovegrid inbox at triage — cap said KIT-scope, triage cannot rescope]
 type: bug
-status: doing
+status: done
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -34,7 +34,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:46:37.007Z
-updated: 2026-08-04T20:20:12Z
+updated: 2026-08-04T20:51:53Z
+fixed_commit: ef523aa
 ---
 
 ## Description
@@ -83,3 +84,5 @@ discoverable via q.mjs usage) — hence captured here.
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-08-04 20:20] (status) todo → doing
+- [2026-08-04 20:51] (status) doing → done
+- [2026-08-04 20:51] (comment) index-tickets scopes every generated view to the owning project: the regressions/supersedes queries take the project's ids.key (cache path and markdown-scan path both), and with NO key the cache is skipped entirely so 'no scope' never degrades to 'all scopes'. Summary counts now come from the same filtered set. Measured on the kit's own store: .ai/SUPERSEDED.md 9 chains (DUP/GG/INV/KIT/RCN/ST) -> 3, all KIT. Template-comment half also covered: a commented 'supersedes: # ticket id this one RETIRES' field and _TEMPLATE.md yield no chain. Test scripts/index-tickets.test.mjs (34 passed, was 21) with two REGISTERED fixtures hydrated into one temp cache so a neighbour's chains are really present to leak; mutation-checked (dropping the scope arg fails 6). npm test green: 886 harness assertions + 43 node:test, 0 failed. fixed ef523aa
