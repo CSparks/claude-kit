@@ -16,7 +16,7 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { compareIds } from './id-utils.mjs';
+import { compareIds, readIdConfig } from './id-utils.mjs';
 import { query } from './q.mjs';
 import { reconcileSupersede, autoDedupTickets } from './reconcile-supersede.mjs';
 
@@ -80,6 +80,13 @@ function readRoadmapConfig(root) {
 // PostToolUse hook) wrap this in their own try/catch.
 export async function regenerateIndexes(root) {
   const { mode: roadmapMode, priorities } = readRoadmapConfig(root);
+  // Every view written below belongs to THIS project, but the cache these queries read is
+  // cross-scope — which put DUP/GG/KIT/RCN chains into an unrelated repo's SUPERSEDED.md and
+  // into the shipped project-template (KIT-T125/KIT-T154). The project's id key IS its scope,
+  // so it filters the queries. With NO key (an unkeyed or half-initialized store) there is
+  // nothing to filter BY, and an unfiltered query means every project — so the cache is skipped
+  // entirely and the local markdown answers. Never "no scope, so all scopes".
+  const { key: scopeKey } = readIdConfig(root);
 
   // Auto-dedup UNAMBIGUOUS ticket duplicates (KIT-T025, locked policy C; KIT-D021: automate >
   // remembered-manual) BEFORE reconcile: same-scope tickets with an IDENTICAL normalized title
@@ -209,8 +216,9 @@ export async function regenerateIndexes(root) {
   // script already loaded, so the cache is never a hard dependency. `query` returns the
   // same per-id rows from either path (cache or db-parse scan) — parity lives in q.mjs.
   async function regressionData() {
-      try {
-      const { rows } = await query('regressions', [], { root });
+    if (!scopeKey) return new Map(tickets.map((t) => [t.id, { regressedFrom: t.regressedFrom, causingCommit: t.causingCommit, fixedCommit: t.fixedCommit, introducedBy: t.introducedBy }]));
+    try {
+      const { rows } = await query('regressions', [scopeKey], { root });
       const m = new Map();
       for (const r of rows) {
         m.set(r.id, { regressedFrom: r.regressed_from || '', causingCommit: r.causing_commit || '', fixedCommit: r.fixed_commit || '', introducedBy: r.introduced_by || '' });
@@ -285,8 +293,9 @@ export async function regenerateIndexes(root) {
   // failing open to the markdown the script already loaded. An edge is newer→older (`supersedes`);
   // we invert it to render the human-readable older→newer "retired by" chain, like REGRESSIONS.
   async function supersedeData() {
+    if (!scopeKey) return new Map(tickets.map((t) => [t.id, t.supersedes || '']));
     try {
-      const { rows } = await query('supersedes', [], { root });
+      const { rows } = await query('supersedes', [scopeKey], { root });
       if (rows.length) return new Map(rows.map((r) => [r.id, r.supersedes || '']));
     } catch {
       /* fall through to the markdown scan */

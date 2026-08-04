@@ -74,8 +74,10 @@ export function fallback(cmd, args, root) {
       }
       return [...m.values()].sort((a, b) => a.scope.localeCompare(b.scope));
     }
+    // `scope` mirrors the cache path's WHERE (KIT-T125). The scan is already confined to one
+    // root, so it is a no-op in practice — but parity is structural here, not incidental.
     case 'regressions':
-      return items.filter((i) => i.store === 'tickets')
+      return items.filter((i) => i.store === 'tickets' && (!args[0] || i.scope === args[0]))
         .map((i) => ({
           id: i.id, title: i.title,
           regressed_from: i.regressedFrom || null,
@@ -84,7 +86,7 @@ export function fallback(cmd, args, root) {
         }))
         .sort((a, b) => compareIds(a.id, b.id));
     case 'supersedes':
-      return items.filter((i) => i.store === 'tickets')
+      return items.filter((i) => i.store === 'tickets' && (!args[0] || i.scope === args[0]))
         .map((i) => ({ id: i.id, status: i.status, title: i.title, supersedes: i.supersedes || null }))
         .sort((a, b) => compareIds(a.id, b.id));
     case 'similar': {
