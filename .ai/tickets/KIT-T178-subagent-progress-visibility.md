@@ -2,7 +2,7 @@
 id: KIT-T178
 title: Silent subagents show what they're doing — compile-aware progress surfaced live
 type: feature
-status: doing
+status: review
 priority: high
 milestone:
 labels: [hooks, dispatch, visibility]
@@ -11,7 +11,8 @@ files: [hooks/]
 supersedes:
 superseded_by:
 created: 2026-08-04T21:55:00Z
-updated: 2026-08-04T21:55:00Z
+updated: 2026-08-04T19:13:16Z
+fixed_commit: a9b5ec0
 ---
 
 ## Description
@@ -101,6 +102,8 @@ Test artifact: `hooks/progress.test.mjs`, 42 cases — matcher per ecosystem, ke
 append/clear/sweep lifecycle through spawned hooks, orient rendering (all three shapes),
 malformed-file and malformed-payload fail-open, unadopted-repo no-op, staleness ageing. Full kit
 suite green (`npm test` exit 0; 331 hook-style assertions + 29 server tests).
+### comment #1 [2026-08-04 19:13] @claude
+(fixed) a9b5ec0 - PreToolUse(Bash) publishes the running build to .ai/agents-progress.jsonl, PostToolUse clears it, SubagentStop/Stop sweeps, a 2h window ages out the rest; orient renders 'running: cargo test (6m)'. Subagent hook firing MEASURED, not assumed: Pre and Post both fire inside a sidechain, but a subagent never sees its own PostToolUse output - which is why the design is a file, not a message. hooks/progress.test.mjs 42 cases, full suite green.
 
 ## History
 - [2026-08-04 21:55] (created) Chris, 3rd silent-agent complaint today — visibility becomes structural, not forensic
@@ -110,3 +113,5 @@ suite green (`npm test` exit 0; 331 hook-style assertions + 29 server tests).
 - [2026-08-04 19:12] (comment) ticked: Orient's in-flight agent listing shows the current command + elapsed for any agent with a live line
 - [2026-08-04 19:12] (comment) ticked: Cleared on command completion AND swept on agent termination — no stale "compiling" lines
 - [2026-08-04 19:12] (comment) ticked: Fail-open everywhere; zero effect on repos without .ai
+- [2026-08-04 19:13] (comment) @claude: (fixed) a9b5ec0 - PreToolUse(Bash) publishes the running build to .ai/agents-progress.jsonl, PostToolUse clears it, Suba (full comment #1 in ## Notes)
+- [2026-08-04 19:13] (status) doing → review

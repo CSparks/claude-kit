@@ -79,7 +79,7 @@
 | KIT-T175 | feature | todo | medium | init-project CLAUDE.md gains an agent-facing "Data repo (git)" section — junction layout, sync-data auto-commit, pathspec etiquette, push runbook |
 | KIT-T176 | feature | review | high | dispatch-guard blocks the two dispatch shapes that have burned real money |
 | KIT-T177 | bug | review | high | shared-tree-dispatch filters by actual tree — roster rows record isolation + repo root + completion |
-| KIT-T178 | feature | doing | high | Silent subagents show what they're doing — compile-aware progress surfaced live |
+| KIT-T178 | feature | review | high | Silent subagents show what they're doing — compile-aware progress surfaced live |
 
 ## Superseded (9)
 | id | status | title | superseded by |
