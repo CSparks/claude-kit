@@ -2,7 +2,7 @@
 id: KIT-T172
 title: q fts crashes on a hyphenated phrase: 'no such column: first' --body Repro: node scripts/q.mjs fts "no ask-first gate" -> 'q: no such column: first'. The phrase is passed to SQLite FTS5 unquoted, so the hyphen splits it and 'first' is parsed as a column reference. Root cause: fts terms are not quoted/escaped before hitting the MATCH expression. Any hyphenated term (very common in ticket titles: 'ask-first', 'low-poly', 'file-length') breaks the query surface the query-gate FORCES agents to use instead of grep. Found from inv4d3rs while grounding a feature request.
 type: bug
-status: todo
+status: done
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-04T15:20:02.048Z
-updated: 2026-08-04T15:20:02.048Z
+updated: 2026-08-04T16:17:39Z
+fixed_commit: 569656d
 ---
 
 ## Description
@@ -53,3 +54,6 @@ q fts crashes on a hyphenated phrase: 'no such column: first' --body Repro: node
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 15:53] (status) todo → doing
+- [2026-08-04 16:17] (status) doing → done
+- [2026-08-04 16:17] (comment) fixed in 569656d: ftsMatchQuery (scripts/q-model.mjs) quotes every user token into an FTS5 phrase, so 'q fts "no ask-first gate"' returns rows instead of 'no such column: first'. Tests: scripts/q.test.mjs (new, wired into npm test) - 9 ftsMatchQuery unit assertions + cache-backed hyphenated-phrase, punctuation-soup, prefix-search and similar-verb regression tests + the literal CLI repro. q: 35 passed, 0 failed; full npm test 0 failed.
