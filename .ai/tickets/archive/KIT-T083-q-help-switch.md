@@ -2,7 +2,7 @@
 id: KIT-T083
 title: "q: add --help / -h usage output (currently exits 2 'unknown query')"
 type: feature
-status: todo
+status: done
 priority: low
 milestone:
 labels: [cli, dx]
@@ -11,7 +11,7 @@ files: [scripts/q.mjs]
 supersedes:
 superseded_by:
 created: 2026-06-10T20:34:46Z
-updated: 2026-06-10T20:34:46Z
+updated: 2026-08-04T16:23:32Z
 ---
 
 ## Description
@@ -45,3 +45,9 @@ source of truth — a hand-maintained usage string will drift).
 
 ## Notes
 - 2026-06-10: filed from hustle-or-die session — agent tried `q --help` to learn the surface and got exit 2 with no guidance.
+### comment #1 [2026-08-04 16:23] @chris
+Delivered by the KIT-T118 fix (same deliverable): q --help/-h/help print the full query surface to stdout, exit 0 — locked by scripts/q.test.mjs help cases in 569656d (npm test green). Closing with T118.
+
+## History
+- [2026-08-04 16:23] (comment) @chris: Delivered by the KIT-T118 fix (same deliverable): q --help/-h/help print the full query surface to stdout, exit 0 — lock (full comment #1 in ## Notes)
+- [2026-08-04 16:23] (status) todo → done

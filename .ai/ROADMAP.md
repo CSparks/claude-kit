@@ -75,7 +75,6 @@
 - KIT-T072 — Quiet the per-turn hook chatter — dedupe advisories, conditional receipts (low)
 - KIT-T073 — Progressive disclosure for the global contract — specialist sections become on-demand skills (low)
 - KIT-T078 — Command-level model tiering — static `model:` on fixed-cost read-only commands (low)
-- KIT-T083 — q: add --help / -h usage output (currently exits 2 'unknown query') (low)
 - KIT-T110 — tech-debt: consolidate frontmatter parsing — the field() YAML inline-comment-strip bug fixed in index-tickets.mjs (KIT-T063) exists latently in t.mjs, reconcile-supersede.mjs, id-utils.mjs, sync-tasks.mjs. One shared frontmatter helper (KIT-T059-style) prevents recurrence. (low)
 - KIT-T112 — tech-debt: hooks/lib.mjs is at/over the 800-line file-length hard gate (801 on HEAD) — split by concern (registry / store-paths / git-wip / turn-state / memory) per the atomic-files principle. Surfaced during KIT-T016. (low)
 - KIT-T116 — Extract shared project-target glue (--project/cwd resolution) into one module consumed by cap.mjs + rem.mjs — drops rem.mjs back under the 300-line soft-warn (flagged in KIT-T090) (low)
