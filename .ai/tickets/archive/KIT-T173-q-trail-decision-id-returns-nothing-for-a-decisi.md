@@ -2,7 +2,7 @@
 id: KIT-T173
 title: q trail <decision-id> returns nothing for a decision the orient hook just printed --body Repro: in inv4d3rs, SessionStart orient printed 'Decisions (recent): INV-D001 - Always make tickets in this repo - no ask-first gate'. Then: node scripts/q.mjs trail INV-D001 -> '(no results)' (after 'cache was stale - rehydrated before answering'). An id the orientation banner advertises must be walkable by trail, or the agent's first instinct (query the store) teaches it the store is empty and it falls back to reading files - exactly what the query-gate forbids. Suspect trail only walks ticket->decision edges and has no self/origin row for a decision id itself.
 type: bug
-status: todo
+status: done
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-04T15:20:02.053Z
-updated: 2026-08-04T15:20:02.053Z
+updated: 2026-08-04T16:17:52Z
+fixed_commit: 569656d
 ---
 
 ## Description
@@ -53,3 +54,6 @@ q trail <decision-id> returns nothing for a decision the orient hook just printe
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 15:53] (status) todo → doing
+- [2026-08-04 16:17] (status) doing → done
+- [2026-08-04 16:17] (comment) fixed in 569656d: walkAncestry (scripts/q-model.mjs) now leads a trail with the queried item's own origin row (rel 'self', depth 0), so 'q trail KIT-D011' prints the decision instead of '(no results)'; begin-task filters the self row out of its Governing trail section. Tests: scripts/q.test.mjs - trail-on-a-decision-id, origin-row-first-then-ancestors, unknown-id-still-empty, and cache-vs-markdown-scan parity, plus the CLI repro. q: 35 passed, 0 failed; full npm test 0 failed.
