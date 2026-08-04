@@ -11,10 +11,11 @@ import {
 import { join } from 'node:path';
 
 // Paths a centralized repo keeps out of git: the .ai junction itself (its content lives in
-// the data repo, not here) plus the machine-local/secret files. Local mode ignores only
-// .ai/SECRETS* — the notebook there IS the tracked copy.
+// the data repo, not here) plus the machine-local/secret files. Local mode keeps the notebook
+// tracked — it IS the copy — minus secrets and the live progress file, which is second-by-second
+// machine state (KIT-T178), not history worth carrying to another machine.
 export const CENTRAL_GITIGNORE = ['.ai', 'CLAUDE.local.md', '.claude/settings.local.json', '.claude/journal/'];
-export const LOCAL_GITIGNORE = ['.ai/SECRETS*', 'CLAUDE.local.md', '.claude/settings.local.json'];
+export const LOCAL_GITIGNORE = ['.ai/SECRETS*', '.ai/agents-progress.jsonl', 'CLAUDE.local.md', '.claude/settings.local.json'];
 
 export function copyDir(src, dst) {
   mkdirSync(dst, { recursive: true });

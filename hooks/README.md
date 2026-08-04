@@ -20,6 +20,7 @@ the tool payload from stdin, decides, and exits (`exit 2` = block, `0` = allow).
 | `PostToolUse` (Task) + `SubagentStop` | agent-roster | Append each delegated subagent (task, scope, handle, status, plus its `isolation` + `targetRoot` — which tree it lands in, KIT-T177) to the durable roster `.ai/agents.jsonl`, and mark its completion — so a `/clear` mid-delegation never orphans the work; orient replays it on resume (KIT-T014; fail-open, never blocks a delegation). A dispatch row arriving AFTER its own `SubagentStop` (synchronous delegations report in that order) keeps the terminal status instead of resurrecting the agent. |
 | `PreToolUse` (Bash\|PowerShell) | license-guard | Block `npm install` / `cargo add` of a GPL/LGPL/AGPL/unlicensed dependency (KIT-T022). Looks up the package license via the registry; fails open if offline. Escape: `[allow-license: reason]` or `CLAUDE_KIT_ALLOW_LICENSE=1`. Nudges to update `THIRD_PARTY_LICENSES` on permissive adds. |
 | `PreToolUse` (Bash) | commit-gate | Block a `git commit` of code not tied to a ticket / plan-of-record (override `[no-log: reason]`). |
+| `PreToolUse` + `PostToolUse` (Bash\|PowerShell), `SubagentStop`, `Stop` | progress | Publish the long build a session is running to `.ai/agents-progress.jsonl` — start writes the line, completion clears it, termination sweeps the rest (KIT-T178). Never gates; always exits 0. See **Subagent progress** below. |
 | `PreToolUse` (Task\|Agent) | dispatch-guard | Gate the three dispatch shapes that burn money (KIT-T151/KIT-T176) — see **Dispatch checks** below. Blocks; fail-open; escapes are inline prompt tokens. |
 | `PreToolUse` (AskUserQuestion) | question-gate | Block a non-compliant questionnaire (KIT-T086): every question must mark its recommended option on the LABEL (prefix `(Recommended)`), and — single-select — list it FIRST. Catches the lived bug of putting the marker in the option DESCRIPTION (where it never renders). Agent-discipline rule — fires regardless of `.ai/` adoption; fail-open. |
 | `PreCompact` | flush | Force a `.ai/SESSION.md` flush before context is lost. |
@@ -42,6 +43,43 @@ fail open on a malformed payload or an unreadable file.
 | `dispatch-ladder` | The **silent fable inherit** (KIT-T151): no `model` on the call, no `model:` pin in the agent's definition, and the session transcript's latest turn is fable. An explicit model — fable included — always passes; a chosen tier is a deliberate choice. | `[allow-fable: <reason>]` in the prompt, or `CLAUDE_KIT_ALLOW_FABLE=1` |
 | `cold-worktree-build` | `isolation: "worktree"` into a repo with a root `Cargo.toml` when the brief never mentions `CARGO_TARGET_DIR` (KIT-T176). A fresh worktree has no `target/`, so the agent pays a **cold build of the whole dependency graph** — lived case 2026-08-04: a Bevy workspace sat 30+ min silent, rustc at 3.3 GB RSS, all billed. Fix in the BRIEF: point `CARGO_TARGET_DIR` at the main checkout's `target/`. | `[cold-build-ok: <reason>]` in the prompt |
 | `shared-tree-dispatch` | A dispatch **without** worktree isolation while `.ai/agents.jsonl` (the roster `agent-roster` writes) holds an in-flight row younger than 2h **for the same working tree** (KIT-T176, tree-scoped by KIT-T177). One agent per working tree — two share one HEAD + index and pay to poll each other's half-written files; lived case 2026-08-03: a billed agent waited out a colleague's broken refactor, then built a throwaway scratch crate around it. A row is only counted when it is non-terminal, **not** `isolation: worktree`, and its recorded `targetRoot` is this dispatch's tree; rows older than 2h are treated as abandoned. A pre-KIT-T177 row carries neither field and counts — the conservative side of the halt. | `[shared-tree-ok: <reason>]` in the prompt |
+
+## Subagent progress (`progress`, KIT-T178)
+A subagent running `cargo build` streams nothing: the tool call is one opaque block, and the
+only way anyone answered "compiling or hung?" was tasklist/rustc forensics from the main
+thread (three complaints in one day, 2026-08-04). `progress.mjs` makes it a file instead.
+
+- **Store:** `.ai/agents-progress.jsonl`, append-only JSONL collapsed on read — the roster's
+  shape (KIT-T014/KIT-D024), for the same reason: concurrent writers can't corrupt each
+  other and one bad line can't poison the file. Machine-local live state, so it is
+  **gitignored** — a "running" line from another machine would be a lie, not history.
+- **Key:** the roster's `agent_id` wherever one exists, so a progress line joins the
+  delegation that owns it. A subagent's Bash payload carries no handle, but its transcript is
+  `…/subagents/agent-<AGENT_ID>.jsonl` and that id is byte-identical to the roster's.
+- **Matcher:** per-ecosystem (`ECOSYSTEMS` in `progress-store.mjs`) — adding npm/gradle/bazel
+  is one row there and nothing else. v1 ships cargo (`build|check|test|clippy`), the
+  ecosystem whose cold builds produced the complaint.
+- **Clearing** has three independent chances — PostToolUse, SubagentStop/Stop sweep, and a 2h
+  staleness window in the reader — because a permanently-stuck "compiling" line is worse than
+  no line at all.
+- **Consumer:** orient's in-flight listing renders `— running: cargo test (6m)`, and shows a
+  build whose dispatch row hasn't been written yet as `[running]`. An agent that is
+  demonstrably compiling is no longer flagged `UNCOLLECTED`.
+
+**Event coverage — VERIFIED, not assumed** (the KIT-T177 lesson). Measured 2026-08-04 from
+inside a live delegated subagent on Windows:
+
+| Question | Verdict | How |
+| --- | --- | --- |
+| `PreToolUse(Bash)` fires in a subagent session? | **yes** | `query-gate` blocked a grep issued by the subagent; 41 further `PreToolUse:Bash` events recorded on sidechain turns across 258 transcripts |
+| `PostToolUse` fires in a subagent session? | **yes** | `lint.mjs` appended a `~/.claude/maintenance-gaps.log` row naming a file the subagent had just written |
+| `PostToolUse(Bash)` specifically? | **yes** | `git-pull-hydrate` (registered on that matcher alone) hydrated the SQLite cache 3s after a subagent Bash call matching its pattern |
+| Does a subagent SEE its own PostToolUse hook output? | **no** | the gap-log row proves the hook ran, yet no stderr reached the agent — which is why sidechain transcripts record zero `PostToolUse` events |
+
+The last row is why this design writes a FILE rather than emitting a message: inside a
+subagent, PostToolUse stderr goes nowhere. Residual: `Stop`/`SubagentStop` delivery is not
+guaranteed for every dispatch shape (KIT-T177 found roster rows with no terminal event), which
+is what the staleness window covers.
 
 ## Rules
 - **Opt-in-aware:** first thing each hook does is `exit 0` unless `.ai/` (or a

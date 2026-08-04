@@ -54,6 +54,7 @@
 - KIT-T171 — process: main went red because code referenced a file a BACKGROUND agent was still authoring (gridiron 2026-08-02: `mod schools;` declared, agent owned schools.rs, Chris's cargo run hit E0583). Rule to codify: never commit/leave the tree referencing an async deliverable — land a compiling placeholder in the same edit that adds the reference, or don't add the reference until the artifact exists. Hook angle: a Stop-gate `cargo check` (or build-tool equivalent) for repos with .ai/ would have caught the red tree before the turn ended. (high)
 - KIT-T176 — dispatch-guard blocks the two dispatch shapes that have burned real money (high)
 - KIT-T177 — shared-tree-dispatch filters by actual tree — roster rows record isolation + repo root + completion (high)
+- KIT-T178 — Silent subagents show what they're doing — compile-aware progress surfaced live (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)

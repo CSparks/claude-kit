@@ -24,6 +24,10 @@
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/license-guard.mjs\"" }]
       },
       {
+        "matcher": "Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/progress.mjs\"" }]
+      },
+      {
         "matcher": "AskUserQuestion",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/question-gate.mjs\"" }]
       },
@@ -47,7 +51,10 @@
       },
       {
         "matcher": "Bash|PowerShell",
-        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/git-pull-hydrate.mjs\"" }]
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/git-pull-hydrate.mjs\"" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/progress.mjs\"" }
+        ]
       }
     ],
     "UserPromptSubmit": [
@@ -67,7 +74,12 @@
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/flush.mjs\"" }] }
     ],
     "SubagentStop": [
-      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-roster.mjs\"" }] }
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/agent-roster.mjs\"" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/progress.mjs\"" }
+        ]
+      }
     ],
     "Stop": [
       {
@@ -78,7 +90,8 @@
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/request-gate.mjs\"" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/code-graph.mjs\"" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/hydrate-cache.mjs\"" },
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/land-alert.mjs\"" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/land-alert.mjs\"" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/progress.mjs\"" }
         ]
       }
     ]

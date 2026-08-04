@@ -8,6 +8,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, basename, resolve } from 'node:path';
 import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, readLineage, recordProject, aheadBehind, centralDataRoot, globToRegExp, sessionStale, readAgents, partitionAgents, AGENT_STALE_MS, scanStaleDoingTickets, readRegistry, WIP_FILES, WIP_COMMITS } from './lib.mjs';
 import { unifyMemory, memoryLinkCommand } from './memory-link.mjs';
+import { readProgress, progressFor, formatProgress } from './progress-store.mjs';
 // q.mjs / id-utils.mjs are imported DYNAMICALLY at their (try-wrapped) use sites so a
 // broken scripts/ tree degrades that one section instead of crashing orientation (KIT-T055).
 
@@ -208,23 +209,38 @@ if (existsSync(session)) {
   if (total > SESSION_GIST_LINES) out.push(`  … (${total} lines total) — full: read .ai/SESSION.md`);
 }
 
-// In-flight + recently-finished DELEGATED AGENTS (KIT-T014).
+// In-flight + recently-finished DELEGATED AGENTS (KIT-T014), each annotated with the long build
+// it is CURRENTLY running (KIT-T178) — the fact that used to require tasklist forensics.
 try {
   const roster = readAgents(root);
-  if (roster.length) {
-    const { inFlight, finished, stale } = partitionAgents(roster);
-    const staleIds = new Set(stale.map((r) => r.id));
-    if (inFlight.length || finished.length) {
-      out.push('');
-      out.push('--- In-flight agents (DELEGATED work — reattach or reconcile) ---');
-      const staleMin = Math.round(AGENT_STALE_MS / 60000);
-      for (const r of inFlight) {
-        const flag = staleIds.has(r.id) ? ` !! UNCOLLECTED (>${staleMin}m, no completion recorded — reattach via TaskList/output or reconcile)` : '';
-        out.push(`  [in-flight] ${r.id} (${r.scope || '?'})${r.background ? ' bg' : ''} — ${r.task || '?'}${flag}`);
-      }
-      for (const r of finished.slice(-3)) {
-        out.push(`  [${r.status}] ${r.id} (${r.scope || '?'}) — ${r.task || r.summary || 'finished'} (collect output if not merged)`);
-      }
+  const now = Date.now();
+  const live = readProgress(root, now);
+  const { inFlight, finished, stale } = partitionAgents(roster);
+  const staleIds = new Set(stale.map((r) => r.id));
+  const joined = new Set();
+  if (inFlight.length || finished.length || live.length) {
+    out.push('');
+    out.push('--- In-flight agents (DELEGATED work — reattach or reconcile) ---');
+    const staleMin = Math.round(AGENT_STALE_MS / 60000);
+    for (const r of inFlight) {
+      const running = progressFor(live, r.id);
+      if (running) joined.add(running);
+      // An agent mid-compile is not uncollected — it is BUSY, and saying otherwise is exactly the
+      // false alarm KIT-T178 exists to kill. The live line outranks the age heuristic.
+      const flag = staleIds.has(r.id) && !running ? ` !! UNCOLLECTED (>${staleMin}m, no completion recorded — reattach via TaskList/output or reconcile)` : '';
+      const busy = running ? ` — running: ${formatProgress(running, now)}` : '';
+      out.push(`  [in-flight] ${r.id} (${r.scope || '?'})${r.background ? ' bg' : ''} — ${r.task || '?'}${busy}${flag}`);
+    }
+    for (const r of finished.slice(-3)) {
+      out.push(`  [${r.status}] ${r.id} (${r.scope || '?'}) — ${r.task || r.summary || 'finished'} (collect output if not merged)`);
+    }
+    // A live build whose delegation has no roster row yet. NOT an edge case: PostToolUse(Task)
+    // fires when the tool RESULT lands (KIT-T177), so a synchronous agent is mid-build for its
+    // whole life before its dispatch row is ever written. Dropping these would hide precisely
+    // the silent-agent case the ticket was raised for.
+    for (const row of live) {
+      if (joined.has(row)) continue;
+      out.push(`  [running]   ${row.key} — ${formatProgress(row, now)} in ${row.repo || root} (no dispatch row yet)`);
     }
   }
 } catch {

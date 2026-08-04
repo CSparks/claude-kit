@@ -10,5 +10,9 @@ CLAUDE.local.md
 # derived SQLite query cache (KIT-T004) — never checked in; always rebuildable from markdown
 .cache/
 
+# live "what is compiling right now" state (KIT-T178) — machine-local, rewritten second by
+# second; a committed running-line from another machine would be a lie, not history
+.ai/agents-progress.jsonl
+
 # node deps (none today; the tree-sitter accuracy layer (KIT-T012) will add some — never commit node_modules)
 node_modules/
