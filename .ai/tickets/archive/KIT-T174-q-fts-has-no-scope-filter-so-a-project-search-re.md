@@ -2,7 +2,7 @@
 id: KIT-T174
 title: q fts has no scope filter, so a project search returns every other project's hits --body q --help shows scope/store filters on SOME subcommands but NOT the one that needs it most: 'open [scope]' takes a scope, 'similar --store <s>', 'sessions --project <s>' — but 'fts <query...>' takes none. Repro from inv4d3rs: 'q fts warp' returned HOD-T224, HOD-T015, GG-T097, HOD-T111, GG-T095, HOD-N001 and ZERO INV rows; 'q fts door' returned 12 rows, all JV/HOD/KIT. Passing a scope as a leading term ('q fts INV warp') does not filter — it is searched as a term and returns nothing. The data supports it: items has a 'scope' column (pragma_table_info confirms id, scope, store, type, status, priority, title, parent, milestone, num, archived, file). Workaround is dropping to 'q sql SELECT ... WHERE scope=...', which is exactly the escape hatch the query-gate exists to make unnecessary. Ask: 'q fts [--scope <s>] <query...>', defaulting to the cwd project's scope when run inside an adopted repo. Cost of the gap: an agent forced onto q by the store-grep gate reads a screen of other projects' tickets and can wrongly conclude its own project has nothing.
 type: bug
-status: todo
+status: done
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-04T15:20:02.059Z
-updated: 2026-08-04T15:20:02.059Z
+updated: 2026-08-04T16:17:52Z
+fixed_commit: 569656d
 ---
 
 ## Description
@@ -53,3 +54,6 @@ q fts has no scope filter, so a project search returns every other project's hit
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-04 15:53] (status) todo → doing
+- [2026-08-04 16:17] (status) doing → done
+- [2026-08-04 16:17] (comment) fixed in 569656d: 'q fts [--scope <s>]' (parseFts in scripts/q-model.mjs, applied on both the cache SQL and the markdown-scan path) defaults to the cwd project's id key and takes --scope all for every project. Tests: scripts/q.test.mjs - parseFts/defaultScope units incl. walk-up-from-a-subdir, plus a two-scope hydrated cache asserting default/explicit/all scope hit sets and scan-path parity. q: 35 passed, 0 failed; full npm test 0 failed.
