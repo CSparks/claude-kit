@@ -1,0 +1,17 @@
+#!/bin/sh
+# pre-push — upload Git LFS objects, only where the repo opts in.
+#
+# This is the hook LFS genuinely cannot work without: the clean/smudge filters
+# turn files into pointers locally, but nothing UPLOADS the blobs without it.
+# A repo with .gitattributes but no working pre-push pushes pointer files whose
+# contents never leave the machine — it looks fine locally and is broken for
+# everyone else, which is the one genuinely bad failure mode here.
+#
+# Written as part of the kit's own hook set rather than by `git lfs install`,
+# because that command OVERWRITES hooks and once wiped the KIT-T097 hydrate
+# hooks for every adopted repo at a stroke (2026-08-04).
+DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
+
+. "$DIR/lfs-enabled.sh"
+[ -n "$LFS_ON" ] && git lfs pre-push "$@"
+exit 0

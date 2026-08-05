@@ -2,3 +2,9 @@
 # post-merge — hydrate the SQLite cache after git pull (fetch+merge) (KIT-T097)
 DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 node "$DIR/../scripts/hydrate-db.mjs" >/dev/null 2>&1 || true
+
+# Git LFS, only where the repo opts in (see lfs-enabled.sh). Chained AFTER
+# hydrate and never replacing it — `git lfs install` overwrites these files.
+. "$DIR/lfs-enabled.sh"
+[ -n "$LFS_ON" ] && git lfs post-merge "$@"
+exit 0
