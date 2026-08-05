@@ -2,7 +2,7 @@
 id: KIT-T179
 title: Every delegated subagent's activity line and roster entry carries its model tag
 type: feature
-status: doing
+status: review
 priority: medium
 milestone:
 labels: [models, dispatch, hooks, visibility]
@@ -19,8 +19,9 @@ files:
   - user-config/settings.recommended.json
 supersedes:
 superseded_by:
+fixed_commit: 2edfe7a
 created: 2026-08-05T16:07:49Z
-updated: 2026-08-05T16:07:49Z
+updated: 2026-08-05T16:25:27Z
 ---
 
 ## Description
@@ -92,3 +93,5 @@ every dispatch's tier legible whether or not a gate fired.
 - [2026-08-05 16:22] (comment) model stored RAW in the roster row; every surface maps it through `modelDisplay` on read, so a lineup rename is one table edit. Rows without the field render exactly as before.
 - [2026-08-05 16:24] (comment) end-to-end measured in a scratch repo: activity-tag emits `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{"description":"[Opus 5] Build CRX-T024 admin foundation",…}}}`; the roster row carries `"model":"opus"` with an untagged task label; orient renders `[in-flight] a24demo (general-purpose [Opus 5]) — Build CRX-T024 admin foundation`.
 - [2026-08-05 16:26] (comment) tests: hooks/model-tag.test.mjs 62 passed / 0 failed, wired into `npm test`. Full suite green (dispatch-guard 50, server 29, all others unchanged).
+- [2026-08-05 16:25] (status) doing → review
+- [2026-08-05 16:27] (fixed) 2edfe7a — pushed to main; full `npm test` green at that sha.
