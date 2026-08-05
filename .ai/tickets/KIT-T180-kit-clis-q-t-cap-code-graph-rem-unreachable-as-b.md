@@ -2,7 +2,7 @@
 id: KIT-T180
 title: Kit CLIs (q, t, cap, code-graph, rem) unreachable as bare commands — plugin bin/ dir never shipped
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [process-failure, tooling, install, cross-platform]
@@ -12,7 +12,7 @@ files:
 supersedes:
 superseded_by:
 created: 2026-08-05T16:10:38Z
-updated: 2026-08-05T16:11:21Z
+updated: 2026-08-05T16:14:18Z
 ---
 
 ## Description
@@ -56,3 +56,5 @@ PowerShell reachability is a separate question (machine PATH via bootstrap? harn
 - [2026-08-05 16:13] (comment) ticked: Shims are cross-platform per KIT-T011: sh shim resolves its own dir (no hardcoded
 - [2026-08-05 16:13] (comment) ticked: From an adopted repo's Bash tool shell, bare `q open` returns the open-items list
 - [2026-08-05 16:13] (comment) ticked: PowerShell tool PATH lacks plugin-bin injection entirely — follow-up is KIT-T181 (bootstrap registers bin/ on user PATH)
+- [2026-08-05 16:14] (status) doing → review
+- [2026-08-05 16:14] (comment) shims live-verified: bare q open works from gridiron-blitz Bash tool shell

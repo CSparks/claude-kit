@@ -77,7 +77,7 @@
 | KIT-T177 | bug | review | high | shared-tree-dispatch filters by actual tree — roster rows record isolation + repo root + completion |
 | KIT-T178 | feature | review | high | Silent subagents show what they're doing — compile-aware progress surfaced live |
 | KIT-T179 | feature | doing | medium | Every delegated subagent's activity line and roster entry carries its model tag |
-| KIT-T180 | bug | doing | high | Kit CLIs (q, t, cap, code-graph, rem) unreachable as bare commands — plugin bin/ dir never shipped |
+| KIT-T180 | bug | review | high | Kit CLIs (q, t, cap, code-graph, rem) unreachable as bare commands — plugin bin/ dir never shipped |
 | KIT-T181 | feature | todo | medium | bootstrap.mjs registers kit bin/ on the user PATH — PowerShell tool + interactive shells can't see plugin bin injection |
 
 ## Superseded (9)
