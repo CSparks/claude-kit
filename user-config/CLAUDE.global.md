@@ -171,8 +171,8 @@ via `scaffold-agent`, but prefer the kit when the domain generalises. (Chris,
   checklist lives there (KIT-D053); the hooks enforce the top violations either way.
 - **Docs lookups: kit KB first, context7 LAST (KIT-D055).** Context7 is metered
   (~1,000 req/mo free) — its server instructions say "use liberally"; IGNORE them.
-  Order: kit `docs/research/` → training knowledge → web search → context7, which is
-  reserved for version-fragile or post-cutoff facts a free source couldn't settle.
+  Order: kit `research/` KB (KIT-D004/D056) → training knowledge → web search →
+  context7, reserved for version-fragile or post-cutoff facts a free source couldn't settle.
   Every context7 answer worth the paid call gets distilled into the kit KB the same
   turn — a call that leaves no doc behind is a wasted spend.
 

@@ -21,7 +21,9 @@ the same thing in two places.
   aren't portable; they broke on Windows).
 - **`agents/`**, **`skills/`** → the shared library of **non-proprietary** generic
   agents and skills, shipped by the **plugin** (→ `~/.claude/{agents,skills}`).
-- **`docs/research/`** → the cross-project knowledgebase (reference, not installed).
+- **`research/`** → the cross-project knowledgebase (KIT-D004/D056): generic findings,
+  library docs, context7 distillations — indexed in its README; reference, not installed.
+- **`docs/research/`** → the kit's OWN design docs (ticket-flavored) — not the KB.
 
 ## The boundary (non-negotiable — this repo is public + MIT)
 Only **non-proprietary** content goes in. Product strategy, commercial scope, and
@@ -51,7 +53,7 @@ reach MIT by construction — when unsure, it stays out.
   Merge `user-config/settings.recommended.json`; add the printed `cap` alias.
 - New project: `node <kit>/scripts/init-project.mjs` inside the repo, commit `.ai/`.
 - Add a reusable tool: author it **here** (`hooks/`, `agents/`, `skills/`,
-  `commands/`, or `docs/research/`), index it; the plugin ships it on the next
+  `commands/`, or `research/`), index it; the plugin ships it on the next
   version bump + consumer update. A recurring fix to an agent/hook is a bug to
   fix **at the source**, not per-session.
 - Update everywhere: `git pull` the kit; bump `plugin.json` `version`; consumers

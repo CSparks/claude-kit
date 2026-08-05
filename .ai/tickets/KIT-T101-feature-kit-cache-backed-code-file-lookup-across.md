@@ -41,6 +41,8 @@ updated: 2026-07-14T17:40:14.630Z
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+### comment #1 [2026-08-05 19:14] @claude
+Scope +1 per KIT-D056 (2026-08-05): top-level research/ (the cross-project KB, KIT-D004) joins the docs-in-FTS list (docs/research, docs/design, docs/strategy) so q fts covers KB library docs + context7 distillations uniformly. Driven by KIT-D055 (KB-first lookup order; context7 metered).
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +55,4 @@ updated: 2026-07-14T17:40:14.630Z
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-05 19:14] (comment) @claude: Scope +1 per KIT-D056 (2026-08-05): top-level research/ (the cross-project KB, KIT-D004) joins the docs-in-FTS list (doc (full comment #1 in ## Notes)

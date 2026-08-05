@@ -14,8 +14,13 @@ and update them instead of re-investigating the same ground on every project.
 - **One topic per file:** `research/<kebab-topic>.md`, listed in the index below.
 - Date findings and mark **version-fragile** facts as such — tool behavior drifts.
 
-## Doc shape
-Every doc follows: **Question · Date · Status · TL;DR · Findings · Sources.**
+## Doc shapes
+**Investigation** (a question answered): **Question · Date · Status · TL;DR ·
+Findings · Sources.**
+**Library reference** (KIT-D055 context7/web distillations — `lib-<name>.md`):
+**Library+version · Date · TL;DR · API/config facts · Gotchas · Sources.** Every
+context7 answer worth the paid call gets distilled here the same turn; version
+facts are version-fragile by definition — always dated, updated in place.
 Status: 🔬 ready · ✅ applied somewhere · ♻️ partial · 🗄️ superseded.
 
 ## Index
