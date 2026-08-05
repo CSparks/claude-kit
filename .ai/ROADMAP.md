@@ -72,7 +72,6 @@
 - KIT-T175 — init-project CLAUDE.md gains an agent-facing "Data repo (git)" section — junction layout, sync-data auto-commit, pathspec etiquette, push runbook (medium)
 - KIT-T179 — Every delegated subagent's activity line and roster entry carries its model tag (medium)
 - KIT-T181 — bootstrap.mjs registers kit bin/ on the user PATH — PowerShell tool + interactive shells can't see plugin bin injection (medium)
-- KIT-T182 — context7 usage-ledger hook — log every metered call, warn on KB-covered topics (medium)
 - KIT-T072 — Quiet the per-turn hook chatter — dedupe advisories, conditional receipts (low)
 - KIT-T073 — Progressive disclosure for the global contract — specialist sections become on-demand skills (low)
 - KIT-T078 — Command-level model tiering — static `model:` on fixed-cost read-only commands (low)

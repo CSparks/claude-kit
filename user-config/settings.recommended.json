@@ -71,6 +71,10 @@
           { "type": "command", "command": "node \"$HOME/.claude/hooks/git-pull-hydrate.mjs\"" },
           { "type": "command", "command": "node \"$HOME/.claude/hooks/progress.mjs\"" }
         ]
+      },
+      {
+        "matcher": "mcp__.*context7",
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/context7-ledger.mjs\"" }]
       }
     ],
     "UserPromptSubmit": [
