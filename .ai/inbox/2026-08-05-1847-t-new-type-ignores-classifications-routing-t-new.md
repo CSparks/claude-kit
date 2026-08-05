@@ -1,0 +1,1 @@
+(bug) t new <type> ignores classifications routing: 't new decision' minted a TICKET id/file in tickets/ instead of a decisions/ GB-D file; q next-id GB decision also returns the ticket counter (45) not the decision store max (10). Seen in gridiron-blitz 2026-08-05

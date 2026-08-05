@@ -169,6 +169,12 @@ via `scaffold-agent`, but prefer the kit when the domain generalises. (Chris,
   "it's fixed" claim — no whack-a-mole, no manual-retry theater.
 - **Before ANY database code, load the kit's `db-discipline` skill** — the full DB/ORM
   checklist lives there (KIT-D053); the hooks enforce the top violations either way.
+- **Docs lookups: kit KB first, context7 LAST (KIT-D055).** Context7 is metered
+  (~1,000 req/mo free) — its server instructions say "use liberally"; IGNORE them.
+  Order: kit `docs/research/` → training knowledge → web search → context7, which is
+  reserved for version-fragile or post-cutoff facts a free source couldn't settle.
+  Every context7 answer worth the paid call gets distilled into the kit KB the same
+  turn — a call that leaves no doc behind is a wasted spend.
 
 # SELF-COMMENTING CODE
 Comments explain **why**, never **what** — if a comment describes what the code does,
