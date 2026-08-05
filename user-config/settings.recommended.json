@@ -46,6 +46,10 @@
       {
         "matcher": "Task|Agent",
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/dispatch-guard.mjs\"" }]
+      },
+      {
+        "matcher": "Task|Agent",
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/activity-tag.mjs\"" }]
       }
     ],
     "PostToolUse": [

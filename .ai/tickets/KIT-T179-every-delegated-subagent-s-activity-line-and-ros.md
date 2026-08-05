@@ -55,6 +55,9 @@ every dispatch's tier legible whether or not a gate fired.
 - [x] Tests in the kit's hook-test shape covering resolution precedence, display mapping,
       idempotence, fail-open, unadopted no-op, roster row shape, and the orient render with
       and without a model. Full `npm test` green.
+- [x] The KIT UI surface is ANSWERED, not skipped: verified there is no delegated-agent render
+      in `server/` or `ui/` to tag (see Notes) — the tag belongs in KIT-T133's roster view when
+      that lands, and inventing one here would be building ahead of its ticket.
 
 ## Plan
 1. Extract `pinnedModel` + `latestAssistantModel` out of dispatch-guard into `model-tag.mjs`,
@@ -85,3 +88,7 @@ every dispatch's tier legible whether or not a gate fired.
 - [2026-08-05 16:07] (created) feature — Every delegated subagent's activity line and roster entry carries its model tag
 - [2026-08-05 16:12] (status) todo → doing
 - [2026-08-05 16:12] (decision) hooks contract verified against code.claude.com/docs/en/hooks: `updatedInput` under `hookSpecificOutput` IS supported for PreToolUse; hook omits `permissionDecision` so it cannot weaken dispatch-guard.
+- [2026-08-05 16:20] (decision) `pinnedModel` + `latestAssistantModel` EXTRACTED from dispatch-guard into model-tag.mjs rather than copied — the gate and the tag must never disagree about which model a dispatch runs on. dispatch-guard's 50 tests stay green (black-box spawn).
+- [2026-08-05 16:22] (comment) model stored RAW in the roster row; every surface maps it through `modelDisplay` on read, so a lineup rename is one table edit. Rows without the field render exactly as before.
+- [2026-08-05 16:24] (comment) end-to-end measured in a scratch repo: activity-tag emits `{"hookSpecificOutput":{"hookEventName":"PreToolUse","updatedInput":{"description":"[Opus 5] Build CRX-T024 admin foundation",…}}}`; the roster row carries `"model":"opus"` with an untagged task label; orient renders `[in-flight] a24demo (general-purpose [Opus 5]) — Build CRX-T024 admin foundation`.
+- [2026-08-05 16:26] (comment) tests: hooks/model-tag.test.mjs 62 passed / 0 failed, wired into `npm test`. Full suite green (dispatch-guard 50, server 29, all others unchanged).

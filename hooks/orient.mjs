@@ -9,6 +9,7 @@ import { join, basename, resolve } from 'node:path';
 import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, readLineage, recordProject, aheadBehind, centralDataRoot, globToRegExp, sessionStale, readAgents, partitionAgents, AGENT_STALE_MS, scanStaleDoingTickets, readRegistry, WIP_FILES, WIP_COMMITS } from './lib.mjs';
 import { unifyMemory, memoryLinkCommand } from './memory-link.mjs';
 import { readProgress, progressFor, formatProgress } from './progress-store.mjs';
+import { modelDisplay } from './model-tag.mjs';
 // q.mjs / id-utils.mjs are imported DYNAMICALLY at their (try-wrapped) use sites so a
 // broken scripts/ tree degrades that one section instead of crashing orientation (KIT-T055).
 
@@ -79,6 +80,12 @@ const decisionMeta = (f) => {
   }
 };
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+// ` [Opus 5]` for a roster row that recorded which model it is burning (KIT-T179). A row written
+// before the field existed has none, and renders exactly as it always did.
+const agentModel = (r) => {
+  const display = modelDisplay(r && r.model);
+  return display ? ` [${display}]` : '';
+};
 // Recent decisions from a decisions/ DIRECTORY: ids+titles for the latest n, then a pointer.
 const recentDecisions = (n) => {
   const files = decisionFiles();
@@ -229,10 +236,10 @@ try {
       // false alarm KIT-T178 exists to kill. The live line outranks the age heuristic.
       const flag = staleIds.has(r.id) && !running ? ` !! UNCOLLECTED (>${staleMin}m, no completion recorded — reattach via TaskList/output or reconcile)` : '';
       const busy = running ? ` — running: ${formatProgress(running, now)}` : '';
-      out.push(`  [in-flight] ${r.id} (${r.scope || '?'})${r.background ? ' bg' : ''} — ${r.task || '?'}${busy}${flag}`);
+      out.push(`  [in-flight] ${r.id} (${r.scope || '?'}${agentModel(r)})${r.background ? ' bg' : ''} — ${r.task || '?'}${busy}${flag}`);
     }
     for (const r of finished.slice(-3)) {
-      out.push(`  [${r.status}] ${r.id} (${r.scope || '?'}) — ${r.task || r.summary || 'finished'} (collect output if not merged)`);
+      out.push(`  [${r.status}] ${r.id} (${r.scope || '?'}${agentModel(r)}) — ${r.task || r.summary || 'finished'} (collect output if not merged)`);
     }
     // A live build whose delegation has no roster row yet. NOT an edge case: PostToolUse(Task)
     // fires when the tool RESULT lands (KIT-T177), so a synchronous agent is mid-build for its

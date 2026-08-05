@@ -10,18 +10,17 @@
 // contributes its own message. A dispatch violating two shapes hears about both at once rather
 // than paying a round trip per gate.
 
-import { readFileSync, statSync, openSync, readSync, closeSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, partitionAgents } from './lib.mjs';
 import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
+// The pin + session-model resolvers moved to model-tag.mjs when the activity line needed the same
+// answer (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
+import { pinnedModel, latestAssistantModel, modelDisplay } from './model-tag.mjs';
 
 const LADDER_CHECK = 'dispatch-ladder';
 const COLD_BUILD_CHECK = 'cold-worktree-build';
 const SHARED_TREE_CHECK = 'shared-tree-dispatch';
-const TRANSCRIPT_TAIL_BYTES = 256 * 1024; // enough JSONL tail to find the latest assistant turn
-const DEFINITION_HEAD_BYTES = 4 * 1024; // frontmatter lives at the top of an agent .md
 // An in-flight roster row older than this is treated as abandoned, not as a live colleague: the
 // harness cannot always report a background agent's completion, so an uncollected row would
 // otherwise wedge every later dispatch in the repo.
@@ -141,7 +140,7 @@ function sharedTreeBlock(root, input, prompt) {
   return [
     `BLOCKED: ${live.length} agent(s) already in flight in this working tree.`,
     `  agent: ${label(input)}   tree: ${tree}   roster: .ai/agents.jsonl`,
-    ...live.map((r) => `    • ${r.id} (${r.scope || 'general'}, ${minutesAgo(r, now)}m ago) — ${String(r.task || '(no description)').slice(0, ROSTER_TASK_CHARS)}`),
+    ...live.map((r) => `    • ${r.id} (${r.scope || 'general'}${rosterModel(r)}, ${minutesAgo(r, now)}m ago) — ${String(r.task || '(no description)').slice(0, ROSTER_TASK_CHARS)}`),
     '',
     "NEVER run two agents in one working tree: one HEAD, one index. They pay to poll each",
     "other's half-written files, and a branch/stage op by one sweeps the other's work into the",
@@ -186,62 +185,13 @@ function minutesAgo(row, nowMs) {
   return Number.isFinite(t) ? Math.max(0, Math.round((nowMs - t) / MS_PER_MIN)) : 0;
 }
 
+// ` [Opus 5]` for a roster row that recorded one; '' for a pre-KIT-T179 row, which therefore
+// renders exactly as it always did.
+function rosterModel(row) {
+  const display = modelDisplay(row && row.model);
+  return display ? ` [${display}]` : '';
+}
+
 function label(input) {
   return String(input.subagent_type || '').trim() || '(default)';
-}
-
-// Resolve a `model:` pin from the agent definition's frontmatter. Probes the plugin's own
-// agents/ (both install layouts), then project- and user-level .claude/agents/. A definition
-// FOUND without a model line returns '' — an unpinned type must be routed explicitly.
-function pinnedModel(root, subagentType) {
-  const name = subagentType.split(':').pop().trim();
-  if (!name) return '';
-  const hookDir = dirname(fileURLToPath(import.meta.url));
-  const probes = [
-    process.env.CLAUDE_PLUGIN_ROOT && join(process.env.CLAUDE_PLUGIN_ROOT, 'agents', `${name}.md`),
-    join(hookDir, '..', 'agents', `${name}.md`),
-    root && join(root, '.claude', 'agents', `${name}.md`),
-    join(homedir(), '.claude', 'agents', `${name}.md`),
-  ].filter(Boolean);
-  for (const file of probes) {
-    try {
-      if (!existsSync(file)) continue;
-      const head = readFileSync(file, 'utf8').slice(0, DEFINITION_HEAD_BYTES);
-      const fm = head.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-      const m = fm && fm[1].match(/^model:\s*([^\s#]+)/m);
-      return m ? m[1] : '';
-    } catch {
-      /* unreadable probe — try the next layout */
-    }
-  }
-  return '';
-}
-
-// The session's model = the latest assistant turn in the transcript JSONL. Indeterminate
-// ('' → treated as not-fable) whenever the path is absent or unparseable.
-function latestAssistantModel(transcriptPath) {
-  try {
-    if (!transcriptPath || !existsSync(transcriptPath)) return '';
-    const size = statSync(transcriptPath).size;
-    const start = Math.max(0, size - TRANSCRIPT_TAIL_BYTES);
-    const buf = Buffer.alloc(size - start);
-    const fd = openSync(transcriptPath, 'r');
-    readSync(fd, buf, 0, buf.length, start);
-    closeSync(fd);
-    const lines = buf.toString('utf8').split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      try {
-        const row = JSON.parse(line);
-        const model = row && row.type === 'assistant' && row.message && row.message.model;
-        if (model) return model;
-      } catch {
-        /* clipped first line of the tail — keep scanning */
-      }
-    }
-  } catch {
-    /* unreadable transcript — indeterminate */
-  }
-  return '';
 }

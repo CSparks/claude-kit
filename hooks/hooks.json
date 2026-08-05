@@ -34,6 +34,10 @@
       {
         "matcher": "Task|Agent",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/dispatch-guard.mjs\"" }]
+      },
+      {
+        "matcher": "Task|Agent",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/activity-tag.mjs\"" }]
       }
     ],
     "PostToolUse": [

@@ -14,6 +14,7 @@
 
 import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, partitionAgents, ID_CITE_SRC } from './lib.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
+import { resolveDispatchModel, stripModelTag } from './model-tag.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
 const ID_CITE_RE = new RegExp(ID_CITE_SRC); // at least one ticket/decision id anywhere in the brief
@@ -48,7 +49,10 @@ function recordDispatch(root, p) {
       resp.agent_id, resp.agentId, resp.task_id, resp.taskId, resp.id,
       inp.agent_id, inp.task_id,
     ) || `agent-${Date.now().toString(36)}`;
-    const task = clip(firstString(inp.description, inp.task, inp.title, inp.prompt) || '(no description)', TASK_LABEL_MAX);
+    // activity-tag.mjs has already rewritten `description` to carry `[Opus 5] …` by the time this
+    // PostToolUse fires, so strip it back off: the model belongs in its own field, not doubled
+    // into the task label (KIT-T179).
+    const task = clip(stripModelTag(firstString(inp.description, inp.task, inp.title, inp.prompt)) || '(no description)', TASK_LABEL_MAX);
     const scope = firstString(inp.subagent_type, inp.agent_type, inp.subagentType, inp.type) || 'general';
     const background = isBackground(inp);
     // WHICH TREE this agent lands in (KIT-T177). The roster lives in the DISPATCHING repo, so
@@ -56,7 +60,10 @@ function recordDispatch(root, p) {
     // with its own worktree or one sent into another repo entirely.
     const isolation = firstString(inp.isolation);
     const targetRoot = dispatchTargetRoot(root, inp);
-    recordAgent(root, { id, status: dispatchStatus(root, id), task, scope, background, isolation, targetRoot, source: 'posttooluse' });
+    // WHAT IT COSTS (KIT-T179). Stored RAW — the alias or full id actually resolved — so the
+    // display map in model-tag.mjs stays the one place a lineup rename has to be made.
+    const model = resolveDispatchModel(root, inp, p);
+    recordAgent(root, { id, status: dispatchStatus(root, id), task, scope, background, isolation, targetRoot, model, source: 'posttooluse' });
     // Advisory: a delegation with no ticket id is ungrounded work — warn, never block (exit 0).
     const brief = firstString(inp.description, inp.task, inp.title, inp.prompt) || '';
     if (brief && !ID_CITE_RE.test(brief)) {
