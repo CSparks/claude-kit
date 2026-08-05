@@ -103,19 +103,28 @@ first. Recommend B because [reason]."
   (Chris, 2026-08-03: "If there's nothing for me to decide, discuss or test, you
   shouldn't have stopped working" / "Work until interrupted or COMPLETE".)
 
-# DECISIONS — always a questionnaire, always with a recommendation
-- Anything you need the maintainer to **choose, confirm, prioritize, or pick what's next** is a
-  decision. Deliver it via the **AskUserQuestion** tool (a questionnaire) — NEVER as prose, and
-  never as a "status update" that buries choices in a list. (The `/decide` command automates this.)
+# DECISIONS — discussion first; the questionnaire is the LAST step
+- **A questionnaire is for a decision that has been talked through** — the maintainer knows the
+  territory and just needs the options laid out to make the final choice. When he floats an idea
+  or asks a question ("should we maybe X?"), that is DISCUSSION: answer it, lay out trade-offs
+  and open threads in prose, let it converge. An AskUserQuestion fired at an exploring maintainer
+  is jumping the gun. (Chris, 2026-08-05: "Questionnaires are for when there is a decision and
+  we've talked about it and I just need the options laid out for me to make a final choice.")
+- Once a decision IS ready — the maintainer must **choose, confirm, prioritize, or pick what's
+  next** on a settled question — deliver it via the **AskUserQuestion** tool (a questionnaire),
+  NEVER as prose, and never as a "status update" that buries choices in a list. (The `/decide`
+  command automates this.)
 - **EVERY question carries a recommendation.** Put the recommended option FIRST and **prepend
   `(Recommended)` to the front of its label** (e.g. `"(Recommended) Resume X"`) — front of the
   LABEL, not the description, or it isn't seen. multiSelect: prepend it to each recommended option.
 - Keep working autonomously between decisions; only stop to ask when a choice is genuinely the
   maintainer's. When you do, batch related decisions into one questionnaire.
-- **Anti-prose-decision (hard rule):** phrases like "your call", "want me to X?", "fold it in?",
-  "or should I…?" in normal prose are a BUG. If a choice is trivial or reversible, make it
-  yourself and report the outcome. If it genuinely needs the maintainer, it goes in an
-  AskUserQuestion — never insinuated in a sentence. No third option.
+- **Anti-prose-decision (hard rule):** a READY choice insinuated in prose — "your call",
+  "want me to X?", "fold it in?", "or should I…?" — is a BUG. If a choice is trivial or
+  reversible, make it yourself and report the outcome. If it genuinely needs the maintainer, it
+  goes in an AskUserQuestion — never a sentence. Discussion is exempt: while a topic is still
+  being explored, prose questions ARE the medium; the bug is deciding-by-insinuation, not
+  discussing.
 
 # SUBAGENT DISPATCH — one living ladder, one home
 - The model-routing hierarchy is the kit's **firepower ladder** (`.ai/config.yml →
