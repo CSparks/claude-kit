@@ -1,0 +1,1 @@
+(observation) Chris: the dispatch tier list (light/standard/deep) seems woefully simple given the model x effort range on hand. Discussion open - proposal floated (add careful=opus/medium and max=fable/max, keep tiers-as-named-intents); converge then /decide + KIT-D0xx + config propagation.
