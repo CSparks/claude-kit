@@ -1,0 +1,1 @@
+(feature) game3d render-fix domain has earned a kit specialist agent - dispatched to general-purpose repeatedly (T090/T087/T119 batch today; HUD, combat, rig passes before). Wants: agents/bevy-render-fixer.md, model pinned opus, Bevy 0.19 gotchas + sim-seam rules + no-cargo-fmt/build conventions written in, numeric-probe-over-screenshot verification doctrine.

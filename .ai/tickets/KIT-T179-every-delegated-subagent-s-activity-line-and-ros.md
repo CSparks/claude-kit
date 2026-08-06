@@ -84,6 +84,8 @@ every dispatch's tier legible whether or not a gate fired.
   dispatch-guard, agent-roster only) and by listing every route/service/page. The UI's roster
   view is KIT-T133 (headless dispatch, still `todo`) — the model tag belongs in that ticket's
   render when it lands, not invented ahead of it.
+### comment #1 [2026-08-06 02:32] @claude
+inbox capture 2026-08-05-1610 (model tag in agent activity) triaged here on 2026-08-06 — the hook half is shipped; its follow-up ask was that the tag ALSO render in the kit's own surfaces (roster -> orient, kit UI). Confirm those before closing.
 
 ## History
 - [2026-08-05 16:07] (created) feature — Every delegated subagent's activity line and roster entry carries its model tag
@@ -95,3 +97,4 @@ every dispatch's tier legible whether or not a gate fired.
 - [2026-08-05 16:26] (comment) tests: hooks/model-tag.test.mjs 62 passed / 0 failed, wired into `npm test`. Full suite green (dispatch-guard 50, server 29, all others unchanged).
 - [2026-08-05 16:25] (status) doing → review
 - [2026-08-05 16:27] (fixed) 2edfe7a — pushed to main; full `npm test` green at that sha.
+- [2026-08-06 02:32] (comment) @claude: inbox capture 2026-08-05-1610 (model tag in agent activity) triaged here on 2026-08-06 — the hook half is shipped; its f (full comment #1 in ## Notes)
