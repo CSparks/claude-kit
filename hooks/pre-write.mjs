@@ -354,12 +354,19 @@ function postEditLines() {
   } catch {
     return lines.length; // unreadable/new file — the fragment is the best available proxy
   }
+  // KIT-T211: autocrlf checkouts hold CRLF on disk while Edit payloads are LF — match and
+  // measure in LF space, or the reconstruction misses and the gate judges the PRE-edit file
+  // (passing growth through the hard limit, blocking shrinking edits outright).
+  const lf = (s) => s.replace(/\r\n/g, '\n');
+  current = lf(current);
+  const oldStr = lf(ti.old_string);
+  const newStr = lf(ti.new_string ?? '');
   const next = ti.replace_all
-    ? current.split(ti.old_string).join(ti.new_string ?? '')
+    ? current.split(oldStr).join(newStr)
     : (() => {
-      const at = current.indexOf(ti.old_string);
+      const at = current.indexOf(oldStr);
       if (at === -1) return current; // stale match; the Edit will fail anyway
-      return current.slice(0, at) + (ti.new_string ?? '') + current.slice(at + ti.old_string.length);
+      return current.slice(0, at) + newStr + current.slice(at + oldStr.length);
     })();
   return next.split('\n').length;
 }
