@@ -4,7 +4,7 @@
 // parity (KIT-T026) structural instead of a convention two copies keep drifting from.
 
 import { resolve } from 'node:path';
-import { readIdConfig, STORE_TYPE, compareIds } from './id-utils.mjs';
+import { readIdConfig, STORE_TYPE, compareIds, formatItemId } from './id-utils.mjs';
 import { storeRoot } from '../hooks/lib.mjs';
 
 export const OPEN = ['todo', 'doing', 'review'];
@@ -96,17 +96,49 @@ export function parseFts(text, root) {
   return { scope: /^all$/i.test(scope) ? '' : scope, query: terms.join(' ') };
 }
 
-export function storeForType(type) {
-  // type may be a store name (tickets) or a type letter/word; map to a store bucket.
-  if (STORE_TYPE[type]) return type;
-  const byLetter = Object.entries(STORE_TYPE).find(([, l]) => l === type);
-  return byLetter ? byLetter[0] : 'tickets';
+// Every name a caller may reasonably use for a store — its canonical directory name
+// (`decisions`), its singular (`decision`), and its id letter (`D`) — derived from STORE_TYPE so
+// adding a store needs no second list.
+const STORE_ALIAS = new Map();
+for (const [store, letter] of Object.entries(STORE_TYPE)) {
+  STORE_ALIAS.set(store, store);
+  STORE_ALIAS.set(store.replace(/s$/, ''), store);
+  STORE_ALIAS.set(letter.toLowerCase(), store);
 }
 
-export function formatId(root, scope, type, num) {
+export const storeNames = () => Object.keys(STORE_TYPE);
+
+export function resolveStore(name) {
+  return STORE_ALIAS.get(String(name ?? '').trim().toLowerCase()) || null;
+}
+
+// Resolution is STRICT on purpose. The lenient predecessor defaulted anything it didn't
+// recognize to `tickets`, so `next-id GB decision` answered with the TICKET counter under a
+// bogus `GB-decision46` id — an id-collision generator dressed as a query result, and the id
+// segment came out `undefined` when the store argument was omitted entirely (KIT-T109).
+export function requireStore(name) {
+  const store = resolveStore(name);
+  if (store) return store;
+  const expected = `${storeNames().join(' | ')} (singular or the id letter also works)`;
+  const got = String(name ?? '').trim();
+  throw new Error(got
+    ? `unknown store '${got}' — expected one of: ${expected}`
+    : `a store is required — expected one of: ${expected}`);
+}
+
+// The other half of a `next-id <scope> <store>` call. An absent scope used to reach a bound
+// SQLite parameter verbatim and surface as `Provided value cannot be bound to SQLite parameter 1`.
+export function requireScope(scope) {
+  const s = String(scope ?? '').trim();
+  if (s) return s;
+  throw new Error('a scope is required — a project id key such as KIT (`q rundown` lists the keys the cache holds)');
+}
+
+// `store` must already be canonical (requireStore) — the letter mapping lives in id-utils
+// alone, so there is one place that turns a store into an id segment.
+export function formatId(root, scope, store, num) {
   const { pad } = readIdConfig(root);
-  const letter = STORE_TYPE[type] || type;
-  return `${scope}-${letter}${String(num).padStart(pad, '0')}`;
+  return formatItemId(scope, store, num, pad);
 }
 
 // Open-item ordering — ONE comparator both the cache and the markdown-scan paths sort by,

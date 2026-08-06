@@ -24,7 +24,7 @@ import assert from 'node:assert/strict';
 import { resolveEngine } from './db-engine.mjs';
 import { hydrate } from './hydrate-db.mjs';
 import { query } from './q.mjs';
-import { ftsMatchQuery, parseFts, defaultScope } from './q-model.mjs';
+import { ftsMatchQuery, parseFts, defaultScope, resolveStore, requireStore, requireScope, formatId } from './q-model.mjs';
 
 const Q_CLI = join(dirname(fileURLToPath(import.meta.url)), 'q.mjs');
 
@@ -61,8 +61,9 @@ const dbPath = join(tmpRoot, '.cache', 'workflow.db');
 function makeProject(name, key) {
   const root = join(tmpRoot, name);
   const ai = join(root, '.ai');
-  mkdirSync(join(ai, 'tickets'), { recursive: true });
-  mkdirSync(join(ai, 'decisions'), { recursive: true });
+  for (const store of ['tickets', 'decisions', 'notes', 'questions']) {
+    mkdirSync(join(ai, store), { recursive: true });
+  }
   writeFileSync(join(ai, 'config.yml'), `ids:\n  key: "${key}"\n  pad: 3\n`);
   return { root, ai };
 }
@@ -77,6 +78,14 @@ writeFileSync(join(A.ai, 'tickets', 'FQA-T002-child.md'),
 // D001: a DECISION with no outbound antecedents at all — the KIT-T173 repro shape.
 writeFileSync(join(A.ai, 'decisions', 'FQA-D001.md'),
   `---\nid: FQA-D001\ntitle: Always make tickets in this repo - no ask-first gate\ndate: 2026-08-04\n---\n**Decision:** capture first, ask never\n`);
+
+// N001 + Q001 exist ONLY so next-id has a live counter in every store (KIT-T183). Their text
+// deliberately shares no term with the FTS fixtures above, so the scope/MATCH assertions that
+// count hits stay untouched.
+writeFileSync(join(A.ai, 'notes', 'FQA-N001.md'),
+  `---\nid: FQA-N001\ntitle: scan ordering memo\n---\nthe markdown scan sorts by id\n`);
+writeFileSync(join(A.ai, 'questions', 'FQA-Q001.md'),
+  `---\nid: FQA-Q001\ntitle: which pad width for this project\nstatus: open\n---\nthree digits?\n`);
 
 const B = makeProject('proj-b', 'FQB');
 writeFileSync(join(B.ai, 'tickets', 'FQB-T001-other.md'),
@@ -123,6 +132,36 @@ test('parseFts treats --scope all as no filter (case-insensitive)', () => {
 });
 test('parseFts falls back to every scope outside an adopted repo', () =>
   assert.deepEqual(parseFts('gate', tmpRoot), { scope: '', query: 'gate' }));
+
+// ---- KIT-T183 / KIT-T109: the next-id store argument (pure, always runs) ----
+// The lenient predecessor mapped ANY unrecognized store name to `tickets`, so `next-id GB
+// decision` answered with the ticket counter under a `GB-decision46` id, and an omitted store
+// produced `GB-undefined46`. Both minted an id that collides with real work.
+const STORE_LETTER = { tickets: 'T', decisions: 'D', notes: 'N', questions: 'Q', requests: 'R', epics: 'E' };
+for (const [store, letter] of Object.entries(STORE_LETTER)) {
+  test(`requireStore accepts every name for ${store} (plural / singular / ${letter})`, () => {
+    assert.equal(requireStore(store), store);
+    assert.equal(requireStore(store.replace(/s$/, '')), store, 'the singular a caller naturally types');
+    assert.equal(requireStore(letter), store, 'the id letter');
+    assert.equal(requireStore(letter.toLowerCase()), store, 'case-insensitive');
+  });
+  test(`formatId stamps ${store} with its own letter ${letter}`, () =>
+    assert.equal(formatId(A.root, 'FQA', store, 7), `FQA-${letter}007`));
+}
+test('resolveStore reports an unknown name instead of guessing tickets', () => {
+  assert.equal(resolveStore('bogus'), null);
+  assert.equal(resolveStore(''), null);
+  assert.equal(resolveStore(undefined), null);
+});
+test('requireStore refuses an unknown store, naming the ones that exist', () => {
+  assert.throws(() => requireStore('bogus'), /unknown store 'bogus'.*tickets \| decisions/s);
+  assert.throws(() => requireStore(undefined), /a store is required.*decisions/s);
+});
+test('requireScope refuses a missing scope (it used to reach SQLite as a bound param)', () => {
+  assert.equal(requireScope('FQA'), 'FQA');
+  assert.throws(() => requireScope(undefined), /a scope is required/);
+  assert.throws(() => requireScope('  '), /a scope is required/);
+});
 
 // ---- KIT-T118: --help is a working exit-0 discovery route (always runs) ------
 // The query-gate block message points agents at `q.mjs --help`; if that errors they have no
@@ -240,6 +279,51 @@ if (!engine) {
     const core = (rows) => rows.map((r) => ({ id: r.id, store: r.store, rel: r.rel, depth: r.depth }));
     assert.deepEqual(core(await trail('FQA-D001', { noDb: true })), core(await trail('FQA-D001')));
     assert.deepEqual(core(await trail('FQA-T002', { noDb: true })), core(await trail('FQA-T002')));
+  });
+
+  // ---- KIT-T183: next-id, every store, both paths --------------------------
+  const nextId = async (scope, store, opts = {}) =>
+    (await query('next-id', [scope, store], { root: A.root, dbPath, ...opts })).rows[0];
+
+  await testAsync('next-id counts EACH store separately — T/D/N/Q never borrow each other\'s counter', async () => {
+    // Fixture: 2 tickets, 1 decision, 1 note, 1 question — four different counters.
+    assert.deepEqual(await nextId('FQA', 'tickets'), { id: 'FQA-T003', scope: 'FQA', store: 'tickets', num: 3 });
+    assert.deepEqual(await nextId('FQA', 'decisions'), { id: 'FQA-D002', scope: 'FQA', store: 'decisions', num: 2 });
+    assert.deepEqual(await nextId('FQA', 'notes'), { id: 'FQA-N002', scope: 'FQA', store: 'notes', num: 2 });
+    assert.deepEqual(await nextId('FQA', 'questions'), { id: 'FQA-Q002', scope: 'FQA', store: 'questions', num: 2 });
+  });
+  await testAsync('next-id <scope> decision (singular) is the DECISION counter, not the ticket one', async () => {
+    const plural = await nextId('FQA', 'decisions');
+    assert.deepEqual(await nextId('FQA', 'decision'), plural, 'the singular resolves to the same store');
+    assert.deepEqual(await nextId('FQA', 'D'), plural, 'so does the id letter');
+    assert.notEqual(plural.num, (await nextId('FQA', 'tickets')).num, 'the two counters are genuinely different');
+  });
+  await testAsync('next-id refuses an unknown/absent store instead of minting a ticket id', async () => {
+    await assert.rejects(() => nextId('FQA', 'bogus'), /unknown store 'bogus'/);
+    await assert.rejects(() => nextId('FQA', undefined), /a store is required/);
+    await assert.rejects(() => nextId(undefined, 'tickets'), /a scope is required/);
+  });
+  await testAsync('next-id is identical on the markdown-scan path for every store', async () => {
+    for (const store of ['tickets', 'decisions', 'notes', 'questions']) {
+      assert.deepEqual(await nextId('FQA', store, { noDb: true }), await nextId('FQA', store),
+        `${store}: cache and scan must agree`);
+    }
+  });
+  await testAsync('next-id on the scan path REFUSES a scope it cannot see (no more <SCOPE>-D001)', async () => {
+    // The scan only ever opens ONE root. Counting FQB from inside FQA used to return FQB-T001
+    // over a store that already holds FQB-T001 — an allocation straight onto live work.
+    await assert.rejects(() => nextId('FQB', 'tickets', { noDb: true }), /cannot see scope FQB/);
+    assert.equal((await nextId('FQB', 'tickets')).id, 'FQB-T002', 'the cache, which holds both scopes, answers fine');
+  });
+  await testAsync('CLI: the KIT-T183 repro prints a D id and exits 0; a bogus store exits non-zero', async () => {
+    const good = cli(['--root', A.root, 'next-id', 'FQA', 'decision']);
+    assert.equal(good.status, 0, `exited ${good.status}: ${good.stderr.trim()}`);
+    assert.match(good.stdout, /^FQA-D002\b/m, 'the singular store name prints the decision id');
+    assert.doesNotMatch(good.stdout, /FQA-decision|undefined/, 'no bogus id segment survives');
+
+    const bad = cli(['--root', A.root, 'next-id', 'FQA', 'bogus']);
+    assert.notEqual(bad.status, 0, 'an unknown store is an error, not an id');
+    assert.match(bad.stderr, /unknown store 'bogus'/);
   });
 
   // ---- end-to-end through the CLI (the literal repro commands) --------------

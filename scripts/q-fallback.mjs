@@ -13,7 +13,8 @@ import { mentionsForAgent, readReceipts } from './comments.mjs';
 import { governing, drift } from './q-governing.mjs';
 import {
   OPEN, FTS_LIMIT, MIN_TERM_LEN, ALNUM_TERM, SUMMARY_CLIP,
-  parseSimilar, parseFts, storeForType, formatId, compareOpen, isSuperseded, edgesOf, clip, walkAncestry,
+  parseSimilar, parseFts, requireStore, requireScope, defaultScope, formatId, compareOpen, isSuperseded,
+  edgesOf, clip, walkAncestry,
 } from './q-model.mjs';
 
 export function fallback(cmd, args, root) {
@@ -110,10 +111,20 @@ export function fallback(cmd, args, root) {
         .map((c) => c.row);
     }
     case 'next-id': {
-      const [scope, type] = args;
-      const store = storeForType(type);
+      const scope = requireScope(args[0]);
+      const store = requireStore(args[1]);
+      // The scan sees ONE project — this root's stores. Answering for a DIFFERENT scope means
+      // counting from zero over files it never opened, which mints `<SCOPE>-D001` on top of a
+      // store that already holds a dozen decisions. Refuse instead of allocating blind.
+      const localScope = defaultScope(root);
+      if (scope !== localScope) {
+        throw new Error(
+          `next-id: no cache, so this answer would come from scanning ${root}` +
+          `${localScope ? ` (scope ${localScope})` : ' (not an adopted project)'} — which cannot see scope ${scope}. ` +
+          `Re-run with --root <that project's directory>, or hydrate the cache.`);
+      }
       const max = items.filter((i) => i.scope === scope && i.store === store && i.num).reduce((a, i) => Math.max(a, i.num), 0);
-      return [{ id: formatId(root, scope, type, max + 1), scope, type, num: max + 1 }];
+      return [{ id: formatId(root, scope, store, max + 1), scope, store, num: max + 1 }];
     }
     // File-scoped governance (KIT-T049) — scan-only by nature: the governing fields
     // (`files`/`scope`/`paths`) and the FTS body aren't in the SQLite schema, so collectItems

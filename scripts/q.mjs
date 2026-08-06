@@ -44,7 +44,7 @@ import { hydrate, defaultDbPath, hydrationSources, isRegisteredStore, isSharedDb
 import { readIdConfig, statStoreFiles } from './id-utils.mjs';
 import { fallback } from './q-fallback.mjs';
 import {
-  OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, parseFts, storeForType, formatId,
+  OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, parseFts, requireStore, requireScope, formatId,
   compareOpen, findGaps, walkAncestry,
 } from './q-model.mjs';
 
@@ -251,10 +251,11 @@ function cannedQueries(root) {
     },
 
     'next-id': (db, scope, type) => {
-      const row = db.all(
-        'SELECT MAX(num) AS m FROM items WHERE scope = ? AND store = ?', [scope, storeForType(type)])[0];
+      const key = requireScope(scope);
+      const store = requireStore(type);
+      const row = db.all('SELECT MAX(num) AS m FROM items WHERE scope = ? AND store = ?', [key, store])[0];
       const next = (row && row.m ? row.m : 0) + 1;
-      return [{ id: formatId(root, scope, type, next), scope, type, num: next }];
+      return [{ id: formatId(root, key, store, next), scope: key, store, num: next }];
     },
 
     integrity: (db) => {
