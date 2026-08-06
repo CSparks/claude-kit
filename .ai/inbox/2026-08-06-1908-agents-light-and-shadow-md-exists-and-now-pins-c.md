@@ -1,0 +1,1 @@
+(bug) agents/light-and-shadow.md exists (and now pins claude-fable-5/medium) but is NOT a dispatchable agent type - the plugin roster exposes only code-reviewer/game-asset-artist/refactorer/researcher/test-author. Registration gap (manifest or plugin reload); audio-synthesist likely same. Found dispatching the first asset-lane job (ST-T145).
