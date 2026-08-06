@@ -22,6 +22,7 @@ import { join, relative, extname, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { loadTreeSitter } from './treesitter.mjs';
+import { wantsHelp } from './cli-help.mjs';
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'target', 'dist', 'build', '.venv', 'venv', '__pycache__',
@@ -402,8 +403,19 @@ function walkHtml(root, acc = []) {
   return acc;
 }
 
+const USAGE = `usage: code-graph [root] [--out <graph.json>] [--query <q> [arg]] [--codemap-check <file>]
+  --query importers-of <path>        modules that import <path>
+  --query defines <symbol>           files defining <symbol>
+  --query references-of <symbol>     files referencing <symbol>
+  --query surface <path>             a module's exported surface
+  --query duplicate-defines <symbol> twins of <symbol> — flags the superseded one
+  --query entry-points               app roots (more than one = more than one app)
+  (no --query)                       build the graph and print it as JSON; --out writes it
+`;
+
 async function main() {
   const args = process.argv.slice(2);
+  if (wantsHelp(args)) { process.stdout.write(USAGE); return; }
   let root = process.cwd();
   let out = null;
   let query = null;

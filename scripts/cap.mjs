@@ -34,6 +34,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import { readRegistry, projectAiDirs, writeItemFile } from '../hooks/lib.mjs';
+import { wantsHelpFirst } from './cli-help.mjs';
 
 const DATE_END = 10; // slice [0,DATE_END) of an ISO string = YYYY-MM-DD
 const TIME_START = 11; // HH:MM:SS begins here
@@ -155,9 +156,19 @@ function takeDoneFlag(argv) {
   return { done, rest: out };
 }
 
+const USAGE = `usage: cap [--project <name>] [--done] [type] <text>   (or "<name>: <text>")
+  cap bug login redirect loops after SSO      type = a classification key in the target's config.yml
+  cap "form double-submits on slow network"   untyped — classified at triage
+  cap --project hod feature graded roads      explicit target, wins over cwd
+  cap "hod: roads are graded"                 leading name: prefix — same effect
+  cap --done bug "fixed login crash"          resolved event -> .ai/resolved/, skips the triage queue
+Routing precedence: --project, then a leading "<name>:", then the nearest .ai/ above the cwd.
+`;
+
 const argv = process.argv.slice(2);
+if (wantsHelpFirst(argv)) { process.stdout.write(USAGE); process.exit(0); }
 if (argv.length === 0) {
-  console.error('usage: cap [--project <name>] [--done] [type] <text>   (or "<name>: <text>")');
+  console.error(USAGE);
   process.exit(1);
 }
 

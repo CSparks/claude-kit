@@ -32,6 +32,7 @@ import { buildComment, parseComments, recordAck } from './comments.mjs';
 import { resolveUser } from './identity.mjs';
 import { appendUnderSection, stamp } from './md-body.mjs';
 import { addCriterion, setCriterionAt, tickCriterion, untickCriterion } from './criteria.mjs';
+import { wantsHelp } from './cli-help.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z]+-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032
@@ -490,6 +491,7 @@ async function main() {
   const [cmd, ...rest] = pos;
   const usage = 'usage: t <new|status|tick|untick|criterion|link|comment|ack> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name>)';
 
+  if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
 
   if (cmd === 'new') {

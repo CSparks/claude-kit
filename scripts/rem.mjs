@@ -23,6 +23,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 
 import { dirname, join, resolve, basename } from 'node:path';
 import { readRegistry, projectAiDirs, writeItemFile } from '../hooks/lib.mjs';
 import { nextReminderId } from './id-utils.mjs';
+import { wantsHelp } from './cli-help.mjs';
 
 const DEFAULT_EVERY = 7; // weekly — the driving use case (GH Actions cache warmth) and a sane default
 const SLUG_MAX = 48;
@@ -329,6 +330,7 @@ async function cmdToggle(args, target, enable) {
 const USAGE = 'usage: rem <add|list|done|snooze|disable|enable> ... [--project <name>]';
 
 const raw = process.argv.slice(2);
+if (wantsHelp(raw)) { process.stdout.write(USAGE + '\n'); process.exit(0); }
 if (!raw.length) fail(USAGE);
 
 const { project: flagProject, rest } = takeProjectFlag(raw);
