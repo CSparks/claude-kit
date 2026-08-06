@@ -20,21 +20,22 @@ function ok(name, cond) {
   else       { fail++; console.log('  FAIL  ' + name); }
 }
 
-// Minimal config.yml — just enough for classificationKeys() to recognise `bug`.
-const MIN_CONFIG = `classifications:
+// Minimal config.yml — just enough for classificationKeys() to recognise `bug`. The id KEY is a
+// parameter because the cross-project tests need two projects that are distinguishable by key.
+const MIN_CONFIG = (key) => `classifications:
   bug:     { routes_to: tickets, priority: high, blocking: when-touching-active }
   feature: { routes_to: backlog, priority: medium, blocking: never }
 ids:
-  key: "TST"
-  prefix: "TST-T"
+  key: "${key}"
+  prefix: "${key}-T"
   pad: 3
 `;
 
-function makeRepo() {
+function makeRepo(key = 'TST') {
   const root = mkdtempSync(join(tmpdir(), 'kit-cap-'));
   fixtures.push(root);
   mkdirSync(join(root, '.ai', 'inbox'),   { recursive: true });
-  writeFileSync(join(root, '.ai', 'config.yml'), MIN_CONFIG);
+  writeFileSync(join(root, '.ai', 'config.yml'), MIN_CONFIG(key));
   return root;
 }
 
@@ -115,6 +116,75 @@ console.log('\ncap --done with quoted text works');
   cap(repo, ['--done', 'patched the floodgate']);
   const resolvedFiles = readdirSync(join(repo, '.ai', 'resolved'));
   ok('resolved file present for quoted text', resolvedFiles.length === 1);
+}
+
+// --------------------------------------------------------------------------
+// 5. KIT-T186 — a capture naming ANOTHER project warns BEFORE the write, and the
+//    receipt itself carries the ambiguity. (Routing still obeys KIT-T067: cwd owns
+//    the write; this only proposes.)
+// --------------------------------------------------------------------------
+console.log('\ncap warns about a cross-project capture before it writes');
+{
+  const { openSync, closeSync, readFileSync, writeFileSync: write } = await import('node:fs');
+  const cwdRepo = makeRepo('CWD');       // the project the capture lands in
+  const other = makeRepo('OTH');         // a registered project the TEXT names
+  const registry = join(other, 'registry.json');
+  write(registry, JSON.stringify({
+    dataRoot: null,
+    projects: { 'cwd-project': cwdRepo, 'other-project': other },
+  }));
+
+  // Both streams share ONE fd, so the file records the real emission ORDER — the whole point
+  // of the fix (the warning used to trail a receipt that already read "captured").
+  const logPath = join(other, 'cap-order.log');
+  const fd = openSync(logPath, 'w');
+  execFileSync(process.execPath, [CAP, 'bug', 'the other-project build is broken'], {
+    cwd: cwdRepo,
+    env: { ...process.env, CLAUDE_KIT_REGISTRY: registry },
+    stdio: ['ignore', fd, fd],
+  });
+  closeSync(fd);
+  const log = readFileSync(logPath, 'utf8');
+
+  const warnAt = log.indexOf('cap: this text also names');
+  const receiptAt = log.indexOf('captured (bug) ->');
+  ok('the warning names the other project', warnAt >= 0 && /other-project/.test(log));
+  ok('the warning suggests the exact --project re-run for the NAMED project', /re-run: cap --project oth/.test(log));
+  ok('the warning is emitted BEFORE the receipt', warnAt >= 0 && receiptAt > warnAt);
+  ok('the receipt itself carries the ambiguity marker', /captured \(bug\) -> .*\[also names other-project/.test(log));
+  ok('the capture still landed in the cwd project (KIT-T067 routing unchanged)',
+    readdirSync(join(cwdRepo, '.ai', 'inbox')).length === 1);
+  ok('the other project was NOT written to', readdirSync(join(other, '.ai', 'inbox')).length === 0);
+}
+
+// --------------------------------------------------------------------------
+// 6. KIT-T186 — outside every adopted repo, cap fails loudly and lists the targets
+// --------------------------------------------------------------------------
+console.log('\ncap outside any repo names the projects it could capture into');
+{
+  const { writeFileSync: write } = await import('node:fs');
+  const home = mkdtempSync(join(tmpdir(), 'kit-cap-norepo-'));
+  fixtures.push(home);
+  const target = makeRepo('TGT');
+  const registry = join(home, 'registry.json');
+  write(registry, JSON.stringify({ dataRoot: null, projects: { 'a-target': target } }));
+
+  let status = 0;
+  let stderr = '';
+  try {
+    execFileSync(process.execPath, [CAP, 'bug', 'nowhere to put this'], {
+      cwd: home,
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_KIT_REGISTRY: registry },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (e) {
+    status = e.status;
+    stderr = String(e.stderr);
+  }
+  ok('exits non-zero rather than capturing nowhere', status !== 0);
+  ok('says plainly that the cwd is not an adopted repo', /not an adopted repo/.test(stderr));
+  ok('lists the registered projects with their id keys', /Registered: a-target \(tgt\)/.test(stderr));
 }
 
 // --------------------------------------------------------------------------

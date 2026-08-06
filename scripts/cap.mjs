@@ -230,7 +230,15 @@ if (explicitHit) {
   // Fallback: the nearest .ai/ above the cwd (historical behavior). Still the ultimate fallback.
   aiDir = findAiDir(process.cwd());
   if (!aiDir) {
-    console.error('cap: no .ai/ found above ' + process.cwd() + ' — pass --project <name> or run init-project.mjs first.');
+    // A session started outside every repo (a home directory, a scratch dir) has no cwd project to
+    // fall back to, so the capture has nowhere to go. Name the projects it COULD go to: without
+    // them the operator has to go read the registry to retry, and a capture deferred is a capture
+    // lost (KIT-T186).
+    const known = table.map((p) => (p.key ? `${p.name} (${p.key.toLowerCase()})` : p.name)).join(', ');
+    console.error(`cap: no .ai/ found above ${process.cwd()} — this is not an adopted repo, so there is no cwd project to capture into.`);
+    console.error(known
+      ? `cap: pass --project <name>. Registered: ${known}`
+      : 'cap: the project registry is empty — run init-project.mjs in the target repo first.');
     process.exit(1);
   }
   const cwdEntry = table.find((p) => existsSync(p.aiDir) && resolve(p.aiDir) === resolve(aiDir));
@@ -244,6 +252,20 @@ let type = '';
 if (keys.includes(words[0]) && words.length > 1) {
   type = words[0];
   words = words.slice(1);
+}
+
+// The ambiguity warning goes out BEFORE the write, and the receipt itself carries the marker
+// (KIT-T186). Emitted after the receipt it read as an afterthought to a line that already said
+// "captured": on 2026-08-06 a kit-named capture landed in the cwd project and the warning was
+// noticed only later. Routing still obeys KIT-T067 — cwd owns the write, this only PROPOSES —
+// so the one line an agent relays has to be the line that says the target is disputed.
+const ambiguity = proposed
+  ? `also names ${proposed.name}${proposed.key ? ` (${proposed.key})` : ''}`
+  : '';
+if (proposed) {
+  const alias = (proposed.key || proposed.name).toLowerCase();
+  console.error(`cap: this text ${ambiguity} but is being captured into ${projectName} (cwd). ` +
+    `If that is the wrong store, re-run: cap --project ${alias} …`);
 }
 
 const iso = new Date().toISOString();
@@ -268,15 +290,10 @@ if (isDone) {
     '\n',
   ].join('');
   await writeItemFile(join(resolvedDir, name), content);
-  console.log(`resolved${type ? ` (${type})` : ''} -> ${projectName}/${RESOLVED_DIR}/${name}`);
+  console.log(`resolved${type ? ` (${type})` : ''} -> ${projectName}/${RESOLVED_DIR}/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
 } else {
   const inboxDir = join(aiDir, 'inbox');
   mkdirSync(inboxDir, { recursive: true });
   await writeItemFile(join(inboxDir, name), `${type ? `(${type}) ` : ''}${text}\n`);
-  console.log(`captured${type ? ` (${type})` : ''} -> ${projectName}/inbox/${name}`);
-}
-
-if (proposed) {
-  console.error(`cap: this text names ${proposed.name}` + (proposed.key ? ` (${proposed.key})` : '') +
-    ` but was captured into ${projectName} (cwd). If misrouted, re-run with --project ${proposed.key ? proposed.key.toLowerCase() : proposed.name}.`);
+  console.log(`captured${type ? ` (${type})` : ''} -> ${projectName}/inbox/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
 }
