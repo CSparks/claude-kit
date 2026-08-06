@@ -26,13 +26,38 @@ in-progress lamp.rs edits; process-failure cap 1611). Agent merges to main only 
 is quiet, else pushes the branch and reports. Verify on collect: branch pushed, cargo test
 --workspace green, ST-T138 → review.
 
-## Open discussion (do NOT decide unilaterally)
-Chris, mid-turn: "That tier list seems woefully simple given the range of models and effort
-we have on hand." Proposal floated in-chat (add `careful` opus/medium + `max` fable/max
-tiers); awaiting his reaction — then /decide + config + KIT-D0xx.
+## DONE this session — KIT-T208 → KIT-D061: version-tiered ladder SHIPPED
+9 tiers (light/standard/careful/scoped/ui/asset/forensic/deep/max), FULL-id pins (aliases
+drift — 'opus' retargeted 4.8→5 at v2.1.219), 7 agents re-pinned (asset lane = game-asset-artist
++ light-and-shadow on claude-fable-5/medium — supersedes KIT-T191), regression default =
+forensic (fable/medium → fable/high → opus-5/xhigh fallback), effort re-derived on every
+fallback. Propagated: kit + stiletto + inv4d3rs configs. Tests: dispatch-guard sweep now
+enforces full-id pins + fable-asset-lane-only; model-tag expectations updated; npm test exit 0.
+Evidence: research/model-routing-ladder-2026-08.md. KIT-T209 (todo): scaffold claude-opus-4-8
+pinned agents for scoped/ui tiers — until then those tiers have no dispatch vehicle.
+
+## Superseded context (pre-decision state, kept for audit)
+### Was: KIT-T208 (doing): flesh out the dispatch tier ladder
+Chris converged: version-tiered models (Opus 4.6 for straightforward fixes, 4.8 decent-not-great
+at creative, Opus 5/Fable top), effort reserved for architecture/planning/persistent-bug analysis.
+Grounded via claude-api skill: Opus 4.6/4.7/4.8/5 ALL $5/$25 (older Opus = behavior + separate
+4.x rate-limit pool, NOT savings); real savings = Haiku $1/$5, Sonnet 5 $3/$15 (~30% tokenizer
+inflation, KIT-D043 keeps it off coding); effort per version: 4.6 lacks xhigh, Haiku 4.5 has NO
+effort param (API errors); docs confirm low/medium punch above weight on 5-gen models; Opus 4.1
+retired 2026-08-05. KEY OPEN MECHANIC: Agent-tool `model` param takes aliases only — versioned
+IDs likely pin only via agent frontmatter → tiers may need version-pinned agent definitions.
+
+## In-flight agents (3) — collect on notification
+1. ST-T138 sweep (refactorer, stiletto worktree st-t138-sweep) — backstory-comment sweep, 46 files.
+2. Community-takes researcher (opus/low) — model roles by version + effort, with sources → distill
+   into kit research/ KB on return.
+3. claude-code-guide (opus) — verify frontmatter/Agent-tool version-pinning + effort mechanics.
+On both research agents returning: synthesize ladder proposal → AskUserQuestion (/decide style) →
+KIT-D061 + config.yml tiers + propagate (stiletto, inv4d3rs have dispatch blocks; jollys-vinyl
+drift capped 1606) + research doc in kit KB.
 
 ## Next 3 steps
-1. Collect the ST-T138 sweep agent; merge/verify; report UAT.
-2. Tier-ladder discussion → decision when Chris converges.
-3. Standing from before: KIT-Q001 (cap refuse-vs-warn) for next /decide; six bug tickets in
-   review; morning inbox items 0817/0925 + .orphaned_at still uncommitted/untriaged.
+1. Collect the 3 agents; synthesize ladder; /decide questionnaire to Chris.
+2. After decision: KIT-D061 + config edits + agent frontmatter pins as chosen.
+3. Standing: KIT-Q001 (cap refuse-vs-warn) for next /decide; six bug tickets in review;
+   morning inbox items 0817/0925 + .orphaned_at still uncommitted/untriaged.

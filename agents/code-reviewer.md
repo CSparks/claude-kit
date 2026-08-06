@@ -2,7 +2,7 @@
 name: code-reviewer
 description: Reviews recently changed code for correctness, security, and maintainability. Use right after writing or modifying code, or to review a diff/PR. Reports findings by severity with file:line; it does NOT fix — it surfaces, so the author decides.
 tools: Read, Grep, Glob, Bash
-model: opus
+model: claude-opus-5
 effort: low
 ---
 

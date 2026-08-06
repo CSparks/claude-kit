@@ -122,7 +122,7 @@ try {
     ok('resolve: a project agent-definition pin beats the session model',
       resolveDispatchModel(d, { subagent_type: 'proj-splitter' }, { transcript_path: tp }) === 'haiku');
     ok('resolve: a plugin-scoped agent name resolves to the same pin',
-      resolveDispatchModel(d, { subagent_type: 'claude-kit:researcher' }, { transcript_path: tp }) === 'opus');
+      resolveDispatchModel(d, { subagent_type: 'claude-kit:researcher' }, { transcript_path: tp }) === 'claude-opus-5');
     ok('resolve: an UNPINNED definition falls through to the session model',
       resolveDispatchModel(d, { subagent_type: 'proj-unpinned' }, { transcript_path: tp }) === 'claude-fable-5');
     ok('resolve: no model, no pin, no transcript -> indeterminate',
@@ -132,7 +132,7 @@ try {
     ok('resolve: garbage input is indeterminate, never a throw',
       resolveDispatchModel(d, {}, {}) === '' && resolveDispatchModel(null, undefined, undefined) === '');
     ok('resolve: the kit agents are pinned in their own definitions (the shipped ladder)',
-      pinnedModel(ROOT, 'researcher') === 'opus');
+      pinnedModel(ROOT, 'researcher') === 'claude-opus-5');
     ok('resolve: an unreadable transcript is indeterminate',
       latestAssistantModel(join(d, 'nope.jsonl')) === '' && latestAssistantModel('') === '');
   }

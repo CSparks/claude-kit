@@ -1,0 +1,1 @@
+(bug) Kit agents' 'model: opus' frontmatter (KIT-T151) is an ALIAS pin, not a version pin — it silently drifted Opus 4.8 -> Opus 5 at Claude Code v2.1.219 with no repo change. The dispatch ladder's model judgments are dated, lineup-dependent facts (KIT-D035) but the pin surface doesn't hold them still. Fix rides with KIT-T208's ladder redesign: pin full model IDs in frontmatter.

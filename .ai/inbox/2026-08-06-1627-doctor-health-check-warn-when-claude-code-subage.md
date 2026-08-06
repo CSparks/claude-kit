@@ -1,0 +1,1 @@
+(feature) Doctor/health check: warn when CLAUDE_CODE_SUBAGENT_MODEL is set in the environment — it silently overrides BOTH the Agent-tool model param and every agent frontmatter pin, flattening the entire dispatch ladder (claude-code-guide finding, 2026-08-06).

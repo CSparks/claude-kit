@@ -115,24 +115,45 @@ dispatch:
   # UNAVAILABLE at dispatch (the harness rejects the model value). The
   # orchestrator retries the SAME delegation with the fallback and says so in
   # the receipt — availability handling only, never a silent cost downgrade.
+  # KIT-D061 (2026-08-06): version-tiered ladder. Model values are FULL ids — aliases are
+  # not pins (`opus` retargeted 4.8 -> Opus 5 at Claude Code v2.1.219). The Agent tool's
+  # `model` param is alias-only: where a tier's id equals the current alias resolution
+  # (claude-opus-5 = opus, claude-fable-5 = fable, claude-haiku-4-5 = haiku) the orchestrator
+  # may pass the alias; a tier pinning a NON-current version (claude-opus-4-8) dispatches via
+  # an agent whose frontmatter pins that id (KIT-T209). Effort is NOT portable across models:
+  # on any fallback, re-derive effort per the tier comment, never carry it (4.8 degrades at
+  # medium; Opus 5 medium is fine). Evidence: research/model-routing-ladder-2026-08.md.
   tiers:
-    light:    { model: haiku,  effort: low }     # data formatting, mechanical edits, search, triage
-    standard: { model: opus,   effort: low }     # ALL everyday coding / atomic change (KIT-D043 2026-07-16:
-                                                 # sonnet off the coding ladder — Sonnet 5's 4.7-era tokenizer
-                                                 # ~1x-1.35x tokens vs 4.6 at the same price; opus codes better.
-                                                 # sonnet stays legal only as an explicit `model:` override.)
-                                                 # effort low, not medium: Opus 5 dispatches run at lower
-                                                 # effort across the board (KIT-D060, Chris 2026-08-06).
-    deep:     { model: fable,  fallback: opus, effort: high }  # planning, architecture, research, epics, anything reasoning-heavy
-                                                 # On the opus FALLBACK the orchestrator passes effort medium,
-                                                 # not high — Opus 5 runs a notch lower (KIT-D060).
+    light:    { model: claude-haiku-4-5, effort: low }    # search, triage, mechanical edits
+                                                 # (effort is inert on haiku — no API support)
+    standard: { model: claude-opus-5, effort: low }       # ALL everyday coding (KIT-D060: low is
+                                                 # A-tier-backed for subagents; KIT-D043 keeps
+                                                 # sonnet off — tokenizer inflation measured at
+                                                 # 3.7x cost on real workloads)
+    careful:  { model: claude-opus-5, effort: medium }    # tricky/cross-file implementation —
+                                                 # the Opus 5 verbosity/quality sweet spot
+    scoped:   { model: claude-opus-4-8, effort: high }    # instruction-tight small tasks; the
+                                                 # community rollback when Opus 5 over-scopes.
+                                                 # 4.8 degrades below high — never dispatch lower
+    ui:       { model: claude-opus-4-8, effort: high }    # UI/frontend creative (KIT-D061)
+    asset:    { model: claude-fable-5, fallback: claude-opus-5, effort: medium }
+                                                 # 3D modeling / game-asset authoring;
+                                                 # on fallback run opus-5 at HIGH
+    forensic: { model: claude-fable-5, fallback: claude-opus-5, effort: medium }
+                                                 # regression first pass; a failed pass escalates
+                                                 # to fable/high; on fallback run opus-5 at XHIGH
+    deep:     { model: claude-fable-5, fallback: claude-opus-5, effort: high }
+                                                 # architecture, planning, epics, persistent-bug
+                                                 # forensics; on fallback run opus-5 at HIGH
+    max:      { model: claude-fable-5, effort: max }      # EXPLICIT-ONLY: frontier problems;
+                                                 # Anthropic warns max can overthink — never a default
   # Default tier by ticket `type` when the ticket names no tier/model. Keys are
   # classification types (config.classifications); `*` is the catch-all. Projects
   # that add their own types (epic, research, architecture, chore, format, cleanup,
   # spike, security) map them here — e.g. research/architecture/epic -> deep,
   # chore/format/cleanup -> light.
   default_tier:
-    regression: standard
+    regression: forensic   # KIT-D061: fable/medium first pass, fable/high second, opus-5/xhigh on fallback
     bug:        standard
     feature:    standard
     tech-debt:  light

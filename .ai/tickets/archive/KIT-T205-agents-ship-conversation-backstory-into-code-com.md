@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-08-06T15:56:38Z
-updated: 2026-08-06T16:12:11Z
+updated: 2026-08-06T16:13:43Z
+fixed_commit: 5991de3
 ---
 
 ## Description
@@ -42,3 +43,4 @@ Base section rewritten; composed CLAUDE.md rebuilt via bootstrap.mjs; exemplar l
 - [2026-08-06 16:12] (status) doing → done
 - [2026-08-06 16:12] (comment) ticked: Fix-on-sight rule codified: touching a file with backstory comments includes rewriting them
 - [2026-08-06 16:12] (comment) ticked: Composed ~/.claude/CLAUDE.md rebuilt via bootstrap
+- [2026-08-06 16:13] (status) done → done
