@@ -52,13 +52,17 @@ Sweep a64b5fa + split 0a11d08 merged to stiletto main; post-merge 347 passed 0 f
 repo-wide grep for maintainer-name/swearing: 0 hits. All 3 criteria ticked on evidence.
 Worktrees/branches cleaned. Awaiting Chris's UAT (stiletto uat: required).
 
-## In flight (stiletto) — collect on notification
-1. STADIUM LIGHTING agent (game-asset-artist, fable/medium — first asset-lane dispatch) in
-   worktree st-t145-lighting: ST-T144 (2D-look diagnosis by data census) + ST-T145 (stadium
-   floodlights + shadows), merge-on-quiet rule. light-and-shadow agent NOT dispatchable
-   (registration gap — capped 1908); rerouted to game-asset-artist.
-Interjections routed: ST-T144 bug (verbatim 2D doubt), ST-T145 feature (stadium lighting).
-KIT-T211 pre-write CRLF fix DONE (e94c8f0); KIT-T212 (test-hooks 817-line monolith) todo.
+## STADIUM LIGHTING LANDED — stiletto 530f7ea (ST-T144 + ST-T145 at review)
+First asset-lane dispatch (game-asset-artist @ fable/medium) delivered both tickets, merged
+fast-forward, 357/0 tests, clippy clean. ST-T144 census: camera genuinely perspective; ALL
+materials lit PBR (unlit theory disproven); THE cause = 0.000% spatial light gradient (zero
+positional shadow casters — photometrically 2D). After: gradient 38.09%, shadow maps 2→6,
+12 standing keys. lamp.rs now scale-parameterised (one builder: headlight + stadium head);
+21 hot-reload tunables under "floodlight" in tuning.look.json. Residual levers ticketed
+(zero specular + open-world gradient — new ST feature ticket). Chris UAT: run the game,
+drive to spawn basecamp; ST-T138/T144/T145 all await his review.
+KIT-T211 pre-write CRLF fix DONE (e94c8f0); KIT-T212 (test-hooks monolith) todo; light-and-
+shadow agent registration gap capped 1908.
 
 ## ST-T138 sweep MERGED — a64b5fa on stiletto main (45 files, comment-only, +287/-386)
 Quiet-window Monitor fired; merged clean, pushed; sweep worktree + branches removed. Sweep
