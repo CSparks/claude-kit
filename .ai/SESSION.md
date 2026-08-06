@@ -52,6 +52,16 @@ Sweep a64b5fa + split 0a11d08 merged to stiletto main; post-merge 347 passed 0 f
 repo-wide grep for maintainer-name/swearing: 0 hits. All 3 criteria ticked on evidence.
 Worktrees/branches cleaned. Awaiting Chris's UAT (stiletto uat: required).
 
+## !! MISROUTE + RESOLUTION (read before touching stiletto or gridiron-blitz)
+The stadium-lighting request was for GRIDIRON-BLITZ (his other session owns it there — DO NOT
+touch that repo; my brief dispatch was killed pre-write, tickets GB-T074/T075 deleted, repo
+pristine). The stiletto landing was a misroute, but Chris then KEPT it on merits ("Around
+basecamp is fucking fine"): his local line = my revert 2b36dd5 + his ST-T150/T152 + my
+revert-of-revert restoring the towers; unpushed — HIS session pushes. NEVER build or mutate in
+his live stiletto checkout again (that mistake produced false build-break evidence).
+Enforcement landed: KIT-D062 + routing step 2 (reality-check) in kit CLAUDE.md +
+project-template snippet; KIT-T213 (mechanical check) todo; process-failure cap 2138.
+
 ## STADIUM LIGHTING LANDED — stiletto 530f7ea (ST-T144 + ST-T145 at review)
 First asset-lane dispatch (game-asset-artist @ fable/medium) delivered both tickets, merged
 fast-forward, 357/0 tests, clippy clean. ST-T144 census: camera genuinely perspective; ALL

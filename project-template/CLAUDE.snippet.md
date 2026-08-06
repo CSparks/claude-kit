@@ -16,11 +16,19 @@ right place and keep working.** Blocking is the exception, not the rule.
 
 For each interjection I:
 1. **Classify** it against `.ai/config.yml` → `classifications`.
-2. **Route** it to that type's `routes_to` destination, creating/appending the
+2. **REALITY-CHECK the target project (KIT-D062).** Before routing, ask: do the
+   interjection's domain nouns fit THIS project? Chris runs several consoles at
+   once; wires cross. Signals that the target is NOT this project: a noun this
+   project's world doesn't contain (a stadium in an asteroid-mining game); another
+   adopted project's domain vocabulary; or `q fts` showing matching in-flight work
+   in another project's store. On ANY such signal — and always before an expensive
+   dispatch on an inferred target — STOP and confirm the project in one line. A
+   receipt stating the assumption is NOT enough; the question must come first.
+3. **Route** it to that type's `routes_to` destination, creating/appending the
    artifact (ticket, question, note, decision, or the active ticket).
-3. **Receipt**: per `config.receipts`, emit one line so a misroute is caught in
+4. **Receipt**: per `config.receipts`, emit one line so a misroute is caught in
    three words — e.g. `→ BUG-024 logged (high), still on T-001`.
-4. **Continue** the current task.
+5. **Continue** the current task.
 
 **Block only when** the classification's `blocking` rule fires:
 - `always` (e.g. scope-change on the active ticket),
