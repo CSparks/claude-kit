@@ -149,6 +149,18 @@ ok('done tail: bug without fixed_commit warns', bugWarn.warnings.some((w) => /fi
 const bugFixed = setStatus(dt, 'KIT-T032', 'done', { fixedCommit: 'a1b2c3d' });
 ok('done tail: --fixed-commit written', /fixed_commit: a1b2c3d/.test(readFileSync(bugFixed.path, 'utf8')) && bugFixed.warnings.length === 0);
 ok('done tail: rejects a non-sha fixed-commit', threw(() => setStatus(dt, 'KIT-T031', 'done', { fixedCommit: 'nope!' })));
+// KIT-T190: the sha used to be read only inside the done+bug/regression branch, so every OTHER
+// transition accepted --fixed-commit and threw it away — including `review`, the shape a
+// uat=required project closes with, and any non-bug type.
+const fc = project({ uatDefault: 'none' }, { 'KIT-T033': { type: 'bug' }, 'KIT-T034': { type: 'feature' } });
+const onReview = setStatus(fc, 'KIT-T033', 'review', { fixedCommit: 'beef123' });
+ok('fixed-commit: written on a REVIEW transition, not just done',
+  /fixed_commit: beef123/.test(readFileSync(onReview.path, 'utf8')));
+const onFeature = setStatus(fc, 'KIT-T034', 'doing', { fixedCommit: 'cafe456' });
+ok('fixed-commit: written for a non-bug type too (an explicit flag is never dropped)',
+  /fixed_commit: cafe456/.test(readFileSync(onFeature.path, 'utf8')));
+ok('fixed-commit: a bad sha is rejected on any transition, not silently ignored',
+  threw(() => setStatus(fc, 'KIT-T034', 'review', { fixedCommit: 'not-a-sha!' })));
 
 // --- tick ---
 const tk = project({ uatDefault: 'none' }, { 'KIT-T040': {} });
