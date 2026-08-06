@@ -47,14 +47,16 @@ effort param (API errors); docs confirm low/medium punch above weight on 5-gen m
 retired 2026-08-05. KEY OPEN MECHANIC: Agent-tool `model` param takes aliases only — versioned
 IDs likely pin only via agent frontmatter → tiers may need version-pinned agent definitions.
 
+## ST-T138 COMPLETE at review — both halves merged, zero hits on main
+Sweep a64b5fa + split 0a11d08 merged to stiletto main; post-merge 347 passed 0 failed;
+repo-wide grep for maintainer-name/swearing: 0 hits. All 3 criteria ticked on evidence.
+Worktrees/branches cleaned. Awaiting Chris's UAT (stiletto uat: required).
+
 ## In flight (stiletto) — collect on notification
-1. mod_tests SPLIT agent DONE (9791499 on st-t138-modtests-split, pushed; 302/302 tests, zero
-   grep hits) — merge PENDING quiet window, Monitor armed (bsgoaukdt-successor). On fire: merge,
-   push, remove worktree st-t138-split, ST-T138 fully criterion-complete at review.
-2. STADIUM LIGHTING agent (game-asset-artist, fable/medium — first asset-lane dispatch) in
+1. STADIUM LIGHTING agent (game-asset-artist, fable/medium — first asset-lane dispatch) in
    worktree st-t145-lighting: ST-T144 (2D-look diagnosis by data census) + ST-T145 (stadium
-   floodlights + shadows). light-and-shadow agent NOT dispatchable (registration gap — capped
-   1908); rerouted to game-asset-artist.
+   floodlights + shadows), merge-on-quiet rule. light-and-shadow agent NOT dispatchable
+   (registration gap — capped 1908); rerouted to game-asset-artist.
 Interjections routed: ST-T144 bug (verbatim 2D doubt), ST-T145 feature (stadium lighting).
 KIT-T211 pre-write CRLF fix DONE (e94c8f0); KIT-T212 (test-hooks 817-line monolith) todo.
 
