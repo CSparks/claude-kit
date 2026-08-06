@@ -168,4 +168,20 @@ expect('shared-tree message carries the exclude footer', /id: shared-tree-dispat
 // repo that hasn't opted in.
 expect('allows on an unadopted repo with a Cargo.toml', run(makeRepo({ adopt: false, cargo: true }), wt).code, 0);
 
+// --- the pins the gate RELIES on (KIT-T151, KIT-T191) --------------------------------
+// The dispatch-ladder check treats a kit agent as safe because its frontmatter pins a model. That
+// makes the pins part of the gate's contract, so they are asserted here rather than trusted: an
+// unpinned agent silently inherits the session model, and one pinned to `fable` puts an
+// implementation agent on the most expensive tier (game-asset-artist shipped that way and burned
+// ~230K fable tokens on an opus-grade job).
+{
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const agentsDir = fileURLToPath(new URL('../agents', import.meta.url));
+  for (const file of readdirSync(agentsDir).filter((f) => f.endsWith('.md') && f !== 'README.md')) {
+    const pin = (readFileSync(join(agentsDir, file), 'utf8').match(/^model:[ \t]*(\S+)/m) || [])[1];
+    expect(`${file} pins a model`, pin ? 1 : 0, 1);
+    expect(`${file} is not pinned to fable`, pin === 'fable' ? 0 : 1, 1);
+  }
+}
+
 process.exit(failures ? 1 : 0);
