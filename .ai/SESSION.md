@@ -1,50 +1,63 @@
 # SESSION HANDOFF — claude-kit
 
-Updated: 2026-08-04 (evening) | Branch: main @ origin (0381422+) | Active: none between waves
+Updated: 2026-08-06 (early hours) | Branch: main @ origin (fd361d0+) | Active: none — inbox empty
 
-## Current state — drain session, 12 tickets closed (all uat:none, test-backed)
-- **Wave 1 (569656d + closes, agent a1071e28):** KIT-T172 (fts FTS5 quoting), T173
-  (trail returns decision ids), T174 (fts --scope, cwd-default), T118+T083 (q --help).
-  New scripts/q.test.mjs (35). SIDE EFFECTS Chris RATIFIED (KIT-D050): q.mjs 802→417
-  split into q-model/q-governing/q-fallback (5e1af45); dup decision ids repaired
-  (3768394): KIT-D046/D047 dupes re-keyed → KIT-D048/D049, D049 links→D048.
-- **Wave 2 (2965fd3/891647e/b7b249a/f1dcd2b, agent a21ffbff):** KIT-T110 (ONE
-  frontmatter parser — t.mjs/id-utils/sync-tasks migrated onto frontmatter.mjs; CRLF
-  trap dead), T169 (sync-tasks clean doing-only spec; supersedes T120), T126 (triage
-  cap titles ONE line + body content; the 8-item corruption from the morning triage
-  cannot recur). criteria.mjs CRLF fix rode along.
-- **Wave 3 (d15d632/e7a6a48/ef523aa/a1d33ac, agent af7eabac):** KIT-T164 (hydrate
-  gated on the ~/.claude/claude-kit-projects.json registry — unregistered stores no
-  longer clobber the shared DB; q dbOpen degrades to markdown scan for unregistered
-  roots), T166 (mintId = max(cache, disk, batch); create REFUSES existing ids), T125 +
-  T154 closed together (generated views scoped to the project key; no-key = no cache).
-  Test isolation repaired in 4 suites (synthetic keys + temp registry).
-- **Morning: cross-project triage** (831fd33/233e6b1 + data 8e604fd): 37 caps drained,
-  27 created / 7 folded / 1 superseded; KIT-T126 corruption repaired by hand across 8
-  items; all 8 provenance proposals declined (named fix/measurement commits as cause).
-- **Cache rebuilt clean** (rm .cache/workflow.db + hydrate-db): phantom test-leak
-  scopes (DUP/ORI/RCN/S/CLN/SPL/TWP) gone; 1226 items, all 10 data-repo projects
-  present. 3 mentions acked (T132#1/T144#2/T151#1). npm test exit 0 after every wave;
-  live KIT scope verified intact each time.
+## Current state — inbox drained to zero; 6 bug fixes landed, all test-backed
+Six fixes, one commit each, every one with a regression test. `npm test` exit 0 before and
+after: **1139 → 1206 passing, 0 failing** (+67 assertions).
 
-## Open threads / new inbox caps (5, awaiting next triage)
-- 2026-08-04-1935 superseded reciprocal asymmetry (6 tickets superseded_by w/o
-  reciprocal; counts diverge) — medium.
-- 2026-08-04-1937 registry holds stale TEMP + agent-worktree entries (kit-budget-J2FaVP
-  in AppData\Temp is REGISTERED — weakens the T164 guard) + asset-forge unregistered — high.
-- 2026-08-04-1645 (agent) db-cache/reconcile-central suites still stat-touch the live
-  cache (re-hydrate, not clobber) — isolation rule violation.
-- 2026-08-04-1643 (agent) md-body.appendUnderSection splices LF into CRLF files.
+- **fab8749 KIT-T183** (supersedes KIT-T109) — `q next-id <scope> <store>` resolved the store
+  leniently and defaulted to `tickets`, so `next-id ST decision` served the TICKET counter as
+  `ST-decision128`, a bare `next-id ST` gave `ST-undefined128`, no args gave a raw SQLite
+  binding error, and the markdown-scan path answered a scope it had never opened with
+  `ST-D001` (the "returns 1 for decisions" report). Strict `resolveStore`/`requireStore`/
+  `requireScope` in q-model, aliases derived from STORE_TYPE (plural/singular/letter);
+  `formatId` delegates to `id-utils.formatItemId` so the letter mapping has ONE home; the scan
+  path refuses a scope it cannot see and names `--root`.
+- **eb84191 KIT-T184** — new `scripts/cli-help.mjs`: `cap --help` used to WRITE an inbox item
+  titled "--help"; t/rem answered "unknown subcommand"; code-graph dumped the graph. Flag
+  counts anywhere for structured CLIs, first-position only for cap (free text may contain a
+  flag). New scripts/cli-help.test.mjs (16) wired into npm test.
+- **319b917 KIT-T185** — `t new decision` minted a TICKET id; scaffoldNew now validates against
+  `ticketTypes` (the board-routed subset the web endpoint always used) and names the route.
+- **5da23d0 KIT-T186** — cap's cross-project warning now precedes the write, the receipt
+  carries `[also names <project>]`, and the no-repo error lists registered projects with keys.
+  Routing UNCHANGED (KIT-T067 chose propose-don't-route) — refuse-vs-warn asked in **KIT-Q001**.
+- **3e58707 KIT-T190** — `t status --fixed-commit` was read only inside the done+bug branch, so
+  a `review` transition (every uat=required close) dropped the sha. Always written now.
+- **775a778 KIT-T191** — game-asset-artist pinned `model: fable`; now opus. dispatch-guard's
+  test sweeps agents/*.md: every agent pins a model, none pins fable.
+
+## Triage (fd361d0) — 22 captures promoted, `.ai/inbox/` holds only README + triaged/
+- Backlog created: **KIT-T187/T188/T189** (plan-of-record retrieval + the out-of-repo
+  capture ratchet — the feature halves of the 2026-08-06-0109 root cause), **T192..T197**
+  (CRLF splicing, live-cache test isolation, supersede asymmetry, registry hygiene,
+  request-gate cross-repo blindness, dispatch cost ceiling), **T198..T204** (contract
+  portability, binaries/LFS wiring, init-project migration, standing conditions, hook-author
+  and bevy-render-fixer agents). Each carries its capture verbatim + provenance path.
+- **KIT-T181** (bootstrap PATH) got the design it never had — including why `setx` must not be
+  used (1024-char truncation + the merged machine+user read) and the POSIX rc-file problem.
+  Left as a FEATURE deliberately: it is a platform-specific installer change, not a small fix.
+- Recorded: **KIT-D058** (binaries/LFS committed only when asked — Chris verbatim),
+  **KIT-N002/N003/N004** (three process failures whose antidote is already in the contract).
+- Two captures contradicted their own diagnosis, said so in the ticket: the fable pin was
+  PRESENT (not missing), and the model-tag ask already shipped as KIT-T179 (commented, not
+  re-ticketed).
 
 ## Next 3 steps
-1. Next bug wave candidates: KIT-T111 (ignore-file marker with trailing text), T115
-   (worktree cwd guard), T109 (q next-id formatting) — small/mechanical. T105/T106
-   (process-failure + commit-hygiene codification) are contract/hook design — present
-   before building.
-2. KIT-T048 (roadmap top, provenance enforcement) — Chris chose "keep draining bugs"
-   first (2026-08-04 questionnaire); when bugs thin out, plan T048 and PRESENT design.
-3. Triage the 5 new inbox caps next /triage (registry-hygiene cap is high).
+1. **KIT-Q001** needs Chris: should cap REFUSE an ambiguous cross-project capture, or keep
+   warning? Batch it into the next `/decide`.
+2. Six bug tickets sit in review awaiting acceptance (T183/T184/T185/T186/T190/T191); the
+   cheap next bugs are T192 (CRLF splice) and T193 (suites touching the live cache).
+3. KIT-T188 is the cheap half of the retrieval gap (orient names cited plan docs — no new
+   index); T187 needs its doc-set rule decided before any code.
 
 ## UAT offered
-q fts "no ask-first gate" · q trail KIT-D011 · q fts door vs --scope all · q --help ·
-node scripts/sync-tasks.mjs (clean spec) · .ai/SUPERSEDED.md now KIT-only (3 chains).
+- `q next-id KIT decision` → `KIT-D059` (was the ticket counter); `q next-id KIT` → a usage
+  refusal, not `KIT-undefined183`.
+- `cap --help` → usage, and `.ai/inbox/` stays clean. Same for `t --help`, `rem --help`,
+  `code-graph --help`.
+- `t new decision "x"` → refused, and it names where a decision belongs.
+- `cap bug "something about claude-kit"` from another repo → the warning comes FIRST and the
+  receipt says `[also names claude-kit]`.
+- `.ai/tickets/INDEX.md` — 96 active; `.ai/inbox/` — empty but for README + triaged/.
