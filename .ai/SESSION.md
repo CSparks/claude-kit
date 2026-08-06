@@ -47,14 +47,15 @@ effort param (API errors); docs confirm low/medium punch above weight on 5-gen m
 retired 2026-08-05. KEY OPEN MECHANIC: Agent-tool `model` param takes aliases only — versioned
 IDs likely pin only via agent frontmatter → tiers may need version-pinned agent definitions.
 
-## In-flight agents (3) — collect on notification
-1. ST-T138 sweep (refactorer, stiletto worktree st-t138-sweep) — backstory-comment sweep, 46 files.
-2. Community-takes researcher (opus/low) — model roles by version + effort, with sources → distill
-   into kit research/ KB on return.
-3. claude-code-guide (opus) — verify frontmatter/Agent-tool version-pinning + effort mechanics.
-On both research agents returning: synthesize ladder proposal → AskUserQuestion (/decide style) →
-KIT-D061 + config.yml tiers + propagate (stiletto, inv4d3rs have dispatch blocks; jollys-vinyl
-drift capped 1606) + research doc in kit KB.
+## ST-T138 sweep MERGED — a64b5fa on stiletto main (45 files, comment-only, +287/-386)
+Quiet-window Monitor fired; merged clean, pushed; sweep worktree + branches removed. Sweep
+evidence: 86/88 hits, tests identical before/after (557 pass / 1 pre-existing CRLF golden
+failure → ST-T143 filed). IN FLIGHT: (1) post-merge cargo test --workspace (background,
+main checkout); (2) mod_tests.rs SPLIT agent (Chris approved via questionnaire) — refactorer
+in worktree st-t138-split, branch st-t138-modtests-split: splits the 625-line file under the
+600 gate, clears the last 2 hits, merges on the same >10-min-quiet rule, ticks ST-T138's grep
+criterion. ST-T138 stays review (uat: required): criterion "full cargo test green" left
+UNTICKED honestly until ST-T143 (CRLF golden) is fixed.
 
 ## Next 3 steps
 1. Collect the 3 agents; synthesize ladder; /decide questionnaire to Chris.
