@@ -177,10 +177,22 @@ via `scaffold-agent`, but prefer the kit when the domain generalises. (Chris,
   turn — a call that leaves no doc behind is a wasted spend.
 
 # SELF-COMMENTING CODE
-Comments explain **why**, never **what** — if a comment describes what the code does,
-rename/extract/restructure until it's unnecessary. The only comments that ship: a
-non-obvious tradeoff; a workaround for an external bug (with a link); an intentional
-violation of an apparent best practice. Delete everything else.
+Comments are for a third party reading the CURRENT code cold — never for the reviewer
+of the change, and never a channel for project history. (KIT-T205)
+- **Doc comments (module/API headers): what it is and how to use it.** The contract —
+  purpose, inputs, invariants a caller must hold. A few lines, reference-style.
+- **Inline comments: rare, and only a why the code cannot show** — a non-obvious
+  tradeoff; a workaround for an external bug (with a link); an intentional violation
+  of an apparent best practice. A comment describing what the code does means
+  rename/extract/restructure until it's unnecessary.
+- **No backstory, EVER.** Banned outright: development history ("the first version
+  did X", "this used to be broken"); quoted conversations or maintainer remarks —
+  attribution, informal language, swearing; multi-paragraph rationale; ticket
+  archaeology. Rationale that must persist gets AT MOST a bare ticket/decision id —
+  and usually not even that. The story lives in git and the ticket, never the source.
+- **Fix on sight.** A file carrying backstory comments gets them rewritten as part of
+  whatever change touches it: compress to what-it-is/how-to-use, keep only a
+  load-bearing why. Standing rule, not a separate ask. (Chris, 2026-08-06.)
 
 # GIT WORKFLOW
 - **Trunk-based: work on `main` by default.** Feature branches only on per-project

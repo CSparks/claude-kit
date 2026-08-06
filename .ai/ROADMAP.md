@@ -93,6 +93,7 @@
 - KIT-T202 — standing conditions store — temporary-but-indefinite facts surfaced as callouts in the init prompt (medium)
 - KIT-T203 — agents/hook-author.md — the hook-authoring specialist the kit keeps hand-writing briefs for (medium)
 - KIT-T204 — agents/bevy-render-fixer.md — the game3d render-fix specialist, model pinned, Bevy 0.19 gotchas written in (medium)
+- KIT-T207 — Pre-write gate check: backstory comments in source (quoted discussion, maintainer attribution, swearing, dev history) (medium)
 - KIT-T072 — Quiet the per-turn hook chatter — dedupe advisories, conditional receipts (low)
 - KIT-T073 — Progressive disclosure for the global contract — specialist sections become on-demand skills (low)
 - KIT-T078 — Command-level model tiering — static `model:` on fixed-cost read-only commands (low)

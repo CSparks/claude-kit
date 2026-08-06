@@ -1,0 +1,1 @@
+(observation) jollys-vinyl .ai/config.yml still pins standard tier to sonnet/medium — KIT-D043 (sonnet off the coding ladder) and KIT-D060 (opus effort drop) never propagated; check whether deliberate before patching

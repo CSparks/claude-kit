@@ -117,11 +117,15 @@ dispatch:
   # the receipt — availability handling only, never a silent cost downgrade.
   tiers:
     light:    { model: haiku,  effort: low }     # data formatting, mechanical edits, search, triage
-    standard: { model: opus,   effort: medium }  # ALL everyday coding / atomic change (KIT-D043 2026-07-16:
+    standard: { model: opus,   effort: low }     # ALL everyday coding / atomic change (KIT-D043 2026-07-16:
                                                  # sonnet off the coding ladder — Sonnet 5's 4.7-era tokenizer
                                                  # ~1x-1.35x tokens vs 4.6 at the same price; opus codes better.
                                                  # sonnet stays legal only as an explicit `model:` override.)
+                                                 # effort low, not medium: Opus 5 dispatches run at lower
+                                                 # effort across the board (KIT-D060, Chris 2026-08-06).
     deep:     { model: fable,  fallback: opus, effort: high }  # planning, architecture, research, epics, anything reasoning-heavy
+                                                 # On the opus FALLBACK the orchestrator passes effort medium,
+                                                 # not high — Opus 5 runs a notch lower (KIT-D060).
   # Default tier by ticket `type` when the ticket names no tier/model. Keys are
   # classification types (config.classifications); `*` is the catch-all. Projects
   # that add their own types (epic, research, architecture, chore, format, cleanup,
