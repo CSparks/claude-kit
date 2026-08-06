@@ -1,6 +1,6 @@
 ---
 name: claude-kit
-description: Manage work and tooling through the claude-kit repo — the canonical, cross-machine source of truth for the Claude Code workflow (.ai/ capture→triage→work→drain→flush), enforcement hooks, and the shared inventory of generic commands, hooks, agents, and skills. Use when setting up a project, driving the backlog, or adding/maintaining anything broadly reusable across projects.
+description: Manage work and tooling through the claude-kit repo — the canonical, cross-machine source of truth for the Claude Code and Codex workflow (.ai/ capture→triage→work→drain→flush), enforcement hooks, and shared commands, agents, and skills. Use when setting up a project, driving the backlog, or maintaining reusable workflow tooling.
 ---
 
 # claude-kit — managing work and tooling
@@ -20,7 +20,8 @@ the same thing in two places.
   **opt-in-aware** (no-op unless a repo has `.ai/`). Never bash (OS-shell strings
   aren't portable; they broke on Windows).
 - **`agents/`**, **`skills/`** → the shared library of **non-proprietary** generic
-  agents and skills, shipped by the **plugin** (→ `~/.claude/{agents,skills}`).
+  roles and skills. Claude consumes the native agent files; Codex consumes their
+  skill adapters from `skills/`.
 - **`research/`** → the cross-project knowledgebase (KIT-D004/D056): generic findings,
   library docs, context7 distillations — indexed in its README; reference, not installed.
 - **`docs/research/`** → the kit's OWN design docs (ticket-flavored) — not the KB.
@@ -36,21 +37,25 @@ reach MIT by construction — when unsure, it stays out.
   item — fast, no interruption).
 - **Interject while working** → classify against `.ai/config.yml`, route, one-line
   receipt, keep going. Block only when `config.yml` says so or the user says stop.
-- **Triage** (`/triage`) drains `inbox/` → `tickets/`/`questions/`/`decisions/`.
-  **Work** a ticket (`/work T-NNN`): restate acceptance criteria, confirm scope,
+- **Triage** (`/triage` in Claude, `$triage` in Codex) drains `inbox/` →
+  `tickets/`/`questions/`/`decisions/`.
+  **Work** a ticket (`/work T-NNN` or `$work T-NNN`): restate acceptance criteria, confirm scope,
   execute, tick boxes, set `review` (or `done` when `config.uat: none`). **Drain**
-  (`/drain`) the next item between tickets automatically. **Standup** (`/standup`)
-  for a mid-flight glance; **decide** (`/decide`) to batch pending decisions.
-  **Flush** (`/flush`) to `.ai/SESSION.md` before any compact/clear.
+  (`/drain` or `$drain`) the next item between tickets automatically. **Standup**
+  (`/standup` or `$standup`) gives a glance; **decide** (`/decide` or `$decide`)
+  batches pending decisions. **Flush** (`/flush` or `$flush`) to `.ai/SESSION.md`
+  before any compact/clear.
 - **Anti-amnesia:** the on-disk `.ai/` + git are authoritative over chat/memory.
   Recreate context from them; never assert history you can't cite. Settled
   `decisions/` stay settled — cite, don't re-debate.
 
 ## Setting up / maintaining
-- New machine: install the **plugin** (`/plugin marketplace add CSparks/claude-kit`
+- New machine, Claude: install the plugin (`/plugin marketplace add CSparks/claude-kit`
   → `/plugin install claude-kit@claude-kit` → `/reload-plugins`), then run
-  `node bootstrap.mjs` once for `~/.claude/CLAUDE.md` + private overlay + statusline.
-  Merge `user-config/settings.recommended.json`; add the printed `cap` alias.
+  `node bootstrap.mjs` for the Claude-only global contract, overlay, and statusline.
+- New machine, Codex: add the same repository as a plugin marketplace, install
+  `claude-kit@claude-kit`, start a new session, and review the bundled hooks with
+  `/hooks`. Codex auto-discovers `.codex-plugin/plugin.json` and `hooks/hooks.json`.
 - New project: `node <kit>/scripts/init-project.mjs` inside the repo, commit `.ai/`.
 - Add a reusable tool: author it **here** (`hooks/`, `agents/`, `skills/`,
   `commands/`, or `research/`), index it; the plugin ships it on the next

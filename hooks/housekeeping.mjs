@@ -31,6 +31,8 @@ const DOING_LIST_MAX = 4; // list individual ids up to this count
 // `rem done` command (KIT-T074: a nag without a drain path trains you to ignore it). Cap the
 // list so a backlog of reminders can't swamp the orientation block.
 const REMINDER_LIST_MAX = 5;
+const CODEX = Boolean(process.env.PLUGIN_ROOT);
+const command = (name) => CODEX ? `$${name}` : `/${name}`;
 
 const claudeDir = join(homedir(), '.claude');
 const encodedHome = homedir().replace(/[:\\/ ]/g, '-');
@@ -70,7 +72,9 @@ function reminderLine(r) {
   return `REMINDER DUE: ${r.title} (${r.id}, ${when}) — done: node <kit>/scripts/rem.mjs done ${r.id}`;
 }
 
-const memAge = daysSince(memTs);
+// Claude's auto-memory review path has no stable Codex equivalent. The durable
+// .ai/ state still receives the host-neutral review/closure checks below.
+const memAge = CODEX ? 0 : daysSince(memTs);
 const maintAge = daysSince(maintTs);
 const p = await payload();
 const isStop = p.hook_event_name === 'Stop';
@@ -95,7 +99,7 @@ if (isStop) {
       const rq = scanReviewQueue(root);
       const prev = readTurnState(root);
       if (prev && typeof prev.review === 'number' && rq.count > prev.review) {
-        msgs.push(`Review queue GREW this turn (${prev.review} → ${rq.count}) — these wait on YOUR \`/done\`, not on me.`);
+        msgs.push(`Review queue GREW this turn (${prev.review} → ${rq.count}) — these wait on YOUR \`${command('done')}\`, not on me.`);
       }
       writeTurnState(root, { review: rq.count });
       // KIT-T028: surface stale `doing` tickets at Stop — if one was left zombie this turn,
@@ -158,14 +162,14 @@ try {
     if (inbox.stale) {
       reminders.push(
         `INBOX UN-TRIAGED: ${inbox.stale} item(s) ≥ ${INBOX_STALE_DAYS}d (oldest ${inbox.oldestDays}d) sitting in .ai/inbox/. ` +
-          `Drain it (\`/triage\`) — un-triaged capture rots silently.`,
+          `Drain it (\`${command('triage')}\`) — un-triaged capture rots silently.`,
       );
     }
     // The review/UAT queue waits on the HUMAN (KIT-D033: review IS the UAT stage). Surface it
     // every SessionStart where uat resolves `required`; uat=none accrues no queue → silent.
     const rq = scanReviewQueue(root);
     if (rq.count) {
-      reminders.push(`REVIEW QUEUE: ${reviewQueueLine(rq)} — waiting on YOUR \`/done\`, not on me.`);
+      reminders.push(`REVIEW QUEUE: ${reviewQueueLine(rq)} — waiting on YOUR \`${command('done')}\`, not on me.`);
     }
     writeTurnState(root, { review: rq.count });
     // KIT-T028: stale `doing` — a ticket stuck doing with no recent update is a zombie
@@ -192,7 +196,7 @@ try {
 
 if (reminders.length) {
   process.stdout.write(
-    '=== Claude housekeeping reminders ===\n' + reminders.map((r) => '- ' + r).join('\n') + '\n====================================\n',
+    `=== ${CODEX ? 'Codex' : 'Claude'} housekeeping reminders ===\n` + reminders.map((r) => '- ' + r).join('\n') + '\n====================================\n',
   );
 }
 process.exit(0);

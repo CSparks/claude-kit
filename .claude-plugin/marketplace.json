@@ -6,19 +6,19 @@
     "url": "https://github.com/CSparks"
   },
   "metadata": {
-    "description": "claude-kit — a repeatable, context-durable Claude Code workflow and tooling."
+    "description": "claude-kit — a repeatable, context-durable Claude Code and Codex workflow and tooling."
   },
   "plugins": [
     {
       "name": "claude-kit",
       "source": "./",
-      "description": "Capture fast, defer by default, drain automatically, never lose context to compaction. Atomic .ai/ stores with generated indexes, portable Node enforcement hooks, and a shared library of generic agents + skills. Requires Node on PATH.",
+      "description": "Capture fast, defer by default, drain automatically, never lose context to compaction. Dual-host manifests, atomic .ai/ stores, portable Node enforcement hooks, and reusable agent-role skills. Requires Node on PATH.",
       "author": { "name": "Chris Sparks" },
       "homepage": "https://github.com/CSparks/claude-kit",
       "repository": "https://github.com/CSparks/claude-kit",
       "license": "MIT",
       "category": "workflow",
-      "keywords": ["workflow", "tickets", "hooks", "commands", "agents", "skills", "context", "compaction"]
+      "keywords": ["claude-code", "codex", "workflow", "tickets", "hooks", "commands", "agents", "skills", "context", "compaction"]
     }
   ]
 }

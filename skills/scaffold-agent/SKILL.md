@@ -1,6 +1,6 @@
 ---
 name: scaffold-agent
-description: Scaffold a project-local knowledge-agent at <repo>/.claude/agents/<domain>.md. Emits the standard shape (frontmatter + role/conventions/gotchas/out-of-scope/verify sections), pre-filled from what's already known about the domain. Use when a domain keeps recurring across delegations and needs a durable home for its conventions and past gotchas.
+description: Scaffold a committed project-local knowledge agent for Claude Code, Codex, or both, pre-filled from verified domain conventions and past gotchas. Use when a domain keeps recurring across delegations and needs a durable agent under .claude/agents or .codex/agents.
 ---
 
 # scaffold-agent
@@ -11,10 +11,10 @@ Emit a project-local knowledge-agent for a recurring domain.
 
 A domain (render layer, simulation core, verification harness, backport boundary, etc.)
 has been explained to delegated agents multiple times — either from the task prompt or
-from CLAUDE.md. This skill creates a durable agent definition so future delegations
+from CLAUDE.md or AGENTS.md. This skill creates a durable agent definition so future delegations
 inherit conventions and gotchas automatically rather than re-deriving them.
 
-The `/drain` and `/work` commands will suggest this when a domain recurs:
+The `/drain`/`/work` commands and `$drain`/`$work` skills can suggest this when a domain recurs:
 > `suggest: .claude/agents/<domain>.md not found — recurring delegations could share a
 > knowledge-agent (use /scaffold-agent to create one)`
 
@@ -27,14 +27,16 @@ and the codebase.
 ## What this skill does
 
 1. Identify the domain from the argument or from the recurring delegation pattern.
-2. Determine the agent's file path: `<repo>/.claude/agents/<slug>.md`.
-3. Survey what already exists: read the relevant source files, CLAUDE.md sections,
+2. Determine the host-native path: Claude uses `<repo>/.claude/agents/<slug>.md`;
+   Codex uses `<repo>/.codex/agents/<slug>.toml`. When the repository supports both,
+   emit both files from the same evidence-backed role instructions.
+3. Survey what already exists: read the relevant source files, CLAUDE.md/AGENTS.md sections,
    and recent ticket Notes to extract the real conventions + gotchas (don't invent).
 4. Emit the file using the standard shape below.
 5. Report what was written and suggest running `npm run build` / the project's verify
    command to confirm the agent definition is consistent with the live codebase.
 
-## Standard shape
+## Claude shape
 
 ```markdown
 ---
@@ -67,13 +69,35 @@ Always finish with `<verify command>` (e.g. `npm run build`, `cargo test`). Repo
 what you changed and the result.
 ```
 
+## Codex shape
+
+```toml
+name = "<domain-slug>"
+description = "<what this agent does, files it owns, and when to use it>"
+sandbox_mode = "workspace-write" # use "read-only" for reviewers/researchers
+developer_instructions = """
+You implement / review / investigate the <domain> layer. Your turf is <paths>.
+Read AGENTS.md and docs/CODEMAP.md first.
+
+Conventions and gotchas:
+- <Evidence-backed invariant, why it exists, and what breaks if violated.>
+
+Out of scope:
+- Do not touch <sibling paths>; route that work to <sibling-agent>.
+- Do not expand scope when a fix traces outside this domain; surface it.
+
+Verify with <command>. Report the changes and observed result.
+"""
+```
+
 ## Rules for the generated agent
 
-- **Location:** `<repo>/.claude/agents/<slug>.md` — committed to the project, never
-  to claude-kit. This encodes project-private domain knowledge.
+- **Location:** use `.claude/agents/<slug>.md`, `.codex/agents/<slug>.toml`, or both
+  according to the hosts the repo supports. Commit project agents to the project,
+  never to claude-kit; they encode project-private domain knowledge.
 - **Conventions from evidence, not assumption.** Every gotcha bullet must trace to a
   real invariant in the codebase, a past showstopper in git history, or an explicit
-  rule in CLAUDE.md. Don't pad with generic advice.
+  rule in CLAUDE.md or AGENTS.md. Don't pad with generic advice.
 - **Least-privilege tools.** A read-only reviewer gets Read/Grep/Glob/Bash, not
   Edit/Write. Only grant Write if the agent creates new files.
 - **Out-of-scope guard is mandatory.** Name the sibling domains and the right agents

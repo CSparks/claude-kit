@@ -52,8 +52,8 @@ function recordDispatch(root, p) {
     // activity-tag.mjs has already rewritten `description` to carry `[Opus 5] …` by the time this
     // PostToolUse fires, so strip it back off: the model belongs in its own field, not doubled
     // into the task label (KIT-T179).
-    const task = clip(stripModelTag(firstString(inp.description, inp.task, inp.title, inp.prompt)) || '(no description)', TASK_LABEL_MAX);
-    const scope = firstString(inp.subagent_type, inp.agent_type, inp.subagentType, inp.type) || 'general';
+    const task = clip(stripModelTag(firstString(inp.description, inp.task, inp.title, inp.prompt, inp.message)) || '(no description)', TASK_LABEL_MAX);
+    const scope = firstString(inp.subagent_type, inp.agent_type, inp.subagentType, inp.task_name, inp.type) || 'general';
     const background = isBackground(inp);
     // WHICH TREE this agent lands in (KIT-T177). The roster lives in the DISPATCHING repo, so
     // without these two fields a reader cannot tell a colleague in this checkout from an agent
@@ -65,7 +65,7 @@ function recordDispatch(root, p) {
     const model = resolveDispatchModel(root, inp, p);
     recordAgent(root, { id, status: dispatchStatus(root, id), task, scope, background, isolation, targetRoot, model, source: 'posttooluse' });
     // Advisory: a delegation with no ticket id is ungrounded work — warn, never block (exit 0).
-    const brief = firstString(inp.description, inp.task, inp.title, inp.prompt) || '';
+    const brief = firstString(inp.description, inp.task, inp.title, inp.prompt, inp.message) || '';
     if (brief && !ID_CITE_RE.test(brief)) {
       process.stderr.write('delegation cites no ticket — ground it in one if this is real work\n');
     }

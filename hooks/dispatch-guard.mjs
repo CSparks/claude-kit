@@ -33,7 +33,7 @@ try {
   const input = p.tool_input || {};
   const root = gitRoot();
   if (!adopted(root)) process.exit(0);
-  const prompt = String(input.prompt || '');
+  const prompt = String(input.prompt || input.message || '');
 
   const blocks = [
     ladderBlock(root, input, prompt, p),
@@ -71,7 +71,7 @@ function ladderBlock(root, input, prompt, p) {
     /^(1|true|yes)$/i.test(process.env.CLAUDE_KIT_ALLOW_FABLE || '');
   if (escaped) return null;
   if (input.model) return null; // an explicit model IS the choice — any tier, fable included
-  if (pinnedModel(root, String(input.subagent_type || ''))) return null; // the definition authored its tier
+  if (pinnedModel(root, String(input.subagent_type || input.agent_type || input.task_name || ''))) return null; // the definition authored its tier
   const parent = latestAssistantModel(p.transcript_path);
   if (!/fable/i.test(String(parent || ''))) return null; // cannot prove a fable inherit — fail open
 
@@ -193,5 +193,5 @@ function rosterModel(row) {
 }
 
 function label(input) {
-  return String(input.subagent_type || '').trim() || '(default)';
+  return String(input.subagent_type || input.agent_type || input.task_name || '').trim() || '(default)';
 }

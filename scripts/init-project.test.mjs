@@ -98,6 +98,12 @@ ok('fresh init exits 0', r1.status === 0);
 const cfg1 = readConfig(freshDir);
 ok('fresh init: ids.key = HOD', /key:\s*"HOD"/.test(cfg1));
 ok('fresh init: ids.prefix = HOD-T', /prefix:\s*"HOD-T"/.test(cfg1));
+ok('fresh init: creates Claude instructions', existsSync(join(freshDir, 'CLAUDE.md')));
+ok('fresh init: creates Codex instructions', existsSync(join(freshDir, 'AGENTS.md')));
+ok(
+  'fresh init: Codex instructions use skill invocation',
+  readFileSync(join(freshDir, 'AGENTS.md'), 'utf8').includes('$work <id>'),
+);
 
 // Verify a fresh ticket would get HOD-T001 shape (key present, no existing tickets).
 // We don't need to call nextId; the config write is the direct invariant for AC-4.
@@ -108,6 +114,10 @@ const r2 = runInit(freshDir);
 ok('idempotent re-run exits 0', r2.status === 0);
 const cfg2 = readConfig(freshDir);
 ok('idempotent: key unchanged after second run', /key:\s*"HOD"/.test(cfg2));
+ok(
+  'idempotent: one workflow contract in AGENTS.md',
+  readFileSync(join(freshDir, 'AGENTS.md'), 'utf8').split('## Workflow contract (.ai/)').length === 2,
+);
 
 // --- idempotency: pre-seeded key must NOT be clobbered ---
 const preKeyDir = makeProjectDir('something-else');

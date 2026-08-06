@@ -65,7 +65,7 @@ function candidates(input) {
   for (const v of [input?.cwd, input?.working_directory, input?.workdir, input?.directory]) {
     if (typeof v === 'string' && v.trim()) out.push(v);
   }
-  const prompt = String(input?.prompt ?? '');
+  const prompt = String(input?.prompt ?? input?.message ?? '');
   for (const m of prompt.matchAll(QUOTED_PATH)) out.push(m[1]);
   for (const m of prompt.matchAll(BARE_PATH)) out.push(m[0]);
   return out.map((s) => s.trim().replace(TRAILING_PUNCT, '')).filter((s) => ABSOLUTE.test(s));

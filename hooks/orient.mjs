@@ -22,6 +22,7 @@ const ROADMAP_GIST_LINES = 8;   // first lines of ROADMAP.md shown inline
 // KIT-T028: a `doing` ticket with no update for this long is a zombie — flag it prominently.
 const ORIENT_DOING_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
 const MENTIONS_SHOWN = 5; // KIT-T130: unread @mentions listed inline before the pointer
+const CODEX = Boolean(process.env.PLUGIN_ROOT);
 
 const root = gitRoot();
 if (!adopted(root)) process.exit(0);
@@ -234,7 +235,8 @@ try {
       if (running) joined.add(running);
       // An agent mid-compile is not uncollected — it is BUSY, and saying otherwise is exactly the
       // false alarm KIT-T178 exists to kill. The live line outranks the age heuristic.
-      const flag = staleIds.has(r.id) && !running ? ` !! UNCOLLECTED (>${staleMin}m, no completion recorded — reattach via TaskList/output or reconcile)` : '';
+      const reattach = CODEX ? '/agents or the agent output' : 'TaskList/output';
+      const flag = staleIds.has(r.id) && !running ? ` !! UNCOLLECTED (>${staleMin}m, no completion recorded — reattach via ${reattach} or reconcile)` : '';
       const busy = running ? ` — running: ${formatProgress(running, now)}` : '';
       out.push(`  [in-flight] ${r.id} (${r.scope || '?'}${agentModel(r)})${r.background ? ' bg' : ''} — ${r.task || '?'}${busy}${flag}`);
     }
@@ -385,15 +387,17 @@ try {
 
 out.push(`
 --- IDENTITY & PROCESS (main thread) ---
-ORCHESTRATOR: delegate substantial work to subagents (lean brief: ticket+file:line, not pasted files).
-Inline: genuinely tiny single-file edits. Batch related small tasks into one subagent.
+${CODEX
+    ? 'Use subagents only when the user asks for delegation/parallel work or higher-priority instructions allow it.'
+    : 'ORCHESTRATOR: delegate substantial work to subagents (lean brief: ticket+file:line, not pasted files).'}
+Inline: genuinely tiny single-file edits.${CODEX ? '' : ' Batch related small tasks into one subagent.'}
 Work order: drain's job (.ai/config.yml + roadmap + active doing ticket) — pull and dispatch.
-Questions → AskUserQuestion (never prose), with recommended option first.
+Questions → ${CODEX ? 'structured user input when available' : 'AskUserQuestion'} (never prose), with recommended option first.
 QUERY don't grep: q open|governing|trail|fts; code-graph importers-of|defines|surface|duplicate-defines.
 PROVENANCE FIRST (KIT-T079): git log -- <path> + code-graph BEFORE any runtime theory.
 Read plan-of-record + DECISIONS before non-trivial work. On-disk record and git are AUTHORITATIVE.
 Log work to a ticket (gate enforces). Record decisions in DECISIONS the turn they happen.
-Full rules: read CLAUDE.md | q governing <hook-file> | code-graph --query surface
+Full rules: read ${CODEX ? 'AGENTS.md' : 'CLAUDE.md'} | q governing <hook-file> | code-graph --query surface
 ================================================================================`);
 console.log(out.join('\n'));
 process.exit(0);

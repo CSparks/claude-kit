@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// PreToolUse (AskUserQuestion) — enforce the recommendation-placement contract on a
+// PreToolUse (AskUserQuestion|request_user_input) — enforce the host-native
+// recommendation-placement contract on a
 // questionnaire BEFORE it reaches the maintainer (KIT-T086). exit 2 = block, 0 = allow.
 //
 // WHY: the contract already says "the recommended option goes FIRST and its LABEL is
@@ -27,20 +28,29 @@
 
 import { payload } from './lib.mjs';
 
-const TOOL = 'AskUserQuestion';
+const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
 const MARKER = '(Recommended)';
-const RULE = 'recommended option FIRST; its LABEL must start with `(Recommended)`, not the description';
+let activeTool = 'AskUserQuestion';
+let markerAtEnd = false;
+const rule = () =>
+  `recommended option FIRST; its LABEL must ${markerAtEnd ? 'end' : 'start'} with \`${MARKER}\`, not the description`;
 // Matches the marker word in a description even when spelled/cased loosely, so the
 // "marker in the wrong field" diagnosis catches the real miss (e.g. "recommended:" prose).
 const DESC_MENTION = /\brecommended\b/i;
 
 const label = (opt) => String((opt && opt.label) || '').trim();
-const startsWithMarker = (opt) => label(opt).toLowerCase().startsWith(MARKER.toLowerCase());
+const hasMarker = (opt) => {
+  const value = label(opt).toLowerCase();
+  const marker = MARKER.toLowerCase();
+  return markerAtEnd ? value.endsWith(marker) : value.startsWith(marker);
+};
 
 try {
   const p = await payload();
   // Defensive: the matcher already scopes us, but never act on another tool if mis-wired.
-  if (p.tool_name && p.tool_name !== TOOL) process.exit(0);
+  if (p.tool_name && !TOOLS.has(p.tool_name)) process.exit(0);
+  activeTool = p.tool_name || activeTool;
+  markerAtEnd = activeTool === 'request_user_input';
 
   const questions = (p.tool_input && p.tool_input.questions) || [];
   if (!Array.isArray(questions) || questions.length === 0) process.exit(0); // nothing to judge → allow
@@ -51,7 +61,7 @@ try {
     if (options.length === 0) continue; // malformed/empty question — fail open on this one
 
     const name = q.header || q.question || `question #${i + 1}`;
-    const recIndexes = options.map((o, idx) => (startsWithMarker(o) ? idx : -1)).filter((idx) => idx !== -1);
+    const recIndexes = options.map((o, idx) => (hasMarker(o) ? idx : -1)).filter((idx) => idx !== -1);
 
     // (a) no recommendation on any LABEL — the marker is absent or hiding in a description.
     if (recIndexes.length === 0) {
@@ -77,13 +87,13 @@ function block(name, body) {
 }
 
 function header(name) {
-  return ['', `BLOCKED: non-compliant AskUserQuestion (KIT-T086) — "${name}".`, `  Rule: ${RULE}.`, ''];
+  return ['', `BLOCKED: non-compliant ${activeTool} (KIT-T086) — "${name}".`, `  Rule: ${rule()}.`, ''];
 }
 
 function markerInDescriptionMsg(name) {
   return [
     ...header(name),
-    'The word "Recommended" appears in an option DESCRIPTION, but no option LABEL starts with',
+    `The word "Recommended" appears in an option DESCRIPTION, but no option LABEL ${markerAtEnd ? 'ends' : 'starts'} with`,
     `"${MARKER}" — so the marker renders nowhere and the recommendation is invisible. Move it to`,
     'the LABEL of the option you recommend, and put that option FIRST:',
     ...example(),
@@ -93,7 +103,7 @@ function markerInDescriptionMsg(name) {
 function noRecommendationMsg(name) {
   return [
     ...header(name),
-    `No option carries a recommendation. EVERY question needs one: prefix the recommended`,
+    `No option carries a recommendation. EVERY question needs one: ${markerAtEnd ? 'suffix' : 'prefix'} the recommended`,
     `option's LABEL with "${MARKER}" and list it FIRST.`,
     ...example(),
   ].join('\n');
@@ -109,10 +119,11 @@ function recNotFirstMsg(name, firstOpt) {
 }
 
 function example() {
+  const recommendedLabel = markerAtEnd ? `Do X ${MARKER}` : `${MARKER} Do X`;
   return [
     '',
     '  options: [',
-    `    { label: "${MARKER} Do X", description: "why X is the recommendation" },  // FIRST`,
+    `    { label: "${recommendedLabel}", description: "why X is the recommendation" },  // FIRST`,
     '    { label: "Do Y",                 description: "the alternative" },',
     '  ]',
     '',

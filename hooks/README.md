@@ -5,6 +5,12 @@ non-skippable, installed globally by `bootstrap.sh` but **opt-in-aware** (each
 exits immediately unless the repo has `.ai/`, so they never interfere with
 unadopted projects).
 
+The plugin wiring is dual-host. `hooks/hooks.json` launches every handler through
+`compat-run.mjs`: Claude Code receives its original payloads and output unchanged;
+Codex gets per-file `apply_patch` fanout and the structured output required by its
+tool, compaction, subagent, and stop hooks. Codex sets `CLAUDE_PLUGIN_ROOT` for
+compatibility, so the same committed commands resolve on both hosts.
+
 ## Why Node, not bash
 OS-shell hook scripts aren't portable and broke in practice (Windows/MSYS +
 Python path handling, and a `python - <<heredoc` bug that ate its own stdin and
@@ -17,7 +23,7 @@ the tool payload from stdin, decides, and exits (`exit 2` = block, `0` = allow).
 | `SessionStart` | orient + housekeeping | Inject the on-disk record (`.ai/` ROADMAP + DECISIONS + SESSION + recent commits + **in-flight delegated agents**) so a fresh/compacted session resumes cold; surface any due weekly reviews + project gaps. |
 | `PreToolUse` (Edit\|Write) | pre-write | Code-quality gates on source; **doc files** get a broken-link check instead of magic-number/etc; license/meta + data files skip. |
 | `PostToolUse` (Edit\|Write) | lint + jscpd + ingest-data | Language-aware linters (ruff/clippy/eslint/…) + copy-paste detection (advisory — never block). **ingest-data** incrementally syncs the SQLite cache for the edited `.ai` store immediately, so a same-turn query sees the change (KIT-T026; fail-open). |
-| `PostToolUse` (Task) + `SubagentStop` | agent-roster | Append each delegated subagent (task, scope, handle, status, its `model` — KIT-T179 — plus its `isolation` + `targetRoot` — which tree it lands in, KIT-T177) to the durable roster `.ai/agents.jsonl`, and mark its completion — so a `/clear` mid-delegation never orphans the work; orient replays it on resume (KIT-T014; fail-open, never blocks a delegation). A dispatch row arriving AFTER its own `SubagentStop` (synchronous delegations report in that order) keeps the terminal status instead of resurrecting the agent. |
+| `PostToolUse` (Task\|Agent) + `SubagentStop` | agent-roster | Append each delegated subagent (task, scope, handle, status, its `model` — KIT-T179 — plus its `isolation` + `targetRoot` — which tree it lands in, KIT-T177) to the durable roster `.ai/agents.jsonl`, and mark its completion — so a clear/compact mid-delegation never orphans the work; orient replays it on resume (KIT-T014; fail-open, never blocks a delegation). A dispatch row arriving AFTER its own `SubagentStop` (synchronous delegations report in that order) keeps the terminal status instead of resurrecting the agent. |
 | `PostToolUse` (`mcp__*context7*`) | context7-ledger | Append one JSONL row (`ts`, `tool`, library/query extract) per **metered** context7 call to `~/.claude/context7-ledger.jsonl`, so paid docs spend is answerable from disk (KIT-T182/KIT-D055). Deliberately **not** `.ai/`-gated — the quota is per-machine, so the ledger is too. Also warns (stderr, never blocks) when the library is already covered by a doc in `research/README.md`'s index. |
 | `PreToolUse` (Bash\|PowerShell) | license-guard | Block `npm install` / `cargo add` of a GPL/LGPL/AGPL/unlicensed dependency (KIT-T022). Looks up the package license via the registry; fails open if offline. Escape: `[allow-license: reason]` or `CLAUDE_KIT_ALLOW_LICENSE=1`. Nudges to update `THIRD_PARTY_LICENSES` on permissive adds. |
 | `PreToolUse` (Bash) | commit-gate | Block a `git commit` of code not tied to a ticket / plan-of-record (override `[no-log: reason]`). |

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const HOOK = fileURLToPath(new URL('./request-gate.mjs', import.meta.url));
+const CAPTURE_HOOK = fileURLToPath(new URL('./capture-prompt.mjs', import.meta.url));
 const STORES = ['inbox', 'tickets', 'decisions', 'questions', 'notes'];
 let failures = 0;
 
@@ -29,9 +30,18 @@ function writeTranscript(dir, userText, assistantText, userTs = '2026-01-01T00:0
   return file;
 }
 
-function run(dir, payload) {
-  const r = spawnSync(process.execPath, [HOOK], { cwd: dir, input: JSON.stringify(payload), encoding: 'utf8' });
+function run(dir, payload, env = process.env) {
+  const r = spawnSync(process.execPath, [HOOK], { cwd: dir, input: JSON.stringify(payload), encoding: 'utf8', env });
   return { code: r.status, err: r.stderr || '' };
+}
+
+function capturePrompt(dir, prompt, env) {
+  return spawnSync(process.execPath, [CAPTURE_HOOK], {
+    cwd: dir,
+    input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt }),
+    encoding: 'utf8',
+    env,
+  });
 }
 
 function expect(name, actual, wanted) {
@@ -87,6 +97,24 @@ function expect(name, actual, wanted) {
   const d = makeRepo({ adopt: false });
   const tx = writeTranscript(d, "I'd like a thing in the future", 'no receipt', new Date().toISOString());
   expect('no-ops on unadopted repo', run(d, { transcript_path: tx }).code, 0);
+}
+
+// 8b. Codex fallback: UserPromptSubmit snapshot works without parsing a transcript.
+{
+  const d = makeRepo();
+  const stateDir = mkdtempSync(join(tmpdir(), 'rg-state-'));
+  const env = { ...process.env, CLAUDE_KIT_TURN_STATE: stateDir };
+  capturePrompt(d, 'There needs to be a wider street', env);
+  expect(
+    'blocks from host-neutral prompt snapshot when transcript is unavailable',
+    run(d, { last_assistant_message: 'I will handle that.' }, env).code,
+    2,
+  );
+  expect(
+    'snapshot fallback accepts a receipt from last_assistant_message',
+    run(d, { last_assistant_message: '→ KIT-T901 captured.' }, env).code,
+    0,
+  );
 }
 
 // 9. blunt bug-report request (no polite phrasing) -> BLOCK

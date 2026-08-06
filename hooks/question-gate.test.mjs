@@ -147,5 +147,13 @@ expect('lowercase/padded marker on the first label passes', run({
   ] }],
 }).code, 0);
 
+// 10) Codex request_user_input uses the same schema but requires the marker as a suffix.
+expect('Codex suffix marker passes', run({
+  questions: [{ header: 'Codex suffix', options: [
+    { label: 'Do X (Recommended)', description: 'why' }, { label: 'Do Y', description: 'alt' },
+  ] }],
+}, 'request_user_input').code, 0);
+expect('Codex prefix marker blocks', run({ questions: [recFirst] }, 'request_user_input').code, 2);
+
 console.log(failures ? `\n${failures} FAIL` : '\nall pass');
 process.exit(failures ? 1 : 0);

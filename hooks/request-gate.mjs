@@ -13,7 +13,16 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { gitRoot, adopted, payload, pathExcluded, excludeFooter, loadCaptureConfig, ID_CITE_SRC } from './lib.mjs';
+import {
+  gitRoot,
+  adopted,
+  payload,
+  pathExcluded,
+  excludeFooter,
+  loadCaptureConfig,
+  ID_CITE_SRC,
+  readTurnState,
+} from './lib.mjs';
 
 // Built-in defaults — overridable/extendable via `capture.signals` in .ai/config.yml.
 // Two families: polite/future asks AND blunt imperatives / bug reports / feel-tuning (the way
@@ -67,9 +76,11 @@ async function main() {
   if (pathExcluded(root, 'request-capture', '.ai/inbox')) process.exit(0);
 
   const tx = p.transcript_path;
-  if (!tx || !existsSync(tx)) process.exit(0);
-
-  const { lastUser, lastAssistant, turnStartMs } = parseTranscript(tx);
+  const parsed = tx && existsSync(tx) ? parseTranscript(tx) : {};
+  const snapshot = readTurnState(root, 'request-capture') || {};
+  const lastUser = parsed.lastUser || snapshot.prompt || '';
+  const lastAssistant = parsed.lastAssistant || p.last_assistant_message || '';
+  const turnStartMs = parsed.turnStartMs || Number(snapshot.ts) || 0;
   if (!lastUser) process.exit(0);
 
   const hit = cfg.signals.find((re) => re.test(lastUser));

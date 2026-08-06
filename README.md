@@ -1,6 +1,6 @@
 # claude-kit
 
-A repeatable Claude Code workflow: capture fast, defer by default, drain
+A repeatable Claude Code and Codex workflow: capture fast, defer by default, drain
 automatically, and never lose context to compaction. One reference repo you
 clone onto any machine — including a clean box with nothing but a fresh Claude
 Code install.
@@ -49,6 +49,8 @@ one-file edit; no code changes.
 ```
 claude-kit/                     # public plugin + marketplace (MIT)
 ├── .claude-plugin/             # plugin.json + marketplace.json — makes it installable
+├── .codex-plugin/              # Codex plugin manifest (same version + package identity)
+├── .agents/plugins/            # committed Codex repo marketplace
 ├── commands/                   # /cap /decide /done /drain /flush /prime /standup /triage /work
 ├── agents/                     # researcher, code-reviewer, refactorer, test-author
 ├── skills/                     # claude-kit, release-checklist, doc-audit
@@ -61,7 +63,8 @@ claude-kit/                     # public plugin + marketplace (MIT)
 ├── project-template/           # scaffolded into a repo by init-project
 │   ├── .ai/                    # config.yml + atomic stores: tickets/ decisions/ questions/
 │   │                           #   notes/ inbox/ reminders/ (+ archive/) + SESSION.md; ROADMAP.md generated
-│   └── CLAUDE.snippet.md       # the behavioral contract
+│   ├── CLAUDE.snippet.md       # Claude Code behavioral contract
+│   └── AGENTS.snippet.md       # Codex behavioral contract
 ├── docs/STRATEGY.md            # the full model and the why
 └── bootstrap.mjs               # cross-platform installer (Win/mac/Linux): CLAUDE.md +
                                 #   private overlay (what a plugin can't). bootstrap.sh is a
@@ -85,7 +88,7 @@ not install the **tooling** twice (KIT-D013):
 
 ### 1. Tooling — install the plugin (recommended)
 
-From any Claude Code session:
+**Claude Code** — from any Claude Code session:
 
 ```
 /plugin marketplace add CSparks/claude-kit
@@ -97,7 +100,21 @@ The `orient` hook then snaps each session into the workflow automatically in any
 repo (one with `.ai/`); `/prime` re-snaps on demand. **Requires Node on `PATH`** (the
 hooks are Node).
 
-### 2. CLAUDE.md + private overlay — run bootstrap (even with the plugin)
+**Codex** — the same checkout/repository is also a Codex marketplace and plugin:
+
+```text
+codex plugin marketplace add CSparks/claude-kit
+codex plugin add claude-kit@claude-kit
+```
+
+Start a new Codex session after installation, then open `/hooks` and trust the bundled
+hook definition. Codex loads `.codex-plugin/plugin.json`, discovers `hooks/hooks.json`,
+and exposes the workflows as skills: `$cap`, `$prime`, `$standup`, `$triage`, `$work`,
+`$drain`, `$decide`, `$flush`, and `$done`. The committed compatibility launcher keeps
+the Claude hook payloads unchanged while adapting Codex `apply_patch`, agent, question,
+compaction, and stop events.
+
+### 2. Claude-only global contract + private overlay — run bootstrap for Claude Code
 
 The plugin can't install your global `~/.claude/CLAUDE.md` contract or your private
 overlay, so run bootstrap once for those — by default it does **not** touch the tooling:
@@ -130,7 +147,9 @@ node ~/Documents/code/claude-kit/scripts/init-project.mjs
 With `CLAUDE_DATA` set (the centralized model, KIT-D008), this writes a `.claude-project`
 pointer and links `.ai/` as a gitignored junction into `$CLAUDE_DATA/projects/<name>/`.
 Without `CLAUDE_DATA`, it scaffolds `.ai/` **inside** the repo (committed there) — the
-simpler per-repo mode.
+simpler per-repo mode. It also idempotently creates/appends both host-native contracts:
+`CLAUDE.md` for Claude Code and `AGENTS.md` for Codex. Commit both so the same project
+works after cloning it on another machine.
 
 ### 4. Cache-hydration git hooks — per clone, **per machine** (KIT-T097)
 
@@ -210,6 +229,8 @@ Don't run the publish loop on every edit.
 **Inner loop — fast, no install, no session impact:**
 - `npm test` → `scripts/test-hooks.mjs` runs every hook against mock payloads in
   throwaway git fixtures and asserts exit codes. Run before every push.
+- `npm run test:compat` verifies the dual manifests, skill layout, hook launcher,
+  and Codex payload/output adapters.
 - `claude plugin validate .` checks the plugin + marketplace manifests.
 
 **Dev loop — live in your session, one command:** run `node scripts/dev-link.mjs` **once**
@@ -218,8 +239,9 @@ is: **edit the repo → `/reload-plugins`.** No marketplace update, no version b
 reinstall. (`node scripts/dev-link.mjs --unlink` restores the frozen snapshot.)
 
 **Publish loop — occasional, for *other* machines / consumers:**
-1. `npm test` green; **bump `.claude-plugin/plugin.json` `version`** (required — `/plugin
-   update` is version-gated; no bump ships nothing).
+1. `npm test` and `npm run test:compat` green; bump **both**
+   `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` to the same version
+   (updates are version/cache gated).
 2. `claude plugin tag` (tags the release, verifies plugin.json + marketplace agree).
 3. Commit + push.
 4. Consumers: `claude plugin marketplace update claude-kit` → `claude plugin update

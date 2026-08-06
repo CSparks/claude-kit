@@ -1,7 +1,7 @@
 {
   "name": "claude-kit",
   "version": "0.1.16",
-  "description": "A repeatable, context-durable Claude Code workflow: capture fast, defer by default, drain automatically, never lose context to compaction. Atomic .ai/ stores with generated indexes, portable Node enforcement hooks (orient/commit-gate/flush/quality), and a shared library of generic agents + skills.",
+  "description": "A repeatable, context-durable Claude Code and Codex workflow: capture fast, defer by default, drain automatically, never lose context to compaction. Atomic .ai/ stores with generated indexes, portable Node enforcement hooks (orient/commit-gate/flush/quality), and a shared library of generic agents + skills.",
   "author": {
     "name": "Chris Sparks",
     "url": "https://github.com/CSparks"
@@ -22,7 +22,12 @@
     "compaction"
   ],
   "skills": [
-    "./skills/",
+    "./skills/claude-kit/",
+    "./skills/db-discipline/",
+    "./skills/doc-audit/",
+    "./skills/new-poc/",
+    "./skills/release-checklist/",
+    "./skills/scaffold-agent/",
     "./commands/"
   ],
   "agents": [

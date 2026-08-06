@@ -8,7 +8,8 @@
 //   gitignored .ai symlink/junction into it. The data dir is seeded from the template
 //   if it doesn't exist yet.
 // LOCAL (no CLAUDE_DATA): scaffold .ai/ inside the repo (the original behavior).
-// Both modes append CLAUDE.snippet.md to the repo's CLAUDE.md once. Idempotent.
+// Both modes append the Claude and Codex contracts to CLAUDE.md and AGENTS.md once.
+// Each host keeps its native instruction file, so the two installations coexist.
 //
 // LAB scope (--lab <name>): creates a repo-less scope in the centralized data store.
 //   node /path/to/claude-kit/scripts/init-project.mjs --lab <name>
@@ -181,18 +182,24 @@ async function adopt() {
     seedProjectKey(aiDst, basename(target));
   }
 
-  // CLAUDE.md — append the contract once (both modes)
-  const claudeMd = join(target, 'CLAUDE.md');
-  const snippet = readFileSync(join(TEMPLATE, 'CLAUDE.snippet.md'), 'utf8');
-  const existing = existsSync(claudeMd) ? readFileSync(claudeMd, 'utf8') : '';
-  if (existing.includes(MARKER)) {
-    console.log('• CLAUDE.md already has the workflow contract — skipped');
-  } else if (existing) {
-    appendFileSync(claudeMd, '\n\n' + snippet);
-    console.log('• workflow contract appended to CLAUDE.md');
-  } else {
-    writeFileSync(claudeMd, '# Project\n\n' + snippet);
-    console.log('• CLAUDE.md created with the workflow contract');
+  // Host-native instruction files — append each contract once (both modes).
+  // Keeping these separate prevents Codex adaptation from changing Claude behavior.
+  for (const [fileName, snippetName] of [
+    ['CLAUDE.md', 'CLAUDE.snippet.md'],
+    ['AGENTS.md', 'AGENTS.snippet.md'],
+  ]) {
+    const instructionPath = join(target, fileName);
+    const snippet = readFileSync(join(TEMPLATE, snippetName), 'utf8');
+    const existing = existsSync(instructionPath) ? readFileSync(instructionPath, 'utf8') : '';
+    if (existing.includes(MARKER)) {
+      console.log(`• ${fileName} already has the workflow contract — skipped`);
+    } else if (existing) {
+      appendFileSync(instructionPath, '\n\n' + snippet);
+      console.log(`• workflow contract appended to ${fileName}`);
+    } else {
+      writeFileSync(instructionPath, '# Project\n\n' + snippet);
+      console.log(`• ${fileName} created with the workflow contract`);
+    }
   }
 
   // .gitignore — keep the junction + secrets/local out of git

@@ -1,0 +1,43 @@
+{
+  "name": "claude-kit",
+  "version": "0.1.16",
+  "description": "A repeatable, context-durable workflow for Claude Code and Codex: capture fast, defer by default, drain automatically, and preserve working state across compaction.",
+  "author": {
+    "name": "Chris Sparks",
+    "url": "https://github.com/CSparks"
+  },
+  "homepage": "https://github.com/CSparks/claude-kit",
+  "repository": "https://github.com/CSparks/claude-kit",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "claude-code",
+    "workflow",
+    "tickets",
+    "hooks",
+    "skills",
+    "agents",
+    "context",
+    "compaction"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "claude-kit",
+    "shortDescription": "Durable capture-to-completion coding workflow",
+    "longDescription": "File-backed tickets, decisions, session memory, reusable skills, and lifecycle guardrails for context-durable coding work.",
+    "developerName": "Chris Sparks",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/CSparks/claude-kit",
+    "defaultPrompt": [
+      "Prime me on this project's durable work state.",
+      "Triage captured items into the project backlog.",
+      "Drain the next ready item and carry it to review."
+    ],
+    "brandColor": "#D97706"
+  }
+}
