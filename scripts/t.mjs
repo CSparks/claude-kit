@@ -88,6 +88,7 @@ export function readConfig(root, aiDir = join(root, '.ai')) {
     archiveDir: 'tickets/archive',
     classifications: [],
     ticketTypes: [],
+    routes: {},
     priorities: ['critical', 'high', 'medium', 'low'],
   };
   let cfg = '';
@@ -123,6 +124,7 @@ export function readConfig(root, aiDir = join(root, '.ai')) {
       if (!m) continue;
       out.classifications.push(m[1]);
       const route = (line.match(/routes_to:[ \t]*([A-Za-z-]+)/) || [])[1];
+      if (route) out.routes[m[1]] = route;
       if (!route || BOARD_ROUTES.includes(route)) out.ticketTypes.push(m[1]);
     }
   }
@@ -160,10 +162,18 @@ export function findTicket(root, id) {
 // Edit — this kills the T039-T043 class where a hand-copied template shipped with KIT-T000 and
 // `<short imperative title>` still in the fields.
 export function scaffoldNew(root, type, title, opts = {}) {
-  const { classifications, priorities } = readConfig(root);
+  const { classifications, ticketTypes, routes, priorities } = readConfig(root);
   if (!type) throw new Error('t new: a <type> is required');
   if (classifications.length && !classifications.includes(type)) {
     throw new Error(`t new: unknown type '${type}' (config.classifications: ${classifications.join(', ')})`);
+  }
+  // A classification routed to another store is NOT a ticket type. `t new decision` used to mint a
+  // TICKET id and write it to tickets/ with `type: decision` — the item then lived on the board
+  // with a T id while the decisions store never heard of it, and the D counter kept its old max.
+  if (ticketTypes.length && !ticketTypes.includes(type)) {
+    throw new Error(`t new: '${type}' is not a ticket type — config.classifications routes it to ` +
+      `'${routes[type]}', not the ticket board. Ticket types: ${ticketTypes.join(', ')}. ` +
+      `To file this one: cap ${type} "…", and triage routes it to ${routes[type]}.`);
   }
   if (!title || !title.trim()) throw new Error('t new: a non-empty "<title>" is required');
   if (/[\n\r]/.test(title)) throw new Error('t new: a title is a single line — put the detail in the Description');

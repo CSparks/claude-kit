@@ -80,7 +80,7 @@
 | KIT-T181 | feature | todo | medium | bootstrap.mjs registers kit bin/ on the user PATH — PowerShell tool + interactive shells can't see plugin bin injection |
 | KIT-T183 | bug | review | high | q next-id served the TICKET counter for any store name it did not recognize — a silent id-collision generator |
 | KIT-T184 | bug | review | high | cap --help is captured as an inbox item; t / rem / code-graph have no help path either |
-| KIT-T185 | bug | todo | high | t new <type> files a non-board type (decision/question/note) as a TICKET instead of refusing |
+| KIT-T185 | bug | review | high | t new <type> files a non-board type (decision/question/note) as a TICKET instead of refusing |
 | KIT-T186 | bug | todo | high | cap's cross-project ambiguity warning arrives AFTER the success receipt, and the no-store error names no projects |
 
 ## Superseded (10)

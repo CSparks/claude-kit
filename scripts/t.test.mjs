@@ -45,6 +45,10 @@ function ok(name, cond) {
 function threw(fn) {
   try { fn(); return false; } catch { return true; }
 }
+// The message matters when a refusal has to tell the caller WHERE the item belongs (KIT-T185).
+function threwWith(fn) {
+  try { fn(); return ''; } catch (e) { return e.message; }
+}
 
 const CONFIG = ({ humanOnly = '[]', uatDefault = 'required' }) => `classifications:
   feature: { routes_to: backlog }
@@ -207,9 +211,20 @@ const withOptsText = readFileSync(withOpts.path, 'utf8');
 ok('new: --priority is written', /priority: high/.test(withOptsText));
 ok('new: a supplied description replaces the placeholder', /## Description\nwhy it matters/.test(withOptsText));
 ok('new: rejects an unknown priority', threw(() => scaffoldNew(np, 'feature', 'x', { priority: 'urgent' })));
-// A create FORM only offers board-bound types; the CLI stays permissive over every classification.
 ok('readConfig: ticketTypes drops classifications routed to another store',
   readConfig(np).ticketTypes.join() === 'feature,bug' && readConfig(np).classifications.includes('question'));
+ok('readConfig: routes records each classification\'s routes_to target',
+  readConfig(np).routes.question === 'questions');
+// KIT-T185: `t new decision` minted a TICKET id and filed it in tickets/ with `type: decision`
+// — an item on the board under a T id while the decisions store never heard of it. A
+// classification routed to another store is not a ticket type, whatever the board can render.
+ok('new: REFUSES a classification routed to another store (no ticket for a decision/question)',
+  threw(() => scaffoldNew(np, 'question', 'should never become a ticket')));
+ok('new: the refusal names the route and the real ticket types',
+  /routes it to 'questions'[\s\S]*Ticket types: feature, bug/.test(
+    threwWith(() => scaffoldNew(np, 'question', 'x'))));
+ok('new: an unknown type is still a DIFFERENT error than a misrouted one',
+  /unknown type 'bogus'/.test(threwWith(() => scaffoldNew(np, 'bogus', 'x'))));
 ok('new: rejects a multi-line title', threw(() => scaffoldNew(np, 'feature', 'line one\nline two')));
 
 // --- link: supersedes both sides + shape validation ---
