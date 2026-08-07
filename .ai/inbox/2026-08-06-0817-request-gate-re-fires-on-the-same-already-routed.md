@@ -1,0 +1,1 @@
+(bug) request-gate re-fires on the SAME already-routed quote at every subsequent Stop (seen 3x in one gridiron-blitz session on the GB-T053 quote) — it should remember a quote once routed/acknowledged (e.g. hash routed quotes into session state) instead of re-matching the whole transcript each stop

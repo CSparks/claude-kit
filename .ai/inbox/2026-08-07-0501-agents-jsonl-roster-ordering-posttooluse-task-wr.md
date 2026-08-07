@@ -1,0 +1,1 @@
+(bug) agents.jsonl roster ordering: PostToolUse(Task) writes the in-flight row AFTER SubagentStop's done row for synchronous agents, so the last-row-wins roster shows them permanently UNCOLLECTED — orient flagged 13 long-done agents on 2026-08-07 resume. Root cause: hook event order for foreground Task calls; reconcile-on-read or ts-compare needed, not manual reconcile rows.

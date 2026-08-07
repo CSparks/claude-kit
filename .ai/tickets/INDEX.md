@@ -103,8 +103,8 @@
 | KIT-T207 | feature | todo | medium | Pre-write gate check: backstory comments in source (quoted discussion, maintainer attribution, swearing, dev history) |
 | KIT-T209 | feature | todo | medium | Scaffold pinned dispatch agents for the scoped and ui tiers (claude-opus-4-8 frontmatter) so versioned tiers are dispatchable |
 | KIT-T210 | bug | todo | medium | Repo docs leak workflow/project context across the board - standalone-docs rule needs doctrine + enforcement + audit |
-| KIT-T211 | bug | todo | medium | pre-write file-length gate is CRLF-blind: postEditLines matches LF payloads against raw CRLF disk text - fails open on growth, blocks shrinking edits |
 | KIT-T212 | tech-debt | todo | medium | scripts/test-hooks.mjs is an 817-line monolith over the 600 hard limit - split into per-hook test files (the hooks/*.test.mjs convention); found when the fixed length gate measured it correctly |
+| KIT-T213 | feature | todo | medium | Mechanical project reality-check (KIT-D062): per-project domain vocabulary in .ai/config.yml, a router-side mismatch check, and a cross-store q fts probe for matching in-flight work before any cross-project dispatch |
 
 ## Superseded (10)
 | id | status | title | superseded by |
@@ -120,7 +120,7 @@
 | KIT-T109 | superseded | `q next-id HOD` prints `HOD-undefined149 HOD undefined 149` — the formatted id | KIT-T183 |
 | KIT-T120 | superseded | bug: sync-tasks.mjs emits phantom tasks from non-ticket files | KIT-T169 |
 
-## Archived (101)
+## Archived (102)
 | id | type | status | priority | title |
 | --- | --- | --- | --- | --- |
 | KIT-T001 | feature | done | high | Scope-aware /prime — lazy default, "what needs me?" briefing, named deep-dive |
@@ -224,3 +224,4 @@
 | KIT-T205 | bug | done | medium | Agents ship conversation backstory into code comments — base contract needs a comment-content rule |
 | KIT-T206 | tech-debt | done | medium | Opus 5 dispatches drop an effort notch — standard tier low, opus fallback medium, kit agents pin effort: low |
 | KIT-T208 | feature | done | medium | Flesh out the dispatch tier ladder: version-tiered models (Opus 4.6/4.8 for basic/creative), effort reserved by task class |
+| KIT-T211 | bug | done | medium | pre-write file-length gate is CRLF-blind: postEditLines matches LF payloads against raw CRLF disk text - fails open on growth, blocks shrinking edits |

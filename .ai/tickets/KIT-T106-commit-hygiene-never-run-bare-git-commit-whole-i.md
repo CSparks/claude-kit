@@ -41,6 +41,8 @@ Commit hygiene: NEVER run bare git commit (whole index) — always commit an exp
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+### comment #1 [2026-08-06 19:48] @claude
+Another instance 2026-08-06: an opus subagent on gridiron-blitz ran a whole-index add for its GB-T063 commit and swept the maintainer's untracked save/school.txt playtest artifact into pushed history (8b6dd09; untracked again in 1dc4ae1). Bare-add discipline needs the gate, not the brief.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +55,4 @@ Commit hygiene: NEVER run bare git commit (whole index) — always commit an exp
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-06 19:48] (comment) @claude: Another instance 2026-08-06: an opus subagent on gridiron-blitz ran a whole-index add for its GB-T063 commit and swept t (full comment #1 in ## Notes)

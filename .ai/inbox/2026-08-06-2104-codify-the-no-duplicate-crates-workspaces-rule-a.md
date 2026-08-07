@@ -1,0 +1,1 @@
+(tech-debt) Codify the no-duplicate-crates/workspaces rule at kit level (Chris, 2026-08-06: discussed 2026-08-05, 'supposed to be codified at the KIT level' - grep finds no kit decision carrying it; stiletto carries it per-ticket in D010/T115/T120 'never a fork')
