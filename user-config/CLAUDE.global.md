@@ -119,6 +119,10 @@ Read less to do more.
   `dispatch-ladder` hook blocks the silent inherit. Explicit `model:'fable'` stays legal
   (a chosen tier); a deliberate model-less inherit needs an inline
   `[allow-fable: <reason>]` token in the prompt.
+- **Every dispatch names its model in the agent LABEL**: the Agent tool's
+  `description` starts with a `[<model>]` prefix — `"[opus] Diagnose POI rate"` — so
+  the tier is visible in the UI under the running task, not buried in prose. No
+  unprefixed dispatches; enforcement hook tracked in the kit inbox (2026-08-12).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the ladder.
 
 ## Delegation COST — scale the ceremony, isolate the checkout
