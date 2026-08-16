@@ -115,7 +115,6 @@
 - KIT-T207 — Pre-write gate check: backstory comments in source (quoted discussion, maintainer attribution, swearing, dev history) (medium)
 - KIT-T209 — Scaffold pinned dispatch agents for the scoped and ui tiers (claude-opus-4-8 frontmatter) so versioned tiers are dispatchable (medium)
 - KIT-T210 — Repo docs leak workflow/project context across the board - standalone-docs rule needs doctrine + enforcement + audit (medium)
-- KIT-T212 — scripts/test-hooks.mjs is an 817-line monolith over the 600 hard limit - split into per-hook test files (the hooks/*.test.mjs convention); found when the fixed length gate measured it correctly (medium)
 - KIT-T213 — Mechanical project reality-check (KIT-D062): per-project domain vocabulary in .ai/config.yml, a router-side mismatch check, and a cross-store q fts probe for matching in-flight work before any cross-project dispatch (medium)
 - KIT-T216 — An editor-workbench specialist agent has earned itself (medium)
 - KIT-T220 — Doctor/health check: warn when CLAUDE_CODE_SUBAGENT_MODEL is set in the environment — it silently overrides BOTH the Agent-tool model… (medium)

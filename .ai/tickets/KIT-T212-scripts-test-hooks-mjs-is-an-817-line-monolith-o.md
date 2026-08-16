@@ -2,16 +2,16 @@
 id: KIT-T212
 title: scripts/test-hooks.mjs is an 817-line monolith over the 600 hard limit - split into per-hook test files (the hooks/*.test.mjs convention); found when the fixed length gate measured it correctly
 type: tech-debt
-status: todo
+status: superseded
 priority: medium
 milestone:
 labels: []
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T239
 created: 2026-08-06T19:06:14Z
-updated: 2026-08-06T19:06:14Z
+updated: 2026-08-16T01:50:17Z
 ---
 
 ## Description
@@ -26,3 +26,5 @@ updated: 2026-08-06T19:06:14Z
 
 ## History
 - [2026-08-06 19:06] (created) tech-debt — scripts/test-hooks.mjs is an 817-line monolith over the 600 hard limit - split into per-hook test files (the hooks/*.test.mjs convention); found when the fixed length gate measured it correctly
+- [2026-08-16 01:50] (status) → superseded (by KIT-T239)
+- [2026-08-16 01:50] (status) superseded → superseded

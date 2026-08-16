@@ -9,3 +9,4 @@ superseded when a newer one sets `supersedes:` (or it carries `superseded_by:` /
 - **KIT-T060**  →  **KIT-T075**  · 1 superseded
 - **KIT-T120**  →  **KIT-T169**  · 1 superseded
 - **KIT-T109**  →  **KIT-T183**  · 1 superseded
+- **KIT-T212**  →  **KIT-T239**  · 1 superseded

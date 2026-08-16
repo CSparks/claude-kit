@@ -8,7 +8,7 @@ milestone:
 labels: []
 links: []
 files: []
-supersedes:
+supersedes: KIT-T212
 superseded_by:
 created: 2026-08-16T01:24:16Z
 updated: 2026-08-16T01:42:02Z
