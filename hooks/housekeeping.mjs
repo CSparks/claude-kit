@@ -100,6 +100,20 @@ function agentDriftLine(root) {
   );
 }
 
+// KIT-T220 — this env var overrides the Agent-tool `model` param AND every agent frontmatter
+// pin, so the whole dispatch ladder silently collapses to one model. Environment-level, not
+// project-level: it is surfaced whether or not the repo has adopted .ai/.
+const SUBAGENT_MODEL_ENV = 'CLAUDE_CODE_SUBAGENT_MODEL';
+
+function subagentModelLine(env = process.env) {
+  const v = env[SUBAGENT_MODEL_ENV];
+  if (!v) return null;
+  return (
+    `SUBAGENT MODEL OVERRIDE: ${SUBAGENT_MODEL_ENV}=${v} is set in this environment — it overrides the ` +
+    `Agent-tool model param AND every agent frontmatter pin, flattening the dispatch ladder. Unset it unless deliberate.`
+  );
+}
+
 // Claude's auto-memory review path has no stable Codex equivalent. The durable
 // .ai/ state still receives the host-neutral review/closure checks below.
 const memAge = CODEX ? 0 : daysSince(memTs);
@@ -168,6 +182,9 @@ if (maintAge >= REVIEW_DAYS) {
       `After review, touch ${maintTs}.`,
   );
 }
+
+const subagentModel = subagentModelLine();
+if (subagentModel) reminders.push(subagentModel);
 
 const cwd = process.cwd();
 if (existsSync(MAINT_LOG)) {

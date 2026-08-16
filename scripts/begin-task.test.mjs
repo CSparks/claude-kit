@@ -169,6 +169,69 @@ ok('end-task: exits non-zero on unknown id', re3.status !== 0);
 const re4 = run(END, ['KIT-T030', '--root', et3]);
 ok('end-task: exits non-zero when status arg missing', re4.status !== 0);
 
+// ---- begin-task: GOVERNING DECISIONS block (KIT-T232) -----------------------------------
+
+function decisionDoc(id, title, paths, body) {
+  return `---
+id: ${id}
+title: ${title}
+status: accepted
+paths: ${paths}
+---
+
+${body}
+`;
+}
+
+// A ticket that declares `files:`, plus one decision that PARKS that area and one that
+// governs an unrelated area (the negative control).
+function governedProject() {
+  const d = project({});
+  mkdirSync(join(d, '.ai', 'decisions'), { recursive: true });
+  writeFileSync(join(d, '.ai', 'tickets', 'KIT-T500-seed.md'), `---
+id: KIT-T500
+title: legacy2d suite not green
+type: bug
+status: todo
+priority: high
+files: [src/legacy2d]
+links: []
+---
+
+## Description
+The legacy2d suite is red on main.
+
+## Acceptance Criteria
+- [ ] make it green
+`);
+  writeFileSync(join(d, '.ai', 'decisions', 'KIT-D900-park.md'),
+    decisionDoc('KIT-D900', 'The 2D build is parked', 'src/legacy2d/*', 'The 2D build is PARKED indefinitely; do not spend on its suite.'));
+  writeFileSync(join(d, '.ai', 'decisions', 'KIT-D901-other.md'),
+    decisionDoc('KIT-D901', 'Renderer uses one pipeline', 'src/render3d/*', 'All rendering goes through a single pipeline.'));
+  return d;
+}
+
+const gp = governedProject();
+const rg = run(BEGIN, ['KIT-T500', '--root', gp]);
+let gpacket;
+try { gpacket = JSON.parse(rg.stdout); } catch { gpacket = null; }
+ok('begin-task: packet.governing is an array', gpacket && Array.isArray(gpacket.governing));
+const govIds = gpacket ? gpacket.governing.map((g) => g.id) : [];
+ok('begin-task: governing includes the decision covering the ticket files', govIds.includes('KIT-D900'));
+ok('begin-task: governing EXCLUDES a decision for an unrelated area', !govIds.includes('KIT-D901'));
+const parkRow = gpacket && gpacket.governing.find((g) => g.id === 'KIT-D900');
+ok('begin-task: the parking decision is flagged parked', !!parkRow && parkRow.parked === true);
+
+const rgMd = run(BEGIN, ['KIT-T500', '--md', '--root', gp]);
+ok('begin-task --md: emits the GOVERNING DECISIONS block', /## GOVERNING DECISIONS — read before dispatch/.test(rgMd.stdout));
+ok('begin-task --md: flags the parked decision', /!! PARKED\? \*\*KIT-D900\*\*/.test(rgMd.stdout));
+
+// Negative control: a ticket with no governing decision states so explicitly.
+const ug = project({ 'KIT-T501': {} });
+const rug = run(BEGIN, ['KIT-T501', '--md', '--root', ug]);
+ok('begin-task --md: block present with "none" when nothing governs', /## GOVERNING DECISIONS[\s\S]*none govern/.test(rug.stdout));
+ok('begin-task --md: no PARKED flag when nothing is parked', !/PARKED\?/.test(rug.stdout));
+
 // ---- cleanup + result ----------------------------------------------------------------
 
 for (const d of fixtures) {

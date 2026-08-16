@@ -16,6 +16,10 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitRoot, adopted, git, payload, sessionMtimeMs } from './lib.mjs';
+import { missingCitations } from './session-citations.mjs';
+
+// Cap the dead-citation list so a badly-drifted SESSION.md can't swamp the flush output.
+const CITATION_LIST_MAX = 8;
 
 // A commit whose subject lands within this slack of the turn start counts as "this turn" — the
 // same small clock-skew tolerance the request-gate uses for store mtimes.
@@ -34,12 +38,36 @@ async function main() {
   const root = gitRoot();
   if (!adopted(root)) process.exit(0);
 
+  deadCitationWarning(root);
+
   if (p.hook_event_name === 'Stop') {
     stopAnchorNudge(root, p);
   } else {
     precompactReminder(root);
   }
   process.exit(0);
+}
+
+// --- SESSION-cited artifact paths (KIT-T215) ------------------------------------
+
+// WARN (never block) when SESSION.md cites a path-shaped artifact that isn't on disk — the
+// signature of a delegated deliverable written to a cwd-relative / session-temp path.
+function deadCitationWarning(root) {
+  let text;
+  try {
+    text = readFileSync(join(root, '.ai', 'SESSION.md'), 'utf8');
+  } catch {
+    return; // no anchor yet — nothing to verify
+  }
+  const missing = missingCitations(root, text);
+  if (!missing.length) return;
+  const shown = missing.slice(0, CITATION_LIST_MAX);
+  const more = missing.length > CITATION_LIST_MAX ? `\n    (+${missing.length - CITATION_LIST_MAX} more)` : '';
+  process.stderr.write(
+    `⚠ SESSION.md cites ${missing.length} artifact path(s) that do NOT exist on disk:\n` +
+    shown.map((m) => '    ' + m).join('\n') + more + '\n' +
+    `Re-anchor each to a durable repo path (or drop the citation) — a cited artifact that died with its session is a lost deliverable.\n`,
+  );
 }
 
 // --- PreCompact: flush reminder -------------------------------------------------

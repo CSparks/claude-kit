@@ -2,7 +2,7 @@
 id: KIT-T215
 title: Agent research artifacts can land on non-durable paths and SESSION cites them unchecked
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:29.828Z
-updated: 2026-08-16T00:06:29.828Z
+updated: 2026-08-16T00:39:46Z
 ---
 
 ## Description
@@ -44,7 +44,9 @@ paths that don't resolve.
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] flush.mjs (Stop + PreCompact) resolves every path-shaped citation in .ai/SESSION.md and WARNS (never blocks) listing the ones absent from disk
+- [x] agents/README.md states the dispatch-brief convention: a file deliverable goes to an absolute repo-anchored path, never cwd-relative/scratchpad
+- [x] tested with temp-repo fixtures: existing path silent, missing path warns at exit 0, unadopted repo no-ops
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -53,6 +55,10 @@ paths that don't resolve.
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+Citation detection lives in a new small module, hooks/session-citations.mjs (lib.mjs is over the
+hard block). A citation = a token with a path separator AND a file extension; bare dotted words,
+URLs, and globs are excluded so prose never trips the warning. Evidence: hooks/flush.test.mjs —
+11 passed.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -65,3 +71,6 @@ paths that don't resolve.
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:36] (status) todo → doing
+- [2026-08-16 00:39] (status) doing → review
+- [2026-08-16 00:39] (comment) flush.mjs warns on dead SESSION.md artifact citations + agents/README brief convention; hooks/flush.test.mjs 11 passed

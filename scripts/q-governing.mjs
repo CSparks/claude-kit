@@ -31,7 +31,15 @@ function pathCovered(pattern, file) {
   const pat = normPath(pattern);
   const f = normPath(file);
   if (!pat || !f) return false;
-  if (pat.includes('*')) return globToRe(pat).test(f) || globToRe(pat).test(f.split('/')[0] + '/x');
+  if (pat.includes('*')) {
+    if (globToRe(pat).test(f) || globToRe(pat).test(f.split('/')[0] + '/x')) return true;
+    // Symmetry with the containment rule below: a query for the DIRECTORY `src/legacy2d`
+    // must surface a decision governing `src/legacy2d/*` — the glob's literal prefix is
+    // inside the queried dir. Without this a ticket whose `files:` names a folder misses
+    // the decision that parks that folder (KIT-T232).
+    const literal = normPath(pat.slice(0, pat.indexOf('*'))).replace(/\/$/, '');
+    return Boolean(literal) && (literal === f || literal.startsWith(f + '/'));
+  }
   if (pat === f) return true;
   return f.startsWith(pat + '/') || pat.startsWith(f + '/');
 }
