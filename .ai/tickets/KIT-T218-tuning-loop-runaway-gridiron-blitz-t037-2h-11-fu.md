@@ -2,7 +2,7 @@
 id: KIT-T218
 title: Tuning-loop runaway (gridiron-blitz T037, 2h, 11 full sweeps): dispatch briefs for tune-against-instrument work MUST carry (a) an explicit…
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:31.086Z
-updated: 2026-08-16T00:06:31.086Z
+updated: 2026-08-16T00:35:27Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ Tuning-loop runaway (gridiron-blitz T037, 2h, 11 full sweeps): dispatch briefs f
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified as a standard handoff guard in commands/work.md (the delegation-brief block): tuning-against-an-instrument briefs carry an iteration/wall-clock budget, calibrate ONLY on the judging instrument, and report at budget exhaustion instead of sweeping on.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ Tuning-loop runaway (gridiron-blitz T037, 2h, 11 full sweeps): dispatch briefs f
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:32] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified as a tuning handoff guard in commands/work.md [no-test: doctrine]

@@ -36,6 +36,10 @@ this topic. Skipping this step is what creates duplicate docs and reconciliation
 You run with a scoped task, not the interactive session's baseline. Work from these
 invariants; only read CLAUDE.md / `.ai/` if the task explicitly needs that detail:
 - On-disk record + git are authoritative over any summary or memory.
+- Ground in the work store with Bash, not file tools: `node <kit>/scripts/q.mjs fts|trail|
+  governing …` (the `.ai/` markdown is for `q` to read, not for you to grep).
+- If a prescribed grounding tool is unavailable or errors, SAY SO and stop — never
+  silently substitute a workaround and report the answer as grounded (KIT-T104).
 - Return pointers (`path:line`), not file dumps; keep the orchestrator's re-ingest small.
 - Don't invent history/authorship — cite a source or say where you looked.
 For anything deeper, read the relevant CLAUDE.md *section* on demand — don't ingest it wholesale.

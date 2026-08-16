@@ -2,7 +2,7 @@
 id: KIT-T224
 title: Codify the no-duplicate-crates/workspaces rule at kit level (Chris, 2026-08-06: discussed 2026-08-05, 'supposed to be codified at the KIT…
 type: tech-debt
-status: todo
+status: review
 priority: low
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:33.387Z
-updated: 2026-08-16T00:06:33.387Z
+updated: 2026-08-16T00:35:43Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ Codify the no-duplicate-crates/workspaces rule at kit level (Chris, 2026-08-06: 
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified as .ai/decisions/KIT-D067-one-crate-one-workspace-never-a-fork.md, with a one-line pointer in the ARCHITECTURE red-flags list of user-config/CLAUDE.global.md.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ Codify the no-duplicate-crates/workspaces rule at kit level (Chris, 2026-08-06: 
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:32] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified as KIT-D067 one crate one workspace never a fork [no-test: doctrine]

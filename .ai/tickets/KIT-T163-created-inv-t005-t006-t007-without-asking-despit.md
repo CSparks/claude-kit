@@ -2,7 +2,7 @@
 id: KIT-T163
 title: Created INV-T005/T006/T007 without asking despite SESSION.md directive 'Ask before creating tickets for this repo' (inv4d3rs). ROOT CAUSE: acted on captures before reconciling SESSION.md, which orient had explicitly flagged STALE — grounding order was code-first, record-second. Fix direction: orient's stale-SESSION flag should gate capture/routing the same way the query-gate gates greps, or at minimum the router must read SESSION.md before its first route of a session.
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-02T21:53:15.857Z
-updated: 2026-08-02T21:53:15.857Z
+updated: 2026-08-16T00:35:19Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ Created INV-T005/T006/T007 without asking despite SESSION.md directive 'Ask befo
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified as step 0 of the interjection routine in project-template/CLAUDE.snippet.md and CLAUDE.md: reconcile SESSION.md before the session's FIRST route when orient flags it STALE. The flag itself already exists (hooks/orient.mjs, sessionStale, '!! SESSION.md is STALE').
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ Created INV-T005/T006/T007 without asking despite SESSION.md directive 'Ask befo
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:31] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified as interjection step 0 in CLAUDE.snippet.md + CLAUDE.md [no-test: doctrine]

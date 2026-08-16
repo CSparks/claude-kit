@@ -2,7 +2,7 @@
 id: KIT-T234
 title: Reference-selection failure: port anchored on the superseded TS path, native Rust crate dismissed unread
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:36.486Z
-updated: 2026-08-16T00:06:36.486Z
+updated: 2026-08-16T00:35:35Z
 ---
 
 ## Description
@@ -66,6 +66,8 @@ fix for researcher agents (add to claude-kit researcher agent prompt).
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified at user-config/CLAUDE.global.md, 'Process failure' antidote: before anchoring a PORT, enumerate every candidate implementation (other languages and native crates included) and pick the reference on evidence - a 'dead/superseded' verdict cites provenance (git log plus graph), never a skim.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -77,3 +79,6 @@ fix for researcher agents (add to claude-kit researcher agent prompt).
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:32] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified as the enumerate-candidates port rule in CLAUDE.global.md [no-test: doctrine]

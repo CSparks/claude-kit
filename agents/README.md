@@ -18,6 +18,9 @@ ships them to `~/.claude/agents/`; a project may also pin its own under
 - Keep tool grants **least-privilege** — a read-only researcher gets read/search
   tools, not Write/Edit. Tight `tools:` frontmatter is also a token lever: unused
   tool schemas never load into the agent's baseline (KIT-T030, lever 1).
+- **An agent told to ground must be able to (KIT-T104):** grounding runs through
+  `scripts/q.mjs`, so any agent with a grounding instruction gets `Bash` in `tools:` —
+  and its body says to surface the gap rather than degrade to a workaround.
 - **Lean profile (KIT-T030):** each agent body carries a short *Operating context*
   digest (a handful of invariants + "read the relevant CLAUDE.md section on demand")
   instead of relying on the full global/project contract being inherited. claude-kit

@@ -2,7 +2,7 @@
 id: KIT-T226
 title: Process failure 2026-08-06 (stadium-lighting misroute): root causes in order - (1) interjection routed by session context despite a…
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:33.974Z
-updated: 2026-08-16T00:06:33.974Z
+updated: 2026-08-16T00:35:34Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ Process failure 2026-08-06 (stadium-lighting misroute): root causes in order - (
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Routing half already landed as KIT-D062 (project reality-check, in the interjection routine). The remaining half is now codified at user-config/CLAUDE.global.md, GIT WORKFLOW: never run repo-mutating cleanup (revert/clean/in-place build) in the maintainer's live checkout - worktree, or hand him the command. Mechanical check stays KIT-T213.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ Process failure 2026-08-06 (stadium-lighting misroute): root causes in order - (
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:32] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified as the live-checkout rule in CLAUDE.global.md GIT WORKFLOW [no-test: doctrine]

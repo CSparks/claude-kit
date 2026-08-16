@@ -2,7 +2,7 @@
 id: KIT-T227
 title: Agent dispatch contract: on encountering TWO live surfaces/implementations of the same concern (two editors, twin modules, duplicate…
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:34.271Z
-updated: 2026-08-16T00:06:34.271Z
+updated: 2026-08-16T00:35:43Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ Agent dispatch contract: on encountering TWO live surfaces/implementations of th
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified in two places: the provenance-first step of the project contract (project-template/CLAUDE.snippet.md and CLAUDE.md, 'Two LIVE surfaces is not a pick') and the standard delegation guards in commands/work.md, which now instruct agents to surface both surfaces with provenance and ask which is canonical.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ Agent dispatch contract: on encountering TWO live surfaces/implementations of th
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:32] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified in the project contract provenance step + commands/work.md guards [no-test: doctrine]

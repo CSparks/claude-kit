@@ -2,7 +2,7 @@
 id: KIT-T105
 title: PROCESS-FAILURE must be an immediate, unprompted trigger, and the trigger itself must be codified in the kit. Define a process failure = the agent proposes/plans/starts building something that ALREADY EXISTS, or loses/re-derives a fact already available in the durable record (work store, existing wasm exports, research docs, prior session decisions/commits), or contradicts the on-disk record, typically because it did not ground first. On occurrence the agent MUST IMMEDIATELY and WITHOUT being told: (a) file a KIT issue capturing the failure + root cause, and (b) ensure this trigger definition + mandatory auto-response live in claude-kit. Deliverable: codify the process-failure trigger and the auto-capture response in the kit (documented protocol in the contract AND ideally a Stop-time hook like the capture ratchet) so recognition + capture is structural, not memory-dependent. Surfacing instance 2026-06-10 hustle-or-die: proposed porting the procedural car generator to Rust/WASM when asset_mesh_packed car-kind already existed in hod-chunkgen and was previewed in the editor for consistency, because existing wasm exports were not checked before proposing, and the fact was lost across several turns.
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.671Z
-updated: 2026-07-14T17:40:14.671Z
+updated: 2026-08-16T00:35:11Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ PROCESS-FAILURE must be an immediate, unprompted trigger, and the trigger itself
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Already codified: user-config/CLAUDE.global.md, 'Process failure - an IMMEDIATE, self-triggered stop-and-capture' (trigger definition + the stop/cap/codify response). Sharpened this pass: the ground-before-you-propose antidote now names the dependency manifest and the governing framework contract. A Stop-time DETECTOR is not feasible mechanically - recognizing 'this already exists' is semantic, with no textual signal a hook can read; the capture side is already ratcheted (request-gate + flush anchor ratchet), so the trigger stays doctrine.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ PROCESS-FAILURE must be an immediate, unprompted trigger, and the trigger itself
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:31] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified in CLAUDE.global.md process-failure section; Stop-time detector judged infeasible [no-test: doctrine]

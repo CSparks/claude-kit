@@ -2,7 +2,7 @@
 id: KIT-T237
 title: bug: proposed a per-game fix for a concern the framework already governs
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:37.656Z
-updated: 2026-08-16T00:06:37.656Z
+updated: 2026-08-16T00:35:36Z
 ---
 
 ## Description
@@ -100,6 +100,8 @@ revisiting as part of the same work.
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified at user-config/CLAUDE.global.md, 'Process failure' antidote: grounding now explicitly includes the framework/base-layer contract that already governs the concern, so a per-game fix for a framework-governed concern is caught before it is proposed. Governing decision: KIT-D064.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -111,3 +113,6 @@ revisiting as part of the same work.
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:32] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified as framework-contract grounding in CLAUDE.global.md (KIT-D064) [no-test: doctrine]

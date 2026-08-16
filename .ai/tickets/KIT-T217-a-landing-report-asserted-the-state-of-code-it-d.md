@@ -2,7 +2,7 @@
 id: KIT-T217
 title: A landing report asserted the state of code it did not touch, and the claim drove a whole later slice. T127min comment #6 closed with…
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:30.474Z
-updated: 2026-08-16T00:06:30.474Z
+updated: 2026-08-16T00:35:26Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ A landing report asserted the state of code it did not touch, and the claim drov
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified at user-config/CLAUDE.global.md, CONTEXT & PROCESS DISCIPLINE: a claim about code outside the diff ('still X / untouched') needs a pointer (file:line, sha, or the query run) or the words 'not checked'. Hook candidate left unbuilt and deferred: land-alert/commit-gate would need to detect adjacency claims in prose and demand a pointer token - heuristic, high false-block risk; doctrine only for now.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ A landing report asserted the state of code it did not touch, and the claim drov
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:32] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified as the state-claim receipt rule; gate spec deferred in Notes [no-test: doctrine]
