@@ -1,6 +1,7 @@
 ---
 id: KEY-D001
 title: <short title>
+summary:               # OPTIONAL one-line gist - shown by q trail / handoff briefs
 date: <YYYY-MM-DD>
 supersedes:        # the <KEY>-D### this replaces, or blank
 source:            # commit hash / doc path / "conversation YYYY-MM-DD"

@@ -10,7 +10,7 @@
 // boundary is "enforce structure with a tool, never lock the prose".
 //
 //   t new <type> "<title>" [--priority <p>] [--root <dir>]   scaffold a ticket (id minted, never picked)
-//   t status <id> <state> [--human] [--note "…"] [--fixed-commit <sha>]
+//   t status <id> <state> [--human] [--note "…"] [--fixed-commit <sha>] [--no-trail-check "<reason>"]
 //   t tick <id> <ordinal|substring> [--note "…"]   check an acceptance box
 //   t untick <id> <ordinal|substring>               uncheck one (ordinal counts CHECKED boxes)
 //   t criterion <id> "<text>"                       append an acceptance criterion
@@ -33,6 +33,7 @@ import { resolveUser } from './identity.mjs';
 import { appendUnderSection, stamp } from './md-body.mjs';
 import { addCriterion, setCriterionAt, tickCriterion, untickCriterion } from './criteria.mjs';
 import { wantsHelp } from './cli-help.mjs';
+import { readProvenanceGate, trailGate } from './provenance.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
@@ -473,6 +474,20 @@ export function evidenceFloor(text, uatDefault = 'required') {
 
 // Regenerate the derived board + ingest the cache after a mutation, BOTH fail-open. index-tickets
 // also runs the supersede reconcile/dedup pass, so a one-sided edge is made consistent here.
+// The ticket-start trail check. Fail-open on a query error: a missing cache/engine must never
+// stop a status transition — the trail is guidance, the markdown is the truth.
+export async function startTrail(root, id, escape = '') {
+  let trail = [];
+  try {
+    const { query } = await import('./q.mjs');
+    const { rows } = await query('trail', [id], { cwdRoot: root });
+    trail = Array.isArray(rows) ? rows : [];
+  } catch {
+    return { level: 'ok', lines: ['  (trail unavailable — no cache and no scan)'], message: '' };
+  }
+  return trailGate({ id, trail, gate: readProvenanceGate(root), escape });
+}
+
 async function refresh(root) {
   try {
     execFileSync('node', [join(SCRIPT_DIR, 'index-tickets.mjs'), root], { stdio: 'ignore' });
@@ -497,6 +512,7 @@ function parseArgs(argv) {
     else if (a === '--author') flags.author = argv[++i];
     else if (a === '--agent') flags.agent = argv[++i];
     else if (a === '--root') flags.root = argv[++i];
+    else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
     else pos.push(a);
   }
   return { flags, pos };
@@ -521,6 +537,15 @@ async function main() {
   if (cmd === 'status') {
     const [id, state] = rest;
     if (!id || !state) { console.error('usage: t status <id> <state> [--human] [--note "…"] [--fixed-commit <sha>]'); process.exit(2); }
+    // Trail-on-action (KIT-D028 / KIT-T048): starting work surfaces where the item CAME FROM,
+    // and an item pointing at nothing upstream is called out. Warn by default, block only
+    // where the project opts in (config `provenance.gate: block`).
+    if (state === 'doing') {
+      const verdict = await startTrail(root, id, flags.noTrailCheck);
+      process.stdout.write(`trail: ${id}\n` + verdict.lines.join('\n') + '\n');
+      if (verdict.level === 'block') { process.stderr.write('t: ' + verdict.message + '\n'); process.exit(1); }
+      if (verdict.message) process.stderr.write('  ⚠ ' + verdict.message + '\n');
+    }
     const r = setStatus(root, id, state, flags);
     await refresh(root);
     process.stdout.write(`status: ${r.id} ${r.from} → ${r.to}${r.archived ? ' (archived)' : ''}\n`);

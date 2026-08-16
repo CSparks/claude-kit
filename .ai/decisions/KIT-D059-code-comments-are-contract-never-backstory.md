@@ -1,6 +1,7 @@
 ---
 id: KIT-D059
 title: Code comments are contract, never backstory — no quoted discussion in source
+summary: Source comments carry the contract only - no history, no ticket archaeology, no quoted conversation; fix backstory on sight.
 date: 2026-08-06
 supersedes:
 source: conversation 2026-08-06 (Chris, verbatim); exemplar stiletto-2349 crates/stiletto-game3d/src/parts/lamp.rs

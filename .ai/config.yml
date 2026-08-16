@@ -162,6 +162,19 @@ dispatch:
     "*":        standard
 
 # ---------------------------------------------------------------------------
+# PROVENANCE (KIT-D028 / KIT-T048) — an item must point UP to where it came from.
+# `t status <id> doing` prints the item's trail and checks for an outbound
+# antecedent link (links / parent / supersedes / regressed_from / introduced_by).
+#   gate: warn   — say so and continue (default; a freshly-promoted capture
+#                  arrives link-less by construction)
+#         block  — refuse to start a trail-less ticket; the deliberate exception
+#                  is `t status <id> doing --no-trail-check "<reason>"`
+# Lint the whole store with `q orphans [scope]`.
+# ---------------------------------------------------------------------------
+provenance:
+  gate: warn
+
+# ---------------------------------------------------------------------------
 # RECEIPTS — how routing is acknowledged so you can catch a misroute fast.
 #   one-line = "→ BUG-024 logged, still on T-001"   | silent = no ack, check the board
 # ---------------------------------------------------------------------------

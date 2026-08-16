@@ -22,6 +22,7 @@ const DECISIONS_DIR_RECENT = 6; // ids shown from decisions/ directory
 const ROADMAP_GIST_LINES = 8;   // first lines of ROADMAP.md shown inline
 // KIT-T028: a `doing` ticket with no update for this long is a zombie — flag it prominently.
 const ORIENT_DOING_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
+const ORIENT_TRAIL_LINES = 5; // KIT-T048: antecedents shown per in-flight `doing` ticket
 const MENTIONS_SHOWN = 5; // KIT-T130: unread @mentions listed inline before the pointer
 const CODEX = Boolean(process.env.PLUGIN_ROOT);
 
@@ -330,6 +331,14 @@ try {
     if (inFlight.length) {
       out.push(`  in-flight (${key}):`);
       for (const r of inFlight) out.push(`    [${r.status}] ${r.id} — ${r.title}`);
+      // Trail-on-action (KIT-D028): a `doing` ticket resumes with the governing context it
+      // came from, summaries only — the full node is one `q trail <id>` away.
+      const { renderTrail } = await import('../scripts/provenance.mjs');
+      for (const r of inFlight.filter((x) => x.status === 'doing')) {
+        const { rows: trailRows } = await query('trail', [r.id], { cwdRoot: root });
+        out.push(`    trail ${r.id}:`);
+        out.push(...renderTrail(trailRows, { limit: ORIENT_TRAIL_LINES, indent: '      ' }));
+      }
     }
     out.push(`  drill-in: q open | q trail <id> | q fts <terms>`);
   }

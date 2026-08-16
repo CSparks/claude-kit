@@ -102,6 +102,9 @@ export function parseItem(absPath, store) {
     status: scalar(fm, 'status'),
     priority: scalar(fm, 'priority'),
     title: scalar(fm, 'title'),
+    // A one-line authored gist (KIT-T048). Trails and briefs show THIS in place of a clipped
+    // title, so a surfaced ancestor reads as a claim rather than a truncated headline.
+    summary: scalar(fm, 'summary'),
     parent: scalar(fm, 'parent'),
     milestone: scalar(fm, 'milestone'),
     labels: list(fm, 'labels'),

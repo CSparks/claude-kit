@@ -1,6 +1,7 @@
 ---
 id: KIT-D063
 title: A model version named in a request is BINDING — dispatch lands on exactly that id or stops and says why it can't
+summary: A model version named in a request is binding - dispatch lands on exactly that id or stops and says why it cannot.
 date: 2026-08-07
 supersedes: (amends KIT-D061 — adds the request-level override rule)
 source: AskUserQuestion 2026-08-07 (Chris, verbatim): "It should always name versions specifically and if I call out a version in the request, that's what it should use."

@@ -127,6 +127,39 @@ ok('begin-task --md: includes open criteria lines', /- \[ \] first open criterio
 ok('begin-task --md: excludes checked criteria', !/already satisfied/.test(r1md.stdout));
 ok('begin-task --md: is NOT valid JSON (is markdown)', (() => { try { JSON.parse(r1md.stdout); return false; } catch { return true; } })());
 
+// ---- KIT-T048: the brief shows the AUTHORED summary, not a clipped title ----------------
+
+// A private scope key ("BTX"): the kit's OWN .ai is always a hydration source, so a fixture
+// reusing the real "KIT" key would be answered from the kit's rows, not its own.
+const bt2 = mkdtempSync(join(tmpdir(), 'kit-bt2-'));
+fixtures.push(bt2);
+mkdirSync(join(bt2, '.ai', 'tickets'), { recursive: true });
+mkdirSync(join(bt2, '.ai', 'decisions'), { recursive: true });
+writeFileSync(join(bt2, '.ai', 'config.yml'), CONFIG.replace(/"KIT"/, '"BTX"').replace('KIT-T', 'BTX-T'));
+writeFileSync(join(bt2, '.ai', 'tickets', 'BTX-T002-seed.md'),
+  '---\nid: BTX-T002\ntitle: summary-bearing trail\ntype: feature\nstatus: todo\npriority: high\n'
+  + 'links: [BTX-D001, BTX-D002]\n---\n\n## Description\nx\n\n## History\n');
+writeFileSync(join(bt2, '.ai', 'decisions', 'BTX-D001.md'),
+  '---\nid: BTX-D001\ntitle: A very long decision headline that would be clipped mid-word by the trail renderer for sure\n'
+  + 'summary: writes go back through markdown, which stays the only truth\ndate: 2026-08-15\n---\n**Decision:** as summarized.\n');
+// Negative control: no summary — this one must still fall back to its title.
+writeFileSync(join(bt2, '.ai', 'decisions', 'BTX-D002.md'),
+  '---\nid: BTX-D002\ntitle: the untouched decision\ndate: 2026-08-15\n---\n**Decision:** unchanged.\n');
+// The fixture must be a REGISTERED store to hydrate into the sandboxed cache (KIT-T164).
+const BT2_REG = join(PLUGIN_ROOT, 'bt2-projects.json');
+writeFileSync(BT2_REG, JSON.stringify({ projects: { 'bt2-fixture': bt2 } }));
+const BT2_ENV = { env: { CLAUDE_KIT_REGISTRY: BT2_REG } };
+const r2 = run(BEGIN, ['BTX-T002', '--root', bt2], BT2_ENV);
+let packet2;
+try { packet2 = JSON.parse(r2.stdout); } catch { packet2 = null; }
+const trailRow = packet2 && packet2.trail.find((t) => t.id === 'BTX-D001');
+ok('begin-task: a linked decision surfaces with its authored summary',
+  !!trailRow && trailRow.summary === 'writes go back through markdown, which stays the only truth');
+ok('begin-task: a decision with no summary still falls back to its title',
+  packet2 && packet2.trail.find((t) => t.id === 'BTX-D002').summary === 'the untouched decision');
+ok('begin-task --md: the governing block prints the summary, not the long title',
+  /writes go back through markdown/.test(run(BEGIN, ['BTX-T002', '--md', '--root', bt2], BT2_ENV).stdout));
+
 // ---- begin-task: fail-open on unknown id -----------------------------------------------
 
 const r1bad = run(BEGIN, ['KIT-T999', '--root', bt1]);

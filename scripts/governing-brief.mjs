@@ -54,7 +54,7 @@ export async function governingRows(id, files, root) {
       store,
       status: status || (item ? item.status : ''),
       via,
-      summary: clip(summary || (item ? item.title : ''), SUMMARY_CLIP),
+      summary: clip(summary || (item ? (item.summary || item.title) : ''), SUMMARY_CLIP),
       parked: isParked(item),
     });
   };

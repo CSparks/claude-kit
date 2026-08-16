@@ -72,7 +72,7 @@ function makeProject(name, key) {
 const A = makeProject('proj-a', 'FQA');
 // T001: the hyphenated-phrase target. `ask-first` is the exact shape that crashed MATCH.
 writeFileSync(join(A.ai, 'tickets', 'FQA-T001-gate.md'),
-  `---\nid: FQA-T001\ntitle: no ask-first gate on captures\ntype: bug\nstatus: todo\npriority: high\n---\n## Description\nthe ask-first gate blocks widget capture\n`);
+  `---\nid: FQA-T001\ntitle: no ask-first gate on captures\nsummary: captures land without an ask-first gate\ntype: bug\nstatus: todo\npriority: high\n---\n## Description\nthe ask-first gate blocks widget capture\n`);
 // T002: has ancestors (parent + a linked decision) — the trail walk with an origin row.
 writeFileSync(join(A.ai, 'tickets', 'FQA-T002-child.md'),
   `---\nid: FQA-T002\ntitle: child of the gate ticket\ntype: feature\nstatus: doing\npriority: medium\nparent: FQA-T001\nlinks: [FQA-D001]\n---\n## Description\nchild work on the gate\n`);
@@ -245,7 +245,7 @@ for (const flag of ['--help', '-h', 'help']) {
 test('q --help lists every verb the CLI actually dispatches', () => {
   const { stdout } = cli(['--help']);
   for (const verb of ['open', 'inbox', 'confirmations', 'children', 'backlinks', 'trail', 'governing', 'mentions', 'drift',
-    'by-commit', 'doc-trail', 'fts', 'similar', 'next-id', 'rundown', 'regressions',
+    'orphans', 'by-commit', 'doc-trail', 'fts', 'similar', 'next-id', 'rundown', 'regressions',
     'supersedes', 'integrity', 'sql', 'verify', 'sessions', 'session', 'said']) {
     assert.match(stdout, new RegExp(`^\\s{2}${verb.replace('-', '\\-')}\\b`, 'm'), `--help documents \`${verb}\``);
   }
@@ -341,6 +341,45 @@ if (!engine) {
     const core = (rows) => rows.map((r) => ({ id: r.id, store: r.store, rel: r.rel, depth: r.depth }));
     assert.deepEqual(core(await trail('FQA-D001', { noDb: true })), core(await trail('FQA-D001')));
     assert.deepEqual(core(await trail('FQA-T002', { noDb: true })), core(await trail('FQA-T002')));
+  });
+
+  // ---- KIT-T048: authored summaries + the missing-antecedent lint ------------
+  await testAsync('trail shows the authored summary in place of the title', async () => {
+    const row = (await trail('FQA-T002')).find((r) => r.id === 'FQA-T001');
+    assert.equal(row.summary, 'captures land without an ask-first gate', 'the frontmatter summary wins');
+    const scan = (await trail('FQA-T002', { noDb: true })).find((r) => r.id === 'FQA-T001');
+    assert.equal(scan.summary, row.summary, 'cache and markdown scan agree');
+    // Negative control: an item with NO summary still falls back to its title.
+    assert.match((await trail('FQA-D001'))[0].summary, /no ask-first gate/);
+  });
+
+  const orphans = async (opts = {}, args = []) =>
+    (await query('orphans', args, { root: A.root, dbPath, ...opts })).rows;
+
+  await testAsync('orphans lists items with no outbound antecedent, and only those', async () => {
+    const ids = (await orphans()).map((r) => r.id);
+    assert.ok(ids.includes('FQA-T001'), 'a link-less open ticket is an orphan');
+    assert.ok(ids.includes('FQA-D001'), 'a link-less decision is an orphan');
+    // Negative control: T002 carries parent + a linked decision, so it is NOT an orphan.
+    assert.ok(!ids.includes('FQA-T002'), 'an item with antecedents is not listed');
+    // Negative control: notes/questions/inbox are raw material, never linted.
+    assert.ok(!ids.some((i) => /-(N|Q)\d|INBOX/.test(i)), 'only tickets + decisions are linted');
+  });
+  await testAsync('orphans carries the drill-in clue and is scope-filterable', async () => {
+    const row = (await orphans()).find((r) => r.id === 'FQA-T001');
+    assert.equal(row.summary, 'captures land without an ask-first gate', 'the clue is id + summary');
+    assert.equal(row.priority, 'high');
+    assert.ok((await orphans({}, ['FQB'])).every((r) => r.id.startsWith('FQB-')), 'a scope confines the lint');
+  });
+  await testAsync('orphans is identical on the markdown-scan path (no-engine parity)', async () => {
+    const core = (rows) => rows.map((r) => `${r.id}:${r.store}:${r.priority}`);
+    // Scoped on both sides: the scan only ever sees the root it scanned, the cache is cross-scope.
+    assert.deepEqual(core(await orphans({ noDb: true }, ['FQA'])), core(await orphans({}, ['FQA'])));
+  });
+  await testAsync('CLI: q orphans exits 0 and names the orphan', async () => {
+    const r = cli(['--root', A.root, 'orphans']);
+    assert.equal(r.status, 0, `orphans exited ${r.status}: ${r.stderr.trim()}`);
+    assert.match(r.stdout, /FQA-T001/);
   });
 
   // ---- KIT-T183: next-id, every store, both paths --------------------------

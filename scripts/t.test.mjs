@@ -8,12 +8,13 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   scaffoldNew, setStatus, tick, untick, setCriterion, addCriterionTo, link, lintStoreText,
   readConfig, findTicket, evidenceFloor, comment,
 } from './t.mjs';
 import { listCriteria } from './criteria.mjs';
+import { trailGate, readProvenanceGate } from './provenance.mjs';
 
 const SCRIPT = fileURLToPath(import.meta.url).replace(/\.test\.mjs$/, '.mjs');
 let pass = 0;
@@ -330,6 +331,57 @@ try {
 } catch (e) {
   ok('CLI: status regenerates INDEX.md (board) in the same invocation', false);
   console.log('     ' + (e.stderr ? e.stderr.toString().split('\n')[0] : e.message));
+}
+
+// --- KIT-T048: the ticket-start provenance gate ---
+const trailless = { id: 'X-T900', trail: [{ id: 'X-T900', rel: 'self', store: 'tickets', summary: 'seed' }] };
+const linked = {
+  id: 'X-T901',
+  trail: [{ id: 'X-T901', rel: 'self', store: 'tickets', summary: 'seed' },
+    { id: 'X-D001', rel: 'link', store: 'decisions', summary: 'the governing call' }],
+};
+ok('trailGate: an item with an antecedent passes clean',
+  trailGate({ ...linked, gate: 'block' }).level === 'ok');
+ok('trailGate: a trail-less item WARNS by default (a fresh capture must not wedge)',
+  trailGate(trailless).level === 'warn');
+ok('trailGate: gate=block turns the same item into a block',
+  trailGate({ ...trailless, gate: 'block' }).level === 'block');
+ok('trailGate: --no-trail-check downgrades a block to a warning that names the reason',
+  trailGate({ ...trailless, gate: 'block', escape: 'spike' }).level === 'warn'
+  && /spike/.test(trailGate({ ...trailless, gate: 'block', escape: 'spike' }).message));
+ok('trailGate: the rendered lines name the ancestor + how it was reached',
+  /X-D001 \(decisions, via link\)/.test(trailGate(linked).lines.join('\n')));
+
+const provRoot = project({ uatDefault: 'none' }, { 'KIT-T900': {} });
+ok('readProvenanceGate: absent config block defaults to warn', readProvenanceGate(provRoot) === 'warn');
+writeFileSync(join(provRoot, '.ai', 'config.yml'),
+  CONFIG({ uatDefault: 'none' }) + '\nprovenance:\n  gate: block\n');
+ok('readProvenanceGate: an explicit block is read', readProvenanceGate(provRoot) === 'block');
+
+registerFixture('t-prov-fixture', provRoot);
+function statusCli(root, id, state, extra = []) {
+  const r = spawnSync('node', [SCRIPT, 'status', id, state, '--root', root, ...extra], { encoding: 'utf8', env: CHILD_ENV });
+  return { code: r.status, out: r.stdout || '', err: r.stderr || '' };
+}
+{
+  const blocked = statusCli(provRoot, 'KIT-T900', 'doing');
+  ok('CLI: gate=block refuses to start a trail-less ticket', blocked.code === 1 && /no outbound antecedent/.test(blocked.err));
+  ok('CLI: the refusal prints the trail first', /trail: KIT-T900/.test(blocked.out));
+  ok('CLI: the block leaves the ticket untouched',
+    /status: todo/.test(readFileSync(join(provRoot, '.ai', 'tickets', 'KIT-T900-seed.md'), 'utf8')));
+  const escaped = statusCli(provRoot, 'KIT-T900', 'doing', ['--no-trail-check', 'spike, no antecedent yet']);
+  ok('CLI: --no-trail-check <reason> lets the transition through', escaped.code === 0);
+  ok('CLI: …and the stated reason is surfaced, never silent', /spike, no antecedent yet/.test(escaped.err));
+  ok('CLI: the escaped transition actually landed',
+    /status: doing/.test(readFileSync(join(provRoot, '.ai', 'tickets', 'KIT-T900-seed.md'), 'utf8')));
+}
+{
+  // Negative control: the DEFAULT project warns and proceeds — same ticket shape, no block.
+  const warnRoot = project({ uatDefault: 'none' }, { 'KIT-T901': {} });
+  registerFixture('t-warn-fixture', warnRoot);
+  const r = statusCli(warnRoot, 'KIT-T901', 'doing');
+  ok('CLI: warn mode starts the ticket and still says the trail is empty', r.code === 0 && /no outbound antecedent/.test(r.err));
+  ok('CLI: a non-doing transition runs no trail check', !/trail:/.test(statusCli(warnRoot, 'KIT-T901', 'review').out));
 }
 
 // KIT-T142 regression: the fixture above declares ids.key "KIT" — the REAL project key. Before

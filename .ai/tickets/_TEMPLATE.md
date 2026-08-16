@@ -1,6 +1,7 @@
 ---
 id: KIT-T000
 title: <short imperative title>
+summary:               # OPTIONAL one-line gist — what a trail/brief shows instead of a clipped title
 type: bug              # any key from .ai/config.yml → classifications
 status: todo           # todo | doing | review | done | superseded  (see config.statuses)
 priority: medium       # critical | high | medium | low

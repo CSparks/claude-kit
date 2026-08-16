@@ -4,6 +4,7 @@ title: q.mjs module split ratified — q-model / q-governing / q-fallback + a 41
 standing:
 scope: scripts
 paths: scripts/q.mjs, scripts/q-model.mjs, scripts/q-governing.mjs, scripts/q-fallback.mjs
+summary: q.mjs is split into q-model / q-governing / q-fallback; the dispatcher stays thin and new verbs get their own small module.
 date: 2026-08-04
 supersedes:
 source: conversation 2026-08-04 (drain questionnaire); commit 5e1af45
