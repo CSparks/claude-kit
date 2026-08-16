@@ -35,7 +35,7 @@ import { addCriterion, setCriterionAt, tickCriterion, untickCriterion } from './
 import { wantsHelp } from './cli-help.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const ID_RE = /^[A-Za-z]+-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032
+const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
 const SHA_RE = /^[0-9a-f]{7,40}$/i; // a git short/long sha
 
 // A typed-link relation either points at another ITEM (id-shaped) or a COMMIT (sha-shaped).
@@ -89,6 +89,7 @@ export function readConfig(root, aiDir = join(root, '.ai')) {
     classifications: [],
     ticketTypes: [],
     routes: {},
+    classPriority: {},
     priorities: ['critical', 'high', 'medium', 'low'],
   };
   let cfg = '';
@@ -125,6 +126,8 @@ export function readConfig(root, aiDir = join(root, '.ai')) {
       out.classifications.push(m[1]);
       const route = (line.match(/routes_to:[ \t]*([A-Za-z-]+)/) || [])[1];
       if (route) out.routes[m[1]] = route;
+      const prio = (line.match(/priority:[ \t]*([A-Za-z-]+)/) || [])[1];
+      if (prio) out.classPriority[m[1]] = prio;
       if (!route || BOARD_ROUTES.includes(route)) out.ticketTypes.push(m[1]);
     }
   }
@@ -148,7 +151,7 @@ export function findTicket(root, id) {
       const path = join(dir, f);
       const text = readFileSync(path, 'utf8');
       const parts = splitFrontmatter(text);
-      const fid = (parts && field(parts.fm, 'id')) || (f.match(/[A-Za-z]+-[A-Za-z]?\d+/) || [])[0];
+      const fid = (parts && field(parts.fm, 'id')) || (f.match(/[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+/) || [])[0];
       if (fid === id) return { id, path, dir, file: f, text, parts, archived: dir.endsWith('archive') };
     }
   }
@@ -162,7 +165,7 @@ export function findTicket(root, id) {
 // Edit — this kills the T039-T043 class where a hand-copied template shipped with KIT-T000 and
 // `<short imperative title>` still in the fields.
 export function scaffoldNew(root, type, title, opts = {}) {
-  const { classifications, ticketTypes, routes, priorities } = readConfig(root);
+  const { classifications, ticketTypes, routes, priorities, classPriority } = readConfig(root);
   if (!type) throw new Error('t new: a <type> is required');
   if (classifications.length && !classifications.includes(type)) {
     throw new Error(`t new: unknown type '${type}' (config.classifications: ${classifications.join(', ')})`);
@@ -179,7 +182,9 @@ export function scaffoldNew(root, type, title, opts = {}) {
   if (/[\n\r]/.test(title)) throw new Error('t new: a title is a single line — put the detail in the Description');
   // A caller with more than a title (the web form) seeds priority + Description here rather than
   // rewriting the file afterwards: the scaffold shape has exactly one owner.
-  const priority = opts.priority ? String(opts.priority).trim() : 'medium';
+  // Absent an explicit --priority, the type's own `classifications.<type>.priority` decides
+  // (KIT-T141) — a bug scaffolded `medium` in a project whose config calls every bug `high`.
+  const priority = opts.priority ? String(opts.priority).trim() : (classPriority[type] || 'medium');
   if (!priorities.includes(priority)) {
     throw new Error(`t new: unknown priority '${priority}' (config.priorities: ${priorities.join(', ')})`);
   }

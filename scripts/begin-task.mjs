@@ -86,7 +86,7 @@ function findTicketFile(root, id) {
       const path = join(dir, f);
       const text = readFileSync(path, 'utf8');
       const parts = splitFrontmatter(text);
-      const fid = (parts && scalar(parts.fm, 'id')) || (f.match(/[A-Za-z]+-[A-Za-z]?\d+/) || [])[0];
+      const fid = (parts && scalar(parts.fm, 'id')) || (f.match(/[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+/) || [])[0];
       if (fid === id) return { path, text, parts };
     }
   }

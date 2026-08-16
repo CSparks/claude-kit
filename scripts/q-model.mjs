@@ -184,7 +184,7 @@ export const storeRank = (s) => (s in STORE_RANK ? STORE_RANK[s] : 9);
 // some legacy `supersedes:`/`source:` fields carry (e.g. "reframes HOD-T009…"). Guarding the
 // walk here keeps the trail clean regardless of messy frontmatter; the data smell is flagged
 // separately, not papered over.
-const ID_SHAPE = /^[A-Za-z]+-[A-Za-z]?\d+$/;
+const ID_SHAPE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/;
 const SHA_SHAPE = /^[0-9a-f]{7,40}$/i;
 export const isTrailTarget = (t) => ID_SHAPE.test(t) || SHA_SHAPE.test(t);
 

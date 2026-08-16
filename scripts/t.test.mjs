@@ -50,9 +50,9 @@ function threwWith(fn) {
   try { fn(); return ''; } catch (e) { return e.message; }
 }
 
-const CONFIG = ({ humanOnly = '[]', uatDefault = 'required' }) => `classifications:
+const CONFIG = ({ humanOnly = '[]', uatDefault = 'required', bugPriority = '' }) => `classifications:
   feature: { routes_to: backlog }
-  bug:     { routes_to: tickets }
+  bug:     { routes_to: tickets${bugPriority ? `, priority: ${bugPriority}` : ''} }
   question: { routes_to: questions }
 statuses:
   flow: [todo, doing, review, done]
@@ -238,6 +238,17 @@ ok('new: the refusal names the route and the real ticket types',
 ok('new: an unknown type is still a DIFFERENT error than a misrouted one',
   /unknown type 'bogus'/.test(threwWith(() => scaffoldNew(np, 'bogus', 'x'))));
 ok('new: rejects a multi-line title', threw(() => scaffoldNew(np, 'feature', 'line one\nline two')));
+
+// KIT-T141: the scaffold defaults priority from classifications.<type>.priority — a `bug` in a
+// project that calls every bug high was still written `medium`.
+const cp = project({ uatDefault: 'none', bugPriority: 'high' }, {});
+ok('readConfig: classPriority reads the classification priority (KIT-T141)', readConfig(cp).classPriority.bug === 'high');
+ok('new: a bug defaults to the classification priority (KIT-T141)',
+  /priority: high/.test(readFileSync(scaffoldNew(cp, 'bug', 'a scaffolded bug').path, 'utf8')));
+ok('new: --priority still beats the classification default (KIT-T141)',
+  /priority: low/.test(readFileSync(scaffoldNew(cp, 'bug', 'an explicit low bug', { priority: 'low' }).path, 'utf8')));
+ok('new: a type with no configured priority still defaults to medium (KIT-T141)',
+  /priority: medium/.test(readFileSync(scaffoldNew(cp, 'feature', 'no configured priority').path, 'utf8')));
 
 // --- link: supersedes both sides + shape validation ---
 const lk = project({ uatDefault: 'none' }, { 'KIT-T050': {}, 'KIT-T051': {} });

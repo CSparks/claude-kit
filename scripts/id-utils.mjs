@@ -68,7 +68,7 @@ export function readIdConfig(root, aiDir = join(root, '.ai')) {
   let pad = 3;
   try {
     const cfg = readFileSync(join(aiDir, 'config.yml'), 'utf8');
-    const km = cfg.match(/^[ \t]*key:[ \t]*["']?([A-Za-z]+)["']?/m);
+    const km = cfg.match(/^[ \t]*key:[ \t]*["']?([A-Za-z][A-Za-z0-9]*)["']?/m);
     if (km) key = km[1];
     const pm = cfg.match(/^[ \t]*pad:[ \t]*(\d+)/m);
     if (pm) pad = parseInt(pm[1], 10);
@@ -79,9 +79,10 @@ export function readIdConfig(root, aiDir = join(root, '.ai')) {
 }
 
 // The leading id token of a filename: HOD-T045-foo.md -> HOD-T045 (also legacy
-// R045 / D-010 forms, so a mid-migration store still scans).
+// R045 / D-010 forms, so a mid-migration store still scans). A KEY may carry digits
+// after its first letter (S2-T001) — matching only `[A-Za-z]+` read that as `S2`.
 function idFromFilename(f) {
-  const m = f.match(/^([A-Za-z]+-?(?:[A-Za-z]\d+|\d+))/);
+  const m = f.match(/^([A-Za-z][A-Za-z0-9]*?-[A-Za-z]?\d+|[A-Za-z]+\d+)/);
   return m ? m[1] : '';
 }
 
@@ -247,12 +248,20 @@ export function checkIds(root, aiDir = join(root, '.ai')) {
 // that has gone stale — clobbered, never hydrated, or carrying another machine's mtimes through
 // the shared data repo — is what re-minted GB-T001..T005 over five existing tickets. Files are
 // the truth, so the files decide the floor; a cache may only ever raise it.
+// A claim is counted by its TYPE LETTER, wherever the file lives (KIT-T117): a note or
+// decision whose filename/frontmatter proposes `HOD-T163` has claimed that ticket number, and
+// an allocator that scans only `tickets/` hands it out again. Ids with no type letter (legacy
+// `D-010` / `R045`) are still counted per their own store.
 export function maxStoreNum(root, store, aiDir = join(root, '.ai')) {
+  const letter = STORE_TYPE[store] || store;
   let max = 0;
   for (const it of scanStores(root, aiDir)) {
-    if (it.store !== store) continue;
-    const m = (it.id || '').match(/(\d+)$/);
-    if (m) max = Math.max(max, parseInt(m[1], 10));
+    for (const claim of [it.id, it.fileId]) {
+      const m = String(claim || '').match(/^(?:.*-)?([A-Za-z])?(\d+)$/);
+      if (!m) continue;
+      if (m[1] ? m[1].toUpperCase() !== letter : it.store !== store) continue;
+      max = Math.max(max, parseInt(m[2], 10));
+    }
   }
   return max;
 }

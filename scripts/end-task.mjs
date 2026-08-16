@@ -6,6 +6,7 @@
 // so this is a thin wrapper — no duplicate validation, no re-implemented stamp logic.
 //
 //   node scripts/end-task.mjs <id> <status> [--note "..."] [--root <dir>]
+//                             [--fixed-commit <sha>] [--human]
 //
 // <status> is any state t.mjs knows (todo|doing|review|done|superseded …).
 // --note appends a timestamped comment line under ## History (via t.mjs --note,
@@ -20,12 +21,14 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const T_SCRIPT = resolve(SCRIPT_DIR, 't.mjs');
 
 function parseArgs(argv) {
-  const flags = { note: null, root: null };
+  const flags = { note: null, root: null, fixedCommit: null, human: false };
   const pos = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--note') { flags.note = argv[++i]; }
     else if (a === '--root') { flags.root = argv[++i]; }
+    else if (a === '--fixed-commit') { flags.fixedCommit = argv[++i]; }
+    else if (a === '--human') { flags.human = true; }
     else pos.push(a);
   }
   return { flags, pos };
@@ -36,7 +39,7 @@ async function main() {
   const [id, status] = pos;
 
   if (!id || !status) {
-    process.stderr.write('usage: end-task.mjs <id> <status> [--note "..."] [--root <dir>]\n');
+    process.stderr.write('usage: end-task.mjs <id> <status> [--note "..."] [--root <dir>] [--fixed-commit <sha>] [--human]\n');
     process.exit(2);
   }
 
@@ -45,6 +48,11 @@ async function main() {
   const args = ['node', T_SCRIPT, 'status', id, status];
   if (flags.root) args.push('--root', flags.root);
   if (flags.note) args.push('--note', flags.note);
+  // The fixing sha is written on ANY call, transition or not (KIT-T157/KIT-T190): a
+  // review→review close is the shape an agent reaches for, and without the pass-through
+  // fixed_commit stayed blank with no warning.
+  if (flags.fixedCommit) args.push('--fixed-commit', flags.fixedCommit);
+  if (flags.human) args.push('--human');
 
   // t.mjs emits "status: <id> <from> → <to>" to stdout and warnings to stderr.
   // Pass both through directly so the calling orchestrator sees them.

@@ -41,7 +41,7 @@ function csv(fm, key) {
     .split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
 }
 
-const SCOPE_FROM_ID = (id) => (String(id).match(/^([A-Za-z]+)-/) || [])[1] || '';
+const SCOPE_FROM_ID = (id) => (String(id).match(/^([A-Za-z][A-Za-z0-9]*)-/) || [])[1] || '';
 const NUM_FROM_ID = (id) => {
   const m = String(id).match(/(\d+)$/);
   return m ? parseInt(m[1], 10) : null;
