@@ -3,11 +3,13 @@
 // Drives the REAL CLI in a throwaway adopted temp repo so the full arg-parsing +
 // file-write path is exercised end-to-end. exit 0 = all pass. (KIT-T013)
 
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+
+import * as harness from '../hooks/test-harness.mjs';
 
 const CAP = fileURLToPath(import.meta.url).replace(/\.test\.mjs$/, '.mjs');
 
@@ -188,8 +190,65 @@ console.log('\ncap outside any repo names the projects it could capture into');
 }
 
 // --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+// KIT-T067 — cross-project targeting: an explicit target WINS over the cwd walk, the receipt
+// always names the resolved project, and text that obviously names another project is
+// PROPOSED rather than routed. The fixture pairs a local repo (the cwd) with a CENTRAL-ONLY
+// project under dataRoot, so the cross-project route is genuine and not a sibling repo.
+// --------------------------------------------------------------------------
+{
+  const creg = join(harness.tmpDir('kit-creg-'), 'r.json');
+  const cwdRepo = harness.repo(); // the shell sits here (the misroute origin)
+  mkdirSync(join(cwdRepo, '.ai'), { recursive: true });
+  const cfg = 'ids:\n  key: "KIT"\nclassifications:\n  bug:\n    routes_to: tickets\n  feature:\n    routes_to: tickets\n  decision:\n    routes_to: decisions\n';
+  writeFileSync(join(cwdRepo, '.ai', 'config.yml'), cfg);
+  const dataRoot = harness.tmpDir('kit-cdata-');
+  const hodAi = join(dataRoot, 'projects', 'hustle-or-die');
+  mkdirSync(join(hodAi, 'inbox'), { recursive: true });
+  writeFileSync(join(hodAi, 'config.yml'), cfg.replace('"KIT"', '"HOD"'));
+  writeFileSync(creg, JSON.stringify({ dataRoot, projects: { 'claude-kit': cwdRepo } }));
+
+  const capture = (args) => harness.script('cap.mjs', args, cwdRepo, { CLAUDE_KIT_REGISTRY: creg });
+  const hodFiles = () => readdirSync(join(hodAi, 'inbox')).filter((f) => f.endsWith('.md'));
+  const kitDir = join(cwdRepo, '.ai', 'inbox');
+  const kitFiles = () => (existsSync(kitDir) ? readdirSync(kitDir).filter((f) => f.endsWith('.md')) : []);
+  // Read the captured text from the path the RECEIPT names — robust to same-minute timestamp
+  // collisions, where a "newest by sort" proxy picks the wrong sibling.
+  const capturedText = (dir, out) => {
+    const m = out.match(/-> [^/]+\/inbox\/(\S+\.md)/);
+    return m ? readFileSync(join(dir, m[1]), 'utf8') : '';
+  };
+
+  let r = capture(['--project', 'hod', 'feature', 'graded roads meet terrain']);
+  ok('cap: --project flag wins over cwd-walk (routes to the named project)', r.code === 0 && hodFiles().length === 1);
+  ok('cap: receipt names the destination project (cross-project, caught in 3 words)', /captured \(feature\) -> hustle-or-die\/inbox\//.test(r.out));
+
+  r = capture(['hod:', 'roads are graded not raw terrain']);
+  ok('cap: `name:` prefix routes to the named project', r.code === 0 && hodFiles().length === 2 && /-> hustle-or-die\/inbox\//.test(r.out));
+  ok('cap: the resolved `name:` prefix is stripped from the stored text', capturedText(join(hodAi, 'inbox'), r.out).trim() === 'roads are graded not raw terrain');
+
+  r = capture(['hod: terrain heightfield is the foundation']);
+  ok('cap: fused "name: text" single-arg prefix routes + strips', r.code === 0 && capturedText(join(hodAi, 'inbox'), r.out).trim() === 'terrain heightfield is the foundation');
+
+  r = capture(['bug', 'commit gate misfires on rebase']);
+  ok('cap: cwd fallback writes the cwd project, receipt names it', r.code === 0 && kitFiles().length === 1 && /captured \(bug\) -> claude-kit\/inbox\//.test(r.out));
+  ok('cap: a clean cwd capture proposes nothing', !r.err.includes('names'));
+
+  r = capture(['decision', 'the terrain model for Project: HOD must stay smooth']);
+  ok('cap: text naming another project is PROPOSED, not routed (cwd still owns the write)',
+    r.code === 0 && kitFiles().length === 2 && /names hustle-or-die/.test(r.err) && /--project hod/.test(r.err));
+
+  r = capture(['--project', 'nope', 'feature', 'x']);
+  ok('cap: unknown --project errors instead of silently falling back to cwd', r.code === 1 && /matches no registered project/.test(r.err));
+
+  r = capture(['bug: login redirect loops after sso']);
+  ok('cap: a non-project `word:` lead is captured as content, not targeting',
+    r.code === 0 && kitFiles().length === 3 && capturedText(kitDir, r.out).includes('bug: login redirect loops'));
+}
+
 // Teardown
 // --------------------------------------------------------------------------
+harness.cleanup();
 for (const d of fixtures) {
   try { rmSync(d, { recursive: true, force: true }); } catch { /* best-effort */ }
 }

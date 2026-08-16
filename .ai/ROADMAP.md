@@ -122,6 +122,7 @@
 - KIT-T225 — Agents must DETECT and FLAG concurrent tree activity, not just be told 'sole owner': cargo 'Blocking waiting for file lock on build… (medium)
 - KIT-T227 — Agent dispatch contract: on encountering TWO live surfaces/implementations of the same concern (two editors, twin modules, duplicate… (medium)
 - KIT-T238 — q.mjs has no first-class inbox query — sessions brute-force `q sql "SELECT ... WHERE store='inbox'"` (stiletto session 2026-08-15: 3 raw… (medium)
+- KIT-T239 — scripts/test-hooks.mjs (822 lines) over the 600-line gate — split the monolithic hook test runner by hook (medium)
 - KIT-T072 — Quiet the per-turn hook chatter — dedupe advisories, conditional receipts (low)
 - KIT-T073 — Progressive disclosure for the global contract — specialist sections become on-demand skills (low)
 - KIT-T078 — Command-level model tiering — static `model:` on fixed-cost read-only commands (low)

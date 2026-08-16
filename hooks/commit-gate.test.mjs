@@ -1,15 +1,16 @@
 #!/usr/bin/env node
-// commit-gate tests for the STAGING-SCOPE gates (KIT-T106, KIT-T230) and the id-integrity
-// hints (KIT-T170). Throwaway git fixtures, real hook invocations. exit 0 = all pass.
-//
-// (The gate's older branches — pathspec/staged judging, evidence floor, citation — are covered
-// by scripts/test-hooks.mjs.)
+// commit-gate tests: cwd resolution + work-item citation, PowerShell wiring, pathspec/staged
+// judging (KIT-T052), the staging-scope gates (KIT-T106, KIT-T230), id-integrity and its hints
+// (KIT-T170), and the evidence floor on a closing transition (KIT-T061). Throwaway git
+// fixtures, real hook invocations. exit 0 = all pass.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import * as harness from './test-harness.mjs';
 
 const HOOKS = dirname(fileURLToPath(import.meta.url));
 const fixtures = [];
@@ -51,6 +52,81 @@ function adopted() {
 
 try {
   const cwd = repo(); // the session's cwd — every command targets its repo with `git -C`
+  const cg = (command, target = cwd) => hook('commit-gate.mjs', command, target);
+
+  // --- cwd resolution + work-item citation ------------------------------------------
+  {
+    const tgt = harness.adopted(true); // adopted repo with staged, uncommitted code
+    ok('cd-target uncommitted code, no cite -> block', cg(`cd ${tgt} && git commit -m x`).code === 2);
+    ok('git -C target, no cite -> block', cg(`git -C ${tgt} commit -m x`).code === 2);
+    ok('cite (HOD-T045) bypasses', cg(`cd ${tgt} && git commit -m HOD-T045`).code === 0);
+    ok('clean cwd passes', cg('git commit -m x').code === 0);
+    ok('non-commit no-ops', cg(`cd ${tgt} && git status`).code === 0);
+  }
+
+  // --- KIT-T052: PowerShell wiring + pathspec/staged judging ------------------------
+  {
+    const wiring = JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'));
+    const matcher = wiring.hooks.PreToolUse.find((e) => e.hooks.some((h) => h.command.includes('commit-gate'))).matcher;
+    ok('wired for PowerShell as well as Bash', /\bBash\b/.test(matcher) && /\bPowerShell\b/.test(matcher));
+
+    const mixed = harness.adopted(true); // staged foo.ts + an untracked doc
+    writeFileSync(join(mixed, 'README.md'), '# readme\n');
+    ok('pathspec docs-only commit passes despite dirty code (KIT-T052)',
+      cg(`git -C ${mixed} commit -m x README.md`).code === 0);
+    ok('pathspec code commit, no cite -> block (KIT-T052)',
+      cg(`git -C ${mixed} commit -m x foo.ts`).code === 2);
+
+    const stagedDocs = harness.adopted(false); // docs staged, code merely untracked
+    writeFileSync(join(stagedDocs, 'foo.ts'), 'function f() { return doStuff(42); }\n');
+    writeFileSync(join(stagedDocs, 'README.md'), '# readme\n');
+    execFileSync('git', ['add', 'README.md'], { cwd: stagedDocs, stdio: 'ignore' });
+    ok('bare commit judges the staged set, not the dirty tree (KIT-T052)',
+      cg(`git -C ${stagedDocs} commit -m x`).code === 0);
+  }
+
+  // --- id integrity: duplicate ids in the store block the commit ---------------------
+  {
+    const dup = harness.adopted(false);
+    mkdirSync(join(dup, '.ai', 'tickets'), { recursive: true });
+    writeFileSync(join(dup, '.ai', 'tickets', 'T-001-a.md'), '---\nid: T-001\ntitle: a\nstatus: todo\n---\n');
+    writeFileSync(join(dup, '.ai', 'tickets', 'T-001-b.md'), '---\nid: T-001\ntitle: b\nstatus: todo\n---\n');
+    execFileSync('git', ['add', '-A'], { cwd: dup, stdio: 'ignore' });
+    const r = cg(`git -C ${dup} commit -m x`);
+    ok('duplicate store ids block the commit (id-integrity)', r.code === 2 && r.out.includes('DUPLICATE'));
+  }
+
+  // --- KIT-T061: a CLOSING transition needs a test artifact or the explicit escape ----
+  {
+    const seed = (status, notes) => `---\nid: KIT-T001\ntitle: seed\ntype: feature\nstatus: ${status}\n---\n\n## Notes\n${notes}\n`;
+    const mkEf = () => {
+      const ef = harness.identify(harness.adopted(false));
+      writeFileSync(join(ef, '.ai', 'config.yml'), 'uat:\n  default: none\nids:\n  key: "KIT"\n  prefix: "KIT-T"\n  pad: 3\n');
+      mkdirSync(join(ef, '.ai', 'tickets'), { recursive: true });
+      return ef;
+    };
+    const seedCommit = (d, text) => {
+      const p = join(d, '.ai', 'tickets', 'KIT-T001-x.md');
+      writeFileSync(p, text);
+      execFileSync('git', ['add', '-A'], { cwd: d, stdio: 'ignore' });
+      execFileSync('git', ['commit', '-q', '-m', 'seed'], { cwd: d, stdio: 'ignore' });
+      return p;
+    };
+    const stageEdit = (d, p, text) => { writeFileSync(p, text); execFileSync('git', ['add', '-A'], { cwd: d, stdio: 'ignore' }); };
+
+    const a = mkEf(); stageEdit(a, seedCommit(a, seed('doing', 'working.')), seed('done', 'finished it.'));
+    const ra = cg(`git -C ${a} commit -m x`);
+    ok('closing transition with no test evidence blocks (KIT-T061)', ra.code === 2 && /KIT-T061/.test(ra.out) && ra.out.includes('KIT-T001'));
+
+    const b = mkEf(); stageEdit(b, seedCommit(b, seed('doing', 'working.')), seed('done', 'ran npm test — 5 passed.'));
+    ok('closing transition WITH a suite-run reference passes (KIT-T061)', cg(`git -C ${b} commit -m x`).code === 0);
+
+    const c = mkEf(); stageEdit(c, seedCommit(c, seed('doing', 'working.')), seed('done', 'docs only [no-test: pure doc edit].'));
+    ok('[no-test: reason] escape passes the floor (KIT-T061)', cg(`git -C ${c} commit -m x`).code === 0);
+
+    const e = mkEf(); stageEdit(e, seedCommit(e, seed('todo', 'initial.')), seed('todo', 'expanded the description.'));
+    ok('a non-closing ticket edit is unaffected by the floor (KIT-T061)', cg(`git -C ${e} commit -m x`).code === 0);
+  }
 
   // --- KIT-T170: id-integrity hints name the fix for the ACTUAL failure mode ----------
   {
@@ -128,6 +204,7 @@ try {
   }
 } finally {
   for (const f of fixtures) { try { rmSync(f, { recursive: true, force: true }); } catch { /* best-effort */ } }
+  harness.cleanup();
 }
 
 console.log(fail === 0 ? `\ncommit-gate: all pass (${pass})` : `\ncommit-gate: ${fail} FAILED, ${pass} passed`);
