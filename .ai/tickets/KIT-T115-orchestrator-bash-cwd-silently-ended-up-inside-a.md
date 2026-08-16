@@ -2,7 +2,7 @@
 id: KIT-T115
 title: Orchestrator Bash cwd silently ended up inside a completed agent worktree (.claude/worktrees/agent-*) — a commit+merge intended for master landed on the agent branch (stray commit, benign, merged back). Root cause: persistent shell cwd + agent worktree lifecycle; detected via 'git branch' showing * worktree-agent-*. Mitigation: explicit git -C / cd to repo root before mutating git ops. Fix candidate: branch-guard/orient hook warns when a mutating git command runs with cwd under .claude/worktrees.
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.702Z
-updated: 2026-07-14T17:40:14.702Z
+updated: 2026-08-16T00:23:14Z
 ---
 
 ## Description
@@ -32,7 +32,10 @@ Orchestrator Bash cwd silently ended up inside a completed agent worktree (.clau
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] A mutating git command (commit, merge, push, rebase, reset, checkout, switch, cherry-pick, am, revert) run with an IMPLICIT cwd under `.claude/worktrees/` emits a stderr WARNING and exits 0 (never blocks)
+- [x] The warning names the cwd and tells the operator to `cd` to the repo root or use `git -C <repo-root>`
+- [x] An explicit `git -C <dir>` / leading `cd <dir>` means the worktree was chosen deliberately — no warning; read-only git commands never warn
+- [x] Tests cover the warn path, the explicit-target silence, read-only commands, and a main-checkout cwd
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -41,6 +44,10 @@ Orchestrator Bash cwd silently ended up inside a completed agent worktree (.clau
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+- Same gate as KIT-T233: `hooks/worktree-guard.mjs`, check-id `worktree-cwd`. Warn-only (exit 0) —
+  an agent legitimately working in its own worktree silences it by naming the target
+  (`git -C <worktree> …`), so the signal stays about *accidental* cwd drift.
+- Evidence: `hooks/worktree-guard.test.mjs` — 30 assertions, all passing.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +60,6 @@ Orchestrator Bash cwd silently ended up inside a completed agent worktree (.clau
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:10] (status) todo → doing
+- [2026-08-16 00:23] (status) doing → review
+- [2026-08-16 00:23] (comment) worktree-guard warns on mutating git with implicit .claude/worktrees cwd; hooks/worktree-guard.test.mjs 30 passed

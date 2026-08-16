@@ -29,6 +29,10 @@
       },
       {
         "matcher": "Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/worktree-guard.mjs\"" }]
+      },
+      {
+        "matcher": "Bash|PowerShell",
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/query-gate.mjs\"" }]
       },
       {

@@ -27,6 +27,12 @@ ships them to `~/.claude/agents/`; a project may also pin its own under
   `docs/research/agent-token-strategy.md` for the measured breakdown and the
   flagged harness follow-up.
 
+## Worktree isolation — never `git stash` (KIT-T233)
+An agent running with `isolation: worktree` shares ONE stash stack with every other worktree
+of the repo (`refs/stash` lives in the common git dir), so a parallel agent's `pop`/`drop`
+can apply or destroy your entry. Take a baseline with `git diff > <file>` + `git checkout -- .`,
+or a WIP commit on the worktree branch. The `worktree-guard` hook blocks the stash.
+
 ## Mandatory status transitions (KIT-T028)
 When an orchestrator delegates a **ticket** to a subagent, the subagent MUST keep the
 ticket status current — a stale `doing` nags every session start and obscures what's
