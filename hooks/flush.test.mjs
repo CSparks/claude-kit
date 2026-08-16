@@ -66,5 +66,9 @@ const rNone = run(none);
 ok('unadopted repo: silent', !/do NOT exist/.test(rNone.err) && rNone.out === '');
 ok('unadopted repo: exits 0', rNone.code === 0);
 
+// --- the PreCompact reminder itself --------------------------------------------------
+const reminder = run(makeRepo({ session: '# SESSION\n' }));
+ok('adopted repo emits the flush reminder', /COMPACTION|flush/i.test(reminder.out + reminder.err));
+
 console.log(`\n${count - failures}/${count} passed`);
 process.exit(failures ? 1 : 0);

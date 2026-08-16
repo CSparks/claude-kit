@@ -58,7 +58,7 @@ claude-kit/                     # public plugin + marketplace (MIT)
 ├── scripts/                    # .mjs scripts: cap, check-ids, code-graph, db-cache, db-engine,
 │                               #   db-parse, dev-link, hydrate-db, id-utils, index-tickets,
 │                               #   init-project, next-id, q, reconcile-supersede, rekey-ids, rem,
-│                               #   survey, sync-tasks, t, test-hooks, treesitter, triage, …
+│                               #   survey, sync-tasks, t, treesitter, triage, …
 ├── user-config/                # statusline, settings.recommended.json, CLAUDE.global.md (base)
 ├── project-template/           # scaffolded into a repo by init-project
 │   ├── .ai/                    # config.yml + atomic stores: tickets/ decisions/ questions/
@@ -227,8 +227,9 @@ The runtime reads an installed *copy*, not this repo — so there are two distin
 Don't run the publish loop on every edit.
 
 **Inner loop — fast, no install, no session impact:**
-- `npm test` → `scripts/test-hooks.mjs` runs every hook against mock payloads in
-  throwaway git fixtures and asserts exit codes. Run before every push.
+- `npm test` → the per-hook `hooks/<hook>.test.mjs` suites (shared fixtures in
+  `hooks/test-harness.mjs`) run every hook against mock payloads in throwaway git
+  fixtures and assert exit codes. Run before every push.
 - `npm run test:compat` verifies the dual manifests, skill layout, hook launcher,
   and Codex payload/output adapters.
 - `claude plugin validate .` checks the plugin + marketplace manifests.

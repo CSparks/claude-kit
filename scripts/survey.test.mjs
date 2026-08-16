@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { deriveKey, seedProjectKey, stampLabFlag } from './init-project.mjs';
+import * as harness from '../hooks/test-harness.mjs';
 
 // Resolve script paths — handle Windows drive-letter prefix from file: URL.
 function urlToPath(u) {
@@ -181,7 +182,38 @@ const labCfg = readFileSync(join(labDir, 'config.yml'), 'utf8');
 ok('init-project --lab: config.yml has lab: true', /^lab:\s*true\s*$/m.test(labCfg));
 ok('init-project --lab: config.yml has a real key (not KEY placeholder)', !labCfg.includes('"KEY"'));
 
+// ---- lazy briefing + named deep-dive (T-001) --------------------------------
+// A real adopted repo registered in a throwaway registry: the lazy view answers "what needs
+// me?", a named arg switches to a deep resume, an unknown name is flagged not crashed.
+{
+  const projDir = harness.repo();
+  writeFileSync(join(projDir, '.claude-project'), 'project: proj\n');
+  mkdirSync(join(projDir, '.ai', 'tickets'), { recursive: true });
+  writeFileSync(join(projDir, '.ai', 'tickets', 'T-001-r.md'), '---\nid: T-001\ntitle: A review item\nstatus: review\n---\n');
+  writeFileSync(join(projDir, '.ai', 'tickets', 'T-002-d.md'), '---\nid: T-002\ntitle: A doing item\nstatus: doing\n---\n');
+  writeFileSync(join(projDir, '.ai', 'SESSION.md'), '# S\n\n### NEEDS REVIEW\n- decide the thing\n');
+
+  const reg = join(harness.tmpDir('kit-sreg-'), 'registry.json');
+  writeFileSync(reg, JSON.stringify({ dataRoot: null, projects: { proj: projDir } }));
+  const survey = (args) => {
+    const r = harness.script('survey.mjs', args, projDir, { CLAUDE_KIT_REGISTRY: reg });
+    return `${r.out}${r.err}`;
+  };
+
+  const lazy = survey([]);
+  ok('survey: lazy briefing leads with "waiting on you"', /WAITING ON YOU/.test(lazy));
+  ok('survey: lazy surfaces a review ticket as waiting', lazy.includes('in review — awaiting'));
+  ok('survey: lazy surfaces SESSION "needs" flags', lazy.includes('decide the thing'));
+  ok('survey: lazy has per-project open-work counts', /Open work by project/.test(lazy) && lazy.includes('doing,'));
+
+  const deep = survey(['proj']);
+  ok('survey: named arg gives a deep resume', deep.includes('deep resume: proj'));
+  ok('survey: deep view lists open tickets', deep.includes('A doing item'));
+  ok('survey: unknown project is flagged, not crashed', survey(['nope']).includes('unknown project'));
+}
+
 // ---- cleanup ----------------------------------------------------------------
+harness.cleanup();
 for (const d of fixtures) {
   try { rmSync(d, { recursive: true, force: true }); } catch {}
 }
