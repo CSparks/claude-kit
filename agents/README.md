@@ -54,6 +54,7 @@ process failure; the stale-doing detector (housekeeping + orient) will flag it l
 | [code-reviewer](code-reviewer.md) | Reviews changes for correctness/security/maintainability; reports, doesn't fix | Read, Grep, Glob, Bash |
 | [refactorer](refactorer.md) | Behavior-preserving restructure, verified with tests | Read, Grep, Glob, Edit, Write, Bash |
 | [test-author](test-author.md) | Writes + runs real automated tests (red→green for bugs) | Read, Grep, Glob, Edit, Write, Bash |
+| [editor-workbench](editor-workbench.md) | rapid-game HTML editor: manifest injection, the `/api/editor/recipes` contract, per-game vite config | Read, Grep, Glob, Edit, Write, Bash |
 | [game-asset-artist](game-asset-artist.md) | Authors procedural game assets (mesh/material/texture factories); verifies numerically, never visually | Read, Grep, Glob, Edit, Write, Bash |
 
 `game-asset-artist` pins `model: fable` (the others pin `opus`) — asset authoring is

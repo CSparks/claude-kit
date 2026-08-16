@@ -2,7 +2,7 @@
 id: KIT-T216
 title: An editor-workbench specialist agent has earned itself
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:30.162Z
-updated: 2026-08-16T00:06:30.162Z
+updated: 2026-08-16T00:34:36Z
 ---
 
 ## Description
@@ -61,3 +61,6 @@ the vite mergeConfig proxy-override gotcha, no-screenshot evidence rules).
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:30] (status) todo → doing
+- [2026-08-16 00:34] (status) doing → review
+- [2026-08-16 00:34] (comment) agents/editor-workbench.md scaffolded (119 lines): manifest/@game-algos injection points, the /api/editor/recipes contract table, gameEditorConfig mergeConfig + proxy-delete gotcha, ConfigPanel reuse (KIT-T108), verified gotchas (BOM strip, lucide alias, ports, tsx-watch), no-screenshot evidence rules. Registered in plugin.json + agents/README index. Evidence: node scripts/agent-pins.test.mjs — 14 passed.

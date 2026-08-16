@@ -33,6 +33,7 @@
   "agents": [
     "./agents/audio-synthesist.md",
     "./agents/code-reviewer.md",
+    "./agents/editor-workbench.md",
     "./agents/game-asset-artist.md",
     "./agents/light-and-shadow.md",
     "./agents/refactorer.md",
