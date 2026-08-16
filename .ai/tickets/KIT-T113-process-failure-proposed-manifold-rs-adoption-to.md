@@ -2,7 +2,7 @@
 id: KIT-T113
 title: Process failure: proposed manifold-rs adoption to Chris as a future option when marblerace2 src/track/junction.rs already uses it (local port at D:/dev/manifold-rs, wired for junction unions in a prior MGP-T001 session). Root cause: answered an architecture question from conversation memory without grounding in Cargo.toml / code-graph first. Antidote: query deps + existing exports before proposing any adoption.
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.696Z
-updated: 2026-07-14T17:40:14.696Z
+updated: 2026-08-16T00:35:18Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ Process failure: proposed manifold-rs adoption to Chris as a future option when 
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified at user-config/CLAUDE.global.md, 'Process failure' antidote: ground-before-you-propose now names the dependency manifest and existing exports explicitly, so an adoption proposal must check Cargo.toml/package.json plus the code graph first.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ Process failure: proposed manifold-rs adoption to Chris as a future option when 
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:31] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified at CLAUDE.global.md process-failure antidote [no-test: doctrine]

@@ -2,7 +2,7 @@
 id: KIT-T108
 title: PROCESS FAILURE (editor tool port): hand-rolled the car-tuner parameter panel out of raw Panel/PanelSection/Slider + custom grid CSS (horizontal scrollbar + no padding), FIGHTING the editor's reusable UI. CORRECTION (was wrong TWICE): the maintainer wants the engine PORTED but the panel built WITH the editor's reusable schema component — `ConfigPanel` (`@features/ui`, "Renders config UI from schema": feed it a ConfigSchema from rapid-game/generation/configSchema + values + onChange(key,value); it owns its own layout/padding/scroll, so it "falls in line"). My first fix was hand-rolling (wrong); my second conclusion — mount the tool's OLD DOM verbatim via createX(host) like AssetEditor — was ALSO wrong (that's for a tool with no schema; a param panel uses ConfigPanel). Root cause: didn't reach for the purpose-built reusable component (ConfigPanel) and instead reinvented layout, twice. FIX (general): for a parameter/config panel, build a ConfigSchema and render `<ConfigPanel>` — never hand-roll Panel+Slider+CSS, and don't assume "mount the old UI verbatim". Ground in the reusable component that already exists for the job BEFORE building. Resolved 2026-06-10 hustle-or-die: CarPhysicsEditor now uses ConfigPanel (tsc + vite green).
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.680Z
-updated: 2026-07-14T17:40:14.680Z
+updated: 2026-08-16T00:35:17Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ PROCESS FAILURE (editor tool port): hand-rolled the car-tuner parameter panel ou
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified as a general rule at user-config/CLAUDE.global.md, ARCHITECTURE 'Before writing ANY code' step 2: reach for the purpose-built component for the job before hand-rolling its parts. The surfacing instance (CarPhysicsEditor to ConfigPanel) was resolved in-project 2026-06-10.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ PROCESS FAILURE (editor tool port): hand-rolled the car-tuner parameter panel ou
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:31] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified at CLAUDE.global.md ARCHITECTURE step 2 [no-test: doctrine]

@@ -10,11 +10,15 @@ is composed from base + overlay by `bootstrap.sh` — edit the sources, not the 
 
 ## Before writing ANY code
 1. Identify the single responsibility — if it has two jobs, split it.
-2. Check if this logic exists elsewhere — if so, extract or reuse.
+2. Check if this logic exists elsewhere — if so, extract or reuse. Reach for the
+   purpose-built component for the job (a schema-driven config panel, a generator, a
+   crate) before hand-rolling its parts; reinventing a layout/primitive is the tell.
 3. Ask "does this layer need to know this?" — if not, push it up or down.
 
 ## Red flags that demand an immediate refactor
-- Two places computing the same thing (DRY violation).
+- Two places computing the same thing (DRY violation) — including at repo scale: a second
+  crate/package/workspace member duplicating an existing one, or a fork of shared code to
+  carry a local change. One home per unit, never a fork (KIT-D067).
 - A config object growing "just one more field" for a special case.
 - Priority/fallback logic (a missing abstraction in disguise).
 - A comment explaining "why" where the code itself should be obvious.
@@ -119,6 +123,10 @@ Read less to do more.
   `dispatch-ladder` hook blocks the silent inherit. Explicit `model:'fable'` stays legal
   (a chosen tier); a deliberate model-less inherit needs an inline
   `[allow-fable: <reason>]` token in the prompt.
+- **A model version NAMED in the request is BINDING (KIT-D061/D063).** Land the
+  delegation on that exact full id via an agent whose frontmatter pins it, or STOP and
+  say why no pinned lane exists — never resolve it to an alias, and never reopen the
+  ladder in a questionnaire; receipts quote the full id, not the alias.
 - **Every dispatch names its model in the agent LABEL**: the Agent tool's
   `description` starts with a `[<model>]` prefix — `"[opus] Diagnose POI rate"` — so
   the tier is visible in the UI under the running task, not buried in prose. No
@@ -208,6 +216,10 @@ of the change, and never a channel for project history. (KIT-T205)
   in-place flip. Detect first: `git worktree list` >1, or sibling `worktree-agent-*`
   branches. The branch-guard hook (KIT-T082) hard-blocks; deliberate escape:
   `[allow-branch: <reason>]`.
+- **Never run repo-mutating cleanup in the maintainer's LIVE checkout (KIT-T226)** — a
+  revert, `clean`, or in-place build against his uncommitted WIP makes two writers, false
+  build evidence, and a broken HEAD he then commits onto. Use a worktree, or hand him the
+  command.
 - **Local = draft** (messy WIP OK). **PR/main = publish** (clean, logical, buildable).
 - **Commit AND push at every task boundary** — the pushed remote is the rewind point,
   recoverable from any machine.
@@ -227,6 +239,11 @@ not a compaction summary.
 - Never assert history/authorship/decisions from memory: read git / `.ai/` / docs, or
   say "I don't know." In a repo you've worked: you wrote it, it's your responsibility —
   don't disclaim it.
+- **Every state claim carries a receipt (KIT-T214/T217/T222).** A claim about code you
+  did NOT touch — "still X / untouched", "no such tool exists", "already implemented" —
+  needs a pointer (file:line, sha, or the `q fts`/code-graph query you ran) or the words
+  "not checked". A RULED or outlined direction is never reported as built: "implemented"
+  requires the implementing commit or test, else say "ruled, not built".
 - To discuss any past topic credibly, recreate its context first (git log/grep, the
   ticket, the DECISIONS entry, the research doc). Every claim traces to a source.
 
@@ -237,6 +254,9 @@ not a compaction summary.
   blocks a code commit that neither touches the plan-of-record nor cites a ticket (or
   carries `[no-log: reason]` for genuine non-work).
 - **Decisions / directives** go in DECISIONS the turn they happen.
+- **Dedup before you file (KIT-T025/T159):** an item created directly (not via `cap` →
+  triage, which proposes dedup candidates) runs `q fts` on its nouns first — duplicating
+  a parallel session's ticket is a filing bug, not a harmless extra.
 
 ## Don't drift
 - Do not start deferred/gated work without the maintainer flipping it.
@@ -255,8 +275,11 @@ Trigger → immediately, unprompted: (1) STOP the work resting on the lost/dupli
 fact; (2) capture a KIT issue (`cap bug …`) naming the ROOT CAUSE — what you failed to
 ground in — not the symptom; (3) keep this trigger codified here and push toward hook
 enforcement. The antidote is upstream: **ground before you propose** — query the work
-store, the code graph, and existing exports/research; assume it already exists until
-you've checked.
+store, the code graph, the dependency manifest, and the framework/base-layer contract
+that already governs the concern; assume it already exists until you've checked. Before
+anchoring a PORT, enumerate EVERY candidate implementation (other languages and native
+crates included) and pick the reference on evidence — a "dead/superseded" verdict cites
+provenance (git log + graph), never a skim. (KIT-T113/T234/T237)
 
 # HOOK CONTRACT
 Portable Node enforcement hooks (from claude-kit) gate Write/Edit (code quality),

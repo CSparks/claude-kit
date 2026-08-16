@@ -2,7 +2,7 @@
 id: KIT-T222
 title: Manifesto verdict asserted 'no vehicle editor tool exists' while ST-T057 (dock/refit/inventory port, todo) sat in the backlog and the…
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:32.511Z
-updated: 2026-08-16T00:06:32.511Z
+updated: 2026-08-16T00:35:27Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ Manifesto verdict asserted 'no vehicle editor tool exists' while ST-T057 (dock/r
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified at user-config/CLAUDE.global.md, CONTEXT & PROCESS DISCIPLINE: an absence claim ('no such tool exists') needs the q fts / code-graph query that backs it, or the words 'not checked'. Hook candidate deferred: blocking absence-language in decisions/notes commits without a query receipt is a prose-detection heuristic, not a cheap assertion; doctrine only for now.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ Manifesto verdict asserted 'no vehicle editor tool exists' while ST-T057 (dock/r
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:32] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified as the absence-claim receipt rule; gate spec deferred in Notes [no-test: doctrine]

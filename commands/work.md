@@ -42,6 +42,16 @@ Work ticket $ARGUMENTS per the contract:
      > worktree of the repo, so a parallel agent's pop can eat your entry. Baseline with
      > `git diff > <file>` + `git checkout -- .`, or a WIP commit on your worktree branch.
      >
+     > **Two live surfaces = STOP (KIT-T227):** if you find two live implementations of
+     > the same concern (two editors, twin modules, duplicate configs), do not pick one —
+     > surface both with their provenance (`git log`, `code-graph duplicate-defines`) and
+     > ask which is canonical.
+     >
+     > **Tuning against an instrument (KIT-T218):** a tune-to-a-target task carries an
+     > explicit iteration/wall-clock budget; calibrate ONLY on the instrument that judges
+     > the result (never a faster proxy that under-reads it); at budget exhaustion STOP
+     > and report the best result with its measurements — never keep sweeping.
+     >
      > **Verify as the user plays:** after completing your change, exercise it as the user
      > would — run the test suite, start the app, or hit the probe — and report empirical
      > evidence (exit code, rendered output, probe readings). A compile-check alone is not

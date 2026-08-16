@@ -2,7 +2,7 @@
 id: KIT-T214
 title: Status misreporting class: a RULED direction was presented as IMPLEMENTED reality. Case: HOD recipe model - HOD-R080 (road-data-model.md,…
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:29.529Z
-updated: 2026-08-16T00:06:29.529Z
+updated: 2026-08-16T00:35:26Z
 ---
 
 ## Description
@@ -42,6 +42,8 @@ Status misreporting class: a RULED direction was presented as IMPLEMENTED realit
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 
+Codified at user-config/CLAUDE.global.md, CONTEXT & PROCESS DISCIPLINE: 'Every state claim carries a receipt' - a ruled/outlined direction is never reported as built; 'implemented' requires the implementing commit or test, else 'ruled, not built'.
+
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
      event, oldest first. Format: - [YYYY-MM-DD HH:MM] (event) detail
@@ -53,3 +55,6 @@ Status misreporting class: a RULED direction was presented as IMPLEMENTED realit
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:32] (status) todo → doing
+- [2026-08-16 00:35] (status) doing → review
+- [2026-08-16 00:35] (comment) codified as the state-claim receipt rule in CLAUDE.global.md [no-test: doctrine]

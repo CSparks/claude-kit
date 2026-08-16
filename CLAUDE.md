@@ -17,6 +17,9 @@ When Chris says something while I am working, the default is: **route it to the
 right place and keep working.** Blocking is the exception, not the rule.
 
 For each interjection I:
+0. **Reconcile SESSION.md first if orient flagged it STALE (KIT-T163).** A stale
+   working memory may carry a standing directive (e.g. "ask before creating tickets
+   here"); read it before the session's FIRST route, not after.
 1. **Classify** it against `.ai/config.yml` → `classifications`.
 2. **REALITY-CHECK the target project (KIT-D062).** Before routing, ask: do the
    interjection's domain nouns fit THIS project? Chris runs several consoles at
@@ -69,6 +72,8 @@ On "work T-001" (or when I pull it from the drain):
    `code-graph --query entry-points` / `--query duplicate-defines <symbol>`. A repo can
    hold two of a module (one canonical, one superseded); git + the graph say which
    outright. Edit the canonical twin, never whichever you opened first.
+   **Two LIVE surfaces is not a pick (KIT-T227):** two editors, twin modules, or
+   duplicate configs of one concern → STOP and ask which is canonical.
 3. Set `status: doing`. Mirror each acceptance criterion into the native task
    list as a task titled `T-NNN <criterion>` (TaskCreate, with blockedBy for
    ordering) — the prefix marks it as ticket-backed. **The ticket file is truth;**
