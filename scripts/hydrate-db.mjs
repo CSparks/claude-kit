@@ -58,6 +58,8 @@ CREATE TABLE items (
   status    TEXT,
   priority  TEXT,
   title     TEXT,
+  summary   TEXT,
+  body_len  INTEGER,
   parent    TEXT,
   milestone TEXT,
   num       INTEGER,
@@ -135,7 +137,7 @@ CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
 // and it fires only on a genuine schema change, never on a routine sync. KIT-T026 added the
 // source_files manifest (v2) + the index set the incremental sync / next-id / integrity scans
 // need (v3): idx_items_file (per-file delete), idx_items_type, (scope,store,num), (item_id,ts).
-const SCHEMA_VERSION = '3';
+const SCHEMA_VERSION = '4';
 
 // Newest mtime across every markdown file under an .ai store dir — the staleness signal
 // for --if-stale. Takes the .ai dir directly so central-data stores (no nested .ai) work.
@@ -216,9 +218,10 @@ export function isRegisteredStore(root) {
 // every other item untouched (the KIT-T026 efficiency invariant).
 function insertItem(db, it) {
   db.run(
-    `INSERT INTO items (id, scope, store, type, status, priority, title, parent, milestone, num, archived, file)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO items (id, scope, store, type, status, priority, title, summary, body_len, parent, milestone, num, archived, file)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [it.id, it.scope, it.store, it.type, it.status, it.priority, it.title,
+      it.summary || null, (it.body || '').length,
       it.parent || null, it.milestone || null, it.num, it.archived, it.file],
   );
   db.run('INSERT INTO items_fts (id, title, body) VALUES (?,?,?)', [it.id, it.title || '', it.body || '']);

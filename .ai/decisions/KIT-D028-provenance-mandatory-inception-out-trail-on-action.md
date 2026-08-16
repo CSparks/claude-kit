@@ -3,6 +3,7 @@ id: KIT-D028
 title: "PROVENANCE IS MANDATORY (framework law): inception-out links + trail-on-action. A standard issue-tracker model (epics/parent/typed links), enforced by hooks so it never depends on the agent's memory."
 standing: true
 scope: process
+summary: Provenance is framework law: every item links OUT to its antecedents at inception, and the trail is surfaced on action, enforced by hooks.
 date: 2026-06-06
 supersedes:
 source: conversation 2026-06-06 (maintainer law); inbox 2026-06-06-0742

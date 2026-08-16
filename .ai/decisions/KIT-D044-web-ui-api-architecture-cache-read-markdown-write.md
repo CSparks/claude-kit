@@ -1,6 +1,7 @@
 ---
 id: KIT-D044
 title: "Web UI + API: cross-project hub, cache-READ / markdown-WRITE (bidirectional), mention inbox before dispatch"
+summary: The web UI/API is a cross-project hub that READS the cache and WRITES back to markdown, which stays the only truth.
 date: 2026-07-23
 supersedes:
 source: maintainer request 2026-07-23 (KIT-T129) + questionnaire same day + mid-turn directive ("API uses database cache but writes go back through to the markdown as the source of truth")

@@ -1,6 +1,7 @@
 ---
 id: KIT-D062
 title: Interjection routing runs a project reality-check — domain mismatch means ASK, never infer
+summary: Routing runs a project reality-check first: a domain mismatch means ASK which project, never infer and spend.
 date: 2026-08-06
 supersedes:
 source: conversation 2026-08-06 (Chris, verbatim, after the stadium-lighting misroute)

@@ -2,6 +2,7 @@
 # id: NEVER hand-pick — allocate with `node <kit>/scripts/next-id.mjs tickets` (KIT-T009).
 id: KEY-T000
 title: <short imperative title>
+summary:               # OPTIONAL one-line gist - shown by q trail / handoff briefs
 type: bug              # any key from .ai/config.yml → classifications
 status: todo           # todo | doing | review | done | superseded  (see config.statuses)
 priority: medium       # critical | high | medium | low

@@ -1,6 +1,7 @@
 ---
 id: KIT-D000
 title: <short title>
+summary:           # OPTIONAL one-line gist — what a trail/brief shows instead of a clipped title
 date: <YYYY-MM-DD>
 supersedes:        # DEC-### this replaces, or blank
 source:            # commit hash / doc path / "conversation YYYY-MM-DD"

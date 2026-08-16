@@ -1,6 +1,7 @@
 ---
 id: KIT-D061
 title: The dispatch ladder is version-tiered — full-id pins, nine named intents, effort re-derived on fallback
+summary: The dispatch ladder pins FULL model ids across nine named tiers, and effort is re-derived per model on any fallback.
 date: 2026-08-06
 supersedes: KIT-T191 tiering (game-asset-artist returns to fable for the asset lane); KIT-D060's deep-fallback-at-medium note (effort is re-derived per target model instead)
 source: AskUserQuestion 2026-08-06 (Chris — 4 answers); research/model-routing-ladder-2026-08.md (KIT-T208)

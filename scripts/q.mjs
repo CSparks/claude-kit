@@ -6,6 +6,7 @@
 //   node scripts/q.mjs children <id>                # items whose parent is <id>
 //   node scripts/q.mjs backlinks <id>               # items that link TO <id> (any rel) — walk DOWN
 //   node scripts/q.mjs trail <id>                   # walk UP <id>'s ancestry → governing decisions/docs/origin (trail-on-action)
+//   node scripts/q.mjs orphans [scope]              # items with NO outbound antecedent link (the provenance lint)
 //   node scripts/q.mjs governing <path...>          # OPEN tickets/decisions that GOVERN the given file path(s) (the inverse of trail)
 //   node scripts/q.mjs mentions <agent>             # comments @mentioning <agent> across the project, with read (acked) state
 //   node scripts/q.mjs drift                        # OPEN items naming a structural target path ABSENT from the tree (decided ≠ actual)
@@ -48,6 +49,7 @@ import {
   OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, parseFts, requireStore, requireScope, formatId,
   compareOpen, findGaps, walkAncestry,
 } from './q-model.mjs';
+import { orphanRows } from './provenance.mjs';
 
 const SNIPPET_COL = 2;       // items_fts column index of `body` for snippet()
 const SNIPPET_TOKENS = 8;    // words of context around an FTS match
@@ -277,7 +279,7 @@ function cannedQueries(root) {
     // down-walk (descendants) is `backlinks`/`children`. Load the graph once, walk in JS so
     // the cache + markdown paths share `walkAncestry`.
     trail: (db, id) => {
-      const items = db.all('SELECT id, store, type, status, title FROM items');
+      const items = db.all('SELECT id, store, type, status, title, summary, body_len AS bodyLen FROM items');
       const links = db.all('SELECT from_id, rel, to_id FROM links');
       const nodeById = new Map(items.map((i) => [i.id, i]));
       const edgesById = new Map();
@@ -286,6 +288,19 @@ function cannedQueries(root) {
         edgesById.get(l.from_id).push([l.rel, l.to_id]);
       }
       return walkAncestry(id, (x) => edgesById.get(x) || [], (x) => nodeById.get(x));
+    },
+
+    // MISSING-ANTECEDENT LINT (KIT-T048 / KIT-D028): open tickets + decisions that point at
+    // nothing upstream. The drill-in clue is the id + summary — `q trail <id>` from there.
+    orphans: (db, scope) => {
+      const items = db.all('SELECT id, scope, store, type, status, priority, title, summary, archived FROM items');
+      const links = db.all('SELECT from_id, rel, to_id FROM links');
+      const edgesById = new Map();
+      for (const l of links) {
+        if (!edgesById.has(l.from_id)) edgesById.set(l.from_id, []);
+        edgesById.get(l.from_id).push([l.rel, l.to_id]);
+      }
+      return orphanRows(items, (id) => edgesById.get(id) || [], scope);
     },
 
     'next-id': (db, scope, type) => {
@@ -378,6 +393,7 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   children <id>               items whose parent is <id>
   backlinks <id>              items that link TO <id> (any rel) — walk DOWN
   trail <id>                  walk UP <id>'s ancestry — governing decisions/docs/origin
+  orphans [scope]             open tickets/decisions with NO outbound antecedent link
   governing <path...>         OPEN tickets/decisions that GOVERN the given file path(s)
   mentions <agent>            comments @mentioning <agent> across the project, with read state
   drift                       OPEN items naming a structural target path ABSENT from the tree

@@ -12,6 +12,7 @@ import { compareIds } from './id-utils.mjs';
 import { mentionsForAgent, readReceipts } from './comments.mjs';
 import { governing, drift } from './q-governing.mjs';
 import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
+import { orphanRows } from './provenance.mjs';
 import {
   OPEN, FTS_LIMIT, MIN_TERM_LEN, ALNUM_TERM, SUMMARY_CLIP,
   parseSimilar, parseFts, requireStore, requireScope, defaultScope, formatId, compareOpen, isSuperseded,
@@ -58,6 +59,8 @@ export function fallback(cmd, args, root) {
         (x) => { const it = byId.get(x); return it ? edgesOf(it) : []; },
         (x) => byId.get(x),
       );
+    case 'orphans':
+      return orphanRows(items, (id) => { const it = byId.get(id); return it ? edgesOf(it) : []; }, args[0]);
     case 'fts': {
       // Same `--scope` split as the cache path (KIT-T174); the scan needs no FTS escaping
       // because it never builds a MATCH expression — it substring-matches the raw terms.
