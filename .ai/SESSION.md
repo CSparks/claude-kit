@@ -15,6 +15,8 @@ Updated: 2026-08-15 ~19:30 | Branch: main (041add4) | Active: drain wave 1 (7 op
   6. KIT-T106 + T230 + T170 commit hygiene + decisions id canon
   7. KIT-T141 + T157 + T162 + T117 store CLIs (t new priority, end-task --root/fixed_commit, next-id prefix + cross-store claims)
 
+## Constraint (Chris, 2026-08-15): drain KIT tickets ONLY — do not dispatch on other projects' stores.
+
 ## Next 3 steps
 1. Collect agent reports → merge branches into main (resolve conflicts, esp. hooks/lib.mjs, package.json test line) → `npm test` → push.
 2. Wave 2 candidates: KIT-T219 (pre-edit tree-liveness guard), KIT-T232 (drain governing-decision check in begin-task), KIT-T160 (API writes auto-commit), KIT-T171 (Stop-gate build check), process-failure doctrine tickets (T105/T113/T159/T163/T214/T217/T218/T222/T226/T229/T234/T237) → likely one contract/hook batch + a /decide.
