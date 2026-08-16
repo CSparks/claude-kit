@@ -3,9 +3,10 @@
 // multi-language fixture repo and asserts. exit 0 = all pass.
 
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildGraph, importersOf, defines, surface, referencesOf, codemapCheck, duplicateDefines, entryPoints } from './code-graph.mjs';
 
 let pass = 0;
@@ -150,6 +151,45 @@ ok('entry-points: roots grouped by subtree', Array.isArray(ep.byTree.app) && Arr
 // Fail-open: a bogus root yields a well-formed empty result, never a throw.
 const epEmpty = entryPoints(join(tmpdir(), 'kit-cg-does-not-exist-' + Date.now()));
 ok('entry-points: missing root → well-formed empty result', epEmpty.entries.length === 0 && epEmpty.multiRoot === false);
+
+// ---- KIT-T236: a stale index entry must not crash the query -----------------
+// The lived failure: git's file list named a path that no longer existed, readFileSync threw
+// ENOENT mid-build (plus a libuv abort) and the session fell back to grep. The build must skip
+// the entry, keep every other answer, and REPORT the staleness — a caller must see a failure,
+// never a quietly-short result.
+const stale = mkdtempSync(join(tmpdir(), 'kit-cg-stale-'));
+fixtures.push(stale);
+execFileSync('git', ['init', '-q'], { cwd: stale });
+writeFileSync(join(stale, 'live.ts'), 'export function stillHere() {}\n');
+writeFileSync(join(stale, 'ghost.ts'), 'export function goneSoon() {}\n');
+execFileSync('git', ['add', '-A'], { cwd: stale });
+rmSync(join(stale, 'ghost.ts')); // tracked by git, absent on disk — the stale-entry shape
+const sg = await buildGraph(stale);
+ok('stale entry: the build completes instead of throwing ENOENT', sg.files.length === 1);
+ok('stale entry: the surviving file still answers queries', defines(sg, 'stillHere').includes('live.ts'));
+ok('stale entry: the missing file is reported as stale, with a reason',
+  sg.stale.length === 1 && sg.stale[0].path === 'ghost.ts' && sg.stale[0].reason === 'ENOENT');
+ok('healthy repo: nothing is reported stale (negative control)', g.stale.length === 0);
+
+const CG_CLI = fileURLToPath(new URL('./code-graph.mjs', import.meta.url));
+const cg = (args, cwd) => spawnSync(process.execPath, [CG_CLI, ...args], { cwd, encoding: 'utf8' });
+
+const staleRun = cg([stale, '--query', 'defines', 'goneSoon'], stale);
+ok('stale entry: the CLI exits NON-ZERO so a caller sees failure, not an empty []', staleRun.status === 1);
+ok('stale entry: the CLI names the stale file and how to rebuild',
+  /STALE/.test(staleRun.stderr) && /ghost\.ts/.test(staleRun.stderr) && /Rebuild/.test(staleRun.stderr));
+
+// `code-graph status` used to be parsed as a ROOT and died with ENOENT scandir '<cwd>/status'.
+const statusRun = cg(['status'], root);
+ok('status: exits 0 on a healthy repo', statusRun.status === 0);
+const statusJson = (() => { try { return JSON.parse(statusRun.stdout); } catch { return null; } })();
+ok('status: reports file/edge/symbol counts and the extraction mode',
+  statusJson && statusJson.files === 5 && typeof statusJson.edges === 'number' && typeof statusJson.mode === 'string');
+ok('status: a stale index makes status exit non-zero', cg(['status', stale], stale).status === 1);
+ok('bad root: a non-directory positional is a clear usage error, not a scandir crash', (() => {
+  const r = cg(['definitely-not-a-dir'], root);
+  return r.status === 2 && /is not a directory/.test(r.stderr);
+})());
 
 for (const d of fixtures) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\ncode-graph: ${pass} passed, ${fail} failed`);

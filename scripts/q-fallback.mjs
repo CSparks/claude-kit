@@ -5,17 +5,20 @@
 // Every ordering/edge/predicate it uses comes from q-model.mjs — the SAME module the
 // cache-backed SQL path imports — so cache-vs-scan parity (KIT-T026) is structural.
 
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectItems } from './db-parse.mjs';
 import { compareIds } from './id-utils.mjs';
 import { mentionsForAgent, readReceipts } from './comments.mjs';
 import { governing, drift } from './q-governing.mjs';
+import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import {
   OPEN, FTS_LIMIT, MIN_TERM_LEN, ALNUM_TERM, SUMMARY_CLIP,
   parseSimilar, parseFts, requireStore, requireScope, defaultScope, formatId, compareOpen, isSuperseded,
   edgesOf, clip, walkAncestry,
 } from './q-model.mjs';
+
+const statMs = (p) => { try { return statSync(p).mtimeMs; } catch { return null; } };
 
 export function fallback(cmd, args, root) {
   const items = collectItems(root);
@@ -109,6 +112,19 @@ export function fallback(cmd, args, root) {
         .sort((a, b) => b.overlap - a.overlap || compareIds(a.row.id, b.row.id))
         .slice(0, FTS_LIMIT)
         .map((c) => c.row);
+    }
+    // Inbox (KIT-T238) — the scan already carries every cap's body and file path, so the
+    // shaping/filtering is the SAME module the cache path uses; only the source differs.
+    case 'inbox':
+    case 'confirmations': {
+      const parsed = parseInboxArgs(args, root);
+      const opts = cmd === 'confirmations' ? { ...parsed, olderThanDays: CONFIRMATION_DAYS } : parsed;
+      const aiDir = join(root, '.ai');
+      return inboxRows(
+        items.filter((i) => i.store === 'inbox' && !i.archived)
+          .map((i) => ({ ...i, mtimeMs: statMs(join(aiDir, i.file)) })),
+        { ...opts, aiDirFor: () => aiDir },
+      );
     }
     case 'next-id': {
       const scope = requireScope(args[0]);

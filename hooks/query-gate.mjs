@@ -46,6 +46,17 @@ const GRAPH_INDEXED_EXTS = new Set(['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts'
 // Strategy: extract every argument token; if ALL extension hints found are non-indexed
 // (i.e. no indexed extension appears in the token set), allow the grep. When there is NO
 // extension signal at all, keep the current behaviour (block) — unknown → conservative.
+// Workflow DATA, not source (KIT-T167): a `.ai` store or the central claude-kit-data projects
+// tree. Inventorying those is exactly what the .ai contract asks for at session start, and
+// code-graph indexes none of it — so `source-discovery` must never claim them. RULE 1
+// (store-grep) stays the arbiter for those paths and points at `q`.
+const WORKFLOW_DATA = /(?:^|[\\/\s"'=])(?:\.ai|claude-kit-data)(?:[\\/]|$)/i;
+function targetsWorkflowData(c) {
+  return c.split(/\s+/)
+    .map((t) => t.replace(/^["']|["']$/g, ''))
+    .some((t) => t && !t.startsWith('-') && WORKFLOW_DATA.test(t));
+}
+
 function targetsOnlyNonIndexedExtensions(c) {
   // Collect extension hints from --include / -g / -e flags and from path-ish tokens.
   const exts = new Set();
@@ -197,6 +208,7 @@ function judge(c, piped = false) {
     const targetsOneFile = args.some((a) => FILEISH.test(a)); // a concrete file = "you know where"
     const recursive = RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep;
     if (recursive && !targetsOneFile) {
+      if (targetsWorkflowData(c)) return null;             // workflow data — RULE 1's business
       if (targetsOnlyNonIndexedExtensions(c)) return null; // code-graph can't help — allow
       return { id: 'source-discovery', msg: graphMsg(c) };
     }
@@ -205,6 +217,7 @@ function judge(c, piped = false) {
   // Exception: `find . -name "*.rs"` (and other non-indexed exts) is allowed — code-graph
   // doesn't index Rust/WGSL/etc. so blocking `find . -name "*.rs"` is a dead end (KIT-T085).
   if (isFind && /(?:^|\s)(?:-i?name\b|-i?path\b|-recurse\b)/i.test(c)) {
+    if (targetsWorkflowData(c)) return null;
     if (targetsOnlyNonIndexedExtensions(c)) return null;
     return { id: 'source-discovery', msg: graphMsg(c) };
   }
@@ -223,10 +236,14 @@ function storeMsg(c) {
     `  node "${Q}" trail <id>           # walk UP an id to its governing decisions/origin`,
     `  node "${Q}" fts <terms...>       # full-text search title+body across stores`,
     `  node "${Q}" open [scope]         # open items (todo|doing|review)`,
+    `  node "${Q}" inbox [scope]        # untriaged captures, with age + file path`,
+    `  node "${Q}" confirmations        # captures aged past the confirmation threshold`,
     `  node "${Q}" doc-trail <id>       # an item's history, newest first`,
     `  node "${Q}" --help               # the full query surface`,
     '',
     'This gate is the enforcement, not memory. (Read the q output, not the files.)',
+    'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it. Never',
+    'silently fall back to grep (KIT-T236).',
     'For ONE specific config/state file (e.g. config.yml, SESSION.md) read it directly with the Read',
     'tool — q does not index those; it is for tickets/decisions/questions.',
     '',
@@ -245,6 +262,9 @@ function graphMsg(c) {
     `  node "${GRAPH}" --query surface <path>             # a module's public surface`,
     `  node "${GRAPH}" --query duplicate-defines <symbol> # TWINS of Y — flags the superseded one`,
     `  node "${GRAPH}" --query entry-points               # app roots (multi-root = two apps)`,
+    '',
+    'If code-graph ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it.',
+    'Falling back to grep instead of filing the failure is how the tool stays broken (KIT-T236).',
     '',
     'Module-identity / "X isn\'t showing / which file?" → PROVENANCE FIRST, not runtime theories:',
     '  git log -- <path>   +   duplicate-defines / entry-points above   (KIT-T079).',

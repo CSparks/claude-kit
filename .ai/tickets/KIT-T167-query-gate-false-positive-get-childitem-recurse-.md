@@ -2,7 +2,7 @@
 id: KIT-T167
 title: query-gate false positive: `Get-ChildItem -Recurse D:\dev\claude-kit-data\projects\gridiron-blitz` (listing a project's .ai workflow DATA dir to inventory tickets) was BLOCKED as "grepping the source tree to discover code" (check-id: source-discovery, 2026-08-02). Workflow-data inventory is exactly what the .ai contract asks for at session start and code-graph cannot answer it. The gate should exempt .ai/ paths, the claude-kit-data store, and other non-source data directories from source-discovery.
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-04T15:20:02.015Z
-updated: 2026-08-04T15:20:02.015Z
+updated: 2026-08-16T00:26:04Z
 ---
 
 ## Description
@@ -32,15 +32,26 @@ query-gate false positive: `Get-ChildItem -Recurse D:\dev\claude-kit-data\projec
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] `source-discovery` no longer claims paths carrying a `.ai` or `claude-kit-data` segment.
+- [x] The repro `Get-ChildItem -Recurse D:\dev\claude-kit-data\projects\gridiron-blitz` exits 0.
+- [x] A `.ai/` listing still blocks — under `store-grep`, which routes to `q`.
+- [x] Negative controls hold: `rg foo src/` and `find src -name "*.ts"` still block.
+- [x] Tests: hooks/query-gate.test.mjs — all pass.
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
-1.
+1. Add a `targetsWorkflowData()` predicate to hooks/query-gate.mjs and exempt both
+   discovery rules (recursive search + find/gci) from it.
 
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+The exemption is scoped to the source-discovery rule only, and is principled rather than a
+loosening: code-graph indexes no workflow data, so redirecting a `.ai`/claude-kit-data listing
+at it was a dead end. RULE 1 (store-grep) still fires first for `.ai` paths, so the store keeps
+its `q`-only route; the central data root, which matches no store pattern, is simply allowed.
+Test evidence: hooks/query-gate.test.mjs all pass (new cases cover the repro, the store-grep
+arbiter, and two negative controls); `npm test` clean.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +64,6 @@ query-gate false positive: `Get-ChildItem -Recurse D:\dev\claude-kit-data\projec
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:12] (status) todo → doing
+- [2026-08-16 00:26] (status) doing → review
+- [2026-08-16 00:26] (comment) source-discovery exempts .ai / claude-kit-data paths; store-grep stays the arbiter. query-gate.test.mjs all pass
