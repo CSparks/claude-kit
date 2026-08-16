@@ -64,7 +64,9 @@
 {"ts":"2026-08-16T00:23:05.858Z","id":"ae00eb51a8f412e69","status":"done","source":"subagentstop"}
 {"ts":"2026-08-16T00:25:37.298Z","id":"af07a6aeb0c4117df","status":"done","source":"subagentstop"}
 {"ts":"2026-08-16T00:26:09.675Z","id":"a5f1b820bf8fcc5f6","status":"done","source":"subagentstop"}
-{"ts":"2026-08-16T00:29:28.705Z","id":"a638c52dd9b2b17cb","status":"in-flight","task":"KIT process-doctrine batch","scope":"general-purpose","background":false,"isolation":"worktree","targetRoot":"D:/dev/claude-kit","model":"opus","source":"posttooluse"}
-{"ts":"2026-08-16T00:29:49.092Z","id":"a44cf6116d9c9ca32","status":"in-flight","task":"KIT-T219/T225 concurrent-tree guards","scope":"general-purpose","background":false,"isolation":"worktree","targetRoot":"D:/dev/claude-kit","model":"opus","source":"posttooluse"}
-{"ts":"2026-08-16T00:30:11.491Z","id":"a2623057fea4eadca","status":"in-flight","task":"KIT-T215/T220/T232 flush+doctor+drain","scope":"general-purpose","background":false,"isolation":"worktree","targetRoot":"D:/dev/claude-kit","model":"opus","source":"posttooluse"}
-{"ts":"2026-08-16T00:30:33.439Z","id":"a8a33ef7a4f5d58ef","status":"in-flight","task":"KIT-T216 editor-workbench agent","scope":"general-purpose","background":false,"isolation":"worktree","targetRoot":"D:/dev/hustle-or-die","model":"opus","source":"posttooluse"}
+{"ts":"2026-08-16T00:31:04.386Z","id":"a8bfe3289bcb64e11","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:31:35.861Z","id":"ae15a7b30e2475f34","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:32:07.201Z","id":"aa0ad6c940dbfa17d","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:32:38.502Z","id":"aaba2c3a23ea3a11f","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:33:09.946Z","id":"a99191ba1f8bbf444","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:33:41.959Z","id":"a93b0591fff544013","status":"done","source":"subagentstop"}

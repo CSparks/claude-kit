@@ -107,7 +107,7 @@
 | KIT-T213 | feature | todo | medium | Mechanical project reality-check (KIT-D062): per-project domain vocabulary in .ai/config.yml, a router-side mismatch check, and a cross-store q fts probe for matching in-flight work before any cross-project dispatch |
 | KIT-T214 | bug | todo | high | Status misreporting class: a RULED direction was presented as IMPLEMENTED reality. Case: HOD recipe model - HOD-R080 (road-data-model.md,… |
 | KIT-T215 | bug | todo | high | Agent research artifacts can land on non-durable paths and SESSION cites them unchecked |
-| KIT-T216 | feature | todo | medium | An editor-workbench specialist agent has earned itself |
+| KIT-T216 | feature | review | medium | An editor-workbench specialist agent has earned itself |
 | KIT-T217 | bug | todo | high | A landing report asserted the state of code it did not touch, and the claim drove a whole later slice. T127min comment |
 | KIT-T218 | bug | todo | high | Tuning-loop runaway (gridiron-blitz T037, 2h, 11 full sweeps): dispatch briefs for tune-against-instrument work MUST carry (a) an explicit… |
 | KIT-T219 | bug | todo | high | Two sessions, one tree: this kit session edited stiletto lamp.rs while a LIVE stiletto session was committing (315e31f 10:59 scooped my… |
