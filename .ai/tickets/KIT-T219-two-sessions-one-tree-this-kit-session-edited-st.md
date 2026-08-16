@@ -2,7 +2,7 @@
 id: KIT-T219
 title: Two sessions, one tree: this kit session edited stiletto lamp.rs while a LIVE stiletto session was committing (315e31f 10:59 scooped my…
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:31.379Z
-updated: 2026-08-16T00:06:31.379Z
+updated: 2026-08-16T00:40:04Z
 ---
 
 ## Description
@@ -32,15 +32,28 @@ Two sessions, one tree: this kit session edited stiletto lamp.rs while a LIVE st
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] A PreToolUse(Write|Edit) hook fires only when the target file's repo is NOT the session's repo
+- [x] It WARNS (exit 0, stderr) on evidence of another live session: HEAD newer than N minutes (default 30, configurable) or dirty paths absent from the turn-writes ledger
+- [x] The message names the repo, the evidence, and "coordinate or use a worktree"
+- [x] Escape token `[allow-live-tree: <reason>]` (prompt) + env, standard exclusion footer
+- [x] Fails open on any git error; wired into hooks/hooks.json and documented in hooks/README.md
+- [x] Automated test covering warn / no-warn / escape / dedupe / fail-open, wired into `npm test`
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
-1.
+1. New hook `hooks/tree-liveness.mjs` + shared detector `hooks/live-sessions.mjs` (lib.mjs is at its hard length limit).
+2. Wire PreToolUse(Write|Edit), document in hooks/README.md, test in hooks/tree-liveness.test.mjs.
 
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+- Detection lives in `hooks/live-sessions.mjs` (recentCommits / foreignDirty / liveness) so orient
+  (KIT-T225) and the pre-edit guard share one definition of "another session is live here".
+- Repo identity compares `--git-common-dir`, so an edit between two worktrees of the SAME repo is
+  not treated as a foreign-repo edit.
+- Warns once per foreign repo per turn (turn state slot `tree-liveness`) — a multi-file edit run
+  must not spam.
+- Evidence: `node hooks/tree-liveness.test.mjs` — 12 passed; `node hooks/live-sessions.test.mjs` — 9 passed.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +66,6 @@ Two sessions, one tree: this kit session edited stiletto lamp.rs while a LIVE st
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:39] (status) todo → doing
+- [2026-08-16 00:40] (status) doing → review
+- [2026-08-16 00:40] (comment) tree-liveness pre-edit guard: new hooks/tree-liveness.mjs + hooks/live-sessions.mjs, wired PreToolUse(Write|Edit); tests hooks/tree-liveness.test.mjs 12 passed
