@@ -5,14 +5,22 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SRC } from './lib.mjs';
+import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
+import { turnWrites, turnStartMs } from './turn-writes.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
 );
+// Foreign staged paths listed before the warning collapses to a "+N more" tail.
+const MAX_FOREIGN = 10;
 
 const p = await payload();
 const command = (p.tool_input && p.tool_input.command) || '';
-if (!/\bgit\s+(?:-C\s+\S+\s+|--?\S+\s+)*commit\b/.test(command)) process.exit(0);
+const isCommit = /\bgit\s+(?:-C\s+\S+\s+|--?\S+\s+)*commit\b/.test(command);
+// `git add -A` / `git add .` with no pathspec limit. -A is TREE-WIDE regardless of cwd, so in
+// the shared data repo it stages every project's subtree, not the one being worked (KIT-T230).
+const isBareAdd = /\bgit\s+(?:-C\s+(?:"[^"]+"|'[^']+'|\S+)\s+)?add\s+(?:-[A-Za-z-]+\s+)*(?:-A\b|--all\b|\.\s*(?:$|[;|&]))/.test(command);
+if (!isCommit && !isBareAdd) process.exit(0);
 
 // The commit runs in the repo the command targets, not the session cwd: resolve a
 // leading `cd <path>` or `git -C <path>`. Translate an MSYS path (/d/dev/x) to a
@@ -30,7 +38,27 @@ function targetDir(cmd) {
 }
 
 const root = gitRoot(targetDir(command));
-if (!adopted(root)) process.exit(0);
+const dataRepo = isDataRepo(root);
+
+// KIT-T230: warn on a tree-wide add in the shared data repo, BEFORE the adopted() gate — the
+// data repo's own root holds `projects/`, not `.ai`, so it is never "adopted".
+if (isBareAdd && dataRepo) {
+  process.stderr.write(
+    [
+      '',
+      '⚠ tree-wide `git add` in the shared workflow-data repo (claude-kit-data).',
+      '',
+      '  -A / . stage the WHOLE repo regardless of cwd, so this sweeps every other',
+      "  project's subtree — including a live session's half-written edits — into your commit.",
+      '',
+      '  Add by explicit pathspec instead:',
+      '    git -C <data-repo> add -- projects/<name>',
+      '',
+    ].join('\n'),
+  );
+}
+if (!isCommit) process.exit(0);
+if (!adopted(root) && !dataRepo) process.exit(0);
 // Centralized data (D-008): the plan-of-record lives in claude-kit-data, not this repo,
 // so it can't be touched in this commit — the gate is cite-only here.
 const centralized = existsSync(join(root, '.claude-project'));
@@ -105,6 +133,55 @@ if (spec.mode === 'paths') {
 }
 if (!changed.length) process.exit(0);
 
+// KIT-T230: in the shared data repo, a commit spanning more than one `projects/<name>/` subtree
+// publishes another live session's in-flight edits under this project's label. Hard block — the
+// fix is always a pathspec, and the damage (pushed, mislabeled, mid-edit) is not undoable in place.
+if (dataRepo) {
+  const spanned = dataProjectsSpanned(changed);
+  if (spanned.length > 1) {
+    process.stderr.write(
+      [
+        '',
+        `BLOCKED: this commit spans ${spanned.length} project subtrees of the shared workflow-data repo.`,
+        '',
+        ...spanned.map((n) => `  projects/${n}`),
+        '',
+        "Another session's in-flight edits would be published under this commit's label.",
+        'Commit ONE project subtree at a time:',
+        '  git -C <data-repo> add    -- projects/<name>',
+        '  git -C <data-repo> commit -m "<msg>" -- projects/<name>',
+        '',
+      ].join('\n'),
+    );
+    process.exit(2);
+  }
+}
+if (!adopted(root)) process.exit(0);
+
+// KIT-T106: a bare `git commit` commits the WHOLE index, including anything staged outside this
+// turn's work — that is how a perf commit swept in the maintainer's separately-staged deletions.
+// WARN (not block): staged-by-maintainer can be intended; naming the foreign paths is the point.
+if (spec.mode === 'staged') {
+  const authored = turnWrites(root, turnStartMs(root));
+  const foreign = changed.filter((f) => !authored.has(f));
+  if (foreign.length && authored.size) {
+    const shown = foreign.slice(0, MAX_FOREIGN);
+    process.stderr.write(
+      [
+        '',
+        `⚠ bare \`git commit\` — ${foreign.length} staged path(s) this turn did NOT write:`,
+        '',
+        ...shown.map((f) => `  ${f}`),
+        ...(foreign.length > shown.length ? [`  +${foreign.length - shown.length} more`] : []),
+        '',
+        'They will ride along under this commit message. If that is not intended, commit a pathspec:',
+        '  git commit -m "<msg>" -- <the files this turn changed>',
+        '',
+      ].join('\n'),
+    );
+  }
+}
+
 // ID integrity: if this commit touches the markdown stores, refuse it when the
 // stores hold a duplicate id or a frontmatter/filename mismatch. This runs BEFORE
 // the plan-of-record early-allow below so touching a ticket can't bypass it. The
@@ -119,7 +196,11 @@ if (changed.some((f) => /(^|\/)(?:\.ai\/)?(?:tickets|decisions|notes|questions)\
       const lines = ['', 'BLOCKED: .ai id integrity check failed.', ''];
       for (const d of duplicates) lines.push(`  DUPLICATE ${d.id}: ${d.files.join('  ·  ')}`);
       for (const m of mismatches) lines.push(`  MISMATCH ${m.file}: id '${m.fmId}' != filename '${m.fileId}'`);
-      lines.push('', 'Re-key the offending file (scripts/next-id.mjs <store>) so every id is unique, then commit.', '');
+      // KIT-T170: one hint per FAILURE MODE — a mismatch is a rename, not a re-key.
+      lines.push('');
+      if (duplicates.length) lines.push('  DUPLICATE -> re-key one of the files: node <kit>/scripts/next-id.mjs <store>');
+      if (mismatches.length) lines.push("  MISMATCH  -> make the id and the filename agree: rename the file to <id>-<slug>.md, or set frontmatter `id:` to the filename's id. Canon is <KEY>-D###-slug.md (KIT-D011).");
+      lines.push('', 'Fix the flagged file(s) then commit.', '');
       process.stderr.write(lines.join('\n'));
       process.exit(2);
     }

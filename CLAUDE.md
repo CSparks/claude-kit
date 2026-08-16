@@ -164,7 +164,7 @@ tasks, keeping both in lockstep IS the sync:
 ### Where items live (atomic — D-009)
 Every category of items is a **folder of one-file-per-item**, like `tickets/`: never a
 monolith file.
-- `tickets/` (+ `archive/`) · `decisions/` (`<KEY>-D###.md`) · `questions/` (`<KEY>-Q###.md`) ·
+- `tickets/` (+ `archive/`) · `decisions/` (`<KEY>-D###-slug.md`) · `questions/` (`<KEY>-Q###-slug.md`) ·
   `notes/` (`<KEY>-N###.md`) · `inbox/` (one file per raw capture; `cap` writes here; triage
   promotes each into the others and moves it to `inbox/triaged/`).
 - Singletons stay single: `config.yml`, `SESSION.md`.

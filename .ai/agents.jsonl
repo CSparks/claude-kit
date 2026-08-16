@@ -43,3 +43,24 @@
 {"ts":"2026-08-06T21:37:04.223Z","id":"a782181a1af3e0173","status":"in-flight","task":"Blitz stadium lighting + 3D census","scope":"claude-kit:game-asset-artist","background":false,"isolation":"","targetRoot":"D:/dev/gridiron-blitz","model":"claude-fable-5","source":"posttooluse"}
 {"ts":"2026-08-06T21:48:42.835Z","id":"ac22649d66954f3d8","status":"in-flight","task":"Floodlights follow day/night cycle","scope":"claude-kit:game-asset-artist","background":false,"isolation":"","targetRoot":"D:/dev/stiletto-2349","model":"claude-fable-5","source":"posttooluse"}
 {"ts":"2026-08-06T22:15:09.113Z","id":"a8855bb99517de904","status":"in-flight","task":"Flood day/night wiring, minimal","scope":"claude-kit:game-asset-artist","background":false,"isolation":"","targetRoot":"D:/dev/stiletto-2349","model":"opus","source":"posttooluse"}
+{"ts":"2026-08-16T00:11:35.434Z","id":"a8a4be786ac5c3e86","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:12:06.679Z","id":"a32e7d8b635e4e8e0","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:12:38.144Z","id":"a7706fc85317305e1","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:13:10.114Z","id":"ae0b7bc2e2fc67353","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:13:41.570Z","id":"a748ac79eeb3c65bb","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:14:13.074Z","id":"ab0dbf900f1ac0eae","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:14:44.801Z","id":"aab03130eed2a8128","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:15:16.869Z","id":"a66ba4b6e7ce26ca3","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:15:48.587Z","id":"a68b9578b6fcfe15e","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:16:20.846Z","id":"abe1bd7982eb11bbf","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:16:52.017Z","id":"a9b6c8afbe19ca80b","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:17:23.777Z","id":"a06b620cad0e813cc","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:17:55.315Z","id":"a2f935b008244aa69","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:18:26.964Z","id":"a63beeffd9a71bf3a","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:18:58.410Z","id":"ac352f3cc6da1bffb","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:19:30.471Z","id":"ac946e372d51a43e1","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:20:02.293Z","id":"aa9411b30bcb04142","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:20:34.156Z","id":"a02555309ea458c0d","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:23:05.858Z","id":"ae00eb51a8f412e69","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:25:37.298Z","id":"af07a6aeb0c4117df","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T00:26:09.675Z","id":"a5f1b820bf8fcc5f6","status":"done","source":"subagentstop"}

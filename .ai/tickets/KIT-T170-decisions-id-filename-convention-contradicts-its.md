@@ -2,7 +2,7 @@
 id: KIT-T170
 title: decisions id/filename convention contradicts itself across the kit — decisions/_TEMPLATE.md says `id: KEY-D000` (per KIT-D011 <KEY>-<TYPE><NUM>), init/docs name the files `DEC-NNN-*.md`, and sync-data's id-integrity check demands id == filename stem — so following the template GUARANTEES a block (gridiron 2026-08-02: DEC-006/007/008 flagged as 'GB-D006' != 'DEC-006'; DEC-001..005 have the same mismatch but were grandfathered — the check only sees recently-touched files). Also its retry hint is wrong boilerplate for this failure mode ("t link <id> regressed_from|causing_commit" for an id mismatch). Pick ONE canon (probably DEC-NNN to match filenames + contract prose), fix the template, and make the checker's message say the actual fix.
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-04T15:20:02.038Z
-updated: 2026-08-04T15:20:02.038Z
+updated: 2026-08-16T00:25:58Z
 ---
 
 ## Description
@@ -53,3 +53,6 @@ decisions id/filename convention contradicts itself across the kit — decisions
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:25] (status) todo → doing
+- [2026-08-16 00:25] (status) doing → review
+- [2026-08-16 00:25] (comment) Decisions canon settled as <KEY>-D###-slug.md (KIT-D011, matching this repo's own store): decisions/_TEMPLATE.md now states the <id>-<slug>.md filename rule and drops DEC-###; CLAUDE.md + project-template/CLAUDE.snippet.md say <KEY>-D###-slug.md. The id-integrity messages in commit-gate.mjs and sync-data.mjs now give one hint per failure mode — a MISMATCH says rename-the-file-or-fix-the-id, no longer the t link regression boilerplate. Evidence: scripts/init-project.test.mjs — 32 passed (4 new template-canon assertions incl. a no-DEC-### negative control); hooks/commit-gate.test.mjs — 12 passed (4 hint assertions).

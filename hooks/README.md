@@ -32,7 +32,7 @@ the tool payload from stdin, decides, and exits (`exit 2` = block, `0` = allow).
 | `PreToolUse` (Task\|Agent) | activity-tag | Put the MODEL on the delegation's activity line (KIT-T179): `general-purpose  [Opus 5] Build CRX-T024 …`. See **Model tags** below. Never gates — it rewrites `description` and nothing else. |
 | `PreToolUse` (AskUserQuestion) | question-gate | Block a non-compliant questionnaire (KIT-T086): every question must mark its recommended option on the LABEL (prefix `(Recommended)`), and — single-select — list it FIRST. Catches the lived bug of putting the marker in the option DESCRIPTION (where it never renders). Agent-discipline rule — fires regardless of `.ai/` adoption; fail-open. |
 | `PreCompact` | flush | Force a `.ai/SESSION.md` flush before context is lost. |
-| `Stop` | housekeeping + flush + sync-data | Nag if a weekly review is overdue; **flush**'s SESSION-anchor ratchet nudges once when work landed this turn but `SESSION.md` wasn't touched (KIT-T014); **auto-commit + push `claude-kit-data`** when the centralized data repo is dirty (D-008), so a turn's `.ai/` edits persist without manual ceremony. |
+| `Stop` | housekeeping + flush + sync-data | Nag if a weekly review is overdue; **flush**'s SESSION-anchor ratchet nudges once when work landed this turn but `SESSION.md` wasn't touched (KIT-T014); **auto-commit + push `claude-kit-data`** when the centralized data repo is dirty (D-008), so a turn's `.ai/` edits persist without manual ceremony — scoped by pathspec to this project's `projects/<name>/` subtree, never tree-wide (KIT-T230). |
 
 **Tool resolution (`lib.nodeCli`)** runs node-ecosystem linters as `node <bin.js>` —
 resolving project-local first, then a global install — so a `.cmd`-shimmed global on

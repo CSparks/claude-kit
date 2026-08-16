@@ -2,7 +2,7 @@
 id: KIT-T230
 title: `git add -A` run from a project's .ai mount stages the ENTIRE shared claude-kit-data
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:35.188Z
-updated: 2026-08-16T00:06:35.188Z
+updated: 2026-08-16T00:25:50Z
 ---
 
 ## Description
@@ -61,3 +61,6 @@ subtree.
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:25] (status) todo → doing
+- [2026-08-16 00:25] (status) doing → review
+- [2026-08-16 00:25] (comment) Shared claude-kit-data is now staged/committed one projects/<name> subtree at a time. New hooks/data-repo.mjs (isDataRepo / dataProjectsSpanned / dataProjectPathspec via git rev-parse --show-prefix). commit-gate WARNS on tree-wide git add -A/. in a data repo and BLOCKS a commit spanning >1 project subtree; sync-data.mjs adds+commits by explicit pathspec and names the subtree in the subject, falling back loudly on an unrecognized layout; commands/flush.md and hooks/README.md document the pathspec rule. Evidence: hooks/sync-data.test.mjs — 15 passed (sibling projY in-flight file stays uncommitted; fallback negative control); hooks/commit-gate.test.mjs — 12 passed (4 T230 assertions).
