@@ -20,6 +20,8 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { query } from './q.mjs';
+import { parseItem } from './db-parse.mjs';
+import { governingRows, renderGoverning } from './governing-brief.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -117,7 +119,7 @@ async function getDocTrail(id, root) {
 
 // --- Markdown brief -----------------------------------------------------------------------
 
-function renderMd(id, meta, description, criteria, notes, trail, history) {
+function renderMd(id, meta, description, criteria, notes, trail, history, governing) {
   const lines = [];
   lines.push(`# Handoff brief: ${id}`);
   lines.push('');
@@ -143,6 +145,9 @@ function renderMd(id, meta, description, criteria, notes, trail, history) {
     lines.push(notes);
     lines.push('');
   }
+
+  lines.push(...renderGoverning(governing));
+  lines.push('');
 
   if (trail.length) {
     lines.push('## Governing trail');
@@ -204,13 +209,18 @@ async function main() {
   const notes = notesProse(parts.rest);
 
   // q trail + doc-trail run in parallel — both fail-open on a missing engine.
-  const [trail, history] = await Promise.all([
+  // The files this ticket declares it touches — the key into the file-scoped governance
+  // query (a ticket with no `files:` still gets its ancestry-derived decisions).
+  const files = parseItem(found.path, 'tickets').files || [];
+
+  const [trail, history, governing] = await Promise.all([
     getTrail(id, root),
     getDocTrail(id, root),
+    governingRows(id, files, root),
   ]);
 
   if (md) {
-    process.stdout.write(renderMd(id, meta, description, criteria, notes, trail, history) + '\n');
+    process.stdout.write(renderMd(id, meta, description, criteria, notes, trail, history, governing) + '\n');
     return;
   }
 
@@ -221,6 +231,7 @@ async function main() {
     description,
     criteria,      // open (unchecked) only
     notes,
+    governing,     // decisions governing this ticket's files/area, `parked` flagged (KIT-T232)
     trail,         // governing decisions/origin (decisions-first, from q trail)
     history,       // most-recent events (from q doc-trail, newest-first, capped)
   };

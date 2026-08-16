@@ -21,6 +21,9 @@ Keep going item-to-item until the queue needs them or they stop.
 2. BEFORE delegating to an agent, run `node <kit>/scripts/begin-task.mjs <id> --root <repo>`
    and pass the resulting JSON (or `--md` brief) as the handoff context — so the agent gets
    ticket + governing trail + open criteria programmatically, not as pasted prose (KIT-T029).
+   READ its **GOVERNING DECISIONS — read before dispatch** block first: a ticket whose area is
+   governed by a parking decision (`!! PARKED?`) is NEVER auto-dispatched — surface ONE line,
+   `next up: <id> — your call: governed by <D-id> (parked)`, and wait (KIT-T232).
    WORK the selected ticket via the full `/work` contract — dispatch, scope confirm, `t`
    CLI mutations, Notes/History updates, evidence floor. See `/work` for the complete
    working contract; do not repeat it here. When the agent finishes, it calls

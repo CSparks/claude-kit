@@ -2,7 +2,7 @@
 id: KIT-T232
 title: Process failure: agent dispatched onto a PARKED build's suite — no governing-decision check in the drain
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:35.881Z
-updated: 2026-08-16T00:06:35.881Z
+updated: 2026-08-16T00:39:57Z
 ---
 
 ## Description
@@ -45,7 +45,10 @@ capture flow should tag the area so triage flags any new ticket touching it.
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] begin-task's brief carries a "GOVERNING DECISIONS — read before dispatch" block, built from `q governing <ticket files>` + `q trail <id>` (decisions only)
+- [x] a decision whose title/body says parked/deferred/legacy/superseded/frozen is flagged `!! PARKED?`
+- [x] commands/drain.md step 2 requires reading that block; a parked-governed ticket is never auto-dispatched — `next up: <id> — your call: governed by <D-id> (parked)`
+- [x] fixture-tested: a decision governing the ticket's declared files surfaces + is flagged; an unrelated decision does not
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -54,6 +57,12 @@ capture flow should tag the area so triage flags any new ticket touching it.
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+begin-task already emitted a "Governing trail" (ancestry only, unflagged) — the delta is the
+file-scoped governance query plus the parked flag. Logic lives in the new scripts/governing-brief.mjs.
+One upstream fix was needed: q-governing's pathCovered ignored a directory query against a glob
+under it, so a ticket with `files: [src/legacy2d]` missed the decision governing `src/legacy2d/*`;
+containment is now symmetric for globs, matching the non-glob branch. Evidence:
+scripts/begin-task.test.mjs — 36 passed (8 new); scripts/q.test.mjs — 71 passed (no regression).
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -66,3 +75,6 @@ capture flow should tag the area so triage flags any new ticket touching it.
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:36] (status) todo → doing
+- [2026-08-16 00:39] (status) doing → review
+- [2026-08-16 00:39] (comment) begin-task GOVERNING DECISIONS block with !! PARKED? flags + drain.md gate; begin-task.test.mjs 36 passed, q.test.mjs 71 passed

@@ -33,6 +33,13 @@ of the repo (`refs/stash` lives in the common git dir), so a parallel agent's `p
 can apply or destroy your entry. Take a baseline with `git diff > <file>` + `git checkout -- .`,
 or a WIP commit on the worktree branch. The `worktree-guard` hook blocks the stash.
 
+## File deliverables — an ABSOLUTE, repo-anchored destination (KIT-T215)
+A brief that asks for a written artifact MUST name its destination as an absolute path inside
+the repo (`docs/research/<topic>.md`, the ticket's Notes, a `.ai/` store file) — never
+cwd-relative and never a scratchpad/session-temp path, which dies with the session and leaves
+the durable record citing a file nobody can open. The flush hook warns on SESSION.md citations
+that no longer resolve.
+
 ## Mandatory status transitions (KIT-T028)
 When an orchestrator delegates a **ticket** to a subagent, the subagent MUST keep the
 ticket status current — a stale `doing` nags every session start and obscures what's

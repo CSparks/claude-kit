@@ -2,7 +2,7 @@
 id: KIT-T220
 title: Doctor/health check: warn when CLAUDE_CODE_SUBAGENT_MODEL is set in the environment — it silently overrides BOTH the Agent-tool model…
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:31.938Z
-updated: 2026-08-16T00:06:31.938Z
+updated: 2026-08-16T00:39:56Z
 ---
 
 ## Description
@@ -32,7 +32,8 @@ Doctor/health check: warn when CLAUDE_CODE_SUBAGENT_MODEL is set in the environm
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] the SessionStart health nags warn when CLAUDE_CODE_SUBAGENT_MODEL is set, naming the value and the consequence (overrides the Agent-tool model param and every frontmatter pin)
+- [x] the nag is informational only (exit 0) and silent when the var is unset
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -41,6 +42,9 @@ Doctor/health check: warn when CLAUDE_CODE_SUBAGENT_MODEL is set in the environm
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+Added to hooks/housekeeping.mjs alongside the KIT-T235 AGENT PIN DRIFT nag, but OUTSIDE the
+adopted-repo block: the override is environment-level, so it must surface whether or not the repo
+has adopted .ai/. Evidence: hooks/housekeeping.test.mjs — 6 passed (set → warns; unset → silent).
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +57,6 @@ Doctor/health check: warn when CLAUDE_CODE_SUBAGENT_MODEL is set in the environm
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:36] (status) todo → doing
+- [2026-08-16 00:39] (status) doing → review
+- [2026-08-16 00:39] (comment) SessionStart nag for CLAUDE_CODE_SUBAGENT_MODEL; hooks/housekeeping.test.mjs 6 passed

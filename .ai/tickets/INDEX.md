@@ -106,12 +106,12 @@
 | KIT-T212 | tech-debt | todo | medium | scripts/test-hooks.mjs is an 817-line monolith over the 600 hard limit - split into per-hook test files (the hooks/*.test.mjs convention); found when the fixed length gate measured it correctly |
 | KIT-T213 | feature | todo | medium | Mechanical project reality-check (KIT-D062): per-project domain vocabulary in .ai/config.yml, a router-side mismatch check, and a cross-store q fts probe for matching in-flight work before any cross-project dispatch |
 | KIT-T214 | bug | todo | high | Status misreporting class: a RULED direction was presented as IMPLEMENTED reality. Case: HOD recipe model - HOD-R080 (road-data-model.md,… |
-| KIT-T215 | bug | todo | high | Agent research artifacts can land on non-durable paths and SESSION cites them unchecked |
+| KIT-T215 | bug | review | high | Agent research artifacts can land on non-durable paths and SESSION cites them unchecked |
 | KIT-T216 | feature | review | medium | An editor-workbench specialist agent has earned itself |
 | KIT-T217 | bug | todo | high | A landing report asserted the state of code it did not touch, and the claim drove a whole later slice. T127min comment |
 | KIT-T218 | bug | todo | high | Tuning-loop runaway (gridiron-blitz T037, 2h, 11 full sweeps): dispatch briefs for tune-against-instrument work MUST carry (a) an explicit… |
 | KIT-T219 | bug | todo | high | Two sessions, one tree: this kit session edited stiletto lamp.rs while a LIVE stiletto session was committing (315e31f 10:59 scooped my… |
-| KIT-T220 | feature | todo | medium | Doctor/health check: warn when CLAUDE_CODE_SUBAGENT_MODEL is set in the environment — it silently overrides BOTH the Agent-tool model… |
+| KIT-T220 | feature | review | medium | Doctor/health check: warn when CLAUDE_CODE_SUBAGENT_MODEL is set in the environment — it silently overrides BOTH the Agent-tool model… |
 | KIT-T221 | bug | review | high | Kit agents' 'model: opus' frontmatter (KIT-T151) is an ALIAS pin, not a version pin — it silently drifted Opus 4.8 -> Opus 5 at Claude… |
 | KIT-T222 | bug | todo | high | Manifesto verdict asserted 'no vehicle editor tool exists' while ST-T057 (dock/refit/inventory port, todo) sat in the backlog and the… |
 | KIT-T223 | bug | review | high | agents/light-and-shadow.md exists (and now pins claude-fable-5/medium) but is NOT a dispatchable agent type - the plugin roster exposes… |
@@ -123,7 +123,7 @@
 | KIT-T229 | bug | todo | high | Process failure, 2026-08-07 (gridiron-blitz GB-T091 dispatch): Chris said "Fix it |
 | KIT-T230 | bug | review | high | `git add -A` run from a project's .ai mount stages the ENTIRE shared claude-kit-data |
 | KIT-T231 | bug | review | high | Magic-numbers pre-write gate blocks .patch files in the scratchpad |
-| KIT-T232 | bug | todo | high | Process failure: agent dispatched onto a PARKED build's suite — no governing-decision check in the drain |
+| KIT-T232 | bug | review | high | Process failure: agent dispatched onto a PARKED build's suite — no governing-decision check in the drain |
 | KIT-T233 | bug | review | high | Worktree agents share ONE git stash — cross-pop collision between parallel agents |
 | KIT-T234 | bug | todo | high | Reference-selection failure: port anchored on the superseded TS path, native Rust crate dismissed unread |
 | KIT-T235 | bug | review | high | Installed marketplace agent copies go stale — model pin silently lost |
