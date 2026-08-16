@@ -2,7 +2,7 @@
 id: KIT-T235
 title: Installed marketplace agent copies go stale — model pin silently lost
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:36.767Z
-updated: 2026-08-16T00:06:36.767Z
+updated: 2026-08-16T00:18:29Z
 ---
 
 ## Description
@@ -49,7 +49,11 @@ model+effort explicitly so a silent inherit is visible in the transcript.
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] SessionStart health check compares source `agents/*.md` against the INSTALLED copy and WARNS on drift (missing file, or model/effort mismatch)
+- [x] The warning names the resync command
+- [x] The check is silent outside the kit repo and on a dev-linked install
+- [x] `scripts/dev-link.mjs` confirmed to cover `agents/`
+- [x] Tested with temp-dir fixtures
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -58,6 +62,7 @@ model+effort explicitly so a silent inherit is visible in the transcript.
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+Drift check lives in hooks/housekeeping.mjs (SessionStart nag path, capped like the other nags) over `checkInstalledDrift` from scripts/agent-pins.mjs. Two resolution wrinkles found live: the registry's `installPath` pointed at an EMPTY version-cache dir (plugins/cache/claude-kit/claude-kit/0.1.16) while the copy the harness actually loads is plugins/marketplaces/claude-kit — so `installedPluginRoot` only accepts a candidate that carries an `agents/` dir, falling through to the marketplace checkout. Firing on this machine it reports real drift: audio-synthesist / game-asset-artist / light-and-shadow missing entirely, and the four present ones pinless (`model none != claude-opus-5`) — exactly the KIT-T235 symptom. dev-link.mjs symlinks the WHOLE repo onto the install dir, so agents/ is covered by construction; the check skips a dev-linked install since install IS the source. Evidence: `node scripts/agent-pins.test.mjs` — 14 passed.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -70,3 +75,6 @@ model+effort explicitly so a silent inherit is visible in the transcript.
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:16] (status) todo → doing
+- [2026-08-16 00:18] (status) doing → review
+- [2026-08-16 00:18] (comment) SessionStart drift nag in hooks/housekeeping.mjs compares source agents/ vs the installed copy; fires live on this machine. dev-link covers agents/ by whole-repo symlink. agent-pins.test.mjs, 14 passed.

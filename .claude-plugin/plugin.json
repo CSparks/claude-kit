@@ -31,10 +31,12 @@
     "./commands/"
   ],
   "agents": [
-    "./agents/researcher.md",
+    "./agents/audio-synthesist.md",
     "./agents/code-reviewer.md",
+    "./agents/game-asset-artist.md",
+    "./agents/light-and-shadow.md",
     "./agents/refactorer.md",
-    "./agents/test-author.md",
-    "./agents/game-asset-artist.md"
+    "./agents/researcher.md",
+    "./agents/test-author.md"
   ]
 }

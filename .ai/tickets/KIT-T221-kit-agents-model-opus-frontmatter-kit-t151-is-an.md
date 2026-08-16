@@ -2,7 +2,7 @@
 id: KIT-T221
 title: Kit agents' 'model: opus' frontmatter (KIT-T151) is an ALIAS pin, not a version pin — it silently drifted Opus 4.8 -> Opus 5 at Claude…
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:32.228Z
-updated: 2026-08-16T00:06:32.228Z
+updated: 2026-08-16T00:18:16Z
 ---
 
 ## Description
@@ -32,7 +32,10 @@ Kit agents' 'model: opus' frontmatter (KIT-T151) is an ALIAS pin, not a version 
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] Every `agents/*.md` pins a FULL model id from the KIT-D061 ladder — no bare alias (`opus|sonnet|haiku|fable`)
+- [x] Every `agents/*.md` also declares an `effort:`
+- [x] A test asserts both against the real repo, with negative controls (alias pin / missing effort / off-ladder id) on temp fixtures
+- [x] The test is wired into `npm test`
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -41,6 +44,7 @@ Kit agents' 'model: opus' frontmatter (KIT-T151) is an ALIAS pin, not a version 
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+Audit found all seven agents already carrying full ids (audio-synthesist, code-reviewer, refactorer, researcher, test-author = claude-opus-5/low; game-asset-artist, light-and-shadow = claude-fable-5/medium, legal asset-lane pins per KIT-D061). The gap was ENFORCEMENT: dispatch-guard's sweep checked the model id shape but nothing checked `effort:` or that the id is actually on the ladder. New `scripts/agent-pins.mjs` derives the legal id set from `.ai/config.yml` -> dispatch.tiers (model + fallback), so the ladder stays the single source of truth. Evidence: `node scripts/agent-pins.test.mjs` — 14 passed.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +57,6 @@ Kit agents' 'model: opus' frontmatter (KIT-T151) is an ALIAS pin, not a version 
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:16] (status) todo → doing
+- [2026-08-16 00:18] (status) doing → review
+- [2026-08-16 00:18] (comment) All 7 kit agents pin full ladder ids + effort; new scripts/agent-pins.mjs + agent-pins.test.mjs (14 passed) enforce it, wired into npm test.
