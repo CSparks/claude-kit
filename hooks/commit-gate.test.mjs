@@ -202,6 +202,25 @@ try {
     ok('a pathspec-limited single-subtree commit is allowed (negative control)',
       r.code === 0 && !r.out.includes('project subtrees'), r.out.trim());
   }
+  // --- KIT-T162: the id citation accepts a digit-bearing scope key (S2-T001) ----------
+  {
+    const d = adopted();
+    writeFileSync(join(d, 'code.js'), 'export const x = 1;\n');
+    g(['add', 'code.js'], d);
+    const cite = (msg) => hook('commit-gate.mjs', `git -C ${d} commit -m "${msg}" -- code.js`, cwd);
+
+    let r = cite('implements S2-T001');
+    ok('a digit-bearing scope key cites (S2-T001)', r.code === 0, r.out.trim());
+
+    r = cite('implements KIT-T112');
+    ok('an all-letter key still cites (KIT-T112, negative control)', r.code === 0, r.out.trim());
+
+    r = cite('implements s2-t001');
+    ok('a lowercase id does NOT cite', r.code === 2 && r.out.includes('BLOCKED'), r.out.trim());
+
+    r = cite('implements S-T001');
+    ok('a single-character key does NOT cite', r.code === 2 && r.out.includes('BLOCKED'), r.out.trim());
+  }
 } finally {
   for (const f of fixtures) { try { rmSync(f, { recursive: true, force: true }); } catch { /* best-effort */ } }
   harness.cleanup();

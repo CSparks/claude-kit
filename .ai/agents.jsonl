@@ -78,7 +78,22 @@
 {"ts":"2026-08-16T00:35:47.452Z","id":"a6b989678048e3591","status":"done","source":"subagentstop"}
 {"ts":"2026-08-16T00:38:18.672Z","id":"a72b7928c44256217","status":"done","source":"subagentstop"}
 {"ts":"2026-08-16T00:40:20.266Z","id":"a922cecf0551ce87c","status":"done","source":"subagentstop"}
-{"ts":"2026-08-16T01:23:09.937Z","id":"a72e314c9e3e93c25","status":"in-flight","task":"KIT-T112 split hooks/lib.mjs","scope":"claude-kit:refactorer","background":false,"isolation":"worktree","targetRoot":"D:/dev/claude-kit","model":"claude-opus-5","source":"posttooluse"}
-{"ts":"2026-08-16T01:23:25.646Z","id":"a511ef79b4f666b38","status":"in-flight","task":"split scripts/test-hooks.mjs","scope":"claude-kit:refactorer","background":false,"isolation":"worktree","targetRoot":"D:/dev/claude-kit","model":"claude-opus-5","source":"posttooluse"}
-{"ts":"2026-08-16T01:24:01.913Z","id":"a48032f0435bb1a52","status":"in-flight","task":"KIT-T160 API writes auto-commit","scope":"general-purpose","background":false,"isolation":"worktree","targetRoot":"D:/dev/claude-kit","model":"opus","source":"posttooluse"}
-{"ts":"2026-08-16T01:24:28.719Z","id":"acc9a83e27e1006ee","status":"in-flight","task":"KIT-T048 provenance enforcement","scope":"general-purpose","background":false,"isolation":"worktree","targetRoot":"D:/dev/claude-kit","model":"opus","source":"posttooluse"}
+{"ts":"2026-08-16T01:23:31.873Z","id":"a892504a84d4abe23","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:24:03.478Z","id":"a9394ae4ed906d60f","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:26:35.037Z","id":"a03bb762f5fe007ef","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:29:36.513Z","id":"a1394fc3a629db87f","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:32:38.184Z","id":"a828a6391377efe92","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:35:40.624Z","id":"a9825a001fa368fa3","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:36:12.267Z","id":"aac5202dc552531cc","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:36:43.871Z","id":"abef4c8822d908b85","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:37:15.606Z","id":"a71deee83ff8662d4","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:37:47.844Z","id":"a5a1eddd78ec20491","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:38:19.586Z","id":"a3f9a01da76688203","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:38:51.509Z","id":"a9e4fb4a489245fc2","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:39:23.247Z","id":"a45c32c405aa1ce54","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:39:54.615Z","id":"ae17785f3b6647bfa","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:40:26.153Z","id":"af4bc7889c5f71052","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:40:58.191Z","id":"a9788333882ba4049","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:43:59.621Z","id":"a7d61a856e9cbf5ce","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:44:31.283Z","id":"a4b22c1163d3bfe57","status":"done","source":"subagentstop"}
+{"ts":"2026-08-16T01:45:02.798Z","id":"a85ab56aba3d621a5","status":"done","source":"subagentstop"}
