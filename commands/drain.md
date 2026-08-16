@@ -46,6 +46,11 @@ Keep going item-to-item until the queue needs them or they stop.
 7. STOP and report when: the queue is empty, every remaining item needs the maintainer
    (decision / scope / design-gated), or the maintainer says stop. List what's left and why.
 
+**QUERY-TOOL FAILURE IS A HARD STOP (KIT-T236):** if `q` or `code-graph` errors, crashes, or
+answers wrongly, STOP the current step, `cap bug <what failed, verbatim command + error>`, and
+fix or dispatch the fix before continuing. Falling back to grep and moving on leaves the
+retrieval layer broken for every future session — the silent fallback IS the failure.
+
 **BIG-ASK TRIGGER (KIT-T038):** when an incoming request exceeds a size/risk threshold — long prompt AND a scope/risk signal (redesign, architecture, migrate, from scratch, overhaul, end-to-end, system-wide, etc.) — do NOT one-shot it. Route it into the structured pipeline: draft a plan, write a research doc (`docs/research/`), decompose into tickets, then drain them. Small/routine asks proceed directly; only the big-ask path engages the pipeline. The `UserPromptSubmit` hook nudges this automatically, but the contract here is the authoritative rule.
 
 **STATUS TRANSITIONS ARE MANDATORY (KIT-T028):** a `doing` ticket that gets dropped without a

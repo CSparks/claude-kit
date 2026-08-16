@@ -15,7 +15,7 @@
 // CLAUDE_PLUGIN_ROOT + --root pointed at temp dirs. Nothing here can reach ~/.claude or
 // rewrite a live project's scope in the shared cache.
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,7 @@ import { resolveEngine } from './db-engine.mjs';
 import { hydrate } from './hydrate-db.mjs';
 import { query } from './q.mjs';
 import { ftsMatchQuery, parseFts, defaultScope, resolveStore, requireStore, requireScope, formatId } from './q-model.mjs';
+import { parseInboxArgs, ageDays, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 
 const Q_CLI = join(dirname(fileURLToPath(import.meta.url)), 'q.mjs');
 
@@ -61,7 +62,7 @@ const dbPath = join(tmpRoot, '.cache', 'workflow.db');
 function makeProject(name, key) {
   const root = join(tmpRoot, name);
   const ai = join(root, '.ai');
-  for (const store of ['tickets', 'decisions', 'notes', 'questions']) {
+  for (const store of ['tickets', 'decisions', 'notes', 'questions', 'inbox']) {
     mkdirSync(join(ai, store), { recursive: true });
   }
   writeFileSync(join(ai, 'config.yml'), `ids:\n  key: "${key}"\n  pad: 3\n`);
@@ -90,6 +91,22 @@ writeFileSync(join(A.ai, 'questions', 'FQA-Q001.md'),
 const B = makeProject('proj-b', 'FQB');
 writeFileSync(join(B.ai, 'tickets', 'FQB-T001-other.md'),
   `---\nid: FQB-T001\ntitle: another project's ask-first gate note\ntype: bug\nstatus: todo\npriority: low\n---\n## Description\nthe gate and the widget again\n`);
+
+// KIT-T238 inbox fixtures: id-less caps in cap.mjs's own `YYYY-MM-DD-HHMM-slug.md` shape, aged
+// by their filename stamp. Their words are deliberately disjoint from the FTS fixtures above so
+// the scope/MATCH hit-count assertions stay untouched.
+const DAY_MS = 86400000;
+// Name each cap from ONE instant so its filename stamp is EXACTLY N days back — a date-only
+// stamp would round to N±1 depending on the hour the suite runs.
+const capName = (daysAgo, slug) => {
+  const iso = new Date(Date.now() - daysAgo * DAY_MS).toISOString();
+  return `${iso.slice(0, 10)}-${iso.slice(11, 13)}${iso.slice(14, 16)}-${slug}.md`;
+};
+const OLD_CAP = capName(9, 'harvester-throughput-drops');
+const FRESH_CAP = capName(0, 'seed-a-fresh-observation');
+writeFileSync(join(A.ai, 'inbox', OLD_CAP), '(bug) harvester throughput drops after a reload\n');
+writeFileSync(join(A.ai, 'inbox', FRESH_CAP), '(idea) seed a fresh observation\n');
+writeFileSync(join(B.ai, 'inbox', capName(30, 'other-project-capture')), '(chore) other project capture\n');
 
 // ---- KIT-T172: the MATCH-expression builder (pure, always runs) --------------
 test('ftsMatchQuery quotes a hyphenated term into a phrase (no bare `first` column ref)', () =>
@@ -132,6 +149,51 @@ test('parseFts treats --scope all as no filter (case-insensitive)', () => {
 });
 test('parseFts falls back to every scope outside an adopted repo', () =>
   assert.deepEqual(parseFts('gate', tmpRoot), { scope: '', query: 'gate' }));
+
+// ---- KIT-T238: the inbox arg/age model (pure, always runs) ------------------
+test('parseInboxArgs defaults the scope to the cwd project', () =>
+  assert.deepEqual(parseInboxArgs([], A.root), { scope: 'FQA', olderThanDays: 0 }));
+test('parseInboxArgs takes an explicit scope, and `all` means every project', () => {
+  assert.equal(parseInboxArgs(['FQB'], A.root).scope, 'FQB');
+  assert.equal(parseInboxArgs(['all'], A.root).scope, '');
+});
+test('parseInboxArgs reads --older-than in days or hours, anywhere in the args', () => {
+  assert.deepEqual(parseInboxArgs(['--older-than', '3d'], A.root), { scope: 'FQA', olderThanDays: 3 });
+  assert.deepEqual(parseInboxArgs(['FQB', '--older-than', '7'], A.root), { scope: 'FQB', olderThanDays: 7 });
+  assert.equal(parseInboxArgs(['--older-than=12h'], A.root).olderThanDays, 0.5);
+});
+test('parseInboxArgs refuses a duration it cannot parse (never a silent no-filter)', () =>
+  assert.throws(() => parseInboxArgs(['--older-than', 'lately'], A.root), /wants a duration/));
+test('ageDays reads the capture date out of the filename', () => {
+  const now = Date.UTC(2026, 7, 15);
+  assert.equal(Math.floor(ageDays('inbox/2026-08-12-0900-thing.md', null, now)), 2);
+});
+test('ageDays falls back to the file mtime when the name carries no date', () => {
+  const now = Date.UTC(2026, 7, 15);
+  assert.equal(Math.floor(ageDays('inbox/undated.md', now - 5 * DAY_MS, now)), 5);
+  assert.equal(ageDays('inbox/undated.md', null, now), null, 'no signal at all is unknown, not zero');
+});
+test('inboxRows filters by age and prints an openable path', () => {
+  const now = Date.UTC(2026, 7, 15);
+  const items = [
+    { id: 'X-INBOX-a', scope: 'X', file: 'inbox/2026-08-01-0900-old.md', body: '(bug) old thing' },
+    { id: 'X-INBOX-b', scope: 'X', file: 'inbox/2026-08-15-0900-new.md', body: '(idea) new thing' },
+  ];
+  const rows = inboxRows(items, { now, olderThanDays: 3, aiDirFor: () => '/data/.ai' });
+  assert.deepEqual(rows.map((r) => r.id), ['X-INBOX-a'], 'only the aged capture survives the filter');
+  assert.equal(rows[0].age, '13d', 'whole days elapsed since the 09:00 capture stamp');
+  assert.equal(rows[0].type, '', 'the row carries whatever type the parse found');
+  assert.equal(rows[0].title, 'old thing', 'an id-less cap is summarized from its body, minus the (type) tag');
+  assert.match(rows[0].path, /inbox[\\/]2026-08-01-0900-old\.md$/);
+});
+test('inboxRows sorts oldest first (the confirmation queue reads top-down)', () => {
+  const now = Date.UTC(2026, 7, 15);
+  const rows = inboxRows([
+    { id: 'b', scope: 'X', file: 'inbox/2026-08-14-0900-b.md' },
+    { id: 'a', scope: 'X', file: 'inbox/2026-08-01-0900-a.md' },
+  ], { now });
+  assert.deepEqual(rows.map((r) => r.id), ['a', 'b']);
+});
 
 // ---- KIT-T183 / KIT-T109: the next-id store argument (pure, always runs) ----
 // The lenient predecessor mapped ANY unrecognized store name to `tickets`, so `next-id GB
@@ -182,7 +244,7 @@ for (const flag of ['--help', '-h', 'help']) {
 }
 test('q --help lists every verb the CLI actually dispatches', () => {
   const { stdout } = cli(['--help']);
-  for (const verb of ['open', 'children', 'backlinks', 'trail', 'governing', 'mentions', 'drift',
+  for (const verb of ['open', 'inbox', 'confirmations', 'children', 'backlinks', 'trail', 'governing', 'mentions', 'drift',
     'by-commit', 'doc-trail', 'fts', 'similar', 'next-id', 'rundown', 'regressions',
     'supersedes', 'integrity', 'sql', 'verify', 'sessions', 'session', 'said']) {
     assert.match(stdout, new RegExp(`^\\s{2}${verb.replace('-', '\\-')}\\b`, 'm'), `--help documents \`${verb}\``);
@@ -324,6 +386,48 @@ if (!engine) {
     const bad = cli(['--root', A.root, 'next-id', 'FQA', 'bogus']);
     assert.notEqual(bad.status, 0, 'an unknown store is an error, not an id');
     assert.match(bad.stderr, /unknown store 'bogus'/);
+  });
+
+  // ---- KIT-T238: the inbox verbs, cache + scan + CLI -----------------------
+  const inbox = async (args, opts = {}) => (await query('inbox', args, { root: A.root, dbPath, ...opts })).rows;
+
+  await testAsync('inbox lists this project\'s untriaged captures, oldest first', async () => {
+    const rows = await inbox([]);
+    assert.deepEqual(rows.map((r) => r.path.split(/[\\/]/).pop()), [OLD_CAP, FRESH_CAP]);
+    assert.equal(rows[0].scope, 'FQA', "another project's capture is not in the default scope");
+    assert.equal(rows[0].age, '9d');
+    assert.equal(rows[0].type, 'bug', "the cap's leading (type) tag is carried through");
+    assert.equal(rows[0].title, 'harvester throughput drops after a reload');
+  });
+  await testAsync('inbox --older-than drops the fresh captures (no more ad-hoc SQL for age)', async () => {
+    assert.deepEqual((await inbox(['--older-than', '3d'])).map((r) => r.age), ['9d']);
+    assert.deepEqual(await inbox(['--older-than', '30d']), [], 'nothing is that old yet');
+  });
+  await testAsync('inbox <scope> / all cross the project boundary explicitly', async () => {
+    assert.deepEqual((await inbox(['FQB'])).map((r) => r.scope), ['FQB']);
+    assert.deepEqual((await inbox(['all'])).map((r) => r.scope), ['FQB', 'FQA', 'FQA'], 'oldest first across scopes');
+  });
+  await testAsync('inbox rows carry a REAL path — the file the row names exists on disk', async () => {
+    const [row] = await inbox([]);
+    assert.ok(existsSync(row.path), `${row.path} should be openable`);
+  });
+  await testAsync(`confirmations is inbox filtered to >= ${CONFIRMATION_DAYS}d (the needs-a-human set)`, async () => {
+    const { rows } = await query('confirmations', [], { root: A.root, dbPath });
+    assert.deepEqual(rows.map((r) => r.age), ['9d']);
+    assert.deepEqual(rows, await inbox(['--older-than', `${CONFIRMATION_DAYS}d`]), 'same data, one fixed filter');
+  });
+  await testAsync('inbox is identical on the markdown-scan path (no-engine parity)', async () => {
+    const core = (rows) => rows.map((r) => ({ id: r.id, age: r.age, scope: r.scope, title: r.title }));
+    assert.deepEqual(core(await inbox([], { noDb: true })), core(await inbox([])));
+    assert.deepEqual(core(await inbox(['--older-than', '3d'], { noDb: true })), core(await inbox(['--older-than', '3d'])));
+  });
+  await testAsync('CLI: q inbox / q confirmations exit 0 and print the path', async () => {
+    const r = cli(['--root', A.root, 'inbox']);
+    assert.equal(r.status, 0, `inbox exited ${r.status}: ${r.stderr.trim()}`);
+    assert.match(r.stdout, new RegExp(OLD_CAP.replace(/\./g, '\\.')), 'the row names the file');
+    const c = cli(['--root', A.root, 'confirmations', '--json']);
+    assert.equal(c.status, 0, `confirmations exited ${c.status}: ${c.stderr.trim()}`);
+    assert.equal(JSON.parse(c.stdout).length, 1, 'JSON output is machine-readable');
   });
 
   // ---- end-to-end through the CLI (the literal repro commands) --------------

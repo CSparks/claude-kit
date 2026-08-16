@@ -92,6 +92,15 @@ test('cap still captures free text that CONTAINS a help flag', () => {
   assert.equal(files.length, 1, 'the capture landed');
   assert.match(r.stdout, /^captured \(bug\)/, 'and it was typed, not treated as usage');
 });
+// ---- the verbs a gate message sends agents to must exist in the help ---------
+test('q --help documents the inbox verbs the store-grep gate points at (KIT-T238)', () => {
+  const { stdout } = run('q.mjs', ['--help']);
+  assert.match(stdout, /^\s{2}inbox \[scope\] \[--older-than Nd\]/m);
+  assert.match(stdout, /^\s{2}confirmations \[scope\]/m);
+});
+test('code-graph --help documents the status verb (KIT-T236)', () =>
+  assert.match(run('code-graph.mjs', ['--help']).stdout, /^\s{2}status\b/m));
+
 test('code-graph --help does not build the graph (no JSON dump)', () => {
   const { stdout } = run('code-graph.mjs', ['--help']);
   assert.doesNotMatch(stdout, /"files":/, 'the whole-graph dump is gone from the help path');

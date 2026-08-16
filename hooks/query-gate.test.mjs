@@ -88,6 +88,29 @@ expect('allows rg --include=*.rs (long include form)', run(d, 'rg --include=*.rs
 expect('still blocks rg --include=*.ts (TS is indexed)', run(d, 'rg --include=*.ts "PhysicsSim"').code, 2);
 expect('still blocks plain rg with no ext signal (unknown scope)', run(d, 'rg PhysicsBody').code, 2);
 
+// KIT-T167 — listing workflow DATA (.ai stores, the claude-kit-data projects tree) is not
+// source discovery: code-graph indexes none of it. store-grep stays the arbiter for .ai paths;
+// the data root, which no store pattern matches, is simply allowed.
+expect('allows listing a claude-kit-data project dir (was a source-discovery false positive)',
+  run(d, 'Get-ChildItem -Recurse D:\\dev\\claude-kit-data\\projects\\gridiron-blitz').code, 0);
+expect('allows a recursive listing of claude-kit-data (forward slashes)',
+  run(d, 'find D:/dev/claude-kit-data/projects -name "*.md"').code, 0);
+expect('a .ai listing blocks under store-grep, NOT source-discovery',
+  run(d, 'Get-ChildItem -Recurse .ai/tickets').err.includes('searching the .ai work store'), true);
+expect('a .ai listing is still blocked (q is the route)', run(d, 'Get-ChildItem -Recurse .ai/tickets').code, 2);
+// Negative control: the workflow-data exemption must not leak into real source discovery.
+expect('STILL blocks recursive source grep (exemption did not widen)', run(d, 'rg foo src/').code, 2);
+expect('STILL blocks find over src (exemption did not widen)', run(d, 'find src -name "*.ts"').code, 2);
+
+// KIT-T236 — a query-tool failure is a stop-and-file, stated on both block messages.
+expect('store-grep message states the hard-stop-and-file rule',
+  run(d, 'grep -rn "physics" .ai/decisions/').err.includes('HARD STOP'), true);
+expect('source-discovery message states the hard-stop-and-file rule',
+  run(d, 'rg PhysicsSim').err.includes('HARD STOP'), true);
+// KIT-T238 — the store-grep message names the inbox verbs it forces traffic onto.
+expect('store-grep message lists q inbox / q confirmations',
+  /q\.mjs" inbox[\s\S]*q\.mjs" confirmations/.test(run(d, 'grep -rn x .ai/inbox/').err), true);
+
 // KIT-T085 AC3 — targeted grep of .ai/config.yml is allowed (KIT-T080 carve-out).
 expect('allows grep of ids from config.yml (AC3)', run(d, 'grep ids .ai/config.yml').code, 0);
 expect('allows grep of key from config.yml', run(d, 'grep key .ai/config.yml').code, 0);

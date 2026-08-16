@@ -2,7 +2,7 @@
 id: KIT-T238
 title: q.mjs has no first-class inbox query — sessions brute-force `q sql "SELECT ... WHERE store='inbox'"` (stiletto session 2026-08-15: 3 raw…
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:37.967Z
-updated: 2026-08-16T00:06:37.967Z
+updated: 2026-08-16T00:25:53Z
 ---
 
 ## Description
@@ -32,7 +32,13 @@ q.mjs has no first-class inbox query — sessions brute-force `q sql "SELECT ...
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] `q inbox [scope] [--older-than Nd]` lists untriaged captures with id, age, scope, type,
+      title and the resolved file path; `all` widens to every project.
+- [x] `q confirmations [scope]` is the same data with the fixed >=3d filter.
+- [x] Both verbs answer identically on the markdown-scan (no-engine) path.
+- [x] Registered in `q --help` and asserted by scripts/cli-help.test.mjs.
+- [x] The query-gate's store-grep block message lists the new verbs.
+- [x] Tests: scripts/q.test.mjs (fixture caps aged by filename stamp) — 71 passed.
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -41,6 +47,14 @@ q.mjs has no first-class inbox query — sessions brute-force `q sql "SELECT ...
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+Shaping/filtering lives in `scripts/q-inbox.mjs` so the cache path (q.mjs canned SQL) and the
+markdown-scan path (q-fallback.mjs) share one implementation — the same parity discipline the
+rest of the surface uses. Age comes from cap.mjs's `YYYY-MM-DD-HHMM-` filename stamp (survives a
+copy/re-clone), falling back to the hydrated `source_files.mtime`; an item with neither signal
+reports age `?` rather than 0. An id-less cap has no frontmatter title, so the row's title is the
+first body line minus its `(type)` tag. Rows sort oldest-first — the confirmation queue reads
+top-down. Test evidence: scripts/q.test.mjs 71 passed, scripts/cli-help.test.mjs 18 passed,
+hooks/query-gate.test.mjs all pass, `npm test` clean.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +67,6 @@ q.mjs has no first-class inbox query — sessions brute-force `q sql "SELECT ...
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:12] (status) todo → doing
+- [2026-08-16 00:25] (status) doing → review
+- [2026-08-16 00:25] (comment) q inbox / q confirmations landed (q-inbox.mjs, cache + scan parity, help + gate message); q.test.mjs 71 passed, cli-help 18 passed

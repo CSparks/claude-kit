@@ -17,7 +17,7 @@
 // parser) — the tree-sitter/ctags upgrade for precise call edges is the opt-in path
 // noted in KIT-T012. Nothing here adds a runtime dependency.
 
-import { readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { join, relative, extname, dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -100,6 +100,10 @@ const TEXT_EXT = new Set([
   ...FAMILIES.flatMap((f) => f.exts),
   '.kt', '.swift', '.rb', '.php', '.scala', '.sh', '.lua', '.dart', '.vue', '.svelte', '.zig',
 ]);
+
+function isDirectory(p) {
+  try { return statSync(p).isDirectory(); } catch { return false; }
+}
 
 function familyFor(ext) {
   return FAMILIES.find((f) => f.exts.includes(ext)) || null;
@@ -219,14 +223,26 @@ export function listSourceFiles(root) {
   return gitFiles(absRoot) || walk(absRoot);
 }
 
+// A build carries the files it could NOT read (KIT-T236): git's file list is a snapshot that
+// can name a deleted-but-still-tracked path, and a mid-build throw took the whole query down
+// (ENOENT + a libuv abort) so the caller saw a crash and fell back to grep. Skipping the entry
+// keeps every other answer intact; `graph.stale` is what makes the gap VISIBLE instead of
+// silently shrinking the result set.
 export async function buildGraph(root) {
   const absRoot = resolve(root);
   const paths = listSourceFiles(absRoot);
   const ts = await loadTreeSitter(); // null → heuristic floor
   // Sequential: the tree-sitter parser is a single shared instance (setLanguage mutates it).
   const files = [];
+  const stale = [];
   try {
-    for (const f of paths) files.push(await extractFile(f, absRoot, ts));
+    for (const f of paths) {
+      try {
+        files.push(await extractFile(f, absRoot, ts));
+      } catch (e) {
+        stale.push({ path: relative(absRoot, f).split(sep).join('/'), reason: (e && e.code) || 'unreadable' });
+      }
+    }
   } finally {
     if (ts && ts.dispose) ts.dispose(); // free WASM handles (avoid the Windows exit abort)
   }
@@ -241,7 +257,11 @@ export async function buildGraph(root) {
     }
   }
   edges.sort((a, b) => a.from.localeCompare(b.from) || String(a.to).localeCompare(String(b.to)));
-  return { root: absRoot.split(sep).join('/'), files, edges, precise: files.some((f) => f.precise) };
+  return {
+    root: absRoot.split(sep).join('/'), files, edges,
+    precise: files.some((f) => f.precise),
+    stale: stale.sort((a, b) => a.path.localeCompare(b.path)),
+  };
 }
 
 // Verify a CODEMAP against the graph instead of generating it: full generation would
@@ -403,7 +423,8 @@ function walkHtml(root, acc = []) {
   return acc;
 }
 
-const USAGE = `usage: code-graph [root] [--out <graph.json>] [--query <q> [arg]] [--codemap-check <file>]
+const USAGE = `usage: code-graph [root|status] [--out <graph.json>] [--query <q> [arg]] [--codemap-check <file>]
+  status                             index health: file/edge counts, mode, stale entries
   --query importers-of <path>        modules that import <path>
   --query defines <symbol>           files defining <symbol>
   --query references-of <symbol>     files referencing <symbol>
@@ -421,13 +442,45 @@ async function main() {
   let query = null;
   let queryArg = null;
   let codemap = null;
+  let status = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--out') out = args[++i];
     else if (args[i] === '--query') { query = args[++i]; queryArg = args[++i]; }
     else if (args[i] === '--codemap-check') codemap = args[++i];
+    // `status` is a VERB, not a directory — taken as a root it walked <cwd>/status and died
+    // with ENOENT scandir (KIT-T236).
+    else if (args[i] === 'status') status = true;
     else if (!args[i].startsWith('--')) root = args[i];
   }
+  if (!isDirectory(root)) {
+    console.error(`code-graph: '${root}' is not a directory — a positional argument is the repo ROOT.\n${USAGE}`);
+    process.exit(2);
+  }
   const graph = await buildGraph(root);
+  // A stale index NEVER answers as if it were complete: report the skipped entries and fail,
+  // so a caller sees a failure rather than a quietly-short `[]` (KIT-T236).
+  const reportStale = () => {
+    if (!graph.stale.length) return false;
+    process.stderr.write(
+      `code-graph: index is STALE — ${graph.stale.length} file(s) in the source list could not be read ` +
+      `(deleted/renamed but still listed):\n  ${graph.stale.map((s) => `${s.path} (${s.reason})`).join('\n  ')}\n` +
+      `Results below EXCLUDE them. Rebuild: git add -A (or git status) in ${graph.root}, then re-run.\n`);
+    return true;
+  };
+
+  if (status) {
+    const symbols = graph.files.reduce((n, f) => n + f.symbols.length, 0);
+    process.stdout.write(JSON.stringify({
+      root: graph.root,
+      files: graph.files.length,
+      edges: graph.edges.length,
+      symbols,
+      mode: graph.precise ? 'precise (tree-sitter)' : 'heuristic',
+      stale: graph.stale,
+    }, null, 2) + '\n');
+    process.exitCode = reportStale() ? 1 : 0;
+    return;
+  }
 
   if (codemap) {
     const { undocumented, stale } = codemapCheck(graph, readFileSync(codemap, 'utf8'));
@@ -453,6 +506,7 @@ async function main() {
       process.exit(2);
     }
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+    process.exitCode = reportStale() ? 1 : 0;
     return;
   }
 
@@ -465,6 +519,7 @@ async function main() {
   } else {
     process.stdout.write(json + '\n');
   }
+  process.exitCode = reportStale() ? 1 : 0;
 }
 
 // Run main only as a CLI, not when imported by the tests.

@@ -43,6 +43,7 @@ import { resolveEngine } from './db-engine.mjs';
 import { hydrate, defaultDbPath, hydrationSources, isRegisteredStore, isSharedDb } from './hydrate-db.mjs';
 import { readIdConfig, statStoreFiles } from './id-utils.mjs';
 import { fallback } from './q-fallback.mjs';
+import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import {
   OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, parseFts, requireStore, requireScope, formatId,
   compareOpen, findGaps, walkAncestry,
@@ -138,6 +139,33 @@ async function verifyCache(root, dbPath) {
   return { scopes: scopeRows, stale: anyStale };
 }
 
+// ---- inbox support (KIT-T238) ---------------------------------------------
+// Open captures with their body (for a title an id-less cap file has no frontmatter for) and
+// the hydrated mtime (the age fallback when a filename carries no date stamp).
+function inboxItems(db) {
+  return db.all(
+    `SELECT i.id, i.scope, i.type, i.title, i.file, f.body, sf.mtime AS mtimeMs
+     FROM items i
+     LEFT JOIN items_fts f ON f.id = i.id
+     LEFT JOIN source_files sf ON sf.relpath = i.file AND sf.scope = i.scope
+     WHERE i.store = 'inbox' AND i.archived = 0`);
+}
+
+// scope key -> that project's .ai dir, so an inbox row can print an openable path. Built from
+// the same hydration sources the cache was filled from; unknown scopes resolve to ''.
+function aiDirByScope(root) {
+  const byScope = new Map();
+  // The cwd project first (it wins any key clash), then every registered project so a
+  // cross-scope listing still prints openable paths. Registry read is best-effort.
+  let sources = hydrationSources(root);
+  try { sources = [...sources, ...hydrationSources(undefined)]; } catch { /* no registry — cwd only */ }
+  for (const s of sources) {
+    const { key } = readIdConfig(s.root, s.aiDir);
+    if (key && !byScope.has(key)) byScope.set(key, s.aiDir);
+  }
+  return (scope) => byScope.get(scope) || '';
+}
+
 // ---- SQLite-backed canned queries -----------------------------------------
 function cannedQueries(root) {
   return {
@@ -151,6 +179,16 @@ function cannedQueries(root) {
          AND NOT EXISTS (SELECT 1 FROM links l WHERE l.from_id = i.id AND l.rel = 'superseded_by')
          ${scope ? 'AND i.scope = ?' : ''}`,
       scope ? [...OPEN, scope] : [...OPEN]).sort(compareOpen),
+
+    // The untriaged capture queue (KIT-T238) — the first-class verb the store-grep gate
+    // forces traffic onto, so enumerating/ageing the inbox never needs ad-hoc SQL again.
+    // `inbox/triaged` is a separate (unindexed) dir, so these rows are open captures only.
+    inbox: (db, ...args) => inboxRows(inboxItems(db), { ...parseInboxArgs(args, root), aiDirFor: aiDirByScope(root) }),
+
+    // Captures aged past the confirmation threshold — the same data, one fixed filter.
+    confirmations: (db, ...args) => inboxRows(inboxItems(db), {
+      ...parseInboxArgs(args, root), olderThanDays: CONFIRMATION_DAYS, aiDirFor: aiDirByScope(root),
+    }),
 
     children: (db, id) => db.all(
       'SELECT id, type, status, title FROM items WHERE parent = ? ORDER BY id', [id]),
@@ -333,6 +371,10 @@ export async function query(cmd, args = [], { root, cwdRoot = root || process.cw
 // (capped 2026-07-05).
 const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [args]
   open [scope]                open items (todo|doing|review)
+  inbox [scope] [--older-than Nd]
+                              untriaged captures — id, age, scope, type, file path
+  confirmations [scope]       captures aged past the confirmation threshold
+                              (>= ${CONFIRMATION_DAYS}d — they need a human)
   children <id>               items whose parent is <id>
   backlinks <id>              items that link TO <id> (any rel) — walk DOWN
   trail <id>                  walk UP <id>'s ancestry — governing decisions/docs/origin
