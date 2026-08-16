@@ -2,7 +2,7 @@
 id: KIT-T157
 title: end-task.mjs rejects --root <path> with an id-resolution error (hit by GG-T084 agent 2026-07-17): agent fell back to plain t status + a review->review end-task, which records the note but never fires the fixed_commit setter â€” so fixed_commit stayed blank. Two defects: (1) --root flag parsing/id resolution in end-task.mjs; (2) fixed_commit setter only runs on a real status TRANSITION, silently skipped on same-status calls. Repro: node end-task.mjs GG-T084 review --note x --root D:\dev\groovegrid.
 type: bug
-status: doing
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max â
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-23T15:42:09.425Z
-updated: 2026-08-16T00:22:54Z
+updated: 2026-08-16T00:23:58Z
+fixed_commit: fb99ae4
 ---
 
 ## Description
@@ -56,3 +57,5 @@ end-task.mjs rejects --root <path> with an id-resolution error (hit by GG-T084 a
 - [2026-08-16 00:22] (status) todo → doing
 - [2026-08-16 00:23] (comment) criterion added: end-task passes --root, --fixed-commit and --human through; a same-status call writes fixed_commit
 - [2026-08-16 00:23] (comment) ticked: end-task passes --root, --fixed-commit and --human through; a same-status call writes fixed_commit
+- [2026-08-16 00:23] (status) doing → review
+- [2026-08-16 00:23] (comment) end-task passes --root/--fixed-commit/--human through; same-status close now writes fixed_commit; evidence: scripts/end-task.test.mjs 9 passed, fixed fb99ae4

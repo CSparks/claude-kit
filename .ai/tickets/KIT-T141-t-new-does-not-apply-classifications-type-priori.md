@@ -2,7 +2,7 @@
 id: KIT-T141
 title: t new does not apply classifications.<type>.priority at scaffold — KIT-T134 (bug) scaffolded priority: medium; config.classifications.bug.priority is high. Scaffold should default from the classification.
 type: bug
-status: doing
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-23T15:42:09.433Z
-updated: 2026-08-16T00:22:50Z
+updated: 2026-08-16T00:23:52Z
+fixed_commit: fb99ae4
 ---
 
 ## Description
@@ -56,3 +57,5 @@ t new does not apply classifications.<type>.priority at scaffold — KIT-T134 (b
 - [2026-08-16 00:22] (status) todo → doing
 - [2026-08-16 00:23] (comment) criterion added: t new defaults priority from classifications.<type>.priority; --priority still wins
 - [2026-08-16 00:23] (comment) ticked: t new defaults priority from classifications.<type>.priority; --priority still wins
+- [2026-08-16 00:23] (status) doing → review
+- [2026-08-16 00:23] (comment) t new defaults priority from classifications.<type>.priority (t.mjs readConfig.classPriority + scaffoldNew); evidence: scripts/t.test.mjs 94 passed, fixed fb99ae4
