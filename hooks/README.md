@@ -159,6 +159,18 @@ file-length:
 | `// claude-kit-ignore-line  <id\|all>` | the next line |
 | `someCode();  // claude-kit-ignore <id\|all>` | that one line (trailing) |
 
+A marker may name **several ids**, comma-separated (`// claude-kit-ignore-file magic-numbers,
+todo-markers`), and may carry free prose after them (`// claude-kit-ignore-file magic-numbers —
+shader constants`). Only the comma-joined run is read as ids, so prose can never become one
+(KIT-T111). On an **Edit**, markers are resolved against the POST-EDIT file text, not the
+payload fragment — an edit inside an existing `ignore-start`/`-end` block, or in a file whose
+line 1 carries `ignore-file`, is excluded exactly as a whole-file Write would be (KIT-T155).
+
+**File classes skipped outright** (no check applies): data/config (`json`, `yaml`, `toml`,
+`ini`, `conf`, `env`, …), markup (`html`, `svg`), plain CSS, infra basenames (`Dockerfile`,
+`Makefile`, `Procfile`), and **patch/diff files** (`*.patch`, `*.diff`) — a patch body quotes
+the source lines it changes, so it is not authored source (KIT-T231).
+
 **Check-ids** (named in every gate message, so you always know which key to use):
 
 | Gate | Check-ids | Exclusion level |

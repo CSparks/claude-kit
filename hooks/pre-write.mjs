@@ -35,6 +35,10 @@ const INFRA_BASENAME = /^(Dockerfile|Containerfile|Makefile|Procfile|\.env)(\..*
 // native linter, so they get the magic-numbers exemption ONLY — rot markers and dead-code
 // traces still apply.
 const SHELL_LIKE = new Set(['ps1', 'psm1', 'bat', 'cmd']);
+// KIT-T231: a patch/diff is a QUOTATION of source, not authored source — its body carries
+// the numeric lines it changes, so every tuning-value patch tripped magic-numbers. No check
+// here applies to a diff, so the whole file class is skipped.
+const PATCH = new Set(['patch', 'diff']);
 const MARKUP = new Set(['html', 'htm', 'xhtml', 'svg']); // markup, not logic — numbers in text/attrs aren't magic constants
 // Plain CSS has no first-class variables (custom properties are optional), so a one-off
 // literal value (font-size: 30px) is idiomatic, not a magic number — exempt it.
@@ -164,10 +168,60 @@ const ext = fileExt(norm);
 // isn't inside a git repo — same fail-open contract.
 const _gitRoot = gitRoot(dirname(file));
 const ROOT = _gitRoot || projectRoot(dirname(file));
+//
+// KIT-T111/KIT-T155: an Edit payload carries only the replacement FRAGMENT, so markers
+// living outside it (a line-1 `ignore-file`, an enclosing start/end block) were invisible
+// and the gate blocked lines the file had already excluded. Markers are resolved against
+// the POST-EDIT file text, with the fragment's line numbers mapped into it.
+//
+// The post-edit text also sizes the file-length check (KIT-T121/KIT-T211): an Edit's
+// fragment is not the resulting file. String surgery is index-based, never
+// String.replace, so a `$&`/`$1` in the replacement is inserted literally. CRLF on disk
+// is normalized to LF so an autocrlf checkout still matches the LF payload. `offset` is
+// the 0-based line index the fragment starts at in `text`, or null when the fragment
+// cannot be located unambiguously (multi-site replace_all, stale match) — callers must
+// not map fragment line numbers into `text` then.
+let _postEdit = null;
+function postEdit() {
+  if (_postEdit) return _postEdit;
+  _postEdit = { text: content, offset: 0 };
+  const ti = p.tool_input || {};
+  if (typeof ti.content === 'string' || typeof ti.old_string !== 'string') return _postEdit;
+  try {
+    const lf = (s) => s.replace(/\r\n/g, '\n');
+    const current = lf(readFileSync(file, 'utf8'));
+    const oldStr = lf(ti.old_string);
+    const newStr = lf(ti.new_string ?? '');
+    const at = current.indexOf(oldStr);
+    if (at === -1) return (_postEdit = { text: current, offset: null });
+    const lineAt = current.slice(0, at).split('\n').length - 1;
+    if (ti.replace_all) {
+      const sites = current.split(oldStr).length - 1;
+      return (_postEdit = { text: current.split(oldStr).join(newStr), offset: sites === 1 ? lineAt : null });
+    }
+    return (_postEdit = { text: current.slice(0, at) + newStr + current.slice(at + oldStr.length), offset: lineAt });
+  } catch {
+    return _postEdit; // unreadable/new file — the fragment is the best available proxy
+  }
+}
+const markersIn = (() => {
+  const cache = new Map();
+  return (source, id) => {
+    const key = id + ' ' + (source === content ? 'f' : 'p');
+    if (!cache.has(key)) cache.set(key, markerExcludedLines(source, id));
+    return cache.get(key);
+  };
+})();
 const excludedFile = (id) =>
-  pathExcluded(ROOT, id, file) || markerExcludedLines(content, id).wholeFile;
-const markedLines = (id) => markerExcludedLines(content, id).lines;
-const excludedAt = (id, lineNo) => excludedFile(id) || markedLines(id).has(lineNo);
+  pathExcluded(ROOT, id, file) ||
+  markersIn(content, id).wholeFile ||
+  markersIn(postEdit().text, id).wholeFile;
+const excludedAt = (id, lineNo) => {
+  if (excludedFile(id)) return true;
+  if (markersIn(content, id).lines.has(lineNo)) return true;
+  const { text, offset } = postEdit();
+  return offset !== null && markersIn(text, id).lines.has(offset + lineNo);
+};
 
 // DOC files: the check that actually rots docs — relative links with no target.
 if (DOC.has(ext)) {
@@ -191,7 +245,7 @@ if (DOC.has(ext)) {
   }
   process.exit(0);
 }
-if (DATA.has(ext) || MARKUP.has(ext) || PLAIN_STYLE.has(ext) || INFRA_BASENAME.test(base)) process.exit(0); // config/data/markup/plain-css/infra is not logic-source
+if (DATA.has(ext) || MARKUP.has(ext) || PLAIN_STYLE.has(ext) || PATCH.has(ext) || INFRA_BASENAME.test(base)) process.exit(0); // config/data/markup/plain-css/patch/infra is not logic-source
 
 // Shared reporter: warnings to stderr (exit 0), violations block (exit 2).
 // Entries are { id, msg } so every message can name its check for exclusion.
@@ -335,44 +389,13 @@ if (sqlStr.length) warns.push({ id: 'sql-injection', msg: 'POSSIBLE string-built
 
 // 6. file length — file-keyed; a path glob or whole-file marker exempts it.
 //
-// KIT-T121: an Edit payload carries only the replacement FRAGMENT, so measuring `content`
-// sized the snippet and never the resulting file — hod-chunkgen corridor.rs grew to 2939
-// lines (hard limit 600) through Edits without a single warn. Reconstruct the post-edit
-// text from disk so the gate judges what the file BECOMES. Every other check stays
-// fragment-scoped: they are line-keyed at the diff, and re-scanning whole files would
-// block an unrelated edit on pre-existing violations.
-//
-// String surgery is index-based, never String.replace, so a `$&`/`$1` in the replacement
-// is inserted literally instead of being expanded as a substitution pattern.
-function postEditLines() {
-  const ti = p.tool_input || {};
-  if (typeof ti.content === 'string') return lines.length; // Write: content IS the whole file
-  if (typeof ti.old_string !== 'string') return lines.length;
-  let current;
-  try {
-    current = readFileSync(file, 'utf8');
-  } catch {
-    return lines.length; // unreadable/new file — the fragment is the best available proxy
-  }
-  // KIT-T211: autocrlf checkouts hold CRLF on disk while Edit payloads are LF — match and
-  // measure in LF space, or the reconstruction misses and the gate judges the PRE-edit file
-  // (passing growth through the hard limit, blocking shrinking edits outright).
-  const lf = (s) => s.replace(/\r\n/g, '\n');
-  current = lf(current);
-  const oldStr = lf(ti.old_string);
-  const newStr = lf(ti.new_string ?? '');
-  const next = ti.replace_all
-    ? current.split(oldStr).join(newStr)
-    : (() => {
-      const at = current.indexOf(oldStr);
-      if (at === -1) return current; // stale match; the Edit will fail anyway
-      return current.slice(0, at) + newStr + current.slice(at + oldStr.length);
-    })();
-  return next.split('\n').length;
-}
+// Measured on the post-edit file (`postEdit`, defined with the exclusion helpers), not on
+// an Edit's fragment. Every other check stays fragment-scoped: they are line-keyed at the
+// diff, and re-scanning whole files would block an unrelated edit on pre-existing
+// violations.
 
 if (!excludedFile('file-length')) {
-  const len = postEditLines();
+  const len = postEdit().text.split('\n').length;
   if (len > FILE_HARD) viols.push({ id: 'file-length', msg: `File length ${len} exceeds hard limit ${FILE_HARD} — split into cohesive modules.` });
   else if (len > FILE_SOFT) warns.push({ id: 'file-length', msg: `File length ${len} exceeds soft limit ${FILE_SOFT} — consider splitting.` });
 }
