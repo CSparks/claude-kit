@@ -5,7 +5,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { nextId, checkIds, scanStores, compareIds, findRegressionGaps } from './id-utils.mjs';
+import { nextId, checkIds, scanStores, compareIds, findRegressionGaps, readIdConfig } from './id-utils.mjs';
 
 let pass = 0;
 let fail = 0;
@@ -16,11 +16,11 @@ function ok(name, cond) {
 }
 
 // A fixture project: .ai/config.yml (key=HOD) + a tickets dir seeded with files.
-function project(ticketFiles = {}, extra = {}) {
+function project(ticketFiles = {}, extra = {}, key = 'HOD') {
   const d = mkdtempSync(join(tmpdir(), 'kit-id-'));
   fixtures.push(d);
   mkdirSync(join(d, '.ai', 'tickets', 'archive'), { recursive: true });
-  writeFileSync(join(d, '.ai', 'config.yml'), 'ids:\n  key: "HOD"\n  prefix: "HOD-T"\n  pad: 3\n');
+  writeFileSync(join(d, '.ai', 'config.yml'), `ids:\n  key: "${key}"\n  prefix: "${key}-T"\n  pad: 3\n`);
   for (const [name, id] of Object.entries(ticketFiles)) {
     writeFileSync(join(d, '.ai', 'tickets', name), `---\nid: ${id}\ntitle: x\n---\n`);
   }
@@ -181,6 +181,32 @@ const cr = checkIds(collideR);
 ok('checkIds finds collision in requests store (KIT-T092)', cr.duplicates.length === 1 && cr.duplicates[0].id === 'HOD-R001');
 ok('collision paths are POSIX-style for requests (KIT-T092)',
   cr.duplicates[0].files.every((f) => f.includes('/') && !f.includes('\\')));
+
+// KIT-T162: a key carrying a digit (S2) must survive config read → scan → mint. The key regex
+// stopped at [A-Za-z], so S2 read as S and every id contradicted the configured prefix.
+const digitKey = project({ 'S2-T001-a.md': 'S2-T001' }, {}, 'S2');
+ok('readIdConfig keeps a digit in the key (KIT-T162)', readIdConfig(digitKey).key === 'S2');
+ok('nextId honors a digit-bearing key (KIT-T162)', nextId(digitKey, 'tickets') === 'S2-T002');
+ok('scanStores reads the digit-key id from the filename (KIT-T162)',
+  scanStores(digitKey).some((i) => i.fileId === 'S2-T001'));
+const digitKeyEmpty = project({}, {}, 'S2');
+ok('digit-bearing key mints from 001 on an empty store (KIT-T162)',
+  nextId(digitKeyEmpty, 'tickets') === 'S2-T001');
+// Negative control: a plain key is untouched by the widened atom.
+ok('plain key still mints unchanged (KIT-T162)', nextId(project({}, {}, 'HOD'), 'tickets') === 'HOD-T001');
+
+// KIT-T117: an id-shaped claim in ANY store burns that number for its TYPE counter — a note
+// named HOD-T163-*.md is a proposed ticket id, and minting T163 again collides on the board.
+const noteClaim = project({ 'HOD-T004-a.md': 'HOD-T004' }, {
+  notes: { 'HOD-T163-proposal.md': 'HOD-T163', 'HOD-N002-real-note.md': 'HOD-N002' },
+});
+ok('nextId counts a ticket id claimed by a note (KIT-T117)', nextId(noteClaim, 'tickets') === 'HOD-T164');
+ok('a note claim does not inflate the note counter (KIT-T117)', nextId(noteClaim, 'notes') === 'HOD-N003');
+const filenameOnlyClaim = project({}, { decisions: { 'HOD-T200-idea.md': 'HOD-D009' } });
+ok('a filename-only ticket claim is honored (KIT-T117)', nextId(filenameOnlyClaim, 'tickets') === 'HOD-T201');
+// Negative control: a decision id never raises the ticket counter.
+ok('a real decision id leaves the ticket counter alone (KIT-T117)',
+  nextId(project({ 'HOD-T004-a.md': 'HOD-T004' }, { decisions: { 'HOD-D077-x.md': 'HOD-D077' } }), 'tickets') === 'HOD-T005');
 
 for (const d of fixtures) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\nid-utils: ${pass} passed, ${fail} failed`);

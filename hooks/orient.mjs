@@ -308,7 +308,7 @@ try {
   const { query } = await import('../scripts/q.mjs');
   const { key } = readIdConfig(root);
   const { rows: openRows } = await query('open', [], { cwdRoot: root });
-  const scopeOf = (id) => (String(id).match(/^([A-Za-z]+)-/) || [])[1] || '';
+  const scopeOf = (id) => (String(id).match(/^([A-Za-z][A-Za-z0-9]*)-/) || [])[1] || '';
   if (openRows && openRows.length) {
     const inFlight = openRows.filter((r) => scopeOf(r.id) === key && (r.status === 'doing' || r.status === 'review'));
     const byScope = new Map();

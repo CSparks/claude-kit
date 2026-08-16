@@ -2,7 +2,7 @@
 id: KIT-T117
 title: id allocator hands out ids already claimed by note-proposed ids: researcher notes propose T-ids in filenames/titles (e.g. HOD notes/HOD-T163-...) but next-id/t-new only scan the tickets store -- a later t new allocates the same id and the sync-data integrity gate blocks the commit AFTER commits citing the id are already pushed. Either next-id scans all stores for id-shaped claims, or the researcher flow stops embedding proposed T-ids in note filenames (propose in body text only)
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.708Z
-updated: 2026-07-14T17:40:14.708Z
+updated: 2026-08-16T00:24:11Z
+fixed_commit: fb99ae4
 ---
 
 ## Description
@@ -32,7 +33,7 @@ id allocator hands out ids already claimed by note-proposed ids: researcher note
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] an id-shaped claim in any store burns that number for its type counter
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -53,3 +54,8 @@ id allocator hands out ids already claimed by note-proposed ids: researcher note
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:22] (status) todo → doing
+- [2026-08-16 00:23] (comment) criterion added: an id-shaped claim in any store burns that number for its type counter
+- [2026-08-16 00:23] (comment) ticked: an id-shaped claim in any store burns that number for its type counter
+- [2026-08-16 00:24] (status) doing → review
+- [2026-08-16 00:24] (comment) maxStoreNum counts id-shaped claims across every store by type letter; evidence: scripts/id-utils.test.mjs 50 passed (incl. negative controls), fixed fb99ae4
