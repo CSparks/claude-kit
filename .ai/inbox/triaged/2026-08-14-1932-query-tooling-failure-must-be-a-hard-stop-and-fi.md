@@ -1,0 +1,1 @@
+(bug) Query tooling failure must be a hard stop-and-file: if code-graph/q ever errors or returns wrong results, file a bug immediately and spin an agent to fix it (Chris, 2026-08-14). Live instance: 'code-graph --query defines' died with ENOENT on editor/algos/stiletto.ts (a path that no longer exists) plus a libuv assertion, and the session silently fell back to grep.

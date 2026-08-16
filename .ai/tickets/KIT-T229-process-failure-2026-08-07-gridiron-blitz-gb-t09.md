@@ -1,9 +1,9 @@
 ---
-id: KIT-T168
-title: code-graph is JS/TS-only and in a rewritten repo it silently serves the SUPERSEDED tree as authoritative — gridiron-blitz is now a Rust app at root src/ (46 .rs files) with the old TS app moved to legacy/, and code-graph answers `entry-points` and `defines checkTackleAndScore` from legacy/ with zero warning (2026-08-02). KIT-T085 already carve-outs rust greps, but the "query the graph FIRST" mandate + query-gate steer straight into stale answers here. Wanted, in order of value: (1) WARN when the indexed tree is confined to a legacy*/ subtree or when the majority language of the repo is un-indexed; (2) `surface <path>` on a nonexistent path should say path-not-found, not return [] (silent-empty reads as "no public surface"); (3) Rust indexing (even symbols-only via tree-sitter) so graph-first works in Rust repos.
-type: feature
+id: KIT-T229
+title: Process failure, 2026-08-07 (gridiron-blitz GB-T091 dispatch): Chris said "Fix it
+type: bug
 status: todo
-priority: medium
+priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
 aka: []                # prior ids/labels this item was known by (populated by rekey-ids)
@@ -11,7 +11,7 @@ parent:                # id of the parent item (epic/request) this belongs to �
 introduced_by:         # bug provenance: ticket@commit or ticket-id that introduced this bug (KIT-T095)
 produced_by:           # doc provenance: id of the source doc/item that produced this work item (KIT-T095)
 informs: []            # doc provenance: ids of work items this item feeds — reverse of produced_by (KIT-T095)
-links: [KIT-T101]
+links: []
 files: []              # repo-root-relative paths this ticket touches
 tier:                  # OPTIONAL dispatch firepower: light | standard | deep — expands to (model, effort)
                        # via config.dispatch.tiers (KIT-T034). Blank = config.dispatch.default_tier[type].
@@ -19,12 +19,25 @@ model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pi
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
-created: 2026-08-04T15:20:02.026Z
-updated: 2026-08-04T15:20:02.026Z
+created: 2026-08-16T00:06:34.848Z
+updated: 2026-08-16T00:06:34.848Z
 ---
 
 ## Description
-code-graph is JS/TS-only and in a rewritten repo it silently serves the SUPERSEDED tree as authoritative — gridiron-blitz is now a Rust app at root src/ (46 .rs files) with the old TS app moved to legacy/, and code-graph answers `entry-points` and `defines checkTackleAndScore` from legacy/ with zero warning (2026-08-02). KIT-T085 already carve-outs rust greps, but the "query the graph FIRST" mandate + query-gate steer straight into stale answers here. Wanted, in order of value: (1) WARN when the indexed tree is confined to a legacy*/ subtree or when the majority language of the repo is un-indexed; (2) `surface <path>` on a nonexistent path should say path-not-found, not return [] (silent-empty reads as "no public surface"); (3) Rust indexing (even symbols-only via tree-sitter) so graph-first works in Rust repos.
+Process failure, 2026-08-07 (gridiron-blitz GB-T091 dispatch): Chris said "Fix it
+with an Opus 4.8"; orchestrator dispatched via the Agent tool alias `model: opus` (→
+Opus 5), told Chris a point version "can't be pinned per-delegation", then ran an
+AskUserQuestion re-litigating whether the ladder should name versions — settled the
+previous day by KIT-D061 (full-id pins, alias-drift explicitly the bug, pinned-agent
+mechanism documented, `opus`→Opus-5 retarget even cited). Root cause: delegation made
+WITHOUT grounding in `.ai/config.yml → dispatch.tiers` / KIT-D061 first — the global
+contract's own pre-dispatch step. Contributing: KIT-T209's pinned scoped/ui agents not
+yet scaffolded, so the sanctioned 4.8 lane didn't exist to use (should have been
+surfaced, not papered over with "impossible"). Enforcement gap: dispatch-guard checks
+frontmatter pins on kit agents but nothing checks an ORCHESTRATOR dispatch against a
+version named in the request/ticket — consider a dispatch-ladder hook rule: block/warn
+when the active request text names a full version and the Agent call carries a bare
+alias. See KIT-D063 (the binding-version rule this produced).
 
 ## Acceptance Criteria
 <!-- Each must be a checkable observation. Claude ticks these as it satisfies them.
@@ -39,19 +52,6 @@ code-graph is JS/TS-only and in a rewritten repo it silently serves the SUPERSED
 1.
 
 ## Notes
-- [2026-08-16 00:06] (comment) folded from triage: # code-graph returns [] for everything in gridiron-blitz
-
-2026-08-08 11:25, main @ e5be648. `code-graph --query importers-of
-src/league/schools.rs` → `[]`, same for `importers-of src/league/mod.rs`,
-`defines SCHOOLS`, `surface src/league/schools.rs` — all `[]` despite real
-symbols and real importers (league/mod.rs re-exports; teamselect.rs +
-exhibition.rs import). `code-graph status` errors (ENOENT scandir '<cwd>/status'
-— arg parsing?). The contract routes file-finding through the graph and gates
-greps on it; an empty-but-alive index silently pushes every lookup to fallback
-greps, and nearly caused a wrong conclusion (a truncated grep read as "no
-importers"). Needs: (a) index rebuilt/health-checked for gridiron-blitz, (b) the
-graph to DISTINGUISH "no results" from "index missing/stale" — an empty answer
-from a dead index should be an error, not [].
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 

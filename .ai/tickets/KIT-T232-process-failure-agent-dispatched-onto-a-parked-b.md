@@ -1,9 +1,9 @@
 ---
-id: KIT-T168
-title: code-graph is JS/TS-only and in a rewritten repo it silently serves the SUPERSEDED tree as authoritative — gridiron-blitz is now a Rust app at root src/ (46 .rs files) with the old TS app moved to legacy/, and code-graph answers `entry-points` and `defines checkTackleAndScore` from legacy/ with zero warning (2026-08-02). KIT-T085 already carve-outs rust greps, but the "query the graph FIRST" mandate + query-gate steer straight into stale answers here. Wanted, in order of value: (1) WARN when the indexed tree is confined to a legacy*/ subtree or when the majority language of the repo is un-indexed; (2) `surface <path>` on a nonexistent path should say path-not-found, not return [] (silent-empty reads as "no public surface"); (3) Rust indexing (even symbols-only via tree-sitter) so graph-first works in Rust repos.
-type: feature
+id: KIT-T232
+title: Process failure: agent dispatched onto a PARKED build's suite — no governing-decision check in the drain
+type: bug
 status: todo
-priority: medium
+priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
 aka: []                # prior ids/labels this item was known by (populated by rekey-ids)
@@ -11,7 +11,7 @@ parent:                # id of the parent item (epic/request) this belongs to �
 introduced_by:         # bug provenance: ticket@commit or ticket-id that introduced this bug (KIT-T095)
 produced_by:           # doc provenance: id of the source doc/item that produced this work item (KIT-T095)
 informs: []            # doc provenance: ids of work items this item feeds — reverse of produced_by (KIT-T095)
-links: [KIT-T101]
+links: [KIT-T023]
 files: []              # repo-root-relative paths this ticket touches
 tier:                  # OPTIONAL dispatch firepower: light | standard | deep — expands to (model, effort)
                        # via config.dispatch.tiers (KIT-T034). Blank = config.dispatch.default_tier[type].
@@ -19,12 +19,25 @@ model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pi
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
-created: 2026-08-04T15:20:02.026Z
-updated: 2026-08-04T15:20:02.026Z
+created: 2026-08-16T00:06:35.881Z
+updated: 2026-08-16T00:06:35.881Z
 ---
 
 ## Description
-code-graph is JS/TS-only and in a rewritten repo it silently serves the SUPERSEDED tree as authoritative — gridiron-blitz is now a Rust app at root src/ (46 .rs files) with the old TS app moved to legacy/, and code-graph answers `entry-points` and `defines checkTackleAndScore` from legacy/ with zero warning (2026-08-02). KIT-T085 already carve-outs rust greps, but the "query the graph FIRST" mandate + query-gate steer straight into stale answers here. Wanted, in order of value: (1) WARN when the indexed tree is confined to a legacy*/ subtree or when the majority language of the repo is un-indexed; (2) `surface <path>` on a nonexistent path should say path-not-found, not return [] (silent-empty reads as "no public surface"); (3) Rust indexing (even symbols-only via tree-sitter) so graph-first works in Rust repos.
+# Process failure: agent dispatched onto a PARKED build's suite — no governing-decision check in the drain
+
+2026-08-08, gridiron-blitz. GB-T103 ("legacy2d suite not green on main") was
+self-captured and immediately drain-dispatched to an opus agent. GB-D009 had
+parked the 2D build; Chris had to interrupt ("IT'S FUCKING LEGACY") — now
+GB-D018. Root cause: the drain pull and dispatch flow never queried the
+governing decisions for the ticket's AREA (q.mjs `governing`/`trail` exist and
+were not consulted); a red suite pattern-matched to "suite-health, urgent"
+regardless of WHOSE suite. Aggravator: stale convention — prior receipts kept
+citing legacy2d counts long after GB-D009, so the parked status was invisible in
+recent habit. Enforcement idea: before `status → doing` on a self-captured
+ticket, require a `q governing <files>` pass in the dispatch checklist (hookable:
+block dispatch receipts lacking it); and when a decision parks an area, the
+capture flow should tag the area so triage flags any new ticket touching it.
 
 ## Acceptance Criteria
 <!-- Each must be a checkable observation. Claude ticks these as it satisfies them.
@@ -39,19 +52,6 @@ code-graph is JS/TS-only and in a rewritten repo it silently serves the SUPERSED
 1.
 
 ## Notes
-- [2026-08-16 00:06] (comment) folded from triage: # code-graph returns [] for everything in gridiron-blitz
-
-2026-08-08 11:25, main @ e5be648. `code-graph --query importers-of
-src/league/schools.rs` → `[]`, same for `importers-of src/league/mod.rs`,
-`defines SCHOOLS`, `surface src/league/schools.rs` — all `[]` despite real
-symbols and real importers (league/mod.rs re-exports; teamselect.rs +
-exhibition.rs import). `code-graph status` errors (ENOENT scandir '<cwd>/status'
-— arg parsing?). The contract routes file-finding through the graph and gates
-greps on it; an empty-but-alive index silently pushes every lookup to fallback
-greps, and nearly caused a wrong conclusion (a truncated grep read as "no
-importers"). Needs: (a) index rebuilt/health-checked for gridiron-blitz, (b) the
-graph to DISTINGUISH "no results" from "index missing/stale" — an empty answer
-from a dead index should be an error, not [].
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 

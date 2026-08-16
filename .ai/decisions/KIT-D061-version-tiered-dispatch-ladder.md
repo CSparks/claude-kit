@@ -46,3 +46,6 @@ available, Opus 5 xhigh."
 Rejected: a 4.6 mechanic tier (no evidence, worst effort compliance in the lineup, earliest
 retirement); sonnet anywhere on the ladder (KIT-D043 reaffirmed — measured 3.7x real-workload
 cost from tokenizer inflation); alias pins (the drift bug this decision fixes).
+
+## Notes
+- [2026-08-16 00:06] (comment) folded from triage: feedback Tier misfire (Chris, 2026-08-06, hot): a floodlight day/night COUPLING - pure wiring to an existing ramp - was dispatched on the ASSET lane (fable/medium) because it touched lighting files; ran 24+ min and was killed mid-overscope (it was re-verifying the headlight refactor, not asked). Rule: the lane is chosen by TASK CLASS, never by file domain - asset lane = authoring meshes/materials/visual design; wiring/coupling/config near assets = standard (opus/low). Also exposed: no live progress visibility on in-flight agents from the roster (couldn't answer 'what is it doing'), and no runtime alarm when a small-brief dispatch exceeds ~15 min. Fold into KIT-D061 guidance + ticket the progress/alarm gaps.
