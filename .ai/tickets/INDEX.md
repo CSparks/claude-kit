@@ -110,13 +110,13 @@
 | KIT-T216 | feature | todo | medium | An editor-workbench specialist agent has earned itself |
 | KIT-T217 | bug | todo | high | A landing report asserted the state of code it did not touch, and the claim drove a whole later slice. T127min comment |
 | KIT-T218 | bug | todo | high | Tuning-loop runaway (gridiron-blitz T037, 2h, 11 full sweeps): dispatch briefs for tune-against-instrument work MUST carry (a) an explicit… |
-| KIT-T219 | bug | todo | high | Two sessions, one tree: this kit session edited stiletto lamp.rs while a LIVE stiletto session was committing (315e31f 10:59 scooped my… |
+| KIT-T219 | bug | review | high | Two sessions, one tree: this kit session edited stiletto lamp.rs while a LIVE stiletto session was committing (315e31f 10:59 scooped my… |
 | KIT-T220 | feature | todo | medium | Doctor/health check: warn when CLAUDE_CODE_SUBAGENT_MODEL is set in the environment — it silently overrides BOTH the Agent-tool model… |
 | KIT-T221 | bug | review | high | Kit agents' 'model: opus' frontmatter (KIT-T151) is an ALIAS pin, not a version pin — it silently drifted Opus 4.8 -> Opus 5 at Claude… |
 | KIT-T222 | bug | todo | high | Manifesto verdict asserted 'no vehicle editor tool exists' while ST-T057 (dock/refit/inventory port, todo) sat in the backlog and the… |
 | KIT-T223 | bug | review | high | agents/light-and-shadow.md exists (and now pins claude-fable-5/medium) but is NOT a dispatchable agent type - the plugin roster exposes… |
 | KIT-T224 | tech-debt | todo | low | Codify the no-duplicate-crates/workspaces rule at kit level (Chris, 2026-08-06: discussed 2026-08-05, 'supposed to be codified at the KIT… |
-| KIT-T225 | feature | todo | medium | Agents must DETECT and FLAG concurrent tree activity, not just be told 'sole owner': cargo 'Blocking waiting for file lock on build… |
+| KIT-T225 | feature | review | medium | Agents must DETECT and FLAG concurrent tree activity, not just be told 'sole owner': cargo 'Blocking waiting for file lock on build… |
 | KIT-T226 | bug | todo | high | Process failure 2026-08-06 (stadium-lighting misroute): root causes in order - (1) interjection routed by session context despite a… |
 | KIT-T227 | feature | todo | medium | Agent dispatch contract: on encountering TWO live surfaces/implementations of the same concern (two editors, twin modules, duplicate… |
 | KIT-T228 | bug | review | high | agents.jsonl roster ordering: PostToolUse(Task) writes the in-flight row AFTER SubagentStop's done row for synchronous agents, so the… |

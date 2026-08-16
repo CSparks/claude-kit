@@ -33,6 +33,11 @@ of the repo (`refs/stash` lives in the common git dir), so a parallel agent's `p
 can apply or destroy your entry. Take a baseline with `git diff > <file>` + `git checkout -- .`,
 or a WIP commit on the worktree branch. The `worktree-guard` hook blocks the stash.
 
+- **Report concurrent-tree activity LOUDLY (KIT-T225):** a build waiting on a lock
+  (`Blocking waiting for file lock on build directory`), dirty/changed files you did not
+  write, or foreign commits landing on the branch mid-task each mean a second session is in
+  this tree — surface it at the top of your report instead of working through it.
+
 ## Mandatory status transitions (KIT-T028)
 When an orchestrator delegates a **ticket** to a subagent, the subagent MUST keep the
 ticket status current — a stale `doing` nags every session start and obscures what's

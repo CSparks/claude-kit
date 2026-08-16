@@ -2,7 +2,7 @@
 id: KIT-T225
 title: Agents must DETECT and FLAG concurrent tree activity, not just be told 'sole owner': cargo 'Blocking waiting for file lock on build…
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:33.687Z
-updated: 2026-08-16T00:06:33.687Z
+updated: 2026-08-16T00:40:09Z
 ---
 
 ## Description
@@ -32,15 +32,23 @@ Agents must DETECT and FLAG concurrent tree activity, not just be told 'sole own
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] orient (SessionStart) flags commits on the current repo landed inside a 60-min look-back as a possible OTHER live session, with age + author + subject
+- [x] The flag stays quiet when nothing landed recently
+- [x] agents/README.md briefs agents to report concurrent-tree activity loudly (build lock waits, foreign dirty files, foreign commits mid-task) — one bullet
+- [x] Automated test wired into `npm test`
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
-1.
+1. Shared detector `hooks/live-sessions.mjs`; orient renders the banner from it.
+2. One dispatch-convention bullet in agents/README.md; test in hooks/live-sessions.test.mjs.
 
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+- orient already listed the last 6 commits with no ages; the delta is the FRESH COMMITS banner —
+  in-window commits with age/author, which a cold session cannot have made itself.
+- The detector is shared with the KIT-T219 pre-edit guard, so "live session" has one definition.
+- Evidence: `node hooks/live-sessions.test.mjs` — 9 passed (includes both orient cases).
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +61,6 @@ Agents must DETECT and FLAG concurrent tree activity, not just be told 'sole own
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:39] (status) todo → doing
+- [2026-08-16 00:40] (status) doing → review
+- [2026-08-16 00:40] (comment) orient flags fresh in-window commits as a possible other live session; agents/README.md concurrency-report bullet; tests hooks/live-sessions.test.mjs 9 passed

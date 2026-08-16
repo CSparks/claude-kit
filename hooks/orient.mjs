@@ -10,6 +10,7 @@ import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, 
 import { unifyMemory, memoryLinkCommand } from './memory-link.mjs';
 import { readProgress, progressFor, formatProgress } from './progress-store.mjs';
 import { modelDisplay } from './model-tag.mjs';
+import { recentCommits, ORIENT_WINDOW_MIN } from './live-sessions.mjs';
 // q.mjs / id-utils.mjs are imported DYNAMICALLY at their (try-wrapped) use sites so a
 // broken scripts/ tree degrades that one section instead of crashing orientation (KIT-T055).
 
@@ -145,6 +146,16 @@ if (foundational.length) {
 }
 out.push('--- Recent commits ---');
 out.push(git(['-C', root, 'log', '--oneline', `-${COMMITS}`]).trim());
+
+// KIT-T225: a commit landed minutes ago — before THIS session existed — is the signature of
+// another live session in the same repo. Surface it so the concurrency is seen, not guessed.
+const fresh = recentCommits(root, ORIENT_WINDOW_MIN);
+if (fresh.length) {
+  out.push('');
+  out.push(`!! FRESH COMMITS (last ${ORIENT_WINDOW_MIN} min) — MAY BE ANOTHER LIVE SESSION in this repo:`);
+  for (const c of fresh) out.push(`  ${c.sha} ${c.minutes}m ago (${c.author}) ${clip(c.subject, 80)}`);
+  out.push('  If you did not make these, coordinate or take a worktree before editing shared files.');
+}
 
 // Working-tree temperature — uncommitted + unpushed across the project, its data repo
 // (the .ai junction target), and any config'd watch_repos.
