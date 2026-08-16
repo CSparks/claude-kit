@@ -61,7 +61,9 @@ in parallel while that thread waits.
 **SUBAGENT FAN-OUT:** fan INDEPENDENT work to parallel agents, coordinate via ticket Notes, and
 batch all maintainer decisions into one AskUserQuestion questionnaire rather than surfacing them
 piecemeal. When tickets share the checkout or need sequential commits, run them serially; otherwise
-fan out. A delegated agent must VERIFY its change by exercising it as the user would — run the
+fan out. Worktree-isolated agents must NEVER `git stash` — one stash stack is shared by every
+worktree of the repo (KIT-T233); baseline via `git diff > <file>` + checkout, or a WIP commit on
+the worktree branch. A delegated agent must VERIFY its change by exercising it as the user would — run the
 test suite, start the app, or hit the probe — and report empirical evidence. A compile-check alone
 is not verification.
 

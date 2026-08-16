@@ -38,6 +38,10 @@ Work ticket $ARGUMENTS per the contract:
      > the ticket's stated scope. If a fix traces to legacy or deprecated code outside your
      > domain, STOP and surface it — don't expand scope unilaterally.
      >
+     > **Never `git stash` in a worktree (KIT-T233):** `refs/stash` is shared across every
+     > worktree of the repo, so a parallel agent's pop can eat your entry. Baseline with
+     > `git diff > <file>` + `git checkout -- .`, or a WIP commit on your worktree branch.
+     >
      > **Verify as the user plays:** after completing your change, exercise it as the user
      > would — run the test suite, start the app, or hit the probe — and report empirical
      > evidence (exit code, rendered output, probe readings). A compile-check alone is not

@@ -17,6 +17,10 @@
       },
       {
         "matcher": "Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" worktree-guard.mjs" }]
+      },
+      {
+        "matcher": "Bash|PowerShell",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" query-gate.mjs" }]
       },
       {
