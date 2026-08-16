@@ -2,7 +2,7 @@
 id: KIT-T106
 title: Commit hygiene: NEVER run bare git commit (whole index) — always commit an explicit pathspec (git commit -- <files>) or verify git diff --cached first. Instance 2026-06-10 hustle-or-die: perf commit 74c48df swept in the maintainer's SEPARATELY-staged tools/editor + tools/road-preview DELETIONS (22 files, 1786 lines) because git commit ran without a pathspec, bundling his WIP under my terrain-perf message. The deletions were intended (old standalone tools superseded by rapid-game/editor) so nothing was lost, but the commit is over-scoped/mislabeled. This is a process failure (committed changes I did not author/stage). Fix: agent pathspec-commits or diff --cached-verifies EVERY commit; consider a commit-gate hook that flags staged paths outside the turn's touched set.
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.674Z
-updated: 2026-07-14T17:40:14.674Z
+updated: 2026-08-16T00:25:41Z
 ---
 
 ## Description
@@ -56,3 +56,6 @@ Another instance 2026-08-06: an opus subagent on gridiron-blitz ran a whole-inde
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-08-06 19:48] (comment) @claude: Another instance 2026-08-06: an opus subagent on gridiron-blitz ran a whole-index add for its GB-T063 commit and swept t (full comment #1 in ## Notes)
+- [2026-08-16 00:25] (status) todo → doing
+- [2026-08-16 00:25] (status) doing → review
+- [2026-08-16 00:25] (comment) commit-gate now WARNS on a bare git commit whose staged set includes paths this turn did not write, naming them. New hooks/turn-writes.mjs ledger (pre-write records, commit-gate reads); repo-relative paths resolved via git rev-parse --show-prefix. Evidence: hooks/commit-gate.test.mjs — 12 passed (4 T106 assertions incl. pathspec + own-writes negative controls); npm test green apart from the pre-existing server.test.mjs express module-not-found in this worktree.

@@ -105,6 +105,17 @@ ok(
   readFileSync(join(freshDir, 'AGENTS.md'), 'utf8').includes('$work <id>'),
 );
 
+// --- KIT-T170: the scaffolded decisions template teaches ONE id/filename canon --------
+// The id-integrity check requires frontmatter `id:` == the filename's leading id token, so the
+// template must name <KEY>-D###-slug.md and never the legacy DEC-### form that guaranteed a block.
+{
+  const tpl = readFileSync(join(freshDir, '.ai', 'decisions', '_TEMPLATE.md'), 'utf8');
+  ok('decisions template states the <id>-<slug>.md filename rule', tpl.includes('<id>-<slug>.md'));
+  ok('decisions template cites the <KEY>-D### id scheme', tpl.includes('<KEY>-D###'));
+  ok('decisions template no longer says DEC-### (negative control)', !/\bDEC-#{2,}/.test(tpl));
+  ok('decisions template ids agree with the scheme', /^id:\s*KEY-D\d+/m.test(tpl));
+}
+
 // Verify a fresh ticket would get HOD-T001 shape (key present, no existing tickets).
 // We don't need to call nextId; the config write is the direct invariant for AC-4.
 ok('fresh init: KEY placeholder replaced (not present)', !cfg1.includes('"KEY"'));

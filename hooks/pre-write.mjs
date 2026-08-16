@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { payload, projectRoot, gitRoot, pathExcluded, markerExcludedLines, excludeFooter, VENDORED, LOCKFILES, fileExt } from './lib.mjs';
+import { recordTurnWrite } from './turn-writes.mjs';
 
 // Fail-open guard (KIT-T055): an unexpected throw anywhere below must never wedge a
 // write. The HOOK CONTRACT requires EXPLICIT fail-open; before this, an uncaught throw
@@ -168,6 +169,10 @@ const ext = fileExt(norm);
 // isn't inside a git repo — same fail-open contract.
 const _gitRoot = gitRoot(dirname(file));
 const ROOT = _gitRoot || projectRoot(dirname(file));
+
+// KIT-T106: record the path in the turn's writes ledger BEFORE any quality check can exit, so
+// the commit gate knows what this turn authored even when a later gate blocks this write.
+if (_gitRoot) recordTurnWrite(_gitRoot, file);
 //
 // KIT-T111/KIT-T155: an Edit payload carries only the replacement FRAGMENT, so markers
 // living outside it (a line-1 `ignore-file`, an enclosing start/end block) were invisible

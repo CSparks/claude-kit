@@ -5,6 +5,7 @@
 // itself. No-ops unless the current repo's .ai resolves into a separate git repo.
 
 import { gitRoot, git, gitTry, centralDataRoot } from './lib.mjs';
+import { dataProjectPathspec } from './data-repo.mjs';
 
 const proj = gitRoot();
 if (!proj) process.exit(0);
@@ -14,7 +15,19 @@ if (!proj) process.exit(0);
 const dataRoot = centralDataRoot(proj);
 if (!dataRoot) process.exit(0);
 
-if (!git(['-C', dataRoot, 'status', '--porcelain']).trim()) process.exit(0);
+// KIT-T230: the data repo is SHARED — every project's store lives under projects/<name>/, and
+// other sessions edit theirs concurrently. Every step below is limited to THIS project's
+// subtree, so a sync never stages, commits, or publishes another session's in-flight edits.
+// An unrecognized layout yields '' and falls back to the whole repo, announced.
+const scope = dataProjectPathspec(proj);
+const pathspec = scope ? ['--', scope] : [];
+if (!scope) {
+  process.stderr.write(
+    `[sync-data] .ai does not resolve to ${dataRoot}/projects/<name> — syncing the WHOLE data repo (may include other projects)\n`,
+  );
+}
+
+if (!git(['-C', dataRoot, 'status', '--porcelain', ...pathspec]).trim()) process.exit(0);
 
 // Don't auto-commit a duplicate/mismatched id into the data repo. This is the
 // guard for centralized projects (the path that let two HOD-T045 files persist):
@@ -30,7 +43,13 @@ try {
     for (const d of duplicates) lines.push(`  DUPLICATE ${d.id}: ${d.files.join('  ·  ')}`);
     for (const m of mismatches) lines.push(`  MISMATCH ${m.file}: id '${m.fmId}' != filename '${m.fileId}'`);
     for (const g of regressionGaps) lines.push(`  REGRESSION INCOMPLETE ${g.id} (${g.file}): ${g.reason}`);
-    lines.push('', 'Fix the flagged regressions (t link <id> regressed_from|causing_commit <ref>) then retry.', '');
+    // KIT-T170: one hint per FAILURE MODE. The old message offered the regression-link fix for
+    // every finding, so an id/filename mismatch was told to run `t link` — advice that cannot fix it.
+    lines.push('');
+    if (duplicates.length) lines.push('  DUPLICATE -> re-key one of the files: node <kit>/scripts/next-id.mjs <store>');
+    if (mismatches.length) lines.push("  MISMATCH  -> make the id and the filename agree: rename the file to <id>-<slug>.md, or set frontmatter `id:` to the filename's id. Canon is <KEY>-D###-slug.md (KIT-D011).");
+    if (regressionGaps.length) lines.push('  REGRESSION INCOMPLETE -> t link <id> regressed_from|causing_commit <ref>');
+    lines.push('', 'Fix the flagged item(s) then retry.', '');
     process.stderr.write(lines.join('\n'));
     process.exit(2);
   }
@@ -40,8 +59,9 @@ try {
 
 // KIT-T053: every step is VERIFIED — a receipt is only emitted for what actually
 // happened, and a failure surfaces the real git error instead of a false success.
-git(['-C', dataRoot, 'add', '-A']);
-const commit = gitTry(['-C', dataRoot, 'commit', '-m', 'sync: workflow data']);
+git(['-C', dataRoot, 'add', ...(scope ? ['--', scope] : ['-A'])]);
+const subject = scope ? `sync: workflow data (${scope})` : 'sync: workflow data';
+const commit = gitTry(['-C', dataRoot, 'commit', '-m', subject, ...pathspec]);
 if (!commit.ok) {
   process.stderr.write(`[sync-data] commit FAILED — data repo NOT synced:\n${commit.out.trim()}\n`);
   process.exit(0);

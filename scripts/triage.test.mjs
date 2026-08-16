@@ -51,7 +51,7 @@ const DECISION_TEMPLATE = `---
 id: TST-D000
 title: <short title>
 date: <YYYY-MM-DD>
-supersedes:        # DEC-### this replaces, or blank
+supersedes:        # the <KEY>-D### this replaces, or blank
 source:            # commit hash / doc path / "conversation YYYY-MM-DD"
 ---
 
