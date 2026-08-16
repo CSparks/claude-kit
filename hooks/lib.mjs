@@ -924,10 +924,18 @@ export function updateAgent(root, id, patch) {
   recordAgent(root, { id, ...patch });
 }
 
+// The statuses that mean an agent's life is OVER. Terminal is a RATCHET: once an id reaches one,
+// no later row can move it back to a live status (see readAgents).
+const AGENT_TERMINAL = new Set(['done', 'error', 'collected', 'merged']);
+
 // Parse the roster's tail into the COLLAPSED current view: the latest row per id, with
 // `firstSeen` carried from the id's earliest row so age can be measured from delegation, not
-// from the last update. FAIL-OPEN: a missing file → []; a malformed line is skipped, never
-// thrown. Returns rows sorted oldest-first by firstSeen (stable render order).
+// from the last update. RECONCILE-ON-READ: rows arrive out of order — PostToolUse(Task) fires
+// when the tool RESULT lands, so a synchronous agent's dispatch row is appended AFTER its own
+// SubagentStop row. Later rows still enrich the fields, but a terminal status is never overridden
+// by a live one, so a finished agent can't be resurrected as permanently uncollected (KIT-T228).
+// FAIL-OPEN: a missing file → []; a malformed line is skipped, never thrown. Returns rows
+// sorted oldest-first by firstSeen (stable render order).
 export function readAgents(root) {
   let lines;
   try {
@@ -943,7 +951,14 @@ export function readAgents(root) {
     try { row = JSON.parse(ln); } catch { continue; }
     if (!row || !row.id) continue;
     if (!firstSeen.has(row.id)) firstSeen.set(row.id, row.ts || '');
-    byId.set(row.id, { ...byId.get(row.id), ...row, firstSeen: firstSeen.get(row.id) });
+    const prev = byId.get(row.id);
+    const merged = { ...prev, ...row, firstSeen: firstSeen.get(row.id) };
+    if (prev && AGENT_TERMINAL.has(prev.status) && !AGENT_TERMINAL.has(row.status)) {
+      merged.status = prev.status;
+      merged.ts = prev.ts;
+      if (prev.source) merged.source = prev.source;
+    }
+    byId.set(row.id, merged);
   }
   return [...byId.values()].sort((a, b) => String(a.firstSeen).localeCompare(String(b.firstSeen)));
 }
@@ -951,7 +966,6 @@ export function readAgents(root) {
 // Split the collapsed roster into what a resume needs to act on: still IN-FLIGHT (no terminal
 // status) vs recently FINISHED (done/error), and which in-flight rows are STALE (older than
 // AGENT_STALE_MS) — the uncollected/orphaned work to flag. `nowMs` is injectable for tests.
-const AGENT_TERMINAL = new Set(['done', 'error', 'collected', 'merged']);
 export function partitionAgents(rows, nowMs = Date.now()) {
   const inFlight = [];
   const finished = [];

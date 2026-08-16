@@ -119,7 +119,7 @@
 | KIT-T225 | feature | todo | medium | Agents must DETECT and FLAG concurrent tree activity, not just be told 'sole owner': cargo 'Blocking waiting for file lock on build… |
 | KIT-T226 | bug | todo | high | Process failure 2026-08-06 (stadium-lighting misroute): root causes in order - (1) interjection routed by session context despite a… |
 | KIT-T227 | feature | todo | medium | Agent dispatch contract: on encountering TWO live surfaces/implementations of the same concern (two editors, twin modules, duplicate… |
-| KIT-T228 | bug | todo | high | agents.jsonl roster ordering: PostToolUse(Task) writes the in-flight row AFTER SubagentStop's done row for synchronous agents, so the… |
+| KIT-T228 | bug | review | high | agents.jsonl roster ordering: PostToolUse(Task) writes the in-flight row AFTER SubagentStop's done row for synchronous agents, so the… |
 | KIT-T229 | bug | todo | high | Process failure, 2026-08-07 (gridiron-blitz GB-T091 dispatch): Chris said "Fix it |
 | KIT-T230 | bug | todo | high | `git add -A` run from a project's .ai mount stages the ENTIRE shared claude-kit-data |
 | KIT-T231 | bug | review | high | Magic-numbers pre-write gate blocks .patch files in the scratchpad |
