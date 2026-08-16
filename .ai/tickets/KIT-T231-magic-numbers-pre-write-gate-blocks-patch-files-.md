@@ -2,7 +2,7 @@
 id: KIT-T231
 title: Magic-numbers pre-write gate blocks .patch files in the scratchpad
 type: bug
-status: doing
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:35.580Z
-updated: 2026-08-16T00:18:10Z
+updated: 2026-08-16T00:20:09Z
 ---
 
 ## Description
@@ -84,3 +84,5 @@ exits 2 on the same .patch payload.
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-08-16 00:18] (status) todo → doing
+- [2026-08-16 00:20] (status) doing → review
+- [2026-08-16 00:20] (comment) *.patch/*.diff join the skipped file classes; scratchpad-wide exclusion left as a maintainer policy call; hooks/exclusions.test.mjs all pass (b040d70)

@@ -2,7 +2,7 @@
 id: KIT-T111
 title: pre-write magic-numbers hook does not honor the file-level 'claude-kit-ignore-file magic-numbers' marker when it has trailing em-dash text (e.g. rg-render common.wgsl line 1) - blocks edits to files that already declare the file-level ignore; block-level start/end markers work
 type: bug
-status: doing
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.690Z
-updated: 2026-08-16T00:18:08Z
+updated: 2026-08-16T00:19:55Z
 ---
 
 ## Description
@@ -71,3 +71,5 @@ Evidence: `node hooks/exclusions.test.mjs` (new §7/§8 cases + existing control
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-08-16 00:18] (status) todo → doing
+- [2026-08-16 00:19] (status) doing → review
+- [2026-08-16 00:19] (comment) Edit-time marker resolution + multi-id markers; hooks/exclusions.test.mjs all pass (b040d70)

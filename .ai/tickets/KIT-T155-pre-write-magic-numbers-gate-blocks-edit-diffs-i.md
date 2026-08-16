@@ -17,7 +17,7 @@ and honor enclosing start/end markers before flagging, same as it does for
 whole-file scans. Repro: any Edit changing a number inside
 groovegrid/src/ui/tracks/effect-panels/ContinuumPanelSpec.h placements.
 type: bug
-status: doing
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -35,7 +35,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max â
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-23T15:42:09.416Z
-updated: 2026-08-16T00:18:09Z
+updated: 2026-08-16T00:20:02Z
 ---
 
 ## Description
@@ -107,3 +107,5 @@ green (`npm test`; the trailing server/server.test.mjs failure is a pre-existing
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-07-23 18:57] (comment) @chris: Maintainer challenged the 'displayName may not contain quotes or newlines' rejection (writes.mjs:101). Verdict: the quot (full comment #1 in ## Notes)
 - [2026-08-16 00:18] (status) todo → doing
+- [2026-08-16 00:20] (status) doing → review
+- [2026-08-16 00:20] (comment) Exclusions now resolved against post-edit file text; Edit-inside-block passes, outside still blocks; hooks/exclusions.test.mjs all pass (b040d70)
