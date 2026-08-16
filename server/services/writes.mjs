@@ -17,6 +17,7 @@ import { resolveUser } from '../../scripts/identity.mjs';
 import { parseComments, resolveAgent } from '../../scripts/comments.mjs';
 import { regenerateIndexes } from '../../scripts/index-tickets.mjs';
 import { hydrate } from '../../scripts/hydrate-db.mjs';
+import { scheduleStoreCommit } from '../store-commit.mjs';
 import { ApiError, notFound } from '../lib/errors.mjs';
 import { STATUS } from '../lib/status.mjs';
 
@@ -47,14 +48,16 @@ function mapWriteError(e) {
 }
 
 // Re-run the derived board regen (best-effort, like t.mjs's own refresh) then hydrate the
-// cache from the just-written markdown, so an immediate GET reads the fresh row.
-async function afterWrite(config, root) {
+// cache from the just-written markdown, so an immediate GET reads the fresh row. The store's
+// markdown (write + regenerated views) is then queued for a debounced git commit (KIT-T160).
+async function afterWrite(config, root, label) {
   try {
     await regenerateIndexes(root);
   } catch (e) {
     process.stderr.write(`[api] view regen failed for ${root}: ${(e && e.message) || e}\n`);
   }
   await hydrate({ root, dbPath: config.dbPath });
+  scheduleStoreCommit(join(root, '.ai'), label);
 }
 
 export async function postComment(config, project, id, { text, author }) {
@@ -67,7 +70,7 @@ export async function postComment(config, project, id, { text, author }) {
   } catch (e) {
     throw mapWriteError(e);
   }
-  await afterWrite(config, root);
+  await afterWrite(config, root, `comment ${id}`);
   return { id, ref: result.ref, ordinal: result.ordinal, mentions: result.mentions, spilled: result.spilled };
 }
 
@@ -90,7 +93,7 @@ export async function setTicketCriterion(config, project, id, { index, checked, 
   } catch (e) {
     throw mapWriteError(e);
   }
-  await afterWrite(config, root);
+  await afterWrite(config, root, `tick ${id}`);
   return { id, index: at, checked, criterion: result.criterion };
 }
 
@@ -105,7 +108,7 @@ export async function addTicketCriterion(config, project, id, { text }) {
   } catch (e) {
     throw mapWriteError(e);
   }
-  await afterWrite(config, root);
+  await afterWrite(config, root, `add criterion ${id}`);
   return { id, criterion: result.criterion };
 }
 
@@ -122,7 +125,7 @@ export async function createTicket(config, project, { type, title, priority, des
   } catch (e) {
     throw mapWriteError(e);
   }
-  await afterWrite(config, root);
+  await afterWrite(config, root, `create ${result.id}`);
   return { id: result.id, file: relative(root, result.path).split('\\').join('/') };
 }
 
@@ -181,6 +184,7 @@ export async function setProjectDisplayName(project, displayName) {
     ? text.replace(DISPLAY_NAME_LINE, () => line)
     : `${text.replace(/\n*$/, '\n')}\n# Human tab title in the web UI (KIT-T137) — editable there; defaults to ids.key.\n${line}\n`;
   writeFileSync(cfgPath, updated);
+  scheduleStoreCommit(project.aiDir, `rename ${project.key}`);
   return { key: project.key, displayName: name };
 }
 
@@ -256,6 +260,6 @@ export async function setTicketStatus(config, project, id, { status, agent, comm
   } catch (e) {
     throw mapWriteError(e);
   }
-  await afterWrite(config, root);
+  await afterWrite(config, root, `status ${id} → ${status}`);
   return { id: result.id, from: result.from, to: result.to, archived: result.archived, warnings: result.warnings };
 }
