@@ -2,7 +2,7 @@
 id: KIT-T231
 title: Magic-numbers pre-write gate blocks .patch files in the scratchpad
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:35.580Z
-updated: 2026-08-16T00:06:35.580Z
+updated: 2026-08-16T00:20:09Z
 ---
 
 ## Description
@@ -46,15 +46,31 @@ idiom as the documented path for partial staging?
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] Writing a `*.patch` / `*.diff` file no longer trips magic-numbers
+- [x] The skip is documented in hooks/README.md
+- [x] Real source still blocks (negative control in hooks/exclusions.test.mjs)
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
-1.
+1. Follow the KIT-T114 mechanism (f99ed19): a file-class set in pre-write.mjs, skipped
+   with DATA/MARKUP/INFRA before any check runs.
 
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+Fixed by the same mechanism KIT-T114 used for config/infra (commit f99ed19): a `PATCH`
+extension set (`patch`, `diff`) joins the classes pre-write.mjs exits on before any check.
+A patch body is a QUOTATION of source — none of the checks (magic numbers, rot markers,
+SELECT *, file length) mean anything against it.
+
+**Deliberately NOT done — a maintainer policy call:** excluding the session scratchpad
+directory (`**/Temp/claude/**/scratchpad/**`) wholesale. That would silence every gate for
+every file written there, including real source drafted in the scratchpad, which is a
+wider policy than this bug needs. The patch/diff class fix covers the reported case.
+
+Evidence: `node hooks/exclusions.test.mjs` — all pass, including the two new patch/diff
+cases and the pre-existing "a bare literal in .ts still blocks" control; the pre-fix hook
+exits 2 on the same .patch payload.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -67,3 +83,6 @@ idiom as the documented path for partial staging?
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:18] (status) todo → doing
+- [2026-08-16 00:20] (status) doing → review
+- [2026-08-16 00:20] (comment) *.patch/*.diff join the skipped file classes; scratchpad-wide exclusion left as a maintainer policy call; hooks/exclusions.test.mjs all pass (b040d70)

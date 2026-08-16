@@ -163,6 +163,50 @@ try {
   // And real source is untouched by the widened config family.
   expect('magic-numbers: a bare literal in .ts still blocks',
     runPreWrite(infra, 'src/other/logic.ts', 'function f(x) {\n  return x * 1337;\n}\n'), 2);
+
+  // --- 7. a file-level marker carrying trailing prose / several ids (KIT-T111) ---------
+  const trailing = makeRepo(null);
+  expect('file marker with trailing em-dash prose still excludes',
+    runPreWrite(trailing, 'src/other/shader.wgsl',
+      '// claude-kit-ignore-file magic-numbers — shader constants\nfn f() { return 1337.0 * 42.0; }\n'), 0);
+  expect('file marker naming several ids excludes each of them',
+    markerExcludedLines('// claude-kit-ignore-file magic-numbers, todo-markers\nx\n', 'todo-markers').wholeFile, true);
+  expect('prose after the ids is not read as an id',
+    markerExcludedLines('// claude-kit-ignore-file todo-markers — tuned all by ear\nx\n', 'magic-numbers').wholeFile, false);
+
+  // --- 8. an Edit is judged against the POST-EDIT file, markers included (KIT-T155) ----
+  // The fragment alone shows neither the line-1 file marker nor the enclosing start/end
+  // block, so before the fix an Edit onto already-excluded lines was falsely blocked.
+  const editRepo = makeRepo(null);
+  const blocked = join(editRepo, 'src', 'other', 'spec.h');
+  writeFileSync(blocked,
+    'struct S {\n' +
+    '  // claude-kit-ignore-start magic-numbers\n' +
+    '  place(17, 91, 233);\n' +
+    '  // claude-kit-ignore-end\n' +
+    '};\n');
+  expect('Edit inside an ignore block is allowed',
+    runEdit(editRepo, blocked, 'place(17, 91, 233);', 'place(19, 95, 241);'), 0);
+
+  const fileMarked = join(editRepo, 'src', 'other', 'common.wgsl');
+  writeFileSync(fileMarked,
+    '// claude-kit-ignore-file magic-numbers — shader constants\n' +
+    'fn f() { return 1337.0; }\n');
+  expect('Edit under a file-level marker is allowed',
+    runEdit(editRepo, fileMarked, 'return 1337.0;', 'return 4242.0;'), 0);
+
+  // Negative control: the SAME file, edited OUTSIDE the ignore block, still blocks.
+  expect('Edit outside the ignore block still blocks',
+    runEdit(editRepo, blocked, 'struct S {', 'struct S {\n  loose(4242);'), 2);
+
+  // --- 9. patch/diff bodies are quotations of source, not source (KIT-T231) -----------
+  const patchRepo = makeRepo(null);
+  const PATCH_BODY =
+    '--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,3 +1,3 @@\n-  return x * 1337;\n+  return x * 4242;\n';
+  expect('magic-numbers: a .patch body is allowed',
+    runPreWrite(patchRepo, 'src/other/staged.patch', PATCH_BODY), 0);
+  expect('magic-numbers: a .diff body is allowed',
+    runPreWrite(patchRepo, 'src/other/staged.diff', PATCH_BODY), 0);
 } finally {
   for (const d of fixtures) {
     try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ }

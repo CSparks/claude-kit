@@ -17,7 +17,7 @@ and honor enclosing start/end markers before flagging, same as it does for
 whole-file scans. Repro: any Edit changing a number inside
 groovegrid/src/ui/tracks/effect-panels/ContinuumPanelSpec.h placements.
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -35,7 +35,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max â
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-23T15:42:09.416Z
-updated: 2026-07-23T15:42:09.416Z
+updated: 2026-08-16T00:20:02Z
 ---
 
 ## Description
@@ -62,17 +62,37 @@ groovegrid/src/ui/tracks/effect-panels/ContinuumPanelSpec.h placements.
      â†’done when none) requires this ticket to cite a test artifact â€” a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha â€” OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] An Edit whose new_string lands inside an existing ignore-start/end block passes
+- [x] The same Edit landing OUTSIDE the block still blocks (negative control)
+- [x] Exclusions are evaluated against the POST-EDIT file content, not the fragment
+- [x] Covered by a fixture-file test in hooks/exclusions.test.mjs
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
-1.
+1. Reconstruct the post-edit file text once in pre-write.mjs and resolve every exclusion
+   against it, mapping fragment line numbers by the splice offset.
 
 ## Notes
 <!-- prose/narrative progress â€” free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
 ### comment #1 [2026-07-23 18:57] @chris
 Maintainer challenged the 'displayName may not contain quotes or newlines' rejection (writes.mjs:101). Verdict: the quote ban is an unescaped-writer shortcut, not a real constraint â€” the line splice writes display_name: " name\ without escaping. Fix: escape backslash + double-quote on write (YAML double-quoted style), drop quotes from the rejection; KEEP the newline/CR ban (structurally required for the line-oriented splice) and the 48-char cap. Routed to the in-flight KIT-T147 writer since it edits writes.mjs anyway. --author claude
+
+### 2026-08-16 — fixed
+Root cause confirmed as described: `excludedFile`/`excludedAt` in hooks/pre-write.mjs read
+markers out of the payload `content`, which on an Edit is only `new_string`. A shared
+`postEdit()` now reconstructs the resulting file (reusing the file-length reconstruction
+from KIT-T121/T211 — one implementation, not two) and returns `{ text, offset }`; markers
+are read from `text`, and a fragment line N is tested at `offset + N`. `offset` is null
+(no mapping, fragment-local markers only) when the fragment cannot be placed
+unambiguously: a stale old_string, or a replace_all hitting several sites. Every other
+check stays fragment-scoped, so an Edit is still never blocked on pre-existing violations
+elsewhere in the file.
+
+Evidence: hooks/exclusions.test.mjs §8 — fixture .h file with a placements array wrapped
+in an ignore block; the Edit inside passes, the Edit outside still exits 2. Full suite
+green (`npm test`; the trailing server/server.test.mjs failure is a pre-existing missing
+`express` dependency in this worktree, unrelated).
 
 ## History
 <!-- structured event log â€” APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -86,3 +106,6 @@ Maintainer challenged the 'displayName may not contain quotes or newlines' rejec
      NEVER edit or delete a prior line â€” this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-07-23 18:57] (comment) @chris: Maintainer challenged the 'displayName may not contain quotes or newlines' rejection (writes.mjs:101). Verdict: the quot (full comment #1 in ## Notes)
+- [2026-08-16 00:18] (status) todo → doing
+- [2026-08-16 00:20] (status) doing → review
+- [2026-08-16 00:20] (comment) Exclusions now resolved against post-edit file text; Edit-inside-block passes, outside still blocks; hooks/exclusions.test.mjs all pass (b040d70)

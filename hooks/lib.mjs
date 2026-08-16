@@ -541,13 +541,17 @@ export function markerExcludedLines(source, checkId) {
     // Capture only the id token (word chars + hyphen + glob `*`).  A `\S+` would greedily
     // swallow an em-dash or parenthesis glued to the id (e.g. `magic-numbers—reason`) and
     // produce a token that never matches any check, silently suppressing the exclusion (KIT-T084).
-    const ID = '([\\w*-]+)';
+    // A marker may name SEVERAL ids, comma-separated (`magic-numbers, todo-markers`), and
+    // may carry free prose after them. Only the comma-joined run is read as ids, so a prose
+    // word following them can never become one (KIT-T111).
+    const ID = '([\\w*-]+(?:\\s*,\\s*[\\w*-]+)*)';
     const reFile = new RegExp(`${C}\\s*claude-kit-ignore-file\\s+${ID}`);
     const reStart = new RegExp(`${C}\\s*claude-kit-ignore-start\\s+${ID}`);
     const reEnd = new RegExp(`${C}\\s*claude-kit-ignore-end\\b`);
     const reLine = new RegExp(`${C}\\s*claude-kit-ignore-line\\s+${ID}`);
     const reTrail = new RegExp(`${C}\\s*claude-kit-ignore\\s+${ID}\\s*$`);
-    const applies = (id) => id === checkId || id === 'all' || id === '*';
+    const applies = (ids) =>
+      String(ids).split(',').map((x) => x.trim()).some((id) => id === checkId || id === 'all' || id === '*');
     let openFrom = -1; // 1-based line where an active start marker (matching this check) sits
     for (let i = 0; i < lines.length; i++) {
       const ln = lines[i];
