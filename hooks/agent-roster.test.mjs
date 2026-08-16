@@ -23,6 +23,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROSTER_HOOK = join(HERE, 'agent-roster.mjs');
 const FLUSH_HOOK = join(HERE, 'flush.mjs');
 const SEC = 1000;
+const NL = String.fromCharCode(10);
 const fixtures = [];
 let pass = 0;
 let fail = 0;
@@ -193,6 +194,29 @@ try {
         rows[0].task === 'a synchronous run (KIT-T177)');
       ok('completion: the resurrected-agent fix leaves it OUT of the in-flight partition',
         partitionAgents(rows).inFlight.length === 0);
+    }
+
+    // KIT-T228 — the SAME ordering bug seen from the READ side. Any writer (a pre-fix roster on
+    // disk, a manual recordAgent, another tool) can leave a late in-flight row after a done row;
+    // the collapse must ratchet on terminal status rather than trust write order.
+    {
+      const rr = makeRepo();
+      writeFileSync(agentsPath(rr), [
+        { id: 'oo1', ts: '2026-08-04T16:22:57.324Z', status: 'done', source: 'subagentstop' },
+        { id: 'oo1', ts: '2026-08-04T16:23:00.112Z', status: 'in-flight', task: 'a sync run', scope: 'general', source: 'posttooluse' },
+      ].map((r) => JSON.stringify(r)).map((l) => l + NL).join(''));
+      const [row] = readAgents(rr);
+      ok('reconcile: a later in-flight row never overrides a done row', row.status === 'done');
+      ok('reconcile: the late row still enriches the finished row', row.task === 'a sync run' && row.scope === 'general');
+      ok('reconcile: the terminal row keeps its own ts + source', row.ts === '2026-08-04T16:22:57.324Z' && row.source === 'subagentstop');
+      const far = Date.parse('2026-08-07T00:00:00.000Z');
+      ok('reconcile: a reconciled agent is never flagged UNCOLLECTED', partitionAgents(readAgents(rr), far).stale.length === 0);
+
+      // The ratchet must not freeze a LIVE agent: in-flight → done still collapses forward.
+      recordAgent(rr, { id: 'oo2', status: 'in-flight', task: 'ordered' });
+      updateAgent(rr, 'oo2', { status: 'done', summary: 'landed' });
+      const oo2 = readAgents(rr).find((r) => r.id === 'oo2');
+      ok('reconcile: an in-order completion still collapses to done', oo2.status === 'done' && oo2.summary === 'landed');
     }
 
     // Fail-open: unadopted repo is a silent no-op; a garbage payload never wedges.
