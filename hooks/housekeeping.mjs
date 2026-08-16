@@ -10,6 +10,7 @@
 import { statSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { installedPluginRoot, isDevLinked, checkInstalledDrift } from '../scripts/agent-pins.mjs';
 import { payload, MAINT_LOG, git, gitRoot, adopted, wipSummary, scanInbox, scanReviewQueue, scanStaleDoingTickets, scanReminders, readTurnState, writeTurnState } from './lib.mjs';
 
 const REVIEW_DAYS = 7;
@@ -31,6 +32,10 @@ const DOING_LIST_MAX = 4; // list individual ids up to this count
 // `rem done` command (KIT-T074: a nag without a drain path trains you to ignore it). Cap the
 // list so a backlog of reminders can't swamp the orientation block.
 const REMINDER_LIST_MAX = 5;
+// KIT-T235 — the INSTALLED plugin copy of an agent can predate a source model pin, which
+// silently un-pins every dispatch on that agent type. Only meaningful inside the kit repo
+// itself (that is where source and install can diverge); capped like every other nag.
+const DRIFT_LIST_MAX = 4;
 const CODEX = Boolean(process.env.PLUGIN_ROOT);
 const command = (name) => CODEX ? `$${name}` : `/${name}`;
 
@@ -70,6 +75,29 @@ function staleDoingLine(sd) {
 function reminderLine(r) {
   const when = r.overdueDays > 0 ? `${r.overdueDays}d overdue` : 'due today';
   return `REMINDER DUE: ${r.title} (${r.id}, ${when}) — done: node <kit>/scripts/rem.mjs done ${r.id}`;
+}
+
+// KIT-T235 — installed-vs-source agent drift. Runs only in the claude-kit repo (elsewhere there
+// is no source to compare against) and stays silent on a dev-link, where install IS the source.
+function agentDriftLine(root) {
+  const sourceAgents = join(root, 'agents');
+  const manifest = join(root, '.claude-plugin', 'plugin.json');
+  if (!existsSync(manifest) || !existsSync(sourceAgents)) return null;
+  try {
+    if (JSON.parse(readFileSync(manifest, 'utf8')).name !== 'claude-kit') return null;
+  } catch {
+    return null;
+  }
+  const install = installedPluginRoot();
+  if (!install || isDevLinked(install)) return null;
+  const problems = checkInstalledDrift(sourceAgents, join(install, 'agents'));
+  if (!problems.length) return null;
+  const shown = problems.slice(0, DRIFT_LIST_MAX).join('; ');
+  const more = problems.length > DRIFT_LIST_MAX ? ` (+${problems.length - DRIFT_LIST_MAX} more)` : '';
+  return (
+    `AGENT PIN DRIFT: the installed claude-kit copy disagrees with source — ${shown}${more}. ` +
+    `Dispatches on those agent types inherit the session model. Resync: node <kit>/scripts/dev-link.mjs (or /plugin update claude-kit).`
+  );
 }
 
 // Claude's auto-memory review path has no stable Codex equivalent. The durable
@@ -184,6 +212,8 @@ try {
     }
     // KIT-T090: user-defined recurring reminders that are DUE today. One line each carrying its
     // own `rem done` command; capped so a reminder backlog can't swamp the block.
+    const drift = agentDriftLine(root);
+    if (drift) reminders.push(drift);
     const rem = scanReminders(root);
     for (const r of rem.due.slice(0, REMINDER_LIST_MAX)) reminders.push(reminderLine(r));
     if (rem.due.length > REMINDER_LIST_MAX) {

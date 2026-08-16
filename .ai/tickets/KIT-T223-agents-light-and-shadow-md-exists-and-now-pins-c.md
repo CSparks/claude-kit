@@ -2,7 +2,7 @@
 id: KIT-T223
 title: agents/light-and-shadow.md exists (and now pins claude-fable-5/medium) but is NOT a dispatchable agent type - the plugin roster exposes…
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:33.090Z
-updated: 2026-08-16T00:06:33.090Z
+updated: 2026-08-16T00:18:22Z
 ---
 
 ## Description
@@ -32,7 +32,9 @@ agents/light-and-shadow.md exists (and now pins claude-fable-5/medium) but is NO
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] Root cause of the registration gap identified
+- [x] Every `agents/*.md` is exposed as a dispatchable agent type
+- [x] A test asserts registration completeness both ways, with a negative control
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -41,6 +43,7 @@ agents/light-and-shadow.md exists (and now pins claude-fable-5/medium) but is NO
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+Root cause: `.claude-plugin/plugin.json` carries an EXPLICIT `agents` array — it listed only researcher/code-reviewer/refactorer/test-author/game-asset-artist, so light-and-shadow.md and audio-synthesist.md shipped in the repo but were never registered. Nothing about the files themselves differed. Fix: the array now lists all seven, and `checkRegistration` in scripts/agent-pins.mjs fails both directions (an agent file absent from the manifest, and a manifest entry with no file) so the next agent added cannot be silently unreachable. Evidence: `node scripts/agent-pins.test.mjs` — 14 passed.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -53,3 +56,6 @@ agents/light-and-shadow.md exists (and now pins claude-fable-5/medium) but is NO
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-08-16 00:16] (status) todo → doing
+- [2026-08-16 00:18] (status) doing → review
+- [2026-08-16 00:18] (comment) Cause: plugin.json's explicit agents array omitted light-and-shadow + audio-synthesist. All 7 now registered; checkRegistration test fails both directions (agent-pins.test.mjs, 14 passed).
