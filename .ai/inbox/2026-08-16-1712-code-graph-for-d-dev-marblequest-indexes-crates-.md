@@ -1,0 +1,1 @@
+(bug) code-graph for D:/dev/marblequest indexes crates/marble-madness-core (defines spawn_bumper -> marble-madness-core/src/world.rs) but not crates/marblequest — the live crate is invisible to every query; 165 files/946 edges reported healthy by status

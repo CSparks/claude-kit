@@ -1,0 +1,1 @@
+(bug) code-graph returns [] for marblequest queries (importers-of world/bumper.rs, surface world/dungeon.rs) — no index built for a repo without .ai/; queries should build/refresh or fail loudly, never return empty

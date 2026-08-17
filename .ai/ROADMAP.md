@@ -76,6 +76,7 @@
 - KIT-T235 — Installed marketplace agent copies go stale — model pin silently lost (high)
 - KIT-T236 — Query tooling failure must be a hard stop-and-file: if code-graph/q ever errors or returns wrong results, file a bug immediately and spin… (high)
 - KIT-T237 — bug: proposed a per-game fix for a concern the framework already governs (high)
+- KIT-T240 — KIT-T240 (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)

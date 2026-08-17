@@ -1,0 +1,1 @@
+(feature) code-graph must NEVER be stale — failsafe required: every --query auto-rebuilds when any indexed file (or the tracked file set) is newer than the index, and SessionStart rebuilds unconditionally; a query against a stale index must refuse, not answer. (Chris, 2026-08-16: 'It should NEVER be stale. There needs to be a failsafe against that.')
