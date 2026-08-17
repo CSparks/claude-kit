@@ -11,6 +11,7 @@ import { unifyMemory, memoryLinkCommand } from './memory-link.mjs';
 import { readProgress, progressFor, formatProgress } from './progress-store.mjs';
 import { modelDisplay } from './model-tag.mjs';
 import { recentCommits, ORIENT_WINDOW_MIN } from './live-sessions.mjs';
+import { frameworkSection } from './lib/frameworks.mjs';
 // q.mjs / id-utils.mjs are imported DYNAMICALLY at their (try-wrapped) use sites so a
 // broken scripts/ tree degrades that one section instead of crashing orientation (KIT-T055).
 
@@ -144,6 +145,15 @@ if (foundational.length) {
   out.push('--- PROJECT IDENTITY (foundational — ALWAYS true; this is what the project IS; cite, never contradict) ---');
   for (const m of foundational) out.push(`  ${m.id ? m.id + ' — ' : ''}${clip(m.title, 140)}`);
   out.push('');
+}
+// Framework contracts bind every consumer of a framework, so they cannot live in one
+// project's store; they load HERE rather than in the global contract so a repo using no
+// known framework never carries them.
+try {
+  const section = frameworkSection(root);
+  if (section) out.push(section);
+} catch {
+  /* framework layer unavailable — orientation proceeds without it */
 }
 out.push('--- Recent commits ---');
 out.push(git(['-C', root, 'log', '--oneline', `-${COMMITS}`]).trim());
