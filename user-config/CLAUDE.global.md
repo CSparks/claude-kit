@@ -188,6 +188,26 @@ via `scaffold-agent`, but prefer the kit when the domain generalises. (Chris,
   Every context7 answer worth the paid call gets distilled into the kit KB the same
   turn — a call that leaves no doc behind is a wasted spend.
 
+# GAME ASSETS — applies in EVERY repo built on rapid-game
+Binding in any repo carrying the `rapid-game` submodule/dependency — stiletto, marblerace2,
+hustle-or-die, gridiron-blitz, and every game after them. Not one game's decision.
+
+- **The EDITOR is the acceptance surface.** Chris judges assets there; in-game appearance
+  is SECONDARY evidence. (Chris, 2026-08-17: "The asset configurable properties should
+  NEVER be out of sync with the editor, because that's how I'm judging assets.")
+- **Every configurable property on an asset MUST appear in the editor.** A dial that
+  exists on an asset and not in the panel is a defect in the ASSET — it makes the asset
+  unjudgeable. Adding a dial is NOT done until it renders in the editor.
+- **The panel derives controls from the asset's own spec.** Any path that hand-copies a
+  dial into the panel WILL drift; the hand-copy is the defect, not the symptom. A
+  fixed-arity bridge between the asset and the panel is that defect.
+- **One asset, ONE implementation.** Two builders for the same asset family guarantee a
+  dial lands on one and not the other (ST-T286: `loot/gem-*` and `deposit/crystal` were
+  two cluster implementations; `fan` existed on only one, so the editor could not show it).
+- **Build assets from COMPLEX SHAPES via `rg-meshkit`** — poly extrude/inset/bevel/loop
+  cut, lathe, sweep, loft, solidify, booleans — producing ONE solid per asset. NEVER
+  boring primitives jammed together, never interpenetrating boxes.
+
 # SELF-COMMENTING CODE
 Comments are for a third party reading the CURRENT code cold — never for the reviewer
 of the change, and never a channel for project history. (KIT-T205)
