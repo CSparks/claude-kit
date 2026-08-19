@@ -29,6 +29,11 @@ demand — don't ingest it wholesale.
   registry/direct imports — not a runtime wrapper over a monolith.
 - Self-commenting code: rename and extract until comments describing *what* are
   unnecessary. Keep only why-comments.
+- Formatting stays inside the diff. NEVER `cargo fmt` / `prettier --write .` over a
+  workspace, and know that `rustfmt <mod.rs>` recurses into every submodule it
+  declares — format LEAF files you edited, individually. A tree-wide reformat lands
+  unrelated churn in the commit and collides with concurrent pushes; if one slips
+  out, `git checkout --` every off-brief file before committing.
 
 ## Verify (non-negotiable)
 - Run the test suite / typecheck / build before and after. Behavior-preserving means

@@ -40,8 +40,8 @@ remember.
   LOAD-BEARING: cargo otherwise resolves the submodule crates' `workspace = true`
   against the outer root. Never remove it.
 - The game crate names NO bevy version — Bevy comes through `rg-prelude`, and
-  `src/engine.rs` carries Bevy's documented derive-macro alias workaround. Deriving
-  modules need `use crate::engine::*;`.
+  `rg_prelude::engine` carries Bevy's documented derive-macro alias workaround.
+  Deriving modules need `use rg_prelude::engine::*;` (no per-game `engine.rs`).
 - Hot-reload (`file_watcher`) is native-only by cfg — it is a hard compile_error on
   wasm. The template already handles this; keep the pattern when adding features.
 - Web is a flag-flip, not a port: `trunk serve` via `preview.ps1`/`preview.sh`
