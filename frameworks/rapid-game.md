@@ -1,6 +1,6 @@
 ---
 name: rapid-game
-title: rapid-game — game asset contract
+title: rapid-game — framework contract (purpose, dependency rule, asset contract)
 detect:
   submodule: rapid-game
   paths:
@@ -8,6 +8,29 @@ detect:
   cargo: rg-meshkit
 ---
 
+**Purpose — the fast lane.** `new-poc foo && cargo run` gives a running game with worldgen,
+streaming, assets, physics, UI, save, tunables, screens, editor and audio present, with
+ZERO library or version decisions made by the person typing it; a POC that graduates turns
+on what is already there. When a game needs something not in the framework, it goes into
+rapid-game FIRST, never into the game (the flywheel: every game's effort compounds into
+the next start). The submodule pin is the safety — a consumer re-pins when it wants what
+is upstream; nothing breaks when the framework moves. (ST-D057, 2026-08-19.)
+
+**Dependency rule — adopt the primitives, own the compositions.** A concept a better-
+maintained library directly replicates is that library; a concept it does NOT have — the
+abstraction and integration of things games do often — is a framework crate and is
+PROVIDED live on the current engine. Every adopted primitive enters through ONE `rg-*`
+door (rg-prelude is the only path to `bevy`; likewise `rg-noise`, `rg-rng`, `rg-fx`,
+`rg-physics`…): a game names only `rg-*` crates; `cargo deny check bans` refuses the rest.
+No trait seams except physics. Bevy-coupled third-party crates are budgeted (~10); a Bevy
+bump is one rapid-game ticket that moves the set together.
+- **The ledger is `rapid-game/docs/CHOICES.toml`** (one row per concern: crate, tier,
+  coupling, why, rejected + evidence, decided) and `docs/CRATES.md` is generated from it.
+  **Settled stays settled:** a proposal to add or swap a crate for a concern already on the
+  ledger cites its row and brings NEW evidence, or it is relitigation — cite the row and
+  move on. Decisions about rapid-game live THERE, not in a consumer's `.ai/`.
+
+**Asset contract.**
 - **The EDITOR is the acceptance surface.** Chris judges assets there; in-game appearance
   is SECONDARY evidence. (Chris, 2026-08-17: "The asset configurable properties should
   NEVER be out of sync with the editor, because that's how I'm judging assets.")
