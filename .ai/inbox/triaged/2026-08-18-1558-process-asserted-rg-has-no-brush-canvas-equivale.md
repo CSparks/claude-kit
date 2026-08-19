@@ -1,0 +1,1 @@
+(bug) Process: asserted 'rg has no brush/canvas equivalent' before enumerating rapid-game/rust — rg-worldgen/layer/brush.rs + canvas.rs already exist. Root cause: read ARCHITECTURE.md, not the crate tree. Rule: enumerate crate src before any 'not in framework' claim. (marblequest, 2026-08-18)
