@@ -13,6 +13,7 @@ import { mentionsForAgent, readReceipts } from './comments.mjs';
 import { governing, drift } from './q-governing.mjs';
 import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import { orphanRows } from './provenance.mjs';
+import { recentFallback } from './q-recent.mjs';
 import {
   OPEN, FTS_LIMIT, MIN_TERM_LEN, ALNUM_TERM, SUMMARY_CLIP,
   parseSimilar, parseFts, requireStore, requireScope, defaultScope, formatId, compareOpen, isSuperseded,
@@ -53,6 +54,8 @@ export function fallback(cmd, args, root) {
     }
     case 'doc-trail':
       return (byId.get(args[0])?.history || []).slice().sort((a, b) => String(b.ts).localeCompare(a.ts));
+    case 'recent':
+      return recentFallback(items, args);
     case 'trail':
       return walkAncestry(
         args[0],

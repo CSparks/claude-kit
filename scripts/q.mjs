@@ -12,6 +12,7 @@
 //   node scripts/q.mjs drift                        # OPEN items naming a structural target path ABSENT from the tree (decided ≠ actual)
 //   node scripts/q.mjs by-commit <sha>              # tickets caused-by / fixed-by <sha>
 //   node scripts/q.mjs doc-trail <id>               # history events for <id>, newest first
+//   node scripts/q.mjs recent [Nd] [scope]          # time-windowed digest of what happened (KIT-T253)
 //   node scripts/q.mjs fts [--scope <s>] <query...> # full-text search title+body (default scope = the cwd project; `--scope all` = every project)
 //   node scripts/q.mjs similar <title/labels...>    # likely-duplicate ITEMS (dedup, suggest-only)
 //   node scripts/q.mjs similar --store <s> <text>   # …confined to one store (tickets|decisions|notes|questions)
@@ -50,6 +51,7 @@ import {
   compareOpen, findGaps, walkAncestry,
 } from './q-model.mjs';
 import { orphanRows } from './provenance.mjs';
+import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
 
 const SNIPPET_COL = 2;       // items_fts column index of `body` for snippet()
 const SNIPPET_TOKENS = 8;    // words of context around an FTS match
@@ -303,6 +305,8 @@ function cannedQueries(root) {
       return orphanRows(items, (id) => edgesById.get(id) || [], scope);
     },
 
+    recent: (db, ...args) => recentRows(db, args),
+
     'next-id': (db, scope, type) => {
       const key = requireScope(scope);
       const store = requireStore(type);
@@ -399,6 +403,8 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   drift                       OPEN items naming a structural target path ABSENT from the tree
   by-commit <sha>             tickets caused-by / fixed-by <sha>
   doc-trail <id>              history events for <id>, newest first
+  recent [Nd] [scope]         time-windowed digest (default ${RECENT_DAYS}d): decisions,
+                              fixed, status moves, created — counts exact, lists capped
   fts [--scope <s>] <q...>    full-text search title+body; scope defaults to the cwd
                               project, --scope all searches every project
   similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only)

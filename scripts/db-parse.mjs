@@ -77,6 +77,14 @@ function historyEvents(body) {
   return events;
 }
 
+// Frontmatter-only items (decisions carry `date:`, most stores `created:`) get a synthetic
+// created event so time-windowed rollups (q recent) see them without a ## History section.
+function withCreated(events, fm, title) {
+  if (events.some((e) => e.event === 'created')) return events;
+  const ts = String(scalar(fm, 'created') || scalar(fm, 'date') || '').slice(0, 16).replace(' ', 'T');
+  return /^\d{4}-\d{2}-\d{2}/.test(ts) ? [{ ts, event: 'created', detail: title || '' }, ...events] : events;
+}
+
 // A leading "(type) rest" tag on an id-less cap (cap.mjs writes `(bug) login loops`). Returns
 // the bare type word when present, else ''. Only the FIRST line is considered, so a "(foo)" in
 // the body never masquerades as a type.
@@ -130,7 +138,7 @@ export function parseItem(absPath, store) {
     fixedCommit: scalar(fm, 'fixed_commit'),
     producedBy: scalar(fm, 'produced_by'),
     informs: list(fm, 'informs'),
-    history: historyEvents(body),
+    history: withCreated(historyEvents(body), fm, scalar(fm, 'title')),
     body: body.trim(),
   };
 }
