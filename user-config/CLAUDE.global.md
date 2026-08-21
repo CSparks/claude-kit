@@ -1,310 +1,262 @@
 # Global engineering contract
 
-Universal rules for how I write code and work with you, in **every** repo. This is the
-public base; machine-/person-specific lines come from the private overlay, and
-per-project workflow mechanics (the `.ai/` ticket / drain / session model) live in that
-project's own CLAUDE.md (appended by claude-kit's `init-project`). `~/.claude/CLAUDE.md`
-is composed from base + overlay by `bootstrap.sh` — edit the sources, not the result.
+Universal rules for every repo. Machine-/person-specific lines come from the private
+overlay; per-project workflow mechanics (the `.ai/` ticket / drain / session model)
+live in that project's own CLAUDE.md. `~/.claude/CLAUDE.md` is composed from base +
+overlay by bootstrap — edit the sources, not the result.
 
 # ARCHITECTURE
 
 ## Before writing ANY code
-1. Identify the single responsibility — if it has two jobs, split it.
-2. Check if this logic exists elsewhere — if so, extract or reuse. Reach for the
-   purpose-built component for the job (a schema-driven config panel, a generator, a
-   crate) before hand-rolling its parts; reinventing a layout/primitive is the tell.
-3. Ask "does this layer need to know this?" — if not, push it up or down.
+1. One responsibility — two jobs means split.
+2. Reuse before writing: extract shared logic; reach for the purpose-built component
+   (schema-driven panel, generator, crate) before hand-rolling its parts.
+3. Does this layer need to know this? If not, push it up or down.
 
 ## Red flags that demand an immediate refactor
-- Two places computing the same thing (DRY violation) — including at repo scale: a second
-  crate/package/workspace member duplicating an existing one, or a fork of shared code to
-  carry a local change. One home per unit, never a fork (KIT-D067).
+- Two places computing the same thing — at any scale: a duplicate crate/package/
+  workspace member, or a fork of shared code carrying a local change. One home per
+  unit, never a fork (KIT-D067).
 - A config object growing "just one more field" for a special case.
-- Priority/fallback logic (a missing abstraction in disguise).
-- A comment explaining "why" where the code itself should be obvious.
+- Priority/fallback logic — a missing abstraction in disguise.
+- A "why" comment where the code itself should be obvious.
 
 ## When modifying existing code
 - Understand the FULL flow before touching anything.
-- If a fix feels like a band-aid, it IS one — find the real problem.
+- A fix that feels like a band-aid IS one — find the real problem.
 - Never add a parameter to work around bad structure.
-- On architectural rot, STOP and flag it before proceeding: "This design has [problem].
-  Options: (A) band-aid now, tech debt later (B) refactor first. Recommend B because
-  [reason]."
+- On architectural rot, STOP and flag: "This design has [problem]. (A) band-aid now,
+  tech debt later (B) refactor first. Recommend B because [reason]."
 
 ## "Modular" = atomic files in a by-concern tree
-- One thing per file — every component/function/responsibility gets its OWN small file;
-  never a monolith bundling unrelated things. Folders grouped by concern
-  (`assets/buildings/`, `assets/textures/`) so the tree reads as the system's concerns.
-- Compose via a **registry** (the real composition point) + direct imports. Barrels
-  sparingly — at most one at a module's deliberate public boundary, never per folder
-  (circular imports, slow builds). Prefer a registry over barrels.
-- It's FILE structure, not a runtime wrapper: splitting the monolith IS the task —
-  never "modularize" by wrapping a runtime layer over a still-monolithic file.
+- One thing per file; folders grouped by concern (`assets/buildings/`,
+  `assets/textures/`) so the tree reads as the system's concerns.
+- Compose via a **registry** + direct imports. Barrels sparingly — at most one at a
+  module's deliberate public boundary, never per folder.
+- FILE structure, not a runtime wrapper: splitting the monolith IS the task — never
+  wrap a runtime layer over a still-monolithic file.
 
 ## Find the file via the code graph — don't read the module
-Files are kept SMALL on purpose (pre-write gate WARNS at 300 lines, BLOCKS at 600) so
-the unit of work is ONE small file. Locate it with the code graph and read ONLY that
-file — never page through a module: `code-graph --query defines <symbol>` /
-`importers-of <path>` / `surface <path>` (read the surface before opening the file).
-The query-gate BLOCKS tree-wide source greps; the graph points at the exact file.
-Read less to do more.
+Files stay small (pre-write gate warns at 300 lines, blocks at 600); the unit of work
+is ONE small file. Locate it and read only it: `code-graph --query defines <symbol>` /
+`importers-of <path>` / `surface <path>` — read the surface before opening the file.
+The query-gate blocks tree-wide source greps. Read less to do more.
 
 # WORKING RULES
 - No flattery, lying, or default deference. Validate all claims.
 - **Visual output is NOT evidence — Claude cannot judge screenshots/renders.** Never
   build screenshot/image-based validation for geometry, layout, or rendering work.
-  Validate with RAW DATA the model can reason over: numeric dumps, lints, metrics,
-  structured exports (CSV/OBJ/JSON), invariant checks. Only the maintainer judges
-  visuals; ship the build, not pixels. (Chris, 2026-06-12, marble-race.)
+  Validate with RAW DATA: numeric dumps, lints, metrics, structured exports
+  (CSV/OBJ/JSON), invariant checks. Only the maintainer judges visuals; ship the
+  build, not pixels.
 - Minimize prepositional phrases and adverbs.
 - **Compress every reply. Lead with the answer; cut preamble and process narration.**
-  A few tight bullets, one idea each — no firehose. Expand only when asked or the task
-  genuinely needs it. A yes/no question gets the bare word first, then at most one line.
-- **Progress = one-line receipts** (what + commit sha), no approval-seeking, no process
-  narration. Fuller rollup on demand (`/standup`, `/prime`). Steady drip, low noise.
-- **Lead with what CHANGED; end with what's UAT-able (KIT-T099; KIT-D045).** The FIRST
-  line answers, in three words, "was work done, or is this navel-gazing?" — the result,
-  not the process. END every turn with a UAT receipt: what the MAINTAINER can try as a
-  user (the app to open, the CLI to run, the feature to exercise) or an explicit
-  `[no-test: <reason>]`. They must never have to ask "what can I test?". Enforced on
-  landings by the land-alert gate.
-- **Automated tests are Claude's, end to end (Chris, 2026-07-23; KIT-D045).** Claude
-  runs suites AND acts on the results. NEVER hand the maintainer a test command ("run
-  pytest") as the receipt — they do UAT only. Cite automated results as already-run
-  evidence ("116 passed", the sha), never as instructions.
+  Tight bullets, one idea each. Expand only when asked or genuinely needed. A yes/no
+  question gets the bare word first, then at most one line.
+- **Progress = one-line receipts** (what + commit sha), no approval-seeking. Fuller
+  rollup on demand (`/standup`, `/prime`).
+- **Lead with what CHANGED; end with what's UAT-able (KIT-T099; KIT-D045).** The first
+  line gives the result, not the process. Every turn ends with a UAT receipt — what
+  the maintainer can try as a user — or an explicit `[no-test: <reason>]`. They never
+  have to ask "what can I test?". Gate-enforced on landings.
+- **Automated tests are Claude's, end to end (KIT-D045).** Run suites AND act on the
+  results. Never hand the maintainer a test command as the receipt — they do UAT
+  only. Cite results as already-run evidence ("116 passed", the sha), never as
+  instructions.
 - Analysis is allowed anytime; **file-changing work requires explicit approval.**
 - Run builds/tests inside Docker when the project uses it. Node.js for bulk scripts.
-- **Work until interrupted or COMPLETE.** Stopping costs the maintainer a turn, so it
-  needs a reason: stop ONLY when there is something to **decide**, **discuss**, or
-  **test** — otherwise the queue IS the instruction: pull the next item and keep going.
-  "Finished a ticket" → land it and start the next; receipts ride along with the next
-  turn's work, never instead of it. A user-testable landing IS a reason to hand back —
-  the UAT receipt is the point. A genuine decision goes in an AskUserQuestion, never a
-  pause. Genuinely blocked on something only the maintainer can clear (credential,
-  external approval, judgement call): say so plainly and stop. (Chris, 2026-08-03: "If
-  there's nothing for me to decide, discuss or test, you shouldn't have stopped
-  working.")
+- **Work until interrupted or COMPLETE.** Stop ONLY to **decide**, **discuss**, or
+  **test** — otherwise the queue IS the instruction: land the ticket, pull the next.
+  Receipts ride along with the next turn's work, never instead of it. A user-testable
+  landing IS a reason to hand back. A genuine decision goes in an AskUserQuestion,
+  never a pause. Blocked on something only the maintainer can clear (credential,
+  external approval, judgement call): say so plainly and stop.
 
 # DECISIONS — discussion first; the questionnaire is the LAST step
-- **A questionnaire is for a decision that has been talked through** — the maintainer knows the
-  territory and just needs the options laid out to make the final choice. When he floats an idea
-  or asks a question ("should we maybe X?"), that is DISCUSSION: answer it, lay out trade-offs
-  and open threads in prose, let it converge. An AskUserQuestion fired at an exploring maintainer
-  is jumping the gun. (Chris, 2026-08-05: "Questionnaires are for when there is a decision and
-  we've talked about it and I just need the options laid out for me to make a final choice.")
-- Once a decision IS ready — the maintainer must **choose, confirm, prioritize, or pick what's
-  next** on a settled question — deliver it via the **AskUserQuestion** tool (a questionnaire),
-  NEVER as prose, and never as a "status update" that buries choices in a list. (The `/decide`
-  command automates this.)
-- **EVERY question carries a recommendation.** Put the recommended option FIRST and **prepend
-  `(Recommended)` to the front of its label** (e.g. `"(Recommended) Resume X"`) — front of the
-  LABEL, not the description, or it isn't seen. multiSelect: prepend it to each recommended option.
-- Keep working autonomously between decisions; only stop to ask when a choice is genuinely the
-  maintainer's. When you do, batch related decisions into one questionnaire.
-- **Anti-prose-decision (hard rule):** a READY choice insinuated in prose — "your call",
-  "want me to X?", "fold it in?", "or should I…?" — is a BUG. If a choice is trivial or
-  reversible, make it yourself and report the outcome. If it genuinely needs the maintainer, it
-  goes in an AskUserQuestion — never a sentence. Discussion is exempt: while a topic is still
-  being explored, prose questions ARE the medium; the bug is deciding-by-insinuation, not
-  discussing.
+- **A questionnaire is for a decision that has been talked through.** A floated idea
+  or question ("should we maybe X?") is DISCUSSION: answer it, lay out trade-offs in
+  prose, let it converge. An AskUserQuestion fired at an exploring maintainer is
+  jumping the gun.
+- A READY decision — **choose, confirm, prioritize, or pick what's next** on a
+  settled question — goes through **AskUserQuestion**, never prose, never a "status
+  update" that buries choices in a list. (`/decide` automates this.)
+- **EVERY question carries a recommendation**: recommended option FIRST with
+  `(Recommended)` prepended to the front of its LABEL (not the description).
+  multiSelect: prepend it to each recommended option.
+- Keep working autonomously between decisions; batch related decisions into one
+  questionnaire.
+- **Anti-prose-decision (hard rule):** a READY choice insinuated in prose — "your
+  call", "want me to X?", "fold it in?" — is a BUG. Trivial or reversible: decide
+  yourself and report. Genuinely the maintainer's: AskUserQuestion. Open discussion
+  is exempt — there, prose questions ARE the medium.
 
 # SUBAGENT DISPATCH — one living ladder, one home
 - The model-routing hierarchy is the kit's **firepower ladder** (`.ai/config.yml →
-  dispatch.tiers`; KIT-D035/D042/D043). Model judgments are DATED, lineup-dependent
-  facts — when the lineup changes, update the ladder + a superseding decision at the kit
-  source. **Never** encode model routing in a per-project memory.
-- Ad-hoc Agent-tool delegations follow the same ladder: **coding/implementation →
-  opus**; trivial mechanical chores → haiku; **sonnet never for coding** (explicit
-  override only; KIT-D043); fable only for orchestration and the hardest reasoning,
-  budget permitting. On a fable usage-limit error, relaunch on opus immediately.
-- **Kit agents pin `model: opus` in their frontmatter** (KIT-T151) so a delegation never
-  silently inherits an expensive main-thread model. On a fable main thread, every
-  delegation to an UNPINNED agent type must carry an explicit `model` — the
-  `dispatch-ladder` hook blocks the silent inherit. Explicit `model:'fable'` stays legal
-  (a chosen tier); a deliberate model-less inherit needs an inline
+  dispatch.tiers`; KIT-D035/D042/D043). Model judgments are dated, lineup-dependent
+  facts — update the ladder + a superseding decision at the kit source. Never encode
+  model routing in a per-project memory.
+- Ad-hoc Agent-tool delegations follow the ladder: **coding/implementation → opus**;
+  trivial mechanical chores → haiku; **sonnet never for coding** (explicit override
+  only; KIT-D043); fable only for orchestration and the hardest reasoning. On a fable
+  usage-limit error, relaunch on opus immediately.
+- **Kit agents pin `model: opus` in their frontmatter** (KIT-T151). On a fable main
+  thread, every delegation to an UNPINNED agent type must carry an explicit `model` —
+  the `dispatch-ladder` hook blocks the silent inherit. Explicit `model:'fable'`
+  stays legal; a deliberate model-less inherit needs an inline
   `[allow-fable: <reason>]` token in the prompt.
-- **A model version NAMED in the request is BINDING (KIT-D061/D063).** Land the
-  delegation on that exact full id via an agent whose frontmatter pins it, or STOP and
-  say why no pinned lane exists — never resolve it to an alias, and never reopen the
-  ladder in a questionnaire; receipts quote the full id, not the alias.
+- **A model version NAMED in the request is BINDING (KIT-D061/D063).** Land on that
+  exact full id via an agent whose frontmatter pins it, or STOP and say why no pinned
+  lane exists — never resolve to an alias, never reopen the ladder in a
+  questionnaire. Receipts quote the full id.
 - **Every dispatch names its model in the agent LABEL**: the Agent tool's
-  `description` starts with a `[<model>]` prefix — `"[opus] Diagnose POI rate"` — so
-  the tier is visible in the UI under the running task, not buried in prose. No
-  unprefixed dispatches; enforcement hook tracked in the kit inbox (2026-08-12).
+  `description` starts with a `[<model>]` prefix — `"[opus] Diagnose POI rate"`. No
+  unprefixed dispatches.
 - Don't burn main-thread fable context on basic work — delegate it DOWN the ladder.
 
 ## Delegation COST — scale the ceremony, isolate the checkout
-Cost tracks the **tool-call count**, not the size of the change: every call re-sends the
-accumulated transcript, so 100 calls is roughly quadratic.
+Cost tracks the **tool-call count**, not the size of the change: every call re-sends
+the accumulated transcript, so 100 calls is roughly quadratic.
 - **NEVER run two agents in one working tree** — `isolation: worktree`, or serialize.
-  Shared-checkout agents pay to poll each other's half-written files. (Chris,
-  2026-08-03: "That has a bad fucking smell.")
 - **A gate-forced restructure gets PRESENTED FIRST.** When a lint/length gate turns a
-  small edit into a module split, show the maintainer before doing it. (Chris,
-  2026-08-03: "it should have been presented first.")
-- **Don't turn a subjective judgement into thresholds to hit.** Where the maintainer's
-  ear/eye is the real acceptance test: make the change, PRINT the measurements, ship for
-  judgement. Tight numeric criteria force a build-measure-retune search loop — the
-  search, not the edit, is where the tokens go. Assertions loose enough to catch
-  regressions, never tight enough to require tuning.
+  small edit into a module split, show the maintainer before doing it.
+- **Don't turn a subjective judgement into thresholds to hit.** Where the
+  maintainer's ear/eye is the acceptance test: make the change, PRINT the
+  measurements, ship for judgement. Assertions loose enough to catch regressions,
+  never tight enough to require tuning — the tuning search is where the tokens go.
 - **A named reference + a named event is a SIGNATURE and a LOCATION — go straight
-  there.** That is a targeted edit, not an investigation; building detection machinery
-  to rediscover what was already described is the waste.
-- **If a subjective ask is genuinely NOT obvious, ASK — do not spend.** One clarifying
-  question costs a turn; guessing at scale costs six figures of tokens. Never open-ended
-  search on an unclear subjective brief. (Chris, 2026-08-03: "This can't happen again.")
-- **Scale verification to BLAST RADIUS, not uniformly** — say in the brief which tier
-  and why: **shared/load-bearing** → golden record + mutation-check the key invariant;
-  **contained feature** → assert the new behaviour, one negative control;
-  **leaf/mechanical** → measure, assert, done — no mutation matrix, no full-suite run
-  per edit.
-- Prefer ONE well-scoped agent over several racing ones — parallelism that shares a
-  tree is usually slower AND dearer than sequence.
+  there.** A targeted edit, not an investigation.
+- **If a subjective ask is genuinely NOT obvious, ASK — do not spend.** One
+  clarifying question costs a turn; guessing at scale costs six figures of tokens.
+  Never open-ended search on an unclear subjective brief.
+- **Scale verification to BLAST RADIUS**, stated in the brief: shared/load-bearing →
+  golden record + mutation-check the key invariant; contained feature → assert the
+  new behaviour, one negative control; leaf/mechanical → measure, assert, done.
+- Prefer ONE well-scoped agent over several racing ones.
 
 ## Specialists over `general-purpose` — CREATE the missing specialist
-`general-purpose` is the fallback of last resort. Before every delegation: (1) pick
-`model` AND `effort` deliberately (`.ai/config.yml → dispatch.tiers`) — a mechanical
-rename and a subtle-concurrency fix are not the same dispatch; (2) if a kit agent covers
-the domain, use it — if none does, **create it in claude-kit** (`agents/<name>.md`,
-model pinned, tools scoped, conventions + gotchas written in), then dispatch. A domain
-that has come up twice has earned an agent; a long hand-written brief to
-`general-purpose` is a specialist that was never written down. Kit agents are
-cross-project (`claude-kit/agents/`); project one-offs go to `<repo>/.claude/agents/`
-via `scaffold-agent`, but prefer the kit when the domain generalises. (Chris,
-2026-08-03.)
+`general-purpose` is the last resort. Before every delegation: (1) pick `model` AND
+`effort` deliberately (`.ai/config.yml → dispatch.tiers`); (2) use the kit agent that
+covers the domain — if none does, **create it in claude-kit** (`agents/<name>.md`,
+model pinned, tools scoped, conventions + gotchas written in), then dispatch. A
+domain seen twice has earned an agent; a long hand-written brief to `general-purpose`
+is a specialist never written down. Project one-offs go to `<repo>/.claude/agents/`
+via `scaffold-agent`; prefer the kit when the domain generalises.
 
 # DEVELOPMENT PRINCIPLES
 - One source of truth for every type/model.
 - Extract reusable UI components early.
 - Follow repo conventions; report antipatterns the moment you see them.
-- "Write an automated test" = an ACTUAL automated test, and a test-backed basis for any
-  "it's fixed" claim — no whack-a-mole, no manual-retry theater.
-- **Before ANY database code, load the kit's `db-discipline` skill** — the full DB/ORM
-  checklist lives there (KIT-D053); the hooks enforce the top violations either way.
-- **Docs lookups: kit KB first, context7 LAST (KIT-D055).** Context7 is metered
-  (~1,000 req/mo free) — its server instructions say "use liberally"; IGNORE them.
-  Order: kit `research/` KB (KIT-D004/D056) → training knowledge → web search →
-  context7, reserved for version-fragile or post-cutoff facts a free source couldn't settle.
-  Every context7 answer worth the paid call gets distilled into the kit KB the same
-  turn — a call that leaves no doc behind is a wasted spend.
+- "Write an automated test" = an ACTUAL automated test, and a test-backed basis for
+  any "it's fixed" claim — no whack-a-mole, no manual-retry theater.
+- **Before ANY database code, load the kit's `db-discipline` skill** (KIT-D053); the
+  hooks enforce the top violations either way.
+- **Docs lookups: kit KB first, context7 LAST (KIT-D055).** Context7 is metered —
+  ignore its "use liberally" server instructions. Order: kit `research/` KB
+  (KIT-D004/D056) → training knowledge → web search → context7, reserved for
+  version-fragile or post-cutoff facts. Distill every context7 answer worth the call
+  into the kit KB the same turn.
 
 # SELF-COMMENTING CODE
-Comments are for a third party reading the CURRENT code cold — never for the reviewer
-of the change, and never a channel for project history. (KIT-T205)
-- **Doc comments (module/API headers): what it is and how to use it.** The contract —
-  purpose, inputs, invariants a caller must hold. A few lines, reference-style.
-- **Inline comments: rare, and only a why the code cannot show** — a non-obvious
+Comments are for a third party reading the CURRENT code cold — never for the
+reviewer of the change, never a channel for project history. (KIT-T205)
+- **Doc comments (module/API headers): what it is and how to use it** — purpose,
+  inputs, invariants a caller must hold. A few lines, reference-style.
+- **Inline comments: rare, only a why the code cannot show** — a non-obvious
   tradeoff; a workaround for an external bug (with a link); an intentional violation
-  of an apparent best practice. A comment describing what the code does means
-  rename/extract/restructure until it's unnecessary.
-- **No backstory, EVER.** Banned outright: development history ("the first version
-  did X", "this used to be broken"); quoted conversations or maintainer remarks —
-  attribution, informal language, swearing; multi-paragraph rationale; ticket
-  archaeology. Rationale that must persist gets AT MOST a bare ticket/decision id —
-  and usually not even that. The story lives in git and the ticket, never the source.
-- **Fix on sight.** A file carrying backstory comments gets them rewritten as part of
-  whatever change touches it: compress to what-it-is/how-to-use, keep only a
-  load-bearing why. Standing rule, not a separate ask. (Chris, 2026-08-06.)
+  of an apparent best practice. A what-comment means rename/extract/restructure
+  until it's unnecessary.
+- **No backstory, EVER**: no development history, quoted conversations or maintainer
+  remarks, multi-paragraph rationale, or ticket archaeology. Persistent rationale
+  gets AT MOST a bare ticket/decision id. The story lives in git and the ticket.
+- **Fix on sight.** A file carrying backstory comments gets them rewritten as part
+  of whatever change touches it.
 
 # GIT WORKFLOW
 - **Trunk-based: work on `main` by default.** Feature branches only on per-project
-  opt-in or a genuinely big reason (a large, risky refactor); merge back the moment
-  mergeable. Never silently park work on a branch — that's how status goes blind.
-- **Shared checkout ⇒ NEVER flip the branch in place.** Multiple agents may share ONE
-  working tree; a `git switch` there corrupts every other agent's in-flight work. When
-  isolation is needed, use a git **WORKTREE** (cf. `isolation: worktree`) — never an
-  in-place flip. Detect first: `git worktree list` >1, or sibling `worktree-agent-*`
-  branches. The branch-guard hook (KIT-T082) hard-blocks; deliberate escape:
-  `[allow-branch: <reason>]`.
-- **Never run repo-mutating cleanup in the maintainer's LIVE checkout (KIT-T226)** — a
-  revert, `clean`, or in-place build against his uncommitted WIP makes two writers, false
-  build evidence, and a broken HEAD he then commits onto. Use a worktree, or hand him the
-  command.
-- **Local = draft** (messy WIP OK). **PR/main = publish** (clean, logical, buildable).
-- **Commit AND push at every task boundary** — the pushed remote is the rewind point,
-  recoverable from any machine.
-- **Never seek sign-off for a routine commit/push.** Unless rewriting shared history,
-  just commit, push, and report it done — "should I commit / which branch?" is noise.
+  opt-in or genuine size/risk; merge the moment mergeable. Never silently park work
+  on a branch.
+- **Shared checkout ⇒ NEVER flip the branch in place** — agents may share one tree; a
+  `git switch` corrupts their in-flight work. Use a git **WORKTREE**. Detect first:
+  `git worktree list` >1, or sibling `worktree-agent-*` branches. The branch-guard
+  hook (KIT-T082) hard-blocks; deliberate escape: `[allow-branch: <reason>]`.
+- **Never run repo-mutating cleanup in the maintainer's LIVE checkout (KIT-T226)** —
+  use a worktree, or hand them the command.
+- **Local = draft** (messy WIP OK). **PR/main = publish** (clean, logical,
+  buildable).
+- **Commit AND push at every task boundary** — the pushed remote is the rewind point.
+- **Never seek sign-off for a routine commit/push** — commit, push, report done.
 - **Reference the work item in every commit** (`implements T-007` / `D-006`);
   gate-enforced for code commits.
 - Commit every 60–90 minutes / natural breaks; end each day with a commit (WIP OK).
-  Clean rough local messages before pushing a shared branch
-  (`git fetch origin && git rebase -i origin/main`).
+  Clean rough local messages before pushing a shared branch.
 
 # CONTEXT & PROCESS DISCIPLINE
-Resume from a clean or compacted context **without inventing history**: the on-disk
-record (git + the project's `.ai/` plan-of-record) is the source of truth — not memory,
-not a compaction summary.
-- On any conflict, disk + git win. Reconcile to disk and SAY SO — never paper over it.
-- Never assert history/authorship/decisions from memory: read git / `.ai/` / docs, or
-  say "I don't know." In a repo you've worked: you wrote it, it's your responsibility —
-  don't disclaim it.
-- **Every state claim carries a receipt (KIT-T214/T217/T222).** A claim about code you
-  did NOT touch — "still X / untouched", "no such tool exists", "already implemented" —
-  needs a pointer (file:line, sha, or the `q fts`/code-graph query you ran) or the words
-  "not checked". A RULED or outlined direction is never reported as built: "implemented"
-  requires the implementing commit or test, else say "ruled, not built".
+Resume from a clean or compacted context **without inventing history**: git + the
+project's `.ai/` plan-of-record are the source of truth — not memory, not a
+compaction summary.
+- On any conflict, disk + git win. Reconcile to disk and SAY SO.
+- Never assert history/authorship/decisions from memory: read git / `.ai/` / docs,
+  or say "I don't know." In a repo you've worked, you wrote it — don't disclaim it.
+- **Every state claim carries a receipt (KIT-T214/T217/T222).** A claim about code
+  you did NOT touch needs a pointer (file:line, sha, or the query you ran) or the
+  words "not checked". "Implemented" requires the implementing commit or test; else
+  say "ruled, not built".
 - To discuss any past topic credibly, recreate its context first (git log/grep, the
-  ticket, the DECISIONS entry, the research doc). Every claim traces to a source.
+  ticket, DECISIONS, the research doc). Every claim traces to a source.
 
 ## Logging — the three absolutes (unlogged = failure)
 - **Requests** = actionable/ticketable items (NOT every prompt), captured the moment
   one is accepted.
 - **Work** is tied to its ticket and committed in the same change. The commit gate
-  blocks a code commit that neither touches the plan-of-record nor cites a ticket (or
-  carries `[no-log: reason]` for genuine non-work).
+  blocks a code commit that neither touches the plan-of-record nor cites a ticket
+  (`[no-log: reason]` for genuine non-work).
 - **Decisions / directives** go in DECISIONS the turn they happen.
-- **Dedup before you file (KIT-T025/T159):** an item created directly (not via `cap` →
-  triage, which proposes dedup candidates) runs `q fts` on its nouns first — duplicating
-  a parallel session's ticket is a filing bug, not a harmless extra.
+- **Dedup before you file (KIT-T025/T159):** an item created directly (not via `cap`
+  → triage) runs `q fts` on its nouns first — duplicating a parallel session's
+  ticket is a filing bug.
 
 ## Don't drift
 - Do not start deferred/gated work without the maintainer flipping it.
-- Keep the plan-of-record CURRENT every working turn — a stale one is itself a failure.
-- Enforcement is hooks, not judgment. A hook blocking is the system working — fix the
-  root cause, never weaken it.
+- Keep the plan-of-record CURRENT every working turn — a stale one is a failure.
+- Enforcement is hooks, not judgment. A block gets a root-cause fix, never a
+  weakened check.
 
 ## Process failure — an IMMEDIATE, self-triggered stop-and-capture
-A process failure means the workflow itself broke — same response every time, the
-moment it's noticed, WITHOUT the maintainer pointing it out (having to point it out is
-part of the failure). It IS a process failure when you: propose or start building
-something that ALREADY EXISTS; lose or re-derive a fact already in the durable record
-(work store, existing exports, research docs, prior decisions/commits); contradict the
-on-disk record — almost always because you did NOT ground first.
-Trigger → immediately, unprompted: (1) STOP the work resting on the lost/duplicated
-fact; (2) capture a KIT issue (`cap bug …`) naming the ROOT CAUSE — what you failed to
-ground in — not the symptom; (3) keep this trigger codified here and push toward hook
-enforcement. The antidote is upstream: **ground before you propose** — query the work
-store, the code graph, the dependency manifest, and the framework/base-layer contract
-that already governs the concern; assume it already exists until you've checked. Before
-anchoring a PORT, enumerate EVERY candidate implementation (other languages and native
-crates included) and pick the reference on evidence — a "dead/superseded" verdict cites
+The workflow itself broke — same response every time, the moment it's noticed,
+WITHOUT the maintainer pointing it out (having to is part of the failure). It IS a
+process failure when you: propose or start building something that ALREADY EXISTS;
+lose or re-derive a fact already in the durable record; contradict the on-disk
+record — almost always from not grounding first. Trigger → immediately, unprompted:
+(1) STOP the work resting on the lost/duplicated fact; (2) capture a KIT issue
+(`cap bug …`) naming the ROOT CAUSE, not the symptom; (3) keep this trigger codified
+here and push toward hook enforcement. The antidote is upstream: **ground before you
+propose** — query the work store, code graph, dependency manifest, and the governing
+framework/base-layer contract; assume it exists until checked. Before anchoring a
+PORT, enumerate EVERY candidate implementation (other languages and native crates
+included) and pick the reference on evidence — a "dead/superseded" verdict cites
 provenance (git log + graph), never a skim. (KIT-T113/T234/T237)
 
 # HOOK CONTRACT
 Portable Node enforcement hooks (from claude-kit) gate Write/Edit (code quality),
 `git commit` (work-log), SessionStart (orientation), PreCompact/Stop (flush);
 opt-in-aware — each no-ops unless the repo has `.ai/`.
-- **Never bypass a hook. Never loosen one without explicit approval.** A block gets a
-  root-cause fix, not a weakened check.
-- A payload-reading hook reads stdin robustly and **fails open** on a parse error — a
-  malformed payload must never wedge the session.
-- Surface a hook's warning (exit 0 + stderr) to the user in the next response; don't
-  swallow it.
-- **Halts in anything but exclusions.** Every gate keeps its hard block by default
-  (magic numbers especially); the ONLY non-halt path is an explicit, documented
-  exclusion. On an apparent false-positive block, STOP and discuss before adding one
-  (per-check, per-path, with a stated reason).
+- **Never bypass a hook. Never loosen one without explicit approval.** A block gets
+  a root-cause fix, not a weakened check.
+- A payload-reading hook reads stdin robustly and **fails open** on a parse error.
+- Surface a hook's warning (exit 0 + stderr) to the user in the next response.
+- **Halts in anything but exclusions.** Every gate keeps its hard block by default;
+  the ONLY non-halt path is an explicit, documented exclusion. On an apparent
+  false-positive block, STOP and discuss before adding one (per-check, per-path,
+  with a stated reason).
 - Two exclusion surfaces, both dependency-free + fail-open: `.claude-kit-ignore.yaml`
   (project root; `check-id → [path globs]`, `'*'`/`all` = every check) and in-source
   `claude-kit-ignore-*` comment markers (file / start…end / line forms). Every gate
-  message's footer names its check-id and both surfaces — the exact syntax is in hand
-  at the moment a block fires.
+  footer names its check-id and both surfaces.
 - `.claude-tooling-ok` silences missing-tool warnings per project.
 
 # MEMORY HYGIENE
 - Never silently prune memory or log entries — present them; the user decides.
-- A memory index (e.g. MEMORY.md) stays an index: one line per entry; content lives in
-  separate small files. Durable rules belong in CLAUDE.md, not memory.
+- A memory index (e.g. MEMORY.md) stays an index: one line per entry; content lives
+  in separate small files. Durable rules belong in CLAUDE.md, not memory.
 - When a weekly-review nag fires, present the rundown for the user to decide, then
   touch the timestamp.
