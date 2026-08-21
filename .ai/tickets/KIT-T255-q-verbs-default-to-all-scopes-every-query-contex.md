@@ -7,6 +7,7 @@ priority: high
 milestone:
 labels: []
 links: [KIT-T174]
+fixed_commit: 010ec6e
 files: [scripts/q-model.mjs, scripts/q.mjs, scripts/q-fallback.mjs, scripts/q-recent.mjs, scripts/q-inbox.mjs, hooks/orient.mjs]
 supersedes:
 superseded_by:
@@ -86,3 +87,4 @@ Directive (Chris, 2026-08-20): 'The context pretty much needs to be set by defau
 - [2026-08-21 04:40] (comment) resolveScope in q-model is the one scope vocabulary; open/inbox/confirmations/orphans/rundown/recent/regressions/supersedes/verify/fts default to the cwd project on the cache AND scan paths; orient passes `all` to keep its cross-project banner
 - [2026-08-21 04:40] (comment) tests: q.test.mjs 89 passed, q-recent.test.mjs ok, db-parity 21, db-cache 66, orient 24, index-tickets 34, cli-help 18; full suite 60/62 commands green (agent-pins / big-ask-nudge / server pre-existing, reproduced on unmodified main)
 - [2026-08-21 04:40] (status) doing → review
+- [2026-08-21 04:45] (fixed) 010ec6e
