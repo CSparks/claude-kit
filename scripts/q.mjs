@@ -13,7 +13,11 @@
 //   node scripts/q.mjs by-commit <sha>              # tickets caused-by / fixed-by <sha>
 //   node scripts/q.mjs doc-trail <id>               # history events for <id>, newest first
 //   node scripts/q.mjs recent [Nd] [scope]          # time-windowed digest of what happened (KIT-T253)
-//   node scripts/q.mjs fts [--scope <s>] <query...> # full-text search title+body (default scope = the cwd project; `--scope all` = every project)
+//   node scripts/q.mjs fts [--scope <s>] <query...> # full-text search title+body
+//
+// SCOPE (KIT-T255): every [scope] argument defaults to the CWD project; `all` widens to every
+// project and an explicit key picks one. Outside an adopted repo there is no key to default
+// to, so the default is every project.
 //   node scripts/q.mjs similar <title/labels...>    # likely-duplicate ITEMS (dedup, suggest-only)
 //   node scripts/q.mjs similar --store <s> <text>   # …confined to one store (tickets|decisions|notes|questions)
 //   node scripts/q.mjs next-id <scope> <type>       # O(1) next free id (max(num)+1)
@@ -48,7 +52,7 @@ import { fallback } from './q-fallback.mjs';
 import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import {
   OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, parseFts, requireStore, requireScope, formatId,
-  compareOpen, findGaps, walkAncestry,
+  compareOpen, findGaps, walkAncestry, resolveScope,
 } from './q-model.mjs';
 import { orphanRows } from './provenance.mjs';
 import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
@@ -171,18 +175,25 @@ function aiDirByScope(root) {
 }
 
 // ---- SQLite-backed canned queries -----------------------------------------
+// Every scoped verb resolves its [scope] argument through q-model's resolveScope (KIT-T255):
+// absent = the cwd project, `all` = every project, a key = that project. The markdown-scan
+// fallback resolves through the same helper, so the two paths filter identically.
 function cannedQueries(root) {
+  const scopeOf = (tok) => resolveScope(tok, root);
   return {
     // The active/drain set EXCLUDES superseded tickets (KIT-T024): a `superseded` status OR
     // any non-archived ticket carrying a `superseded_by` pointer is out — so a forgotten
     // status flip can't leak a retired duplicate back into the drain.
-    open: (db, scope) => db.all(
-      `SELECT i.id, i.type, i.status, i.priority, i.title FROM items i
-       WHERE i.status IN (${OPEN.map(() => '?').join(',')}) AND i.archived = 0
-         AND i.status <> 'superseded'
-         AND NOT EXISTS (SELECT 1 FROM links l WHERE l.from_id = i.id AND l.rel = 'superseded_by')
-         ${scope ? 'AND i.scope = ?' : ''}`,
-      scope ? [...OPEN, scope] : [...OPEN]).sort(compareOpen),
+    open: (db, scopeTok) => {
+      const scope = scopeOf(scopeTok);
+      return db.all(
+        `SELECT i.id, i.type, i.status, i.priority, i.title FROM items i
+         WHERE i.status IN (${OPEN.map(() => '?').join(',')}) AND i.archived = 0
+           AND i.status <> 'superseded'
+           AND NOT EXISTS (SELECT 1 FROM links l WHERE l.from_id = i.id AND l.rel = 'superseded_by')
+           ${scope ? 'AND i.scope = ?' : ''}`,
+        scope ? [...OPEN, scope] : [...OPEN]).sort(compareOpen);
+    },
 
     // The untriaged capture queue (KIT-T238) — the first-class verb the store-grep gate
     // forces traffic onto, so enumerating/ageing the inbox never needs ad-hoc SQL again.
@@ -226,39 +237,51 @@ function cannedQueries(root) {
          ORDER BY rank LIMIT ?`, [...params, FTS_LIMIT]);
     },
 
-    rundown: (db) => db.all(
-      `SELECT scope,
-              SUM(status IN ('todo','doing','review')) AS open,
-              SUM(status='doing') AS doing,
-              SUM(status='review') AS review
-       FROM items WHERE archived = 0 GROUP BY scope ORDER BY scope`),
+    // Per-scope open counts. `rundown all` is the cross-project board; bare `rundown` answers
+    // for the cwd project only, so a per-project glance can't be mistaken for a global one.
+    rundown: (db, scopeTok) => {
+      const scope = scopeOf(scopeTok);
+      return db.all(
+        `SELECT scope,
+                SUM(status IN ('todo','doing','review')) AS open,
+                SUM(status='doing') AS doing,
+                SUM(status='review') AS review
+         FROM items WHERE archived = 0${scope ? ' AND scope = ?' : ''} GROUP BY scope ORDER BY scope`,
+        scope ? [scope] : []);
+    },
 
     // Regression chain data for index-tickets (KIT-T026): every ticket with its upward
     // regressed_from + caused_by/fixed_by commit refs, pulled from the links edges. The
     // indexer assembles the chains; this just serves the per-id provenance from the cache.
     // `scope` confines it to ONE project — the cache is cross-scope, and these rows are
     // written straight into a single project's generated views (KIT-T125).
-    regressions: (db, scope) => db.all(
-      `SELECT i.id, i.title,
-              rf.to_id AS regressed_from, cb.to_id AS causing_commit, fb.to_id AS fixed_commit
-       FROM items i
-       LEFT JOIN links rf ON rf.from_id = i.id AND rf.rel = 'regressed_from'
-       LEFT JOIN links cb ON cb.from_id = i.id AND cb.rel = 'caused_by'
-       LEFT JOIN links fb ON fb.from_id = i.id AND fb.rel = 'fixed_by'
-       WHERE i.store = 'tickets'${scope ? ' AND i.scope = ?' : ''} ORDER BY i.id`,
-      scope ? [scope] : []),
+    regressions: (db, scopeTok) => {
+      const scope = scopeOf(scopeTok);
+      return db.all(
+        `SELECT i.id, i.title,
+                rf.to_id AS regressed_from, cb.to_id AS causing_commit, fb.to_id AS fixed_commit
+         FROM items i
+         LEFT JOIN links rf ON rf.from_id = i.id AND rf.rel = 'regressed_from'
+         LEFT JOIN links cb ON cb.from_id = i.id AND cb.rel = 'caused_by'
+         LEFT JOIN links fb ON fb.from_id = i.id AND fb.rel = 'fixed_by'
+         WHERE i.store = 'tickets'${scope ? ' AND i.scope = ?' : ''} ORDER BY i.id`,
+        scope ? [scope] : []);
+    },
 
     // Supersede chain data for index-tickets (KIT-T024): every ticket's outbound supersedes
     // pointer (newer -> the older one it retires). index-tickets assembles older→newer chains
     // from these the same way it builds regression chains from regressed_from. Scoped for the
     // same reason as `regressions` — unscoped, one repo's SUPERSEDED.md listed DUP/GG/KIT/RCN
     // chains it has no relationship to (KIT-T125/KIT-T154).
-    supersedes: (db, scope) => db.all(
-      `SELECT i.id, i.status, i.title, s.to_id AS supersedes
-       FROM items i
-       LEFT JOIN links s ON s.from_id = i.id AND s.rel = 'supersedes'
-       WHERE i.store = 'tickets'${scope ? ' AND i.scope = ?' : ''} ORDER BY i.id`,
-      scope ? [scope] : []),
+    supersedes: (db, scopeTok) => {
+      const scope = scopeOf(scopeTok);
+      return db.all(
+        `SELECT i.id, i.status, i.title, s.to_id AS supersedes
+         FROM items i
+         LEFT JOIN links s ON s.from_id = i.id AND s.rel = 'supersedes'
+         WHERE i.store = 'tickets'${scope ? ' AND i.scope = ?' : ''} ORDER BY i.id`,
+        scope ? [scope] : []);
+    },
 
     // Dedup detector (KIT-T024, generalized to all stores in KIT-T025): FTS-rank likely
     // duplicates of a free-text proposal, confined to the target store. SUGGEST-ONLY —
@@ -294,7 +317,7 @@ function cannedQueries(root) {
 
     // MISSING-ANTECEDENT LINT (KIT-T048 / KIT-D028): open tickets + decisions that point at
     // nothing upstream. The drill-in clue is the id + summary — `q trail <id>` from there.
-    orphans: (db, scope) => {
+    orphans: (db, scopeTok) => {
       const items = db.all('SELECT id, scope, store, type, status, priority, title, summary, archived FROM items');
       const links = db.all('SELECT from_id, rel, to_id FROM links');
       const edgesById = new Map();
@@ -302,10 +325,10 @@ function cannedQueries(root) {
         if (!edgesById.has(l.from_id)) edgesById.set(l.from_id, []);
         edgesById.get(l.from_id).push([l.rel, l.to_id]);
       }
-      return orphanRows(items, (id) => edgesById.get(id) || [], scope);
+      return orphanRows(items, (id) => edgesById.get(id) || [], scopeOf(scopeTok));
     },
 
-    recent: (db, ...args) => recentRows(db, args),
+    recent: (db, ...args) => recentRows(db, args, root),
 
     'next-id': (db, scope, type) => {
       const key = requireScope(scope);
@@ -389,6 +412,13 @@ export async function query(cmd, args = [], { root, cwdRoot = root || process.cw
 // path — it erroring as an unknown query left gate-blocked agents with no discovery route
 // (capped 2026-07-05).
 const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [args]
+
+  SCOPE: every [scope] argument defaults to the CWD project — a query answers about the
+  repo you are standing in. Pass \`all\` (case-insensitive) for every project, or a project
+  key (KIT, ST, …) for that one. Outside an adopted repo there is no key, so the default
+  is every project. Applies to: open, inbox, confirmations, orphans, rundown, recent,
+  regressions, supersedes, verify, and fts's --scope.
+
   open [scope]                open items (todo|doing|review)
   inbox [scope] [--older-than Nd]
                               untriaged captures — id, age, scope, type, file path
@@ -405,14 +435,13 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   doc-trail <id>              history events for <id>, newest first
   recent [Nd] [scope]         time-windowed digest (default ${RECENT_DAYS}d): decisions,
                               fixed, status moves, created — counts exact, lists capped
-  fts [--scope <s>] <q...>    full-text search title+body; scope defaults to the cwd
-                              project, --scope all searches every project
-  similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only)
+  fts [--scope <s>] <q...>    full-text search title+body
+  similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only) — cross-scope
   next-id <scope> <type>      O(1) next free id (max(num)+1)
-  rundown                     per-scope open-item counts
-  regressions                 regression chain data (index-tickets)
-  supersedes                  supersede chain data (index-tickets)
-  integrity                   orphan parents / dangling links / gaps
+  rundown [scope]             per-scope open-item counts (\`rundown all\` = every project)
+  regressions [scope]         regression chain data (index-tickets)
+  supersedes [scope]          supersede chain data (index-tickets)
+  integrity                   orphan parents / dangling links / gaps — cross-scope
   sql "SELECT ..."            ad-hoc read-only SQL
   verify [scope]              cache staleness self-check (exit 1 = stale)
   sessions [--project <s>]    list Claude Code terminal sessions, newest first (KIT-T100)
@@ -459,7 +488,7 @@ async function main() {
       process.stdout.write('q verify: no DB found — cache has never been hydrated.\n');
       process.exit(1);
     }
-    const filterScope = args[0];
+    const filterScope = resolveScope(args[0], cwdRoot);
     const rows = result.scopes.filter((s) => !filterScope || s.scope === filterScope);
     if (json) {
       process.stdout.write(JSON.stringify(rows, null, 2) + '\n');

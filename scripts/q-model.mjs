@@ -77,13 +77,23 @@ export function defaultScope(root) {
   return (dir && readIdConfig(dir).key) || '';
 }
 
+// The scope filter EVERY scoped q verb resolves through (KIT-T255) — one vocabulary, applied
+// on both the cache and the markdown-scan path so the two never disagree. The cache is
+// CROSS-SCOPE by design (every adopted project in one DB), so an unfiltered query run inside
+// project INV answers with HOD/GG/JV rows and ZERO INV rows — an agent forced onto `q` by the
+// store-grep gate reads a screen of other projects' work and concludes its own has nothing.
+//   absent  -> the cwd project's key ('' outside an adopted repo, where there is none)
+//   `all`   -> '' (every scope), case-insensitive
+//   a key   -> that key, upper-cased
+// A returned '' means "no scope predicate" on both paths.
+export function resolveScope(scopeTok, root) {
+  const s = String(scopeTok ?? '').trim();
+  if (!s) return defaultScope(root);
+  return /^all$/i.test(s) ? '' : s.toUpperCase();
+}
+
 // `fts [--scope <s>] <query...>` (KIT-T174) — split the scope filter off the free-text query
-// in ONE place so the cache and markdown-scan paths filter identically. The cache is
-// CROSS-SCOPE by design (every adopted project in one DB), so an unfiltered `fts warp` run
-// inside project INV answered with HOD/GG/JV hits and ZERO INV rows — an agent forced onto
-// `q` by the store-grep gate reads a screen of other projects' tickets and concludes its own
-// project has nothing. Default is therefore the cwd project's scope; `--scope all` (or running
-// outside any adopted repo, where there is no key to default to) searches every scope.
+// in ONE place so the cache and markdown-scan paths filter identically.
 export function parseFts(text, root) {
   const toks = String(text || '').match(FTS_TOKEN) || [];
   const terms = [];
@@ -92,8 +102,7 @@ export function parseFts(text, root) {
     if (toks[i] === '--scope' && i + 1 < toks.length) { scope = toks[++i]; continue; }
     terms.push(toks[i]);
   }
-  if (scope === undefined) scope = defaultScope(root);
-  return { scope: /^all$/i.test(scope) ? '' : scope, query: terms.join(' ') };
+  return { scope: resolveScope(scope, root), query: terms.join(' ') };
 }
 
 // Every name a caller may reasonably use for a store — its canonical directory name

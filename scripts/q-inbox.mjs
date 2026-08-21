@@ -8,7 +8,7 @@
 //   inboxRows(items, opts)      -> [{ id, age, scope, title, path }]
 
 import { join } from 'node:path';
-import { defaultScope, clip, SUMMARY_CLIP } from './q-model.mjs';
+import { resolveScope, clip, SUMMARY_CLIP } from './q-model.mjs';
 
 // Items unconfirmed for this many days need a human — the fixed filter behind
 // `q confirmations`.
@@ -36,9 +36,7 @@ export function parseInboxArgs(args, root) {
     if (inline) { olderThanDays = parseAge(inline[1]); continue; }
     rest.push(list[i]);
   }
-  const raw = rest[0];
-  const scope = raw ? (/^all$/i.test(raw) ? '' : raw) : defaultScope(root);
-  return { scope, olderThanDays };
+  return { scope: resolveScope(rest[0], root), olderThanDays };
 }
 
 // Capture date: `cap` names inbox files `YYYY-MM-DD[-HHMM]-slug.md`, which survives a copy

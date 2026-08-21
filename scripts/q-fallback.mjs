@@ -16,8 +16,8 @@ import { orphanRows } from './provenance.mjs';
 import { recentFallback } from './q-recent.mjs';
 import {
   OPEN, FTS_LIMIT, MIN_TERM_LEN, ALNUM_TERM, SUMMARY_CLIP,
-  parseSimilar, parseFts, requireStore, requireScope, defaultScope, formatId, compareOpen, isSuperseded,
-  edgesOf, clip, walkAncestry,
+  parseSimilar, parseFts, requireStore, requireScope, defaultScope, resolveScope, formatId,
+  compareOpen, isSuperseded, edgesOf, clip, walkAncestry,
 } from './q-model.mjs';
 
 const statMs = (p) => { try { return statSync(p).mtimeMs; } catch { return null; } };
@@ -25,9 +25,13 @@ const statMs = (p) => { try { return statSync(p).mtimeMs; } catch { return null;
 export function fallback(cmd, args, root) {
   const items = collectItems(root);
   const byId = new Map(items.map((i) => [i.id, i]));
+  // Same scope vocabulary as the cache path (KIT-T255): absent = the cwd project, `all` =
+  // every project, a key = that one. The scan only ever holds ONE root's items, so the
+  // filter is usually a no-op — sharing the resolution is what keeps the paths at parity.
+  const scopeOf = (tok) => resolveScope(tok, root);
   switch (cmd) {
     case 'open': {
-      const scope = args[0];
+      const scope = scopeOf(args[0]);
       return items.filter((i) => OPEN.includes(i.status) && !i.archived && !isSuperseded(i) && (!scope || i.scope === scope))
         .map((i) => ({ id: i.id, type: i.type, status: i.status, priority: i.priority, title: i.title }))
         .sort(compareOpen);
@@ -55,7 +59,7 @@ export function fallback(cmd, args, root) {
     case 'doc-trail':
       return (byId.get(args[0])?.history || []).slice().sort((a, b) => String(b.ts).localeCompare(a.ts));
     case 'recent':
-      return recentFallback(items, args);
+      return recentFallback(items, args, root);
     case 'trail':
       return walkAncestry(
         args[0],
@@ -63,7 +67,7 @@ export function fallback(cmd, args, root) {
         (x) => byId.get(x),
       );
     case 'orphans':
-      return orphanRows(items, (id) => { const it = byId.get(id); return it ? edgesOf(it) : []; }, args[0]);
+      return orphanRows(items, (id) => { const it = byId.get(id); return it ? edgesOf(it) : []; }, scopeOf(args[0]));
     case 'fts': {
       // Same `--scope` split as the cache path (KIT-T174); the scan needs no FTS escaping
       // because it never builds a MATCH expression — it substring-matches the raw terms.
@@ -73,9 +77,10 @@ export function fallback(cmd, args, root) {
         .slice(0, FTS_LIMIT).map((i) => ({ id: i.id, type: i.type, status: i.status, title: i.title }));
     }
     case 'rundown': {
+      const scope = scopeOf(args[0]);
       const m = new Map();
       for (const i of items) {
-        if (i.archived) continue;
+        if (i.archived || (scope && i.scope !== scope)) continue;
         const r = m.get(i.scope) || { scope: i.scope, open: 0, doing: 0, review: 0 };
         if (OPEN.includes(i.status)) r.open++;
         if (i.status === 'doing') r.doing++;
@@ -86,8 +91,9 @@ export function fallback(cmd, args, root) {
     }
     // `scope` mirrors the cache path's WHERE (KIT-T125). The scan is already confined to one
     // root, so it is a no-op in practice — but parity is structural here, not incidental.
-    case 'regressions':
-      return items.filter((i) => i.store === 'tickets' && (!args[0] || i.scope === args[0]))
+    case 'regressions': {
+      const scope = scopeOf(args[0]);
+      return items.filter((i) => i.store === 'tickets' && (!scope || i.scope === scope))
         .map((i) => ({
           id: i.id, title: i.title,
           regressed_from: i.regressedFrom || null,
@@ -95,10 +101,13 @@ export function fallback(cmd, args, root) {
           fixed_commit: i.fixedCommit || null,
         }))
         .sort((a, b) => compareIds(a.id, b.id));
-    case 'supersedes':
-      return items.filter((i) => i.store === 'tickets' && (!args[0] || i.scope === args[0]))
+    }
+    case 'supersedes': {
+      const scope = scopeOf(args[0]);
+      return items.filter((i) => i.store === 'tickets' && (!scope || i.scope === scope))
         .map((i) => ({ id: i.id, status: i.status, title: i.title, supersedes: i.supersedes || null }))
         .sort((a, b) => compareIds(a.id, b.id));
+    }
     case 'similar': {
       // Mirror the cache's FTS OR-match with a term-overlap scan: candidates sharing the most
       // proposal terms first (suggest-only). Excludes archived + already-superseded items, and

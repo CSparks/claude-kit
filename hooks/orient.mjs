@@ -339,7 +339,9 @@ try {
   const { readIdConfig } = await import('../scripts/id-utils.mjs');
   const { query } = await import('../scripts/q.mjs');
   const { key } = readIdConfig(root);
-  const { rows: openRows } = await query('open', [], { cwdRoot: root });
+  // `all` is explicit (KIT-T255): the banner's "by scope" line IS the cross-project view, so
+  // it must not inherit q's cwd-project default. The in-flight lines re-filter to `key`.
+  const { rows: openRows } = await query('open', ['all'], { cwdRoot: root });
   const scopeOf = (id) => (String(id).match(/^([A-Za-z][A-Za-z0-9]*)-/) || [])[1] || '';
   if (openRows && openRows.length) {
     const inFlight = openRows.filter((r) => scopeOf(r.id) === key && (r.status === 'doing' || r.status === 'review'));

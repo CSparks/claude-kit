@@ -24,7 +24,9 @@ import assert from 'node:assert/strict';
 import { resolveEngine } from './db-engine.mjs';
 import { hydrate } from './hydrate-db.mjs';
 import { query } from './q.mjs';
-import { ftsMatchQuery, parseFts, defaultScope, resolveStore, requireStore, requireScope, formatId } from './q-model.mjs';
+import {
+  ftsMatchQuery, parseFts, defaultScope, resolveScope, resolveStore, requireStore, requireScope, formatId,
+} from './q-model.mjs';
 import { parseInboxArgs, ageDays, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 
 const Q_CLI = join(dirname(fileURLToPath(import.meta.url)), 'q.mjs');
@@ -149,6 +151,22 @@ test('parseFts treats --scope all as no filter (case-insensitive)', () => {
 });
 test('parseFts falls back to every scope outside an adopted repo', () =>
   assert.deepEqual(parseFts('gate', tmpRoot), { scope: '', query: 'gate' }));
+
+// ---- KIT-T255: resolveScope — the ONE scope vocabulary every verb shares -----
+test('resolveScope defaults an absent scope to the cwd project', () => {
+  assert.equal(resolveScope(undefined, A.root), 'FQA');
+  assert.equal(resolveScope('', A.root), 'FQA');
+  assert.equal(resolveScope('  ', A.root), 'FQA');
+});
+test('resolveScope widens on `all`, case-insensitively', () => {
+  for (const tok of ['all', 'ALL', 'All', ' all ']) assert.equal(resolveScope(tok, A.root), '');
+});
+test('resolveScope takes an explicit key and normalizes its case', () => {
+  assert.equal(resolveScope('FQB', A.root), 'FQB');
+  assert.equal(resolveScope('fqb', A.root), 'FQB');
+});
+test('resolveScope stays every-scope outside an adopted repo (no key to default to)', () =>
+  assert.equal(resolveScope(undefined, tmpRoot), ''));
 
 // ---- KIT-T238: the inbox arg/age model (pure, always runs) ------------------
 test('parseInboxArgs defaults the scope to the cwd project', () =>
@@ -380,6 +398,58 @@ if (!engine) {
     const r = cli(['--root', A.root, 'orphans']);
     assert.equal(r.status, 0, `orphans exited ${r.status}: ${r.stderr.trim()}`);
     assert.match(r.stdout, /FQA-T001/);
+  });
+
+  // ---- KIT-T255: every scoped verb defaults to the cwd project --------------
+  const verb = async (cmd, args = [], opts = {}) =>
+    (await query(cmd, args, { root: A.root, dbPath, ...opts })).rows;
+  const scopesIn = (rows) => [...new Set(rows.map((r) => String(r.id ?? r.scope).split('-')[0]))].sort();
+
+  for (const cmd of ['open', 'orphans', 'regressions', 'supersedes']) {
+    await testAsync(`${cmd} defaults to the cwd project, widens on \`all\`, takes an explicit key`, async () => {
+      assert.deepEqual(scopesIn(await verb(cmd)), ['FQA'], `${cmd} with no scope answers about the cwd project`);
+      assert.deepEqual(scopesIn(await verb(cmd, ['all'])), ['FQA', 'FQB'], `${cmd} all spans every project`);
+      assert.deepEqual(scopesIn(await verb(cmd, ['FQB'])), ['FQB'], `${cmd} <key> picks one project`);
+      assert.deepEqual(scopesIn(await verb(cmd, ['fqb'])), ['FQB'], `${cmd} <key> is case-forgiving`);
+    });
+  }
+
+  await testAsync('rundown defaults to one row for the cwd project; `all` is the cross-project board', async () => {
+    assert.deepEqual((await verb('rundown')).map((r) => r.scope), ['FQA']);
+    assert.deepEqual((await verb('rundown', ['all'])).map((r) => r.scope), ['FQA', 'FQB']);
+    assert.deepEqual((await verb('rundown', ['FQB'])).map((r) => r.scope), ['FQB']);
+  });
+
+  // `recent`'s window label names the scope it resolved, so it reports the wiring directly —
+  // the digest's row-level scope filtering is asserted over fixtures in q-recent.test.mjs.
+  await testAsync('recent resolves its scope through the same default (window label proves it)', async () => {
+    for (const opts of [{}, { noDb: true }]) {
+      assert.match((await verb('recent', ['7d'], opts)).window, /\(7d, FQA\)$/, 'no token = the cwd project');
+      assert.match((await verb('recent', ['7d', 'all'], opts)).window, /\(7d\)$/, '`all` = no scope filter');
+      assert.match((await verb('recent', ['7d', 'fqb'], opts)).window, /\(7d, FQB\)$/, 'an explicit key wins');
+    }
+  });
+
+  await testAsync('the markdown-scan path resolves scope the same way (no-engine parity)', async () => {
+    // The scan only ever holds ONE root's items, so the observable parity is: the cwd default
+    // keeps its rows, an unrelated explicit key empties the result on BOTH paths.
+    assert.deepEqual(scopesIn(await verb('open', [], { noDb: true })), ['FQA']);
+    assert.deepEqual(await verb('open', ['FQB'], { noDb: true }), []);
+    assert.deepEqual((await verb('rundown', [], { noDb: true })).map((r) => r.scope), ['FQA']);
+  });
+
+  await testAsync('CLI: bare `q rundown` answers for this project, an unrelated key for none', async () => {
+    const mine = cli(['--root', A.root, 'rundown']);
+    assert.equal(mine.status, 0, `rundown exited ${mine.status}: ${mine.stderr.trim()}`);
+    assert.match(mine.stdout, /FQA/);
+    assert.ok(!/FQB/.test(mine.stdout), 'another project never leaks into the default view');
+    assert.match(cli(['--root', A.root, 'rundown', 'FQB']).stdout, /no results/);
+  });
+
+  await testAsync('--help documents the scope default once, for every verb', () => {
+    const { stdout } = cli(['--help']);
+    assert.match(stdout, /defaults to the CWD project/);
+    assert.match(stdout, /`all`/);
   });
 
   // ---- KIT-T183: next-id, every store, both paths --------------------------
