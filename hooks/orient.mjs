@@ -140,6 +140,16 @@ const out = [];
 out.push('=== PROJECT ORIENTATION (on-disk record — trust over any summary or your memory) ===');
 out.push(`Repo: ${root}`);
 out.push('');
+// RETRIEVAL RITUAL — at the TOP, not the bottom: a tool list trailing 300 lines of
+// content does not change behaviour (proved 2026-08-21: the fastnoise relitigation
+// happened with the bottom-of-output QUERY line in context). Placement IS the fix.
+out.push('--- RETRIEVAL FIRST (before proposing/designing/claiming ANYTHING) ---');
+out.push('  q fts <nouns>        already settled/filed? SEARCH before you design — relitigation is a process failure');
+out.push('  q recent [Nd] [scope] what happened lately: decisions, fixed, moves, created (default 7d)');
+out.push('  q open | trail <id> | governing <path> | doc-trail <id>   (full surface: q --help)');
+out.push('  Adoption ledger: <framework>/docs/CHOICES.toml — cite the row before naming any crate alternative.');
+out.push('  An empty/failed query is "NOT CHECKED", never "does not exist".');
+out.push('');
 const foundational = foundationalDecisions();
 if (foundational.length) {
   out.push('--- PROJECT IDENTITY (foundational — ALWAYS true; this is what the project IS; cite, never contradict) ---');

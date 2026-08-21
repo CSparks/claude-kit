@@ -47,6 +47,14 @@ try {
 
   const clean = adopted(false);
   ok('orient: adopted repo emits orientation', /ORIENTATION/.test(hook('orient.mjs', { hook_event_name: 'SessionStart' }, clean).out));
+  {
+    // KIT-T254: the retrieval ritual leads the orientation — placement IS the fix, so a
+    // regression that demotes it below the content sections must fail loudly here.
+    const o = hook('orient.mjs', { hook_event_name: 'SessionStart' }, clean).out;
+    const ritual = o.indexOf('RETRIEVAL FIRST');
+    ok('orient: RETRIEVAL FIRST block present', ritual >= 0 && o.includes('q recent') && o.includes('CHOICES.toml'));
+    ok('orient: RETRIEVAL FIRST precedes all content sections', ritual >= 0 && ritual < o.indexOf('--- Recent commits'));
+  }
   ok('orient: non-adopted repo is silent', hook('orient.mjs', {}, repo()).out.trim() === '');
 
   // --- SESSION staleness: one line, only when stale (KIT-T062) --------------------
