@@ -31,10 +31,14 @@
 // classification key in the resolved project's config.yml; otherwise the whole line is
 // captured untyped.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
-import { readRegistry, projectAiDirs, writeItemFile } from '../hooks/lib.mjs';
+import {
+  readRegistry, writeItemFile, resolveStoreRoot, noStoreMessage, readIdentity, identityBlock,
+} from '../hooks/lib.mjs';
 import { wantsHelpFirst } from './cli-help.mjs';
+import { runTopic } from './cap-topic.mjs';
+import { classificationKeys, projectTable, matchProject, namedInText } from './cap-routing.mjs';
 
 const DATE_END = 10; // slice [0,DATE_END) of an ISO string = YYYY-MM-DD
 const TIME_START = 11; // HH:MM:SS begins here
@@ -42,91 +46,12 @@ const TIME_END = 16; // through the minutes
 const SLUG_MAX = 48;
 const RESOLVED_DIR = 'resolved'; // one-file-per-event audit log, outside the triage queue
 
+// The store this capture falls back to: the nearest .ai above the cwd, else the unbounded
+// catch-all. ONE resolution rule, shared with t/q/orient/flush (hooks/lib/unbounded.mjs) —
+// cap carried its own walk-up copy until KIT-T189.
 function findAiDir(start) {
-  let dir = resolve(start);
-  for (;;) {
-    if (existsSync(join(dir, '.ai', 'config.yml'))) return join(dir, '.ai');
-    const parent = dirname(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-}
-
-// Minimal extraction of classification keys from config.yml (no yaml dep).
-function classificationKeys(configPath) {
-  try {
-    const lines = readFileSync(configPath, 'utf8').split('\n');
-    const keys = [];
-    let inBlock = false;
-    for (const line of lines) {
-      if (/^classifications:\s*$/.test(line)) {
-        inBlock = true;
-        continue;
-      }
-      if (inBlock) {
-        if (/^\S/.test(line)) break; // next top-level key ends the block
-        const m = line.match(/^\s{2}([A-Za-z][\w-]*):/);
-        if (m) keys.push(m[1]);
-      }
-    }
-    return keys;
-  } catch {
-    return [];
-  }
-}
-
-// A project's id key (ids.key in config.yml) — the short alias (HOD/KIT) a capture is likely to
-// name. Tolerant subset scan, mirroring classificationKeys; '' when absent/unreadable.
-function idKey(aiDir) {
-  try {
-    const m = readFileSync(join(aiDir, 'config.yml'), 'utf8').match(/^ids:[ \t]*\n(?:[ \t]+.*\n)*?[ \t]+key:[ \t]*["']?([A-Za-z0-9_-]+)/m);
-    return m ? m[1] : '';
-  } catch {
-    return '';
-  }
-}
-
-// Every registered project as { name, aiDir, key, aliases } — the routing table. `aliases` is
-// the set of lowercased tokens that name the project (its registry name + id key), against which
-// an explicit/proposed target is matched. Best-effort: built from projectAiDirs (which is itself
-// fail-open), so a broken registry yields an empty table and routing degrades to cwd-only.
-function projectTable() {
-  return projectAiDirs().map(({ name, aiDir }) => {
-    const key = idKey(aiDir);
-    const aliases = new Set([name.toLowerCase()]);
-    if (key) aliases.add(key.toLowerCase());
-    return { name, aiDir, key, aliases };
-  });
-}
-
-// Resolve a target NAME (from --project or a `name:` prefix) to a project, forgiving of case and
-// accepting either the registry name or the id key. Returns the project record or null (caller
-// then errors out — an explicit target that names nothing real must not silently fall through to
-// cwd, or the misroute the explicit form exists to prevent would recur).
-function matchProject(table, name) {
-  const n = String(name || '').trim().toLowerCase();
-  if (!n) return null;
-  return table.find((p) => p.aliases.has(n)) || null;
-}
-
-// Does the capture text OBVIOUSLY name a project OTHER than the cwd one? Two honest signals, no
-// NLP: (a) a `Project: X` / `Project X` marker whose X resolves to a registered project; (b) the
-// project's id key or registry name appearing as a standalone word. Returns the named project (or
-// null). Used only to PROPOSE — never to route — so a false hit costs a one-line hint, not a
-// misfile.
-function namedInText(table, text, exclude) {
-  const candidates = table.filter((p) => p.name !== exclude);
-  const marker = text.match(/\bproject[:\s]+([A-Za-z0-9_-]+)/i);
-  if (marker) {
-    const hit = matchProject(candidates, marker[1]);
-    if (hit) return hit;
-  }
-  for (const p of candidates) {
-    for (const alias of p.aliases) {
-      if (new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(text)) return p;
-    }
-  }
-  return null;
+  const root = resolveStoreRoot(start);
+  return root ? join(root, '.ai') : null;
 }
 
 // --- targeting: pull an explicit --project flag out of argv ----------------------------------
@@ -162,7 +87,9 @@ const USAGE = `usage: cap [--project <name>] [--done] [type] <text>   (or "<name
   cap --project hod feature graded roads      explicit target, wins over cwd
   cap "hod: roads are graded"                 leading name: prefix — same effect
   cap --done bug "fixed login crash"          resolved event -> .ai/resolved/, skips the triage queue
-Routing precedence: --project, then a leading "<name>:", then the nearest .ai/ above the cwd.
+  cap topic [<slug>]                          show / set this session's topic (stamped on later captures)
+Routing precedence: --project, then a leading "<name>:", then the nearest .ai/ above the cwd,
+then the unbounded catch-all store (a cwd with no .ai above it).
 `;
 
 const argv = process.argv.slice(2);
@@ -171,6 +98,8 @@ if (argv.length === 0) {
   console.error(USAGE);
   process.exit(1);
 }
+
+if (argv[0] === 'topic' && argv.length <= 2) process.exit(runTopic(argv, findAiDir(process.cwd())));
 
 const { done: isDone, rest: argvAfterDone } = takeDoneFlag(argv);
 const { project: flagProject, rest } = takeProjectFlag(argvAfterDone);
@@ -230,14 +159,13 @@ if (explicitHit) {
   // Fallback: the nearest .ai/ above the cwd (historical behavior). Still the ultimate fallback.
   aiDir = findAiDir(process.cwd());
   if (!aiDir) {
-    // A session started outside every repo (a home directory, a scratch dir) has no cwd project to
-    // fall back to, so the capture has nowhere to go. Name the projects it COULD go to: without
-    // them the operator has to go read the registry to retry, and a capture deferred is a capture
-    // lost (KIT-T186).
+    // A session started outside every repo (a home directory, a scratch dir) normally lands in
+    // the unbounded catch-all (KIT-T189). With none configured there is nowhere to go at all, so
+    // name both escape routes: a capture deferred is a capture lost (KIT-T186).
     const known = table.map((p) => (p.key ? `${p.name} (${p.key.toLowerCase()})` : p.name)).join(', ');
-    console.error(`cap: no .ai/ found above ${process.cwd()} — this is not an adopted repo, so there is no cwd project to capture into.`);
+    console.error(`cap: ${noStoreMessage()}.`);
     console.error(known
-      ? `cap: pass --project <name>. Registered: ${known}`
+      ? `cap: or pass --project <name>. Registered: ${known}`
       : 'cap: the project registry is empty — run init-project.mjs in the target repo first.');
     process.exit(1);
   }
@@ -276,6 +204,11 @@ const slug = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''
 
 const name = `${date}-${time}-${slug}.md`;
 
+// Per-ITEM identity (KIT-T189): the topic and session a capture belongs to, read from the
+// DESTINATION store's pointer. Stamped as a trailing `key: value` block so the first line
+// stays the title every existing reader (triage, `q inbox`) already parses.
+const identity = identityBlock(readIdentity(aiDir));
+
 if (isDone) {
   // Resolved event: write OUTSIDE the inbox triage queue so inbox stays = open work only.
   // One-file-per-event, same slug/date scheme as a normal cap, plus a `resolved:` timestamp.
@@ -288,12 +221,13 @@ if (isDone) {
     '\n',
     `resolved: ${iso}`,
     '\n',
+    identity,
   ].join('');
   await writeItemFile(join(resolvedDir, name), content);
   console.log(`resolved${type ? ` (${type})` : ''} -> ${projectName}/${RESOLVED_DIR}/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
 } else {
   const inboxDir = join(aiDir, 'inbox');
   mkdirSync(inboxDir, { recursive: true });
-  await writeItemFile(join(inboxDir, name), `${type ? `(${type}) ` : ''}${text}\n`);
+  await writeItemFile(join(inboxDir, name), `${type ? `(${type}) ` : ''}${text}\n${identity}`);
   console.log(`captured${type ? ` (${type})` : ''} -> ${projectName}/inbox/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
 }

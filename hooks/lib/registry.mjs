@@ -1,7 +1,8 @@
 // Machine-local project registry: maps each project name -> its repo path ON THIS MACHINE,
-// plus the central data root when one is in use. NOT committed anywhere — repo paths are
-// machine-specific (Windows drive letters vs macOS paths) while the .ai data syncs across
-// machines, so a path written on one machine would be a lie on the other. Self-healed by
+// plus the central data root when one is in use and the unbounded catch-all store's .ai path.
+// NOT committed anywhere — repo paths are machine-specific (Windows drive letters vs macOS
+// paths) while the .ai data syncs across machines, so a path written on one machine would be
+// a lie on the other. Self-healed by
 // orient whenever a project is opened (T-001). Best-effort: a read returns an empty registry
 // on any error; a write never throws.
 // CLAUDE_KIT_REGISTRY overrides the path so the test harness can isolate from the real one.
@@ -20,7 +21,7 @@ export const REGISTRY = registryPath();
 export function readRegistry() {
   try {
     const r = JSON.parse(readFileSync(registryPath(), 'utf8'));
-    return { dataRoot: r.dataRoot || null, user: r.user || null, projects: r.projects || {} };
+    return { dataRoot: r.dataRoot || null, unbounded: r.unbounded || null, user: r.user || null, projects: r.projects || {} };
   } catch {
     return { dataRoot: null, user: null, projects: {} };
   }
@@ -71,6 +72,22 @@ export function recordProject(name, repoRoot, dataRoot) {
       changed = true;
     }
     if (!changed) return;
+    const p = registryPath();
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, JSON.stringify(reg, null, 2) + '\n');
+  } catch {
+    /* registry is best-effort — never break a hook */
+  }
+}
+
+// Pin the unbounded catch-all store's `.ai` path. Kept beside dataRoot because it is the same
+// kind of fact: a machine-specific location the kit's data lives at, never committed.
+export function recordUnbounded(aiDir) {
+  if (!aiDir) return;
+  try {
+    const reg = readRegistry();
+    if (reg.unbounded === aiDir) return;
+    reg.unbounded = aiDir;
     const p = registryPath();
     mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, JSON.stringify(reg, null, 2) + '\n');

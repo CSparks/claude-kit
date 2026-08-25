@@ -1,0 +1,1 @@
+(decision) Sessions outside a kit-managed repo (e.g. cwd = ~) get a plan-of-record home: a directory in the claude-kit-data repo for out-of-repo discussions, so cap/flush/decisions have a store when no .ai/ exists in the cwd. Motivated by inbox 2026-08-25-0307 (H3 Volta workaround found 2026-08-22, lost until 2026-08-24). Chris, 2026-08-25.

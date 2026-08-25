@@ -185,7 +185,7 @@ console.log('\ncap outside any repo names the projects it could capture into');
     stderr = String(e.stderr);
   }
   ok('exits non-zero rather than capturing nowhere', status !== 0);
-  ok('says plainly that the cwd is not an adopted repo', /not an adopted repo/.test(stderr));
+  ok('says plainly that no store resolved and how to fix it', /no unbounded store configured/.test(stderr));
   ok('lists the registered projects with their id keys', /Registered: a-target \(tgt\)/.test(stderr));
 }
 

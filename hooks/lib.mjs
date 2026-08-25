@@ -15,7 +15,15 @@ export {
   VENDORED, LOCKFILES, fileExt,
 } from './lib/paths.mjs';
 export { ID_CITE_SRC } from './lib/ids.mjs';
-export { registryPath, REGISTRY, readRegistry, projectAiDirs, recordProject } from './lib/registry.mjs';
+export {
+  registryPath, REGISTRY, readRegistry, projectAiDirs, recordProject, recordUnbounded,
+} from './lib/registry.mjs';
+export {
+  UNBOUNDED_DIR, unboundedAiDir, unboundedRoot, isUnbounded, resolveStoreRoot, noStoreMessage,
+} from './lib/unbounded.mjs';
+export {
+  SESSION_FILE, sessionFile, readIdentity, writeIdentity, normalizeTopic, identityBlock,
+} from './lib/session-identity.mjs';
 export { writeItemFile } from './lib/store-write.mjs';
 export {
   wipSummary, remoteWebUrl, remoteCommitUrl, aheadBehind, formatWip, WIP_FILES, WIP_COMMITS,

@@ -151,7 +151,49 @@ simpler per-repo mode. It also idempotently creates/appends both host-native con
 `CLAUDE.md` for Claude Code and `AGENTS.md` for Codex. Commit both so the same project
 works after cloning it on another machine.
 
-### 4. Cache-hydration git hooks — per clone, **per machine** (KIT-T097)
+### 4. Unbounded sessions — the catch-all store (KIT-T189)
+
+A session that starts outside every repo (`~`, a scratch dir) has no `.ai/` above its cwd.
+The CLIs and hooks used to no-op there, so anything found in such a session had nowhere
+durable to go. One **unbounded store** fixes that — a normal `.ai/` at a configured path,
+scaffolded from the same template every project uses:
+
+```bash
+node <kit>/scripts/init-unbounded.mjs
+```
+
+It lands at `<dataRoot>/unbounded/.ai` by default. The path is machine-specific, so it is
+configured where the other machine-specific paths live (the project registry, written by the
+initializer) and overridden per shell with `CLAUDE_KIT_UNBOUNDED_AI`.
+
+**One resolution rule**, shared by `cap`, `t`, `q` and the orientation/flush hooks
+(`hooks/lib/unbounded.mjs` → `resolveStoreRoot`): the nearest `.ai/` above the cwd, else the
+unbounded store, else the historical no-op. The **commit gate stays repo-scoped** — it never
+starts firing in a home directory.
+
+**Identity is per ITEM, not per store.** One catch-all holds unrelated threads, so each
+capture carries two fields:
+
+| field | where it comes from |
+| --- | --- |
+| `session` | the harness session id — SessionStart persists it to `<store>/.ai/.session` (gitignored) so the CLIs, which get no hook payload, can read it |
+| `topic` | a slug set **explicitly** with `cap topic <slug>`, stamped on every later capture in that session, changeable mid-session. Never derived from a prompt — a guessed label is worse than none. A new session clears it, and SessionStart says so when none is set. |
+
+```bash
+cap topic llm-rig                     # label this session's thread
+cap decision "the V100 lane is the daily driver"
+q topics                              # generated index: slug, first/last date, count, gist
+q --topic llm-rig                     # one thread's items (also: q topic llm-rig)
+t move <id> /path/to/repo             # promote an item into that repo's .ai/
+```
+
+`q topics` is a **view**, not a directory tree — nothing on disk is grouped by topic, and
+re-labelling never moves a file. `t move` re-keys a durable item into the destination's id
+scheme (keeping the old id as `aka:`), carries its `## History` verbatim, and leaves a
+pointer behind: a capture goes to `inbox/triaged/`, a durable item to `status: superseded`
+with `moved_to:`.
+
+### 5. Cache-hydration git hooks — per clone, **per machine** (KIT-T097)
 
 The derived SQLite cache hydrates on every in-process item write (KIT-T096) **and** on
 `git pull` / `checkout` / `rebase`, so a pull of `claude-kit-data` from another machine

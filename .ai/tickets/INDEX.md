@@ -84,7 +84,7 @@
 | KIT-T186 | bug | review | high | cap's cross-project ambiguity warning arrives AFTER the success receipt, and the no-store error names no projects |
 | KIT-T187 | feature | todo | medium | q is blind to plan-of-record docs — submodule docs/ and the plan files tickets cite are not indexed by fts |
 | KIT-T188 | feature | todo | medium | orient surfaces the plan-doc paths cited by open tickets, so a resume reads the plan of record instead of re-deriving it |
-| KIT-T189 | feature | todo | medium | out-of-repo sessions have no capture ratchet — decisions made with no repo cwd never reach the affected project's store |
+| KIT-T189 | feature | review | medium | out-of-repo sessions have no capture ratchet — decisions made with no repo cwd never reach the affected project's store |
 | KIT-T190 | bug | review | high | t status --fixed-commit silently drops the sha unless the transition is done on a bug/regression |
 | KIT-T191 | bug | review | high | game-asset-artist is pinned to model: fable — an implementation agent on the most expensive tier, against the dispatch ladder |
 | KIT-T192 | bug | todo | medium | md-body.appendUnderSection splices LF lines into a CRLF store file, leaving mixed endings |

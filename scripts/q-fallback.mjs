@@ -14,6 +14,7 @@ import { governing, drift } from './q-governing.mjs';
 import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import { orphanRows } from './provenance.mjs';
 import { recentFallback } from './q-recent.mjs';
+import { topicIndex, topicItems } from './q-topics.mjs';
 import {
   OPEN, FTS_LIMIT, MIN_TERM_LEN, ALNUM_TERM, SUMMARY_CLIP,
   parseSimilar, parseFts, requireStore, requireScope, defaultScope, resolveScope, formatId,
@@ -56,6 +57,11 @@ export function fallback(cmd, args, root) {
       }
       return out.sort((a, b) => a.rel.localeCompare(b.rel) || compareIds(a.id, b.id));
     }
+    // Topic views (KIT-T189) — scan-only in both paths: the cache carries no topic column.
+    case 'topics':
+      return topicIndex(items);
+    case 'topic':
+      return topicItems(items, args[0]);
     case 'doc-trail':
       return (byId.get(args[0])?.history || []).slice().sort((a, b) => String(b.ts).localeCompare(a.ts));
     case 'recent':

@@ -41,6 +41,14 @@ function csv(fm, key) {
     .split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
 }
 
+// A trailing `key: value` metadata line in an item's BODY — the form cap stamps identity in
+// (`topic:` / `session:`), chosen so the first line stays the item's title for every existing
+// reader. Frontmatter wins when both are present (a promoted item carries it there).
+function bodyField(body, key) {
+  const m = String(body).match(new RegExp(`^${key}:[ \t]*(.*)$`, 'm'));
+  return m ? stripComment(m[1]).trim().replace(/^["']|["']$/g, '') : '';
+}
+
 const SCOPE_FROM_ID = (id) => (String(id).match(/^([A-Za-z][A-Za-z0-9]*)-/) || [])[1] || '';
 const NUM_FROM_ID = (id) => {
   const m = String(id).match(/(\d+)$/);
@@ -139,6 +147,10 @@ export function parseItem(absPath, store) {
     producedBy: scalar(fm, 'produced_by'),
     informs: list(fm, 'informs'),
     history: withCreated(historyEvents(body), fm, scalar(fm, 'title')),
+    // per-ITEM session identity (KIT-T189): which topic thread and which Claude Code session
+    // produced this item. Present on captures made in a store shared by unrelated threads.
+    topic: scalar(fm, 'topic') || bodyField(body, 'topic'),
+    session: scalar(fm, 'session') || bodyField(body, 'session'),
     body: body.trim(),
   };
 }

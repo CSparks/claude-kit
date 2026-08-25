@@ -15,7 +15,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { gitRoot, adopted, git, payload, sessionMtimeMs } from './lib.mjs';
+import { gitRoot, adopted, git, payload, sessionMtimeMs, unboundedRoot } from './lib.mjs';
 import { missingCitations } from './session-citations.mjs';
 
 // Cap the dead-citation list so a badly-drifted SESSION.md can't swamp the flush output.
@@ -36,14 +36,21 @@ main().catch(() => process.exit(0)); // any failure → allow (fail-open)
 async function main() {
   const p = await payload();
   const root = gitRoot();
-  if (!adopted(root)) process.exit(0);
+  // With no store above the cwd the flush used to no-op, which is exactly where a
+  // found-but-unapplied fact was lost (KIT-T189): fall back to the unbounded catch-all.
+  const unbounded = adopted(root) ? null : unboundedRoot();
+  if (!adopted(root) && !unbounded) process.exit(0);
+  const store = unbounded || root;
 
-  deadCitationWarning(root);
+  deadCitationWarning(store);
 
   if (p.hook_event_name === 'Stop') {
-    stopAnchorNudge(root, p);
+    // The unbounded store lives inside the shared data repo, whose commit stream is other
+    // sessions' syncs — not this turn's work. That makes the anchor nudge's evidence a lie
+    // here, so it stays a managed-repo ratchet.
+    if (!unbounded) stopAnchorNudge(root, p);
   } else {
-    precompactReminder(root);
+    precompactReminder(store);
   }
   process.exit(0);
 }

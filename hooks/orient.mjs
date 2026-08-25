@@ -28,7 +28,12 @@ const MENTIONS_SHOWN = 5; // KIT-T130: unread @mentions listed inline before the
 const CODEX = Boolean(process.env.PLUGIN_ROOT);
 
 const root = gitRoot();
-if (!adopted(root)) process.exit(0);
+// No store above the cwd: fall back to the unbounded catch-all rather than no-op'ing, so a
+// session in a home/scratch dir still gets a destination and a session id (KIT-T189).
+if (!adopted(root)) {
+  const { orientUnbounded } = await import('./orient-unbounded.mjs');
+  process.exit(await orientUnbounded());
+}
 
 const firstExisting = (...c) => c.find((f) => existsSync(f)) || null;
 const roadmap = firstExisting(join(root, '.ai', 'ROADMAP.md'), join(root, 'ROADMAP.md'));

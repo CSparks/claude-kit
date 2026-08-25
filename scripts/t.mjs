@@ -16,6 +16,7 @@
 //   t criterion <id> "<text>"                       append an acceptance criterion
 //   t link <id> <rel> <target>                      supersedes|superseded_by|regressed_from|
 //                                                   causing_commit|fixed_commit|parent|link
+//   t move <id> <repo-path>                         promote an item into an adopted repo's .ai/
 //
 // IDs are NEVER hand-picked — `t new` mints via id-utils.nextId (KIT-D011). Every subcommand
 // fails loudly on an unknown id rather than inventing one. After a mutation the CLI refreshes
@@ -34,6 +35,7 @@ import { appendUnderSection, stamp } from './md-body.mjs';
 import { addCriterion, setCriterionAt, tickCriterion, untickCriterion } from './criteria.mjs';
 import { wantsHelp } from './cli-help.mjs';
 import { readProvenanceGate, trailGate } from './provenance.mjs';
+import { resolveStoreRoot } from '../hooks/lib.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
@@ -520,9 +522,12 @@ function parseArgs(argv) {
 
 async function main() {
   const { flags, pos } = parseArgs(process.argv.slice(2));
-  const root = flags.root || process.cwd();
+  // ONE resolution rule (KIT-T189): an explicit --root, else the nearest store above the cwd,
+  // else the unbounded catch-all. The cwd stays the last resort so an uninitialized machine
+  // still errors the way it always did.
+  const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|status|tick|untick|criterion|link|comment|ack> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name>)';
+  const usage = 'usage: t <new|status|tick|untick|criterion|link|comment|ack|move> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
@@ -588,6 +593,16 @@ async function main() {
     await refresh(root);
     const mentioned = r.mentions.length ? ` — mentions ${r.mentions.map((m) => '@' + m).join(' ')}` : '';
     process.stdout.write(`comment: ${r.ref} by @${author}${r.spilled ? ' (body → Notes)' : ''}${mentioned}\n`);
+    return;
+  }
+  if (cmd === 'move') {
+    const [id, destPath] = rest;
+    if (!id || !destPath) { console.error('usage: t move <id> <repo-path>'); process.exit(2); }
+    const { moveItem } = await import('./t-move.mjs');
+    const r = await moveItem(root, id, destPath);
+    await refresh(root);
+    await refresh(r.destRoot);
+    process.stdout.write(`move: ${r.from} → ${r.to} in ${r.destRoot} (pointer left at ${r.pointer})\n`);
     return;
   }
   if (cmd === 'ack') {
