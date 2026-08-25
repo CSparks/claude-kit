@@ -91,6 +91,7 @@
 - KIT-T253 — q recent [Nd] [scope] — a time-windowed digest driven from the cache, no prose spelunking (high)
 - KIT-T254 — orient leads with the RETRIEVAL FIRST ritual — q fts / q recent / ledger citation at the TOP, not line 347 (high)
 - KIT-T255 — q verbs default to ALL scopes — every query context must default to the cwd project (all/explicit scope to widen) (high)
+- KIT-T256 — dispatch-guard: ONE implementation agent at a time — block a second concurrent dispatch (any tree, hand-made worktrees included) unless [allow-parallel: N lanes, ~Xk tokens each, <reason>] states the cost; cold-build gate also fires on a prompt that names a hand-made worktree path (Chris 2026-08-25: four lanes at ~300-600k tokens each, full cold builds — 'One agent doing the work is faster than this bullshit. It needs to NEVER HAPPEN AGAIN WITH ENFORCEMENT') (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)

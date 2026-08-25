@@ -4,13 +4,14 @@
 //   dispatch-ladder      (KIT-T151) — the silent fable inherit
 //   cold-worktree-build  (KIT-T176) — worktree isolation into a Rust workspace with no target/
 //   shared-tree-dispatch (KIT-T176) — a second agent into a checkout that already has one
+//   parallel-dispatch    (KIT-T256) — a second implementation agent in flight AT ALL, any tree
 // exit 2 = block, 0 = allow. No-ops on unadopted repos; FAIL-OPEN everywhere else.
 //
 // Every check is independent: it decides on its own escape token, its own ignore-file key, and
 // contributes its own message. A dispatch violating two shapes hears about both at once rather
 // than paying a round trip per gate.
 
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, partitionAgents } from './lib.mjs';
 import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
@@ -21,6 +22,11 @@ import { pinnedModel, latestAssistantModel, modelDisplay } from './model-tag.mjs
 const LADDER_CHECK = 'dispatch-ladder';
 const COLD_BUILD_CHECK = 'cold-worktree-build';
 const SHARED_TREE_CHECK = 'shared-tree-dispatch';
+const PARALLEL_CHECK = 'parallel-dispatch';
+// The escape must STATE THE COST: a lane count and a per-lane token figure. A bare reason is
+// not an escape — the whole point is that the number is written before the spend.
+const ALLOW_PARALLEL = /\[allow-parallel:[^\]]*\b\d+\s*k\b[^\]]*\]/i;
+const ALLOW_PARALLEL_BARE = /\[allow-parallel\b/i;
 // An in-flight roster row older than this is treated as abandoned, not as a live colleague: the
 // harness cannot always report a background agent's completion, so an uncollected row would
 // otherwise wedge every later dispatch in the repo.
@@ -39,6 +45,7 @@ try {
     ladderBlock(root, input, prompt, p),
     coldWorktreeBlock(root, input, prompt),
     sharedTreeBlock(root, input, prompt),
+    parallelBlock(root, input, prompt),
   ].filter(Boolean);
   if (!blocks.length) process.exit(0);
   console.error(blocks.join('\n'));
@@ -98,7 +105,9 @@ function ladderBlock(root, input, prompt, p) {
 // of silent cold build, rustc at 3.3 GB RSS, every second billed. The remedy is cheap and
 // belongs in the BRIEF — a shared CARGO_TARGET_DIR makes the same dispatch incremental.
 function coldWorktreeBlock(root, input, prompt) {
-  if (!isWorktreeIsolation(input.isolation)) return null;
+  // A hand-made worktree named in the brief is the same cold graph as isolation:"worktree" —
+  // the 2026-08-25 lanes were spun up with `git worktree add` and dodged this check.
+  if (!isWorktreeIsolation(input.isolation) && !namesWorktree(prompt)) return null;
   if (!existsSync(join(root, 'Cargo.toml'))) return null; // not a Rust workspace — no cold graph to pay for
   if (/CARGO_TARGET_DIR/.test(prompt)) return null; // the brief provisions the cache
   if (/\[cold-build-ok\b/i.test(prompt)) return null;
@@ -155,6 +164,71 @@ function sharedTreeBlock(root, input, prompt) {
     '',
     excludeFooter(SHARED_TREE_CHECK),
   ].join('\n');
+}
+
+// --- parallel-dispatch (KIT-T256) ------------------------------------------------
+// ONE implementation agent at a time, whatever tree it is in. Lived failure (2026-08-25,
+// stiletto): four agents in four checkouts, ~300-600k tokens EACH, each paying a full cold
+// build, contending for one box — slower and dearer than one agent doing the tickets in
+// sequence on a warm build. The maintainer's ruling: "One agent doing the work is faster than
+// this bullshit. It needs to NEVER HAPPEN AGAIN WITH ENFORCEMENT."
+// BLOCKS any dispatch while another agent is in flight (any tree — worktree-isolated rows
+//   included; shared-tree-dispatch is tree-scoped, this one is not).
+// ESCAPE: [allow-parallel: N lanes, ~Xk tokens each, <reason>] — the cost figure is REQUIRED;
+//   a bare [allow-parallel: reason] still blocks, and the message says what is missing.
+function parallelBlock(root, input, prompt) {
+  if (ALLOW_PARALLEL.test(prompt)) return null;
+  if (pathExcluded(root, PARALLEL_CHECK, root)) return null;
+  const now = Date.now();
+  const live = liveAnywhere(root, now);
+  if (!live.length) return null;
+  const bareEscape = ALLOW_PARALLEL_BARE.test(prompt);
+
+  return [
+    `BLOCKED: ${live.length} agent(s) already in flight — ONE agent at a time.`,
+    `  agent: ${label(input)}   roster: .ai/agents.jsonl`,
+    ...live.map((r) => `    • ${r.id} (${r.scope || 'general'}${rosterModel(r)}, ${minutesAgo(r, now)}m ago${isWorktreeIsolation(r.isolation) ? ', own worktree' : ''}) — ${String(r.task || '(no description)').slice(0, ROSTER_TASK_CHARS)}`),
+    '',
+    'Parallel implementation agents are slower AND dearer than one agent working the',
+    'tickets in sequence: each pays its own cold build and its own context, and they',
+    'contend for one box. Lived case (2026-08-25): four lanes, ~300-600k tokens each.',
+    '',
+    'Fix — pick one:',
+    '  • serialize: wait for the in-flight agent, collect its result, then hand THAT agent',
+    '    (or one new one) the next ticket — warm build, warm context;',
+    bareEscape
+      ? '  • your [allow-parallel: …] token names no cost — state it:'
+      : '  • genuinely worth running in parallel (rare): state the cost in the prompt —',
+    '    [allow-parallel: N lanes, ~Xk tokens each, <why it beats serial>]',
+    '',
+    excludeFooter(PARALLEL_CHECK),
+  ].join('\n');
+}
+
+// Every in-flight roster row young enough to still be running, in ANY tree or repo.
+function liveAnywhere(root, nowMs) {
+  try {
+    const { inFlight } = partitionAgents(readAgents(root), nowMs);
+    return inFlight.filter((r) => {
+      const t = Date.parse(r.firstSeen || r.ts || '');
+      return Number.isFinite(t) && nowMs - t < SHARED_TREE_WINDOW_MS;
+    });
+  } catch {
+    return [];
+  }
+}
+
+// Does the brief name a checkout that is a git WORKTREE (its .git is a file, not a directory)?
+function namesWorktree(prompt) {
+  try {
+    for (const m of String(prompt).matchAll(/(?:[A-Za-z]:[\\/]|\/)[^\s"'`)\],;]+/g)) {
+      const marker = join(m[0].replace(/[.,;:!?)\]}"'`]+$/, ''), '.git');
+      if (existsSync(marker) && statSync(marker).isFile()) return true;
+    }
+  } catch {
+    /* fail open */
+  }
+  return false;
 }
 
 // The roster's rows that are genuine COLLEAGUES IN `tree`: in-flight (no terminal row), young

@@ -38,8 +38,8 @@ function inFlightRow(agesMs = 0, extra = {}) {
   return { ts: new Date(Date.now() - agesMs).toISOString(), id: 'agent-live', status: 'in-flight', task: 'refactor the mesh factory', scope: 'refactorer', ...extra };
 }
 
-function ignoreFile(dir, checkId) {
-  writeFileSync(join(dir, '.claude-kit-ignore.yaml'), `${checkId}:\n  - "**"\n`);
+function ignoreFile(dir, ...checkIds) {
+  writeFileSync(join(dir, '.claude-kit-ignore.yaml'), checkIds.map((id) => `${id}:\n  - "**"\n`).join(''));
   return dir;
 }
 
@@ -127,10 +127,13 @@ expect('cold-build message carries the exclude footer', /id: cold-worktree-build
 const busy = roster(makeRepo(), [inFlightRow()]);
 const shared = { subagent_type: 'general-purpose', model: 'opus', prompt: 'add the ore-seam test (KIT-T176)' };
 
+// KIT-T256 layers parallel-dispatch OVER this check: a live agent anywhere blocks unless the
+// prompt states the parallel cost, so the shared-tree escapes below carry that token too.
+const PAR = '[allow-parallel: 2 lanes, ~400k tokens each, disjoint files]';
 expect('blocks a second dispatch while an agent is in flight', run(busy, shared).code, 2);
-expect('allows a worktree dispatch while an agent is in flight', run(busy, { ...shared, isolation: 'worktree' }).code, 0);
-expect('allows the [shared-tree-ok: reason] escape', run(busy, { ...shared, prompt: 'read-only sweep [shared-tree-ok: no writes]' }).code, 0);
-expect('allows via the ignore file (shared-tree-dispatch)', run(ignoreFile(roster(makeRepo(), [inFlightRow()]), 'shared-tree-dispatch'), shared).code, 0);
+expect('allows a worktree dispatch while an agent is in flight (cost stated)', run(busy, { ...shared, isolation: 'worktree', prompt: `${shared.prompt} ${PAR}` }).code, 0);
+expect('allows the [shared-tree-ok: reason] escape (cost stated)', run(busy, { ...shared, prompt: `read-only sweep [shared-tree-ok: no writes] ${PAR}` }).code, 0);
+expect('allows via the ignore file (shared-tree-dispatch + parallel-dispatch)', run(ignoreFile(roster(makeRepo(), [inFlightRow()]), 'shared-tree-dispatch', 'parallel-dispatch'), shared).code, 0);
 expect('allows with no roster at all', run(makeRepo(), shared).code, 0);
 expect('allows with an empty roster', run(roster(makeRepo(), []), shared).code, 0);
 expect('allows when the in-flight row is stale (>2h)', run(roster(makeRepo(), [inFlightRow(3 * HOURS)]), shared).code, 0);
@@ -147,14 +150,19 @@ const elsewhere = gitTop(makeRepo());
 const sameTree = makeRepo();
 roster(sameTree, [inFlightRow(0, { targetRoot: gitTop(sameTree) })]);
 
-expect('allows when the live row is worktree-isolated (its own checkout)', run(roster(makeRepo(), [inFlightRow(0, { isolation: 'worktree' })]), shared).code, 0);
-expect('allows when the live row targets another repo', run(roster(makeRepo(), [inFlightRow(0, { targetRoot: elsewhere })]), shared).code, 0);
+// The three tree-scoped allowances hold for shared-tree-dispatch (its message must not fire),
+// but KIT-T256's parallel-dispatch still blocks each — one agent at a time is not tree-scoped.
+const wtRow = roster(makeRepo(), [inFlightRow(0, { isolation: 'worktree' })]);
+expect('a worktree-isolated live row: shared-tree stays silent', /one working tree/.test(run(wtRow, shared).err) ? 1 : 0, 0);
+expect('a worktree-isolated live row still blocks (parallel-dispatch)', run(wtRow, shared).code, 2);
+expect('a live row targeting another repo still blocks (parallel-dispatch)', run(roster(makeRepo(), [inFlightRow(0, { targetRoot: elsewhere })]), shared).code, 2);
 expect('blocks when the live row targets THIS tree', run(sameTree, shared).code, 2);
-expect('allows when the NEW dispatch is aimed at another repo root', run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\`` }).code, 0);
+expect('a new dispatch aimed at another repo root still blocks (parallel-dispatch)', run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\`` }).code, 2);
+expect('…and passes once the parallel cost is stated', run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\` ${PAR}` }).code, 0);
 expect('blocks an old-format row with neither field (conservative)', run(roster(makeRepo(), [inFlightRow()]), shared).code, 2);
 expect('an old-format row still ages out at 2h', run(roster(makeRepo(), [inFlightRow(3 * HOURS, { targetRoot: undefined })]), shared).code, 0);
 expect('a row with an unparseable isolation value still counts (fail toward the halt)', run(roster(makeRepo(), [inFlightRow(0, { isolation: 42 })]), shared).code, 2);
-expect('the tree-scoped filter still fails open on a corrupt roster', run(roster(makeRepo(), ['{ not json', JSON.stringify(inFlightRow(0, { isolation: 'worktree' }))]), shared).code, 0);
+expect('the tree-scoped filter still fails open on a corrupt roster (the worktree row is parallel-dispatch\'s to block)', /one working tree/.test(run(roster(makeRepo(), ['{ not json', JSON.stringify(inFlightRow(0, { isolation: 'worktree' }))]), shared).err) ? 1 : 0, 0);
 expect('block message names the tree it scoped to', run(sameTree, shared).err.includes(gitTop(sameTree)) ? 1 : 0, 1);
 
 const sharedMsg = run(busy, shared).err;
@@ -167,6 +175,42 @@ expect('shared-tree message carries the exclude footer', /id: shared-tree-dispat
 // A busy tree that is also unadopted stays silent — the global install never punishes a
 // repo that hasn't opted in.
 expect('allows on an unadopted repo with a Cargo.toml', run(makeRepo({ adopt: false, cargo: true }), wt).code, 0);
+
+// --- parallel-dispatch (KIT-T256) ------------------------------------------------
+// Lived failure (2026-08-25): four implementation agents in four hand-made worktrees, ~300-600k
+// tokens each, four cold builds on one box. ONE agent at a time, any tree; the only escape
+// states the cost.
+const one = { subagent_type: 'general-purpose', model: 'opus', prompt: 'implement the next ticket (KIT-T256)' };
+expect('blocks a second agent while one is in flight (any tree)', run(roster(makeRepo(), [inFlightRow()]), one).code, 2);
+expect('blocks even when the live agent is in its own worktree', run(roster(makeRepo(), [inFlightRow(0, { isolation: 'worktree' })]), one).code, 2);
+expect('a bare [allow-parallel: reason] with no cost still blocks', run(roster(makeRepo(), [inFlightRow()]), { ...one, prompt: `${one.prompt} [allow-parallel: disjoint files]` }).code, 2);
+expect('allows once the cost is stated ([allow-parallel: N lanes, ~Xk tokens each, why]) — into its own worktree', run(roster(makeRepo(), [inFlightRow()]), { ...one, isolation: 'worktree', prompt: `${one.prompt} ${PAR}` }).code, 0);
+expect('the cost token alone does not lift the same-tree block (shared-tree still fires)', run(roster(makeRepo(), [inFlightRow()]), { ...one, prompt: `${one.prompt} ${PAR}` }).code, 2);
+expect('allows the first agent (empty roster)', run(roster(makeRepo(), []), one).code, 0);
+expect('allows after the previous agent finished', run(roster(makeRepo(), [inFlightRow(), { ts: new Date().toISOString(), id: 'agent-live', status: 'done' }]), one).code, 0);
+expect('allows when the live row is stale (>2h)', run(roster(makeRepo(), [inFlightRow(3 * HOURS)]), one).code, 0);
+expect('allows via the ignore file (parallel-dispatch)', run(ignoreFile(roster(makeRepo(), [inFlightRow()]), 'parallel-dispatch', 'shared-tree-dispatch'), one).code, 0);
+expect('fails open on a corrupt roster', run(roster(makeRepo(), ['{ nope']), one).code, 0);
+
+const parMsg = run(roster(makeRepo(), [inFlightRow()]), one).err;
+expect('parallel message states ONE agent at a time', /ONE agent at a time/.test(parMsg) ? 1 : 0, 1);
+expect('parallel message cites the lived four-lane burn', /four lanes/.test(parMsg) ? 1 : 0, 1);
+expect('parallel message names the serialize remedy', /serialize/.test(parMsg) ? 1 : 0, 1);
+expect('parallel message names the cost-bearing escape', /\[allow-parallel: N lanes, ~Xk tokens each/.test(parMsg) ? 1 : 0, 1);
+expect('a bare escape is told the cost is missing', /names no cost/.test(run(roster(makeRepo(), [inFlightRow()]), { ...one, prompt: 'x [allow-parallel: because]' }).err) ? 1 : 0, 1);
+expect('parallel message carries the exclude footer', /id: parallel-dispatch/.test(parMsg) ? 1 : 0, 1);
+
+// cold-worktree-build now also fires on a HAND-MADE worktree named in the brief (the
+// 2026-08-25 lanes were `git worktree add`-ed by hand and dodged the isolation check).
+{
+  const main = makeRepo({ cargo: true });
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'seed'], { cwd: main });
+  const wtDir = join(main, '..', `dg-wt-${process.pid}`);
+  execFileSync('git', ['worktree', 'add', '-q', wtDir], { cwd: main });
+  const named = { subagent_type: 'general-purpose', model: 'opus', prompt: `You work in the worktree \`${wtDir}\` (branch wt/x). Implement KIT-T256.` };
+  expect('blocks a brief naming a hand-made worktree in a Cargo repo (cold build)', /cold-worktree-build/.test(run(main, named).err) ? 1 : 0, 1);
+  expect('allows it once CARGO_TARGET_DIR is provisioned', run(main, { ...named, prompt: `${named.prompt} Set CARGO_TARGET_DIR=${join(main, 'target')} first.` }).code, 0);
+}
 
 // --- the pins the gate RELIES on (KIT-T151, KIT-D061) --------------------------------
 // The dispatch-ladder check treats a kit agent as safe because its frontmatter pins a model. That
