@@ -173,10 +173,14 @@ function sharedTreeBlock(root, input, prompt) {
 // sequence on a warm build. The maintainer's ruling: "One agent doing the work is faster than
 // this bullshit. It needs to NEVER HAPPEN AGAIN WITH ENFORCEMENT."
 // BLOCKS any dispatch while another agent is in flight (any tree — worktree-isolated rows
-//   included; shared-tree-dispatch is tree-scoped, this one is not).
+//   included; shared-tree-dispatch is tree-scoped, this one is not) — in a RUST workspace.
+//   The cost is the compile loop (every writer iterates edit→build→measure, and builds
+//   contend for one box); a repo with no Cargo.toml has no such loop and keeps parallel
+//   dispatch (the maintainer's scoping, 2026-08-25: "this is primarily a Rust concern").
 // ESCAPE: [allow-parallel: N lanes, ~Xk tokens each, <reason>] — the cost figure is REQUIRED;
 //   a bare [allow-parallel: reason] still blocks, and the message says what is missing.
 function parallelBlock(root, input, prompt) {
+  if (!existsSync(join(root, 'Cargo.toml'))) return null; // no compile loop — no gate
   if (ALLOW_PARALLEL.test(prompt)) return null;
   if (pathExcluded(root, PARALLEL_CHECK, root)) return null;
   const now = Date.now();
@@ -189,9 +193,10 @@ function parallelBlock(root, input, prompt) {
     `  agent: ${label(input)}   roster: .ai/agents.jsonl`,
     ...live.map((r) => `    • ${r.id} (${r.scope || 'general'}${rosterModel(r)}, ${minutesAgo(r, now)}m ago${isWorktreeIsolation(r.isolation) ? ', own worktree' : ''}) — ${String(r.task || '(no description)').slice(0, ROSTER_TASK_CHARS)}`),
     '',
-    'Parallel implementation agents are slower AND dearer than one agent working the',
-    'tickets in sequence: each pays its own cold build and its own context, and they',
-    'contend for one box. Lived case (2026-08-25): four lanes, ~300-600k tokens each.',
+    'In a Rust workspace, parallel implementation agents are slower AND dearer than one',
+    'agent working the tickets in sequence: every writer iterates edit→build→measure, each',
+    'pays its own cold build and its own context, and the builds contend for one box.',
+    'Lived case (2026-08-25): four lanes, ~300-600k tokens each.',
     '',
     'Fix — pick one:',
     '  • serialize: wait for the in-flight agent, collect its result, then hand THAT agent',
