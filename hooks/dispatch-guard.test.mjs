@@ -211,6 +211,13 @@ expect('parallel message carries the exclude footer', /id: parallel-dispatch/.te
   const named = { subagent_type: 'general-purpose', model: 'opus', prompt: `You work in the worktree \`${wtDir}\` (branch wt/x). Implement KIT-T256.` };
   expect('blocks a brief naming a hand-made worktree in a Cargo repo (cold build)', /cold-worktree-build/.test(run(main, named).err) ? 1 : 0, 1);
   expect('allows it once CARGO_TARGET_DIR is provisioned', run(main, { ...named, prompt: `${named.prompt} Set CARGO_TARGET_DIR=${join(main, 'target')} first.` }).code, 0);
+
+  // A SUBMODULE's .git is a file too (gitdir → .git/modules/…); naming one — every framework
+  // brief does — is not a worktree dispatch. Lived false positive: 2026-08-26, stiletto/rapid-game.
+  const sub = join(main, 'framework');
+  mkdirSync(sub, { recursive: true });
+  writeFileSync(join(sub, '.git'), 'gitdir: ../.git/modules/framework\n');
+  expect('a brief naming a SUBMODULE path is not a worktree dispatch', /cold-worktree-build/.test(run(main, { ...named, prompt: `Repos: \`${main}\` + submodule \`${sub}\`. Implement KIT-T256.` }).err) ? 1 : 0, 0);
 }
 
 // --- the pins the gate RELIES on (KIT-T151, KIT-D061) --------------------------------
