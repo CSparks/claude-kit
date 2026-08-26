@@ -11,7 +11,7 @@
 // contributes its own message. A dispatch violating two shapes hears about both at once rather
 // than paying a round trip per gate.
 
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, partitionAgents } from './lib.mjs';
 import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
@@ -223,12 +223,16 @@ function liveAnywhere(root, nowMs) {
   }
 }
 
-// Does the brief name a checkout that is a git WORKTREE (its .git is a file, not a directory)?
+// Does the brief name a checkout that is a git WORKTREE? A worktree's .git is a FILE whose
+// gitdir points into `<repo>/.git/worktrees/<name>`. A SUBMODULE's .git is a file too, but its
+// gitdir points into `.git/modules/` — naming a submodule (every rapid-game brief does) is not
+// a worktree dispatch.
 function namesWorktree(prompt) {
   try {
     for (const m of String(prompt).matchAll(/(?:[A-Za-z]:[\\/]|\/)[^\s"'`)\],;]+/g)) {
       const marker = join(m[0].replace(/[.,;:!?)\]}"'`]+$/, ''), '.git');
-      if (existsSync(marker) && statSync(marker).isFile()) return true;
+      if (!existsSync(marker) || !statSync(marker).isFile()) continue;
+      if (/gitdir:.*[\\/]worktrees[\\/]/i.test(readFileSync(marker, 'utf8'))) return true;
     }
   } catch {
     /* fail open */
