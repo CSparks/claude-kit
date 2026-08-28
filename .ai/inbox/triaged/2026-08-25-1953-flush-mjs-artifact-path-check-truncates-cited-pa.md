@@ -1,0 +1,1 @@
+(bug) flush.mjs artifact-path check truncates cited paths before the existence test: 'tests/fixtures/marked.fountain' (exists) reported as 'tests/fixtures/marked.founta'; earlier 'text_encoders/qwen_3_8b.safetensors' → '...safete'. Extraction regex drops trailing chars; false-positive lost-deliverable warnings on every flush.
