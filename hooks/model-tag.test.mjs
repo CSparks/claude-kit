@@ -137,6 +137,19 @@ try {
       latestAssistantModel(join(d, 'nope.jsonl')) === '' && latestAssistantModel('') === '');
   }
 
+  // ===== 2b. a pin above a submodule (KIT-T267) ==============================
+  {
+    const outer = makeRepo({ commit: true });
+    const inner = makeRepo({ adopt: false, commit: true });
+    execFileSync('git', ['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', inner, 'sub'],
+      { cwd: outer, stdio: 'ignore' });
+    agentDef(outer, 'proj-super-pinned', '---\nname: proj-super-pinned\nmodel: claude-opus-4-8\n---\nbody\n');
+    ok('resolve: a superproject pin is visible from inside its submodule',
+      pinnedModel(join(outer, 'sub'), 'proj-super-pinned') === 'claude-opus-4-8');
+    ok('resolve: an unrelated repo does not see that pin',
+      pinnedModel(makeRepo(), 'proj-super-pinned') === '');
+  }
+
   // ===== 3. tag / strip =====================================================
   {
     ok('tag: prepends the display name', tagDescription('Build CRX-T024 admin foundation', 'Opus 5') === '[Opus 5] Build CRX-T024 admin foundation');

@@ -42,3 +42,6 @@ updated: 2026-08-25T21:05:10Z
 ### comment #1 [2026-08-25 21:05] @claude
 (fixed) hooks/dispatch-guard.mjs parallel-dispatch + hand-made-worktree cold-build detection; hooks/dispatch-guard.test.mjs 97 passed / 0 failed; agent-roster.test.mjs green; live probe in stiletto-2349 with one agent in flight → BLOCKED (exit 2), with [allow-parallel: 2 lanes, ~400k tokens each, …] + worktree → allowed. user-config/CLAUDE.global.md line replaced. Trigger: Chris 2026-08-25 — four parallel lanes killed, 'NEVER AGAIN WITH ENFORCEMENT'.
 - [2026-08-25 21:05] (status) doing → review
+- [2026-08-25 21:10] (comment) @claude: Scoped (Chris 2026-08-25: 'this is primarily a Rust concern… a safe boundary, expand later if needed'): parallel-dispatc (full comment #2 in ## Notes)
+### comment #2 [2026-08-25 21:10] @claude
+Scoped (Chris 2026-08-25: 'this is primarily a Rust concern… a safe boundary, expand later if needed'): parallel-dispatch fires only where the repo root has a Cargo.toml; non-Rust repos are untouched. Test: allows in a non-Rust repo with a live agent. Suite 98/0.

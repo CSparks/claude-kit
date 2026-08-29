@@ -14,6 +14,8 @@ import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
+import { git } from './lib/exec.mjs';
+
 const TRANSCRIPT_TAIL_BYTES = 256 * 1024; // enough JSONL tail to find the latest assistant turn
 const DEFINITION_HEAD_BYTES = 4 * 1024; // frontmatter lives at the top of an agent .md
 const TAG_LABEL_MAX = 40; // a bracketed prefix longer than this is prose, not a tag
@@ -99,17 +101,33 @@ function isModelish(label) {
   return /^(claude|gpt|gemini|llama|mistral|us\.anthropic|anthropic)[\w.\-[\]]*$/i.test(label);
 }
 
+// The repos above `root`, nearest first: a hook whose cwd sits inside a submodule must still
+// see the superproject's `.claude/agents/`, where a workspace pins its agents (KIT-T267).
+function superprojects(root) {
+  const chain = [];
+  let cwd = root;
+  while (cwd) {
+    const up = git(['rev-parse', '--show-superproject-working-tree'], cwd).trim();
+    if (!up || chain.includes(up)) break;
+    chain.push(up);
+    cwd = up;
+  }
+  return chain;
+}
+
 // Resolve a `model:` pin from the agent definition's frontmatter. Probes the plugin's own
-// agents/ (both install layouts), then project- and user-level .claude/agents/. A definition
-// FOUND without a model line returns '' — an unpinned type must be routed explicitly.
+// agents/ (both install layouts), then the project's and every superproject's
+// .claude/agents/, then the user's. A definition FOUND without a model line returns '' —
+// an unpinned type must be routed explicitly.
 export function pinnedModel(root, subagentType) {
   const name = String(subagentType || '').split(':').pop().trim();
   if (!name) return '';
   const hookDir = dirname(fileURLToPath(import.meta.url));
+  const projectRoots = root ? [root, ...superprojects(root)] : [];
   const probes = [
     process.env.CLAUDE_PLUGIN_ROOT && join(process.env.CLAUDE_PLUGIN_ROOT, 'agents', `${name}.md`),
     join(hookDir, '..', 'agents', `${name}.md`),
-    root && join(root, '.claude', 'agents', `${name}.md`),
+    ...projectRoots.map((r) => join(r, '.claude', 'agents', `${name}.md`)),
     join(homedir(), '.claude', 'agents', `${name}.md`),
   ].filter(Boolean);
   for (const file of probes) {
