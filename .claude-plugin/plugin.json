@@ -25,6 +25,7 @@
     "./skills/claude-kit/",
     "./skills/db-discipline/",
     "./skills/doc-audit/",
+    "./skills/broker-worker/",
     "./skills/new-poc/",
     "./skills/release-checklist/",
     "./skills/scaffold-agent/",
