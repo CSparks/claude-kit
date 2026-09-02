@@ -2,7 +2,7 @@
 id: KIT-T270
 title: Build broker — one shared build checkout serially verifies + lands worker jobs from cheap worktrees
 type: feature
-status: doing
+status: review
 priority: medium
 milestone:
 labels: []
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-09-02T06:05:16Z
-updated: 2026-09-02T06:05:50Z
+updated: 2026-09-02T06:25:08Z
+fixed_commit: 6ebabfe851e7b124fa5ae37b2962473e5194e880
 ---
 
 ## Description
@@ -110,3 +111,4 @@ this ticket does NOT touch stiletto's tree.
 ## History
 - [2026-09-02 06:05] (created) feature — Build broker — one shared build checkout serially verifies + lands worker jobs from cheap worktrees
 - [2026-09-02 06:05] (status) todo → doing
+- [2026-09-02 06:25] (status) doing → review
