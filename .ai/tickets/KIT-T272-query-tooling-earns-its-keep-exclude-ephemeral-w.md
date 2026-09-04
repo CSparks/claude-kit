@@ -2,7 +2,7 @@
 id: KIT-T272
 title: Query tooling earns its keep: exclude ephemeral worktrees from the code-graph index, make the gate classify by target COVERAGE not command shape, and make a code-graph non-answer a loud NOT-INDEXED instead of a silent []
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: []
@@ -10,8 +10,9 @@ links: [KIT-T236, KIT-T167, KIT-T085, KIT-T168, KIT-T243, KIT-T079]
 files: [scripts/code-graph.mjs, hooks/query-gate.mjs]
 supersedes:
 superseded_by:
+fixed_commit: 807db8f
 created: 2026-09-04T21:18:00Z
-updated: 2026-09-04T21:18:50Z
+updated: 2026-09-04T21:33:01Z
 ---
 
 ## Description
@@ -153,3 +154,5 @@ it is now principled instead of accreted, and the remaining edge is named rather
 - [2026-09-04 21:32] (comment) ticked: D2: reading ONE specific named store file (item OR config) passes — `cat/head/sed .ai/tickets/X.md`,
 - [2026-09-04 21:32] (comment) ticked: D3: a code-graph query against an EMPTY index emits `NOT-INDEXED` on stderr and exits non-zero
 - [2026-09-04 21:32] (comment) ticked: Table-driven gate tests hold in BOTH directions: the must-block set (tree-wide symbol grep over
+- [2026-09-04 21:33] (status) doing → review
+- [2026-09-04 21:33] (comment) @claude: fixed in 807db8f — query-gate 61/61, code-graph 53/53; suite 64/66 files (2 pre-existing: express dep, agent-pins frontmatter)

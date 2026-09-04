@@ -162,7 +162,7 @@
 | KIT-T269 | bug | todo | high | t comment: when --author is omitted the author defaults to the machine user (KIT_USER/registry 'chris'), so agent-written evidence… |
 | KIT-T270 | feature | review | medium | Build broker — one shared build checkout serially verifies + lands worker jobs from cheap worktrees |
 | KIT-T271 | feature | todo | medium | Roll the build broker out on stiletto — add broker: config + start the daemon once its checkout is free |
-| KIT-T272 | bug | doing | high | Query tooling earns its keep: exclude ephemeral worktrees from the code-graph index, make the gate classify by target COVERAGE not command shape, and make a code-graph non-answer a loud NOT-INDEXED instead of a silent [] |
+| KIT-T272 | bug | review | high | Query tooling earns its keep: exclude ephemeral worktrees from the code-graph index, make the gate classify by target COVERAGE not command shape, and make a code-graph non-answer a loud NOT-INDEXED instead of a silent [] |
 
 ## Superseded (11)
 | id | status | title | superseded by |
