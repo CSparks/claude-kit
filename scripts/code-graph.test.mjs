@@ -191,6 +191,68 @@ ok('bad root: a non-directory positional is a clear usage error, not a scandir c
   return r.status === 2 && /is not a directory/.test(r.stderr);
 })());
 
+// ---- KIT-T272: ephemeral worktrees / vendored trees excluded from the index ----------------
+// The lived defect: an ABANDONED agent worktree under `.claude/worktrees/` loses its `.git` link,
+// stops being a nested-repo boundary, and `git ls-files --others` recurses into it — so the graph
+// indexed a DUPLICATE of every file and `duplicate-defines` could no longer tell canonical from copy.
+try {
+  const wt = mkdtempSync(join(tmpdir(), 'kit-cg-wt-'));
+  fixtures.push(wt);
+  execFileSync('git', ['init', '-q'], { cwd: wt });
+  mkdirSync(join(wt, 'src'), { recursive: true });
+  writeFileSync(join(wt, 'src', 'dup.ts'), 'export function build_pieces() {}\n');
+  // The abandoned-worktree shape: an untracked file tree under `.claude/worktrees/agent-*` (no .git
+  // boundary), which git's untracked list would otherwise recurse into.
+  mkdirSync(join(wt, '.claude', 'worktrees', 'agent-aaa', 'src'), { recursive: true });
+  writeFileSync(join(wt, '.claude', 'worktrees', 'agent-aaa', 'src', 'dup.ts'), 'export function build_pieces() {}\n');
+  // A tracked vendored tree (git's list bypassed SKIP_DIRS before) must be excluded too.
+  mkdirSync(join(wt, 'node_modules', 'pkg'), { recursive: true });
+  writeFileSync(join(wt, 'node_modules', 'pkg', 'index.ts'), 'export function vendored() {}\n');
+  execFileSync('git', ['add', '-A', '-f'], { cwd: wt }); // -f so node_modules is TRACKED (the leak)
+  const wg = await buildGraph(wt);
+  ok('worktree exclusion: the abandoned .claude/worktrees copy is NOT indexed',
+    !wg.files.some((f) => f.path.startsWith('.claude/')));
+  ok('worktree exclusion: build_pieces resolves to the ONE real file (golden)',
+    defines(wg, 'build_pieces').length === 1 && defines(wg, 'build_pieces')[0] === 'src/dup.ts');
+  ok('vendored exclusion: a TRACKED node_modules file is not indexed',
+    !wg.files.some((f) => f.path.startsWith('node_modules/')));
+  // Mutation control: a duplicate in a NORMAL dir is still surfaced — the exclusion is
+  // worktree/vendored-specific, never a blanket "collapse duplicate symbols".
+  mkdirSync(join(wt, 'pkg'), { recursive: true });
+  writeFileSync(join(wt, 'pkg', 'dup.ts'), 'export function build_pieces() {}\n');
+  execFileSync('git', ['add', '-A'], { cwd: wt });
+  const wg2 = await buildGraph(wt);
+  ok('mutation control: a REAL second definer is still found (exclusion is not blanket dedup)',
+    defines(wg2, 'build_pieces').sort().join(',') === 'pkg/dup.ts,src/dup.ts');
+} catch (e) {
+  ok('worktree exclusion test skipped (git unavailable): ' + (e && e.message), false);
+}
+
+// ---- KIT-T272 / KIT-T168 / KIT-T243: a non-answer is LOUD, never a silent [] -----------------
+// An EMPTY index answering `[]` reads as "no match" when it means "nothing indexed" — the silent
+// failure agents route around. The query must exit non-zero and say NOT-INDEXED.
+try {
+  const empty = mkdtempSync(join(tmpdir(), 'kit-cg-empty-'));
+  fixtures.push(empty);
+  execFileSync('git', ['init', '-q'], { cwd: empty });
+  const er = cg([empty, '--query', 'defines', 'Anything'], empty);
+  ok('NOT-INDEXED: an empty index exits non-zero (not a silent [])', er.status === 1);
+  ok('NOT-INDEXED: stderr names the condition and the sanctioned grep alternative',
+    /NOT-INDEXED/.test(er.stderr) && /--include/.test(er.stderr));
+} catch (e) {
+  ok('NOT-INDEXED test skipped (git unavailable): ' + (e && e.message), false);
+}
+// PATH-NOT-INDEXED: `surface`/`importers-of` on a concrete path not in the graph is "unknown path",
+// not "no surface" — it too must be loud (KIT-T168 AC2), while a real path stays a clean exit 0.
+const pr = cg([root, '--query', 'surface', 'src/does-not-exist.ts'], root);
+ok('PATH-NOT-INDEXED: an unknown concrete path exits non-zero', pr.status === 1);
+ok('PATH-NOT-INDEXED: stderr distinguishes unknown-path from no-surface', /PATH-NOT-INDEXED/.test(pr.stderr));
+const pr2 = cg([root, '--query', 'surface', 'src/util.ts'], root);
+ok('PATH-NOT-INDEXED: a KNOWN path is a clean exit 0 (negative control)', pr2.status === 0);
+
+// coverage summary is reported on the graph (KIT-T272).
+ok('coverage: buildGraph reports indexed/js-ts counts', g.coverage && g.coverage.files === 5 && typeof g.coverage.jsts === 'number');
+
 for (const d of fixtures) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\ncode-graph: ${pass} passed, ${fail} failed`);
 // Set exitCode and let the loop drain naturally — calling process.exit() while the

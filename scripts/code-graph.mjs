@@ -29,6 +29,18 @@ const SKIP_DIRS = new Set([
   '.cache', 'vendor', '.next', 'coverage',
 ]);
 
+// Segments that are NEVER app source: build/dep/VCS output (SKIP_DIRS) plus the agent-ephemeral
+// `.claude` tree. `.claude/worktrees/**` is the lived defect (KIT-T272): an ABANDONED agent
+// worktree loses its `.git` link, stops being a nested-repo boundary, and `git ls-files --others`
+// then recurses into it — so the graph indexes a DUPLICATE of every file and `duplicate-defines`
+// can no longer tell a canonical module from a worktree copy (the KIT-T079 job). This filter drops
+// any path with such a segment, closing the leak in BOTH the git-aware list and the raw walk, and
+// whether the tree is tracked or untracked (git's list bypassed SKIP_DIRS entirely before).
+const EXCLUDED_SEGMENTS = new Set([...SKIP_DIRS, '.claude']);
+function hasExcludedSegment(rel) {
+  return rel.split(/[\\/]/).some((seg) => EXCLUDED_SEGMENTS.has(seg));
+}
+
 // Per-family extraction rules. `imports` capture a module/path string (group 1);
 // `defs` capture a symbol name (group 1) with a kind. The GENERIC rules below run on
 // every file too, so any language gets at least a best-effort graph.
@@ -105,6 +117,43 @@ function isDirectory(p) {
   try { return statSync(p).isDirectory(); } catch { return false; }
 }
 
+const FILEISH = /\.[A-Za-z0-9]{1,6}$/; // a concrete file arg (has an extension)
+
+// What the graph actually COVERS — the count of indexed files, the JS/TS subset (code-graph's
+// precise domain), and a per-language tally. Exported so the gate/hook can read it from the
+// machine-local cache and answer "can code-graph even help in this repo?" without a rebuild.
+export function coverageOf(files) {
+  const langs = {};
+  let jsts = 0;
+  for (const f of files) {
+    langs[f.lang] = (langs[f.lang] || 0) + 1;
+    if (f.lang === 'js') jsts++; // the 'js' family covers .ts/.tsx too
+  }
+  return { files: files.length, jsts, langs };
+}
+
+// A query's non-answer is only trustworthy when the index actually COVERS the question (KIT-T272,
+// KIT-T168/T243). An EMPTY index answering `[]` reads as "no match" when it means "nothing indexed"
+// — the silent failure agents route around. Return a diagnostic string (caller prints it + exits
+// non-zero) or null when the empty result is a genuine "no match".
+export function notIndexedDiagnostic(graph, query, arg) {
+  if (graph.files.length === 0) {
+    return `code-graph: NOT-INDEXED — 0 source files indexed at ${graph.root}. The graph is empty ` +
+      `(no JS/TS or known-source files here, or an unbuilt/foreign repo), so '${query}' cannot be ` +
+      `answered — this is NOT "no match". Use grep for discovery (a --include=*.<ext> grep is allowed ` +
+      `by the query-gate for non-JS/TS source).`;
+  }
+  if ((query === 'surface' || query === 'importers-of') && arg && FILEISH.test(arg)) {
+    const known = graph.files.some((f) => f.path === arg);
+    if (!known) {
+      return `code-graph: PATH-NOT-INDEXED — '${arg}' is not in the graph (${graph.files.length} files ` +
+        `indexed). Check the path or spelling; the file's language may be un-indexed. An empty result ` +
+        `here means "unknown path", not "no surface".`;
+    }
+  }
+  return null;
+}
+
 function familyFor(ext) {
   return FAMILIES.find((f) => f.exts.includes(ext)) || null;
 }
@@ -121,6 +170,7 @@ function gitFiles(root) {
     const rels = (tracked + untracked).split(/\r?\n/).filter(Boolean);
     if (!rels.length) return null;
     return rels
+      .filter((r) => !hasExcludedSegment(r)) // drop ephemeral/vendored/build trees (KIT-T272)
       .filter((r) => TEXT_EXT.has(extname(r)))
       .map((r) => join(root, r));
   } catch {
@@ -130,11 +180,8 @@ function gitFiles(root) {
 
 function walk(root, acc = []) {
   for (const e of readdirSync(root, { withFileTypes: true })) {
-    if (e.name.startsWith('.') && e.name !== '.ai') {
-      if (SKIP_DIRS.has(e.name)) continue;
-    }
     if (e.isDirectory()) {
-      if (SKIP_DIRS.has(e.name)) continue;
+      if (EXCLUDED_SEGMENTS.has(e.name)) continue; // .git/node_modules/target/.claude/… (KIT-T272)
       walk(join(root, e.name), acc);
     } else if (TEXT_EXT.has(extname(e.name))) {
       acc.push(join(root, e.name));
@@ -261,6 +308,7 @@ export async function buildGraph(root) {
     root: absRoot.split(sep).join('/'), files, edges,
     precise: files.some((f) => f.precise),
     stale: stale.sort((a, b) => a.path.localeCompare(b.path)),
+    coverage: coverageOf(files),
   };
 }
 
@@ -405,7 +453,7 @@ function htmlEntryFiles(absRoot) {
     try {
       const tracked = execFileSync('git', ['ls-files'], opts);
       const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard'], opts);
-      return (tracked + untracked).split(/\r?\n/).filter(Boolean).map((r) => r.split(sep).join('/')).filter((r) => r.endsWith('.html'));
+      return (tracked + untracked).split(/\r?\n/).filter(Boolean).map((r) => r.split(sep).join('/')).filter((r) => r.endsWith('.html') && !hasExcludedSegment(r));
     } catch {
       return walkHtml(absRoot).map((p) => relative(absRoot, p).split(sep).join('/'));
     }
@@ -416,7 +464,7 @@ function htmlEntryFiles(absRoot) {
 
 function walkHtml(root, acc = []) {
   for (const e of readdirSync(root, { withFileTypes: true })) {
-    if (SKIP_DIRS.has(e.name)) continue;
+    if (EXCLUDED_SEGMENTS.has(e.name)) continue; // KIT-T272: skip ephemeral/vendored trees
     if (e.isDirectory()) walkHtml(join(root, e.name), acc);
     else if (extname(e.name) === '.html') acc.push(join(root, e.name));
   }
@@ -476,6 +524,7 @@ async function main() {
       edges: graph.edges.length,
       symbols,
       mode: graph.precise ? 'precise (tree-sitter)' : 'heuristic',
+      coverage: graph.coverage,
       stale: graph.stale,
     }, null, 2) + '\n');
     process.exitCode = reportStale() ? 1 : 0;
@@ -504,6 +553,18 @@ async function main() {
     else {
       console.error(`unknown query '${query}' (importers-of | defines | references-of | surface | duplicate-defines | entry-points)`);
       process.exit(2);
+    }
+    // A NOT-INDEXED / PATH-NOT-INDEXED result is a LOUD non-answer, never a silent `[]` — the
+    // caller sees the tool concede it cannot help (KIT-T272), so a silent fallback has nothing to
+    // hide behind. entry-points builds its own list (never [] from a missing index), so skip it.
+    if (query !== 'entry-points') {
+      const diag = notIndexedDiagnostic(graph, query, queryArg);
+      if (diag) {
+        process.stderr.write(diag + '\n');
+        process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+        process.exitCode = 1;
+        return;
+      }
     }
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     process.exitCode = reportStale() ? 1 : 0;

@@ -104,6 +104,7 @@
 - KIT-T266 — PROCESS FAILURE (stiletto 2026-08-25, orchestrator): launched 3 extra implementation agents in git worktrees (~300-600k tokens each, full… (high)
 - KIT-T267 — dispatch-guard misses a pinned agent when the hook's cwd sits inside a submodule — pinnedModel probes only that repo's .claude/agents, never the superproject's, so a pinned opus48 dispatch from stiletto's rapid-game submodule is blocked as a fable inherit (high)
 - KIT-T269 — t comment: when --author is omitted the author defaults to the machine user (KIT_USER/registry 'chris'), so agent-written evidence… (high)
+- KIT-T272 — Query tooling earns its keep: exclude ephemeral worktrees from the code-graph index, make the gate classify by target COVERAGE not command shape, and make a code-graph non-answer a loud NOT-INDEXED instead of a silent [] (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)

@@ -180,21 +180,24 @@ function judge(c, piped = false) {
     if (!fileArgs.some((a) => /[\\/]/.test(a))) return null;
   }
 
-  // RULE 1 — never grep/read the work store; query it. EXCEPT a targeted read/grep of ONE specific
-  // CONFIG/STATE file (KIT-T080 — the maintainer's allowed "specific named file" case): `config.yml`,
-  // `SESSION.md`, the generated state files — `q` does NOT index those as queryable items, so the
-  // q-only remediation is a dead end and reading them directly is correct. INDIVIDUAL item files
-  // (tickets/decisions/questions/notes/inbox) still route to q — it sees their links/history a `cat`
-  // can't. A TREE-WIDE / glob / multi-file / `find` over the store stays blocked (discovery → q).
-  if ((isSearch || isRead || isFind) && STORE.test(c)) {
+  // RULE 1 — the work store is `q`'s to SEARCH. A text tool doing DISCOVERY over it (recursive /
+  // dir / glob / multi-file / find) routes to q, which sees the links+history a grep is blind to.
+  // Coverage-scoped (KIT-T272): `q` does NOT expose a file's raw shape, the next id, or a directory
+  // listing — so reading/grepping ONE specific named store file (item OR config: the maintainer's
+  // "you know exactly where + what" case, KIT-T080) is correct via the Read/Grep tools and must pass,
+  // and a heredoc/redirect WRITE whose body merely names a store path is not a store read at all
+  // (the memory-file false positive, inbox 2026-08-31-0346).
+  const isStoreWrite = isRead && /(?:>>?|<<)/.test(c.replace(/'[^']*'|"[^"]*"/g, ' '));
+  if ((isSearch || isRead || isFind) && STORE.test(c) && !isStoreWrite) {
     // A search tool's first positional is its pattern, not a path; flag VALUES (`head -n 50`) aren't
     // FILEISH — so count the concrete store FILES among the args, not bare positionals.
     const positionals = (gitGrep ? tok.slice(2) : tok.slice(1))
       .filter((a) => !a.startsWith('-')).map((a) => a.replace(/^["']|["']$/g, ''));
     const storeFiles = positionals.filter((a) => STORE.test(a) && FILEISH.test(a));
-    const isItemFile = (a) => /[\\/](?:tickets|decisions|inbox|questions|notes)[\\/][^\\/]+$/i.test(a);
-    const oneConfigRead = !isFind && !RECURSIVE_FLAG.test(c) && storeFiles.length === 1 && !isItemFile(storeFiles[0]);
-    if (!oneConfigRead) return { id: 'store-grep', msg: storeMsg(c) };
+    // ONE specific named file (no find, no recursion) — read/grep it directly; q can't return its raw
+    // form. Discovery (find, recursion, a store dir, a glob, or >1 concrete file) stays q's to answer.
+    const oneNamedFile = !isFind && !RECURSIVE_FLAG.test(c) && storeFiles.length === 1;
+    if (!oneNamedFile) return { id: 'store-grep', msg: storeMsg(c) };
   }
 
   // RULE 2 — discovery search of the source tree belongs to the code graph.
@@ -213,14 +216,11 @@ function judge(c, piped = false) {
       return { id: 'source-discovery', msg: graphMsg(c) };
     }
   }
-  // find/gci that LOCATES files (-name/-path/-recurse) is discovery too.
-  // Exception: `find . -name "*.rs"` (and other non-indexed exts) is allowed — code-graph
-  // doesn't index Rust/WGSL/etc. so blocking `find . -name "*.rs"` is a dead end (KIT-T085).
-  if (isFind && /(?:^|\s)(?:-i?name\b|-i?path\b|-recurse\b)/i.test(c)) {
-    if (targetsWorkflowData(c)) return null;
-    if (targetsOnlyNonIndexedExtensions(c)) return null;
-    return { id: 'source-discovery', msg: graphMsg(c) };
-  }
+  // A `find … -name/-path` is a FILENAME lookup — OUTSIDE code-graph's coverage entirely (it answers
+  // symbols/imports/surface, never "which files are named X"). Redirecting it to code-graph was always
+  // a dead end (asset/data dirs, non-JS/TS, and every filename query alike — KIT-T272). The tool that
+  // covers filename patterns is Glob; the agent may use it or `find` freely. `find` over the .ai store
+  // stays RULE 1's business (q enumerates items). So the gate no longer blocks source `find`.
 
   return null;
 }
@@ -265,6 +265,8 @@ function graphMsg(c) {
     '',
     'If code-graph ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it.',
     'Falling back to grep instead of filing the failure is how the tool stays broken (KIT-T236).',
+    'A non-zero exit with NOT-INDEXED / PATH-NOT-INDEXED means code-graph does not cover this repo/path',
+    '(NOT "no match") — grep is then the correct tool, no bug to file (KIT-T272).',
     '',
     'Module-identity / "X isn\'t showing / which file?" → PROVENANCE FIRST, not runtime theories:',
     '  git log -- <path>   +   duplicate-defines / entry-points above   (KIT-T079).',
