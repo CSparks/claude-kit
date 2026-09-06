@@ -7,7 +7,7 @@
 // encoding replaces :, \, /, and spaces with '-'. Derived from $HOME so nothing
 // machine-specific is hardcoded (this kit is public).
 
-import { statSync, existsSync, readFileSync } from 'node:fs';
+import { statSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { installedPluginRoot, isDevLinked, checkInstalledDrift } from '../scripts/agent-pins.mjs';
@@ -36,8 +36,69 @@ const REMINDER_LIST_MAX = 5;
 // silently un-pins every dispatch on that agent type. Only meaningful inside the kit repo
 // itself (that is where source and install can diverge); capped like every other nag.
 const DRIFT_LIST_MAX = 4;
+// KIT-T273 — cargo has no garbage collector. Artifact filenames are content-hashed, so every
+// rebuild leaves its predecessor in target/ forever, and rustc prunes an incremental session
+// only on a CLEAN finalize — so every crash, Ctrl-C and failed link orphans one. Measured on
+// stiletto 2026-09-06: target/ had reached 1,002 GB (against a 67 MB shipped exe) before anyone
+// looked. A freshly built tree there is 1,611 deps entries; the bloated one was 40,811.
+// Counting directory ENTRIES is a readdir and stays fast at any size; the byte total is only
+// summed once a count has already tripped, so a healthy tree costs nothing.
+const DEPS_ENTRY_NAG = 8000;
+const INCREMENTAL_DIR_NAG = 500;
 const CODEX = Boolean(process.env.PLUGIN_ROOT);
 const command = (name) => CODEX ? `$${name}` : `/${name}`;
+
+// Entry count for one directory, or 0 when it does not exist. Never throws: a build tree is
+// churning while this runs and a vanished dir is normal, not an error.
+function entryCount(dir) {
+  try {
+    return readdirSync(dir).length;
+  } catch {
+    return 0;
+  }
+}
+
+// Bytes under `dir`, one level deep — the artifacts themselves live flat in deps/, so this
+// sums the size that matters without walking an incremental tree of 600k files.
+function flatBytes(dir) {
+  let total = 0;
+  try {
+    for (const name of readdirSync(dir)) {
+      try {
+        const st = statSync(join(dir, name));
+        if (st.isFile()) total += st.size;
+      } catch {
+        /* raced with the compiler — skip */
+      }
+    }
+  } catch {
+    /* no such dir */
+  }
+  return total;
+}
+
+// The build tree outgrew its working set. Silent for a healthy tree and for anything that is
+// not a cargo project; one line with the real number when it has run away.
+function buildTreeLine(root) {
+  const debug = join(root, 'target', 'debug');
+  if (!existsSync(debug)) return null;
+  const deps = entryCount(join(debug, 'deps'));
+  const sessions = entryCount(join(debug, 'incremental'));
+  if (deps < DEPS_ENTRY_NAG && sessions < INCREMENTAL_DIR_NAG) return null;
+  const parts = [];
+  if (deps >= DEPS_ENTRY_NAG) {
+    const gb = (flatBytes(join(debug, 'deps')) / 1024 ** 3).toFixed(1);
+    parts.push(`deps holds ${deps.toLocaleString()} artifacts (${gb} GB)`);
+  }
+  if (sessions >= INCREMENTAL_DIR_NAG) {
+    parts.push(`${sessions.toLocaleString()} orphaned incremental sessions`);
+  }
+  return (
+    `BUILD TREE RUNAWAY: ${parts.join(', ')}. Cargo never collects these — every rebuild ` +
+    `leaves its predecessor behind. Reclaim with: cargo clean --profile dev ` +
+    `(costs ONE cold rebuild; set [build] incremental = false to stop the session churn).`
+  );
+}
 
 const claudeDir = join(homedir(), '.claude');
 const encodedHome = homedir().replace(/[:\\/ ]/g, '-');
@@ -185,6 +246,15 @@ if (maintAge >= REVIEW_DAYS) {
 
 const subagentModel = subagentModelLine();
 if (subagentModel) reminders.push(subagentModel);
+
+// Not gated on .ai/ adoption: a runaway target/ costs the disk whether or not the repo
+// opted into the workflow store.
+try {
+  const tree = buildTreeLine(gitRoot() || process.cwd());
+  if (tree) reminders.push(tree);
+} catch {
+  /* best-effort — never break orientation */
+}
 
 const cwd = process.cwd();
 if (existsSync(MAINT_LOG)) {

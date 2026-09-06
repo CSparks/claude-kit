@@ -50,6 +50,56 @@ const unset = run({});
 ok('env unset: silent (negative control)', !/SUBAGENT MODEL OVERRIDE/.test(unset.out));
 ok('env unset: exits 0', unset.code === 0);
 
+// KIT-T273 — the build-tree runaway nag. Cargo never collects target/, so the check trips on
+// COUNTS (a readdir, fast at any size) and only then sums bytes. Asserted at both thresholds,
+// each with its own negative control, and asserted NOT to fire on a non-cargo repo.
+{
+  const treeRepo = mkdtempSync(join(tmpdir(), 'hk-tree-'));
+  execFileSync('git', ['init', '-q'], { cwd: treeRepo });
+  const runTree = () => {
+    const r = spawnSync(process.execPath, [HOOK], {
+      cwd: treeRepo,
+      input: JSON.stringify({ hook_event_name: 'SessionStart' }),
+      encoding: 'utf8',
+      env: { ...process.env },
+    });
+    return { code: r.status, out: r.stdout || '' };
+  };
+
+  ok('build tree: no target/ at all is silent (negative control)', !/BUILD TREE RUNAWAY/.test(runTree().out));
+
+  const debug = join(treeRepo, 'target', 'debug');
+  mkdirSync(join(debug, 'incremental'), { recursive: true });
+  mkdirSync(join(debug, 'deps'), { recursive: true });
+  for (let i = 0; i < 20; i++) mkdirSync(join(debug, 'incremental', `s-${i}`));
+  ok('build tree: a healthy tree is silent (negative control)', !/BUILD TREE RUNAWAY/.test(runTree().out));
+
+  // 500 is the orphaned-session threshold: rustc prunes only on a clean finalize.
+  for (let i = 20; i < 500; i++) mkdirSync(join(debug, 'incremental', `s-${i}`));
+  const sessions = runTree();
+  ok('build tree: orphaned incremental sessions nag', /BUILD TREE RUNAWAY/.test(sessions.out));
+  ok('build tree: names the session count', /500 orphaned incremental sessions/.test(sessions.out));
+  ok('build tree: carries its own drain command', /cargo clean --profile dev/.test(sessions.out));
+  ok('build tree: never blocks', sessions.code === 0);
+
+  // deps trips independently, and reports real bytes once a count has tripped.
+  const depsRepo = mkdtempSync(join(tmpdir(), 'hk-deps-'));
+  execFileSync('git', ['init', '-q'], { cwd: depsRepo });
+  const depsDir = join(depsRepo, 'target', 'debug', 'deps');
+  mkdirSync(depsDir, { recursive: true });
+  for (let i = 0; i < 8000; i++) writeFileSync(join(depsDir, `a${i}.rlib`), 'x');
+  const depsOut = spawnSync(process.execPath, [HOOK], {
+    cwd: depsRepo,
+    input: JSON.stringify({ hook_event_name: 'SessionStart' }),
+    encoding: 'utf8',
+    env: { ...process.env },
+  });
+  ok('build tree: deps artifact count nags', /BUILD TREE RUNAWAY/.test(depsOut.stdout || ''));
+  ok('build tree: names the artifact count', /deps holds 8,000 artifacts/.test(depsOut.stdout || ''));
+  ok('build tree: silent about sessions when only deps tripped',
+    !/orphaned incremental sessions/.test(depsOut.stdout || ''));
+}
+
 const STALE_INBOX_DAYS = 4; // past the hook's 2 d inbox threshold
 const README_AGE_DAYS = 9; // arbitrary old age for the never-counted README
 const MS_PER_MINUTE = 60 * 1000;
