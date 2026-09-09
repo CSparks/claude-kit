@@ -65,7 +65,7 @@ export function globToRegExp(glob) {
 
 // A repo-root-relative, forward-slash path for glob matching. Absolute paths are made
 // relative to root when they live under it; a path already relative is just normalized.
-function relForGlob(root, filePath) {
+export function relForGlob(root, filePath) {
   let f = String(filePath).replace(/\\/g, '/');
   const r = String(root).replace(/\\/g, '/').replace(/\/$/, '');
   if (r && f.toLowerCase().startsWith(r.toLowerCase() + '/')) f = f.slice(r.length + 1);

@@ -28,7 +28,8 @@ export { writeItemFile } from './lib/store-write.mjs';
 export {
   wipSummary, remoteWebUrl, remoteCommitUrl, aheadBehind, formatWip, WIP_FILES, WIP_COMMITS,
 } from './lib/git-state.mjs';
-export { loadIgnoreConfig, globToRegExp, pathExcluded, markerExcludedLines, excludeFooter } from './lib/exclusions.mjs';
+export { loadIgnoreConfig, globToRegExp, relForGlob, pathExcluded, markerExcludedLines, excludeFooter } from './lib/exclusions.mjs';
+export { loadWritePolicy, forbiddenBy } from './lib/write-policy.mjs';
 export { MAINT_LOG, logGap } from './lib/maintenance-log.mjs';
 export { scanInbox, scanReviewQueue, scanStaleDoingTickets } from './lib/closure-scans.mjs';
 export { scanReminders } from './lib/reminders.mjs';

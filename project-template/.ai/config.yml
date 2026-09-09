@@ -205,3 +205,14 @@ regressions:
 # their uncommitted + unpushed state so local-only work elsewhere is never lost.
 # ---------------------------------------------------------------------------
 watch_repos: []
+
+# ---------------------------------------------------------------------------
+# WRITE_POLICY — files an agent must NEVER write in this project (e.g. a retired
+# stack kept only as a port reference). The pre-write gate hard-blocks a match
+# (check-id `forbidden-path`) with the reason; the only escape is a per-path
+# glob under `forbidden-path` in .claude-kit-ignore.yaml. Empty = no policy.
+# ---------------------------------------------------------------------------
+# write_policy:
+#   forbidden:
+#     - glob: "**/*.tsx"
+#       reason: "<decision id>: the UI is native; TypeScript is a port reference only."

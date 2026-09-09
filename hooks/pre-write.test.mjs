@@ -180,6 +180,29 @@ try {
     ok('pre-write: legacy .claudekit-ignore no longer bypasses (still blocks)', r.code === 2);
     ok('pre-write: legacy marker warns with the yaml migration', r.out.includes('RETIRED') && r.out.includes('.claude-kit-ignore.yaml'));
   }
+  // write_policy.forbidden: a project declares files an agent must never write. The block is
+  // loud, first, and lifted only by a per-path carve-out under `forbidden-path`.
+  {
+    const policed = adopted(false);
+    writeFileSync(
+      join(policed, '.ai', 'config.yml'),
+      'write_policy:\n  forbidden:\n    - glob: "**/*.ts"\n      reason: "editor is native Rust; TypeScript is a port reference only"\n    - glob: "**/*.tsx"\n      reason: "same"\n',
+    );
+    const clean = 'export function f(x: number): number {\n  return x + 1;\n}\n';
+    const ts = pw({ file_path: join(policed, 'ts', 'editor.ts'), content: clean }, policed);
+    ok('pre-write: write_policy.forbidden blocks a TypeScript write', ts.code === 2);
+    ok('pre-write: the forbidden block names the glob and the reason', ts.out.includes('**/*.ts') && ts.out.includes('port reference'));
+    ok('pre-write: the forbidden block is loud', ts.out.includes('MUST NOT BE WRITTEN'));
+    const tsx = pw({ file_path: join(policed, 'ts', 'App.tsx'), old_string: 'a', new_string: 'b' }, policed);
+    ok('pre-write: write_policy.forbidden blocks an Edit as well as a Write', tsx.code === 2);
+    const rs = pw({ file_path: join(policed, 'rust', 'editor.rs'), content: 'pub fn f(x: i32) -> i32 {\n    x + 1\n}\n' }, policed);
+    ok('pre-write: a file outside the forbidden globs passes', rs.code === 0);
+    writeFileSync(join(policed, '.claude-kit-ignore.yaml'), 'forbidden-path:\n  - "ts/server/**"\n');
+    const carved = pw({ file_path: join(policed, 'ts', 'server', 'index.ts'), content: clean }, policed);
+    ok('pre-write: a per-path carve-out under forbidden-path lifts the block', carved.code === 0);
+    const stillBlocked = pw({ file_path: join(policed, 'ts', 'editor.ts'), content: clean }, policed);
+    ok('pre-write: the carve-out lifts only its own path', stillBlocked.code === 2);
+  }
 } finally {
   cleanup();
 }

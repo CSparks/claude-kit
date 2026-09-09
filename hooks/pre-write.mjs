@@ -5,7 +5,10 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
-import { payload, projectRoot, gitRoot, pathExcluded, markerExcludedLines, excludeFooter, VENDORED, LOCKFILES, fileExt } from './lib.mjs';
+import {
+  payload, projectRoot, gitRoot, pathExcluded, markerExcludedLines, excludeFooter, VENDORED, LOCKFILES, fileExt,
+  loadWritePolicy, forbiddenBy, globToRegExp, relForGlob,
+} from './lib.mjs';
 import { recordTurnWrite } from './turn-writes.mjs';
 
 // Fail-open guard (KIT-T055): an unexpected throw anywhere below must never wedge a
@@ -173,6 +176,30 @@ const ROOT = _gitRoot || projectRoot(dirname(file));
 // KIT-T106: record the path in the turn's writes ledger BEFORE any quality check can exit, so
 // the commit gate knows what this turn authored even when a later gate blocks this write.
 if (_gitRoot) recordTurnWrite(_gitRoot, file);
+
+// write_policy (KIT: forbidden-path). A project can declare files an agent must never write —
+// e.g. a retired TypeScript tree kept only as a port reference. This is the FIRST check and a
+// hard block on its own: the file is the thing not to touch, so no other check matters and no
+// in-source marker can lift it. The only escape is a per-path glob under `forbidden-path` in
+// .claude-kit-ignore.yaml, which is a visible, reviewable carve-out.
+{
+  const forbidden = forbiddenBy(loadWritePolicy(ROOT), relForGlob(ROOT, norm), globToRegExp);
+  if (forbidden && !pathExcluded(ROOT, 'forbidden-path', file)) {
+    process.stderr.write(
+      `\n${'!'.repeat(78)}\n` +
+        `BLOCKED: THIS FILE MUST NOT BE WRITTEN IN THIS PROJECT.\n` +
+        `  ${file}\n` +
+        `  matches write_policy.forbidden glob "${forbidden.glob}" in .ai/config.yml\n` +
+        `  reason: ${forbidden.reason || '(none given)'}\n` +
+        `Do not retry, rephrase, or route the change through another tool. If the request needs\n` +
+        `this file, STOP and tell the maintainer what was asked and why it lands here.\n` +
+        `The only exclusion is a path glob under \`forbidden-path\` in .claude-kit-ignore.yaml at the\n` +
+        `repo root (check-id: forbidden-path). No in-source marker lifts this check.\n` +
+        `${'!'.repeat(78)}\n`,
+    );
+    process.exit(2);
+  }
+}
 //
 // KIT-T111/KIT-T155: an Edit payload carries only the replacement FRAGMENT, so markers
 // living outside it (a line-1 `ignore-file`, an enclosing start/end block) were invisible
