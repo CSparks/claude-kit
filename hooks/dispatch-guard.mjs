@@ -17,7 +17,7 @@ import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, par
 import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
 // The pin + session-model resolvers moved to model-tag.mjs when the activity line needed the same
 // answer (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
-import { pinnedModel, latestAssistantModel, modelDisplay } from './model-tag.mjs';
+import { pinnedModel, definitionTools, latestAssistantModel, modelDisplay } from './model-tag.mjs';
 
 const LADDER_CHECK = 'dispatch-ladder';
 const COLD_BUILD_CHECK = 'cold-worktree-build';
@@ -32,6 +32,11 @@ const ALLOW_PARALLEL_BARE = /\[allow-parallel\b/i;
 // otherwise wedge every later dispatch in the repo.
 const SHARED_TREE_WINDOW_MS = 2 * 60 * 60 * 1000;
 const MS_PER_MIN = 60 * 1000;
+// Tools that write the working tree. A type granted none of them is READ-ONLY (a researcher,
+// a reviewer, the built-in Explore/Plan): it has no edit→build→measure loop and leaves no
+// half-written files, so it neither pays nor imposes the shared-tree and parallel costs.
+const WRITE_TOOLS = /^(Edit|Write|NotebookEdit|MultiEdit)$/i;
+const BUILTIN_READ_ONLY = new Set(['explore', 'plan', 'claude-code-guide']);
 const ROSTER_TASK_CHARS = 80; // one scannable line per in-flight agent in the block message
 
 try {
@@ -140,10 +145,11 @@ function coldWorktreeBlock(root, input, prompt) {
 function sharedTreeBlock(root, input, prompt) {
   if (isWorktreeIsolation(input.isolation)) return null; // its own checkout — this IS the remedy
   if (/\[shared-tree-ok\b/i.test(prompt)) return null;
+  if (readOnlyAgent(root, label(input))) return null; // nothing to corrupt, nothing to poll
   if (pathExcluded(root, SHARED_TREE_CHECK, root)) return null;
   const now = Date.now();
   const tree = dispatchTargetRoot(root, input);
-  const live = liveAgents(root, now, tree);
+  const live = liveAgents(root, now, tree).filter((r) => !readOnlyAgent(root, r.scope));
   if (!live.length) return null;
 
   return [
@@ -182,9 +188,10 @@ function sharedTreeBlock(root, input, prompt) {
 function parallelBlock(root, input, prompt) {
   if (!existsSync(join(root, 'Cargo.toml'))) return null; // no compile loop — no gate
   if (ALLOW_PARALLEL.test(prompt)) return null;
+  if (readOnlyAgent(root, label(input))) return null; // analytical lane — no build to contend
   if (pathExcluded(root, PARALLEL_CHECK, root)) return null;
   const now = Date.now();
-  const live = liveAnywhere(root, now);
+  const live = liveAnywhere(root, now).filter((r) => !readOnlyAgent(root, r.scope));
   if (!live.length) return null;
   const bareEscape = ALLOW_PARALLEL_BARE.test(prompt);
 
@@ -277,4 +284,13 @@ function rosterModel(row) {
 
 function label(input) {
   return String(input.subagent_type || input.agent_type || input.task_name || '').trim() || '(default)';
+}
+
+// A type is read-only when it is a built-in analytical agent or its definition's `tools:`
+// grants no writing tool. Unknown types and definitions granting everything count as writers.
+function readOnlyAgent(root, type) {
+  const name = String(type || '').split(':').pop().trim().toLowerCase();
+  if (BUILTIN_READ_ONLY.has(name)) return true;
+  const tools = definitionTools(root, type);
+  return Array.isArray(tools) && !tools.some((t) => WRITE_TOOLS.test(t));
 }

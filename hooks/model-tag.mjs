@@ -120,6 +120,22 @@ function superprojects(root) {
 // .claude/agents/, then the user's. A definition FOUND without a model line returns '' —
 // an unpinned type must be routed explicitly.
 export function pinnedModel(root, subagentType) {
+  const m = definitionFrontmatter(root, subagentType).match(/^model:\s*([^\s#]+)/m);
+  return m ? m[1] : '';
+}
+
+// The `tools:` list from the agent definition's frontmatter: an array of tool names, or null
+// when no definition was found, it lists no tools, or it grants everything ('*'). A caller
+// asking whether a type can WRITE treats null as "unknown — assume it can".
+export function definitionTools(root, subagentType) {
+  const m = definitionFrontmatter(root, subagentType).match(/^tools:\s*(.+)$/m);
+  if (!m) return null;
+  const tools = m[1].split(',').map((t) => t.trim()).filter(Boolean);
+  return !tools.length || tools.includes('*') ? null : tools;
+}
+
+// The frontmatter block of the first definition found for `subagentType`, '' when none.
+function definitionFrontmatter(root, subagentType) {
   const name = String(subagentType || '').split(':').pop().trim();
   if (!name) return '';
   const hookDir = dirname(fileURLToPath(import.meta.url));
@@ -135,8 +151,7 @@ export function pinnedModel(root, subagentType) {
       if (!existsSync(file)) continue;
       const head = readFileSync(file, 'utf8').slice(0, DEFINITION_HEAD_BYTES);
       const fm = head.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-      const m = fm && fm[1].match(/^model:\s*([^\s#]+)/m);
-      return m ? m[1] : '';
+      return fm ? fm[1] : '';
     } catch {
       /* unreadable probe — try the next layout */
     }

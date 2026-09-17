@@ -201,6 +201,31 @@ expect('parallel message names the cost-bearing escape', /\[allow-parallel: N la
 expect('a bare escape is told the cost is missing', /names no cost/.test(run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: 'x [allow-parallel: because]' }).err) ? 1 : 0, 1);
 expect('parallel message carries the exclude footer', /id: parallel-dispatch/.test(parMsg) ? 1 : 0, 1);
 
+// --- read-only lanes never block and are never blocked --------------------------------
+// Both checks price the edit→build→measure loop. An agent whose definition grants no writing
+// tool (researcher, reviewer, the built-in Explore/Plan) has no such loop and no half-written
+// files, so analytical lanes run in parallel (the maintainer, 2026-09-17: "WE definitely should
+// be able to run parallel agents doing analytical work").
+{
+  const withAgents = (defs) => {
+    const dir = roster(makeRepo({ cargo: true }), [inFlightRow()]);
+    mkdirSync(join(dir, '.claude', 'agents'), { recursive: true });
+    for (const [name, tools] of Object.entries(defs)) writeFileSync(join(dir, '.claude', 'agents', `${name}.md`), `---\nname: ${name}\nmodel: claude-opus-4-8\ntools: ${tools}\n---\nbody\n`);
+    return dir;
+  };
+  const defs = { reader: 'Read, Grep, Glob, Bash, WebSearch', writer: 'Read, Grep, Edit, Bash', anything: '*' };
+  expect('a read-only project agent dispatches while a writer is in flight', run(withAgents(defs), { subagent_type: 'reader', prompt: 'audit the generators' }).code, 0);
+  expect('a project agent granted Edit still blocks', run(withAgents(defs), { subagent_type: 'writer', prompt: 'fix the generators' }).code, 2);
+  expect('a project agent granted every tool still blocks', run(withAgents(defs), { subagent_type: 'anything', prompt: 'fix the generators' }).code, 2);
+  expect('the built-in Explore agent dispatches while a writer is in flight', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: 'Explore', model: 'opus', prompt: 'find the callers' }).code, 0);
+  expect('the kit researcher (plugin-prefixed) dispatches while a writer is in flight', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: 'claude-kit:researcher', prompt: 'trace the load path' }).code, 0);
+  const readerLive = withAgents(defs);
+  roster(readerLive, [inFlightRow(0, { scope: 'reader', task: 'audit the generators' })]);
+  expect('a writer dispatches while only a read-only lane is in flight', run(readerLive, one).code, 0);
+  roster(readerLive, [inFlightRow(0, { scope: 'reader' }), inFlightRow(0, { id: 'agent-writer', scope: 'writer' })]);
+  expect('…but not while a writer lane is in flight beside it', run(readerLive, one).code, 2);
+}
+
 // cold-worktree-build now also fires on a HAND-MADE worktree named in the brief (the
 // 2026-08-25 lanes were `git worktree add`-ed by hand and dodged the isolation check).
 {
