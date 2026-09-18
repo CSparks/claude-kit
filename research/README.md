@@ -26,4 +26,5 @@ Status: 🔬 ready · ✅ applied somewhere · ♻️ partial · 🗄️ superse
 ## Index
 | Doc | Topic | Status |
 | --- | --- | --- |
-| _(none yet — seed by classifying generic findings out of project research)_ | | |
+| [model-routing-ladder-2026-08.md](model-routing-ladder-2026-08.md) | Model lineup, behavior, dispatch-ladder evidence | ✅ |
+| [effort-cost-index-2026-09.md](effort-cost-index-2026-09.md) | Anthropic effort cost index per model; ladder readings | ✅ |

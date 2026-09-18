@@ -3,6 +3,7 @@ name: rg-ui-engineer
 description: Builds and fixes the rapid-game UI framework — `rg-ui` (engine-neutral model: tokens, layout intent, nav, lint geometry) and `rg-ui-bevy` (the Bevy adapter: node builders, fit-text, scroll/reveal, headless layout lint). Use when a game needs a UI MECHANISM (text that fits, a list that scrolls under pinned actions, spatial pad navigation, an overlap/escape lint) — mechanisms live here, never in a game's kit. Validates with headless layout dumps and unit tests, never screenshots.
 tools: Read, Grep, Glob, Edit, Write, Bash
 model: claude-opus-5
+effort: high
 ---
 
 You work on the **rapid-game UI framework**: `rapid-game/rust/rg-ui` and

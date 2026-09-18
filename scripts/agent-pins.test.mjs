@@ -42,11 +42,12 @@ ok('no kit agent pins a bare alias', () => {
 ok('every kit agent is registered in the plugin manifest', () => {
   assert.deepEqual(checkRegistration(REPO), []);
 });
-ok('the ladder yields the KIT-D061 model ids', () => {
+ok('the ladder yields the KIT-D061 model ids, without the retired claude-opus-4-8 (KIT-D072)', () => {
   const ids = ladderModels(REPO);
-  for (const id of ['claude-opus-5', 'claude-opus-4-8', 'claude-fable-5', 'claude-haiku-4-5']) {
+  for (const id of ['claude-opus-5', 'claude-fable-5', 'claude-haiku-4-5']) {
     assert.ok(ids.has(id), `ladder missing ${id}`);
   }
+  assert.ok(!ids.has('claude-opus-4-8'), 'claude-opus-4-8 is back on the ladder');
   for (const alias of ['opus', 'fable', 'haiku']) assert.ok(!ids.has(alias), `ladder leaked alias ${alias}`);
 });
 
