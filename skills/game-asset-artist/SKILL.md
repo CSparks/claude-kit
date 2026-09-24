@@ -1,6 +1,6 @@
 ---
 name: game-asset-artist
-description: Author procedural game meshes, materials, textures, and asset factories in code with numeric validation. Use when building or revising a game prop, vehicle, building, terrain feature, or asset-module structure.
+description: Build procedural game assets in code from shaped primitives and reusable component recipes, with low-poly vertex-level modelling, geometry-guided material layers and numeric validation. Use for props, vehicles, buildings, characters, terrain assets, or kitbash libraries.
 ---
 
 # Author procedural game assets
