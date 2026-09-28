@@ -157,6 +157,7 @@
 - KIT-T270 — Build broker — one shared build checkout serially verifies + lands worker jobs from cheap worktrees (medium)
 - KIT-T271 — Roll the build broker out on stiletto — add broker: config + start the daemon once its checkout is free (medium)
 - KIT-T274 — write_policy.forbidden: a project declares files an agent must never write (e.g. a retired TypeScript tree kept as a port reference); pre-write hard-blocks with a loud message, check-id forbidden-path, only a per-path carve-out lifts it; RG sets it for ts/tsx/jsx (RG-D022/RG-D078). Triggered by Claude editing a TSX zoom limit on 2026-09-09 after being told the editor is native Rust. (medium)
+- KIT-T276 — Decide the future of the broker-worker skill and build broker under KIT-D074: its workers edit in worktrees on lane branches, which branch-guard and dispatch-guard now block (medium)
 - KIT-T072 — Quiet the per-turn hook chatter — dedupe advisories, conditional receipts (low)
 - KIT-T073 — Progressive disclosure for the global contract — specialist sections become on-demand skills (low)
 - KIT-T078 — Command-level model tiering — static `model:` on fixed-cost read-only commands (low)
