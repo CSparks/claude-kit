@@ -66,6 +66,8 @@ process failure; the stale-doing detector (housekeeping + orient) will flag it l
 ## Index
 | Agent | Role | Tools |
 | --- | --- | --- |
+| [analyst](analyst.md) | Read-only root-cause analysis and design on claude-opus-5-5 (high); never edits, builds or runs; may run alongside a writer | Read, Grep, Glob, Bash (read-only) |
+| [analyst-max](analyst-max.md) | Same as analyst at maximum effort, for the hardest problems | Read, Grep, Glob, Bash (read-only) |
 | [researcher](researcher.md) | Read-only investigation (codebase + web); returns sourced answers with pointers | Read, Grep, Glob, Bash, WebSearch, WebFetch |
 | [code-reviewer](code-reviewer.md) | Reviews changes for correctness/security/maintainability; reports, doesn't fix | Read, Grep, Glob, Bash |
 | [refactorer](refactorer.md) | Behavior-preserving restructure, verified with tests | Read, Grep, Glob, Edit, Write, Bash |

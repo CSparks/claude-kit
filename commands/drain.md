@@ -70,8 +70,8 @@ in parallel while that thread waits.
 
 **SUBAGENTS — ONE IMPLEMENTATION AGENT AT A TIME (KIT-T256, KIT-D039):** every writing agent
 works in the one checkout, on main, serially — the next ticket goes to the same agent once the
-last one lands. No worktrees, clones, branches or second directories. Read-only research agents
-may run alongside. Batch all maintainer decisions into one AskUserQuestion questionnaire rather
+last one lands. No worktrees, clones, branches or second directories. Read-only agent types
+(`claude-kit:analyst`, `analyst-max`, `researcher`, Explore) may run alongside. Batch all maintainer decisions into one AskUserQuestion questionnaire rather
 than surfacing them piecemeal. Never `git stash` (KIT-T233); baseline via `git diff > <file>` +
 checkout, or a WIP commit on main. A delegated agent must VERIFY its change by exercising it as the user would — run the
 test suite, start the app, or hit the probe — and report empirical evidence. A compile-check alone

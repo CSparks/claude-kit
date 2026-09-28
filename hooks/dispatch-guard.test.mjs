@@ -2,11 +2,12 @@
 // dispatch-ladder: BLOCK on a model-less delegation inheriting a fable session; ALLOW on
 //   explicit models, frontmatter-pinned kit agents, non-fable sessions, [allow-fable],
 //   missing transcripts, unadopted repos, malformed payloads.
-// cold-worktree-build (KIT-D039): BLOCK any worktree dispatch into a Cargo workspace, even with
+// cold-worktree-build (KIT-D074): BLOCK any worktree dispatch in any adopted repo, even with
 //   CARGO_TARGET_DIR or [cold-build-ok] in the brief; ALLOW only on [maintainer-asked-worktree:
-//   <his words>], a non-Rust repo, the ignore file.
-// shared-tree-dispatch: BLOCK a non-worktree dispatch while the roster shows a live agent IN THIS
-//   TREE; ALLOW on [shared-tree-ok], an empty/stale/finished/corrupt roster,
+//   <his words>] or the ignore file.
+// shared-tree-dispatch: BLOCK a writing dispatch while the roster shows a live writer IN THIS
+//   TREE; ALLOW a read-only agent type, [maintainer-asked-parallel: <his words>], an
+//   empty/stale/finished/corrupt roster,
 //   and (KIT-T177) on a row that is worktree-isolated or aimed at another repo.
 // Run: node hooks/dispatch-guard.test.mjs
 
@@ -115,7 +116,8 @@ expect('blocks even when the brief provisions CARGO_TARGET_DIR (KIT-D039)', run(
 expect('blocks even with the retired [cold-build-ok: reason] token', run(rust, { ...wt, prompt: 'one-off audit [cold-build-ok: no cargo run needed]' }).code, 2);
 expect('allows the [maintainer-asked-worktree: <his words>] escape', run(rust, { ...wt, prompt: 'demo [maintainer-asked-worktree: "put the demo in a worktree"]' }).code, 0);
 expect('an empty [maintainer-asked-worktree:] does not escape', run(rust, { ...wt, prompt: 'demo [maintainer-asked-worktree: ]' }).code, 2);
-expect('allows a worktree dispatch in a non-Rust repo', run(plain, wt).code, 0);
+expect('blocks a worktree dispatch in a non-Rust repo too (KIT-D074)', run(plain, wt).code, 2);
+expect('allows the maintainer escape in a non-Rust repo', run(plain, { ...wt, prompt: 'x [maintainer-asked-worktree: "use a worktree here"]' }).code, 0);
 expect('allows a non-worktree dispatch in a Cargo workspace', run(rust, { subagent_type: 'general-purpose', model: 'opus', prompt: 'x' }).code, 0);
 expect('allows via the ignore file (cold-worktree-build)', run(ignoreFile(makeRepo({ cargo: true }), 'cold-worktree-build'), wt).code, 0);
 expect('allows on malformed stdin with a Cargo repo (fail-open)', runRaw(rust, '{not json').code, 0);
@@ -130,12 +132,14 @@ expect('cold-build message carries the exclude footer', /id: cold-worktree-build
 const busy = roster(makeRepo({ cargo: true }), [inFlightRow()]);
 const shared = { subagent_type: 'general-purpose', model: 'opus', prompt: 'add the ore-seam test (KIT-T176)' };
 
-// KIT-T256 layers parallel-dispatch OVER this check: a live agent anywhere blocks unless the
-// prompt states the parallel cost, so the shared-tree escapes below carry that token too.
-const PAR = '[allow-parallel: 2 lanes, ~400k tokens each, disjoint files] CARGO_TARGET_DIR=../main/target';
+// The one escape for both shared-tree and parallel-dispatch: the maintainer's quoted words.
+const PAR = '[maintainer-asked-parallel: "run both lanes at once"]';
+const RETIRED_PAR = '[allow-parallel: 2 lanes, ~400k tokens each, disjoint files]';
 expect('blocks a second dispatch while an agent is in flight', run(busy, shared).code, 2);
-expect('blocks a worktree dispatch while an agent is in flight, cost stated (KIT-D039)', run(busy, { ...shared, isolation: 'worktree', prompt: `${shared.prompt} ${PAR}` }).code, 2);
-expect('allows the [shared-tree-ok: reason] escape (cost stated)', run(busy, { ...shared, prompt: `read-only sweep [shared-tree-ok: no writes] ${PAR}` }).code, 0);
+expect('blocks a worktree dispatch while an agent is in flight, even maintainer-asked parallel', run(busy, { ...shared, isolation: 'worktree', prompt: `${shared.prompt} ${PAR}` }).code, 2);
+expect('allows the [maintainer-asked-parallel: <his words>] escape', run(busy, { ...shared, prompt: `${shared.prompt} ${PAR}` }).code, 0);
+expect('an empty [maintainer-asked-parallel:] does not escape', run(busy, { ...shared, prompt: 'x [maintainer-asked-parallel: ]' }).code, 2);
+expect('the retired [shared-tree-ok: reason] note no longer escapes', run(busy, { ...shared, prompt: `read-only sweep [shared-tree-ok: no writes] ${RETIRED_PAR}` }).code, 2);
 expect('allows via the ignore file (shared-tree-dispatch + parallel-dispatch)', run(ignoreFile(roster(makeRepo(), [inFlightRow()]), 'shared-tree-dispatch', 'parallel-dispatch'), shared).code, 0);
 expect('allows with no roster at all', run(makeRepo(), shared).code, 0);
 expect('allows with an empty roster', run(roster(makeRepo(), []), shared).code, 0);
@@ -161,7 +165,7 @@ expect('a worktree-isolated live row still blocks (parallel-dispatch)', run(wtRo
 expect('a live row targeting another repo still blocks (parallel-dispatch)', run(roster(makeRepo({ cargo: true }), [inFlightRow(0, { targetRoot: elsewhere })]), shared).code, 2);
 expect('blocks when the live row targets THIS tree', run(sameTree, shared).code, 2);
 expect('a new dispatch aimed at another repo root still blocks (parallel-dispatch)', run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\`` }).code, 2);
-expect('…and passes once the parallel cost is stated', run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\` ${PAR}` }).code, 0);
+expect('…and passes once the maintainer asked for parallel',run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\` ${PAR}` }).code, 0);
 expect('blocks an old-format row with neither field (conservative)', run(roster(makeRepo(), [inFlightRow()]), shared).code, 2);
 expect('an old-format row still ages out at 2h', run(roster(makeRepo(), [inFlightRow(3 * HOURS, { targetRoot: undefined })]), shared).code, 0);
 expect('a row with an unparseable isolation value still counts (fail toward the halt)', run(roster(makeRepo(), [inFlightRow(0, { isolation: 42 })]), shared).code, 2);
@@ -172,7 +176,8 @@ const sharedMsg = run(busy, shared).err;
 expect('shared-tree message names the one-agent-per-tree rule', /two agents in one working tree/i.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message lists the in-flight agent', /agent-live/.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message never steers to worktree isolation', /isolation: ?"worktree"|git worktree add/.test(sharedMsg) ? 1 : 0, 0);
-expect('shared-tree message names the escape token', /\[shared-tree-ok/.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message names the maintainer escape, not the retired note', /\[maintainer-asked-parallel:/.test(sharedMsg) && !/shared-tree-ok/.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message names the read-only agent types', /claude-kit:analyst/.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message carries the exclude footer', /id: shared-tree-dispatch/.test(sharedMsg) ? 1 : 0, 1);
 
 // A busy tree that is also unadopted stays silent — the global install never punishes a
@@ -181,27 +186,27 @@ expect('allows on an unadopted repo with a Cargo.toml', run(makeRepo({ adopt: fa
 
 // --- parallel-dispatch (KIT-T256) ------------------------------------------------
 // Lived failure (2026-08-25): four implementation agents in four hand-made worktrees, ~300-600k
-// tokens each, four cold builds on one box. ONE agent at a time, any tree; the only escape
-// states the cost.
+// tokens each, four cold builds on one box. ONE writing agent at a time, any tree; the only
+// escape is the maintainer's quoted words (KIT-D074).
 const one = { subagent_type: 'general-purpose', model: 'opus', prompt: 'implement the next ticket (KIT-T256)' };
 expect('blocks a second agent while one is in flight (any tree)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), one).code, 2);
 expect('blocks even when the live agent is in its own worktree', run(roster(makeRepo({ cargo: true }), [inFlightRow(0, { isolation: 'worktree' })]), one).code, 2);
-expect('a bare [allow-parallel: reason] with no cost still blocks', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `${one.prompt} [allow-parallel: disjoint files]` }).code, 2);
-expect('the cost token does not lift a worktree dispatch (cold-worktree-build, KIT-D039)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, isolation: 'worktree', prompt: `${one.prompt} ${PAR}` }).code, 2);
-expect('the cost token alone does not lift the same-tree block (shared-tree still fires)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `${one.prompt} ${PAR}` }).code, 2);
+expect('the retired cost-stating [allow-parallel: …] token no longer escapes (KIT-D074)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `${one.prompt} ${RETIRED_PAR}` }).code, 2);
+expect('the maintainer token does not lift a worktree dispatch (cold-worktree-build)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, isolation: 'worktree', prompt: `${one.prompt} ${PAR}` }).code, 2);
+expect('the maintainer token lifts both the parallel and same-tree blocks', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `${one.prompt} ${PAR}` }).code, 0);
 expect('allows the first agent (empty roster)', run(roster(makeRepo({ cargo: true }), []), one).code, 0);
 expect('allows after the previous agent finished', run(roster(makeRepo({ cargo: true }), [inFlightRow(), { ts: new Date().toISOString(), id: 'agent-live', status: 'done' }]), one).code, 0);
 expect('allows when the live row is stale (>2h)', run(roster(makeRepo({ cargo: true }), [inFlightRow(3 * HOURS)]), one).code, 0);
 expect('allows via the ignore file (parallel-dispatch)', run(ignoreFile(roster(makeRepo({ cargo: true }), [inFlightRow()]), 'parallel-dispatch', 'shared-tree-dispatch'), one).code, 0);
-expect('allows in a NON-Rust repo even with a live agent (the concern is the compile loop)', run(roster(makeRepo(), [inFlightRow()]), { ...one, isolation: 'worktree' }).code, 0);
+expect('parallel-dispatch stays silent in a NON-Rust repo (the concern is the compile loop)', /ONE agent at a time/.test(run(roster(makeRepo(), [inFlightRow()]), one).err) ? 1 : 0, 0);
 expect('fails open on a corrupt roster', run(roster(makeRepo({ cargo: true }), ['{ nope']), one).code, 0);
 
 const parMsg = run(roster(makeRepo({ cargo: true }), [inFlightRow()]), one).err;
 expect('parallel message states ONE agent at a time', /ONE agent at a time/.test(parMsg) ? 1 : 0, 1);
 expect('parallel message cites the lived four-lane burn', /four lanes/.test(parMsg) ? 1 : 0, 1);
 expect('parallel message names the serialize remedy', /serialize/.test(parMsg) ? 1 : 0, 1);
-expect('parallel message names the cost-bearing escape', /\[allow-parallel: N lanes, ~Xk tokens each/.test(parMsg) ? 1 : 0, 1);
-expect('a bare escape is told the cost is missing', /names no cost/.test(run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: 'x [allow-parallel: because]' }).err) ? 1 : 0, 1);
+expect('parallel message names only the maintainer escape', /\[maintainer-asked-parallel:/.test(parMsg) && !/\[allow-parallel/.test(parMsg) ? 1 : 0, 1);
+expect('a retired token is told it is retired', /retired/.test(run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `x ${RETIRED_PAR}` }).err) ? 1 : 0, 1);
 expect('parallel message carries the exclude footer', /id: parallel-dispatch/.test(parMsg) ? 1 : 0, 1);
 
 // --- read-only lanes never block and are never blocked --------------------------------
@@ -222,6 +227,11 @@ expect('parallel message carries the exclude footer', /id: parallel-dispatch/.te
   expect('a project agent granted every tool still blocks', run(withAgents(defs), { subagent_type: 'anything', prompt: 'fix the generators' }).code, 2);
   expect('the built-in Explore agent dispatches while a writer is in flight', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: 'Explore', model: 'opus', prompt: 'find the callers' }).code, 0);
   expect('the kit researcher (plugin-prefixed) dispatches while a writer is in flight', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: 'claude-kit:researcher', prompt: 'trace the load path' }).code, 0);
+  for (const type of ['claude-kit:analyst', 'claude-kit:analyst-max']) {
+    expect(`the kit ${type} dispatches while a writer is in flight (read-only by definition)`, run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: type, prompt: 'root-cause the seam' }).code, 0);
+  }
+  const analystLive = roster(makeRepo({ cargo: true }), [inFlightRow(0, { scope: 'claude-kit:analyst', task: 'root-cause the seam' })]);
+  expect('a writer dispatches while only a kit analyst is in flight', run(analystLive, one).code, 0);
   const readerLive = withAgents(defs);
   roster(readerLive, [inFlightRow(0, { scope: 'reader', task: 'audit the generators' })]);
   expect('a writer dispatches while only a read-only lane is in flight', run(readerLive, one).code, 0);
@@ -238,7 +248,14 @@ expect('parallel message carries the exclude footer', /id: parallel-dispatch/.te
   execFileSync('git', ['worktree', 'add', '-q', wtDir], { cwd: main });
   const named = { subagent_type: 'general-purpose', model: 'opus', prompt: `You work in the worktree \`${wtDir}\` (branch wt/x). Implement KIT-T256.` };
   expect('blocks a brief naming a hand-made worktree in a Cargo repo (cold build)', /cold-worktree-build/.test(run(main, named).err) ? 1 : 0, 1);
-  expect('still blocks it with CARGO_TARGET_DIR provisioned (KIT-D039)', run(main, { ...named, prompt: `${named.prompt} Set CARGO_TARGET_DIR=${join(main, 'target')} first.` }).code, 2);
+  {
+    const plainMain = makeRepo();
+    execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '--allow-empty', '-m', 'seed'], { cwd: plainMain });
+    const plainWt = join(plainMain, '..', `dg-wt-plain-${process.pid}`);
+    execFileSync('git', ['worktree', 'add', '-q', plainWt], { cwd: plainMain });
+    expect('blocks a brief naming a hand-made worktree in a non-Rust repo (KIT-D074)', run(plainMain, { ...named, prompt: `Work in \`${plainWt}\`.` }).code, 2);
+  }
+  expect('still blocks it with CARGO_TARGET_DIR provisioned (KIT-D039)',run(main, { ...named, prompt: `${named.prompt} Set CARGO_TARGET_DIR=${join(main, 'target')} first.` }).code, 2);
 
   // A SUBMODULE's .git is a file too (gitdir → .git/modules/…); naming one — every framework
   // brief does — is not a worktree dispatch. Lived false positive: 2026-08-26, stiletto/rapid-game.

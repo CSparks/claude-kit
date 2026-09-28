@@ -2,9 +2,9 @@
 // PreToolUse (Task|Agent) — the dispatch gate. Every check here fires at the ONE choke point
 // where a delegation's cost is decided: the moment it is dispatched.
 //   dispatch-ladder      (KIT-T151) — the silent fable inherit
-//   cold-worktree-build  (KIT-T176, KIT-D039) — any worktree dispatch in a Rust workspace
-//   shared-tree-dispatch (KIT-T176) — a second agent into a checkout that already has one
-//   parallel-dispatch    (KIT-T256) — a second implementation agent in flight AT ALL, any tree
+//   cold-worktree-build  (KIT-T176, KIT-D074) — any worktree dispatch, any project
+//   shared-tree-dispatch (KIT-T176) — a second writing agent into a checkout that has one
+//   parallel-dispatch    (KIT-T256) — a second writing agent in flight AT ALL in a Rust workspace
 // exit 2 = block, 0 = allow. No-ops on unadopted repos; FAIL-OPEN everywhere else.
 //
 // Every check is independent: it decides on its own escape token, its own ignore-file key, and
@@ -23,10 +23,11 @@ const LADDER_CHECK = 'dispatch-ladder';
 const COLD_BUILD_CHECK = 'cold-worktree-build';
 const SHARED_TREE_CHECK = 'shared-tree-dispatch';
 const PARALLEL_CHECK = 'parallel-dispatch';
-// The escape must STATE THE COST: a lane count and a per-lane token figure. A bare reason is
-// not an escape — the whole point is that the number is written before the spend.
-const ALLOW_PARALLEL = /\[allow-parallel:[^\]]*\b\d+\s*k\b[^\]]*\]/i;
-const ALLOW_PARALLEL_BARE = /\[allow-parallel\b/i;
+// The only escapes are the maintainer's own words, quoted (KIT-D074). An agent cannot grant itself
+// a worktree or a second writer; an empty token does not count.
+const MAINTAINER_PARALLEL = /\[maintainer-asked-parallel:\s*[^\]\s][^\]]*\]/i;
+const MAINTAINER_WORKTREE = /\[maintainer-asked-worktree:\s*[^\]\s][^\]]*\]/i;
+const RETIRED_PARALLEL = /\[allow-parallel\b/i;
 // An in-flight roster row older than this is treated as abandoned, not as a live colleague: the
 // harness cannot always report a background agent's completion, so an uncollected row would
 // otherwise wedge every later dispatch in the repo.
@@ -38,6 +39,17 @@ const MS_PER_MIN = 60 * 1000;
 const WRITE_TOOLS = /^(Edit|Write|NotebookEdit|MultiEdit)$/i;
 const BUILTIN_READ_ONLY = new Set(['explore', 'plan', 'claude-code-guide']);
 const ROSTER_TASK_CHARS = 80; // one scannable line per in-flight agent in the block message
+// Remedy lines shared by the shared-tree and parallel blocks: serialize, or send a read-only
+// agent type, or quote the maintainer.
+const SERIAL_FIX = [
+  'Fix — pick one (never a worktree or second checkout — KIT-D074):',
+  '  • serialize: wait for the in-flight agent, collect its result, then hand THAT agent',
+  '    (or one new one) the next ticket — warm build, warm context;',
+  '  • analysis only: dispatch a READ-ONLY agent type instead (claude-kit:analyst,',
+  '    claude-kit:analyst-max, claude-kit:researcher, Explore) — they run alongside a writer;',
+  '  • only if the maintainer explicitly asked for parallel writers: include',
+  '    [maintainer-asked-parallel: <his words>] in the prompt.',
+];
 
 try {
   const p = await payload();
@@ -104,41 +116,39 @@ function ladderBlock(root, input, prompt, p) {
   ].join('\n');
 }
 
-// --- cold-worktree-build (KIT-T176) ---------------------------------------------
-// Rust workspaces keep ONE checkout on main (KIT-D039): a worktree dispatch — isolation:"worktree"
-// or a hand-made worktree named in the brief — blocks outright. A provisioned CARGO_TARGET_DIR
-// does not lift it; only the maintainer's own request, quoted in the escape token, does.
+// --- cold-worktree-build (KIT-T176, KIT-D074) -----------------------------------
+// Every project keeps ONE checkout on main: a worktree dispatch — isolation:"worktree" or a
+// hand-made worktree named in the brief — blocks outright, in any adopted repo. Only the
+// maintainer's own request, quoted in the escape token, lifts it.
 function coldWorktreeBlock(root, input, prompt) {
   if (!isWorktreeIsolation(input.isolation) && !namesWorktree(prompt)) return null;
-  if (!existsSync(join(root, 'Cargo.toml'))) return null; // not a Rust workspace
-  if (/\[maintainer-asked-worktree:\s*[^\]\s][^\]]*\]/i.test(prompt)) return null;
+  if (MAINTAINER_WORKTREE.test(prompt)) return null;
   if (pathExcluded(root, COLD_BUILD_CHECK, root)) return null;
 
   return [
-    'BLOCKED: worktree / separate-checkout dispatch in a Rust workspace (KIT-D039).',
-    `  agent: ${label(input)}   root: ${join(root, 'Cargo.toml')}`,
+    'BLOCKED: worktree / separate-checkout dispatch (KIT-D039, KIT-D074).',
+    `  agent: ${label(input)}   root: ${root}`,
     '',
-    'Rust projects use ONE checkout on main: no worktrees, clones, feature branches or second',
-    'work directories, and never parallel read/write agents. Separate copies duplicate effort,',
-    'strand work, and each pays a cold build (2026-08-04: 30+ min silent; 2026-09-28: an agent',
-    'moved half-done work into D:/dev/stiletto-d2 and force-deleted it).',
+    'Every project uses ONE checkout on main: no worktrees, clones, feature branches or second',
+    'work directories. Separate copies duplicate effort, strand work, and in Rust each pays a',
+    'cold build (2026-08-04: 30+ min silent; 2026-09-28: an agent moved half-done work into',
+    'D:/dev/stiletto-d2 and force-deleted it).',
     '',
-    'Fix: drop isolation:"worktree" and run in the main checkout, one agent at a time; keep the',
-    'tree building by testing each step. Only if the maintainer explicitly asked for a worktree:',
-    'include [maintainer-asked-worktree: <his words>] in the prompt.',
+    'Fix: drop isolation:"worktree" and run in the main checkout, one writing agent at a time;',
+    'keep the tree building by testing each step. Only if the maintainer explicitly asked for',
+    'a worktree: include [maintainer-asked-worktree: <his words>] in the prompt.',
     '',
     excludeFooter(COLD_BUILD_CHECK),
   ].join('\n');
 }
 
 // --- shared-tree-dispatch (KIT-T176) --------------------------------------------
-// ONE agent per working tree. Concurrent agents share a single HEAD + index, so they pay to
-// poll each other's half-written files and a branch/stage op by one corrupts the other's
-// in-flight work. Lived failure (2026-08-03): a billed agent waited out a colleague's broken
-// refactor, then built a throwaway scratch crate to work around it — all of it billed.
+// ONE writing agent per working tree. Concurrent writers share a single HEAD + index, so they
+// pay to poll each other's half-written files and a branch/stage op by one corrupts the
+// other's in-flight work. Read-only agent TYPES (no writing tool in their definition) pass.
 function sharedTreeBlock(root, input, prompt) {
   if (isWorktreeIsolation(input.isolation)) return null; // not this tree — cold-worktree-build rules on it
-  if (/\[shared-tree-ok\b/i.test(prompt)) return null;
+  if (MAINTAINER_PARALLEL.test(prompt)) return null;
   if (readOnlyAgent(root, label(input))) return null; // nothing to corrupt, nothing to poll
   if (pathExcluded(root, SHARED_TREE_CHECK, root)) return null;
   const now = Date.now();
@@ -151,60 +161,43 @@ function sharedTreeBlock(root, input, prompt) {
     `  agent: ${label(input)}   tree: ${tree}   roster: .ai/agents.jsonl`,
     ...live.map((r) => `    • ${r.id} (${r.scope || 'general'}${rosterModel(r)}, ${minutesAgo(r, now)}m ago) — ${String(r.task || '(no description)').slice(0, ROSTER_TASK_CHARS)}`),
     '',
-    "NEVER run two agents in one working tree: one HEAD, one index. They pay to poll each",
-    "other's half-written files, and a branch/stage op by one sweeps the other's work into the",
-    "wrong commit. Lived case (2026-08-03): a billed agent waited out a colleague's broken",
-    'refactor, then built a throwaway scratch crate to work around it.',
+    'NEVER run two agents in one working tree unless all but one are read-only types: one HEAD,',
+    "one index. They pay to poll each other's half-written files, and a branch/stage op by one",
+    "sweeps the other's work into the wrong commit (2026-08-03: a billed agent waited out a",
+    'broken refactor, then built a throwaway scratch crate to work around it).',
     '',
-    'Fix — pick one (never a worktree or second checkout — KIT-D039):',
-    '  • serialize — wait for the in-flight agent, collect its result, then dispatch;',
-    '  • it is genuinely safe to share (disjoint files, read-only work):',
-    '    include [shared-tree-ok: <reason>] in the prompt.',
+    ...SERIAL_FIX,
     '',
     excludeFooter(SHARED_TREE_CHECK),
   ].join('\n');
 }
 
-// --- parallel-dispatch (KIT-T256) ------------------------------------------------
-// ONE implementation agent at a time, whatever tree it is in. Lived failure (2026-08-25,
-// stiletto): four agents in four checkouts, ~300-600k tokens EACH, each paying a full cold
-// build, contending for one box — slower and dearer than one agent doing the tickets in
-// sequence on a warm build. The maintainer's ruling: "One agent doing the work is faster than
-// this bullshit. It needs to NEVER HAPPEN AGAIN WITH ENFORCEMENT."
-// BLOCKS any dispatch while another agent is in flight (any tree — worktree-isolated rows
-//   included; shared-tree-dispatch is tree-scoped, this one is not) — in a RUST workspace.
-//   The cost is the compile loop (every writer iterates edit→build→measure, and builds
-//   contend for one box); a repo with no Cargo.toml has no such loop and keeps parallel
-//   dispatch (the maintainer's scoping, 2026-08-25: "this is primarily a Rust concern").
-// ESCAPE: [allow-parallel: N lanes, ~Xk tokens each, <reason>] — the cost figure is REQUIRED;
-//   a bare [allow-parallel: reason] still blocks, and the message says what is missing.
+// --- parallel-dispatch (KIT-T256, KIT-D074) --------------------------------------
+// ONE writing agent at a time in a Rust workspace, whatever tree it is in: every writer
+// iterates edit→build→measure and the builds contend for one box (2026-08-25: four lanes,
+// ~300-600k tokens each). Read-only agent TYPES pass. A repo with no Cargo.toml is left to
+// shared-tree-dispatch. ESCAPE: only [maintainer-asked-parallel: <his words>].
 function parallelBlock(root, input, prompt) {
   if (!existsSync(join(root, 'Cargo.toml'))) return null; // no compile loop — no gate
-  if (ALLOW_PARALLEL.test(prompt)) return null;
+  if (MAINTAINER_PARALLEL.test(prompt)) return null;
   if (readOnlyAgent(root, label(input))) return null; // analytical lane — no build to contend
   if (pathExcluded(root, PARALLEL_CHECK, root)) return null;
   const now = Date.now();
   const live = liveAnywhere(root, now).filter((r) => !readOnlyAgent(root, r.scope));
   if (!live.length) return null;
-  const bareEscape = ALLOW_PARALLEL_BARE.test(prompt);
 
   return [
     `BLOCKED: ${live.length} agent(s) already in flight — ONE agent at a time.`,
     `  agent: ${label(input)}   roster: .ai/agents.jsonl`,
     ...live.map((r) => `    • ${r.id} (${r.scope || 'general'}${rosterModel(r)}, ${minutesAgo(r, now)}m ago${isWorktreeIsolation(r.isolation) ? ', own worktree' : ''}) — ${String(r.task || '(no description)').slice(0, ROSTER_TASK_CHARS)}`),
     '',
-    'In a Rust workspace, parallel implementation agents are slower AND dearer than one',
-    'agent working the tickets in sequence: every writer iterates edit→build→measure, each',
-    'pays its own cold build and its own context, and the builds contend for one box.',
+    'In a Rust workspace, parallel read/write agents are slower AND dearer than one agent',
+    'working the tickets in sequence: every writer iterates edit→build→measure, each pays its',
+    'own build and context, and the builds contend for one box.',
     'Lived case (2026-08-25): four lanes, ~300-600k tokens each.',
+    ...(RETIRED_PARALLEL.test(prompt) ? ['', 'The [allow-parallel: …] token is retired (KIT-D074): only the maintainer lifts this.'] : []),
     '',
-    'Fix — pick one:',
-    '  • serialize: wait for the in-flight agent, collect its result, then hand THAT agent',
-    '    (or one new one) the next ticket — warm build, warm context;',
-    bareEscape
-      ? '  • your [allow-parallel: …] token names no cost — state it:'
-      : '  • genuinely worth running in parallel (rare): state the cost in the prompt —',
-    '    [allow-parallel: N lanes, ~Xk tokens each, <why it beats serial>]',
+    ...SERIAL_FIX,
     '',
     excludeFooter(PARALLEL_CHECK),
   ].join('\n');

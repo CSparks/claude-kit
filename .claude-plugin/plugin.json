@@ -32,6 +32,8 @@
     "./commands/"
   ],
   "agents": [
+    "./agents/analyst-max.md",
+    "./agents/analyst.md",
     "./agents/audio-synthesist.md",
     "./agents/code-reviewer.md",
     "./agents/editor-workbench.md",

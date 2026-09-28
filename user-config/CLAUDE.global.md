@@ -134,11 +134,13 @@ the accumulated transcript, so 100 calls is roughly quadratic.
 - **Scale verification to BLAST RADIUS**, stated in the brief: shared/load-bearing →
   golden record + mutation-check the key invariant; contained feature → assert the
   new behaviour, one negative control; leaf/mechanical → measure, assert, done.
-- **ONE implementation agent at a time — gate-enforced (KIT-T256).** Parallel agents
-  are slower AND dearer: each pays a cold build and a full context
-  on one box (2026-08-25: four lanes, ~300–600k tokens each, then killed). The next ticket
-  goes to the SAME agent after it lands (warm build, warm context). The only escape states
-  the cost in the prompt: `[allow-parallel: N lanes, ~Xk tokens each, <why>]`.
+- **ONE implementation agent at a time — gate-enforced (KIT-T256, KIT-D074).** Parallel
+  writers are slower AND dearer: each pays a cold build and a full context on one box
+  (2026-08-25: four lanes, ~300–600k tokens each, then killed). The next ticket goes to
+  the SAME agent after it lands (warm build, warm context). Analysis runs alongside only
+  as a READ-ONLY agent type (`claude-kit:analyst`, `analyst-max`, `researcher`, Explore —
+  no writing tool in its definition). Parallel writers need the maintainer's quoted words:
+  `[maintainer-asked-parallel: <his words>]`; an agent never grants itself the escape.
 
 ## Specialists over `general-purpose` — CREATE the missing specialist
 `general-purpose` is the last resort. Before every delegation: (1) pick `model` AND
