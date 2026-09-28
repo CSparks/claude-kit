@@ -147,7 +147,8 @@ These solve different problems. Choose per component, not once for the whole ass
   acceptable; avoid exposed coplanar faces and accidental intersections. Each closed
   component may be manifold without the assembly being one connected manifold.
 - **Batch or instance**: reduce draw calls for repeated/static parts that share a
-  material and never animate separately. Concatenating triangle buffers does not union
+  material and never animate separately. Merge vs instance follows the per-design rule under
+  Shader first. Concatenating triangle buffers does not union
   solids or create shared topology, and a boolean does not by itself save draw calls.
 - **Boolean union/difference/intersection**: when the result needs a continuous
   structural surface, a genuine opening, a clean intersecting silhouette, removal of
@@ -183,16 +184,66 @@ inspectable and effects independently disableable. The contract is
   material, mask, brush, channel selection, and adjustments.
 - Separate colour, roughness, and height variation by scale, seed, and amplitude; broad
   colour mottling should not automatically become bumps.
-- Share material instances across meshes that look alike. Generate textures from a
-  **seeded** generator passed in by the caller — the same seed must rebuild the same
+- Share material instances across meshes that look alike. Where a texture is justified
+  (shared tiles, the bake fallback), generate it from a **seeded** generator passed in by the caller — the same seed must rebuild the same
   asset, or nothing about it is testable. Power-of-two texture sizes; albedo in sRGB,
   roughness/metalness/normal data linear; wrap and repeat set explicitly. Texture
   resolution follows the project's quality settings where it has them, not per-asset
   habit.
 
+## Shader first — bake only what the shader cannot do
+
+Texture baking per part multiplies: every distinct part mesh, owner, seed and wear state
+becomes its own texture set, uploaded and held in memory. Evaluate surfaces on the GPU and
+treat a bake as the exception, justified by numbers.
+
+- **Surface layers evaluate in the shader** — paint, team colour, decals/icons, edge wear,
+  cavity, grime, dust, damage/scorch — from per-vertex geometry data (edge distance, crease,
+  cavity) plus per-instance parameters, with object-space noise or triplanar samples of
+  shared tiling textures. The CPU node stays the reference and export path.
+- **Cost gate before a layer ships in the shader**: measure the GPU delta for the step at the
+  target resolution (e.g. main-opaque pass ≤ +1 ms at native 4K), and state a numeric
+  tolerance against the reference (mean and p99 per-channel error). Build the cheapest
+  approximation that passes both, never an exact per-pixel port of an expensive CPU node.
+  Only a layer that fails either goes to the bake, into a small pool per material (default 5,
+  a tunable setting), shared across part types and designs.
+- **Owner/team is an icon + colours**, passed as instance parameters (icons in one shared
+  atlas/array). Never put the owner in a bake or texture key. Wear, dirt, damage and age are
+  live per-instance parameters driven at runtime, not baked variants.
+- **One surface per design.** Lay surface coordinates across the assembled design
+  (design space / assembly object space), so a decal can span parts, two copies of a shared
+  part don't wear identically, and a mirrored copy isn't a mirror image. Any fallback bake
+  runs once per node per material per design, never once per part.
+- **Meshes are keyed by shape only and shared.** Author a repeated part once and place it by
+  transform (mirror by negative scale, and check culling). Merge rigid pieces per material per
+  design when a design is instanced many times with few variants; instance shared parts when
+  variants are many. Only organic one-offs (rocks, outcrops, crystal clusters, habitats) get
+  unique geometry, from pre-built variation batches. A per-placement seed never changes a
+  building's or prop's geometry: use modules and pools.
+- **No per-placement contact grime baked into a part.** Ground grime comes from height above
+  ground at draw time. Edge masks come from per-vertex edge distance and crease; suppress
+  wear on non-hard seams so part borders and region cuts don't draw false crease bands.
+- **The script declares it.** Each asset script declares its `surfaces()` (which material
+  uses which layer stack) and `live()` (its per-instance parameters). The script is the
+  registration hook for the editor and every pipeline, even when the geometry comes from a
+  native (e.g. Rust) generator the script names. Live parameters never enter a mesh key.
+
+Validate this with numbers: a census per asset and part (distinct meshes, bakes, texture
+bytes) that the change moves in the stated direction; the cost gate; a GPU-vs-CPU parity test
+per shader node over an object-space sample grid (≤ 2/255) with a mutation control (a wrong
+seed or amount must fail); and a draw/coverage test for every shader-kit path, including
+materials that carry no surface data.
+
+Shader gotchas that fail silently: a reserved word used as an identifier (WGSL reserves
+`patch`, among others) kills the whole shader, so everything using it goes invisible — keep a
+compile check in the suite. A WGSL module imported by its asset path must not
+declare `#define_import_path`. Vertex attributes are capped
+(16 locations): pack per-vertex surface data instead of adding attributes freely.
+
 ## UV and bake contract
 
-Preserve the exact authored triangle UVs through the bake/render boundary; re-unwrapping
+This applies to the bake fallback and shared tiles (see Shader first). Preserve the exact
+authored triangle UVs through the bake/render boundary; re-unwrapping
 is not equivalent, even with identical settings. Keep UVs in `[0,1]` unless tiling is
 intended. Check overlap, distortion, texel density, and the texel width of the smallest
 intended effect — no-overlap alone is not quality, and a crisp door on a blurry wall
@@ -217,6 +268,7 @@ none exists (and propose keeping it). Build the asset headlessly and read:
 - UV range, distortion, and density; material ownership; bake registration
 - silhouette overlap against the intended front/side/top profiles
 - the same numbers for a sibling asset, so scale and density are comparable
+- for any surface change: the mesh/bake/texture census and the GPU cost gate (Shader first)
 
 Assert the invariants that matter: base on the ground, footprint inside declared bounds,
 triangle budget respected, same seed → identical output, release frees everything. For
