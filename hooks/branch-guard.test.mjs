@@ -58,6 +58,8 @@ try {
     !blocks('git worktree list') && !blocks('git worktree remove ../wt') && !blocks('git worktree prune'));
   ok('git log / status are allowed', !blocks('git log --oneline -3') && !blocks('git status'));
   ok('a non-git command no-ops', !blocks('echo switch checkout worktree add'));
+  ok('git quoted inside another command no-ops', !blocks(`node -e "run('git worktree add ../x')"`) && !blocks("echo 'git switch -c x'"));
+  ok('an env-prefixed git invocation still blocks', blocks('GIT_TRACE=1 git worktree add ../wt4'));
 
   ok('clone INTO a project blocks', blocks('git clone https://example.com/lib.git vendor/lib'));
   ok('clone OF a project (local path) blocks', blocks(`git clone "${bg}" proj-d2`, parent));

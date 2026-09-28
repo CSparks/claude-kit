@@ -100,7 +100,7 @@ try {
   };
 
   for (const seg of command.split(/&&|\|\||[;&|]/).map((s) => s.trim()).filter(Boolean)) {
-    const m = seg.match(/\bgit\b\s+(.+)/s);
+    const m = seg.match(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git(?:\.exe)?\s+(.+)/s); // a git INVOCATION, not git quoted inside another command
     if (!m) continue;
     const verdict = classifyGitSegment(tokenize(m[1]), lookups);
     let op = '';
