@@ -180,7 +180,7 @@ if (fresh.length) {
   out.push('');
   out.push(`!! FRESH COMMITS (last ${ORIENT_WINDOW_MIN} min) — MAY BE ANOTHER LIVE SESSION in this repo:`);
   for (const c of fresh) out.push(`  ${c.sha} ${c.minutes}m ago (${c.author}) ${clip(c.subject, 80)}`);
-  out.push('  If you did not make these, coordinate or take a worktree before editing shared files.');
+  out.push('  If you did not make these, coordinate before editing shared files (one checkout, on main — KIT-D039).');
 }
 
 // Working-tree temperature — uncommitted + unpushed across the project, its data repo

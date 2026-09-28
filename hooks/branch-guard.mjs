@@ -1,110 +1,114 @@
 #!/usr/bin/env node
-// PreToolUse (Bash|PowerShell) — block a BRANCH FLIP of a shared working tree (KIT-T082).
-// exit 2 = block, 0 = allow. No-ops on unadopted repos.
+// PreToolUse (Bash|PowerShell) — keep every agent on main in the ONE checkout (KIT-D039, KIT-T082).
+// exit 2 = block, 0 = allow. No-ops outside adopted repos; fails open on any parse/git error.
 //
-// WHY: multiple agents routinely share ONE checkout. A `git switch` / `git checkout -b` /
-// `git checkout <branch>` flips that shared tree out from under every other agent and corrupts
-// their in-flight work. The correct model for parallel work is an isolated git WORKTREE (cf.
-// the Agent tool's `isolation: worktree`), NOT flipping the shared branch — so this gate refuses
-// the flip and points at worktrees, with a deliberate, logged escape.
-//
-// BLOCKS:  git switch <x> | git switch -c <x> | git checkout -b|-B <x> | git checkout <branch>
-// ALLOWS:  git checkout -- <file> | git checkout <ref> -- <file> | git checkout <path>
-//          git worktree add … | git branch … (list/create-without-switch) | any non-git command
-// ESCAPE:  an inline [allow-branch: <reason>] token, or env CLAUDE_KIT_ALLOW_BRANCH=1.
-//
-// FAIL-OPEN: any parse/git error exits 0 — a broken guard must never wedge a shell command
-// (HOOK CONTRACT). The BLOCK is the only non-zero exit, and only on a positively-classified flip.
+// BLOCKS:  git switch <non-default> | git switch -c | git checkout -b|-B|--orphan
+//          git checkout <non-default branch> | git branch <new> | git branch -m|-c
+//          git worktree add | git clone into a project, of a project, or beside a project
+//          whose remote it copies
+// ALLOWS:  git switch/checkout main|master (the way back) | git checkout [<ref>] -- <file>
+//          git branch listing/-d | git worktree list|remove|prune | log/status | non-git commands
+// ESCAPE:  only [maintainer-asked-branch: <his words>] in the command.
 
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { payload, git, gitRoot, adopted } from './lib.mjs';
+import { classifyGitSegment, tokenize } from './lib/branch-ops.mjs';
+
+const ESCAPE = /\[maintainer-asked-branch:\s*[^\]\s][^\]]*\]/i;
+const toPath = (p) => String(p).replace(/^["']|["']$/g, '').replace(/^\/([A-Za-z])\//, '$1:/');
+
+// The directory a command runs in: a leading `cd <dir>`, else `git -C <dir>`, else cwd.
+function targetDir(cmd) {
+  let m = cmd.match(/(?:^|&&|;)\s*cd\s+(\S[^&;|]*)/);
+  let path = m ? m[1].trim() : '';
+  if (!path) { m = cmd.match(/git\s+-C\s+("[^"]+"|'[^']+'|\S+)/); path = m ? m[1].trim() : ''; }
+  return path ? toPath(path) : process.cwd();
+}
+
+const isUrl = (s) => /^[a-z][a-z0-9+.-]*:\/\//i.test(s) || (/^[^/\\]+@[^:]+:/.test(s) && !/^[A-Za-z]:[\\/]/.test(s));
+
+// host/owner/repo form, so https, ssh and scp-style spellings of one remote compare equal.
+function remoteKey(s) {
+  return String(s).trim().toLowerCase()
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/^[^@/]+@/, '')
+    .replace(/^([^/:]+):(?!\d)/, '$1/').replace(/\\/g, '/').replace(/\/+$/, '').replace(/\.git$/, '');
+}
+
+function nearestExisting(p) {
+  let d = p;
+  while (d && !existsSync(d)) { const up = dirname(d); if (up === d) return ''; d = up; }
+  return d;
+}
+
+const adoptedRootAt = (dir) => { const r = dir ? gitRoot(dir) : ''; return adopted(r) ? r : ''; };
+
+// The adopted sibling repo in `parent` whose remotes include `src`, or ''.
+function siblingCopyOf(parent, src) {
+  if (!existsSync(parent)) return '';
+  const key = remoteKey(src);
+  for (const name of readdirSync(parent).slice(0, 500)) {
+    const dir = join(parent, name);
+    try { if (!statSync(dir).isDirectory() || !existsSync(join(dir, '.git')) || !adopted(dir)) continue; } catch { continue; }
+    const urls = git(['-C', dir, 'remote', '-v'], dir).split('\n').map((l) => l.split(/\s+/)[1]).filter(Boolean);
+    if (urls.some((u) => remoteKey(u) === key)) return dir;
+  }
+  return '';
+}
+
+// Why a clone makes a second copy of a project, or ''.
+function cloneReason({ src, dest }, cwd) {
+  const localSrc = isUrl(src) ? '' : resolve(cwd, toPath(src));
+  const destAbs = resolve(cwd, toPath(dest || basename(toPath(src)).replace(/\.git$/i, '')));
+  const inside = adoptedRootAt(nearestExisting(dirname(destAbs)));
+  if (inside) return `clones into project ${inside}`;
+  const ofProject = localSrc && existsSync(localSrc) ? adoptedRootAt(localSrc) : '';
+  if (ofProject) return `copies project ${ofProject}`;
+  const sibling = isUrl(src) || isAbsolute(toPath(src)) ? siblingCopyOf(dirname(destAbs), src) : '';
+  return sibling ? `duplicates ${sibling} (same remote) beside it` : '';
+}
+
+function blockMessage(op) {
+  return [
+    '',
+    'BLOCKED: a second branch or checkout (KIT-D039, KIT-T082).',
+    `  ${op}`,
+    '',
+    'Every agent works in the ONE checkout, on main, one at a time, keeping it building by',
+    'testing each step. No worktrees, clones, feature branches or second work directories:',
+    'separate copies duplicate effort and strand work (2026-09-28: half-done work moved into',
+    'a second directory, then force-deleted). Commit to main and push instead.',
+    '',
+    'Only if the maintainer explicitly asked for this, quote him in the command:',
+    '  [maintainer-asked-branch: <his words>]',
+    '',
+  ].join('\n');
+}
 
 try {
   const p = await payload();
   const command = (p.tool_input && p.tool_input.command) || '';
+  if (!/\bgit\b/.test(command) || !/\b(?:switch|checkout|branch|worktree|clone)\b/.test(command)) process.exit(0);
+  if (ESCAPE.test(command)) process.exit(0);
 
-  // Fast out: only git switch/checkout commands can be a flip.
-  if (!/\bgit\b/.test(command) || !/\b(?:switch|checkout)\b/.test(command)) process.exit(0);
-
-  // Deliberate, logged escape — same shape as [no-log:] / [no-test:].
-  if (/\[allow-branch\b/i.test(command) || /^(1|true|yes)$/i.test(process.env.CLAUDE_KIT_ALLOW_BRANCH || '')) process.exit(0);
-
-  // Resolve the repo the command targets (a leading `cd <path>` or `git -C <path>`), so ref
-  // resolution + the adopted check run against the right tree. Mirrors commit-gate.targetDir.
-  const targetDir = (cmd) => {
-    let m = cmd.match(/(?:^|&&|;)\s*cd\s+(\S[^&;|]*)/);
-    let path = m ? m[1].trim() : '';
-    if (!path) { m = cmd.match(/git\s+-C\s+("[^"]+"|'[^']+'|\S+)/); path = m ? m[1].trim() : ''; }
-    if (!path) return process.cwd();
-    return path.replace(/^["']|["']$/g, '').replace(/^\/([A-Za-z])\//, '$1:/');
+  const cwd = targetDir(command);
+  const root = gitRoot(cwd);
+  const defaultBranch = root ? git(['-C', root, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).trim().replace(/^origin\//, '') : '';
+  const lookups = {
+    isBranch: (name) => !!root && git(['-C', root, 'rev-parse', '--verify', '--quiet', `refs/heads/${name}`]).trim() !== '',
+    isDefault: (name) => name === 'main' || name === 'master' || (!!defaultBranch && name === defaultBranch),
   };
-  const root = gitRoot(targetDir(command));
-  if (!adopted(root)) process.exit(0); // workflow repos only — never interfere elsewhere
 
-  const tokenize = (s) => [...s.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((t) => t[1] ?? t[2] ?? t[3]);
-  // A name is a branch iff refs/heads/<name> resolves — so a FILENAME never reads as a branch
-  // (the classic checkout ambiguity is sidestepped). git() fails open to '' on a non-branch.
-  const isBranch = (name) => git(['-C', root, 'rev-parse', '--verify', '--quiet', `refs/heads/${name}`]).trim() !== '';
-
-  // A shell line may chain several commands; classify each git segment independently.
-  const segments = command.split(/&&|\|\||[;&|]/).map((s) => s.trim()).filter(Boolean);
-  const GLOBAL_VALUE_OPTS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace']);
-
-  for (const seg of segments) {
+  for (const seg of command.split(/&&|\|\||[;&|]/).map((s) => s.trim()).filter(Boolean)) {
     const m = seg.match(/\bgit\b\s+(.+)/s);
     if (!m) continue;
-    const toks = tokenize(m[1]);
-
-    // Skip git's GLOBAL options to land on the subcommand (e.g. `git -C dir switch x`).
-    let i = 0;
-    while (i < toks.length) {
-      const t = toks[i];
-      if (GLOBAL_VALUE_OPTS.has(t)) { i += 2; continue; }
-      if (t.startsWith('-')) { i++; continue; }
-      break;
-    }
-    const sub = toks[i];
-    const rest = toks.slice(i + 1);
-    if (sub !== 'switch' && sub !== 'checkout') continue;
-
-    let flip = '';
-    if (sub === 'switch') {
-      // `switch` is branch-only by design — any operand (a branch, or -c/-C to create) is a flip;
-      // a bare `git switch` (error) or help-only invocation is not.
-      if (rest.some((t) => !/^(-h|--help)$/.test(t))) flip = `git switch ${rest.join(' ')}`.trim();
-    } else {
-      // checkout: a `--` (or a recognized pathspec) means a FILE op, not a branch flip — allow.
-      if (rest.includes('--')) continue;
-      if (rest.includes('-b') || rest.includes('-B')) {
-        flip = `git checkout ${rest.join(' ')}`.trim(); // create + switch
-      } else {
-        const operand = rest.find((t) => !t.startsWith('-'));
-        if (operand && isBranch(operand)) flip = `git checkout ${operand}`; // switch to an existing branch
-      }
-    }
-
-    if (flip) {
-      process.stderr.write(
-        [
-          '',
-          'BLOCKED: branch switch/create in a shared checkout (KIT-T082).',
-          `  ${flip}`,
-          '',
-          'Multiple agents share THIS working tree — flipping its branch corrupts everyone',
-          "else's in-flight work. For isolated parallel work, use a git WORKTREE (a separate",
-          'checkout dir on its own branch), not a flip of the shared tree:',
-          '  git worktree add ../<name> -b <new-branch>     # new branch in a new dir',
-          '  git worktree add ../<name> <existing-branch>   # existing branch in a new dir',
-          '',
-          'If you really must switch THIS shared checkout, add a deliberate, logged escape:',
-          '  • include [allow-branch: <reason>] in the command, or',
-          '  • set CLAUDE_KIT_ALLOW_BRANCH=1.',
-          '',
-        ].join('\n'),
-      );
-      process.exit(2);
-    }
+    const verdict = classifyGitSegment(tokenize(m[1]), lookups);
+    let op = '';
+    if (verdict.flip && adopted(root)) op = verdict.flip;
+    if (verdict.clone) { const why = cloneReason(verdict.clone, cwd); if (why) op = `${seg}   (${why})`; }
+    if (op) { process.stderr.write(blockMessage(op)); process.exit(2); }
   }
   process.exit(0);
 } catch {
-  process.exit(0); // fail-open per HOOK CONTRACT
+  process.exit(0);
 }

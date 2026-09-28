@@ -41,7 +41,7 @@ try {
   const command = ((p.tool_input && p.tool_input.command) || '').trim();
   if (!command) process.exit(0);
 
-  // Deliberate, logged escape — same shape as [allow-branch:] / [no-log:].
+  // Deliberate, logged escape — same shape as [no-log:] / [no-test:].
   if (/\[allow-license\b/i.test(command) ||
       /^(1|true|yes)$/i.test(process.env.CLAUDE_KIT_ALLOW_LICENSE || '')) {
     process.exit(0);

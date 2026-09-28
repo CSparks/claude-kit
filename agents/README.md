@@ -30,11 +30,12 @@ ships them to `~/.claude/agents/`; a project may also pin its own under
   `docs/research/agent-token-strategy.md` for the measured breakdown and the
   flagged harness follow-up.
 
-## Worktree isolation — never `git stash` (KIT-T233)
-An agent running with `isolation: worktree` shares ONE stash stack with every other worktree
-of the repo (`refs/stash` lives in the common git dir), so a parallel agent's `pop`/`drop`
-can apply or destroy your entry. Take a baseline with `git diff > <file>` + `git checkout -- .`,
-or a WIP commit on the worktree branch. The `worktree-guard` hook blocks the stash.
+## One checkout, on main — never `git stash` (KIT-D039, KIT-T233)
+Every agent works in the maintainer's one checkout, on main, one implementation agent at a
+time. No `isolation: worktree`, clones, branches or second directories: `branch-guard` and
+`dispatch-guard` block them. Take a baseline with `git diff > <file>` + `git checkout -- .`,
+or a WIP commit on main. Where a worktree exists at the maintainer's request, `refs/stash` is
+shared by all of them, so the `worktree-guard` hook blocks the stash there.
 
 - **Report concurrent-tree activity LOUDLY (KIT-T225):** a build waiting on a lock
   (`Blocking waiting for file lock on build directory`), dirty/changed files you did not

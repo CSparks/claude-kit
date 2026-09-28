@@ -38,9 +38,9 @@ Work ticket $ARGUMENTS per the contract:
      > the ticket's stated scope. If a fix traces to legacy or deprecated code outside your
      > domain, STOP and surface it — don't expand scope unilaterally.
      >
-     > **Never `git stash` in a worktree (KIT-T233):** `refs/stash` is shared across every
-     > worktree of the repo, so a parallel agent's pop can eat your entry. Baseline with
-     > `git diff > <file>` + `git checkout -- .`, or a WIP commit on your worktree branch.
+     > **One checkout, on main (KIT-D039):** work in the maintainer's checkout, on main — no
+     > worktrees, clones, branches or second directories. Never `git stash` (KIT-T233); baseline
+     > with `git diff > <file>` + `git checkout -- .`, or a WIP commit on main.
      >
      > **Two live surfaces = STOP (KIT-T227):** if you find two live implementations of
      > the same concern (two editors, twin modules, duplicate configs), do not pick one —

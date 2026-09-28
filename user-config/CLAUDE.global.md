@@ -116,7 +116,10 @@ The query-gate blocks tree-wide source greps. Read less to do more.
 ## Delegation COST — scale the ceremony, isolate the checkout
 Cost tracks the **tool-call count**, not the size of the change: every call re-sends
 the accumulated transcript, so 100 calls is roughly quadratic.
-- **NEVER run two agents in one working tree** — `isolation: worktree`, or serialize.
+- **NEVER run two agents in one working tree** — serialize them. **NO worktrees, clones,
+  feature branches or second work directories, ever** (KIT-D039): every agent works in
+  the maintainer's one checkout, on main, one at a time, keeping it building by testing
+  each step. Separate copies duplicate effort and strand work.
 - **A gate-forced restructure gets PRESENTED FIRST.** When a lint/length gate turns a
   small edit into a module split, show the maintainer before doing it.
 - **Don't turn a subjective judgement into thresholds to hit.** Where the
@@ -132,7 +135,7 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   golden record + mutation-check the key invariant; contained feature → assert the
   new behaviour, one negative control; leaf/mechanical → measure, assert, done.
 - **ONE implementation agent at a time — gate-enforced (KIT-T256).** Parallel agents
-  (worktrees included) are slower AND dearer: each pays a cold build and a full context
+  are slower AND dearer: each pays a cold build and a full context
   on one box (2026-08-25: four lanes, ~300–600k tokens each, then killed). The next ticket
   goes to the SAME agent after it lands (warm build, warm context). The only escape states
   the cost in the prompt: `[allow-parallel: N lanes, ~Xk tokens each, <why>]`.
@@ -176,15 +179,13 @@ reviewer of the change, never a channel for project history. (KIT-T205)
   of whatever change touches it.
 
 # GIT WORKFLOW
-- **Trunk-based: work on `main` by default.** Feature branches only on per-project
-  opt-in or genuine size/risk; merge the moment mergeable. Never silently park work
-  on a branch.
-- **Shared checkout ⇒ NEVER flip the branch in place** — agents may share one tree; a
-  `git switch` corrupts their in-flight work. Use a git **WORKTREE**. Detect first:
-  `git worktree list` >1, or sibling `worktree-agent-*` branches. The branch-guard
-  hook (KIT-T082) hard-blocks; deliberate escape: `[allow-branch: <reason>]`.
+- **Trunk-based: work on `main`, in the ONE checkout — always (KIT-D039).** No feature
+  branches, worktrees, clones or second directories unless the maintainer explicitly
+  asks for one. Never silently park work anywhere but main.
+- **Never flip the branch in place** — stay on main. The branch-guard hook (KIT-T082)
+  hard-blocks.
 - **Never run repo-mutating cleanup in the maintainer's LIVE checkout (KIT-T226)** —
-  use a worktree, or hand them the command.
+  hand them the command.
 - **Local = draft** (messy WIP OK). **PR/main = publish** (clean, logical,
   buildable).
 - **Commit AND push at every task boundary** — the pushed remote is the rewind point.

@@ -75,7 +75,7 @@ try {
   lines.push(
     '',
     "That session's next commit can scoop your half-written edits into its own change.",
-    'Coordinate with it, or take a worktree of that repo and edit there.',
+    'Coordinate with it: wait for it to land, then edit (never a worktree or copy — KIT-D039).',
     '',
     'Deliberate, logged escape: include [allow-live-tree: <reason>] in the prompt, or set',
     'CLAUDE_KIT_ALLOW_LIVE_TREE=1.',

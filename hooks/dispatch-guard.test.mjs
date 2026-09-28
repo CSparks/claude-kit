@@ -2,10 +2,11 @@
 // dispatch-ladder: BLOCK on a model-less delegation inheriting a fable session; ALLOW on
 //   explicit models, frontmatter-pinned kit agents, non-fable sessions, [allow-fable],
 //   missing transcripts, unadopted repos, malformed payloads.
-// cold-worktree-build: BLOCK a worktree dispatch into a Cargo workspace; ALLOW when the brief
-//   provisions CARGO_TARGET_DIR, on [cold-build-ok], on a non-Rust repo, via the ignore file.
+// cold-worktree-build (KIT-D039): BLOCK any worktree dispatch into a Cargo workspace, even with
+//   CARGO_TARGET_DIR or [cold-build-ok] in the brief; ALLOW only on [maintainer-asked-worktree:
+//   <his words>], a non-Rust repo, the ignore file.
 // shared-tree-dispatch: BLOCK a non-worktree dispatch while the roster shows a live agent IN THIS
-//   TREE; ALLOW on worktree isolation, [shared-tree-ok], an empty/stale/finished/corrupt roster,
+//   TREE; ALLOW on [shared-tree-ok], an empty/stale/finished/corrupt roster,
 //   and (KIT-T177) on a row that is worktree-isolated or aimed at another repo.
 // Run: node hooks/dispatch-guard.test.mjs
 
@@ -110,17 +111,19 @@ const plain = makeRepo();
 const wt = { subagent_type: 'general-purpose', model: 'opus', isolation: 'worktree', prompt: 'port the drill mesh (KIT-T176)' };
 
 expect('blocks a worktree dispatch into a Cargo workspace', run(rust, wt).code, 2);
-expect('allows when the brief provisions CARGO_TARGET_DIR', run(rust, { ...wt, prompt: 'port the drill mesh — export CARGO_TARGET_DIR=../main/target first' }).code, 0);
-expect('allows the [cold-build-ok: reason] escape', run(rust, { ...wt, prompt: 'one-off audit [cold-build-ok: no cargo run needed]' }).code, 0);
+expect('blocks even when the brief provisions CARGO_TARGET_DIR (KIT-D039)', run(rust, { ...wt, prompt: 'port the drill mesh — export CARGO_TARGET_DIR=../main/target first' }).code, 2);
+expect('blocks even with the retired [cold-build-ok: reason] token', run(rust, { ...wt, prompt: 'one-off audit [cold-build-ok: no cargo run needed]' }).code, 2);
+expect('allows the [maintainer-asked-worktree: <his words>] escape', run(rust, { ...wt, prompt: 'demo [maintainer-asked-worktree: "put the demo in a worktree"]' }).code, 0);
+expect('an empty [maintainer-asked-worktree:] does not escape', run(rust, { ...wt, prompt: 'demo [maintainer-asked-worktree: ]' }).code, 2);
 expect('allows a worktree dispatch in a non-Rust repo', run(plain, wt).code, 0);
 expect('allows a non-worktree dispatch in a Cargo workspace', run(rust, { subagent_type: 'general-purpose', model: 'opus', prompt: 'x' }).code, 0);
 expect('allows via the ignore file (cold-worktree-build)', run(ignoreFile(makeRepo({ cargo: true }), 'cold-worktree-build'), wt).code, 0);
 expect('allows on malformed stdin with a Cargo repo (fail-open)', runRaw(rust, '{not json').code, 0);
 
 const coldMsg = run(rust, wt).err;
-expect('cold-build message names CARGO_TARGET_DIR', /CARGO_TARGET_DIR/.test(coldMsg) ? 1 : 0, 1);
-expect('cold-build message cites the lived 30+ min burn', /30\+ minutes/.test(coldMsg) ? 1 : 0, 1);
-expect('cold-build message names the escape token', /\[cold-build-ok/.test(coldMsg) ? 1 : 0, 1);
+expect('cold-build message cites KIT-D039 (one checkout on main)', /KIT-D039/.test(coldMsg) && /ONE checkout on main/.test(coldMsg) ? 1 : 0, 1);
+expect('cold-build message no longer offers CARGO_TARGET_DIR as a fix', /CARGO_TARGET_DIR/.test(coldMsg) ? 1 : 0, 0);
+expect('cold-build message names the maintainer escape token', /\[maintainer-asked-worktree:/.test(coldMsg) ? 1 : 0, 1);
 expect('cold-build message carries the exclude footer', /id: cold-worktree-build/.test(coldMsg) ? 1 : 0, 1);
 
 // --- shared-tree-dispatch (KIT-T176) --------------------------------------------
@@ -131,7 +134,7 @@ const shared = { subagent_type: 'general-purpose', model: 'opus', prompt: 'add t
 // prompt states the parallel cost, so the shared-tree escapes below carry that token too.
 const PAR = '[allow-parallel: 2 lanes, ~400k tokens each, disjoint files] CARGO_TARGET_DIR=../main/target';
 expect('blocks a second dispatch while an agent is in flight', run(busy, shared).code, 2);
-expect('allows a worktree dispatch while an agent is in flight (cost stated)', run(busy, { ...shared, isolation: 'worktree', prompt: `${shared.prompt} ${PAR}` }).code, 0);
+expect('blocks a worktree dispatch while an agent is in flight, cost stated (KIT-D039)', run(busy, { ...shared, isolation: 'worktree', prompt: `${shared.prompt} ${PAR}` }).code, 2);
 expect('allows the [shared-tree-ok: reason] escape (cost stated)', run(busy, { ...shared, prompt: `read-only sweep [shared-tree-ok: no writes] ${PAR}` }).code, 0);
 expect('allows via the ignore file (shared-tree-dispatch + parallel-dispatch)', run(ignoreFile(roster(makeRepo(), [inFlightRow()]), 'shared-tree-dispatch', 'parallel-dispatch'), shared).code, 0);
 expect('allows with no roster at all', run(makeRepo(), shared).code, 0);
@@ -168,7 +171,7 @@ expect('block message names the tree it scoped to', run(sameTree, shared).err.in
 const sharedMsg = run(busy, shared).err;
 expect('shared-tree message names the one-agent-per-tree rule', /two agents in one working tree/i.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message lists the in-flight agent', /agent-live/.test(sharedMsg) ? 1 : 0, 1);
-expect('shared-tree message names the worktree remedy', /isolation: "worktree"/.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message never steers to worktree isolation', /isolation: ?"worktree"|git worktree add/.test(sharedMsg) ? 1 : 0, 0);
 expect('shared-tree message names the escape token', /\[shared-tree-ok/.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message carries the exclude footer', /id: shared-tree-dispatch/.test(sharedMsg) ? 1 : 0, 1);
 
@@ -184,7 +187,7 @@ const one = { subagent_type: 'general-purpose', model: 'opus', prompt: 'implemen
 expect('blocks a second agent while one is in flight (any tree)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), one).code, 2);
 expect('blocks even when the live agent is in its own worktree', run(roster(makeRepo({ cargo: true }), [inFlightRow(0, { isolation: 'worktree' })]), one).code, 2);
 expect('a bare [allow-parallel: reason] with no cost still blocks', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `${one.prompt} [allow-parallel: disjoint files]` }).code, 2);
-expect('allows once the cost is stated ([allow-parallel: N lanes, ~Xk tokens each, why]) — into its own worktree', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, isolation: 'worktree', prompt: `${one.prompt} ${PAR}` }).code, 0);
+expect('the cost token does not lift a worktree dispatch (cold-worktree-build, KIT-D039)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, isolation: 'worktree', prompt: `${one.prompt} ${PAR}` }).code, 2);
 expect('the cost token alone does not lift the same-tree block (shared-tree still fires)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `${one.prompt} ${PAR}` }).code, 2);
 expect('allows the first agent (empty roster)', run(roster(makeRepo({ cargo: true }), []), one).code, 0);
 expect('allows after the previous agent finished', run(roster(makeRepo({ cargo: true }), [inFlightRow(), { ts: new Date().toISOString(), id: 'agent-live', status: 'done' }]), one).code, 0);
@@ -235,7 +238,7 @@ expect('parallel message carries the exclude footer', /id: parallel-dispatch/.te
   execFileSync('git', ['worktree', 'add', '-q', wtDir], { cwd: main });
   const named = { subagent_type: 'general-purpose', model: 'opus', prompt: `You work in the worktree \`${wtDir}\` (branch wt/x). Implement KIT-T256.` };
   expect('blocks a brief naming a hand-made worktree in a Cargo repo (cold build)', /cold-worktree-build/.test(run(main, named).err) ? 1 : 0, 1);
-  expect('allows it once CARGO_TARGET_DIR is provisioned', run(main, { ...named, prompt: `${named.prompt} Set CARGO_TARGET_DIR=${join(main, 'target')} first.` }).code, 0);
+  expect('still blocks it with CARGO_TARGET_DIR provisioned (KIT-D039)', run(main, { ...named, prompt: `${named.prompt} Set CARGO_TARGET_DIR=${join(main, 'target')} first.` }).code, 2);
 
   // A SUBMODULE's .git is a file too (gitdir → .git/modules/…); naming one — every framework
   // brief does — is not a worktree dispatch. Lived false positive: 2026-08-26, stiletto/rapid-game.

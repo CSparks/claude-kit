@@ -68,12 +68,12 @@ status flip becomes a zombie that nags every session start. For every ticket you
 license the whole drain to stall — pull the next workable item from the queue and keep draining
 in parallel while that thread waits.
 
-**SUBAGENT FAN-OUT:** fan INDEPENDENT work to parallel agents, coordinate via ticket Notes, and
-batch all maintainer decisions into one AskUserQuestion questionnaire rather than surfacing them
-piecemeal. When tickets share the checkout or need sequential commits, run them serially; otherwise
-fan out. Worktree-isolated agents must NEVER `git stash` — one stash stack is shared by every
-worktree of the repo (KIT-T233); baseline via `git diff > <file>` + checkout, or a WIP commit on
-the worktree branch. A delegated agent must VERIFY its change by exercising it as the user would — run the
+**SUBAGENTS — ONE IMPLEMENTATION AGENT AT A TIME (KIT-T256, KIT-D039):** every writing agent
+works in the one checkout, on main, serially — the next ticket goes to the same agent once the
+last one lands. No worktrees, clones, branches or second directories. Read-only research agents
+may run alongside. Batch all maintainer decisions into one AskUserQuestion questionnaire rather
+than surfacing them piecemeal. Never `git stash` (KIT-T233); baseline via `git diff > <file>` +
+checkout, or a WIP commit on main. A delegated agent must VERIFY its change by exercising it as the user would — run the
 test suite, start the app, or hit the probe — and report empirical evidence. A compile-check alone
 is not verification.
 

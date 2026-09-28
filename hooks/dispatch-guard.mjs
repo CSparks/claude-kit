@@ -2,7 +2,7 @@
 // PreToolUse (Task|Agent) — the dispatch gate. Every check here fires at the ONE choke point
 // where a delegation's cost is decided: the moment it is dispatched.
 //   dispatch-ladder      (KIT-T151) — the silent fable inherit
-//   cold-worktree-build  (KIT-T176) — worktree isolation into a Rust workspace with no target/
+//   cold-worktree-build  (KIT-T176, KIT-D039) — any worktree dispatch in a Rust workspace
 //   shared-tree-dispatch (KIT-T176) — a second agent into a checkout that already has one
 //   parallel-dispatch    (KIT-T256) — a second implementation agent in flight AT ALL, any tree
 // exit 2 = block, 0 = allow. No-ops on unadopted repos; FAIL-OPEN everywhere else.
@@ -105,33 +105,27 @@ function ladderBlock(root, input, prompt, p) {
 }
 
 // --- cold-worktree-build (KIT-T176) ---------------------------------------------
-// A fresh git worktree has no target/, so a Rust dispatch there compiles the whole dependency
-// graph before it can run anything. Lived failure (2026-08-04, a Bevy workspace): 30+ minutes
-// of silent cold build, rustc at 3.3 GB RSS, every second billed. The remedy is cheap and
-// belongs in the BRIEF — a shared CARGO_TARGET_DIR makes the same dispatch incremental.
+// Rust workspaces keep ONE checkout on main (KIT-D039): a worktree dispatch — isolation:"worktree"
+// or a hand-made worktree named in the brief — blocks outright. A provisioned CARGO_TARGET_DIR
+// does not lift it; only the maintainer's own request, quoted in the escape token, does.
 function coldWorktreeBlock(root, input, prompt) {
-  // A hand-made worktree named in the brief is the same cold graph as isolation:"worktree" —
-  // the 2026-08-25 lanes were spun up with `git worktree add` and dodged this check.
   if (!isWorktreeIsolation(input.isolation) && !namesWorktree(prompt)) return null;
-  if (!existsSync(join(root, 'Cargo.toml'))) return null; // not a Rust workspace — no cold graph to pay for
-  if (/CARGO_TARGET_DIR/.test(prompt)) return null; // the brief provisions the cache
-  if (/\[cold-build-ok\b/i.test(prompt)) return null;
+  if (!existsSync(join(root, 'Cargo.toml'))) return null; // not a Rust workspace
+  if (/\[maintainer-asked-worktree:\s*[^\]\s][^\]]*\]/i.test(prompt)) return null;
   if (pathExcluded(root, COLD_BUILD_CHECK, root)) return null;
 
   return [
-    'BLOCKED: worktree dispatch into a Rust workspace with no build cache.',
-    `  agent: ${label(input)}   isolation: worktree   root: ${join(root, 'Cargo.toml')}`,
+    'BLOCKED: worktree / separate-checkout dispatch in a Rust workspace (KIT-D039).',
+    `  agent: ${label(input)}   root: ${join(root, 'Cargo.toml')}`,
     '',
-    'A fresh worktree has NO target/, so the agent pays a cold build of the full dependency',
-    'graph before it can compile a line of your code. Lived case (2026-08-04, Bevy workspace):',
-    '30+ minutes silent, rustc at 3.3 GB RSS, all of it billed — for a change that took minutes.',
+    'Rust projects use ONE checkout on main: no worktrees, clones, feature branches or second',
+    'work directories, and never parallel read/write agents. Separate copies duplicate effort,',
+    'strand work, and each pays a cold build (2026-08-04: 30+ min silent; 2026-09-28: an agent',
+    'moved half-done work into D:/dev/stiletto-d2 and force-deleted it).',
     '',
-    'Fix — pick one:',
-    '  • provision the cache IN THE BRIEF: instruct the agent to set',
-    "    CARGO_TARGET_DIR=<main checkout>/target before any cargo command, so the worktree",
-    '    builds incrementally against the warm cache instead of from scratch;',
-    '  • drop isolation:"worktree" and run in the main checkout (serialize with other agents);',
-    '  • accept the cold build deliberately: include [cold-build-ok: <reason>] in the prompt.',
+    'Fix: drop isolation:"worktree" and run in the main checkout, one agent at a time; keep the',
+    'tree building by testing each step. Only if the maintainer explicitly asked for a worktree:',
+    'include [maintainer-asked-worktree: <his words>] in the prompt.',
     '',
     excludeFooter(COLD_BUILD_CHECK),
   ].join('\n');
@@ -143,7 +137,7 @@ function coldWorktreeBlock(root, input, prompt) {
 // in-flight work. Lived failure (2026-08-03): a billed agent waited out a colleague's broken
 // refactor, then built a throwaway scratch crate to work around it — all of it billed.
 function sharedTreeBlock(root, input, prompt) {
-  if (isWorktreeIsolation(input.isolation)) return null; // its own checkout — this IS the remedy
+  if (isWorktreeIsolation(input.isolation)) return null; // not this tree — cold-worktree-build rules on it
   if (/\[shared-tree-ok\b/i.test(prompt)) return null;
   if (readOnlyAgent(root, label(input))) return null; // nothing to corrupt, nothing to poll
   if (pathExcluded(root, SHARED_TREE_CHECK, root)) return null;
@@ -162,8 +156,7 @@ function sharedTreeBlock(root, input, prompt) {
     "wrong commit. Lived case (2026-08-03): a billed agent waited out a colleague's broken",
     'refactor, then built a throwaway scratch crate to work around it.',
     '',
-    'Fix — pick one:',
-    '  • give this dispatch its own checkout: isolation: "worktree";',
+    'Fix — pick one (never a worktree or second checkout — KIT-D039):',
     '  • serialize — wait for the in-flight agent, collect its result, then dispatch;',
     '  • it is genuinely safe to share (disjoint files, read-only work):',
     '    include [shared-tree-ok: <reason>] in the prompt.',
