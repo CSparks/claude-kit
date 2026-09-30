@@ -127,8 +127,8 @@ dispatch:
   tiers:
     light:    { model: claude-haiku-4-5, effort: low }    # search, triage, mechanical edits
                                                  # (effort is inert on haiku — no API support)
-    standard: { model: claude-opus-4-8, effort: high }    # straightforward coding (KIT-D073); 4.8 degrades
-                                                 # below high. Sonnet stays off (KIT-D043)
+    standard: { model: claude-sonnet-5-5, effort: high }  # straightforward fixes (KIT-D076); opus and
+                                                 # fable stay the orchestrator models
     push:     { model: claude-opus-5-5, effort: high }  # big pushes: new crates, multi-file
                                                  # features, spatial/geometry work (KIT-D073)
     careful:  { model: claude-opus-5, effort: medium }    # tricky/cross-file implementation —

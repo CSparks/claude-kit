@@ -95,10 +95,10 @@ The query-gate blocks tree-wide source greps. Read less to do more.
   dispatch.tiers`; KIT-D035/D042/D043). Model judgments are dated, lineup-dependent
   facts — update the ladder + a superseding decision at the kit source. Never encode
   model routing in a per-project memory.
-- Ad-hoc Agent-tool delegations follow the ladder: **coding/implementation → opus**;
-  trivial mechanical chores → haiku; **sonnet never for coding** (explicit override
-  only; KIT-D043); fable only for orchestration and the hardest reasoning. On a fable
-  usage-limit error, relaunch on opus immediately.
+- Ad-hoc Agent-tool delegations follow the ladder: **straightforward fixes → sonnet
+  5.5**; big or spatially heavy builds → opus 5.5; trivial mechanical chores → haiku;
+  **opus and fable are the orchestrator models** (KIT-D076). On a fable usage-limit
+  error, relaunch on opus immediately.
 - **Kit agents pin `model: opus` in their frontmatter** (KIT-T151). On a fable main
   thread, every delegation to an UNPINNED agent type must carry an explicit `model` —
   the `dispatch-ladder` hook blocks the silent inherit. Explicit `model:'fable'`
