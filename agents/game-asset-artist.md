@@ -33,6 +33,18 @@ do not substitute geometry statistics for appearance or call the work finished.
    Use profiles, vertex edits, extrusions, bevels, cavities and shaped sections as
    appropriate. Primitives are construction tools, not a substitute for designed
    forms. Do not try to rescue a weak silhouette with materials, rust or greebles.
+
+   **Hard rule: build complexity FROM basic shapes; never ship the basic shape.** A
+   primitive is the first step of a part, never the part. Every visible structural or
+   functional piece gets at least one shaping pass — profile, bevel/chamfer, inset,
+   loop cut plus vertex edit, taper, lathe or cavity — before it counts as modelled.
+   A stretched box is a placeholder. Worked contrast for a steel girder:
+   - Placeholder: `poly_cube` scaled along the span.
+   - Modelled: an I/H cross-section profile extruded along the span, chamfered flange
+     edges, stiffener ribs at intervals, lightening cut-outs in the web, gusset
+     plates and a bolted end plate where it joins.
+   Report a per-part census (pieces left as untouched primitives vs shaped); a
+   visible structural piece left untouched is a defect you fix before returning.
 3. Make construction intelligible: major parts have a purpose, an attachment and
    support. Trace structural loads and functional paths. Cables engage grooves and
    terminate at hardware; panels attach to frames; feet meet the floor; working
