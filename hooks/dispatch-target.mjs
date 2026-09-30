@@ -28,6 +28,8 @@ export function isWorktreeIsolation(value) {
 // and the answer is canonicalized through git so it compares equal to a row that repo wrote.
 export function dispatchTargetRoot(sessionRoot, input) {
   try {
+    const declared = treeToken(input);
+    if (declared && isRepoRoot(declared)) return gitRoot(declared) || declared;
     for (const candidate of candidates(input)) {
       if (!isRepoRoot(candidate)) continue;
       const resolved = gitRoot(candidate) || candidate;
@@ -58,6 +60,13 @@ export function sameTree(a, b) {
 // two roots compare EQUAL — the side that keeps the block.
 function normalizeTree(p) {
   return String(p ?? '').trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
+// `[tree: <absolute path>]` — the dispatcher's declaration of the checkout the agent writes in.
+function treeToken(input) {
+  const m = String(input?.prompt ?? input?.message ?? '').match(/\[tree:\s*([^\]]+)\]/i);
+  const path = m ? m[1].trim().replace(/^["'`]|["'`]$/g, '') : '';
+  return ABSOLUTE.test(path) ? path : '';
 }
 
 function candidates(input) {

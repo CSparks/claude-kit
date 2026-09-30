@@ -134,13 +134,14 @@ the accumulated transcript, so 100 calls is roughly quadratic.
 - **Scale verification to BLAST RADIUS**, stated in the brief: shared/load-bearing →
   golden record + mutation-check the key invariant; contained feature → assert the
   new behaviour, one negative control; leaf/mechanical → measure, assert, done.
-- **ONE implementation agent at a time — gate-enforced (KIT-T256, KIT-D074).** Parallel
-  writers are slower AND dearer: each pays a cold build and a full context on one box
-  (2026-08-25: four lanes, ~300–600k tokens each, then killed). The next ticket goes to
-  the SAME agent after it lands (warm build, warm context). Analysis runs alongside only
-  as a READ-ONLY agent type (`claude-kit:analyst`, `analyst-max`, `researcher`, Explore —
-  no writing tool in its definition). Parallel writers need the maintainer's quoted words:
-  `[maintainer-asked-parallel: <his words>]`; an agent never grants itself the escape.
+- **One read/write agent per checkout; read-only agents unrestricted — gate-enforced
+  (KIT-D077, supersedes the KIT-T256 gate).** Two writers in one checkout are slower AND
+  dearer (2026-08-25: four lanes, ~300–600k tokens each, then killed). The next ticket goes
+  to the SAME agent after it lands (warm build, warm context). Read-only = no Edit/Write in
+  the definition's `tools:` (`claude-kit:analyst`, `researcher`, `researcher-sonnet55`,
+  Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in a
+  different checkout declares `[tree: <absolute path>]`. Two writers in ONE checkout need
+  the maintainer's quoted words: `[maintainer-asked-parallel: <his words>]`.
 
 ## Specialists over `general-purpose` — CREATE the missing specialist
 `general-purpose` is the last resort. Before every delegation: (1) pick `model` AND

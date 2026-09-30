@@ -12,7 +12,7 @@
 // Run: node hooks/dispatch-guard.test.mjs
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -157,15 +157,11 @@ const elsewhere = gitTop(makeRepo());
 const sameTree = makeRepo({ cargo: true });
 roster(sameTree, [inFlightRow(0, { targetRoot: gitTop(sameTree) })]);
 
-// The three tree-scoped allowances hold for shared-tree-dispatch (its message must not fire),
-// but KIT-T256's parallel-dispatch still blocks each — one agent at a time is not tree-scoped.
 const wtRow = roster(makeRepo({ cargo: true }), [inFlightRow(0, { isolation: 'worktree' })]);
-expect('a worktree-isolated live row: shared-tree stays silent', /one working tree/.test(run(wtRow, shared).err) ? 1 : 0, 0);
-expect('a worktree-isolated live row still blocks (parallel-dispatch)', run(wtRow, shared).code, 2);
-expect('a live row targeting another repo still blocks (parallel-dispatch)', run(roster(makeRepo({ cargo: true }), [inFlightRow(0, { targetRoot: elsewhere })]), shared).code, 2);
+expect('a worktree-isolated live row does not count', run(wtRow, shared).code, 0);
+expect('a live row targeting another repo does not count', run(roster(makeRepo({ cargo: true }), [inFlightRow(0, { targetRoot: elsewhere })]), shared).code, 0);
 expect('blocks when the live row targets THIS tree', run(sameTree, shared).code, 2);
-expect('a new dispatch aimed at another repo root still blocks (parallel-dispatch)', run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\`` }).code, 2);
-expect('…and passes once the maintainer asked for parallel',run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\` ${PAR}` }).code, 0);
+expect('a new dispatch aimed at another repo root is a different checkout', run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\`` }).code, 0);
 expect('blocks an old-format row with neither field (conservative)', run(roster(makeRepo(), [inFlightRow()]), shared).code, 2);
 expect('an old-format row still ages out at 2h', run(roster(makeRepo(), [inFlightRow(3 * HOURS, { targetRoot: undefined })]), shared).code, 0);
 expect('a row with an unparseable isolation value still counts (fail toward the halt)', run(roster(makeRepo(), [inFlightRow(0, { isolation: 42 })]), shared).code, 2);
@@ -173,7 +169,7 @@ expect('the tree-scoped filter still fails open on a corrupt roster (the worktre
 expect('block message names the tree it scoped to', run(sameTree, shared).err.includes(gitTop(sameTree)) ? 1 : 0, 1);
 
 const sharedMsg = run(busy, shared).err;
-expect('shared-tree message names the one-agent-per-tree rule', /two agents in one working tree/i.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message names the one-agent-per-tree rule', /one read\/write agent per checkout/i.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message lists the in-flight agent', /agent-live/.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message never steers to worktree isolation', /isolation: ?"worktree"|git worktree add/.test(sharedMsg) ? 1 : 0, 0);
 expect('shared-tree message names the maintainer escape, not the retired note', /\[maintainer-asked-parallel:/.test(sharedMsg) && !/shared-tree-ok/.test(sharedMsg) ? 1 : 0, 1);
@@ -184,33 +180,46 @@ expect('shared-tree message carries the exclude footer', /id: shared-tree-dispat
 // repo that hasn't opted in.
 expect('allows on an unadopted repo with a Cargo.toml', run(makeRepo({ adopt: false, cargo: true }), wt).code, 0);
 
-// --- parallel-dispatch (KIT-T256) ------------------------------------------------
-// Lived failure (2026-08-25): four implementation agents in four hand-made worktrees, ~300-600k
-// tokens each, four cold builds on one box. ONE writing agent at a time, any tree; the only
-// escape is the maintainer's quoted words (KIT-D074).
+// --- one read/write agent per checkout (KIT-D077) ----------------------------------
 const one = { subagent_type: 'general-purpose', model: 'opus', prompt: 'implement the next ticket (KIT-T256)' };
-expect('blocks a second agent while one is in flight (any tree)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), one).code, 2);
-expect('blocks even when the live agent is in its own worktree', run(roster(makeRepo({ cargo: true }), [inFlightRow(0, { isolation: 'worktree' })]), one).code, 2);
-expect('the retired cost-stating [allow-parallel: …] token no longer escapes (KIT-D074)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `${one.prompt} ${RETIRED_PAR}` }).code, 2);
-expect('the maintainer token does not lift a worktree dispatch (cold-worktree-build)', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, isolation: 'worktree', prompt: `${one.prompt} ${PAR}` }).code, 2);
-expect('the maintainer token lifts both the parallel and same-tree blocks', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `${one.prompt} ${PAR}` }).code, 0);
+const live = () => roster(makeRepo({ cargo: true }), [inFlightRow()]);
+expect('the retired [allow-parallel: …] token does not escape', run(live(), { ...one, prompt: `${one.prompt} ${RETIRED_PAR}` }).code, 2);
+expect('the maintainer token does not lift a worktree dispatch', run(live(), { ...one, isolation: 'worktree', prompt: `${one.prompt} ${PAR}` }).code, 2);
+expect('two writers in ONE checkout pass with the maintainer token', run(live(), { ...one, prompt: `${one.prompt} ${PAR}` }).code, 0);
 expect('allows the first agent (empty roster)', run(roster(makeRepo({ cargo: true }), []), one).code, 0);
-expect('allows after the previous agent finished', run(roster(makeRepo({ cargo: true }), [inFlightRow(), { ts: new Date().toISOString(), id: 'agent-live', status: 'done' }]), one).code, 0);
-expect('allows when the live row is stale (>2h)', run(roster(makeRepo({ cargo: true }), [inFlightRow(3 * HOURS)]), one).code, 0);
-expect('allows via the ignore file (parallel-dispatch)', run(ignoreFile(roster(makeRepo({ cargo: true }), [inFlightRow()]), 'parallel-dispatch', 'shared-tree-dispatch'), one).code, 0);
-expect('parallel-dispatch stays silent in a NON-Rust repo (the concern is the compile loop)', /ONE agent at a time/.test(run(roster(makeRepo(), [inFlightRow()]), one).err) ? 1 : 0, 0);
-expect('fails open on a corrupt roster', run(roster(makeRepo({ cargo: true }), ['{ nope']), one).code, 0);
+expect('allows the ignore-file key', run(ignoreFile(live(), 'shared-tree-dispatch'), one).code, 0);
+expect('blocks in a non-Rust repo too (the rule is per checkout)', run(roster(makeRepo(), [inFlightRow()]), one).code, 2);
 
-const parMsg = run(roster(makeRepo({ cargo: true }), [inFlightRow()]), one).err;
-expect('parallel message states ONE agent at a time', /ONE agent at a time/.test(parMsg) ? 1 : 0, 1);
-expect('parallel message cites the lived four-lane burn', /four lanes/.test(parMsg) ? 1 : 0, 1);
-expect('parallel message names the serialize remedy', /serialize/.test(parMsg) ? 1 : 0, 1);
-expect('parallel message names only the maintainer escape', /\[maintainer-asked-parallel:/.test(parMsg) && !/\[allow-parallel/.test(parMsg) ? 1 : 0, 1);
-expect('a retired token is told it is retired', /retired/.test(run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { ...one, prompt: `x ${RETIRED_PAR}` }).err) ? 1 : 0, 1);
-expect('parallel message carries the exclude footer', /id: parallel-dispatch/.test(parMsg) ? 1 : 0, 1);
+// --- [tree:] keys the count by the checkout the agent writes in -------------------------
+{
+  const stiletto = makeRepo({ cargo: true });
+  roster(stiletto, [inFlightRow(0, { targetRoot: gitTop(stiletto) })]);
+  const other = gitTop(makeRepo());
+  expect('a writer with [tree: other repo] passes beside a writer in this checkout', run(stiletto, { ...one, prompt: `${one.prompt} [tree: ${other}]` }).code, 0);
+  expect('a writer with [tree: this checkout] is still blocked', run(stiletto, { ...one, prompt: `${one.prompt} [tree: ${gitTop(stiletto)}]` }).code, 2);
+  expect('a [tree:] that is not a repo falls back to the session checkout', run(stiletto, { ...one, prompt: `${one.prompt} [tree: ${join(other, 'nope')}]` }).code, 2);
+  const wrongRow = roster(makeRepo({ cargo: true }), [inFlightRow(0, { targetRoot: other })]);
+  expect('a session writer beside a writer row aimed at [tree:] is blocked when they share it', run(wrongRow, { ...one, prompt: `${one.prompt} [tree: ${other}]` }).code, 2);
+}
+
+// --- [read-only: reason] on a writer-capable type ---------------------------------------
+{
+  const dir = live();
+  expect('an all-tools type without the token is blocked', run(dir, { subagent_type: 'sonnet55', prompt: 'survey the docs' }).code, 2);
+  expect('[read-only: reason] lets an all-tools type through', run(dir, { subagent_type: 'sonnet55', prompt: 'survey the docs [read-only: research only]' }).code, 0);
+  expect('an empty [read-only:] does not count', run(dir, { subagent_type: 'sonnet55', prompt: 'survey [read-only: ]' }).code, 2);
+  const declared = roster(makeRepo({ cargo: true }), [inFlightRow(0, { scope: 'sonnet55', readOnly: 'research only' })]);
+  expect('a row carrying readOnly never counts', run(declared, one).code, 0);
+  spawnSync(process.execPath, [fileURLToPath(new URL('./agent-roster.mjs', import.meta.url))], {
+    cwd: declared, encoding: 'utf8', env: { ...process.env, CLAUDE_PLUGIN_ROOT: '' },
+    input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Agent', tool_input: { subagent_type: 'sonnet55', description: 'survey', prompt: 'survey [read-only: research only]' }, tool_response: { agent_id: 'agent-ro' } }),
+  });
+  const rows = readFileSync(join(declared, '.ai', 'agents.jsonl'), 'utf8').trim().split(/\r?\n/).map((l) => JSON.parse(l));
+  expect('the roster row logs the read-only declaration', rows.some((r) => r.id === 'agent-ro' && r.readOnly === 'research only') ? 1 : 0, 1);
+}
 
 // --- read-only lanes never block and are never blocked --------------------------------
-// Both checks price the edit→build→measure loop. An agent whose definition grants no writing
+// The check prices the edit→build→measure loop. An agent whose definition grants no writing
 // tool (researcher, reviewer, the built-in Explore/Plan) has no such loop and no half-written
 // files, so analytical lanes run in parallel (the maintainer, 2026-09-17: "WE definitely should
 // be able to run parallel agents doing analytical work").
@@ -275,7 +284,7 @@ expect('parallel message carries the exclude footer', /id: parallel-dispatch/.te
 // ~230K tokens on an opus-grade job).
 {
   const FABLE_LANE = new Set(['game-asset-artist.md', 'light-and-shadow.md']);
-  const { readdirSync, readFileSync } = await import('node:fs');
+  const { readdirSync } = await import('node:fs');
   const agentsDir = fileURLToPath(new URL('../agents', import.meta.url));
   for (const file of readdirSync(agentsDir).filter((f) => f.endsWith('.md') && f !== 'README.md')) {
     const pin = (readFileSync(join(agentsDir, file), 'utf8').match(/^model:[ \t]*(\S+)/m) || [])[1];

@@ -14,6 +14,7 @@
 
 import { gitRoot, adopted, payload, recordAgent, updateAgent, ID_CITE_SRC } from './lib.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
+import { declaredReadOnly } from './dispatch-readonly.mjs';
 import { resolveDispatchModel, stripModelTag } from './model-tag.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
@@ -65,7 +66,8 @@ function recordDispatch(root, p) {
     // WHAT IT COSTS (KIT-T179). Stored RAW — the alias or full id actually resolved — so the
     // display map in model-tag.mjs stays the one place a lineup rename has to be made.
     const model = resolveDispatchModel(root, inp, p);
-    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, source: 'posttooluse' });
+    const readOnly = declaredReadOnly(firstString(inp.prompt, inp.message));
+    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(readOnly ? { readOnly } : {}), source: 'posttooluse' });
     // Advisory: a delegation with no ticket id is ungrounded work — warn, never block (exit 0).
     const brief = firstString(inp.description, inp.task, inp.title, inp.prompt, inp.message) || '';
     if (brief && !ID_CITE_RE.test(brief)) {
