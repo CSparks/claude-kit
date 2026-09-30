@@ -28,3 +28,4 @@ Status: 🔬 ready · ✅ applied somewhere · ♻️ partial · 🗄️ superse
 | --- | --- | --- |
 | [model-routing-ladder-2026-08.md](model-routing-ladder-2026-08.md) | Model lineup, behavior, dispatch-ladder evidence | ✅ |
 | [effort-cost-index-2026-09.md](effort-cost-index-2026-09.md) | Anthropic effort cost index per model; ladder readings | ✅ |
+| [rust-bevy-cpu-perf-checklist-2026-09.md](rust-bevy-cpu-perf-checklist-2026-09.md) | Rust/Bevy CPU perf audit checklist, 23 rules with detection + sources | ✅ |
