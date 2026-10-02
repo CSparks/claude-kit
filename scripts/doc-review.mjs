@@ -13,6 +13,7 @@ import { lintDocTree } from './doc-tree.mjs';
 import { auditStructure } from './structure-audit.mjs';
 import { frameworkStores } from './q-framework.mjs';
 import { touchDocReview } from '../hooks/lib/doc-review.mjs';
+import { logReport } from './search-report.mjs';
 
 const DEFAULT_TOP = 6;
 
@@ -39,6 +40,7 @@ export function reviewReport(root, top = DEFAULT_TOP) {
     total += docs.length + structure.length;
     out.push('', `== ${t.label}: ${t.dir}`, `-- doc tree (${docs.length})`, ...group(docs, top), `-- structure (${structure.length})`, ...group(structure, top));
   }
+  out.push('', logReport(root));
   out.push('', total ? `${total} finding(s). Present them grouped, ask what to act on, then: node scripts/doc-review.mjs --done` : 'Clean. Record it: node scripts/doc-review.mjs --done');
   out.push('For stale references and undocumented surface, run the doc-audit skill.');
   return out.join('\n');

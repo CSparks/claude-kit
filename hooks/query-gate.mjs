@@ -18,6 +18,9 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { segments } from './lib/shell-segments.mjs';
+import { logSearch } from './lib/search-log.mjs';
+import { classifyCalls } from './lib/search-shape.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 
 const KIT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -106,39 +109,12 @@ async function main() {
       // .claude-kit-ignore.yaml lets a command through (e.g. allow grepping a generated
       // tree). Match any path-ish token in the command against that id. Fail-open.
       if (excludedByConfig(root, verdict.id, c)) continue;
+      logSearch(root, { event: 'blocked', rule: verdict.id, ...(classifyCalls('Bash', { command: c })[0] || {}) });
       process.stderr.write(verdict.msg + excludeFooter(verdict.id));
       process.exit(2);
     }
   }
   process.exit(0);
-}
-
-// Split a shell line into segments, each tagged with the operator BEFORE it ('start',
-// '|', '||', '&&', ';', '&'). A newline is a ';'. Quote-aware so operators inside strings
-// don't split; `>&` / `&>` are redirections, not separators.
-function segments(cmd) {
-  const out = [];
-  let cur = '';
-  let op = 'start';
-  let q = '';
-  for (let i = 0; i < cmd.length; i++) {
-    const ch = cmd[i];
-    if (q) { cur += ch; if (ch === q) q = ''; continue; }
-    if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; }
-    if (ch === '&' && (cmd[i - 1] === '>' || cmd[i + 1] === '>')) { cur += ch; continue; } // 2>&1, &>file: redirection, not a separator
-    if (ch === '|' || ch === '&' || ch === ';' || ch === '\n') {
-      const pair = ch + (cmd[i + 1] || '');
-      const sep = pair === '||' || pair === '&&' ? pair : ch === '\n' ? ';' : ch;
-      if (sep.length === 2) i++;
-      out.push({ text: cur, after: op });
-      cur = '';
-      op = sep;
-      continue;
-    }
-    cur += ch;
-  }
-  out.push({ text: cur, after: op });
-  return out;
 }
 
 // True iff any path-ish argument in the command is excluded from `id` by a config glob.

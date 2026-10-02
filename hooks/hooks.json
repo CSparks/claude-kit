@@ -68,6 +68,10 @@
         ]
       },
       {
+        "matcher": "Bash|PowerShell|Grep|Glob",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" search-telemetry.mjs" }]
+      },
+      {
         "matcher": "mcp__.*context7",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" context7-ledger.mjs" }]
       }
