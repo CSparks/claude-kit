@@ -481,7 +481,7 @@ export function evidenceFloor(text, uatDefault = 'required') {
 export async function startTrail(root, id, escape = '') {
   let trail = [];
   try {
-    const { query } = await import('./q.mjs');
+    const { query } = await import('./q-lib.mjs');
     const { rows } = await query('trail', [id], { cwdRoot: root });
     trail = Array.isArray(rows) ? rows : [];
   } catch {
@@ -492,7 +492,7 @@ export async function startTrail(root, id, escape = '') {
 
 async function refresh(root) {
   try {
-    execFileSync('node', [join(SCRIPT_DIR, 'index-tickets.mjs'), root], { stdio: 'ignore' });
+    execFileSync('node', [join(SCRIPT_DIR, 'index-tickets.mjs'), root], { stdio: 'ignore', windowsHide: true });
   } catch { /* board regen is best-effort; the markdown is already the truth */ }
   try {
     const { hydrate, defaultDbPath } = await import('./hydrate-db.mjs');

@@ -20,7 +20,7 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { query } from './q.mjs';
+import { query } from './q-lib.mjs';
 import { compareIds } from './id-utils.mjs';
 import { writeItemFile } from '../hooks/lib.mjs';
 // Shared comment-aware parser (KIT-T107): the local field() copy this replaced read the

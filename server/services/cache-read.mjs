@@ -4,7 +4,7 @@
 // never writes it. `openFresh` hands back a fresh handle (caller closes); the fetchers are
 // pure reads over it with EXPLICIT columns and bound `?` params (no SELECT *, no string SQL).
 
-import { dbOpen } from '../../scripts/q.mjs';
+import { dbOpen } from '../../scripts/q-lib.mjs';
 import { ApiError } from '../lib/errors.mjs';
 import { STATUS } from '../lib/status.mjs';
 

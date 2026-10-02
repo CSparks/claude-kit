@@ -26,7 +26,7 @@ import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 import { hydrate } from './hydrate-db.mjs';
 import { resolveEngine } from './db-engine.mjs';
-import { query, verifyCache } from './q.mjs';
+import { query, verifyCache } from './q-lib.mjs';
 
 let pass = 0;
 let fail = 0;

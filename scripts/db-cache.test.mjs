@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { collectItems, readCount, resetReadCount } from './db-parse.mjs';
 import { hydrate } from './hydrate-db.mjs';
 import { resolveEngine } from './db-engine.mjs';
-import { query } from './q.mjs';
+import { query } from './q-lib.mjs';
 import { nextId } from './id-utils.mjs';
 import { reconcileSupersede, autoDedupTickets } from './reconcile-supersede.mjs';
 

@@ -23,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { resolveEngine } from './db-engine.mjs';
 import { hydrate } from './hydrate-db.mjs';
-import { query } from './q.mjs';
+import { query } from './q-lib.mjs';
 import {
   ftsMatchQuery, parseFts, defaultScope, resolveScope, resolveStore, requireStore, requireScope, formatId,
 } from './q-model.mjs';

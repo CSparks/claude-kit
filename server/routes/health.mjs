@@ -2,7 +2,7 @@
 // the CLI's `q verify` runs). Never throws: a cache probe failure still reports the server up.
 
 import { Router } from 'express';
-import { verifyCache } from '../../scripts/q.mjs';
+import { verifyCache } from '../../scripts/q-lib.mjs';
 import { asyncHandler, send } from '../lib/respond.mjs';
 
 export function healthRoutes(config) {

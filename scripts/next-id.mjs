@@ -18,7 +18,7 @@
 // Pair with check-ids.mjs for the integrity half.
 
 import { nextReminderId, readIdConfig, maxStoreNum, formatItemId, STORE_TYPE } from './id-utils.mjs';
-import { query } from './q.mjs';
+import { query } from './q-lib.mjs';
 
 const DEDUP_HINT_MAX = 5; // cap surfaced duplicate candidates — a hint, not a dump
 

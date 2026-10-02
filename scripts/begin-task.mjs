@@ -19,7 +19,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { query } from './q.mjs';
+import { query } from './q-lib.mjs';
 import { parseItem } from './db-parse.mjs';
 import { governingRows, renderGoverning } from './governing-brief.mjs';
 

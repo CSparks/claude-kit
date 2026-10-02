@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 
 export function git(args, cwd) {
   try {
-    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true });
   } catch {
     return '';
   }
@@ -23,7 +23,7 @@ export function git(args, cwd) {
 // push verification — git() swallowing a rejected push produced false receipts).
 export function gitTry(args, cwd) {
   try {
-    return { ok: true, out: execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) };
+    return { ok: true, out: execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }) };
   } catch (e) {
     const err = (e && e.stderr && e.stderr.toString()) || (e && e.message) || 'git failed';
     return { ok: false, out: err };
@@ -35,7 +35,7 @@ export function gitTry(args, cwd) {
 export function have(tool) {
   if (process.platform === 'win32') {
     try {
-      execFileSync('where', [tool], { stdio: 'ignore' });
+      execFileSync('where', [tool], { stdio: 'ignore', windowsHide: true });
       return true;
     } catch {
       return false;
@@ -48,7 +48,7 @@ export function have(tool) {
 // not a crash).
 export function runStatus(cmd, args, cwd) {
   try {
-    return { code: 0, out: execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) };
+    return { code: 0, out: execFileSync(cmd, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }) };
   } catch (e) {
     return { code: e.status ?? 1, out: `${e.stdout || ''}${e.stderr || ''}` };
   }

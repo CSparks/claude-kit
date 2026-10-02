@@ -369,7 +369,7 @@ if (decisionsDir) {
 // Open work — queried from cache; in-flight (doing/review) for THIS project shown inline.
 try {
   const { readIdConfig } = await import('../scripts/id-utils.mjs');
-  const { query } = await import('../scripts/q.mjs');
+  const { query } = await import('../scripts/q-lib.mjs');
   const { key } = readIdConfig(root);
   // `all` is explicit (KIT-T255): the banner's "by scope" line IS the cross-project view, so
   // it must not inherit q's cwd-project default. The in-flight lines re-filter to `key`.
@@ -404,7 +404,7 @@ try {
 // session must pick up without a built context. Acked ones are already cleared. Fail-open.
 try {
   const { resolveAgent } = await import('../scripts/comments.mjs');
-  const { query } = await import('../scripts/q.mjs');
+  const { query } = await import('../scripts/q-lib.mjs');
   const agent = resolveAgent();
   const { rows: mentionRows } = await query('mentions', [agent], { cwdRoot: root });
   const unread = (mentionRows || []).filter((r) => r.state === 'unread');
@@ -446,7 +446,7 @@ if (lineage.length) {
 try {
   const filePaths = changedPaths.filter((p) => /\.[a-z0-9]+$/i.test(p));
   if (filePaths.length) {
-    const { query } = await import('../scripts/q.mjs');
+    const { query } = await import('../scripts/q-lib.mjs');
     const { rows: govRows } = await query('governing', filePaths, { root, cwdRoot: root });
     const already = new Set([...(standing && standing.shownIds ? standing.shownIds : []), ...foundational.map((m) => m.id).filter(Boolean)]);
     const fresh = (govRows || []).filter((r) => !already.has(r.id));

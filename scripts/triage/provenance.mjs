@@ -24,7 +24,7 @@
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { query } from '../q.mjs';
+import { query } from '../q-lib.mjs';
 
 const TOP_N = 3;              // candidates surfaced per cap — a hint list for the maintainer, not a dump
 const GRAPH_TIMEOUT_MS = 20000; // code-graph builds the whole graph; bound it so a huge repo can't hang triage

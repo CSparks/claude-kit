@@ -17,7 +17,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { compareIds, readIdConfig } from './id-utils.mjs';
-import { query } from './q.mjs';
+import { query } from './q-lib.mjs';
 import { reconcileSupersede, autoDedupTickets } from './reconcile-supersede.mjs';
 
 const SKIP = new Set(['_TEMPLATE.md', 'INDEX.md']);

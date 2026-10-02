@@ -5,7 +5,7 @@
 
 import { realpathSync } from 'node:fs';
 import { dirname, basename, join } from 'node:path';
-import { query } from './q.mjs';
+import { query } from './q-lib.mjs';
 import { frameworkStores } from './q-framework.mjs';
 import { readIdConfig } from './id-utils.mjs';
 

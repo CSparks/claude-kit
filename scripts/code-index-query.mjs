@@ -1,7 +1,7 @@
 // code-index-query.mjs — the q verbs over the code index (KIT-T101): `q code` (content, the grep
 // replacement), `q sym` (defs, impls, uses, mods), `q file` (paths). Every content hit is
-// VERIFIED against the file text on disk, so an answer is exactly what grep would print: the
-// trigram table only narrows candidate files. Flags: see QUERY_HELP in q.mjs.
+// VERIFIED against the file text held in the index (current after every refresh), so an answer
+// is exactly what grep would print: the trigram table only narrows candidate files. Flags: see QUERY_HELP in q.mjs.
 
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
@@ -133,6 +133,14 @@ function sqlFilters(flags, kinds) {
 const memFilter = (files, flags, kinds) => files.filter((f) => kinds.includes(f.kind) && (!flags.lang || f.lang === flags.lang)
   && (!flags.path || f.rel === flags.path || f.rel.startsWith(dirPrefix(flags.path))));
 
+const byName = new Intl.Collator().compare; // same order as String#localeCompare, without its per-call setup cost
+// The newline ending a file starts no line.
+function splitLines(text) {
+  const lines = text.split('\n');
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
 const clip = (s) => (s.length > LINE_CLIP ? s.slice(0, LINE_CLIP - 1) + '…' : s);
 
 async function candidatesFor(idx, text, flags, kinds) {
@@ -140,26 +148,25 @@ async function candidatesFor(idx, text, flags, kinds) {
   const pre = prefilter(text, flags);
   const { where, params } = sqlFilters(flags, kinds);
   const sql = pre
-    ? `SELECT f.path FROM content c JOIN files f ON f.id = c.rowid WHERE content MATCH ? AND ${where.join(' AND ')}`
-    : `SELECT f.path FROM files f WHERE ${where.join(' AND ')}`;
+    ? `SELECT f.path, c.body FROM content c JOIN files f ON f.id = c.rowid WHERE content MATCH ? AND ${where.join(' AND ')}`
+    : `SELECT f.path, c.body FROM files f JOIN content c ON c.rowid = f.id WHERE ${where.join(' AND ')}`;
   return idx.handle.all(sql, pre ? [ftsExpr(pre), ...params] : params);
 }
 
-async function codeVerb(root, text, flags) {
+async function codeVerb(root, text, flags, refresh) {
   const matcher = buildMatcher(text, flags);
   if (!matcher) return [{ loc: '', text: `invalid pattern: ${text}` }];
   const kinds = flags.kinds || DEFAULT_KINDS;
-  const idx = await refreshIndex(root, { tickets: kinds.includes('ticket') });
+  const idx = await refresh(root, { tickets: kinds.includes('ticket') });
   const candidates = await candidatesFor(idx, text, flags, kinds);
-  const abs = new Map(idx.files.map((f) => [f.rel, f.abs]));
+  const abs = idx.handle ? null : new Map(idx.files.map((f) => [f.rel, f.abs]));
   const perFile = [];
   for (const c of candidates) {
-    let lines;
-    try { lines = readFileSync(abs.get(c.path), 'utf8').split('\n'); } catch { continue; }
-    if (lines.length && lines[lines.length - 1] === '') lines.pop(); // the newline ending a file starts no line
+    let body;
+    try { body = c.body ?? readFileSync(abs.get(c.path), 'utf8'); } catch { continue; }
     const hits = [];
-    lines.forEach((l, i) => { if (matcher(l)) hits.push(i); });
-    if (hits.length) perFile.push({ path: c.path, lines, hits });
+    splitLines(body).forEach((l, i) => { if (matcher(l)) hits.push(i); });
+    if (hits.length) perFile.push({ path: c.path, text: body, hits });
   }
   const defLines = new Set();
   if (idx.handle && /^[A-Za-z_]\w*$/.test(text) && !flags.regex) {
@@ -167,8 +174,9 @@ async function codeVerb(root, text, flags) {
     for (const r of defs) defLines.add(`${r.path}:${r.line}`);
   }
   idx.handle?.close();
-  const rank = (f) => (f.hits.some((i) => defLines.has(`${f.path}:${i + 1}`)) ? 0 : 1);
-  perFile.sort((a, b) => rank(a) - rank(b) || b.hits.length - a.hits.length || a.path.localeCompare(b.path));
+  if (defLines.size) for (const f of perFile) f.rank = f.hits.some((i) => defLines.has(`${f.path}:${i + 1}`)) ? 0 : 1;
+  const rank = (f) => f.rank ?? 1;
+  perFile.sort((a, b) => rank(a) - rank(b) || b.hits.length - a.hits.length || byName(a.path, b.path));
   if (flags.filesOnly || flags.count) return perFile.map((f) => ({ loc: f.path, text: flags.count ? String(f.hits.length) : `${f.hits.length} hit(s)` }));
   return renderHits(perFile, flags);
 }
@@ -179,14 +187,16 @@ function renderHits(perFile, flags) {
   let total = 0;
   for (const f of perFile) {
     total += f.hits.length;
+    if (flags.limit && shown >= flags.limit) continue;
+    const lines = splitLines(f.text);
     const emitted = new Set();
     for (const i of f.hits) {
       if (flags.limit && shown >= flags.limit) continue;
       shown++;
-      for (let j = Math.max(0, i - flags.before); j <= Math.min(f.lines.length - 1, i + flags.after); j++) {
+      for (let j = Math.max(0, i - flags.before); j <= Math.min(lines.length - 1, i + flags.after); j++) {
         if (emitted.has(j)) continue;
         emitted.add(j);
-        rows.push({ loc: `${f.path}${j === i ? ':' : '-'}${j + 1}`, text: clip(f.lines[j].trimEnd()) });
+        rows.push({ loc: `${f.path}${j === i ? ':' : '-'}${j + 1}`, text: clip(lines[j].trimEnd()) });
       }
     }
   }
@@ -194,9 +204,9 @@ function renderHits(perFile, flags) {
   return rows;
 }
 
-async function symVerb(root, text, flags) {
+async function symVerb(root, text, flags, refresh) {
   const kinds = flags.kinds || DEFAULT_KINDS;
-  const idx = await refreshIndex(root, { tickets: kinds.includes('ticket') });
+  const idx = await refresh(root, { tickets: kinds.includes('ticket') });
   if (!idx.handle) return [{ loc: '', text: 'q sym needs a SQLite engine (none found)' }];
   const { where, params } = sqlFilters(flags, kinds);
   if (text && flags.fuzzy) { where.push("s.name LIKE ? ESCAPE '\\'"); params.push(`%${text.replace(/[%_\\]/g, '\\$&')}%`); }
@@ -211,8 +221,8 @@ async function symVerb(root, text, flags) {
   return out;
 }
 
-async function fileVerb(root, text, flags) {
-  const idx = await refreshIndex(root);
+async function fileVerb(root, text, flags, refresh) {
+  const idx = await refresh(root);
   idx.handle?.close();
   const isGlob = /[*?]/.test(text);
   const re = isGlob
@@ -233,11 +243,14 @@ async function unknownFlagRows(cmd, args, unknown, root) {
   return [{ loc: '', text: `q ${cmd} does not take ${unknown.join(' ')}.${gap ? ` Filed as ${gap.id} (kit-bug) — do not fall back to grep.` : ''}` }];
 }
 
-/** Entry for q.mjs: cmd is 'code' | 'sym' | 'file'. */
-export async function codeVerbRows(cmd, args, root) {
+/**
+ * Entry for q.mjs: cmd is 'code' | 'sym' | 'file'. `refresh(root, { tickets })` yields the index
+ * to answer from (default refreshIndex; the resident server passes its own).
+ */
+export async function codeVerbRows(cmd, args, root, refresh = refreshIndex) {
   const { text, flags } = parseCodeArgs(args);
   if (flags.unknown.length) return unknownFlagRows(cmd, args, flags.unknown, root);
-  if (cmd === 'code') return text ? codeVerb(root, text, flags) : [{ loc: '', text: 'usage: q code <text> [--regex] [-i] [-w] [--lang L] [--path P] [-C n]' }];
-  if (cmd === 'sym') return symVerb(root, text, flags);
-  return text ? fileVerb(root, text, flags) : [{ loc: '', text: 'usage: q file <substring|glob>' }];
+  if (cmd === 'code') return text ? codeVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q code <text> [--regex] [-i] [-w] [--lang L] [--path P] [-C n]' }];
+  if (cmd === 'sym') return symVerb(root, text, flags, refresh);
+  return text ? fileVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q file <substring|glob>' }];
 }

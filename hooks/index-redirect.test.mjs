@@ -6,6 +6,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { stopServer } from '../scripts/q-client.mjs';
 import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 
 const { ok, done } = reporter('index-redirect');
@@ -20,7 +21,7 @@ put('crates/hud/src/ui.rs', 'pub fn spawn_camp_marker() {}\nCamp here\nspawn_cam
 put('assets/shaders/terrain.wgsl', 'fn terrain_height() {}\nstruct Terrain {}\nvar<uniform> terrain_uniform: u32;\n');
 put('docs/guide.md', '# heading one\ntext\n## heading two\n');
 execFileSync('git', ['add', '-A'], { cwd: repo });
-const qEnv = { ...process.env, CLAUDE_KIT_CODE_INDEX_DIR: tmpDir('ci-'), CLAUDE_KIT_REGISTRY: join(tmpDir('reg-'), 'r.json'), CLAUDE_KIT_BUG_STORE: 'off' };
+const qEnv = { ...process.env, CLAUDE_KIT_CODE_INDEX_DIR: tmpDir('ci-'), CLAUDE_KIT_REGISTRY: join(tmpDir('reg-'), 'r.json'), CLAUDE_KIT_BUG_STORE: 'off', CLAUDE_KIT_Q_SERVER_IDLE_MS: '8000' };
 
 const gate = (command) => hook('query-gate.mjs', { tool_input: { command } }, repo);
 const truth = (args) => {
@@ -86,6 +87,8 @@ try {
   const unscoped = gate('rg spawn_camp crates');
   ok('a grep with no language scope is not answered by the index (the graph message, not a lossy redirect)', unscoped.code === 2 && !/code index answers/.test(unscoped.out));
 } finally {
+  process.env.CLAUDE_KIT_CODE_INDEX_DIR = qEnv.CLAUDE_KIT_CODE_INDEX_DIR;
+  await stopServer(); // the queries above auto-started a resident server for this cache dir
   cleanup();
 }
 done();

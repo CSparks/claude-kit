@@ -50,7 +50,7 @@ const FETCH_TIMEOUT_MS = 4000;
 export function aheadBehind(repoRoot, { fetch = false } = {}) {
   if (fetch) {
     try {
-      execFileSync('git', ['-C', repoRoot, 'fetch', '--quiet'], { stdio: 'ignore', timeout: FETCH_TIMEOUT_MS });
+      execFileSync('git', ['-C', repoRoot, 'fetch', '--quiet'], { stdio: 'ignore', timeout: FETCH_TIMEOUT_MS, windowsHide: true });
     } catch {
       /* offline / slow / no remote — judge against the refs we have */
     }

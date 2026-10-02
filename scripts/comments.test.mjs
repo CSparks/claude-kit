@@ -14,7 +14,7 @@ import {
   readReceipts, recordAck, isAcked, mentionsForAgent, collectComments, resolveAgent,
 } from './comments.mjs';
 import { comment, ack } from './t.mjs';
-import { query } from './q.mjs';
+import { query } from './q-lib.mjs';
 
 const T_CLI = fileURLToPath(import.meta.url).replace(/comments\.test\.mjs$/, 't.mjs');
 const Q_CLI = fileURLToPath(import.meta.url).replace(/comments\.test\.mjs$/, 'q.mjs');

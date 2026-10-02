@@ -164,7 +164,7 @@ test('--apply creates a ticket from a real next-id, folds onto a target, moves c
   assert.equal(readdirSync(join(aiDir, 'inbox', 'triaged')).length, 2, 'both caps moved to triaged/');
 
   // after the post-apply sync, the new ticket is queryable in the cache.
-  const { query } = await import('./q.mjs');
+  const { query } = await import('./q-lib.mjs');
   const { rows } = await query('open', ['TST'], { dbPath, cwdRoot: dir });
   assert.ok(rows.some((r) => r.id === 'TST-T002'), 'the created ticket is in the cache after the sync');
 });

@@ -8,9 +8,9 @@
 // mtime+size. A missing SQLite engine degrades to scanning the listed files (no index).
 
 import { mkdirSync, readFileSync, realpathSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { resolveEngine } from './db-engine.mjs';
+import { cacheDir } from './q-server-proto.mjs';
 import { extractSymbols } from './code-index-extract.mjs';
 import { aiPaths, changedPaths, describe, gitStates, indexRoots, listIndexable } from './code-index-source.mjs';
 
@@ -20,6 +20,7 @@ const BINARY_PROBE = 4096;
 const META_KEY = 'git';
 
 const SCHEMA = `
+PRAGMA busy_timeout = 5000;
 CREATE TABLE IF NOT EXISTS files (
   id INTEGER PRIMARY KEY, path TEXT UNIQUE NOT NULL, kind TEXT NOT NULL, lang TEXT NOT NULL,
   mtime REAL NOT NULL, size INTEGER NOT NULL, lines INTEGER NOT NULL);
@@ -35,7 +36,7 @@ export function indexDbPath(root) {
   try { r = realpathSync.native(r); } catch { /* keep */ }
   if (process.platform === 'win32') r = r.toLowerCase();
   const key = r.replace(/[:\\/ ]/g, '-').replace(/^-+/, '') || 'root';
-  return join(process.env.CLAUDE_KIT_CODE_INDEX_DIR || join(homedir(), '.claude', 'cache', 'code-index'), `${key}.db`);
+  return join(cacheDir(), `${key}.db`);
 }
 
 const looksBinary = (buf) => buf.subarray(0, BINARY_PROBE).includes(0);
@@ -106,18 +107,29 @@ function gitSync(db, root, roots, prev, cur, tickets) {
 const toFiles = (rows, root) => rows.map((r) => ({ rel: r.path, abs: join(root, r.path), kind: r.kind, lang: r.lang }));
 const filesFromDb = (db, root) => toFiles(db.all('SELECT path, kind, lang FROM files'), root);
 
-/** Open the cache (or null without an engine), bring it level with the tree: { handle, files, added, … }. */
-// `tickets: false` skips re-checking the work-store items (a stat per ticket) for queries that never read them.
-export async function refreshIndex(root, { files, dbPath = indexDbPath(root), tickets = true } = {}) {
-  const t0 = Date.now();
+/** Open the cache once and set its schema: a handle the resident server keeps and passes as `db`. */
+export async function openIndex(root, dbPath = indexDbPath(root)) {
   const open = process.env.CLAUDE_KIT_CODE_INDEX_FORCE_SCAN ? null : await resolveEngine();
-  if (!open) {
-    const listed = files || listIndexable(root);
-    return { handle: null, files: listed, added: 0, changed: 0, removed: 0, total: listed.length, ms: Date.now() - t0 };
-  }
+  if (!open) return null;
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = open(dbPath);
   db.exec(SCHEMA);
+  return db;
+}
+
+/**
+ * Bring the cache level with the tree: { handle, files, added, … }; handle is null without an
+ * engine. `tickets: false` skips re-checking the work-store items (a stat per ticket) for
+ * queries that never read them. A caller-held `db` (openIndex) stays open: the returned handle's
+ * close() is then a no-op.
+ */
+export async function refreshIndex(root, { files, dbPath = indexDbPath(root), tickets = true, db: held } = {}) {
+  const t0 = Date.now();
+  const db = held || await openIndex(root, dbPath);
+  if (!db) {
+    const listed = files || listIndexable(root);
+    return { handle: null, files: listed, added: 0, changed: 0, removed: 0, total: listed.length, ms: Date.now() - t0 };
+  }
   const roots = indexRoots(root);
   const cur = files ? null : await gitStates(roots);
   const prevRow = cur && db.all('SELECT value FROM meta WHERE key = ?', [META_KEY])[0];
@@ -131,5 +143,6 @@ export async function refreshIndex(root, { files, dbPath = indexDbPath(root), ti
   const counts = !plan.stale.length && !plan.gone.length && same ? { added: 0, changed: 0, removed: 0 } : apply(db, plan.stale, plan.gone, cur);
   const unchanged = !counts.added && !counts.changed && !counts.removed;
   const all = listed || (unchanged && plan.rows ? toFiles(plan.rows, root) : filesFromDb(db, root));
-  return { handle: db, files: all, ...counts, total: all.length, ms: Date.now() - t0 };
+  const handle = held ? { ...db, close() {} } : db;
+  return { handle, files: all, ...counts, total: all.length, ms: Date.now() - t0 };
 }

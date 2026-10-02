@@ -8,7 +8,7 @@
 //   governingRows(id, files, root) -> [{ id, store, status, via, summary, parked }]
 
 import { collectItems } from './db-parse.mjs';
-import { query } from './q.mjs';
+import { query } from './q-lib.mjs';
 import { clip, SUMMARY_CLIP } from './q-model.mjs';
 
 // A parking/retirement declaration in a decision's title or body. Deliberately literal — a
