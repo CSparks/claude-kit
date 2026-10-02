@@ -12,6 +12,7 @@ import { readProgress, progressFor, formatProgress } from './progress-store.mjs'
 import { modelDisplay } from './model-tag.mjs';
 import { recentCommits, ORIENT_WINDOW_MIN } from './live-sessions.mjs';
 import { frameworkSection } from './lib/frameworks.mjs';
+import { adoptedDocTree, trunkMap } from '../scripts/doc-tree.mjs';
 // q.mjs / id-utils.mjs are imported DYNAMICALLY at their (try-wrapped) use sites so a
 // broken scripts/ tree degrades that one section instead of crashing orientation (KIT-T055).
 
@@ -169,6 +170,15 @@ try {
   if (section) out.push(section);
 } catch {
   /* framework layer unavailable — orientation proceeds without it */
+}
+try {
+  if (adoptedDocTree(root)) {
+    out.push('--- DOC TREE (navigate trunk → branch before searching; full index docs/TREE.md) ---');
+    for (const line of trunkMap(root)) out.push('  ' + line);
+    out.push('');
+  }
+} catch {
+  /* doc tree is best-effort — orientation proceeds without it */
 }
 out.push('--- Recent commits ---');
 out.push(git(['-C', root, 'log', '--oneline', `-${COMMITS}`]).trim());

@@ -10,6 +10,7 @@ import {
   loadWritePolicy, forbiddenBy, globToRegExp, relForGlob,
 } from './lib.mjs';
 import { recordTurnWrite } from './turn-writes.mjs';
+import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 
 // Fail-open guard (KIT-T055): an unexpected throw anywhere below must never wedge a
 // write. The HOOK CONTRACT requires EXPLICIT fail-open; before this, an uncaught throw
@@ -254,6 +255,15 @@ const excludedAt = (id, lineNo) => {
   const { text, offset } = postEdit();
   return offset !== null && markersIn(text, id).lines.has(offset + lineNo);
 };
+
+// A new crate/concern folder must carry its header doc (repos that adopted the doc tree, KIT-T284).
+if (!excludedFile('doc-tree')) {
+  const missing = newUnitMissingHeader(file, (root, abs) => pathExcluded(root, 'doc-tree', abs));
+  if (missing) {
+    process.stderr.write(`\nBLOCKED: ${missing}\n` + excludeFooter('doc-tree'));
+    process.exit(2);
+  }
+}
 
 // DOC files: the check that actually rots docs — relative links with no target.
 if (DOC.has(ext)) {

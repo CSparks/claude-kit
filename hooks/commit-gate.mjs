@@ -182,6 +182,20 @@ if (spec.mode === 'staged') {
   }
 }
 
+// DOC TREE (KIT-T284): in a repo that adopted docs/TREE.md, adding/moving/renaming/deleting
+// source files must move the header docs + generated index in the same commit. Fail-open.
+try {
+  const { structuralPaths, docTreeCommitViolation } = await import('./lib/doc-tree-gates.mjs');
+  const structural = structuralPaths(root, spec.mode, git).filter((f) => !pathExcluded(root, 'doc-tree', f));
+  const violation = docTreeCommitViolation(root, changed, structural);
+  if (violation) {
+    process.stderr.write(`\nBLOCKED: ${violation}\n` + excludeFooter('doc-tree'));
+    process.exit(2);
+  }
+} catch {
+  /* the doc-tree check is best-effort — never wedge a commit on a scan error */
+}
+
 // ID integrity: if this commit touches the markdown stores, refuse it when the
 // stores hold a duplicate id or a frontmatter/filename mismatch. This runs BEFORE
 // the plan-of-record early-allow below so touching a ticket can't bypass it. The
