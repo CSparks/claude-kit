@@ -12,6 +12,7 @@ import {
 import { recordTurnWrite } from './turn-writes.mjs';
 import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 import { FILE_HARD, FILE_SOFT } from './lib/limits.mjs';
+import { commentFindings } from './lib/comment-gate.mjs';
 
 // Fail-open guard (KIT-T055): an unexpected throw anywhere below must never wedge a
 // write. The HOOK CONTRACT requires EXPLICIT fail-open; before this, an uncaught throw
@@ -428,7 +429,17 @@ const sqlStr = pick('sql-injection', /(f"[^"]*\b(SELECT|INSERT|UPDATE|DELETE)\b|
 if (sqlStr.length) warns.push({ id: 'sql-injection', msg: 'POSSIBLE string-built SQL (injection risk — parameterize/review):\n' + show(sqlStr) });
 // claude-kit-ignore-end
 
-// 6. file length — file-keyed; a path glob or whole-file marker exempts it.
+// 6. comment prose: oversized blocks and history/conversation narration (KIT-T283, KIT-T207).
+{
+  const cf = commentFindings(content, ext, {
+    skip: (id, line) => (line ? excludedAt(id, line) : excludedFile(id)),
+    wholeFile: typeof (p.tool_input || {}).content === 'string',
+  });
+  viols.push(...cf.viols);
+  warns.push(...cf.warns);
+}
+
+// 7. file length — file-keyed; a path glob or whole-file marker exempts it.
 //
 // Measured on the post-edit file (`postEdit`, defined with the exclusion helpers), not on
 // an Edit's fragment. Every other check stays fragment-scoped: they are line-keyed at the
