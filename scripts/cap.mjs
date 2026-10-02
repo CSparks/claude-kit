@@ -38,6 +38,7 @@ import {
 } from '../hooks/lib.mjs';
 import { wantsHelpFirst } from './cli-help.mjs';
 import { runTopic } from './cap-topic.mjs';
+import { dedupHints } from './cap-dedup.mjs';
 import { classificationKeys, projectTable, matchProject, namedInText } from './cap-routing.mjs';
 
 const DATE_END = 10; // slice [0,DATE_END) of an ISO string = YYYY-MM-DD
@@ -226,8 +227,10 @@ if (isDone) {
   await writeItemFile(join(resolvedDir, name), content);
   console.log(`resolved${type ? ` (${type})` : ''} -> ${projectName}/${RESOLVED_DIR}/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
 } else {
+  const dupLines = await dedupHints(aiDir, text);
   const inboxDir = join(aiDir, 'inbox');
   mkdirSync(inboxDir, { recursive: true });
   await writeItemFile(join(inboxDir, name), `${type ? `(${type}) ` : ''}${text}\n${identity}`);
   console.log(`captured${type ? ` (${type})` : ''} -> ${projectName}/inbox/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
+  for (const line of dupLines) console.log(line);
 }

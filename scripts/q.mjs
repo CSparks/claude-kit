@@ -293,13 +293,13 @@ function cannedQueries(root) {
     // already-superseded items. Shape matches the markdown-scan fallback (id/type/status/title)
     // so the two are at parity — a dedup hint needs the candidate's id + title, not a snippet.
     similar: (db, raw) => {
-      const { store, query } = parseSimilar(raw);
+      const { store, scopes, query } = parseSimilar(raw);
       return db.all(
         `SELECT i.id, i.type, i.status, i.title
          FROM items_fts f JOIN items i ON i.id = f.id
          WHERE items_fts MATCH ? AND i.store = ? AND i.archived = 0
-           AND i.status <> 'superseded'
-         ORDER BY rank LIMIT ?`, [ftsOrQuery(query), store, FTS_LIMIT]);
+           AND i.status <> 'superseded'${scopes ? ` AND i.scope IN (${scopes.map(() => '?').join(',')})` : ''}
+         ORDER BY rank LIMIT ?`, [ftsOrQuery(query), store, ...(scopes || []), FTS_LIMIT]);
     },
 
     // TRAIL (the trail-on-action rule): walk UP an item's ancestry — parent epic, the

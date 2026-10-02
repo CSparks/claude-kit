@@ -122,11 +122,12 @@ export function fallback(cmd, args, root) {
       // Mirror the cache's FTS OR-match with a term-overlap scan: candidates sharing the most
       // proposal terms first (suggest-only). Excludes archived + already-superseded items, and
       // confines to the target store (KIT-T025) — same `--store` parse as the cache path.
-      const { store, query } = parseSimilar(args.join(' '));
+      const { store, scopes, query } = parseSimilar(args.join(' '));
+      const pool = scopes ? [...items, ...frameworkStores(root).flatMap((f) => collectItems(join(f.aiDir, '..'), f.aiDir))] : items;
       const wanted = new Set((query.toLowerCase().match(ALNUM_TERM) || []).filter((t) => t.length > MIN_TERM_LEN));
       if (!wanted.size) return [];
-      return items
-        .filter((i) => i.store === store && !i.archived && i.status !== 'superseded')
+      return pool
+        .filter((i) => i.store === store && !i.archived && i.status !== 'superseded' && (!scopes || scopes.includes(i.scope)))
         .map((i) => {
           const hay = new Set((`${i.title} ${i.body}`.toLowerCase().match(ALNUM_TERM) || []));
           let overlap = 0;

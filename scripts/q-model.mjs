@@ -26,9 +26,20 @@ export function ftsOrQuery(text) {
 // `similar` confines candidates to the store you are creating into. Both the cache and the
 // markdown-scan paths split a leading `--store <s>` off the free-text proposal here, so the
 // store filter is parsed in ONE place. Default `tickets` keeps KIT-T024 callers unchanged.
+// A leading `--scopes A,B` (KIT-T279) confines candidates to those scope keys — cap uses it to
+// dedup against the project store plus its framework store; absent, the search is cross-scope.
 export function parseSimilar(text) {
-  const m = String(text || '').match(/^\s*--store\s+(\S+)\s*([\s\S]*)$/);
-  return { store: m ? m[1] : 'tickets', query: (m ? m[2] : text).trim() };
+  let rest = String(text || '');
+  let store = 'tickets';
+  let scopes;
+  for (;;) {
+    const m = rest.match(/^\s*--(store|scopes)\s+(\S+)\s*([\s\S]*)$/);
+    if (!m) break;
+    if (m[1] === 'store') store = m[2];
+    else scopes = m[2].split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+    rest = m[3];
+  }
+  return scopes ? { store, scopes, query: rest.trim() } : { store, query: rest.trim() };
 }
 
 // A caller-quoted "phrase" (optionally prefix-suffixed) or one whitespace-delimited word.

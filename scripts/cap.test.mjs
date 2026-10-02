@@ -246,6 +246,32 @@ console.log('\ncap outside any repo names the projects it could capture into');
     r.code === 0 && kitFiles().length === 3 && capturedText(kitDir, r.out).includes('bug: login redirect loops'));
 }
 
+
+// --------------------------------------------------------------------------
+// KIT-T279: cap warns about likely duplicates in the project AND framework store
+// --------------------------------------------------------------------------
+console.log('\ncap dedup hint (project + adopted framework store)');
+{
+  const repo = makeRepo('GME');
+  mkdirSync(join(repo, '.ai', 'tickets'), { recursive: true });
+  writeFileSync(join(repo, '.gitmodules'), '[submodule "rapid-game"]\n\tpath = rapid-game\n');
+  const fw = join(repo, 'rapid-game');
+  mkdirSync(join(fw, '.ai', 'tickets'), { recursive: true });
+  writeFileSync(join(fw, '.ai', 'config.yml'), MIN_CONFIG('FWK'));
+  writeFileSync(join(repo, '.ai', 'tickets', 'GME-T001-puppet.md'),
+    '---\nid: GME-T001\ntitle: puppet camps spawn raiders\ntype: feature\nstatus: todo\n---\ncamps\n');
+  writeFileSync(join(fw, '.ai', 'tickets', 'FWK-T001-sleepwake.md'),
+    '---\nid: FWK-T001\ntitle: sleepwake rings for far entities\ntype: feature\nstatus: todo\n---\nrings\n');
+
+  const own = cap(repo, ['feature', 'puppet camps']);
+  ok('cap: surfaces a duplicate in the project store and still captures',
+    /GME-T001/.test(own) && /^captured/.test(own) && readdirSync(join(repo, '.ai', 'inbox')).length === 1);
+  const fwHit = cap(repo, ['feature', 'sleepwake rings']);
+  ok('cap: surfaces a duplicate in the adopted framework store', /FWK-T001/.test(fwHit));
+  const none = cap(repo, ['feature', 'zebra crossing signage']);
+  ok('cap: no duplicate lines when nothing matches', !/possible duplicate/.test(none) && /^captured/.test(none));
+}
+
 // Teardown
 // --------------------------------------------------------------------------
 harness.cleanup();
