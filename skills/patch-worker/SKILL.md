@@ -1,95 +1,66 @@
 ---
-name: broker-worker
-description: Work a ticket as a build-broker worker — edit in a cheap git worktree (never build), commit with explicit paths, submit a job to the shared broker, wait for the result, and land through it. Use when many agents share one build checkout via the broker (scripts/broker/) instead of each spinning up its own environment.
+name: patch-worker
+description: Work a ticket as a broker patch worker — read the tree, author the change as a search/replace patch, submit it to the shared broker daemon on stdin, wait for the result, revise on stale/gate/failed, then land through the broker. Use when a project's broker daemon owns the checkout (target/broker/broker.lock is live) and many agents queue patches instead of editing.
 ---
 
-# broker-worker — edit in a worktree, verify + land through the broker
+# patch-worker — queue patches, never write the tree
 
-The broker (`scripts/broker/broker.mjs`) owns the one build checkout and its shared
-`CARGO_TARGET_DIR`; it is the ONLY thing that runs cargo there. You are a worker: you
-edit in a cheap worktree, commit, and hand the broker a JOB. You never build. This buys
-one warm build, one writer on main, and a linear verified history across N workers.
-
-Operator setup + schemas: `docs/BROKER.md`. Read it if you are also starting the broker.
+The broker daemon (`scripts/broker/broker.mjs`) is the ONLY writer in the checkout. It
+applies your patch, runs the kit's pre-write gate on every file, builds and tests with the
+one warm `CARGO_TARGET_DIR`, and with `--land` commits by explicit paths and pushes. You
+have no Edit/Write tool and never run cargo. Operator setup + schemas: `docs/BROKER.md`.
 
 ## The loop
 
-1. **Claim a worktree** off the build checkout, on your own lane branch (one ticket per
-   branch). Superproject work:
-   ```
-   git -C <build-checkout> worktree add <wt> -b lane/<ticket> main
-   ```
-   Submodule work (the branch lives in the submodule — the broker re-pins the
-   superproject on land):
-   ```
-   git -C <build-checkout>/rapid-game worktree add <wt> -b lane/<ticket> main
-   ```
-   If a superproject worktree must see the submodule, init it there (you still never
-   build it): `git -C <wt> submodule update --init rapid-game`.
+1. **Read** the current files you will change. The tree moves between your submits; a
+   patch is matched against `HEAD` at submit time and again at run time.
 
-2. **Edit in the worktree.** Do NOT run cargo here — a fresh worktree has no `target/`,
-   so a build would compile the whole graph cold. Verification is the broker's job.
-
-3. **Commit with explicit paths** — never `git add -A`, never `git commit -a`. Stage the
-   files you changed by pathspec so nothing unrelated rides along:
-   `git -C <wt> add <paths> && git -C <wt> commit -m "… (implements <ticket>)"`.
-   Need a scratch baseline? Use a WIP commit, not `git stash` (the stash stack is shared
-   across worktrees and the hook blocks it).
-
-4. **Submit a CHECK-ONLY job early** (no land) to get a green signal cheaply:
+2. **Submit a check-only patch** (no `--land`). The envelope goes on stdin; nothing is
+   written to the tree:
    ```
-   id=$(node <kit>/scripts/broker/submit.mjs --root <build-checkout> \
-     --repo <stiletto|rapid-game> --branch lane/<ticket> \
-     --command "cargo test -p <crate> --lib" --ticket <ticket> --title "<title>")
-   node <kit>/scripts/broker/wait.mjs $id --root <build-checkout>
+   id=$(node <kit>/scripts/broker/submit.mjs --root <tree> --ticket ST-T123 --title "…" \
+     --test "cargo t -p rg-sim --lib relevance" <<'PATCH'
+   *** edit crates/sim/src/relevance/step.rs
+   <<<<<<< SEARCH
+   exact old text, unique in the file
+   =======
+   new text
+   >>>>>>> REPLACE
+   *** write crates/sim/tests/x.rs
+   full content of a NEW file
+   *** delete path/y.rs
+   PATCH
+   )
+   node <kit>/scripts/broker/wait.mjs $id --root <tree>
    ```
-   `wait` blocks on the result and EXITS with the job status (0 passed, 1 failed/conflict/
-   dirty, 2 timeout), so your turn is never left stopped on a background task. Omit
-   `--command` to run the repo's `verify_default`.
+   - An `edit` block applies while its SEARCH text matches exactly once. Include enough
+     context lines to be unique. One `*** edit` header may carry several blocks.
+   - `write` creates a new file; it refuses a path that already exists.
+   - `--test` is repeatable; omit it to run the project's `verify_default`. Use the
+     project's cargo aliases (`cargo t`, `cargo b`); the broker adds `-j` and
+     `--no-fail-fast`.
+   - `--repo rapid-game` targets the submodule; paths are relative to it.
 
-5. **Read the result, fix, resubmit.** On `failed` the result carries each command's exit
-   code and the last ~60 log lines; on `conflict` it lists the paths — rebase your lane on
-   main in the worktree (`git -C <wt> rebase main`), fix, recommit, resubmit.
+3. **Read the result.** `submit` itself answers a stale dry run in seconds (JSON on stdout,
+   exit 1). `wait` exits 0 for passed/landed, 1 otherwise, 2 on timeout (it prints your
+   queue position; wait again).
+   - `stale` — per failing op: the reason (`not-found`, `ambiguous xN`, `create-exists`),
+     the closest current excerpt, `HEAD`, and the commits since your base that touched the
+     file. Re-read the file, fix the block, resubmit with `--revises <id>`.
+   - `gate` — a pre-write check failed (file length, comments, forbidden path); the message
+     names it. Fix the patch; nothing touched the tree.
+   - `failed` — rustc error blocks keyed by file and the failed test names; fix and resubmit.
+   - `dirty` — a hand-driven edit holds the tree; the job stays queued. Wait again.
 
-6. **Land** once green: submit again with `--land`. The broker rebases onto main,
-   re-verifies, then `merge --ff-only` + push, deletes your branch, and (for a submodule
-   job) re-pins the superproject with a pathspec-only commit.
-   ```
-   id=$(node <kit>/scripts/broker/submit.mjs --root <build-checkout> --repo <repo> \
-     --branch lane/<ticket> --command "cargo test -p <crate>" --land \
-     --ticket <ticket> --title "<title>" --worktree <wt>)
-   node <kit>/scripts/broker/wait.mjs $id --root <build-checkout>
-   ```
-   `--worktree <wt>` lets the broker free your branch on a green land (it removes the
-   worktree, then deletes the branch). Default is the current directory.
-
-7. **Confirm teardown.** After a green land your worktree and branch are gone. If a land
-   did not happen (red/conflict), your worktree stays — clean it yourself when done:
-   `git -C <build-checkout> worktree remove <wt>`.
+4. **Land** when green: resubmit the same patch with `--land --ticket <id>`. The broker
+   commits exactly the patch's paths (`<title> (implements <ticket>)`), pushes, and for a
+   submodule repo pins the superproject. The result carries `landed.sha`.
 
 ## Rules
 
-- **Never run cargo in a worktree.** The broker holds the only warm build.
-- **Explicit-path commits only** — no `-A`, no `-a`. The broker's submodule re-pin refuses
-  if anything but the pointer is staged; keep your superproject commits just as tight.
-- **One ticket per lane branch.** `lane/<ticket>`.
-- **Rebase, don't merge**, when the broker bounces a conflict. Linear history is the point.
-- **Coexisting with a hand-driven writer:** the broker only runs on a CLEAN build checkout.
-  If your job comes back `dirty`, someone is editing the checkout directly — it re-queues
-  and runs once they leave it clean and say "checkout free".
-
-## Dispatch-guard interplay (for whoever spawns workers)
-
-Workers run with `isolation: worktree` in a Rust workspace, which the kit's dispatch-guard
-gates. Because a worker never builds, the guards' cost rationale does not apply — clear
-them explicitly in the dispatch prompt:
-
-- **cold-worktree-build**: include `[cold-build-ok: broker worker — never runs cargo; the
-  broker owns the only build]`.
-- **parallel-dispatch** (blocks a 2nd agent in a Rust workspace): to run N workers, state
-  the cost — `[allow-parallel: N lanes, ~Xk tokens each, broker serializes all builds;
-  workers only edit — no compile contention]`.
-- **shared-tree-dispatch** does not fire for worktree isolation (each worker has its own
-  checkout).
-
-Do NOT weaken the guards themselves — these tokens are the sanctioned, logged escape.
+- Read-only: no redirects into the tree, no `sed -i`, no git writes, no cargo.
+- A landing patch needs `--ticket`.
+- Two failed revisions of the same problem: stop and report the result ids to the
+  orchestrator; it handles stuck patches.
+- Check-only runs touch the live tree briefly and restore it byte for byte; the operator
+  can `broker pause` / `broker resume` the daemon around hand edits.

@@ -320,6 +320,15 @@ try {
   /* roster unavailable — orientation proceeds without the in-flight-agent view */
 }
 
+// KIT-T276: the broker daemon's lands and in-flight patch since the last look. Fail-open.
+try {
+  const { brokerLines } = await import('../scripts/broker/summary.mjs');
+  const lines = brokerLines(root);
+  if (lines.length) out.push('', ...lines);
+} catch {
+  /* broker summary is best-effort — orientation proceeds without it */
+}
+
 // KIT-T071: ROADMAP — first ROADMAP_GIST_LINES inline; pointer for the rest.
 if (roadmap) {
   out.push('');

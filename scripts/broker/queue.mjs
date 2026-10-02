@@ -4,13 +4,15 @@
 // only after its result is written, so a crash mid-job re-queues it on the next start.
 
 import { repoByName } from './config.mjs';
+import { isPaused } from './control.mjs';
 import { processPatch } from './patch.mjs';
 import { STATUS, listQueue, removeJob, writeResult } from './result.mjs';
 
-// Drain the queue until it is empty or a dirty checkout pauses it. Returns a summary the daemon
+// Drain the queue until it is empty, a dirty checkout pauses it, or the operator ran `pause`. Returns a summary the daemon
 // (or a test) can log. `onResult` is an optional per-job callback.
 export function processOnce(cfg, { onResult } = {}) {
   const processed = [];
+  if (isPaused(cfg)) return { processed, paused: true, reason: 'manual' };
   for (const job of listQueue(cfg)) {
     const { result, pause } = processJob(cfg, job);
     if (onResult) onResult(result);

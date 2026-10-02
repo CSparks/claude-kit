@@ -30,7 +30,7 @@ decides. Today they are unusable without `[maintainer-asked-worktree:]` /
 - [x] L2 Envelope parser, submit dry-run on stdin (no branch), content-addressed apply, stale result, check-only restore journal
 - [x] L3 Gate phase reusing hooks/pre-write.mjs; patch over 600 lines -> gate, tree untouched
 - [x] L4 Path-only land, ticket required, push, submodule pin; lane code deleted (checkoutDetached/rebaseOnto/deleteBranch/removeWorktree/unmergedFiles, branch/worktree job fields)
-- [ ] L5 patch-worker agent + skill, BROKER.md rewrite, dispatch-guard broker-owned-tree, pause/resume, orient lands/inflight, KIT-T271 rollout changes (no first start)
+- [x] L5 patch-worker agent + skill, BROKER.md rewrite, dispatch-guard broker-owned-tree, pause/resume, orient lands/inflight, KIT-T271 rollout changes (no first start)
 
 ## Plan
 1. Put the options to the maintainer in one questionnaire.
@@ -67,3 +67,7 @@ Chris 2026-10-02 decided: (1) the broker DAEMON is the one writer (applies/build
 - [2026-10-02 18:05] (comment) @chris: 2026-10-02 L4 landed: path-only land (git add/commit by explicit paths, ticket required), push, submodule pin; lane mach (full comment #7 in ## Notes)
 ### comment #7 [2026-10-02 18:05] @chris
 2026-10-02 L4 landed: path-only land (git add/commit by explicit paths, ticket required), push, submodule pin; lane machinery deleted (git.mjs lane functions, queue rebase/teardown, branch/worktree job fields, legacy submit flags). broker 28 pass; npm runner 74 OK + 2 known failures. Old lane tests replaced by land.test.mjs
+- [2026-10-02 18:14] (comment) ticked: L5 patch-worker agent + skill, BROKER.md rewrite, dispatch-guard broker-owned-tree, pause/resume, orient lands/inflight, KIT-T271 rollout changes (no first start)
+- [2026-10-02 18:14] (comment) @chris: 2026-10-02 L5 landed: patch-worker agent (claude-sonnet-5-5, Read/Grep/Glob/Bash) + skill (broker-worker retired), BROKE (full comment #8 in ## Notes)
+### comment #8 [2026-10-02 18:14] @chris
+2026-10-02 L5 landed: patch-worker agent (claude-sonnet-5-5, Read/Grep/Glob/Bash) + skill (broker-worker retired), BROKER.md rewritten, dispatch-guard broker-owned-tree, broker pause/resume + --idle-exit, orient shows daemon state/in-flight/lands since last look, KIT-T271 prep (no daemon start). broker tests 32 pass + dispatch-broker 10 PASS; npm runner 75 OK + 2 known failures. Deviations: --diff unified form not built; result has no queue.position (wait prints it on timeout); lands listed in orient only, not Stop; hard patch-worker-guard remains the follow-up

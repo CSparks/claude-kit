@@ -1,163 +1,133 @@
-# Build broker — one shared build environment for many editing agents
+# Build broker — a single-checkout patch queue
 
-A central testing facilitator (KIT-T270). ONE Node process owns a project's build
-checkout and its shared `CARGO_TARGET_DIR` and is the only thing that runs cargo there.
-Many editing agents ("workers") edit in cheap git worktrees, commit, and submit JOBS; the
-broker verifies and lands them serially. This buys one warm build, one writer on `main`,
-no index sweeps by construction, N editing agents across efforts, and a linear verified
-merge history.
+KIT-T270 built it; KIT-T276 reworked it (design: `docs/design/broker-patch-queue.md`).
+ONE Node daemon per checkout is the only writer: it applies queued patches, runs the gates,
+builds and tests with the checkout's shared `CARGO_TARGET_DIR`, and lands green patches on
+`main` by explicit paths. Any number of read-only `patch-worker` agents read the tree and
+queue patches; none writes or builds. No worktrees, no lane branches. The daemon costs no
+tokens; stuck patches escalate to the orchestrator.
 
-Worker workflow: the `broker-worker` skill. This page is for the OPERATOR who runs the
-broker, plus the protocol and schemas.
+Worker workflow: the `patch-worker` skill. This page is for the OPERATOR.
 
 ## The pieces (`scripts/broker/`)
 
-- `broker.mjs` — the daemon. One per build checkout (lock-guarded). Drains the queue.
-- `submit.mjs` — a worker writes a job, prints its id.
-- `wait.mjs` — a worker blocks on a result, exits with the job status.
-- `config.mjs` · `git.mjs` · `run.mjs` · `result.mjs` · `submodule.mjs` · `queue.mjs` ·
-  `lock.mjs` — by-concern internals.
+- `broker.mjs` — the daemon; also `pause` / `resume`.
+- `submit.mjs` — a worker pipes a patch envelope on stdin; prints the job id.
+- `wait.mjs` — blocks on a result (default 540 s), exits with the status, prints the queue
+  position on timeout.
+- by concern: `envelope` (parse) · `apply` (in-memory dry run) · `patch` (one job) · `gate`
+  (pre-write hook) · `land` (path commit, push, pin) · `preimage` (restore journal) ·
+  `diagnose` (rustc / test extraction) · `report` · `summary` (orient lines) · `control` ·
+  `config` · `git` · `glob` · `run` · `result` · `submodule` · `queue` · `lock`.
 
-## Running the broker
-
-```
-# start the daemon (Ctrl-C to stop gracefully; it releases the lock)
-node <kit>/scripts/broker/broker.mjs --root <build-checkout>
-
-# drain the queue once and exit (ops / cron / a manual kick)
-node <kit>/scripts/broker/broker.mjs --root <build-checkout> --once
-
-# watch the queue + results (they are plain JSON files)
-ls <build-checkout>/target/broker/queue
-ls <build-checkout>/target/broker/results
-```
-
-Only one broker runs per checkout (a lock file under `target/broker/broker.lock`). A
-crash leaves any in-flight job in the queue, so a restart re-queues it — start is
-idempotent.
-
-## Coexistence — the broker runs ONLY on a clean checkout
-
-The broker refuses to start a job when the build checkout is dirty (any modified tracked
-OR untracked file): it writes a `dirty` result and PAUSES the queue, re-checking each
-tick. This is how a hand-driven writer and the broker share one checkout:
-
-- While you edit the build checkout directly, the broker waits.
-- When you are done, leave the checkout clean (commit or stash your own work) and say
-  **"checkout free"** — the broker's next tick drains the queue.
-
-"Dirty" is exactly `git status --porcelain` being non-empty. `target/` is gitignored, so
-the broker's own control files never count.
-
-## The protocol (per job)
-
-1. Refuse + pause if the build checkout is dirty (`dirty` result).
-2. Detached-checkout the lane branch tip and `git rebase main`. A worker's branch is
-   checked out in that worker's live worktree, so the broker cannot `git switch` to it —
-   it attaches HEAD to the commit (detached), which never collides. On conflict:
-   `rebase --abort`, back to main, `conflict` result with the path list.
-3. Run the job's commands (or the repo's `verify_default`) with the parallelism rules:
-   `-j <jobs>` and, for `cargo test`, `--no-fail-fast` folded in; `CARGO_TARGET_DIR` set.
-   Each command's stdout+stderr goes to `target/broker/logs/<id>-<n>.log`; stop at the
-   first non-zero exit.
-4. Write `target/broker/results/<id>.json` (below).
-5. On `land: true` + green: `git switch main && git merge --ff-only <tip> && git push`,
-   remove the worker's worktree, delete the branch, record the landed sha. For a submodule
-   job, additionally re-pin the superproject (below). Switch back to main in every case.
-
-## Job schema (`target/broker/queue/<id>.json`)
-
-```json
-{
-  "id": "j-<base36 ts>-<rand>",
-  "repo": "stiletto",
-  "branch": "lane/some-ticket",
-  "commands": ["cargo test -p foo --lib"],
-  "land": false,
-  "ticket": "ST-T123",
-  "title": "short title",
-  "worktree": "D:/dev/worktrees/some-ticket",
-  "submittedAt": "2026-09-02T…Z"
-}
-```
-
-`commands` may be omitted/empty — the broker fills the repo's `verify_default`.
-`worktree` lets the broker free the branch on a green land.
-
-## Result schema (`target/broker/results/<id>.json`)
-
-```json
-{
-  "id": "j-…", "repo": "stiletto", "branch": "lane/some-ticket", "land": true,
-  "ticket": "ST-T123",
-  "status": "passed | failed | conflict | dirty",
-  "commands": [
-    { "cmd": "cargo test -p foo", "composed": "cargo test -p foo --no-fail-fast -j 3",
-      "exit": 0, "durationMs": 8123, "logTail": ["…last ~60 lines…"],
-      "log": "…/target/broker/logs/j-…-0.log" }
-  ],
-  "conflicts": ["path/if/conflict.rs"],
-  "landed": { "sha": "<merged sha>", "superSha": "<superproject sha or null>" },
-  "dirtyEntries": ["?? wip.txt"],
-  "message": "human note when relevant",
-  "startedAt": "…Z", "finishedAt": "…Z"
-}
-```
-
-## Submodule jobs (`repo: rapid-game`)
-
-A job whose `repo` is the submodule runs the whole protocol INSIDE the submodule path
-(its own branches / main / push). On a green land the broker re-pins the superproject with
-a PATHSPEC-ONLY commit:
+## Running it
 
 ```
-git add rapid-game && git commit -m \
-  "chore: pin rapid-game <sha> — <title> (implements <ticket>) [no-log: submodule pin]" \
-  -- rapid-game && git push
+# background Bash from the orchestrator; a second start while one is live exits 1
+node <kit>/scripts/broker/broker.mjs --root <checkout> [--idle-exit 30]
+
+node <kit>/scripts/broker/broker.mjs pause  --root <checkout>   # stop starting jobs
+node <kit>/scripts/broker/broker.mjs resume --root <checkout>
+node <kit>/scripts/broker/broker.mjs --root <checkout> --once   # drain once and exit
 ```
 
-It refuses if anything else is already staged and asserts the only staged path is the
-submodule pointer — never `git add -A`, never `-a`. Unrelated unstaged noise in the
-superproject is left untouched.
+`--idle-exit <min>` exits after that many idle minutes (empty queue, not paused). The lock
+(`target/broker/broker.lock`) is reclaimed when its pid is dead, so a restart is idempotent;
+a crash mid-job leaves the job queued and the restart restores the tree first.
 
-## Per-project config — a `broker:` section in `.ai/config.yml`
+Orient lists the daemon state, the patch in flight (`target/broker/inflight.json`) and the
+landings since the last look.
 
-Example for stiletto (the superproject) + rapid-game (its submodule). This is the
-CONFIG TO ADD to stiletto's `.ai/config.yml` when rolling the broker out there — it is
-NOT added by this ticket (KIT-T270); stiletto's checkout is owned by another agent, and
-the rollout is a separate step done once that checkout is free.
+## Phases per patch
+
+Stop at the first failure; each writes `target/broker/results/<id>.json`.
+
+1. `submit-dryrun` — `submit.mjs` applies every op in memory to `git show HEAD:<path>`. A miss
+   returns `stale` in seconds and never queues.
+2. `apply` — the daemon re-runs the dry run against current `HEAD`. An `edit` applies while its
+   SEARCH text matches exactly once, so intervening commits do not matter unless they touched
+   that text. Misses are `not-found`, `ambiguous xN`, `create-exists` (a `write` onto an
+   existing tracked or untracked path), each with the closest excerpt and
+   `git log base..HEAD -- <path>`.
+3. `gate` — `hooks/pre-write.mjs` runs per surviving file on a synthesized Write payload
+   (file length, comments, magic numbers, forbidden paths). Failure → `gate`, tree untouched.
+4. `run` — pre-images go to the object database and `inflight.json`; the files are written;
+   the commands run (`-j <jobs>`, `--no-fail-fast` for `cargo test`/`cargo t`; the `t`/`b`/`r`
+   aliases compose too). A check-only patch restores byte for byte afterwards.
+5. `land` — with `--land` and green: `git add` + `git commit -- <paths>` (never `-a`/`-A`),
+   message `<title> (implements <ticket>)`, push `main`. `--land` needs `--ticket`.
+
+## Coexistence with a hand-driven writer
+
+The daemon pauses (job stays queued) when the checkout holds modified tracked files
+(`status --untracked-files=no`) or untracked files matching `broker.untracked_blocks`
+(default `**/*.rs`, `**/Cargo.toml`: cargo discovers new `tests/*.rs`). Other untracked files
+(assets, images) never pause it. Check-only runs touch the live tree for the length of the run;
+`broker pause` before a long hand edit, `resume` after. The daemon never commits the writer's
+changes: landing is by explicit paths.
+
+## Patch envelope
+
+```
+*** edit crates/x/src/lib.rs
+<<<<<<< SEARCH
+exact old text
+=======
+new text
+>>>>>>> REPLACE
+*** write crates/x/tests/new.rs
+full content of a new file
+*** delete old/path.rs
+```
+
+Flags: `--root --ticket --title --test <cmd> (repeatable) --repo <name> --land --revises <id>`.
+
+## Job and result
+
+Job (`queue/<id>.json`): `{ id, repo, base, ops, files:{path:blob}, commands, land, ticket,
+title, revises, revision, submittedAt }`.
+
+Result: `{ id, revises, revision, ticket, base, head, status: passed|failed|gate|stale|dirty|
+landed, phase, gate:[{path,check,msg}], stale:[{index,path,reason,excerpt,since}],
+commands:[{cmd,composed,exit,durationMs,log,logTail,errors,failedTests}], diffStat,
+landed:{sha,superSha}, dirtyEntries, message, startedAt, finishedAt }`.
+
+## Submodule patches (`--repo rapid-game`)
+
+Paths are relative to the submodule; the whole protocol runs inside it (commit, push). A green
+land then pins the superproject with a pathspec-only commit
+(`chore: pin rapid-game <sha> — <title> (implements <ticket>) [no-log: submodule pin]`); it
+refuses if anything is already staged and asserts only the pointer is staged.
+
+## Config — `broker:` in `.ai/config.yml`
 
 ```yaml
 broker:
   target_dir: D:/dev/stiletto-2349/target   # the shared CARGO_TARGET_DIR
   parallelism:
-    jobs: 3                                  # -j 3 (Windows pagefile / os error 1455)
+    jobs: 3                                  # -j 3 (Windows pagefile, os error 1455)
   verify_default:
-    - cargo test -j 3 --no-fail-fast
+    - cargo t                                # the project's fastdev alias
+  untracked_blocks: ["**/*.rs", "**/Cargo.toml"]
   repos:
     - { name: stiletto,   path: ., main: main, remote: origin }
     - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }
 ```
 
-Defaults when a key is absent: `target_dir` → `<root>/target`; `parallelism.jobs` → 3;
-`verify_default` → `["cargo test --no-fail-fast"]`; `poll_ms` → 2000.
+Defaults: `target_dir` `<root>/target`; `jobs` 3; `verify_default` `["cargo test --no-fail-fast"]`;
+`poll_ms` 2000.
 
-## Dispatch-guard interplay
+## Guards
 
-Workers dispatch with `isolation: worktree` into a Rust workspace, which the kit's
-`dispatch-guard` gates. A worker never builds, so the guards' cost rationale does not
-apply — clear them explicitly in the dispatch prompt (do NOT weaken the guards):
-
-- `cold-worktree-build` → `[cold-build-ok: broker worker — never runs cargo; broker owns
-  the only build]`.
-- `parallel-dispatch` (blocks a 2nd agent in a Rust workspace) → for N workers state the
-  cost: `[allow-parallel: N lanes, ~Xk tokens each, broker serializes all builds; workers
-  only edit — no compile contention]`.
-- `shared-tree-dispatch` does not fire for worktree isolation.
+- `patch-worker` is read-only by tool list (`Read, Grep, Glob, Bash`), so `dispatch-guard`
+  admits any number beside a writer.
+- `dispatch-guard` check `broker-owned-tree`: while a live daemon holds a tree's lock, a
+  writer-capable dispatch into it is blocked and pointed at `patch-worker`. Escape: the
+  maintainer's quoted `[maintainer-asked-parallel: …]`; ignore-file id `broker-owned-tree`.
+- Follow-up: a hard `patch-worker-guard` PreToolUse hook (blocks cargo and mutating git for that
+  agent type) once a logged Bash payload from inside a subagent is shown to name the type.
 
 ## Tests
 
-`node --test scripts/broker/units.test.mjs scripts/broker/broker.test.mjs` — 11 tests over
-throwaway cargo-free git fixtures (including a real submodule): clean run + land, failing
-bounce, rebase conflict, dirty pause + restart re-queue, pathspec-only submodule pin,
-lock, config parsing, and the cargo command composition.
+`node --test "scripts/broker/*.test.mjs"` over throwaway cargo-free git fixtures (a real
+submodule included), plus `node hooks/dispatch-broker.test.mjs`.

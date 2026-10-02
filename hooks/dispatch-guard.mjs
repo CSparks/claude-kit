@@ -4,6 +4,7 @@
 //   dispatch-ladder      (KIT-T151) — the silent fable inherit
 //   cold-worktree-build  (KIT-T176, KIT-D074) — any worktree dispatch, any project
 //   shared-tree-dispatch (KIT-T176, KIT-D077) — a second read/write agent into a checkout that has one
+//   broker-owned-tree    (KIT-T276) — a writer-capable agent into a checkout a broker daemon owns
 // exit 2 = block, 0 = allow. No-ops on unadopted repos; FAIL-OPEN everywhere else.
 //
 // Every check is independent: it decides on its own escape token, its own ignore-file key, and
@@ -15,6 +16,7 @@ import { join } from 'node:path';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, partitionAgents } from './lib.mjs';
 import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
 import { readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
+import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker } from './dispatch-broker.mjs';
 // The pin + session-model resolvers moved to model-tag.mjs when the activity line needed the same
 // answer (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
 import { pinnedModel, latestAssistantModel, modelDisplay } from './model-tag.mjs';
@@ -55,6 +57,7 @@ try {
     ladderBlock(root, input, prompt, p),
     coldWorktreeBlock(root, input, prompt),
     sharedTreeBlock(root, input, prompt),
+    brokerOwnedBlock(root, input, prompt),
   ].filter(Boolean);
   if (!blocks.length) process.exit(0);
   console.error(blocks.join('\n'));
@@ -160,6 +163,18 @@ function sharedTreeBlock(root, input, prompt) {
     '',
     excludeFooter(SHARED_TREE_CHECK),
   ].join('\n');
+}
+
+// --- broker-owned-tree (KIT-T276) ---------------------------------------------
+// While a broker daemon holds the target tree's lock it is the only writer: writer-capable
+// dispatches are blocked, read-only ones (patch-worker included) pass.
+function brokerOwnedBlock(root, input, prompt) {
+  if (isWorktreeIsolation(input.isolation) || MAINTAINER_PARALLEL.test(prompt)) return null;
+  if (readOnlyDispatch(root, label(input), prompt)) return null;
+  if (pathExcluded(root, BROKER_OWNED_CHECK, root)) return null;
+  const tree = dispatchTargetRoot(root, input);
+  const held = liveBroker(tree);
+  return held ? brokerOwnedMessage({ agent: label(input), tree, held, footer: excludeFooter(BROKER_OWNED_CHECK) }) : null;
 }
 
 // Does the brief name a checkout that is a git WORKTREE? A worktree's .git is a FILE whose

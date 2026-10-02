@@ -35,7 +35,10 @@ daemon. BLOCKED on stiletto being free; no stiletto files are touched before the
 1. Confirm stiletto checkout is clean + free (the landing agent says so).
 2. Add the `broker:` section to stiletto's `.ai/config.yml`.
 3. Start the daemon: `node <kit>/scripts/broker/broker.mjs --root D:\dev\stiletto-2349`.
-4. Smoke a check-only job via the broker-worker skill; confirm `passed`.
+4. Smoke a check-only patch via the patch-worker skill (stdin envelope, wait.mjs); confirm `passed`. Start the daemon with background Bash: `node <kit>/scripts/broker/broker.mjs --root D:devstiletto-2349 --idle-exit 60`.
 
 ## History
 - [2026-09-02 06:23] (created) feature — Roll the build broker out on stiletto — add broker: config + start the daemon once its checkout is free
+- [2026-10-02 18:09] (comment) @chris: 2026-10-02 rollout prep under KIT-T276 L5: stiletto .ai/config.yml broker: section already present and corrected (verify (full comment #1 in ## Notes)
+### comment #1 [2026-10-02 18:09] @chris
+2026-10-02 rollout prep under KIT-T276 L5: stiletto .ai/config.yml broker: section already present and corrected (verify_default cargo t, stale worktree comment fixed); BROKER.md matches; smoke step now uses the patch-worker skill. NOT started: first daemon start on stiletto is the maintainer's call with Chris.

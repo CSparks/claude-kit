@@ -25,7 +25,7 @@
     "./skills/claude-kit/",
     "./skills/db-discipline/",
     "./skills/doc-audit/",
-    "./skills/broker-worker/",
+    "./skills/patch-worker/",
     "./skills/new-poc/",
     "./skills/release-checklist/",
     "./skills/scaffold-agent/",
@@ -39,9 +39,10 @@
     "./agents/editor-workbench.md",
     "./agents/game-asset-artist.md",
     "./agents/light-and-shadow.md",
+    "./agents/patch-worker.md",
     "./agents/refactorer.md",
-    "./agents/researcher.md",
     "./agents/researcher-sonnet55.md",
+    "./agents/researcher.md",
     "./agents/rg-ui-engineer.md",
     "./agents/test-author.md"
   ]
