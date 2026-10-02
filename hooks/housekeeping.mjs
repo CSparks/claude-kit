@@ -11,6 +11,7 @@ import { statSync, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { installedPluginRoot, isDevLinked, checkInstalledDrift } from '../scripts/agent-pins.mjs';
+import { docReviewAge, repoHasSource } from './lib/doc-review.mjs';
 import { payload, MAINT_LOG, git, gitRoot, adopted, wipSummary, scanInbox, scanReviewQueue, scanStaleDoingTickets, scanReminders, readTurnState, writeTurnState } from './lib.mjs';
 
 const REVIEW_DAYS = 7;
@@ -295,6 +296,15 @@ try {
       reminders.push(
         `ZOMBIE DOING: ${staleDoingLine(sd)} — an agent likely bailed without flipping status. ` +
           `Reconcile: flip to \`todo\` (bailed) or \`review\` (done): node <kit>/scripts/t.mjs status <id> todo`,
+      );
+    }
+    // KIT-T281: weekly doc + structure review, per project; the tree walk runs only once due.
+    if (docReviewAge(root) >= REVIEW_DAYS && repoHasSource(root)) {
+      const age = docReviewAge(root);
+      reminders.push(
+        `DOC + STRUCTURE REVIEW DUE (${age === Infinity ? 'never reviewed' : `${age}d since last review`}). ` +
+          `Run node <kit>/scripts/doc-review.mjs, present the grouped findings, ask what to act on; ` +
+          `then node <kit>/scripts/doc-review.mjs --done.`,
       );
     }
     // KIT-T090: user-defined recurring reminders that are DUE today. One line each carrying its

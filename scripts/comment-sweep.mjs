@@ -39,7 +39,7 @@ export function sweepComments(root) {
 function main(argv) {
   const ti = argv.indexOf('--top');
   const top = ti >= 0 ? Number(argv[ti + 1]) || DEFAULT_TOP : DEFAULT_TOP;
-  const positional = argv.filter((a, i) => !a.startsWith('--') && i !== ti + 1);
+  const positional = argv.filter((a, i) => !a.startsWith('--') && !(ti >= 0 && i === ti + 1));
   const root = resolve(positional[0] || process.cwd());
   const r = sweepComments(root);
   if (argv.includes('--json')) { process.stdout.write(JSON.stringify(r, null, 2) + '\n'); return 0; }

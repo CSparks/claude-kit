@@ -2,7 +2,7 @@
 id: KIT-T284
 title: Tree-based documentation: docs mirror the code tree — each concern folder/crate carries a short header doc (what it is, entry points), a generated index walks the tree, every doc is reachable from the tree, orphan and duplicate docs are flagged — so finding things is navigation, not grepping
 type: feature
-status: doing
+status: review
 priority: medium
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-02T15:08:22Z
-updated: 2026-10-02T15:21:37Z
+updated: 2026-10-02T15:35:28Z
 ---
 
 ## Description
@@ -23,7 +23,7 @@ Library scripts/doc-tree.mjs (+ scripts/tree-walk.mjs): units = repo root, manif
 - [x] Lint: concern folders without a header doc, docs not reachable from the index, two docs covering one concern
 - [x] Applied first to rapid-game and stiletto with the gaps listed
 - [x] Cascading context (Chris 2026-10-02): the doc tree is separated by concern and read top-down — the trunk doc is a short map naming each concern and where it lives, each level adds only its own scope and points down, so an agent builds context by descending only the branch it needs instead of reading a novel at the trunk. Size cap per level asserted by the lint
-- [ ] Standing rule (Chris 2026-10-02): every code repo always has a solid doc tree saying what everything does and where it lives; kept current as part of the weekly review (KIT-T281) and checked on landing
+- [x] Standing rule (Chris 2026-10-02): every code repo always has a solid doc tree saying what everything does and where it lives; kept current as part of the weekly review (KIT-T281) and checked on landing
 - [x] Enforced by hooks, not judgement (Chris 2026-10-02): (a) pre-write gate blocks creating a new crate/concern folder without its header doc; (b) commit gate blocks a commit that adds, moves, renames or deletes source files/folders without the doc tree (header docs + generated index) updated in the same commit; (c) orient prints the trunk map at SessionStart so agents navigate the tree first; standard exclusion surfaces, tests per gate
 
 ## Plan
@@ -45,3 +45,5 @@ Library scripts/doc-tree.mjs (+ scripts/tree-walk.mjs): units = repo root, manif
 - [2026-10-02 15:21] (comment) ticked: Lint: concern folders without a header doc, docs not reachable from the index, two docs covering one concern
 - [2026-10-02 15:21] (comment) ticked: Cascading context (Chris 2026-10-02): the doc tree is separated by concern and read top-down — the trunk doc is a short map naming each concern and where it lives, each level adds only its own scope and points down, so an agent builds context by descending only the branch it needs instead of reading a novel at the trunk. Size cap per level asserted by the lint
 - [2026-10-02 15:21] (comment) ticked: Enforced by hooks, not judgement (Chris 2026-10-02): (a) pre-write gate blocks creating a new crate/concern folder without its header doc; (b) commit gate blocks a commit that adds, moves, renames or deletes source files/folders without the doc tree (header docs + generated index) updated in the same commit; (c) orient prints the trunk map at SessionStart so agents navigate the tree first; standard exclusion surfaces, tests per gate
+- [2026-10-02 15:35] (comment) ticked: Standing rule (Chris 2026-10-02): every code repo always has a solid doc tree saying what everything does and where it lives; kept current as part of the weekly review (KIT-T281) and checked on landing
+- [2026-10-02 15:35] (status) doing → review

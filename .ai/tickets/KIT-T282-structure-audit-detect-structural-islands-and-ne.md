@@ -2,7 +2,7 @@
 id: KIT-T282
 title: Structure audit: detect structural islands and nesting smells in code trees — crate/src/<crate-name>/ doubling, single-file folders, folders not grouped by concern, two homes for one concern, orphan modules, files over the size gate, style drift between sibling crates
 type: feature
-status: doing
+status: review
 priority: medium
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-02T15:08:16Z
-updated: 2026-10-02T15:24:10Z
+updated: 2026-10-02T15:35:27Z
 ---
 
 ## Description
@@ -21,7 +21,7 @@ scripts/structure-audit.mjs on the shared walker (scripts/tree-walk.mjs) and doc
 <!-- each a checkable observation; t tick checks these as they pass -->
 - [x] Reports each finding with path and rule; runs on stiletto and rapid-game
 - [x] Fixture tests for each smell (one positive, one negative control)
-- [ ] Wired into the weekly review and available on demand
+- [x] Wired into the weekly review and available on demand
 
 ## Plan
 1.
@@ -34,3 +34,5 @@ scripts/structure-audit.mjs on the shared walker (scripts/tree-walk.mjs) and doc
 - [2026-10-02 15:24] (comment) ticked: Reports each finding with path and rule; runs on stiletto and rapid-game
 - [2026-10-02 15:24] (comment) ticked: Fixture tests for each smell (one positive, one negative control)
 - [2026-10-02 15:24] (status) todo → doing
+- [2026-10-02 15:35] (comment) ticked: Wired into the weekly review and available on demand
+- [2026-10-02 15:35] (status) doing → review

@@ -14,6 +14,10 @@ import {
   reviewTicket, tmpDir,
 } from './test-harness.mjs';
 
+import { docReviewStamp, touchDocReview } from './lib/doc-review.mjs';
+
+const REVIEW_DAYS_PLUS = 8; // a doc-review stamp past the weekly threshold
+const REVIEW_DAYS_MINUS = 6; // and one still inside the week
 const HOOK = fileURLToPath(new URL('./housekeeping.mjs', import.meta.url));
 let failures = 0;
 let count = 0;
@@ -229,6 +233,40 @@ try {
       const stopR = hook('housekeeping.mjs', { hook_event_name: 'Stop' }, doingProj, env);
       ok('housekeeping Stop: stale `doing` nags at Stop too (KIT-T028)',
         stopR.code === 0 && stopR.out.includes('ZOMBIE DOING') && stopR.out.includes('KIT-T702'));
+    }
+
+    // weekly doc + structure review (KIT-T281): per project, stamp-driven, only for repos with source
+    {
+      const homeDir = quietHome();
+      const henv = { ...homeEnv(homeDir), CLAUDE_KIT_TURN_STATE: tmpDir('kit-turn-') };
+      const withCode = project('required');
+      writeFileSync(join(withCode, 'lib.mjs'), 'export const a = 1;\n');
+      let r = hook('housekeeping.mjs', {}, withCode, henv);
+      ok('housekeeping: never-reviewed repo with source nags DOC + STRUCTURE REVIEW DUE (KIT-T281)',
+        r.code === 0 && r.out.includes('DOC + STRUCTURE REVIEW DUE (never reviewed)'));
+
+      const stamp = docReviewStamp(withCode, homeDir);
+      touchDocReview(withCode, homeDir);
+      r = hook('housekeeping.mjs', {}, withCode, henv);
+      ok('housekeeping: a fresh doc review stays silent (KIT-T281)', !r.out.includes('DOC + STRUCTURE REVIEW DUE'));
+
+      ageFile(stamp, REVIEW_DAYS_PLUS);
+      r = hook('housekeeping.mjs', {}, withCode, henv);
+      ok('housekeeping: a review older than 7 days nags with its age (KIT-T281)',
+        r.out.includes(`DOC + STRUCTURE REVIEW DUE (${REVIEW_DAYS_PLUS}d since last review)`));
+
+      ageFile(stamp, REVIEW_DAYS_MINUS);
+      r = hook('housekeeping.mjs', {}, withCode, henv);
+      ok('housekeeping: a review inside the week stays silent (KIT-T281)', !r.out.includes('DOC + STRUCTURE REVIEW DUE'));
+
+      const noCode = project('required');
+      r = hook('housekeeping.mjs', {}, noCode, henv);
+      ok('housekeeping: a repo with no source never nags the doc review (KIT-T281)', !r.out.includes('DOC + STRUCTURE REVIEW DUE'));
+
+      const other = project('required');
+      writeFileSync(join(other, 'lib.mjs'), 'export const b = 1;\n');
+      r = hook('housekeeping.mjs', {}, other, henv);
+      ok('housekeeping: the stamp is per project (KIT-T281)', r.out.includes('DOC + STRUCTURE REVIEW DUE'));
     }
   }
 } finally {

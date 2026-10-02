@@ -2,7 +2,7 @@
 id: KIT-T283
 title: Comment-length and comment-content gate: warn on oversized prose in code comments (doc comment blocks over a few lines, inline comment runs, comment-to-code ratio per file) and on comments that narrate recent discussion instead of what the code does; extends KIT-T207 (backstory gate)
 type: feature
-status: doing
+status: review
 priority: medium
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes: KIT-T207
 superseded_by:
 created: 2026-10-02T15:08:19Z
-updated: 2026-10-02T15:26:19Z
+updated: 2026-10-02T15:35:29Z
 ---
 
 ## Description
@@ -35,3 +35,4 @@ Comment prose gate in pre-write (hooks/lib/comment-scan.mjs scanner, hooks/lib/c
 - [2026-10-02 15:26] (comment) ticked: A repo sweep reports the worst files by comment lines and longest blocks, for cleanup tickets
 - [2026-10-02 15:26] (comment) ticked: Tests: long block flagged, short contract doc comment passes, quoted discussion flagged
 - [2026-10-02 15:26] (status) todo → doing
+- [2026-10-02 15:35] (status) doing → review
