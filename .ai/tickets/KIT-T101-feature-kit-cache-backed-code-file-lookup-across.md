@@ -2,7 +2,7 @@
 id: KIT-T101
 title: (feature, KIT) CACHE-BACKED CODE/FILE LOOKUP across lineage repos. Today the code-graph (KIT-T012, ~/.claude/cache/code-graph/<repo>.json) indexes only the ACTIVE repo and has NO q.mjs query verb, so the agent falls back to Glob/find — and cross-repo lookups (e.g. locate mesh.rs in wordslide-codex/rapid-game, a lineage repo HOD references) aren't cached at all. Two asks: (1) extend the code-graph to ALSO index lineage/watch_repos (the sibling repos declared in lineage) so cross-repo file/symbol lookup is cached; (2) add q.mjs verbs (e.g. 'q file <glob>', 'q sym <name>', 'q code <text>') that serve the code-graph so the agent queries the cache instead of filesystem find. Goal: file/symbol search hits the DB cache, fast, cross-repo — the maintainer wants to tweak the cache for exactly this. (3) DOCS IN FTS, CODE AS GRAPH (not full-text): code is represented by the CODE-GRAPH only — files/symbols/refs for 'q file'/'q sym' lookup; do NOT full-text-index code source. DOCUMENTATION (prose) goes in the FTS text-search cache: index docs/research, docs/design, docs/strategy (+ cross-repo lineage docs) so 'q fts' covers DOCS + workflow items (tickets/decisions) uniformly. So two query paths, both via q.mjs: q file/q sym → code-graph (structure); q fts → docs + workflow prose. This generalizes KIT-T041/T042 (research-doc FTS index) and keeps it distinct from the KIT-T012 code-graph. Links KIT-T012 (code-graph), KIT-T041/T042 (doc index), KIT-D024 (all-stores-in-cache). Project: KIT.
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-07-14T17:40:14.630Z
-updated: 2026-07-14T17:40:14.630Z
+updated: 2026-10-02T16:27:38Z
 ---
 
 ## Description
@@ -32,7 +32,9 @@ updated: 2026-07-14T17:40:14.630Z
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] Index EVERYTHING searchable (Chris 2026-10-02): source in every language the repo uses, tickets/decisions/notes, docs, configs/tunables, across the repo and its framework submodule — one q search surface, kept fresh incrementally
+- [x] Filters an agent needs instead of grep flags: kind (code/ticket/doc/config), language, path or crate prefix, symbol type (fn/struct/trait/impl/const/mod), exact vs fuzzy, with-context lines; ranked compact output
+- [x] Adoption is engineered, not hoped for: orient prints the q search cheat-sheet; the base contract names q as THE search tool; every query-gate block prints the exact equivalent q command for the blocked grep; agent definitions and dispatch briefs inherit the instruction; KIT-T285 telemetry shows grep share falling, with a target set from the baseline
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -43,6 +45,8 @@ updated: 2026-07-14T17:40:14.630Z
      why a tradeoff was made. Append freely; no format enforced. -->
 ### comment #1 [2026-08-05 19:14] @claude
 Scope +1 per KIT-D056 (2026-08-05): top-level research/ (the cross-project KB, KIT-D004) joins the docs-in-FTS list (docs/research, docs/design, docs/strategy) so q fts covers KB library docs + context7 distillations uniformly. Driven by KIT-D055 (KB-first lookup order; context7 metered).
+### comment #2 [2026-10-02 15:49] @claude
+2026-10-02 (Chris: q was meant to replace grepping; it is not used): measured stiletto 14 days — q 198 calls vs 7,900 greps; 4,181 greps are Rust/WGSL that the gate must allow because code-graph indexes JS/TS only (KIT-T085). The fix belongs here: index Rust/WGSL symbols (defines, impls, uses, mod tree) and file CONTENT into the SQLite FTS cache (trigram), refreshed incrementally by mtime, across the repo and its framework submodule; then query-gate redirects Rust greps to it instead of allowing them. Value is mainly ranked, compact answers (token cost), not raw speed — ripgrep is already fast on 200k lines. Telemetry ticket KIT-T285 measures the effect.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -56,3 +60,12 @@ Scope +1 per KIT-D056 (2026-08-05): top-level research/ (the cross-project KB, K
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
 - [2026-08-05 19:14] (comment) @claude: Scope +1 per KIT-D056 (2026-08-05): top-level research/ (the cross-project KB, KIT-D004) joins the docs-in-FTS list (doc (full comment #1 in ## Notes)
+- [2026-10-02 15:49] (comment) @claude: 2026-10-02 (Chris: q was meant to replace grepping; it is not used): measured stiletto 14 days — q 198 calls vs 7,900 gr (full comment #2 in ## Notes)
+- [2026-10-02 15:50] (comment) criterion added: Index EVERYTHING searchable (Chris 2026-10-02): source in every language the repo uses, tickets/decisions/notes, docs, configs/tunables, across the repo and its framework submodule — one q search surface, kept fresh incrementally
+- [2026-10-02 15:50] (comment) criterion added: Filters an agent needs instead of grep flags: kind (code/ticket/doc/config), language, path or crate prefix, symbol type (fn/struct/trait/impl/const/mod), exact vs fuzzy, with-context lines; ranked compact output
+- [2026-10-02 15:50] (comment) criterion added: Adoption is engineered, not hoped for: orient prints the q search cheat-sheet; the base contract names q as THE search tool; every query-gate block prints the exact equivalent q command for the blocked grep; agent definitions and dispatch briefs inherit the instruction; KIT-T285 telemetry shows grep share falling, with a target set from the baseline
+- [2026-10-02 15:50] (comment) @claude: Chris 2026-10-02: 'If that's not working, it needs to. There's no reason not to index our code/tickets/etc.' Priority raised; scope widened to all content with filters and adoption instructions.
+- [2026-10-02 16:27] (comment) ticked: Index EVERYTHING searchable (Chris 2026-10-02): source in every language the repo uses, tickets/decisions/notes, docs, configs/tunables, across the repo and its framework submodule — one q search surface, kept fresh incrementally
+- [2026-10-02 16:27] (comment) ticked: Filters an agent needs instead of grep flags: kind (code/ticket/doc/config), language, path or crate prefix, symbol type (fn/struct/trait/impl/const/mod), exact vs fuzzy, with-context lines; ranked compact output
+- [2026-10-02 16:27] (comment) ticked: Adoption is engineered, not hoped for: orient prints the q search cheat-sheet; the base contract names q as THE search tool; every query-gate block prints the exact equivalent q command for the blocked grep; agent definitions and dispatch briefs inherit the instruction; KIT-T285 telemetry shows grep share falling, with a target set from the baseline
+- [2026-10-02 16:27] (status) todo → review

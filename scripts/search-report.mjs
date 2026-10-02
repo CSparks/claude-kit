@@ -26,6 +26,9 @@ export const BASELINE = {
   q: 198, qFts: 96, codeGraph: 9, grep: 6924, grepRustWgsl: 4181, grepTool: 976, gateBlocks: 267,
 };
 
+// The adoption goal set against BASELINE (KIT-T101): most searches go through the indexes.
+export const TARGET_INDEXED_SHARE = 50;
+
 const WALKED_LANGS = new Set(['rust', 'wgsl', 'glsl']);
 
 /** Aggregate rows [{ kind, verb, lang, target, shape, pattern, event }] into counts. */
@@ -60,6 +63,7 @@ export function formatSummary(s, source, days) {
     `  raw: grep/rg ${s.grep} (Rust/WGSL-filtered ${s.grepRustWgsl}), Grep tool ${s.grepTool}, Glob ${s.glob}, find ${s.find}`,
     `  indexed share of grep-or-index searches: ${sharePct(s.q + s.codeGraph, s.grep + s.grepTool)}%   gate blocks: ${s.gateBlocks}`,
     `  baseline (${b.label}): q ${b.q} (fts ${b.qFts}), code-graph ${b.codeGraph}, grep/rg ${b.grep} (Rust/WGSL ${b.grepRustWgsl}), Grep tool ${b.grepTool}, gate blocks ${b.gateBlocks} — indexed share ${sharePct(b.q + b.codeGraph, b.grep + b.grepTool)}%`,
+    `  target: indexed share >= ${TARGET_INDEXED_SHARE}% (grep share falling against the baseline)`,
     '  most common grep shapes with no indexed answer (shape:language):',
     ...top(s.shapes).map(([k, n]) => `    ${n}  ${k}`),
     '  top grep patterns:',

@@ -62,3 +62,11 @@ For anything deeper, read the relevant CLAUDE.md *section* on demand — don't i
 - If the question is ambiguous, state the interpretation you took.
 
 Your final message IS the result — make it self-contained and skimmable.
+
+## Search — q first (the kit's search tool)
+Search with `q.mjs` (`node <kit>/scripts/q.mjs`), never grep or rg: it indexes the repo and its
+framework submodule — code in every language, docs, configs, tickets — and answers ranked, compact, exact.
+- `q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [-C 2] [--kind code|doc|config|ticket]`
+- `q sym <name> [--type fn,struct,impl,use,mod]` · `q file <glob>` · `q fts <terms>` (work items) · `q show <id>`
+- If q cannot do what you need, that is a kit bug or feature: `cap feature "q: <what is missing>" --project claude-kit`
+  (a ticket the kit team builds) — never fall back to grep silently.

@@ -42,6 +42,17 @@ is ONE small file. Locate it and read only it: `code-graph --query defines <symb
 `importers-of <path>` / `surface <path>` — read the surface before opening the file.
 The query-gate blocks tree-wide source greps. Read less to do more.
 
+## q is THE search tool — never grep or rg
+Every search goes through `q` (`node <kit>/scripts/q.mjs`): `q code <text>` (code in every
+language, docs, configs, tickets, across the repo and its framework submodule; filters
+`--lang --path --kind --regex -i -w -C`), `q sym <name> [--type fn,struct,impl,use,mod]`,
+`q file <glob>`, `q fts <terms>` (work items), `q show <id>`. Ranked, compact, exact — and
+tracked (`search-report.mjs`): the share of greps against q is a measured regression.
+- The query-gate redirects a grep to its exact `q` equivalent; follow it, don't route around it.
+- A subagent brief says so: "Search with q.mjs, never grep." Agent definitions inherit it.
+- q cannot do it? That is a kit feature: `cap feature "q: …" --project claude-kit`, a ticket
+  the kit team builds. Never a silent grep.
+
 # WORKING RULES
 - No flattery, lying, or default deference. Validate all claims.
 - **Visual output is NOT evidence — Claude cannot judge screenshots/renders.** Never

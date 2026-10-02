@@ -94,12 +94,14 @@ expect('blocks multi-file store read (not "one specific")', run(d, 'cat .ai/conf
 
 // KIT-T085 — Rust/WGSL and other non-indexed-extension greps MUST be allowed.
 // code-graph only indexes JS/TS; blocking Rust/WGSL discovery is a dead end.
-expect('allows grep --include=*.rs (Rust — not indexed)', run(d, 'grep -rn "set_environment" --include=*.rs src/').code, 0);
-expect('allows grep --include=*.wgsl (WGSL — not indexed)', run(d, 'grep -rn "terrain" --include=*.wgsl src/shaders/').code, 0);
-expect('allows rg -t rust (Rust type flag)', run(d, 'rg -t rust "fn spawn"').code, 0);
+expect('redirects grep --include=*.rs to the code index (KIT-T101)', run(d, 'grep -rn "set_environment" --include=*.rs src/').code, 2);
+expect('redirects grep --include=*.wgsl to the code index (KIT-T101)', run(d, 'grep -rn "terrain" --include=*.wgsl src/shaders/').code, 2);
+expect('the redirect names the exact q equivalent', /q\.mjs" code terrain --lang wgsl --path src\/shaders/.test(run(d, 'grep -rn "terrain" --include=*.wgsl src/shaders/').err), true);
+expect('redirects rg -t rust to the code index (KIT-T101)', run(d, 'rg -t rust "fn spawn"').code, 2);
+expect('still allows a Rust grep the index cannot answer exactly (-v)', run(d, 'rg -v -t rust "fn spawn"').code, 0);
 expect('allows find . -name "*.rs" (Rust — not indexed)', run(d, 'find . -name "*.rs"').code, 0);
 expect('allows find . -name "*.wgsl" (WGSL — not indexed)', run(d, 'find . -name "*.wgsl"').code, 0);
-expect('allows rg --include=*.rs (long include form)', run(d, 'rg --include=*.rs "impl Vehicle"').code, 0);
+expect('redirects rg --include=*.rs to the code index (KIT-T101)', run(d, 'rg --include=*.rs "impl Vehicle"').code, 2);
 expect('still blocks rg --include=*.ts (TS is indexed)', run(d, 'rg --include=*.ts "PhysicsSim"').code, 2);
 expect('still blocks plain rg with no ext signal (unknown scope)', run(d, 'rg PhysicsBody').code, 2);
 

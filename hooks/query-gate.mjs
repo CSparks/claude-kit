@@ -19,6 +19,7 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { segments } from './lib/shell-segments.mjs';
+import { indexEquivalent } from './lib/index-answerable.mjs';
 import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
@@ -87,6 +88,7 @@ function targetsOnlyNonIndexedExtensions(c) {
   return !hasIndexed; // ALL hints are non-indexed → allow
 }
 
+let repoRoot = '';
 main().catch(() => process.exit(0)); // fail-open — never wedge a tool call on a parse slip
 
 async function main() {
@@ -95,6 +97,7 @@ async function main() {
   if (!cmd) process.exit(0);
   const root = gitRoot();
   if (!adopted(root)) process.exit(0); // opt-in: only KIT-adopted repos
+  repoRoot = root;
 
   // Judge EVERY segment, not just the leader (KIT-T056 — `true || grep .ai/` escaped).
   // A segment after a single `|` receives the previous command's OUTPUT, so a search
@@ -190,7 +193,11 @@ function judge(c, piped = false) {
     const recursive = RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep;
     if (recursive && !targetsOneFile) {
       if (targetsWorkflowData(c)) return null;             // workflow data — RULE 1's business
-      if (targetsOnlyNonIndexedExtensions(c)) return null; // code-graph can't help — allow
+      // The code index answers a language-scoped grep exactly (KIT-T101): redirect those and keep
+      // allowing the shapes it cannot answer (unmodelled flags, foreign regex dialects).
+      const eq = indexEquivalent(c, { qPath: Q, root: repoRoot, cwd: process.cwd() });
+      if (eq) return { id: 'source-discovery', msg: indexMsg(c, eq) };
+      if (targetsOnlyNonIndexedExtensions(c)) return null; // no exact index answer — allow
       return { id: 'source-discovery', msg: graphMsg(c) };
     }
   }
@@ -203,12 +210,22 @@ function judge(c, piped = false) {
   return null;
 }
 
+// The exact q command for the blocked search: its pattern, ready to run.
+function exactLine(c, verb) {
+  const call = classifyCalls('Bash', { command: c })[0];
+  const pattern = call && call.pattern;
+  if (!pattern) return [];
+  const quoted = /^[\w.-]+$/.test(pattern) ? pattern : `'${pattern.replace(/'/g, `'\\''`)}'`;
+  return [`Exact equivalent:  node "${Q}" ${verb} ${quoted}${verb === 'code' ? '   (add --lang L --path P as needed)' : ''}`, ''];
+}
+
 function storeMsg(c) {
   return [
     '',
     'BLOCKED: searching the .ai work store with a text tool.',
     `  ${trunc(c)}`,
     '',
+    ...exactLine(c, 'fts'),
     'Query the work graph instead — it knows the links/history a grep is blind to:',
     `  node "${Q}" governing <path>     # OPEN tickets/decisions governing a file`,
     `  node "${Q}" trail <id>           # walk UP an id to its governing decisions/origin`,
@@ -228,12 +245,33 @@ function storeMsg(c) {
   ].join('\n');
 }
 
+function indexMsg(c, eq) {
+  return [
+    '',
+    'BLOCKED: grepping the source tree — the code index answers this exactly.',
+    `  ${trunc(c)}`,
+    '',
+    'Same hits, ranked and compact (definitions first, 40 lines by default; --limit 0 for all):',
+    `  ${eq.q}`,
+    '',
+    'Other index queries:',
+    `  node "${Q}" sym <name> [--type fn,struct,impl,use,mod]   definitions / impls / uses / mod tree`,
+    `  node "${Q}" file <substring|glob>                        find files by path`,
+    `  node "${Q}" code <text> --kind ticket|doc|config         tickets, docs and configs, same surface`,
+    '',
+    'A targeted look at ONE file stays a plain `grep <pattern> <file>` or the Read tool.',
+    'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it (KIT-T236).',
+    '',
+  ].join('\n');
+}
+
 function graphMsg(c) {
   return [
     '',
     'BLOCKED: grepping the source tree to discover code.',
     `  ${trunc(c)}`,
     '',
+    ...exactLine(c, 'code'),
     'Query the code graph FIRST — it resolves imports/symbols/surface without opening files:',
     `  node "${GRAPH}" --query importers-of <path>       # who imports X`,
     `  node "${GRAPH}" --query defines <symbol>           # where Y is defined`,
