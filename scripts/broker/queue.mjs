@@ -40,7 +40,7 @@ export function processJob(cfg, job) {
 
   const opCwd = join(cfg.root, repo.path);
 
-  const state = checkoutState(opCwd);
+  const state = checkoutState(opCwd, { untrackedBlocks: cfg.untrackedBlocks });
   if (!state.clean) {
     const result = finalize(cfg, { ...base, status: STATUS.DIRTY, commands: [], dirtyEntries: state.entries, message: `build checkout dirty (${opCwd}) — queue paused until clean` });
     return { result, pause: true };

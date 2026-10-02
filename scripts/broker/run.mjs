@@ -10,10 +10,11 @@ import { spawnSync } from 'node:child_process';
 import { openSync, closeSync, readFileSync, existsSync } from 'node:fs';
 
 const LOG_TAIL_LINES = 60;
-const CARGO_BUILD_SUBS = new Set(['test', 'build', 'check', 'clippy', 'bench', 'nextest']);
+const CARGO_BUILD_SUBS = new Set(['test', 'build', 'check', 'clippy', 'bench', 'nextest', 'run', 't', 'b', 'r']);
+const TEST_SUBS = new Set(['test', 't']);
 
 // Fold `-j <jobs>` into any cargo build-shaped command (absent) and `--no-fail-fast` into
-// `cargo test` (absent). Token-based so an already-present flag is never duplicated.
+// `cargo test`/`cargo t` (absent); the `t`/`b`/`r` aliases are the project's fastdev builds. Token-based so an already-present flag is never duplicated.
 export function composeCommand(cmd, { jobs = 3 } = {}) {
   const toks = String(cmd).trim().split(/\s+/);
   const ci = toks.indexOf('cargo');
@@ -22,7 +23,7 @@ export function composeCommand(cmd, { jobs = 3 } = {}) {
   if (!CARGO_BUILD_SUBS.has(sub)) return String(cmd).trim();
   const has = (flag) => toks.includes(flag);
   const out = toks.slice();
-  if (sub === 'test' && !has('--no-fail-fast')) out.push('--no-fail-fast');
+  if (TEST_SUBS.has(sub) && !has('--no-fail-fast')) out.push('--no-fail-fast');
   if (!has('-j') && !has('--jobs')) out.push('-j', String(jobs));
   return out.join(' ');
 }

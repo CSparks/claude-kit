@@ -8,6 +8,8 @@
 import { parseFlags, loadCfg } from './cli.mjs';
 import { readResult, STATUS } from './result.mjs';
 
+// Bash caps a foreground call at 600 s; 540 leaves room to print the queue position.
+const DEFAULT_TIMEOUT_S = 540;
 const flags = parseFlags(process.argv.slice(2));
 const id = flags._[0];
 if (!id) {
@@ -15,7 +17,7 @@ if (!id) {
   process.exit(2);
 }
 const { cfg } = loadCfg(flags);
-const timeoutMs = (Number(flags.timeout) || 900) * 1000;
+const timeoutMs = (Number(flags.timeout) || DEFAULT_TIMEOUT_S) * 1000;
 const pollMs = Number(flags.poll) || cfg.pollMs;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

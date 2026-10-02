@@ -9,6 +9,7 @@
 // land fast-forwards main to the rebased tip.
 
 import { spawnSync } from 'node:child_process';
+import { matchesAny } from './glob.mjs';
 
 // Run a git subcommand; returns { code, out, err }. Never throws.
 export function git(args, cwd) {
@@ -16,12 +17,17 @@ export function git(args, cwd) {
   return { code: r.status == null ? 1 : r.status, out: (r.stdout || '').trim(), err: (r.stdout || '') + (r.stderr || '') };
 }
 
-// Working-tree cleanliness: modified tracked OR untracked files both count as dirty, so a
-// hand-driven writer's in-progress edits pause the broker rather than being built mid-flight.
-export function checkoutState(cwd) {
-  const r = git(['status', '--porcelain'], cwd);
-  const entries = r.out ? r.out.split('\n').map((l) => l.trim()).filter(Boolean) : [];
-  return { clean: r.code === 0 && entries.length === 0, entries };
+// Working-tree state a hand-driven writer can collide with: modified tracked files, plus
+// untracked files matching `untrackedBlocks` (cargo auto-discovers new *.rs and Cargo.toml).
+// Other untracked files (assets, images) never pause the broker.
+export function checkoutState(cwd, { untrackedBlocks = [] } = {}) {
+  const tracked = git(['status', '--porcelain', '--untracked-files=no'], cwd);
+  const entries = tracked.out ? tracked.out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean) : [];
+  const other = git(['ls-files', '--others', '--exclude-standard', '-z'], cwd);
+  if (other.code === 0 && untrackedBlocks.length) {
+    for (const p of other.out.split(String.fromCharCode(0)).filter(Boolean)) if (matchesAny(untrackedBlocks, p)) entries.push(`?? ${p}`);
+  }
+  return { clean: tracked.code === 0 && entries.length === 0, entries };
 }
 
 export function revParse(cwd, ref) {

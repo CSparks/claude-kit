@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { normalizeBroker } from './config.mjs';
 import { processOnce } from './queue.mjs';
@@ -94,7 +94,7 @@ test('dirty checkout: pauses the queue, job re-queued, then a restart drains it'
   const s = setup();
   const wtDir = join(tempDir('broker-wt-'), 'lane');
   makeLane(s.root, 'lane/d', wtDir, 'd.txt', 'x');
-  writeFileSync(join(s.root, 'wip.txt'), 'hand-driven writer mid-edit');
+  writeFileSync(join(s.root, 'README'), 'hand-driven writer mid-edit');
   try {
     writeJob(s.cfg, { id: 'j4', repo: 'app', branch: 'lane/d', commands: [PASS], land: false, worktree: wtDir });
     const sum = processOnce(s.cfg);
@@ -102,10 +102,10 @@ test('dirty checkout: pauses the queue, job re-queued, then a restart drains it'
     assert.equal(sum.pausedOn, 'j4');
     const r = readResult(s.cfg, 'j4');
     assert.equal(r.status, 'dirty');
-    assert.ok(r.dirtyEntries.some((e) => e.includes('wip.txt')));
+    assert.ok(r.dirtyEntries.some((e) => e.includes('README')));
     assert.equal(listQueue(s.cfg).length, 1, 'job stays queued (re-queue guarantee)');
 
-    rmSync(join(s.root, 'wip.txt')); // writer says "checkout free"
+    g(['checkout', 'README'], s.root); // writer says "checkout free"
     const sum2 = processOnce(s.cfg); // restart drains it
     assert.equal(sum2.paused, false);
     assert.equal(readResult(s.cfg, 'j4').status, 'passed');

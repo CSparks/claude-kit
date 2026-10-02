@@ -11,6 +11,7 @@
 //     parallelism: { jobs: 3 }                     # default 3
 //     verify_default: [ "cargo test --no-fail-fast" ]  # commands a job may omit
 //     poll_ms: 2000                                # daemon queue poll interval
+//     untracked_blocks: ["**/*.rs", "**/Cargo.toml"]  # untracked paths that pause the queue
 //     repos:
 //       - { name: stiletto,   path: ., main: main, remote: origin }
 //       - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }
@@ -21,6 +22,7 @@ import { join, resolve, isAbsolute } from 'node:path';
 const DEFAULT_JOBS = 3;
 const DEFAULT_POLL_MS = 2000;
 const DEFAULT_VERIFY = ['cargo test --no-fail-fast'];
+const DEFAULT_UNTRACKED_BLOCKS = ['**/*.rs', '**/Cargo.toml'];
 
 export function readBrokerConfig(root, aiDir = join(root, '.ai')) {
   let text = '';
@@ -48,6 +50,7 @@ export function normalizeBroker(root, broker) {
     jobs,
     verifyDefault,
     pollMs: num(broker.poll_ms, DEFAULT_POLL_MS),
+    untrackedBlocks: Array.isArray(broker.untracked_blocks) ? broker.untracked_blocks.map(String) : DEFAULT_UNTRACKED_BLOCKS.slice(),
     repos,
   };
 }
