@@ -57,6 +57,7 @@ import {
 import { orphanRows } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
 import { searchScopes } from './q-framework.mjs';
+import { showRows } from './q-show.mjs';
 import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
 
 const SNIPPET_COL = 2;       // items_fts column index of `body` for snippet()
@@ -389,6 +390,7 @@ export async function query(cmd, args = [], { root, cwdRoot = root || process.cw
   // and no topic column), so
   // route them straight to the markdown scan over cwdRoot regardless of the engine — the
   // fail-open path IS the only path for them. `cached:false` is honest: no SQLite involved.
+  if (cmd === 'show') return { rows: showRows(args[0], cwdRoot), cached: false };
   if (cmd === 'governing' || cmd === 'drift' || cmd === 'mentions' || cmd === 'topics' || cmd === 'topic') {
     return { rows: fallback(cmd, args, cwdRoot), cached: false };
   }
@@ -442,6 +444,7 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
                               fixed, status moves, created — counts exact, lists capped
   topics                      the generated topic index — slug, first/last date, count, gist
   topic <slug>                one topic's items, oldest first (also: q --topic <slug>)
+  show <id>                   print one item in full (ticket, decision, note, question) from any store
   fts [--scope <s>] <q...>    full-text search title+body (default: this project + its adopted framework stores)
   similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only) — cross-scope
   next-id <scope> <type>      O(1) next free id (max(num)+1)

@@ -27,6 +27,7 @@ import { query } from './q.mjs';
 import {
   ftsMatchQuery, parseFts, defaultScope, resolveScope, resolveStore, requireStore, requireScope, formatId,
 } from './q-model.mjs';
+import { showRows } from './q-show.mjs';
 import { parseInboxArgs, ageDays, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 
 const Q_CLI = join(dirname(fileURLToPath(import.meta.url)), 'q.mjs');
@@ -286,6 +287,25 @@ test('a bare `q` still exits 2 with the surface on stderr (usage, not success)',
   assert.equal(r.status, 2, 'no query = usage error');
   assert.match(r.stderr, /^usage: q\.mjs /);
 });
+
+// ---- KIT-T287: q show <id> -----------------------------------------------------------
+{
+  const Z = makeProject('proj-arch', 'FQZ');
+  mkdirSync(join(Z.ai, 'tickets', 'archive'), { recursive: true });
+  writeFileSync(join(Z.ai, 'tickets', 'archive', 'FQZ-T099-done.md'), '---\nid: FQA-T099\ntitle: archived thing\n---\nlong gone\n');
+  const text = (id, root) => showRows(id, root).join('\n');
+  test('show prints a ticket in full', () => assert.match(text('FQA-T001', A.root), /title: no ask-first gate on captures[\s\S]*the ask-first gate blocks widget capture/));
+  test('show prints a decision', () => assert.match(text('FQA-D001', A.root), /capture first, ask never/));
+  test('show prints a note', () => assert.match(text('FQA-N001', A.root), /the markdown scan sorts by id/));
+  test('show prints a question', () => assert.match(text('FQA-Q001', A.root), /three digits\?/));
+  test('show finds an archived ticket', () => assert.match(text('FQZ-T099', Z.root), /long gone/));
+  test('show resolves an id from the adopted framework store', () => assert.match(text('FQR-T001', G.root), /sleepwake rings/));
+  test('show header names the file path', () => assert.match(showRows('FQA-D001', A.root)[0], /^# .*FQA-D001\.md$/));
+  test('show reports a miss in one line, and usage without an id', () => {
+    assert.match(text('NOPE-T1', A.root), /no item 'NOPE-T1'/);
+    assert.match(text('', A.root), /usage: q show/);
+  });
+}
 
 // ---- cache-backed (skipped when no engine) ----------------------------------
 const engine = await resolveEngine();
