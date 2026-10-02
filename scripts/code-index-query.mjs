@@ -148,8 +148,9 @@ async function candidatesFor(idx, text, flags, kinds) {
 async function codeVerb(root, text, flags) {
   const matcher = buildMatcher(text, flags);
   if (!matcher) return [{ loc: '', text: `invalid pattern: ${text}` }];
-  const idx = await refreshIndex(root);
-  const candidates = await candidatesFor(idx, text, flags, flags.kinds || DEFAULT_KINDS);
+  const kinds = flags.kinds || DEFAULT_KINDS;
+  const idx = await refreshIndex(root, { tickets: kinds.includes('ticket') });
+  const candidates = await candidatesFor(idx, text, flags, kinds);
   const abs = new Map(idx.files.map((f) => [f.rel, f.abs]));
   const perFile = [];
   for (const c of candidates) {
@@ -194,9 +195,10 @@ function renderHits(perFile, flags) {
 }
 
 async function symVerb(root, text, flags) {
-  const idx = await refreshIndex(root);
+  const kinds = flags.kinds || DEFAULT_KINDS;
+  const idx = await refreshIndex(root, { tickets: kinds.includes('ticket') });
   if (!idx.handle) return [{ loc: '', text: 'q sym needs a SQLite engine (none found)' }];
-  const { where, params } = sqlFilters(flags, flags.kinds || ALL_KINDS);
+  const { where, params } = sqlFilters(flags, kinds);
   if (text && flags.fuzzy) { where.push("s.name LIKE ? ESCAPE '\\'"); params.push(`%${text.replace(/[%_\\]/g, '\\$&')}%`); }
   else if (text) { where.push('s.name = ?'); params.push(text); }
   if (flags.types) { where.push(`s.type IN (${flags.types.map(() => '?').join(',')})`); params.push(...flags.types); }

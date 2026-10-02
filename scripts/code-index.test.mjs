@@ -9,7 +9,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
 import { classify, extractSymbols } from './code-index-extract.mjs';
-import { refreshIndex } from './code-index.mjs';
+import { execFileSync } from 'node:child_process';
+import { listIndexable, refreshIndex } from './code-index.mjs';
 import { buildMatcher, codeVerbRows, parseCodeArgs, prefilter } from './code-index-query.mjs';
 import { resolveEngine } from './db-engine.mjs';
 
@@ -92,6 +93,34 @@ await test('refresh is incremental: a changed file, a new file and a removed fil
   assert.deepEqual(locs(await rows('sym', ['fresh_symbol'])), ['src/new.rs:1']);
   assert.equal(locs(await rows('sym', ['appended'])).length, 1, 'the changed file was re-indexed');
   assert.deepEqual(locs(await rows('sym', ['bye'])), []);
+});
+
+await test('git change signal: warm refresh re-reads only what git reports (modify, add, delete, commit, checkout)', async () => {
+  const g = mkdtempSync(join(tmpdir(), 'ci-git-'));
+  const sh = (...a) => execFileSync('git', ['-C', g, '-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { stdio: 'ignore' });
+  const w = (rel, text) => { mkdirSync(dirname(join(g, rel)), { recursive: true }); writeFileSync(join(g, rel), text); };
+  const db = join(cache, 'git-fixture.db');
+  const refresh = async () => { const r = await refreshIndex(g, { dbPath: db }); r.handle?.close(); return r; };
+  sh('init', '-q'); w('a.rs', 'fn one() {}\n'); w('b.rs', 'fn two() {}\n'); w('skip.log', 'x\n'); w('.gitignore', 'ignored.rs\n'); w('ignored.rs', 'fn hidden() {}\n');
+  sh('add', '-A'); sh('commit', '-q', '-m', 'base');
+  let r = await refresh();
+  assert.equal(r.added, 2, 'tracked source only: gitignored files are not indexed');
+  r = await refresh();
+  assert.equal(r.added + r.changed + r.removed, 0, 'nothing moved, nothing re-read');
+  w('a.rs', 'fn one() {}\nfn extra() {}\n'); w('c.rs', 'fn three() {}\n'); unlinkSync(join(g, 'b.rs'));
+  r = await refresh();
+  assert.deepEqual([r.added, r.changed, r.removed], [1, 1, 1]);
+  sh('add', '-A'); sh('commit', '-q', '-m', 'work');
+  r = await refresh();
+  assert.equal(r.added + r.changed + r.removed, 0, 'committing what the index already holds changes nothing');
+  sh('checkout', '-q', 'HEAD~1');
+  r = await refresh();
+  assert.deepEqual([r.added, r.changed, r.removed], [1, 1, 1], 'a HEAD move re-reads the files that differ (b.rs back, c.rs gone, a.rs reverted)');
+  const warm = await refresh();
+  const full = await refreshIndex(g, { dbPath: join(cache, 'git-full.db'), files: listIndexable(g) });
+  full.handle?.close();
+  assert.deepEqual(warm.files.map((f) => f.rel).sort(), full.files.map((f) => f.rel).sort(), 'warm file set equals a full listing');
+  rmSync(g, { recursive: true, force: true });
 });
 
 await test('q sym: exact, fuzzy, --type, --lang, --path', async () => {
