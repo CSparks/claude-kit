@@ -22,6 +22,7 @@ import {
   loadCaptureConfig,
   ID_CITE_SRC,
   readTurnState,
+  writeTurnState,
 } from './lib.mjs';
 
 // Built-in defaults — overridable/extendable via `capture.signals` in .ai/config.yml.
@@ -79,16 +80,19 @@ async function main() {
   const parsed = tx && existsSync(tx) ? parseTranscript(tx) : {};
   const snapshot = readTurnState(root, 'request-capture') || {};
   const lastUser = parsed.lastUser || snapshot.prompt || '';
-  const lastAssistant = parsed.lastAssistant || p.last_assistant_message || '';
+  const lastAssistant = [parsed.sinceUser, p.last_assistant_message].filter(Boolean).join('\n');
   const turnStartMs = parsed.turnStartMs || Number(snapshot.ts) || 0;
   if (!lastUser) process.exit(0);
 
   const hit = cfg.signals.find((re) => re.test(lastUser));
   if (!hit) process.exit(0);                            // not request-shaped
 
-  if (RECEIPT.test(lastAssistant || '')) process.exit(0);          // captured/dismissed in the reply
+  if (RECEIPT.test(lastAssistant)) process.exit(0);                // routed/dismissed in any reply since the prompt
+  const promptKey = `${turnStartMs}:${lastUser.slice(0, 200)}`;
+  if ((readTurnState(root, 'request-gate-fired') || {}).key === promptKey) process.exit(0); // already nudged for this prompt
   if (turnStartMs && capturedSince(root, turnStartMs)) process.exit(0); // captured to a store
 
+  writeTurnState(root, { key: promptKey }, 'request-gate-fired');
   const quote = lastUser.replace(/\s+/g, ' ').trim().slice(0, 120);
   process.stderr.write(
     `⚠ Possible un-captured request: "${quote}"\n` +
@@ -108,13 +112,16 @@ function parseTranscript(file) {
     return {};
   }
   let lastUser = null, lastAssistant = null, turnStartMs = 0, userResolved = false;
+  const sinceUser = [];
   for (let i = lines.length - 1; i >= 0; i--) {
     let e;
     try { e = JSON.parse(lines[i]); } catch { continue; }
     const role = e?.type || e?.message?.role;
     const content = e?.message?.content;
-    if (!lastAssistant && role === 'assistant') {
-      lastAssistant = extractText(content);
+    if (role === 'assistant' && !userResolved) {
+      const text = extractText(content);
+      lastAssistant ||= text;
+      sinceUser.push(text);
       continue;
     }
     if (!userResolved && role === 'user' && !isToolResult(content) && e?.isMeta !== true) {
@@ -133,7 +140,7 @@ function parseTranscript(file) {
     }
     if (userResolved && lastAssistant) break;
   }
-  return { lastUser, lastAssistant, turnStartMs };
+  return { lastUser, lastAssistant, turnStartMs, sinceUser: sinceUser.join('\n') };
 }
 
 function extractText(content) {

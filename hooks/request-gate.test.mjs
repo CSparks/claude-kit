@@ -243,5 +243,27 @@ function expect(name, actual, wanted) {
   expect('does not resurrect a pre-compaction request', run(d, { transcript_path: file }).code, 0);
 }
 
+
+// 21. a [no-capture] in an EARLIER reply of the same prompt clears later Stops (hand-back turn) -> ALLOW
+{
+  const d = makeRepo();
+  const file = join(d, 'transcript.jsonl');
+  writeFileSync(file, [
+    JSON.stringify({ type: 'user', message: { role: 'user', content: 'There needs to be a wider street' }, timestamp: new Date().toISOString() }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Routed. [no-capture: already in tickets]' }] } }),
+    JSON.stringify({ type: 'user', isMeta: true, message: { role: 'user', content: 'Stop hook feedback: please capture' }, timestamp: new Date().toISOString() }),
+    JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'Agent finished; here is the result.' }] } }),
+  ].join('\n') + '\n');
+  expect('earlier-reply token clears the prompt', run(d, { transcript_path: file }).code, 0);
+}
+// 22. fires at most once per prompt: a second Stop for the same prompt is allowed
+{
+  const d = makeRepo();
+  const tx = writeTranscript(d, 'There needs to be a wider street', 'ok', new Date().toISOString());
+  const first = run(d, { transcript_path: tx }).code;
+  expect('first Stop blocks', first, 2);
+  expect('second Stop for the same prompt allows', run(d, { transcript_path: tx }).code, 0);
+}
+
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASS');
 process.exit(failures ? 1 : 0);
