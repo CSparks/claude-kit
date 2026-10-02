@@ -2,22 +2,21 @@
 // write JOBS into the queue dir; the broker writes RESULTS a worker's `wait` polls for.
 //
 // JOB   (target/broker/queue/<id>.json), written by submit.mjs:
-//   { id, repo, branch, commands: [ "cargo test -p foo --lib", … ], land: bool,
-//     ticket: "ST-T123", title: "…", worktree: "<abs path>", submittedAt: ISO }
-//   `commands` may be omitted/empty — the broker fills the repo's `verify_default`.
-//   `worktree` lets the broker free the branch on a green land (see queue.mjs teardown).
+//   { id, repo, base, ops, files: { path: blobSha }, commands: [ "cargo t -p foo", … ], land: bool,
+//     ticket, title, revises, revision, submittedAt }
+//   empty `commands` means the broker fills `verify_default`.
 //
-// RESULT (target/broker/results/<id>.json), written by the broker:
-//   { id, repo, branch, land, ticket, status: passed|failed|conflict|dirty,
-//     commands: [ { cmd, composed, exit, durationMs, logTail: [...], log } ],
-//     conflicts: [...]|null, landed: { sha }|null, dirtyEntries: [...]|null,
-//     message, startedAt, finishedAt }
+// RESULT (target/broker/results/<id>.json), written by the broker or by submit on a stale dry run:
+//   { id, revises, revision, ticket, base, head, status: passed|failed|gate|stale|dirty|landed,
+//     phase, gate: [{ path, check, msg }], stale: [{ index, path, reason, excerpt, since }],
+//     commands: [{ cmd, composed, exit, durationMs, log, logTail, errors, failedTests }],
+//     diffStat, landed: { sha, superSha }|null, dirtyEntries, message, startedAt, finishedAt }
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 
-export const STATUS = { PASSED: 'passed', FAILED: 'failed', CONFLICT: 'conflict', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed' };
+export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed' };
 
 export function ensureDirs(cfg) {
   const p = brokerPaths(cfg);

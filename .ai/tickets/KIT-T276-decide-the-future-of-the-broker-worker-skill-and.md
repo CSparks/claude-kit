@@ -29,7 +29,7 @@ decides. Today they are unusable without `[maintainer-asked-worktree:]` /
 - [x] L1 Pause rule (tracked-dirty + untracked_blocks), cargo t/b/r composition, wait 540 s, stiletto verify_default cargo t; test: untracked assets/x.glb runs, untracked crates/a/tests/x.rs pauses, cargo t -p x gets --no-fail-fast -j 3
 - [x] L2 Envelope parser, submit dry-run on stdin (no branch), content-addressed apply, stale result, check-only restore journal
 - [x] L3 Gate phase reusing hooks/pre-write.mjs; patch over 600 lines -> gate, tree untouched
-- [ ] L4 Path-only land, ticket required, push, submodule pin; lane code deleted (checkoutDetached/rebaseOnto/deleteBranch/removeWorktree/unmergedFiles, branch/worktree job fields)
+- [x] L4 Path-only land, ticket required, push, submodule pin; lane code deleted (checkoutDetached/rebaseOnto/deleteBranch/removeWorktree/unmergedFiles, branch/worktree job fields)
 - [ ] L5 patch-worker agent + skill, BROKER.md rewrite, dispatch-guard broker-owned-tree, pause/resume, orient lands/inflight, KIT-T271 rollout changes (no first start)
 
 ## Plan
@@ -63,3 +63,7 @@ Chris 2026-10-02 decided: (1) the broker DAEMON is the one writer (applies/build
 - [2026-10-02 17:57] (comment) @chris: 2026-10-02 L3 landed: gate phase runs hooks/pre-write.mjs per surviving file (CLAUDE_KIT_BROKER_GATE keeps the turn-writ (full comment #6 in ## Notes)
 ### comment #6 [2026-10-02 17:57] @chris
 2026-10-02 L3 landed: gate phase runs hooks/pre-write.mjs per surviving file (CLAUDE_KIT_BROKER_GATE keeps the turn-writes ledger clean); 600+ line patch -> status gate, tree untouched. broker 27 pass; npm runner 74 OK + 2 known failures
+- [2026-10-02 18:05] (comment) ticked: L4 Path-only land, ticket required, push, submodule pin; lane code deleted (checkoutDetached/rebaseOnto/deleteBranch/removeWorktree/unmergedFiles, branch/worktree job fields)
+- [2026-10-02 18:05] (comment) @chris: 2026-10-02 L4 landed: path-only land (git add/commit by explicit paths, ticket required), push, submodule pin; lane mach (full comment #7 in ## Notes)
+### comment #7 [2026-10-02 18:05] @chris
+2026-10-02 L4 landed: path-only land (git add/commit by explicit paths, ticket required), push, submodule pin; lane machinery deleted (git.mjs lane functions, queue rebase/teardown, branch/worktree job fields, legacy submit flags). broker 28 pass; npm runner 74 OK + 2 known failures. Old lane tests replaced by land.test.mjs

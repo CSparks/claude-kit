@@ -81,8 +81,8 @@ test('result store: job queue in order, remove, result round-trip', () => {
   const dir = tempDir();
   try {
     const cfg = normalizeBroker(dir, { repos: [] });
-    const j1 = writeJob(cfg, { id: 'j-a', repo: 'app', branch: 'lane/a' });
-    const j2 = writeJob(cfg, { id: 'j-b', repo: 'app', branch: 'lane/b' });
+    const j1 = writeJob(cfg, { id: 'j-a', repo: 'app', base: 'abc' });
+    const j2 = writeJob(cfg, { id: 'j-b', repo: 'app', base: 'abc' });
     assert.deepEqual(listQueue(cfg).map((j) => j.id), ['j-a', 'j-b']);
     assert.ok(j1.submittedAt && j2.submittedAt);
     removeJob(cfg, 'j-a');

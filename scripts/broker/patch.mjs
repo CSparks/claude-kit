@@ -1,12 +1,13 @@
 // patch.mjs — run one patch job on the live checkout (KIT-T276): re-dry-run against current
 // HEAD (content-addressed), journal the pre-images, write the files, run the commands, then
-// restore the tree byte for byte. Returns { result, pause } like the lane engine; pause leaves
-// the job queued.
+// restore the tree byte for byte (check-only) or, for a green `land` job, commit by paths and
+// push. Returns { result, pause }; pause leaves the job queued.
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { dryRun } from './apply.mjs';
-import { capture, restore } from './preimage.mjs';
+import { capture, discard, restore } from './preimage.mjs';
+import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
 import { gatePlan } from './gate.mjs';
 import { checkoutState, git, logSince, revParse, showFile } from './git.mjs';
@@ -57,14 +58,22 @@ export function processPatch(cfg, job, repo) {
   const gate = gatePlan(cwd, plan.files);
   if (gate.length) return done({ status: STATUS.GATE, phase: 'gate', gate });
 
+  if (job.land && !job.ticket) return done({ status: STATUS.FAILED, phase: 'land', message: 'a landing patch needs --ticket (the commit cites it)' });
+
   const journal = capture(cfg, { id: job.id, cwd, paths: [...plan.files.keys()] });
+  let keep = false;
   try {
     writePlan(cwd, plan.files);
     const diffStat = git(['diff', '--stat'], cwd).out;
     const commands = runCommands(cfg, job, cwd);
     const green = commands.every((c) => c.exit === 0);
-    return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat });
+    if (!green || !job.land) return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat });
+
+    const land = landPatch(cfg, repo, job, cwd, [...plan.files.keys()]);
+    keep = land.committed;
+    if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, message: land.error });
+    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, landed: { sha: land.sha, superSha: land.superSha } });
   } finally {
-    restore(cfg, journal);
+    if (keep) discard(cfg); else restore(cfg, journal);
   }
 }

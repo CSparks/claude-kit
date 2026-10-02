@@ -11,20 +11,20 @@ import { checkoutState } from './git.mjs';
 import { globToRegExp } from './glob.mjs';
 import { processOnce } from './queue.mjs';
 import { writeJob, readResult } from './result.mjs';
-import { tempDir, cleanup, makeRepo, makeLane } from './testkit.mjs';
+import { tempDir, cleanup, makeRepo } from './testkit.mjs';
+import { buildPatchJob } from './submit-lib.mjs';
 
 const PASS = 'node -e "process.exit(0)"';
 const put = (root, rel, text = 'x') => { mkdirSync(dirname(join(root, rel)), { recursive: true }); writeFileSync(join(root, rel), text); };
 
 function run(untracked) {
   const root = makeRepo(tempDir('pause-'));
-  const wt = join(tempDir('pause-wt-'), 'lane');
-  makeLane(root, 'lane/p', wt, 'p.txt', 'p\n');
   const cfg = normalizeBroker(root, { repos: [{ name: 'app', path: '.' }], verify_default: [PASS] });
   put(root, untracked);
-  writeJob(cfg, { id: 'jp', repo: 'app', branch: 'lane/p', commands: [PASS], land: false, worktree: wt });
+  const { job } = buildPatchJob(cfg, {}, '*** write p.txt\np\n');
+  writeJob(cfg, { ...job, commands: [PASS] });
   const sum = processOnce(cfg);
-  return { sum, result: readResult(cfg, 'jp'), done: () => cleanup(root) };
+  return { sum, result: readResult(cfg, job.id), done: () => cleanup(root) };
 }
 
 test('an untracked glb does not pause: the job runs', () => {

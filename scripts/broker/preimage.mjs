@@ -39,6 +39,11 @@ export function restore(cfg, journal) {
   rmSync(journalPath(cfg), { force: true });
 }
 
+/** Drop the journal without restoring: the tree now matches a commit. */
+export function discard(cfg) {
+  rmSync(journalPath(cfg), { force: true });
+}
+
 /** The unfinished journal a crash left, or null. */
 export function readInflight(cfg) {
   try { return JSON.parse(readFileSync(journalPath(cfg), 'utf8')); } catch { return null; }

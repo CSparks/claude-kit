@@ -1,7 +1,7 @@
 // testkit.mjs — throwaway git fixtures for the broker tests. NOT a test: it builds real, tiny
 // git repos in a temp dir whose "build" commands are plain shell (node -e / echo), so the suite
-// runs in seconds and needs no cargo. Every fixture is a real repo so the git protocol (detached
-// rebase, ff-merge, worktree teardown, submodule pin) is exercised for real, never mocked.
+// runs in seconds and needs no cargo. Every fixture is a real repo so the git protocol (path
+// commits, push, submodule pin) is exercised for real, never mocked.
 
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
@@ -56,16 +56,6 @@ export function addOrigin(repo, barePath) {
   g(['remote', 'add', 'origin', barePath], repo);
   g(['push', '-u', 'origin', 'main'], repo);
   return barePath;
-}
-
-// A lane branch held by a LIVE worktree (mirrors a broker worker): the branch is checked out
-// elsewhere, which is exactly what forces the broker's detached-checkout strategy.
-export function makeLane(repo, branch, wtDir, file, content) {
-  g(['worktree', 'add', '-b', branch, wtDir, 'main'], repo);
-  writeFileSync(join(wtDir, file), content);
-  g(['add', '-A'], wtDir);
-  g(['commit', '-m', `lane ${file}`], wtDir);
-  return { branch, wtDir };
 }
 
 export function commitOnMain(repo, file, content, msg = 'main change') {
