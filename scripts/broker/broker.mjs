@@ -13,6 +13,7 @@ import { parseFlags, loadCfg } from './cli.mjs';
 import { acquireLock, releaseLock } from './lock.mjs';
 import { processOnce } from './queue.mjs';
 import { ensureDirs } from './result.mjs';
+import { recoverInflight } from './preimage.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 const { root, cfg } = loadCfg(flags);
@@ -33,6 +34,9 @@ const stop = () => {
 };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);
+
+const recovered = recoverInflight(cfg);
+if (recovered) console.error(`broker: restored the tree after interrupted job ${recovered}; it re-runs`);
 
 console.error(`broker: watching ${root} (target ${cfg.targetDir}, jobs -j ${cfg.jobs})`);
 

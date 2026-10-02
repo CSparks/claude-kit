@@ -9,6 +9,7 @@
 
 import { join } from 'node:path';
 import { repoByName } from './config.mjs';
+import { processPatch } from './patch.mjs';
 import { STATUS, listQueue, removeJob, writeResult, logPathFor } from './result.mjs';
 import { runCommand } from './run.mjs';
 import { repinSuperproject } from './submodule.mjs';
@@ -37,6 +38,8 @@ export function processJob(cfg, job) {
   const base = { id: job.id, repo: job.repo, branch: job.branch, land: !!job.land, ticket: job.ticket || null, startedAt };
   const repo = repoByName(cfg, job.repo);
   if (!repo) return { result: finalize(cfg, { ...base, status: STATUS.FAILED, commands: [], message: `unknown repo '${job.repo}'` }) };
+
+  if (job.ops) return processPatch(cfg, job, repo);
 
   const opCwd = join(cfg.root, repo.path);
 

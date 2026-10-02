@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // wait.mjs — block on a job's result with a bounded poll, print it, and exit with the job's
-// status so a worker's turn is never left stopped on a background task. exit 0 = passed;
-// 1 = failed/conflict/dirty; 2 = timed out.
+// status so a worker's turn is never left stopped on a background task. exit 0 = passed or landed;
+// 1 = failed/stale/gate/conflict/dirty; 2 = timed out.
 //
 // USE: node wait.mjs <id> --root <build-checkout> [--timeout <s>] [--poll <ms>]
 
 import { parseFlags, loadCfg } from './cli.mjs';
-import { readResult, STATUS } from './result.mjs';
+import { listQueue, readResult, STATUS } from './result.mjs';
+import { printResult } from './report.mjs';
 
 // Bash caps a foreground call at 600 s; 540 leaves room to print the queue position.
 const DEFAULT_TIMEOUT_S = 540;
@@ -26,20 +27,11 @@ const deadline = Date.now() + timeoutMs;
 while (Date.now() < deadline) {
   const result = readResult(cfg, id);
   if (result) {
-    report(result);
-    process.exit(result.status === STATUS.PASSED ? 0 : 1);
+    printResult(result);
+    process.exit(result.status === STATUS.PASSED || result.status === STATUS.LANDED ? 0 : 1);
   }
   await sleep(pollMs);
 }
-console.error(`wait: timed out after ${timeoutMs / 1000}s waiting for ${id}`);
+const position = listQueue(cfg).findIndex((j) => j.id === id);
+console.error(`wait: timed out after ${timeoutMs / 1000}s waiting for ${id}${position >= 0 ? ` (queue position ${position + 1})` : ''}`);
 process.exit(2);
-
-function report(r) {
-  console.log(`${r.id} [${r.repo} ${r.branch}] → ${r.status}${r.landed ? ` landed ${r.landed.sha}` : ''}`);
-  if (r.message) console.log(`  ${r.message}`);
-  if (r.conflicts && r.conflicts.length) console.log(`  conflicts: ${r.conflicts.join(', ')}`);
-  for (const c of r.commands || []) {
-    console.log(`  $ ${c.composed}  → exit ${c.exit} (${c.durationMs}ms)`);
-    if (c.exit !== 0) for (const line of c.logTail || []) console.log(`    | ${line}`);
-  }
-}

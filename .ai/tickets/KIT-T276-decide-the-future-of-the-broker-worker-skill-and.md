@@ -27,7 +27,7 @@ decides. Today they are unusable without `[maintainer-asked-worktree:]` /
 - [ ] The maintainer's decision (retire, rework to a single-checkout model, or keep as an explicitly-asked exception) is recorded as a decision file.
 - [ ] The skill, `docs/BROKER.md` and `scripts/broker/` match that decision; the kit suite passes.
 - [x] L1 Pause rule (tracked-dirty + untracked_blocks), cargo t/b/r composition, wait 540 s, stiletto verify_default cargo t; test: untracked assets/x.glb runs, untracked crates/a/tests/x.rs pauses, cargo t -p x gets --no-fail-fast -j 3
-- [ ] L2 Envelope parser, submit dry-run on stdin (no branch), content-addressed apply, stale result, check-only restore journal
+- [x] L2 Envelope parser, submit dry-run on stdin (no branch), content-addressed apply, stale result, check-only restore journal
 - [ ] L3 Gate phase reusing hooks/pre-write.mjs; patch over 600 lines -> gate, tree untouched
 - [ ] L4 Path-only land, ticket required, push, submodule pin; lane code deleted (checkoutDetached/rebaseOnto/deleteBranch/removeWorktree/unmergedFiles, branch/worktree job fields)
 - [ ] L5 patch-worker agent + skill, BROKER.md rewrite, dispatch-guard broker-owned-tree, pause/resume, orient lands/inflight, KIT-T271 rollout changes (no first start)
@@ -55,3 +55,7 @@ Chris 2026-10-02 decided: (1) the broker DAEMON is the one writer (applies/build
 - [2026-10-02 17:43] (comment) @chris: 2026-10-02 L1 landed: pause rule (tracked-dirty + untracked_blocks), cargo t/b/r composition, wait 540 s, stiletto verif (full comment #4 in ## Notes)
 ### comment #4 [2026-10-02 17:43] @chris
 2026-10-02 L1 landed: pause rule (tracked-dirty + untracked_blocks), cargo t/b/r composition, wait 540 s, stiletto verify_default cargo t. broker tests 16 pass; npm runner 74 OK, 2 known failures (agent-pins, express)
+- [2026-10-02 17:51] (comment) ticked: L2 Envelope parser, submit dry-run on stdin (no branch), content-addressed apply, stale result, check-only restore journal
+- [2026-10-02 17:51] (comment) @chris: 2026-10-02 L2 landed: envelope parser, submit dry-run on stdin, content-addressed apply, stale results with commits sinc (full comment #5 in ## Notes)
+### comment #5 [2026-10-02 17:51] @chris
+2026-10-02 L2 landed: envelope parser, submit dry-run on stdin, content-addressed apply, stale results with commits since base, check-only restore journal + crash recovery, rustc/test diagnostics. broker tests 25 pass; npm runner 74 OK + 2 known failures. Deviation: --diff unified form deferred; --land rejected at submit until L4

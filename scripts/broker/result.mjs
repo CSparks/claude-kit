@@ -17,7 +17,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 
-export const STATUS = { PASSED: 'passed', FAILED: 'failed', CONFLICT: 'conflict', DIRTY: 'dirty' };
+export const STATUS = { PASSED: 'passed', FAILED: 'failed', CONFLICT: 'conflict', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed' };
 
 export function ensureDirs(cfg) {
   const p = brokerPaths(cfg);

@@ -101,3 +101,27 @@ export function stagedPaths(cwd) {
   const r = git(['diff', '--cached', '--name-only'], cwd);
   return r.code === 0 && r.out ? r.out.split('\n').map((l) => l.trim()).filter(Boolean) : [];
 }
+
+// A tracked file's text at `ref` (untrimmed), or null when absent there.
+export function showFile(cwd, ref, path) {
+  const r = spawnSync('git', ['show', `${ref}:${path}`], { cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 28 });
+  return r.status === 0 ? r.stdout : null;
+}
+
+// Store a working file's exact bytes (no clean/smudge filters) in the object database.
+export function hashObject(cwd, path) {
+  const r = git(['hash-object', '-w', '--no-filters', '--', path], cwd);
+  return r.code === 0 ? r.out : null;
+}
+
+// A blob's exact bytes.
+export function catBlob(cwd, sha) {
+  const r = spawnSync('git', ['cat-file', 'blob', sha], { cwd, windowsHide: true, maxBuffer: 1 << 28 });
+  return r.status === 0 ? r.stdout : null;
+}
+
+// Commits on main since `base` that touched `path`: one `<sha> <subject>` line each.
+export function logSince(cwd, base, path) {
+  const r = git(['log', '--oneline', `${base}..HEAD`, '--', path], cwd);
+  return r.code === 0 && r.out ? r.out.split('\n') : [];
+}
