@@ -9,6 +9,7 @@
 // Line numbers are 1-based. Supported: // families, # families, -- families and /* */ blocks.
 
 import { extOf } from '../../scripts/tree-walk.mjs';
+import { resolveUser } from '../../scripts/identity.mjs';
 
 export const RUN_WARN = 6;
 export const RUN_BLOCK = 20;
@@ -21,10 +22,15 @@ const DASH = new Set('sql lua hs'.split(' '));
 const BLOCK = new Set('js jsx mjs cjs ts tsx rs go java c cc cpp cxx h hpp cs swift kt php css scss less vue svelte sql'.split(' '));
 const LICENSE = /copyright|licen[sc]e|spdx/i;
 
+// The maintainer is a configured alias (scripts/identity.mjs), never a literal in this file.
+const escapeRe = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const ALIAS = escapeRe(resolveUser().toLowerCase());
+const WHO = `the maintainer|the user|${ALIAS}`;
+
 const NARRATION = [
   [/\b20\d\d-\d\d-\d\d\b/, 'dated stamp (history belongs in git)'],
-  [/\b(?:chris|the maintainer|the user)\b[’']?s?\s+(?:said|says|asked|wants?|wanted|told|decided|noted|reported|prefers?|rule)\b/i, 'attributes the code to a conversation'],
-  [/\((?:chris|maintainer)\b|\b(?:chris|maintainer)\s+20\d\d|\bper (?:chris|the maintainer)\b/i, 'maintainer attribution'],
+  [new RegExp(String.raw`\b(?:${WHO})\b[’']?s?\s+(?:said|says|asked|wants?|wanted|told|decided|noted|reported|prefers?|rule)\b`, 'i'), 'attributes the code to a conversation'],
+  [new RegExp(String.raw`\((?:${ALIAS}|maintainer)\b|\b(?:${ALIAS}|maintainer)\s+20\d\d|\bper (?:${WHO})\b`, 'i'), 'maintainer attribution'],
   [/\b(?:said|says|asked|told|wrote)\s*[:,]?\s*["“]/i, 'quoted discussion'],
   [/\b(?:we|i)\s+(?:discussed|decided|agreed|talked|used to|previously|originally)\b/i, 'narrates a decision process'],
   [/\bas (?:discussed|agreed)\b|\bin this (?:session|conversation|chat|thread)\b|\bearlier (?:today|this session)\b/i, 'refers to the conversation'],
