@@ -139,6 +139,12 @@ expect('allows code-graph query', run(d, 'node scripts/code-graph.mjs --query de
 expect('allows a build command', run(d, 'npm run build').code, 0);
 expect('no-ops on unadopted repo', run(un, 'grep -rn secret .ai/').code, 0);
 
+// KIT-T280 — a newline separates commands: a piped tail/head filter on one line must not be
+// judged together with the next line's .ai path (git add, mv, mkdir are not content searches).
+expect('allows tail filter, newline, git add of a store path', run(d, 'node t.mjs status X review | tail -1\ngit add .ai/tickets/KIT-T1*').code, 0);
+expect('allows 2>&1 | tail then mv into .ai', run(d, 'node cap.mjs x 2>&1 | tail -1; mv .ai/inbox/a.md .ai/inbox/triaged/').code, 0);
+expect('still blocks a real store grep after a newline', run(d, 'echo hi\ngrep -rn physics .ai/decisions/').code, 2);
+
 // FAIL-OPEN (KIT-T272) — this hook is loaded LIVE by other sessions; a crash/parse error mid-flight
 // must NEVER block a tool call. Feed raw non-JSON on stdin and assert exit 0, not a block.
 function runRaw(dir, input) {

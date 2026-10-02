@@ -114,7 +114,8 @@ async function main() {
 }
 
 // Split a shell line into segments, each tagged with the operator BEFORE it ('start',
-// '|', '||', '&&', ';', '&'). Quote-aware so operators inside strings don't split.
+// '|', '||', '&&', ';', '&'). A newline is a ';'. Quote-aware so operators inside strings
+// don't split; `>&` / `&>` are redirections, not separators.
 function segments(cmd) {
   const out = [];
   let cur = '';
@@ -124,9 +125,10 @@ function segments(cmd) {
     const ch = cmd[i];
     if (q) { cur += ch; if (ch === q) q = ''; continue; }
     if (ch === '"' || ch === "'") { q = ch; cur += ch; continue; }
-    if (ch === '|' || ch === '&' || ch === ';') {
+    if (ch === '&' && (cmd[i - 1] === '>' || cmd[i + 1] === '>')) { cur += ch; continue; } // 2>&1, &>file: redirection, not a separator
+    if (ch === '|' || ch === '&' || ch === ';' || ch === '\n') {
       const pair = ch + (cmd[i + 1] || '');
-      const sep = pair === '||' || pair === '&&' ? pair : ch;
+      const sep = pair === '||' || pair === '&&' ? pair : ch === '\n' ? ';' : ch;
       if (sep.length === 2) i++;
       out.push({ text: cur, after: op });
       cur = '';
