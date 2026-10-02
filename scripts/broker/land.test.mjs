@@ -80,13 +80,15 @@ test('a failing command bounces a landing patch: nothing committed, tree restore
 test('modified tracked files pause the queue; the job stays queued and runs once the tree is free', () => {
   const s = fixture();
   try {
-    writeFileSync(join(s.root, 'README'), 'hand-driven edit\n');
+    writeFileSync(join(s.root, 'lib.rs'), 'base\n');
+    g(['add', 'lib.rs'], s.root); g(['commit', '-m', 'lib'], s.root);
+    writeFileSync(join(s.root, 'lib.rs'), 'hand-driven edit\n');
     const job = queued(s, {}, envelope(['beta', 'BETA']), { commands: [PASS] });
     const sum = processOnce(s.cfg);
     assert.deepEqual([sum.paused, sum.pausedOn], [true, job.id]);
     assert.equal(readResult(s.cfg, job.id).status, 'dirty');
     assert.equal(listQueue(s.cfg).length, 1, 'job stays queued');
-    g(['checkout', 'README'], s.root);
+    g(['checkout', 'lib.rs'], s.root);
     assert.equal(processOnce(s.cfg).paused, false);
     assert.equal(readResult(s.cfg, job.id).status, 'passed');
   } finally { s.done(); }

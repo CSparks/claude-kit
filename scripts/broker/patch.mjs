@@ -10,7 +10,7 @@ import { capture, discard, restore } from './preimage.mjs';
 import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
 import { gatePlan } from './gate.mjs';
-import { checkoutState, git, logSince, revParse, showFile } from './git.mjs';
+import { checkoutState, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand } from './run.mjs';
 
@@ -47,7 +47,8 @@ export function processPatch(cfg, job, repo) {
   };
   const done = (fields) => ({ result: writeResult(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields }) });
 
-  const state = checkoutState(cwd, { untrackedBlocks: cfg.untrackedBlocks });
+  const touched = (job.ops || []).map((o) => String(o.path).replace(/[\\]/g, '/'));
+  const state = checkoutState(cwd, { untrackedBlocks: cfg.untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks, touched });
   if (!state.clean) {
     return { ...done({ status: STATUS.DIRTY, phase: 'apply', dirtyEntries: state.entries, message: `build checkout dirty (${cwd}) — queue paused until clean` }), pause: true };
   }
@@ -60,7 +61,8 @@ export function processPatch(cfg, job, repo) {
 
   if (job.land && !job.ticket) return done({ status: STATUS.FAILED, phase: 'land', message: 'a landing patch needs --ticket (the commit cites it)' });
 
-  const journal = capture(cfg, { id: job.id, cwd, paths: [...plan.files.keys()] });
+  const locksBefore = lockFiles(cwd);
+  const journal = capture(cfg, { id: job.id, cwd, paths: [...new Set([...plan.files.keys(), ...locksBefore])] });
   let keep = false;
   try {
     writePlan(cwd, plan.files);
@@ -74,6 +76,10 @@ export function processPatch(cfg, job, repo) {
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, message: land.error });
     return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, landed: { sha: land.sha, superSha: land.superSha } });
   } finally {
-    if (keep) discard(cfg); else restore(cfg, journal);
+    if (keep) discard(cfg);
+    else {
+      restore(cfg, journal);
+      for (const p of lockFiles(cwd)) if (!locksBefore.includes(p)) rmSync(join(cwd, p), { force: true });
+    }
   }
 }

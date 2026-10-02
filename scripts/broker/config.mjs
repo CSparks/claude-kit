@@ -12,6 +12,9 @@
 //     verify_default: [ "cargo test --no-fail-fast" ]  # commands a job may omit
 //     poll_ms: 2000                                # daemon queue poll interval
 //     untracked_blocks: ["**/*.rs", "**/Cargo.toml"]  # untracked paths that pause the queue
+//     dirty_blocks: ["**/*.rs", "**/Cargo.toml", "**/Cargo.lock"]  # tracked modifications that pause
+//                                                    # the queue (plus any path the job's patch
+//                                                    # touches); other dirty tracked files are left alone
 //     repos:
 //       - { name: stiletto,   path: ., main: main, remote: origin }
 //       - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }
@@ -23,6 +26,7 @@ const DEFAULT_JOBS = 3;
 const DEFAULT_POLL_MS = 2000;
 const DEFAULT_VERIFY = ['cargo test --no-fail-fast'];
 const DEFAULT_UNTRACKED_BLOCKS = ['**/*.rs', '**/Cargo.toml'];
+const DEFAULT_DIRTY_BLOCKS = [...DEFAULT_UNTRACKED_BLOCKS, '**/Cargo.lock'];
 
 export function readBrokerConfig(root, aiDir = join(root, '.ai')) {
   let text = '';
@@ -51,6 +55,7 @@ export function normalizeBroker(root, broker) {
     verifyDefault,
     pollMs: num(broker.poll_ms, DEFAULT_POLL_MS),
     untrackedBlocks: Array.isArray(broker.untracked_blocks) ? broker.untracked_blocks.map(String) : DEFAULT_UNTRACKED_BLOCKS.slice(),
+    dirtyBlocks: Array.isArray(broker.dirty_blocks) ? broker.dirty_blocks.map(String) : DEFAULT_DIRTY_BLOCKS.slice(),
     repos,
   };
 }

@@ -13,17 +13,34 @@ export function git(args, cwd) {
   return { code: r.status == null ? 1 : r.status, out: (r.stdout || '').trim(), err: (r.stdout || '') + (r.stderr || '') };
 }
 
-// Working-tree state a hand-driven writer can collide with: modified tracked files, plus
-// untracked files matching `untrackedBlocks` (cargo auto-discovers new *.rs and Cargo.toml).
-// Other untracked files (assets, images) never pause the broker.
-export function checkoutState(cwd, { untrackedBlocks = [] } = {}) {
-  const tracked = git(['status', '--porcelain', '--untracked-files=no'], cwd);
-  const entries = tracked.out ? tracked.out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean) : [];
+// Working-tree state a hand-driven writer can collide with. A modified tracked file counts when
+// `dirtyBlocks` is null (every one), or when it matches `dirtyBlocks` or is in `touched` (the
+// paths the job's patch writes). Untracked files count only when they match `untrackedBlocks`
+// (cargo auto-discovers new *.rs and Cargo.toml). Everything else never pauses the broker.
+export function checkoutState(cwd, { untrackedBlocks = [], dirtyBlocks = null, touched = [] } = {}) {
+  const tracked = git(['status', '--porcelain', '-z', '--untracked-files=no'], cwd);
+  const entries = [];
+  const parts = tracked.err ? tracked.err.split(String.fromCharCode(0)) : [];
+  for (let i = 0; i < parts.length; i++) {
+    const rec = parts[i];
+    if (rec.length < 4) continue;
+    const xy = rec.slice(0, 2);
+    const path = rec.slice(3);
+    if (/[RC]/.test(xy)) i++; // a rename/copy record is followed by its source path
+    const blocks = dirtyBlocks === null || matchesAny(dirtyBlocks, path) || touched.includes(path);
+    if (blocks) entries.push(`${xy.trim()} ${path}`);
+  }
   const other = git(['ls-files', '--others', '--exclude-standard', '-z'], cwd);
   if (other.code === 0 && untrackedBlocks.length) {
     for (const p of other.out.split(String.fromCharCode(0)).filter(Boolean)) if (matchesAny(untrackedBlocks, p)) entries.push(`?? ${p}`);
   }
   return { clean: tracked.code === 0 && entries.length === 0, entries };
+}
+
+// Every Cargo.lock in the repo, tracked or not: cargo rewrites them as a side effect of a build.
+export function lockFiles(cwd) {
+  const r = git(['ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', 'Cargo.lock', '**/Cargo.lock'], cwd);
+  return r.code === 0 ? r.out.split(String.fromCharCode(0)).filter(Boolean) : [];
 }
 
 export function revParse(cwd, ref) {

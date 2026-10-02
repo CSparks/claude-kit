@@ -59,10 +59,13 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
 
 ## Coexistence with a hand-driven writer
 
-The daemon pauses (job stays queued) when the checkout holds modified tracked files
-(`status --untracked-files=no`) or untracked files matching `broker.untracked_blocks`
-(default `**/*.rs`, `**/Cargo.toml`: cargo discovers new `tests/*.rs`). Other untracked files
-(assets, images) never pause it. Check-only runs touch the live tree for the length of the run;
+The daemon pauses (job stays queued) when the checkout holds a modified tracked file that
+matches `broker.dirty_blocks` (default `**/*.rs`, `**/Cargo.toml`, `**/Cargo.lock`) or is a path
+the job's patch edits, writes or deletes; or an untracked file matching `broker.untracked_blocks`
+(default `**/*.rs`, `**/Cargo.toml`: cargo discovers new `tests/*.rs`). Any other dirty tracked
+file (a hot-edited asset script) and other untracked files (assets, images) never pause it.
+Every Cargo.lock in the repo is journalled with the patched paths, so a check-only run restores
+what cargo rewrote. Check-only runs touch the live tree for the length of the run;
 `broker pause` before a long hand edit, `resume` after. The daemon never commits the writer's
 changes: landing is by explicit paths.
 
@@ -109,6 +112,7 @@ broker:
   verify_default:
     - cargo t                                # the project's fastdev alias
   untracked_blocks: ["**/*.rs", "**/Cargo.toml"]
+  dirty_blocks: ["**/*.rs", "**/Cargo.toml", "**/Cargo.lock"]   # tracked edits that pause the queue
   repos:
     - { name: stiletto,   path: ., main: main, remote: origin }
     - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }
