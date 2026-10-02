@@ -176,7 +176,7 @@ const ROOT = _gitRoot || projectRoot(dirname(file));
 
 // KIT-T106: record the path in the turn's writes ledger BEFORE any quality check can exit, so
 // the commit gate knows what this turn authored even when a later gate blocks this write.
-if (_gitRoot) recordTurnWrite(_gitRoot, file);
+if (_gitRoot && !process.env.CLAUDE_KIT_BROKER_GATE) recordTurnWrite(_gitRoot, file); // the broker gate is not a turn write
 
 // write_policy (KIT: forbidden-path). A project can declare files an agent must never write —
 // e.g. a retired TypeScript tree kept only as a port reference. This is the FIRST check and a

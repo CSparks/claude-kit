@@ -8,35 +8,14 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { dryRun } from './apply.mjs';
-import { normalizeBroker } from './config.mjs';
 import { diagnose } from './diagnose.mjs';
 import { EnvelopeError, parseEnvelope } from './envelope.mjs';
 import { capture, recoverInflight } from './preimage.mjs';
 import { processOnce } from './queue.mjs';
 import { listQueue, readResult, writeJob } from './result.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
-import { cleanup, commitOnMain, g, makeRepo, tempDir } from './testkit.mjs';
-
+import { SHOW, commitOnMain, envelope, fixture, g, snapshot } from './patchkit.mjs';
 const SUBMIT = join(import.meta.dirname, 'submit.mjs');
-const SHOW = 'node -e "process.stdout.write(require(\'fs\').readFileSync(\'src.txt\',\'utf8\'))"';
-
-const envelope = (...blocks) => `*** edit src.txt\n${blocks.map(([s, r]) => `<<<<<<< SEARCH\n${s}\n=======\n${r}\n>>>>>>> REPLACE`).join('\n')}\n`;
-
-function fixture() {
-  const root = makeRepo(tempDir('patch-'));
-  commitOnMain(root, 'src.txt', 'alpha\nbeta\ngamma\n', 'add src');
-  mkdirSync(join(root, '.ai'), { recursive: true });
-  writeFileSync(join(root, '.ai', 'config.yml'), 'broker:\n  repos:\n    - { name: app, path: ., main: main, remote: origin }\n');
-  const cfg = normalizeBroker(root, { repos: [{ name: 'app', path: '.', main: 'main', remote: 'origin' }], verify_default: [SHOW] });
-  return { root, cfg, done: () => cleanup(root) };
-}
-
-const snapshot = (root) => ({
-  status: g(['status', '--porcelain', '-uall'], root),
-  src: readFileSync(join(root, 'src.txt'), 'utf8'),
-  files: g(['ls-files', '--others', '--cached', '--exclude-standard'], root),
-});
-
 test('envelope: edit blocks, write, delete parse in order; malformed input names the line', () => {
   const ops = parseEnvelope(`*** edit a.rs\n<<<<<<< SEARCH\nold\n=======\nnew\n>>>>>>> REPLACE\n<<<<<<< SEARCH\nx\n=======\n>>>>>>> REPLACE\n*** write b.rs\nfn b() {}\n\n*** delete c.rs\n`);
   assert.deepEqual(ops.map((o) => o.kind), ['edit', 'edit', 'write', 'delete']);

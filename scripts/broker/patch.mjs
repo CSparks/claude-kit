@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { dryRun } from './apply.mjs';
 import { capture, restore } from './preimage.mjs';
 import { diagnose } from './diagnose.mjs';
+import { gatePlan } from './gate.mjs';
 import { checkoutState, git, logSince, revParse, showFile } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand } from './run.mjs';
@@ -52,6 +53,9 @@ export function processPatch(cfg, job, repo) {
 
   const plan = dryRun(job.ops, (p) => showFile(cwd, 'HEAD', p), { onDisk: (p) => existsSync(join(cwd, p)) });
   if (!plan.ok) return done({ status: STATUS.STALE, phase: 'apply', stale: staleEntries(cwd, job.base, plan.stale) });
+
+  const gate = gatePlan(cwd, plan.files);
+  if (gate.length) return done({ status: STATUS.GATE, phase: 'gate', gate });
 
   const journal = capture(cfg, { id: job.id, cwd, paths: [...plan.files.keys()] });
   try {
