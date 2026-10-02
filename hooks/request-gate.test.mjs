@@ -30,7 +30,8 @@ function writeTranscript(dir, userText, assistantText, userTs = '2026-01-01T00:0
   return file;
 }
 
-function run(dir, payload, env = process.env) {
+const ISOLATED = { ...process.env, CLAUDE_KIT_REGISTRY: join(mkdtempSync(join(tmpdir(), 'rg-reg-')), 'registry.json') };
+function run(dir, payload, env = ISOLATED) {
   const r = spawnSync(process.execPath, [HOOK], { cwd: dir, input: JSON.stringify(payload), encoding: 'utf8', env });
   return { code: r.status, err: r.stderr || '' };
 }
@@ -103,7 +104,7 @@ function expect(name, actual, wanted) {
 {
   const d = makeRepo();
   const stateDir = mkdtempSync(join(tmpdir(), 'rg-state-'));
-  const env = { ...process.env, CLAUDE_KIT_TURN_STATE: stateDir };
+  const env = { ...ISOLATED, CLAUDE_KIT_TURN_STATE: stateDir };
   capturePrompt(d, 'There needs to be a wider street', env);
   expect(
     'blocks from host-neutral prompt snapshot when transcript is unavailable',
@@ -265,5 +266,21 @@ function expect(name, actual, wanted) {
   expect('second Stop for the same prompt allows', run(d, { transcript_path: tx }).code, 0);
 }
 
+
+// 23. a request routed into ANOTHER registered store (the kit, from a game session) counts -> ALLOW
+{
+  const d = makeRepo();
+  const other = mkdtempSync(join(tmpdir(), 'rg-other-'));
+  mkdirSync(join(other, '.ai', 'tickets'), { recursive: true });
+  const regFile = join(mkdtempSync(join(tmpdir(), 'rg-reg2-')), 'registry.json');
+  writeFileSync(regFile, JSON.stringify({ projects: { kit: other } }));
+  const env = { ...process.env, CLAUDE_KIT_REGISTRY: regFile };
+  const tx = writeTranscript(d, 'There needs to be a wider street', 'ok', '2026-06-03T00:00:00.000Z');
+  expect('blocks while no other store changed', run(d, { transcript_path: tx }, env).code, 2);
+  const d2 = makeRepo();
+  const tx2 = writeTranscript(d2, 'There needs to be a wider street', 'ok', '2026-06-03T00:00:00.000Z');
+  writeFileSync(join(other, '.ai', 'tickets', 'KIT-T900-x.md'), '---\nid: KIT-T900\n---\n');
+  expect('allows when a registered other store got a new ticket', run(d2, { transcript_path: tx2 }, env).code, 0);
+}
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASS');
 process.exit(failures ? 1 : 0);

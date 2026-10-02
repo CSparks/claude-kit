@@ -23,7 +23,10 @@ import {
   ID_CITE_SRC,
   readTurnState,
   writeTurnState,
+  projectAiDirs,
 } from './lib.mjs';
+import { frameworkStores } from '../scripts/q-framework.mjs';
+import { resolve } from 'node:path';
 
 // Built-in defaults — overridable/extendable via `capture.signals` in .ai/config.yml.
 // Two families: polite/future asks AND blunt imperatives / bug reports / feel-tuning (the way
@@ -91,6 +94,7 @@ async function main() {
   const promptKey = `${turnStartMs}:${lastUser.slice(0, 200)}`;
   if ((readTurnState(root, 'request-gate-fired') || {}).key === promptKey) process.exit(0); // already nudged for this prompt
   if (turnStartMs && capturedSince(root, turnStartMs)) process.exit(0); // captured to a store
+  if (turnStartMs && routedElsewhere(root, turnStartMs)) process.exit(0); // routed into another store the session touched
 
   writeTurnState(root, { key: promptKey }, 'request-gate-fired');
   const quote = lastUser.replace(/\s+/g, ' ').trim().slice(0, 120);
@@ -198,3 +202,32 @@ function capturedSince(root, ms) {
 
 // Config parsing lives in lib.loadCaptureConfig (KIT-T059) — one home for every
 // tolerant YAML-subset scanner.
+
+// A request routed from this session into ANOTHER store — an adopted framework's or any
+// registered project's, the kit included (cap --project, t new run elsewhere) — counts as captured. Those stores
+// are not edited every turn by routine work, so ANY new or changed item there releases the valve.
+const ROUTED_STORES = ['inbox', 'tickets', 'decisions', 'questions', 'notes'];
+
+function otherStoreDirs(root) {
+  const own = resolve(root, '.ai').toLowerCase();
+  const dirs = frameworkStores(root).map((f) => f.aiDir);
+  try { dirs.push(...projectAiDirs().map((p) => p.aiDir)); } catch { /* no registry */ }
+  return [...new Set(dirs.map((d) => resolve(d)))].filter((d) => d.toLowerCase() !== own);
+}
+
+function routedElsewhere(root, ms) {
+  const tol = ms - 1500;
+  try {
+    for (const dir of otherStoreDirs(root)) {
+      for (const store of ROUTED_STORES) {
+        let names;
+        try { names = readdirSync(join(dir, store)); } catch { continue; }
+        for (const n of names) {
+          if (!n.endsWith('.md') || NON_CAPTURE.test(n)) continue;
+          try { if (statSync(join(dir, store, n)).mtimeMs >= tol) return true; } catch { /* ignore */ }
+        }
+      }
+    }
+  } catch { /* fail open: an unreadable store never blocks */ }
+  return false;
+}
