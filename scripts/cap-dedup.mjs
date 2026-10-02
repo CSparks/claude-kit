@@ -3,7 +3,8 @@
 // of an already-ticketed idea is caught at the receipt. Suggest-only and fail-open — a search
 // failure or an unkeyed store yields no lines; it never blocks the write.
 
-import { dirname, basename } from 'node:path';
+import { realpathSync } from 'node:fs';
+import { dirname, basename, join } from 'node:path';
 import { query } from './q.mjs';
 import { frameworkStores } from './q-framework.mjs';
 import { readIdConfig } from './id-utils.mjs';
@@ -28,5 +29,20 @@ export async function dedupHints(aiDir, text) {
     ];
   } catch {
     return [];
+  }
+}
+
+/**
+ * A `bug` or `feature` capture aimed at the kit's own store becomes a kit-bug / kit-feature ticket: { id, created }, or
+ * null when the destination is any other store (then it lands in the inbox as usual).
+ */
+export async function asKitBug(aiDir, text, slug, kind = 'bug') {
+  try {
+    const { kitStoreRoot, fileKitBug } = await import('./kit-bug.mjs');
+    const kit = kitStoreRoot();
+    if (!kit || realpathSync.native(join(kit, '.ai')).toLowerCase() !== realpathSync.native(aiDir).toLowerCase()) return null;
+    return fileKitBug({ shape: `cap:${kind}:${slug}`, title: text, detail: text, project: basename(process.cwd()), kind });
+  } catch {
+    return null;
   }
 }

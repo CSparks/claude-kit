@@ -13,7 +13,7 @@
 // compatibility CLAUDE_PLUGIN_ROOT variable.
 
 import { spawnSync } from 'node:child_process';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -158,6 +158,20 @@ function runHook(scriptPath, payload) {
   });
 }
 
+// A hook that crashed (exit other than 0 allow / 2 block) or announced it failed open is a kit
+// bug: file it as a deduped ticket (KIT-T286). Best-effort — never changes the hook's outcome.
+export async function reportHookCrash(scriptName, results) {
+  try {
+    const bad = results.find((r) => r.error || ![0, 2].includes(r.status ?? 1) || /failing open/.test(r.stderr || ''));
+    if (!bad) return;
+    const { fileKitBug } = await import('../scripts/kit-bug.mjs');
+    const detail = (bad.error && bad.error.message) || String(bad.stderr || '').trim().split('\n').slice(0, 3).join(' | ');
+    fileKitBug({ shape: `hook-error:${scriptName}`, title: `hook ${scriptName} crashed or failed open`, detail, project: basename(process.cwd()) });
+  } catch {
+    /* reporting is best-effort */
+  }
+}
+
 async function main() {
   const scriptName = process.argv[2] || '';
   if (!/^[a-z0-9-]+\.mjs$/.test(scriptName) || scriptName === 'compat-run.mjs') {
@@ -176,6 +190,7 @@ async function main() {
   const payloads = isCodex ? codexFilePayloads(payload, scriptName) : [payload];
   const results = payloads.map((item) => runHook(scriptPath, item));
   const failed = results.find((result) => result.error || (result.status ?? 1) !== 0);
+  await reportHookCrash(scriptName, results);
 
   if (!isCodex || failed) {
     for (const result of results) {

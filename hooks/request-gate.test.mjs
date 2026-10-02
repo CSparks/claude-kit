@@ -267,20 +267,36 @@ function expect(name, actual, wanted) {
 }
 
 
-// 23. a request routed into ANOTHER registered store (the kit, from a game session) counts -> ALLOW
+// 23. routing out of the session repo: the kit store and a store NAMED in the turn count; an
+//     arbitrary registered project does not (session scope = repo + submodules + kit + named)
 {
-  const d = makeRepo();
-  const other = mkdtempSync(join(tmpdir(), 'rg-other-'));
-  mkdirSync(join(other, '.ai', 'tickets'), { recursive: true });
+  const mkStore = () => { const dir = mkdtempSync(join(tmpdir(), 'rg-other-')); mkdirSync(join(dir, '.ai', 'tickets'), { recursive: true }); return dir; };
+  const kit = mkStore();
+  const stranger = mkStore();
+  const named = mkStore();
   const regFile = join(mkdtempSync(join(tmpdir(), 'rg-reg2-')), 'registry.json');
-  writeFileSync(regFile, JSON.stringify({ projects: { kit: other } }));
+  writeFileSync(regFile, JSON.stringify({ projects: { 'claude-kit': kit, stranger, named } }));
   const env = { ...process.env, CLAUDE_KIT_REGISTRY: regFile };
-  const tx = writeTranscript(d, 'There needs to be a wider street', 'ok', '2026-06-03T00:00:00.000Z');
-  expect('blocks while no other store changed', run(d, { transcript_path: tx }, env).code, 2);
-  const d2 = makeRepo();
-  const tx2 = writeTranscript(d2, 'There needs to be a wider street', 'ok', '2026-06-03T00:00:00.000Z');
-  writeFileSync(join(other, '.ai', 'tickets', 'KIT-T900-x.md'), '---\nid: KIT-T900\n---\n');
-  expect('allows when a registered other store got a new ticket', run(d2, { transcript_path: tx2 }, env).code, 0);
+  const turn = (commands = []) => {
+    const d = makeRepo();
+    const file = join(d, 'transcript.jsonl');
+    const rows = [JSON.stringify({ type: 'user', message: { role: 'user', content: 'There needs to be a wider street' }, timestamp: '2026-06-03T00:00:00.000Z' })];
+    for (const command of commands) rows.push(JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'tool_use', name: 'Bash', input: { command } }] } }));
+    rows.push(JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: 'ok' }] } }));
+    writeFileSync(file, rows.join('\n') + '\n');
+    return { d, file };
+  };
+  const a = turn();
+  expect('blocks while no scoped store changed', run(a.d, { transcript_path: a.file }, env).code, 2);
+  writeFileSync(join(stranger, '.ai', 'tickets', 'ZZ-T1-x.md'), '---\nid: ZZ-T1\n---\n');
+  const b = turn();
+  expect('an arbitrary registered project does not count', run(b.d, { transcript_path: b.file }, env).code, 2);
+  writeFileSync(join(named, '.ai', 'tickets', 'NN-T1-x.md'), '---\nid: NN-T1\n---\n');
+  const c = turn(['node cap.mjs --project named bug "x"']);
+  expect('a store named with --project in the turn counts', run(c.d, { transcript_path: c.file }, env).code, 0);
+  writeFileSync(join(kit, '.ai', 'tickets', 'KIT-T900-x.md'), '---\nid: KIT-T900\n---\n');
+  const e = turn();
+  expect('the claude-kit store always counts', run(e.d, { transcript_path: e.file }, env).code, 0);
 }
 console.log(failures ? `\n${failures} FAILED` : '\nALL PASS');
 process.exit(failures ? 1 : 0);

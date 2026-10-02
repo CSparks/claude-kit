@@ -58,6 +58,8 @@ import { orphanRows } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
 import { searchScopes } from './q-framework.mjs';
 import { showRows } from './q-show.mjs';
+import { unsupportedFlags, reportGap } from './q-gap.mjs';
+import { basename } from 'node:path';
 import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
 
 const SNIPPET_COL = 2;       // items_fts column index of `body` for snippet()
@@ -488,6 +490,15 @@ async function main() {
     process.exit(await runSessions(cmd, args, { json }));
   }
 
+  // A flag the verb does not take is a gap in q — file it instead of letting an agent grep (KIT-T286).
+  const badFlags = unsupportedFlags(cmd, args);
+  if (badFlags.length) {
+    const gap = reportGap({ shape: `flag:${cmd}:${badFlags[0]}`, title: `'${cmd}' has no ${badFlags[0]} flag`, detail: `q ${cmd} ${args.join(' ')}`, project: basename(cwdRoot) });
+    process.stderr.write(`q: '${cmd}' does not take ${badFlags.join(' ')}.${gap ? ` Filed as ${gap.id} (kit-bug) for the kit team — do not fall back to grep.` : ''}
+`);
+    process.exit(1);
+  }
+
   const dbPath = defaultDbPath();
 
   if (cmd === 'verify') {
@@ -548,7 +559,10 @@ async function main() {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((e) => {
-    process.stderr.write('q: ' + (e && e.message ? e.message : e) + '\n');
+    const msg = e && e.message ? e.message : String(e);
+    const unknown = /^unknown query '([^']*)'/.exec(msg);
+    const gap = unknown ? reportGap({ shape: `verb:${unknown[1]}`, title: `unknown query '${unknown[1]}'`, detail: `q ${process.argv.slice(2).join(' ')}`, project: basename(process.cwd()) }) : null;
+    process.stderr.write('q: ' + msg + (gap ? ` Filed as ${gap.id} (kit-bug) for the kit team — do not fall back to grep.` : '') + '\n');
     process.exit(1);
   });
 }

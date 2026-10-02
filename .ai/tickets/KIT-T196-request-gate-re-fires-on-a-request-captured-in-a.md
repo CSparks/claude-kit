@@ -2,14 +2,14 @@
 id: KIT-T196
 title: request-gate re-fires on a request captured in ANOTHER repo's store, so every Stop needs a [no-capture] token
 type: bug
-status: todo
+status: superseded
 priority: medium
 milestone:
 labels: []
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T288
 created: 2026-08-06T02:29:17Z
 updated: 2026-08-06T02:29:17Z
 ---
@@ -51,6 +51,8 @@ Provenance: `.ai/inbox/triaged/2026-08-05-1650-request-gate-cross-repo-blindness
 - [2026-08-06 02:30] (comment) criterion added: a request captured in ANOTHER repo's store satisfies the gate — no [no-capture] token needed for work that is captured
 - [2026-08-06 02:30] (comment) criterion added: the cross-store check is bounded (no full scan of every project on every Stop)
 - [2026-08-06 02:30] (comment) criterion added: a test drives the lived case: request captured in repo A, Stop fires in repo B
+- [2026-10-02 16:08] (status) → superseded (by KIT-T288)
+- [2026-10-02 16:08] (status) → superseded (by KIT-T288)
 
 ## Notes
 - [2026-08-16 00:06] (comment) folded from triage: # request-gate re-fires on an already-captured request across turns

@@ -262,6 +262,19 @@ opt-in-aware — each no-ops unless the repo has `.ai/`.
   footer names its check-id and both surfaces.
 - `.claude-tooling-ok` silences missing-tool warnings per project.
 
+## Kit bugs and kit features — a ticket and an agent, immediately (KIT-T286)
+The claude-kit is everyone's business: from ANY session, any misbehaviour of the kit itself — q
+cannot answer or lacks a flag, a hook crashes or misfires, cap/t/q/orient errors, a gate false
+positive or miss, a process failure traced to tooling — and any kit FEATURE the work needs
+becomes a ticket in the claude-kit store AT ONCE (`kit-bug` / `kit-feature` label), and an agent
+is dispatched in the claude-kit checkout to build it, unless the maintainer directs otherwise.
+Never a silent grep or workaround, never a mention in prose.
+- The kit files many of these itself (q gaps, hook crashes, a grep after an empty q, `cap bug` /
+  `cap feature` into the kit store); orient lists the open ones under DISPATCH NOW — dispatch them.
+- Filing by hand: `cap bug …` / `cap feature …` with `--project claude-kit`, or `t new` in the kit
+  checkout; search first (`q fts`). The request gate counts captures written there.
+- Scope otherwise: a session covers its repo plus its submodules; q searches that by default.
+
 # MEMORY HYGIENE
 - Never silently prune memory or log entries — present them; the user decides.
 - A memory index (e.g. MEMORY.md) stays an index: one line per entry; content lives

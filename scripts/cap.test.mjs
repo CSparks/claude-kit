@@ -208,7 +208,7 @@ console.log('\ncap outside any repo names the projects it could capture into');
   writeFileSync(join(hodAi, 'config.yml'), cfg.replace('"KIT"', '"HOD"'));
   writeFileSync(creg, JSON.stringify({ dataRoot, projects: { 'claude-kit': cwdRepo } }));
 
-  const capture = (args) => harness.script('cap.mjs', args, cwdRepo, { CLAUDE_KIT_REGISTRY: creg });
+  const capture = (args) => harness.script('cap.mjs', args, cwdRepo, { CLAUDE_KIT_REGISTRY: creg, CLAUDE_KIT_BUG_STORE: 'off' }); // routing tests: the fixture is not the live kit store
   const hodFiles = () => readdirSync(join(hodAi, 'inbox')).filter((f) => f.endsWith('.md'));
   const kitDir = join(cwdRepo, '.ai', 'inbox');
   const kitFiles = () => (existsSync(kitDir) ? readdirSync(kitDir).filter((f) => f.endsWith('.md')) : []);

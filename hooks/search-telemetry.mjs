@@ -8,6 +8,8 @@
 import { payload, gitRoot } from './lib.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
 import { logSearch } from './lib/search-log.mjs';
+import { noteSearch } from './lib/q-miss.mjs';
+import { basename } from 'node:path';
 
 try {
   const p = await payload();
@@ -15,6 +17,7 @@ try {
   if (root) {
     for (const row of classifyCalls(p.tool_name, p.tool_input)) {
       logSearch(root, { session: p.session_id || '', ...row });
+      await noteSearch(root, row, p.tool_response, basename(root));
     }
   }
 } catch {

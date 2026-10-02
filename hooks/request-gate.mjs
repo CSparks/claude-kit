@@ -94,7 +94,7 @@ async function main() {
   const promptKey = `${turnStartMs}:${lastUser.slice(0, 200)}`;
   if ((readTurnState(root, 'request-gate-fired') || {}).key === promptKey) process.exit(0); // already nudged for this prompt
   if (turnStartMs && capturedSince(root, turnStartMs)) process.exit(0); // captured to a store
-  if (turnStartMs && routedElsewhere(root, turnStartMs)) process.exit(0); // routed into another store the session touched
+  if (turnStartMs && routedElsewhere(root, turnStartMs, parsed.commands || [])) process.exit(0); // routed into the kit, a framework or a store named in the turn
 
   writeTurnState(root, { key: promptKey }, 'request-gate-fired');
   const quote = lastUser.replace(/\s+/g, ' ').trim().slice(0, 120);
@@ -117,6 +117,7 @@ function parseTranscript(file) {
   }
   let lastUser = null, lastAssistant = null, turnStartMs = 0, userResolved = false;
   const sinceUser = [];
+  const commands = [];
   for (let i = lines.length - 1; i >= 0; i--) {
     let e;
     try { e = JSON.parse(lines[i]); } catch { continue; }
@@ -126,6 +127,7 @@ function parseTranscript(file) {
       const text = extractText(content);
       lastAssistant ||= text;
       sinceUser.push(text);
+      if (Array.isArray(content)) for (const b of content) if (b && b.type === 'tool_use' && typeof b.input?.command === 'string') commands.push(b.input.command);
       continue;
     }
     if (!userResolved && role === 'user' && !isToolResult(content) && e?.isMeta !== true) {
@@ -144,7 +146,7 @@ function parseTranscript(file) {
     }
     if (userResolved && lastAssistant) break;
   }
-  return { lastUser, lastAssistant, turnStartMs, sinceUser: sinceUser.join('\n') };
+  return { lastUser, lastAssistant, turnStartMs, sinceUser: sinceUser.join('\n'), commands };
 }
 
 function extractText(content) {
@@ -203,22 +205,31 @@ function capturedSince(root, ms) {
 // Config parsing lives in lib.loadCaptureConfig (KIT-T059) — one home for every
 // tolerant YAML-subset scanner.
 
-// A request routed from this session into ANOTHER store — an adopted framework's or any
-// registered project's, the kit included (cap --project, t new run elsewhere) — counts as captured. Those stores
-// are not edited every turn by routine work, so ANY new or changed item there releases the valve.
-const ROUTED_STORES = ['inbox', 'tickets', 'decisions', 'questions', 'notes'];
 
-function otherStoreDirs(root) {
+// A request routed out of the session repo counts as captured when it landed in a store the
+// session is entitled to touch: an adopted framework's (the repo's submodules), the kit's (kit
+// bugs and features are everyone's business), or a project the turn NAMED (`--project <name>`).
+// Arbitrary registered projects do not count. Those stores are not edited every turn by routine
+// work, so ANY new or changed item in one releases the valve.
+const ROUTED_STORES = ['inbox', 'tickets', 'decisions', 'questions', 'notes'];
+const KIT_PROJECT = 'claude-kit';
+
+function scopedStoreDirs(root, commands) {
   const own = resolve(root, '.ai').toLowerCase();
   const dirs = frameworkStores(root).map((f) => f.aiDir);
-  try { dirs.push(...projectAiDirs().map((p) => p.aiDir)); } catch { /* no registry */ }
+  const named = new Set([KIT_PROJECT]);
+  for (const c of commands) for (const m of c.matchAll(/--project[ =]["']?([\w-]+)/g)) named.add(m[1].toLowerCase());
+  if (process.env.CLAUDE_KIT_BUG_STORE) dirs.push(join(process.env.CLAUDE_KIT_BUG_STORE, '.ai'));
+  try {
+    for (const p of projectAiDirs()) if (named.has(String(p.name).toLowerCase())) dirs.push(p.aiDir);
+  } catch { /* no registry */ }
   return [...new Set(dirs.map((d) => resolve(d)))].filter((d) => d.toLowerCase() !== own);
 }
 
-function routedElsewhere(root, ms) {
+function routedElsewhere(root, ms, commands) {
   const tol = ms - 1500;
   try {
-    for (const dir of otherStoreDirs(root)) {
+    for (const dir of scopedStoreDirs(root, commands)) {
       for (const store of ROUTED_STORES) {
         let names;
         try { names = readdirSync(join(dir, store)); } catch { continue; }

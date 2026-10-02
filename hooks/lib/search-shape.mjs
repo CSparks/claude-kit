@@ -64,7 +64,8 @@ function fromSegment(text, piped) {
   if (tool === 'xargs') { toks.shift(); while (toks[0] && toks[0].startsWith('-')) toks.shift(); tool = (toks[0] || '').replace(/.*[\\/]/, '').toLowerCase(); }
   if (tool === 'node' && /q\.mjs/.test(text)) {
     const m = text.match(Q_VERB);
-    return { tool: 'Bash', kind: 'q', verb: m ? m[1] : '', lang: '', target: 'code', pattern: '', shape: '' };
+    const queryText = text.replace(/^.*q\.mjs["']?\s+(?:--\S+\s+)*[a-z-]+\s*/i, '').slice(0, PATTERN_MAX);
+    return { tool: 'Bash', kind: 'q', verb: m ? m[1] : '', lang: '', target: 'code', pattern: '', shape: '', queryText };
   }
   if (tool === 'node' && /code-graph\.mjs/.test(text)) {
     const m = text.match(/--query\s+([a-z-]+)/);

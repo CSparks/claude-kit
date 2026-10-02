@@ -156,6 +156,18 @@ out.push('  q open | trail <id> | governing <path> | doc-trail <id>   (full surf
 out.push('  Adoption ledger: <framework>/docs/CHOICES.toml — cite the row before naming any crate alternative.');
 out.push('  An empty/failed query is "NOT CHECKED", never "does not exist".');
 out.push('');
+// Any kit bug is a ticket plus an agent dispatched to fix it (KIT-T286): list the open ones.
+try {
+  const { openKitBugs } = await import('../scripts/kit-bug.mjs');
+  const bugs = openKitBugs();
+  if (bugs.length) {
+    out.push('--- DISPATCH NOW: open kit-bug / kit-feature tickets (a kit bug or missing feature is a ticket + an agent dispatched in the claude-kit checkout, never a workaround) ---');
+    for (const b of bugs) out.push(`  ${b.id} — ${clip(b.title, 120)}`);
+    out.push('');
+  }
+} catch {
+  /* kit-bug listing is best-effort */
+}
 const foundational = foundationalDecisions();
 if (foundational.length) {
   out.push('--- PROJECT IDENTITY (foundational — ALWAYS true; this is what the project IS; cite, never contradict) ---');

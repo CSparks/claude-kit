@@ -8,7 +8,7 @@ milestone:
 labels: []
 links: []
 files: []
-supersedes:
+supersedes: KIT-T196
 superseded_by:
 created: 2026-10-02T15:59:39Z
 updated: 2026-10-02T16:01:16Z
@@ -29,3 +29,9 @@ request-gate now also checks the inbox/tickets/decisions/questions/notes of ever
 - [2026-10-02 16:01] (comment) criterion added: a capture routed into another registered store, a framework store or the kit store releases the request gate
 - [2026-10-02 16:01] (comment) ticked: a capture routed into another registered store, a framework store or the kit store releases the request gate
 - [2026-10-02 16:01] (status) todo → review
+- [2026-10-02 16:08] (comment) @claude: Scope ruling Chris 2026-10-02: default scope = session repo + its submodules; a capture into an explicitly named other s (full comment #1 in ## Notes)
+### comment #1 [2026-10-02 16:08] @claude
+Scope ruling Chris 2026-10-02: default scope = session repo + its submodules; a capture into an explicitly named other store (e.g. the kit, per the kit-bug rule) counts as routed. Do NOT make the gate count arbitrary stores — only the session scope plus stores the session explicitly wrote to.
+- [2026-10-02 16:08] (comment) @claude: Exception Chris 2026-10-02: the kit store is always in scope from any session (kit bugs AND needed kit features, dispatc (full comment #2 in ## Notes)
+### comment #2 [2026-10-02 16:08] @claude
+Exception Chris 2026-10-02: the kit store is always in scope from any session (kit bugs AND needed kit features, dispatched immediately unless told otherwise). Gate: session scope + kit store + any explicitly named store.
