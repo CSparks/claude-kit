@@ -9,12 +9,15 @@
 // or null when the failure is not attributable (a build error, or no named tests).
 
 import { readFileSync } from 'node:fs';
-import { diagnose } from './diagnose.mjs';
+import { diagnose, testKey } from './diagnose.mjs';
 
-export function baselineCommand(cmd, names) {
+export function baselineCommand(cmd, failures) {
   const toks = String(cmd).trim().split(/\s+/);
-  if (toks.includes('nextest')) return `${toks.join(' ')} -E "${names.map((n) => `test(=${n})`).join(' or ')}"`;
-  return `${toks.join(' ')}${toks.includes('--') ? '' : ' --'} --exact ${names.join(' ')}`;
+  if (toks.includes('nextest')) {
+    const one = (f) => (f.binary ? `(binary_id(=${f.binary}) and test(=${f.test}))` : `test(=${f.test})`);
+    return `${toks.join(' ')} -E "${failures.map(one).join(' or ')}"`;
+  }
+  return `${toks.join(' ')}${toks.includes('--') ? '' : ' --'} --exact ${[...new Set(failures.map((f) => f.test))].join(' ')}`;
 }
 
 // The first message line under the test's `---- name stdout ----` banner, else a generic reason.
@@ -26,15 +29,21 @@ export function reasonFor(log, name) {
 }
 
 /**
- * `command`: the failed command's result ({ cmd, failedTests, errors }). `runBaseline(cmd)` runs
- * a command on the pre-patch tree and returns its log path.
+ * `command`: the failed command's result ({ cmd, failed, errors }). `runBaseline(cmd)` runs a
+ * command on the pre-patch tree and returns its log path. A test the baseline log shows neither
+ * failing nor passing (a filter that matched nothing) makes the failure unattributable: null.
  */
 export function attribute({ command, runBaseline }) {
-  const names = [...new Set(command.failedTests || [])];
-  if (!names.length || Object.keys(command.errors || {}).length) return null;
-  const logPath = runBaseline(baselineCommand(command.cmd, names));
-  const log = readFileSync(logPath, 'utf8');
-  const failedBase = new Set(diagnose(log).failedTests);
-  const foreign = names.filter((n) => failedBase.has(n)).map((test) => ({ test, reason: reasonFor(log, test) }));
-  return { foreign, caused: names.filter((n) => !failedBase.has(n)) };
+  const failures = command.failed || [];
+  if (!failures.length || Object.keys(command.errors || {}).length) return null;
+  const log = readFileSync(runBaseline(baselineCommand(command.cmd, failures)), 'utf8');
+  const seen = diagnose(log);
+  const keys = (list) => new Set(list.map(testKey));
+  const failedBase = keys(seen.failed);
+  const passedBase = keys(seen.passed);
+  if (failures.some((f) => !failedBase.has(testKey(f)) && !passedBase.has(testKey(f)))) return null;
+  return {
+    foreign: failures.filter((f) => failedBase.has(testKey(f))).map((f) => ({ ...f, reason: reasonFor(log, f.test) })),
+    caused: failures.filter((f) => !failedBase.has(testKey(f))).map((f) => f.test),
+  };
 }

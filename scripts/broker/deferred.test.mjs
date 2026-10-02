@@ -13,7 +13,7 @@ import { commitOnMain, fixture, g } from './patchkit.mjs';
 
 // Fails while flag.txt reads 'bad' (always=false) or unconditionally (always=true).
 const suite = (always) => {
-  const code = `const bad=${always}||require('fs').readFileSync('flag.txt','utf8').includes('bad');if(bad){console.log('test t_flag ... FAILED');console.log('---- t_flag stdout ----');console.log('flag is bad')}process.exit(bad?1:0)`;
+  const code = `const bad=${always}||require('fs').readFileSync('flag.txt','utf8').includes('bad');if(bad){console.log('test t_flag ... FAILED');console.log('---- t_flag stdout ----');console.log('flag is bad')}else console.log('test t_flag ... ok');process.exit(bad?1:0)`;
   return `node -e "${code}"`;
 };
 

@@ -1,21 +1,30 @@
 // diagnose.mjs — pull the actionable parts out of a cargo log: rustc error blocks keyed by the
-// file they point at, and the names of failed tests.
+// file they point at, and the failed tests. `failed`/`passed` are [{ binary, test }] (binary is null for libtest);
+// `failedTests` is the plain name list.
 
 const MAX_BLOCKS = 20;
 const ERROR_START = /^error(\[E\d+\])?: /;
 const LOCATION = /^\s*--> (.+?):\d+:\d+/;
 const FAILED_TEST = /^test (\S+) \.\.\. FAILED/;
-const NEXTEST_FAIL = /^\s*FAIL \[[^\]]*\]\s+\S+\s+(\S+)/;
+// nextest: `FAIL [ 0.1s] (38/48) <binary-id> <test name>`; the (n/m) counter is optional.
+const NEXTEST = /^\s*(FAIL|PASS) \[[^\]]*\]\s+(?:\(\s*\d+\/\d+\)\s+)?(\S+)\s+(\S+)/;
+const PASSED_TEST = /^test (\S+) \.\.\. ok/;
+export const testKey = (t) => `${t.binary || ''}|${t.test}`;
 
 export function diagnose(log) {
   const errors = {};
-  const failedTests = [];
+  const failed = [];
+  const passed = [];
+  const add = (list, t) => { if (!list.some((x) => testKey(x) === testKey(t))) list.push(t); };
   const lines = String(log).split(/\r?\n/);
   let count = 0;
   for (let i = 0; i < lines.length; i++) {
-    const t = FAILED_TEST.exec(lines[i]);
-    const nt = NEXTEST_FAIL.exec(lines[i]);
-    if (t || nt) { const name = (t || nt)[1]; if (!failedTests.includes(name)) failedTests.push(name); continue; }
+    const lt = FAILED_TEST.exec(lines[i]);
+    const ok = PASSED_TEST.exec(lines[i]);
+    const nt = NEXTEST.exec(lines[i]);
+    if (lt) { add(failed, { binary: null, test: lt[1] }); continue; }
+    if (ok) { add(passed, { binary: null, test: ok[1] }); continue; }
+    if (nt) { add(nt[1] === 'FAIL' ? failed : passed, { binary: nt[2], test: nt[3] }); continue; }
     if (!ERROR_START.test(lines[i]) || count >= MAX_BLOCKS) continue;
     let end = i + 1;
     while (end < lines.length && lines[end].trim() !== '') end++;
@@ -25,5 +34,5 @@ export function diagnose(log) {
     count++;
     i = end;
   }
-  return { errors, failedTests };
+  return { errors, failedTests: [...new Set(failed.map((t) => t.test))], failed, passed };
 }

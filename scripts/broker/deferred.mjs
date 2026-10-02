@@ -13,14 +13,14 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { baselineCommand } from './attribute.mjs';
 import { repoByName } from './config.mjs';
-import { diagnose } from './diagnose.mjs';
+import { diagnose, testKey } from './diagnose.mjs';
 import { dirtyPaths, revParse } from './git.mjs';
 import { listQueue, logPathFor, ensureDirs } from './result.mjs';
 import { runCommand } from './run.mjs';
 
 const file = (cfg) => join(ensureDirs(cfg).home, 'deferred.json');
 const CAP = join(import.meta.dirname, '..', 'cap.mjs');
-const same = (a, b) => a.repo === b.repo && a.test === b.test && a.cmd === b.cmd;
+const same = (a, b) => a.repo === b.repo && testKey(a) === testKey(b) && a.cmd === b.cmd;
 
 export function listDeferred(cfg) {
   try { return JSON.parse(readFileSync(file(cfg), 'utf8')); } catch { return []; }
@@ -59,14 +59,16 @@ export function recheckDeferred(cfg, { fileBug = fileBugViaCap } = {}) {
   for (const members of groups.values()) {
     if (listQueue(cfg).length) break;
     const { e: first, cwd } = members[0];
-    const names = members.map((m) => m.e.test);
+    const failures = members.map((m) => ({ binary: m.e.binary || null, test: m.e.test }));
     const logPath = logPathFor(cfg, 'deferred', n++);
-    const r = runCommand(baselineCommand(first.cmd, names), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs });
-    const failed = new Set(diagnose(readFileSync(logPath, 'utf8')).failedTests);
+    runCommand(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs });
+    const seen = diagnose(readFileSync(logPath, 'utf8'));
+    const failed = new Set(seen.failed.map(testKey));
+    const passed = new Set(seen.passed.map(testKey));
     for (const { e, dirty } of members) {
       const head = revParse(cwd, 'HEAD');
-      if (r.exit === 0) { list = list.filter((x) => !same(x, e)); out.dropped.push(e.test); }
-      else if (!failed.has(e.test)) out.kept.push(e.test);
+      if (passed.has(testKey(e))) { list = list.filter((x) => !same(x, e)); out.dropped.push(e.test); }
+      else if (!failed.has(testKey(e))) out.kept.push(e.test);
       else if (e.dirty.some((p) => dirty.has(p))) {
         out.kept.push(e.test);
         Object.assign(list.find((x) => same(x, e)), { head, dirty: e.dirty.filter((p) => dirty.has(p)) });
