@@ -54,6 +54,21 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
 4. `run` — pre-images go to the object database and `inflight.json`; the files are written;
    the commands run (`-j <jobs>`, `--no-fail-fast` for `cargo test`/`cargo t`; the `t`/`b`/`r`
    aliases compose too). A check-only patch restores byte for byte afterwards.
+
+   **Failure attribution** (`attribute.mjs`): a command that fails with named failed tests and
+   no rustc error is re-run on the pre-patch tree (the journal restores it; untouched dirty
+   files stay as they are), filtered to those tests (nextest `-E "test(=a) or test(=b)"`, else
+   libtest `-- --exact a b`), then the patch is re-applied. A test that also fails without the
+   patch is foreign: the job passes when every failure is foreign, and `foreign: [{test,
+   reason}]` is recorded and printed. A test that passes without the patch fails the job; a
+   build error is never attributed.
+
+   **Deferred** (`deferred.mjs`): each foreign test is also written to
+   `target/broker/deferred.json` (test, command, repo, job, reason, dirty paths). While idle the
+   daemon re-runs just those tests when HEAD moves or a recorded dirty path turns clean: a pass
+   drops the entry; a failure with none of its recorded paths dirty is a real break, filed with
+   `cap bug` in the repo and dropped. `broker status` and the orient banner list them.
+
 5. `land` — with `--land` and green: `git add` + `git commit -- <paths>` (never `-a`/`-A`),
    message `<title> (implements <ticket>)`, push `main`. `--land` needs `--ticket`.
 

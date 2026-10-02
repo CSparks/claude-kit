@@ -6,6 +6,7 @@ import { existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileS
 import { join } from 'node:path';
 import { brokerPaths, readBrokerConfig } from './config.mjs';
 import { isPaused } from './control.mjs';
+import { deferredLines } from './deferred.mjs';
 import { readLock } from './lock.mjs';
 import { readInflight } from './preimage.mjs';
 
@@ -31,6 +32,7 @@ export function brokerLines(root, now = Date.now()) {
   const lines = [`broker: ${brokerLive(cfg) ? 'daemon live' : 'daemon not running'}${isPaused(cfg) ? ', PAUSED' : ''}`];
   const inflight = readInflight(cfg);
   if (inflight) lines.push(`  in flight: ${inflight.id} (${Math.round((now - Date.parse(inflight.startedAt)) / MS_PER_MIN)} min, tree holds its changes until it restores)`);
+  lines.push(...deferredLines(cfg).map((l) => `  ${l}`));
   const seen = join(p.home, 'last-seen');
   const since = existsSync(seen) ? statSync(seen).mtimeMs : 0;
   const landed = existsSync(p.results) ? readdirSync(p.results).filter((f) => f.endsWith('.json')).map((f) => readJson(join(p.results, f)))

@@ -10,8 +10,9 @@ import { capture, discard, restore } from './preimage.mjs';
 import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
+import { addDeferred } from './deferred.mjs';
 import { gatePlan } from './gate.mjs';
-import { checkoutState, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
+import { checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand } from './run.mjs';
 
@@ -43,10 +44,12 @@ function runCommands(cfg, job, cwd, hooks) {
     const attributed = hooks.baseline((run) => attribute({ command: entry, runBaseline: (cmd) => run(cmd, `${n}-base`) }));
     if (!attributed || attributed.caused.length) break;
     entry.foreign = attributed.foreign;
+    addDeferred(cfg, attributed.foreign.map((f) => ({ ...f, cmd: entry.cmd, repo: job.repo, job: job.id, dirty: attributed.dirty, head: attributed.head })));
   }
   return out;
 }
 
+const withState = (state, attributed) => (attributed ? { ...attributed, ...state } : attributed);
 const isGreen = (commands) => commands.every((c) => c.exit === 0 || (c.foreign && c.foreign.length));
 const foreignOf = (commands) => commands.flatMap((c) => c.foreign || []);
 
@@ -86,7 +89,8 @@ export function processPatch(cfg, job, repo) {
     const diffStat = git(['diff', '--stat'], cwd).out;
     const baseline = (fn) => {
       restoreTree();
-      try { return fn((cmd, tag) => { const log = logPathFor(cfg, job.id, tag); runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs }); return log; }); }
+      const state = { dirty: dirtyPaths(cwd), head: revParse(cwd, 'HEAD') };
+      try { return withState(state, fn((cmd, tag) => { const log = logPathFor(cfg, job.id, tag); runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs }); return log; })); }
       finally { restoreTree(); journal = captureTree(); writePlan(cwd, plan.files); }
     };
     const commands = runCommands(cfg, job, cwd, { baseline });

@@ -18,24 +18,34 @@ export function git(args, cwd) {
 // paths the job's patch writes). Untracked files count only when they match `untrackedBlocks`
 // (cargo auto-discovers new *.rs and Cargo.toml). Everything else never pauses the broker.
 export function checkoutState(cwd, { untrackedBlocks = [], dirtyBlocks = null, touched = [] } = {}) {
-  const tracked = git(['status', '--porcelain', '-z', '--untracked-files=no'], cwd);
-  const entries = [];
-  const parts = tracked.err ? tracked.err.split(String.fromCharCode(0)) : [];
-  for (let i = 0; i < parts.length; i++) {
-    const rec = parts[i];
-    if (rec.length < 4) continue;
-    const xy = rec.slice(0, 2);
-    const path = rec.slice(3);
-    if (/[RC]/.test(xy)) i++; // a rename/copy record is followed by its source path
-    const blocks = dirtyBlocks === null || matchesAny(dirtyBlocks, path) || touched.includes(path);
-    if (blocks) entries.push(`${xy.trim()} ${path}`);
-  }
+  const tracked = trackedModifications(cwd);
+  const entries = tracked.records
+    .filter(({ path }) => dirtyBlocks === null || matchesAny(dirtyBlocks, path) || touched.includes(path))
+    .map(({ xy, path }) => `${xy.trim()} ${path}`);
   const other = git(['ls-files', '--others', '--exclude-standard', '-z'], cwd);
   if (other.code === 0 && untrackedBlocks.length) {
     for (const p of other.out.split(String.fromCharCode(0)).filter(Boolean)) if (matchesAny(untrackedBlocks, p)) entries.push(`?? ${p}`);
   }
   return { clean: tracked.code === 0 && entries.length === 0, entries };
 }
+
+// Every modified tracked file as { xy, path }, plus git's exit code.
+export function trackedModifications(cwd) {
+  const tracked = git(['status', '--porcelain', '-z', '--untracked-files=no'], cwd);
+  const records = [];
+  const parts = tracked.err ? tracked.err.split(String.fromCharCode(0)) : [];
+  for (let i = 0; i < parts.length; i++) {
+    const rec = parts[i];
+    if (rec.length < 4) continue;
+    const xy = rec.slice(0, 2);
+    if (/[RC]/.test(xy)) i++; // a rename/copy record is followed by its source path
+    records.push({ xy, path: rec.slice(3) });
+  }
+  return { code: tracked.code, records };
+}
+
+/** Paths of every modified tracked file. */
+export const dirtyPaths = (cwd) => trackedModifications(cwd).records.map((r) => r.path);
 
 // Every Cargo.lock in the repo, tracked or not: cargo rewrites them as a side effect of a build.
 export function lockFiles(cwd) {

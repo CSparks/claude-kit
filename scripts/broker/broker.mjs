@@ -11,10 +11,12 @@
 //   node broker.mjs --root <checkout> --poll 2000
 //   node broker.mjs pause --root <checkout>            # stop starting jobs (one in flight finishes)
 //   node broker.mjs resume --root <checkout>
+//   node broker.mjs status --root <checkout>           # queue, pause, deferred foreign failures
 // Start it with background Bash; a second start while one is live exits 1 (restart is idempotent).
 
 import { parseFlags, loadCfg } from './cli.mjs';
 import { isPaused, pause, resume } from './control.mjs';
+import { deferredLines } from './deferred.mjs';
 import { acquireLock, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { processOnce } from './queue.mjs';
@@ -29,6 +31,13 @@ const command = flags._[0];
 if (command === 'pause' || command === 'resume') {
   (command === 'pause' ? pause : resume)(cfg);
   console.error(`broker: ${command === 'pause' ? 'paused' : 'resumed'} (${root})`);
+  process.exit(0);
+}
+
+if (command === 'status') {
+  const queued = listQueue(cfg).length;
+  console.error(`broker: ${isPaused(cfg) ? 'PAUSED' : 'running'}, ${queued} queued`);
+  for (const line of deferredLines(cfg)) console.error(`  ${line}`);
   process.exit(0);
 }
 

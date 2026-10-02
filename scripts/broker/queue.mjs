@@ -5,12 +5,13 @@
 
 import { repoByName } from './config.mjs';
 import { isPaused } from './control.mjs';
+import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
 import { STATUS, listQueue, removeJob, writeResult } from './result.mjs';
 
 // Drain the queue until it is empty, a dirty checkout pauses it, or the operator ran `pause`. Returns a summary the daemon
 // (or a test) can log. `onResult` is an optional per-job callback.
-export function processOnce(cfg, { onResult } = {}) {
+export function processOnce(cfg, { onResult, fileBug } = {}) {
   const processed = [];
   if (isPaused(cfg)) return { processed, paused: true, reason: 'manual' };
   for (const job of listQueue(cfg)) {
@@ -20,7 +21,9 @@ export function processOnce(cfg, { onResult } = {}) {
     removeJob(cfg, job.id);
     processed.push(result);
   }
-  return { processed, paused: false };
+  // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired.
+  const deferred = recheckDeferred(cfg, fileBug ? { fileBug } : {});
+  return { processed, paused: false, deferred };
 }
 
 // Run one job to a written result. Returns { result, pause } — pause:true leaves the job queued.
