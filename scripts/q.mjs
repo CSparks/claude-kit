@@ -51,11 +51,12 @@ import { readIdConfig, statStoreFiles } from './id-utils.mjs';
 import { fallback } from './q-fallback.mjs';
 import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import {
-  OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, parseFts, requireStore, requireScope, formatId,
+  OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, splitFts, requireStore, requireScope, formatId,
   compareOpen, findGaps, walkAncestry, resolveScope,
 } from './q-model.mjs';
 import { orphanRows } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
+import { searchScopes } from './q-framework.mjs';
 import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
 
 const SNIPPET_COL = 2;       // items_fts column index of `body` for snippet()
@@ -228,13 +229,15 @@ function cannedQueries(root) {
     // (KIT-T174) and the terms are escaped into an FTS5 phrase expression (KIT-T172) — both
     // parsed in q-model so the markdown-scan fallback filters and matches the same way.
     fts: (db, raw) => {
-      const { scope, query } = parseFts(raw, root);
-      const params = [SNIPPET_COL, SNIPPET_TOKENS, ftsMatchQuery(query)];
-      if (scope) params.push(scope);
+      // No --scope: the project PLUS its adopted frameworks' stores (KIT-T278); each row
+      // carries its scope so a framework hit reads as one.
+      const { scopeTok, query } = splitFts(raw);
+      const scopes = searchScopes(scopeTok, root);
+      const params = [SNIPPET_COL, SNIPPET_TOKENS, ftsMatchQuery(query), ...scopes];
       return db.all(
-        `SELECT f.id, i.type, i.status, i.title, snippet(items_fts, ?, '[', ']', '…', ?) AS hit
+        `SELECT i.scope, f.id, i.type, i.status, i.title, snippet(items_fts, ?, '[', ']', '…', ?) AS hit
          FROM items_fts f JOIN items i ON i.id = f.id
-         WHERE items_fts MATCH ?${scope ? ' AND i.scope = ?' : ''}
+         WHERE items_fts MATCH ?${scopes.length ? ` AND i.scope IN (${scopes.map(() => '?').join(',')})` : ''}
          ORDER BY rank LIMIT ?`, [...params, FTS_LIMIT]);
     },
 
@@ -439,7 +442,7 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
                               fixed, status moves, created — counts exact, lists capped
   topics                      the generated topic index — slug, first/last date, count, gist
   topic <slug>                one topic's items, oldest first (also: q --topic <slug>)
-  fts [--scope <s>] <q...>    full-text search title+body
+  fts [--scope <s>] <q...>    full-text search title+body (default: this project + its adopted framework stores)
   similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only) — cross-scope
   next-id <scope> <type>      O(1) next free id (max(num)+1)
   rundown [scope]             per-scope open-item counts (\`rundown all\` = every project)

@@ -15,9 +15,10 @@ import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import { orphanRows } from './provenance.mjs';
 import { recentFallback } from './q-recent.mjs';
 import { topicIndex, topicItems } from './q-topics.mjs';
+import { frameworkStores, searchScopes } from './q-framework.mjs';
 import {
   OPEN, FTS_LIMIT, MIN_TERM_LEN, ALNUM_TERM, SUMMARY_CLIP,
-  parseSimilar, parseFts, requireStore, requireScope, defaultScope, resolveScope, formatId,
+  parseSimilar, splitFts, requireStore, requireScope, defaultScope, resolveScope, formatId,
   compareOpen, isSuperseded, edgesOf, clip, walkAncestry,
 } from './q-model.mjs';
 
@@ -77,10 +78,13 @@ export function fallback(cmd, args, root) {
     case 'fts': {
       // Same `--scope` split as the cache path (KIT-T174); the scan needs no FTS escaping
       // because it never builds a MATCH expression — it substring-matches the raw terms.
-      const { scope, query } = parseFts(args.join(' '), root);
+      // Default scope also covers adopted frameworks' stores (KIT-T278), labelled by scope.
+      const { scopeTok, query } = splitFts(args.join(' '));
+      const scopes = searchScopes(scopeTok, root);
+      const pool = scopeTok ? items : [...items, ...frameworkStores(root).flatMap((f) => collectItems(join(root, f.aiDir, '..'), f.aiDir))];
       const needle = query.toLowerCase();
-      return items.filter((i) => (!scope || i.scope === scope) && (`${i.title} ${i.body}`).toLowerCase().includes(needle))
-        .slice(0, FTS_LIMIT).map((i) => ({ id: i.id, type: i.type, status: i.status, title: i.title }));
+      return pool.filter((i) => (!scopes.length || scopes.includes(i.scope)) && (`${i.title} ${i.body}`).toLowerCase().includes(needle))
+        .slice(0, FTS_LIMIT).map((i) => ({ scope: i.scope, id: i.id, type: i.type, status: i.status, title: i.title }));
     }
     case 'rundown': {
       const scope = scopeOf(args[0]);

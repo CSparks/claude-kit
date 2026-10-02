@@ -94,7 +94,7 @@ export function resolveScope(scopeTok, root) {
 
 // `fts [--scope <s>] <query...>` (KIT-T174) — split the scope filter off the free-text query
 // in ONE place so the cache and markdown-scan paths filter identically.
-export function parseFts(text, root) {
+export function splitFts(text) {
   const toks = String(text || '').match(FTS_TOKEN) || [];
   const terms = [];
   let scope;
@@ -102,7 +102,12 @@ export function parseFts(text, root) {
     if (toks[i] === '--scope' && i + 1 < toks.length) { scope = toks[++i]; continue; }
     terms.push(toks[i]);
   }
-  return { scope: resolveScope(scope, root), query: terms.join(' ') };
+  return { scopeTok: scope, query: terms.join(' ') };
+}
+
+export function parseFts(text, root) {
+  const { scopeTok, query } = splitFts(text);
+  return { scope: resolveScope(scopeTok, root), query };
 }
 
 // Every name a caller may reasonably use for a store — its canonical directory name

@@ -60,6 +60,7 @@ async function testAsync(name, fn) {
 const tmpRoot = mkdtempSync(join(tmpdir(), 'kit-q-'));
 const pluginRoot = join(tmpRoot, 'plugin');       // CLAUDE_PLUGIN_ROOT for CLI children
 const dbPath = join(tmpRoot, '.cache', 'workflow.db');
+const fwDb = join(tmpRoot, '.cache', 'framework.db'); // KIT-T278 fixtures stay out of the cross-scope assertions
 
 function makeProject(name, key) {
   const root = join(tmpRoot, name);
@@ -90,6 +91,16 @@ writeFileSync(join(A.ai, 'notes', 'FQA-N001.md'),
 writeFileSync(join(A.ai, 'questions', 'FQA-Q001.md'),
   `---\nid: FQA-Q001\ntitle: which pad width for this project\nstatus: open\n---\nthree digits?\n`);
 
+
+// KIT-T278 fixture: a game (FQG) adopting the rapid-game framework as a submodule whose own
+// store (FQR) lives at rapid-game/.ai. Detection is the orientation hook's frameworksFor.
+const G = makeProject('proj-game', 'FQG');
+writeFileSync(join(G.root, '.gitmodules'), '[submodule "rapid-game"]\n\tpath = rapid-game\n');
+const FW = makeProject('proj-game/rapid-game', 'FQR');
+writeFileSync(join(G.ai, 'tickets', 'FQG-T001-camps.md'),
+  '---\nid: FQG-T001\ntitle: puppet camps in the game\ntype: feature\nstatus: todo\n---\n## Description\ncamps\n');
+writeFileSync(join(FW.ai, 'tickets', 'FQR-T001-sleepwake.md'),
+  '---\nid: FQR-T001\ntitle: sleepwake for far entities\ntype: feature\nstatus: todo\n---\n## Description\nsleepwake rings\n');
 const B = makeProject('proj-b', 'FQB');
 writeFileSync(join(B.ai, 'tickets', 'FQB-T001-other.md'),
   `---\nid: FQB-T001\ntitle: another project's ask-first gate note\ntype: bug\nstatus: todo\npriority: low\n---\n## Description\nthe gate and the widget again\n`);
@@ -332,6 +343,29 @@ if (!engine) {
       'the scan only ever sees the root it scanned, so `all` is still that root');
   });
 
+
+  // ---- KIT-T278: adopted framework store ------------------------------------
+  await testAsync('fixture: game + framework stores hydrate', async () => {
+    assert.ok((await hydrate({ root: G.root, dbPath: fwDb })).ok);
+    assert.ok((await hydrate({ root: FW.root, dbPath: fwDb })).ok);
+  });
+  await testAsync('fts in a game also searches its adopted framework store, rows labelled by scope', async () => {
+    const { rows } = await query('fts', ['sleepwake'], { root: G.root, dbPath: fwDb });
+    assert.deepEqual(rows.map((r) => [r.scope, r.id]), [['FQR', 'FQR-T001']]);
+    const own = await query('fts', ['camps'], { root: G.root, dbPath: fwDb });
+    assert.deepEqual(own.rows.map((r) => [r.scope, r.id]), [['FQG', 'FQG-T001']]);
+  });
+  await testAsync('fts --scope <game> keeps the search to the game store', async () => {
+    const { rows } = await query('fts', ['--scope', 'FQG', 'sleepwake'], { root: G.root, dbPath: fwDb });
+    assert.deepEqual(rows, []);
+  });
+  await testAsync('framework store search is identical on the markdown-scan path', async () => {
+    const { rows } = await query('fts', ['sleepwake'], { root: G.root, dbPath: fwDb, noDb: true });
+    assert.deepEqual(rows.map((r) => [r.scope, r.id]), [['FQR', 'FQR-T001']]);
+  });
+  await testAsync('a project with no framework submodule is unaffected', async () => {
+    assert.deepEqual(await ids(['sleepwake']), []);
+  });
   // ---- KIT-T173 ------------------------------------------------------------
   const trail = async (id, opts = {}) => (await query('trail', [id], { root: A.root, dbPath, ...opts })).rows;
 
