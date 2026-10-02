@@ -32,3 +32,9 @@ decides. Today they are unusable without `[maintainer-asked-worktree:]` /
 
 ## History
 - [2026-09-28 15:32] (created) tech-debt — Decide the future of the broker-worker skill and build broker under KIT-D074: its workers edit in worktrees on lane branches, which branch-guard and dispatch-guard now block
+- [2026-10-02 17:19] (comment) @chris: Chris 2026-10-02: one-writer-per-checkout must be resolved — many agents should read and QUEUE patches/tests; one place  (full comment #1 in ## Notes)
+### comment #1 [2026-10-02 17:19] @chris
+Chris 2026-10-02: one-writer-per-checkout must be resolved — many agents should read and QUEUE patches/tests; one place applies, builds, tests and lands them serially. Direction = rework the broker to the single-checkout model (no worktrees). Design discussion open.
+- [2026-10-02 17:19] (comment) @chris: Chris 2026-10-02: ONE agent writes and runs (applies patches, builds, tests, lands). All other agents read and queue pat (full comment #2 in ## Notes)
+### comment #2 [2026-10-02 17:19] @chris
+Chris 2026-10-02: ONE agent writes and runs (applies patches, builds, tests, lands). All other agents read and queue patches + tests; they never write in the tree or run builds. Reuse scripts/broker queue/results as the writer agent's inbox/outbox.
