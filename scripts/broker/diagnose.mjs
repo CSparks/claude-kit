@@ -5,6 +5,7 @@ const MAX_BLOCKS = 20;
 const ERROR_START = /^error(\[E\d+\])?: /;
 const LOCATION = /^\s*--> (.+?):\d+:\d+/;
 const FAILED_TEST = /^test (\S+) \.\.\. FAILED/;
+const NEXTEST_FAIL = /^\s*FAIL \[[^\]]*\]\s+\S+\s+(\S+)/;
 
 export function diagnose(log) {
   const errors = {};
@@ -13,7 +14,8 @@ export function diagnose(log) {
   let count = 0;
   for (let i = 0; i < lines.length; i++) {
     const t = FAILED_TEST.exec(lines[i]);
-    if (t) { failedTests.push(t[1]); continue; }
+    const nt = NEXTEST_FAIL.exec(lines[i]);
+    if (t || nt) { const name = (t || nt)[1]; if (!failedTests.includes(name)) failedTests.push(name); continue; }
     if (!ERROR_START.test(lines[i]) || count >= MAX_BLOCKS) continue;
     let end = i + 1;
     while (end < lines.length && lines[end].trim() !== '') end++;

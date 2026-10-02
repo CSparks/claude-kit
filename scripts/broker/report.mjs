@@ -12,7 +12,8 @@ export function printResult(r, log = console.log) {
   for (const g of r.gate || []) log(`  gate ${g.path} [${g.check}]: ${g.msg}`);
   for (const c of r.commands || []) {
     log(`  $ ${c.composed}  â†’ exit ${c.exit} (${c.durationMs}ms)`);
-    if (c.exit === 0) continue;
+    for (const f of c.foreign || []) log(`    foreign (also fails without the patch): ${f.test} — ${f.reason}`);
+    if (c.exit === 0 || (c.foreign || []).length) continue;
     for (const t of c.failedTests || []) log(`    failed test: ${t}`);
     for (const [file, blocks] of Object.entries(c.errors || {})) for (const b of blocks) log(`    ${file}:\n${b.split('\n').map((l) => `      ${l}`).join('\n')}`);
     if (!(c.failedTests || []).length && !Object.keys(c.errors || {}).length) for (const line of c.logTail || []) log(`    | ${line}`);

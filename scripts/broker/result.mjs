@@ -9,7 +9,8 @@
 // RESULT (target/broker/results/<id>.json), written by the broker or by submit on a stale dry run:
 //   { id, revises, revision, ticket, base, head, status: passed|failed|gate|stale|dirty|landed,
 //     phase, gate: [{ path, check, msg }], stale: [{ index, path, reason, excerpt, since }],
-//     commands: [{ cmd, composed, exit, durationMs, log, logTail, errors, failedTests }],
+//     commands: [{ cmd, composed, exit, durationMs, log, logTail, errors, failedTests, foreign? }],
+//     foreign: [{ test, reason }]  (failures that also occur without the patch; they do not fail the job),
 //     diffStat, landed: { sha, superSha }|null, dirtyEntries, message, startedAt, finishedAt }
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
