@@ -17,8 +17,18 @@ const ALL_KINDS = [...DEFAULT_KINDS, 'ticket'];
 const TYPE_RANK = { fn: 0, struct: 1, enum: 1, trait: 1, class: 1, type: 1, const: 2, var: 2, macro: 2, mod: 3, impl: 4, use: 5, heading: 6, section: 6 };
 const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--type', '--limit', '-C', '-A', '-B']);
 
+const ATTACHED_COUNT = /^-([ABC])(\d+)$/;
+const ATTACHED_VALUE = /^(--(?:kind|lang|path|type|limit))=(.*)$/;
+
+// `-B2` and `--lang=rust` mean `-B 2` and `--lang rust`, as in grep.
+const splitAttached = (args) => args.flatMap((a) => {
+  const m = ATTACHED_COUNT.exec(String(a)) || ATTACHED_VALUE.exec(String(a));
+  return m ? [m[1].startsWith('--') ? m[1] : `-${m[1]}`, m[2]] : [a];
+});
+
 /** Split argv-style tokens into { text, flags }. */
-export function parseCodeArgs(args) {
+export function parseCodeArgs(rawArgs) {
+  const args = splitAttached(rawArgs);
   const flags = { before: 0, after: 0, limit: DEFAULT_LIMIT, kinds: null, types: null, unknown: [] };
   const words = [];
   for (let i = 0; i < args.length; i++) {

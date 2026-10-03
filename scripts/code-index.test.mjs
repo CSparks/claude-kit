@@ -174,6 +174,18 @@ await test('unknown flag is reported, not silently ignored', async () => {
   assert.equal(parseCodeArgs(['x', '-3']).flags.unknown.length, 0);
 });
 
+await test('grep-style attached options: -B1 / -A1 / -C2 and --lang=wgsl equal their spaced forms (KIT-T303)', async () => {
+  process.env.CLAUDE_KIT_BUG_STORE = 'off';
+  const spaced = await rows('code', ['shade', '-B', '1', '--lang', 'wgsl']);
+  assert.deepEqual(await rows('code', ['shade', '-B1', '--lang=wgsl']), spaced);
+  assert.deepEqual(locs(spaced), ['shaders/terrain.wgsl-3', 'shaders/terrain.wgsl:4']);
+  assert.deepEqual(await rows('code', ['Light', '-A1', '--lang', 'wgsl']), await rows('code', ['Light', '-A', '1', '--lang', 'wgsl']));
+  assert.deepEqual(parseCodeArgs(['x', '-C2']).flags, parseCodeArgs(['x', '-C', '2']).flags);
+  assert.deepEqual(parseCodeArgs(['x', '-B2']).flags.unknown, []);
+  assert.deepEqual(parseCodeArgs(['x', '-Bx']).flags.unknown, ['-Bx'], 'a non-numeric count is still unknown');
+  assert.deepEqual(parseCodeArgs(['x', '--bogus=1']).flags.unknown, ['--bogus=1'], 'an unknown option is still reported');
+});
+
 await test('prefilter soundness: a matching line always satisfies the prefilter (random regexes)', () => {
   const pieces = ['ab', 'c?', '(x|y)', '[a-z]', '\\.', 'd*', 'e+', 'f{2}', 'gh', 'ij?', '\\d', '(kl|mn)', 'op'];
   const alphabet = 'abcdefghijklmnopxy. 0123';
