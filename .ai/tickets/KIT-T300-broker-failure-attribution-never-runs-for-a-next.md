@@ -37,3 +37,5 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 
 ## Notes
 Fix b8a409a8603de3b5d1aa011c2254378f9fd75050: RUN_TRAILER skip in scripts/broker/diagnose.mjs. Tests: scripts/broker/attribute.test.mjs (diagnose on nextest log: no errors, failed tests named; attribute runs a baseline; rustc-error negative control stays null). Mutation: fix reverted -> both new tests fail (8 pass / 2 fail); restored -> node --test "scripts/broker/*.test.mjs" 52 passed. Real log j-mus0fq4c-uv3z2a-0.log: errors {} and 2 failed tests named. Not changed: libtest trailers `error: test failed, to rerun pass ...` and `error: N target failed:` are the same defect for plain cargo test.
+
+Follow-up e6dea6ccf6cc747c15b370c15aa882a7e4079b15: libtest trailers (`error: test failed, to rerun pass ...`, `error: N target(s) failed:`) added to RUN_TRAILER; 2 more tests in attribute.test.mjs; mutation (nextest-only regex) fails both; broker suite 54 passed.
