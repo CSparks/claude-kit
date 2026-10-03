@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // wait.mjs — block on a job's result with a bounded poll, print it, and exit with the job's
 // status so a worker's turn is never left stopped on a background task. exit 0 = passed or landed;
-// 1 = failed/stale/gate/conflict/dirty; 2 = timed out.
+// 1 = failed/stale/gate/conflict/dirty; 2 = timed out. A result older than the job's current
+// inflight run is a previous attempt's and is not final.
 //
 // USE: node wait.mjs <id> --root <build-checkout> [--timeout <s>] [--poll <ms>]
 
 import { parseFlags, loadCfg } from './cli.mjs';
+import { isCurrentResult } from './current.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
 import { printResult } from './report.mjs';
 import { noBrokerWarning } from './ensure.mjs';
@@ -30,7 +32,7 @@ let warned = false;
 const said = new Set();
 while (Date.now() < deadline) {
   const result = readResult(cfg, id);
-  if (result) {
+  if (result && isCurrentResult(cfg, result)) {
     printResult(result);
     process.exit(result.status === STATUS.PASSED || result.status === STATUS.LANDED ? 0 : 1);
   }
