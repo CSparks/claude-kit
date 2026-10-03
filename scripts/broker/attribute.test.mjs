@@ -115,6 +115,22 @@ test('baselineCommand: nextest binary_id + test per failure, libtest exact filte
   assert.equal(baselineCommand('cargo t -- --nocapture', lt), 'cargo t -- --nocapture --exact a');
 });
 
+test('baselineCommand: a nextest filter naming a binary only the patch adds is dropped, not combined', () => {
+  const failed = diagnose(NEXTEST_LOG).failed;
+  const own = 'cargo nextest run -p stiletto --features fastdev -E "binary(old_one) or binary(only_the_patch_adds_this)"';
+  const out = baselineCommand(own, failed);
+  assert.equal(out.startsWith('cargo nextest run -p stiletto --features fastdev -E "(binary_id('), true, out);
+  assert.equal(out.includes('only_the_patch_adds_this'), false);
+  assert.equal(out.split(' -E ').length, 2, 'exactly one filter');
+  assert.equal(baselineCommand("cargo nextest run -E 'binary(a)' -p x", failed).includes('binary(a)'), false);
+  assert.equal(baselineCommand('cargo nextest run --filterset="binary(a)" -p x', failed).includes('binary(a)'), false);
+});
+
+test('baselineCommand: a command with no filter, and the libtest form, are unchanged by the strip', () => {
+  assert.equal(baselineCommand('cargo nextest run -p x', [{ binary: null, test: 'a' }]), 'cargo nextest run -p x -E "test(=a)"');
+  assert.equal(baselineCommand('cargo t -p x -E "keep"', [{ binary: null, test: 'a' }]), 'cargo t -p x -E "keep" -- --exact a');
+});
+
 test('a baseline run that matches zero tests is unattributed, never a pass or a cause', () => {
   const command = { cmd: 'x', errors: {}, failed: diagnose(NEXTEST_LOG).failed };
   const dir = tempDir('attr-');

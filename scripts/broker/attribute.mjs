@@ -11,11 +11,16 @@
 import { readFileSync } from 'node:fs';
 import { diagnose, testKey } from './diagnose.mjs';
 
+// The job's own nextest filter is dropped: it may name a binary only the patch adds, which
+// nextest rejects at base, and the failed-test filter replaces it.
+const FILTERSET = /\s(?:-E|--filterset)(?:\s+|=)(?:"[^"]*"|'[^']*'|\S+)/g;
+
 export function baselineCommand(cmd, failures) {
   const toks = String(cmd).trim().split(/\s+/);
   if (toks.includes('nextest')) {
     const one = (f) => (f.binary ? `(binary_id(=${f.binary}) and test(=${f.test}))` : `test(=${f.test})`);
-    return `${toks.join(' ')} -E "${failures.map(one).join(' or ')}"`;
+    const bare = String(cmd).trim().replace(FILTERSET, '').split(/\s+/).join(' ');
+    return `${bare} -E "${failures.map(one).join(' or ')}"`;
   }
   return `${toks.join(' ')}${toks.includes('--') ? '' : ' --'} --exact ${[...new Set(failures.map((f) => f.test))].join(' ')}`;
 }
