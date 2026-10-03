@@ -26,6 +26,17 @@ const splitAttached = (args) => args.flatMap((a) => {
   return m ? [m[1].startsWith('--') ? m[1] : `-${m[1]}`, m[2]] : [a];
 });
 
+// In --regex mode a pattern whose only alternation is grep's `\|` means alternation (a JS `\|`
+// is a literal pipe, which an agent writing `a\|b` never wants); a pattern with a bare `|` is left alone.
+export function breAlternation(text) {
+  let bare = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '\\') { if (text[i + 1] === '|') escaped = true; i++; } else if (text[i] === '|') bare = true;
+  }
+  return escaped && !bare ? text.replace(/\\\|/g, '|') : text;
+}
+
 /** Split argv-style tokens into { text, flags }. */
 export function parseCodeArgs(rawArgs) {
   const args = splitAttached(rawArgs);
@@ -53,7 +64,8 @@ export function parseCodeArgs(rawArgs) {
     else if (a.startsWith('-') && a.length > 1 && !/^-\d/.test(a)) flags.unknown.push(a);
     else words.push(a);
   }
-  return { text: words.join(' '), flags };
+  const text = words.join(' ');
+  return { text: flags.regex ? breAlternation(text) : text, flags };
 }
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

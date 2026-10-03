@@ -186,6 +186,15 @@ await test('grep-style attached options: -B1 / -A1 / -C2 and --lang=wgsl equal t
   assert.deepEqual(parseCodeArgs(['x', '--bogus=1']).flags.unknown, ['--bogus=1'], 'an unknown option is still reported');
 });
 
+await test('--regex reads grep\'s \\| as alternation when no bare | is present (KIT-T304)', async () => {
+  assert.deepEqual(locs(await rows('code', ['Light\\|shade', '--regex', '--lang', 'wgsl'])), ['shaders/terrain.wgsl:1', 'shaders/terrain.wgsl:2', 'shaders/terrain.wgsl:4']);
+  assert.deepEqual(await rows('code', ['Light\\|shade', '--regex', '--lang', 'wgsl', '-l']), await rows('code', ['Light|shade', '--regex', '--lang', 'wgsl', '-l']));
+  assert.equal(parseCodeArgs(['a\\|b', '--regex']).text, 'a|b');
+  assert.equal(parseCodeArgs(['a\\|b|c', '--regex']).text, 'a\\|b|c', 'a bare | keeps JS meaning');
+  assert.equal(parseCodeArgs(['a\\|b']).text, 'a\\|b', 'literal text is untouched without --regex');
+  assert.deepEqual(locs(await rows('code', ['Light\\|shade', '--lang', 'wgsl'])), [], 'a literal search for the pipe text finds nothing');
+});
+
 await test('prefilter soundness: a matching line always satisfies the prefilter (random regexes)', () => {
   const pieces = ['ab', 'c?', '(x|y)', '[a-z]', '\\.', 'd*', 'e+', 'f{2}', 'gh', 'ij?', '\\d', '(kl|mn)', 'op'];
   const alphabet = 'abcdefghijklmnopxy. 0123';
