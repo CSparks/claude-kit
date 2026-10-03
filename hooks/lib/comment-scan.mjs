@@ -3,7 +3,7 @@
 // use it — never the conversation that produced it.
 //
 //   commentRuns(src, ext)            -> [{ start, length, text }]   consecutive comment lines
-//   narrationHits(src, ext)          -> [{ line, why, text }]       backstory / discussion comments
+//   narrationHits(src, ext)          -> [{ line, why, text }]       backstory / discussion / ticket-history comments
 //   commentStats(src, ext)           -> { comment, code, ratio, longest }
 //
 // Line numbers are 1-based. Supported: // families, # families, -- families and /* */ blocks.
@@ -27,7 +27,11 @@ const escapeRe = (w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const ALIAS = escapeRe(resolveUser().toLowerCase());
 const WHO = `the maintainer|the user|${ALIAS}`;
 
+const TICKET = String.raw`\b[A-Z][A-Z0-9]{1,5}-[TDQN]\d+\b`;
+const TICKET_VERBS = 'moved|changed|added|removed|replaced|renamed|introduced|fixed|split|merged|dropped|deleted|rewrote|switched|made|turned|converted|extracted|reworked|refactored|broke|reverted|landed|shipped|redesigned';
+
 const NARRATION = [
+  [new RegExp(String.raw`\b(?:since|after|before)\s+${TICKET}|${TICKET}\s+(?:${TICKET_VERBS})\b|\b(?:was|were)\b[^.]{0,40}\b(?:in|by|under)\s+${TICKET}`), 'recounts ticket history (a bare id is the ceiling)'],
   [/\b20\d\d-\d\d-\d\d\b/, 'dated stamp (history belongs in git)'],
   [new RegExp(String.raw`\b(?:${WHO})\b[’']?s?\s+(?:said|says|asked|wants?|wanted|told|decided|noted|reported|prefers?|rule)\b`, 'i'), 'attributes the code to a conversation'],
   [new RegExp(String.raw`\((?:${ALIAS}|maintainer)\b|\b(?:${ALIAS}|maintainer)\s+20\d\d|\bper (?:${WHO})\b`, 'i'), 'maintainer attribution'],

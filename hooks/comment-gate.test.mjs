@@ -48,6 +48,20 @@ try {
   ok('in-source marker lifts a narrating line',
     write(d, 'o.mjs', code('// claude-kit-ignore-start comment-narration\n// Pat said so\n// claude-kit-ignore-end')).code === 0);
 
+  // --- ticket-id backstory (KIT-D078) ---------------------------------------------------
+  ok('a sentence recounting ticket history blocks', write(d, 'q1.mjs', code('// ST-T123 moved this into the loader')).code === 2);
+  ok('"since <id> the ..." blocks', write(d, 'q2.mjs', code('// since ST-T456 the cache is rebuilt on start')).code === 2);
+  ok('"was ... in <id>" blocks', write(d, 'q3.mjs', code('// this was a plain loop in KIT-D012')).code === 2);
+  ok('a bare id and a fix-for reference pass', write(d, 'q4.mjs', code('// Workaround for ST-T123; see KIT-D078.')).code === 0);
+  ok('a verb with no ticket id passes', write(d, 'q5.mjs', code('// moved to the loader so the cache stays warm')).code === 0);
+
+  // --- TOML comments --------------------------------------------------------------------
+  ok('a long TOML comment block blocks', write(d, 'Cargo.toml', `${block(RUN_BLOCK + 2, '#')}\n[package]\nname = "x"\n`).code === 2);
+  ok('a long comment block in .cargo/config.toml blocks', write(d, '.cargo/config.toml', `${block(RUN_BLOCK + 2, '#')}\n[build]\njobs = 3\n`).code === 2);
+  ok('TOML ticket-history narration blocks', write(d, 'a/Cargo.toml', '# since ST-T9 this crate owns the cache\n[package]\nname = "x"\n').code === 2);
+  ok('a short TOML comment passes', write(d, 'b/Cargo.toml', '# the crate name\n[package]\nname = "x"\n').code === 0);
+  ok('other config (json) is still not scanned', write(d, 'x.json', '{"a": 1}\n').code === 0);
+
   // --- ratio on a whole-file Write ----------------------------------------------------
   const chatty = Array.from({ length: 30 }, (_, i) => `// note ${i}\nexport const v${i} = ${i % 2};`).join('\n\n');
   ok('a comment-heavy whole file warns on ratio', /% of this file/.test(write(d, 'p.mjs', chatty + '\n').out));
@@ -67,6 +81,12 @@ try {
   ok('sweep ranks the heaviest file first', sweep.files[0].path === 'a/big.mjs' && sweep.files[0].comment === 12);
   ok('sweep reports the longest block', sweep.blocks[0].path === 'a/big.mjs' && sweep.blocks[0].length === 12);
   ok('sweep lists narrating comments', sweep.narration.length === 1 && sweep.narration[0].path === 'a/story.mjs');
+  mkdirSync(join(root, 'cfg'), { recursive: true });
+  writeFileSync(join(root, 'cfg/Cargo.toml'), '# ST-T5 moved the jobs setting here\n# a plain note\n[build]\njobs = 3\n');
+  writeFileSync(join(root, 'cfg/data.json'), '{"a": 1}\n');
+  const withToml = sweepComments(root);
+  ok('sweep covers TOML comments and ticket narration', withToml.files.some((f) => f.path === 'cfg/Cargo.toml' && f.comment === 2) && withToml.narration.some((n) => n.path === 'cfg/Cargo.toml'));
+  ok('sweep still ignores json', !withToml.files.some((f) => f.path === 'cfg/data.json'));
   rmSync(root, { recursive: true, force: true });
 } finally {
   cleanup();

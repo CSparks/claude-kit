@@ -287,6 +287,13 @@ if (DOC.has(ext)) {
   }
   process.exit(0);
 }
+if (ext === 'toml') {
+  const cf = commentFindings(content, ext, {
+    skip: (id, line) => (line ? excludedAt(id, line) : excludedFile(id)),
+    wholeFile: typeof (p.tool_input || {}).content === 'string',
+  });
+  finish(cf.viols, cf.warns);
+}
 if (DATA.has(ext) || MARKUP.has(ext) || PLAIN_STYLE.has(ext) || PATCH.has(ext) || INFRA_BASENAME.test(base)) process.exit(0); // config/data/markup/plain-css/patch/infra is not logic-source
 
 // Shared reporter: warnings to stderr (exit 0), violations block (exit 2).

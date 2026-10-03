@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // comment-sweep.mjs — repo sweep for comment prose (KIT-T283): the worst files by comment lines,
-// the longest comment blocks, and every discussion-narrating comment, ready to become cleanup
+// the longest comment blocks, and every discussion-narrating comment (source files and TOML), ready to become cleanup
 // tickets. Same scanner as the pre-write comment gate (hooks/lib/comment-scan.mjs).
 //
 //   node scripts/comment-sweep.mjs [root] [--top N] [--json]
@@ -20,7 +20,7 @@ export function sweepComments(root) {
   const blocks = [];
   const narration = [];
   for (const [dir, e] of walkTree(root)) {
-    for (const name of e.files.filter(isSource)) {
+    for (const name of e.files.filter((n) => isSource(n) || extOf(n) === 'toml')) {
       const path = dir ? `${dir}/${name}` : name;
       let src;
       try { src = readFileSync(join(root, path), 'utf8'); } catch { continue; }
