@@ -42,7 +42,7 @@ test('submit on stdin without --branch queues a patch job', () => {
   const s = fixture();
   try {
     const r = spawnSync(process.execPath, [SUBMIT, '--root', s.root, '--ticket', 'T-1', '--title', 'beta', '--test', SHOW], {
-      input: envelope(['beta', 'BETA']), encoding: 'utf8',
+      input: envelope(['beta', 'BETA']), encoding: 'utf8', env: { ...process.env, BROKER_NO_AUTOSTART: '1' },
     });
     assert.equal(r.status, 0, r.stderr);
     const [job] = listQueue(s.cfg);

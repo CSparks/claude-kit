@@ -12,10 +12,16 @@ import { brokerPaths } from './config.mjs';
 export function acquireLock(cfg) {
   ensureDirs(cfg);
   const path = brokerPaths(cfg).lock;
-  const held = readLock(path);
-  if (held && held.host === hostname() && pidAlive(held.pid)) return { ok: false, holder: held };
+  const held = liveHolder(cfg);
+  if (held) return { ok: false, holder: held };
   writeFileSync(path, JSON.stringify({ pid: process.pid, host: hostname(), ts: new Date().toISOString() }, null, 2));
   return { ok: true };
+}
+
+// The lock record when a live broker on this host holds it, else null (no lock, or a dead pid).
+export function liveHolder(cfg) {
+  const held = readLock(brokerPaths(cfg).lock);
+  return held && held.host === hostname() && pidAlive(held.pid) ? held : null;
 }
 
 // Release only our own lock — never stomp a lock a different pid took after a stale reclaim.

@@ -8,6 +8,7 @@
 import { parseFlags, loadCfg } from './cli.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
 import { printResult } from './report.mjs';
+import { noBrokerWarning } from './ensure.mjs';
 
 // Bash caps a foreground call at 600 s; 540 leaves room to print the queue position.
 const DEFAULT_TIMEOUT_S = 540;
@@ -24,12 +25,15 @@ const pollMs = Number(flags.poll) || cfg.pollMs;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const deadline = Date.now() + timeoutMs;
+let warned = false;
 while (Date.now() < deadline) {
   const result = readResult(cfg, id);
   if (result) {
     printResult(result);
     process.exit(result.status === STATUS.PASSED || result.status === STATUS.LANDED ? 0 : 1);
   }
+  const warning = warned ? null : noBrokerWarning(cfg, id);
+  if (warning) { console.error(warning); warned = true; }
   await sleep(pollMs);
 }
 const position = listQueue(cfg).findIndex((j) => j.id === id);
