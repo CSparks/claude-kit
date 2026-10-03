@@ -12,7 +12,7 @@ import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
 import { addDeferred } from './deferred.mjs';
 import { gatePlan } from './gate.mjs';
-import { checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
+import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand } from './run.mjs';
 
@@ -98,7 +98,8 @@ export function processPatch(cfg, job, repo) {
     const foreign = foreignOf(commands);
     if (!green || !job.land) return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat, foreign });
 
-    const land = landPatch(cfg, repo, job, cwd, [...plan.files.keys()]);
+    // dirty_blocks keeps every Cargo.lock clean before the run, so a lock that differs now is the patch's.
+    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd)])]);
     keep = land.committed;
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, message: land.error });
     return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, landed: { sha: land.sha, superSha: land.superSha } });

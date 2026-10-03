@@ -53,6 +53,9 @@ export function lockFiles(cwd) {
   return r.code === 0 ? r.out.split(String.fromCharCode(0)).filter(Boolean) : [];
 }
 
+// The lock files that differ from HEAD: modified when tracked, present when new.
+export const changedLocks = (cwd) => lockFiles(cwd).filter((p) => git(['status', '--porcelain', '--', p], cwd).out !== '');
+
 export function revParse(cwd, ref) {
   const r = git(['rev-parse', ref], cwd);
   return r.code === 0 ? r.out : '';

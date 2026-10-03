@@ -10,7 +10,7 @@ import { normalizeBroker } from './config.mjs';
 import { processOnce } from './queue.mjs';
 import { listQueue, readResult, writeJob } from './result.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
-import { envelope, fixture, g, originSha, snapshot } from './patchkit.mjs';
+import { commitOnMain, envelope, fixture, g, originSha, snapshot } from './patchkit.mjs';
 import { addOrigin, branchList, cleanup, makeRepo, tempDir, worktreeList } from './testkit.mjs';
 
 const PASS = 'node -e "process.exit(0)"';
@@ -151,4 +151,35 @@ test('submodule landing commits in the submodule, pushes it, and pins the superp
   } finally {
     cleanup(superRoot); cleanup(subSrc); cleanup(subOriginDir); cleanup(superBareDir);
   }
+});
+
+// A fixture whose tracked Cargo.lock the landing command may rewrite, plus a new sub/Cargo.lock.
+function lockLanding(command) {
+  const s = fixture();
+  commitOnMain(s.root, 'Cargo.lock', 'base\n', 'add lock');
+  g(['push', 'origin', 'main'], s.root);
+  const job = queued(s, { ticket: 'T-9', title: 'add dep', land: true }, '*** write extra.txt\nhi\n', { commands: [command] });
+  processOnce(s.cfg);
+  return { s, r: readResult(s.cfg, job.id) };
+}
+
+test('a landing whose command rewrites Cargo.lock commits the new lock with the patch', () => {
+  const rewrite = `node -e "const f=require('fs');f.writeFileSync('Cargo.lock','resolved');f.mkdirSync('sub');f.writeFileSync('sub/Cargo.lock','new')"`;
+  const { s, r } = lockLanding(rewrite);
+  try {
+    assert.equal(r.status, 'landed', JSON.stringify(r));
+    assert.deepEqual(names(s.root).sort(), ['Cargo.lock', 'extra.txt', 'sub/Cargo.lock']);
+    assert.equal(g(['show', 'HEAD:Cargo.lock'], s.root), 'resolved');
+    assert.equal(g(['status', '--porcelain', '--', 'Cargo.lock', 'sub/Cargo.lock'], s.root), '');
+    assert.equal(originSha(s.bare, s.root), r.landed.sha, 'pushed');
+  } finally { s.done(); }
+});
+
+test('a landing whose command leaves Cargo.lock alone commits only the patch paths', () => {
+  const { s, r } = lockLanding(PASS);
+  try {
+    assert.equal(r.status, 'landed', JSON.stringify(r));
+    assert.deepEqual(names(s.root), ['extra.txt']);
+    assert.equal(g(['show', 'HEAD:Cargo.lock'], s.root), 'base');
+  } finally { s.done(); }
 });
