@@ -183,3 +183,35 @@ test('a landing whose command leaves Cargo.lock alone commits only the patch pat
     assert.equal(g(['show', 'HEAD:Cargo.lock'], s.root), 'base');
   } finally { s.done(); }
 });
+
+// A fixture whose tracked Cargo.lock the maintainer's cargo already rewrote (dirty, uncommitted).
+function dirtyLockLanding(command) {
+  const s = fixture();
+  commitOnMain(s.root, 'Cargo.lock', 'base\n', 'add lock');
+  g(['push', 'origin', 'main'], s.root);
+  writeFileSync(join(s.root, 'Cargo.lock'), 'maintainer\n');
+  const job = queued(s, { ticket: 'T-9', title: 'pin sub', land: true }, '*** write extra.txt\nhi\n', { commands: [command] });
+  processOnce(s.cfg);
+  return { s, r: readResult(s.cfg, job.id) };
+}
+
+test('a landing over a dirty Cargo.lock runs and commits the lock the run produced', () => {
+  const rewrite = `node -e "require('fs').writeFileSync('Cargo.lock','resolved')"`;
+  const { s, r } = dirtyLockLanding(rewrite);
+  try {
+    assert.equal(r.status, 'landed', JSON.stringify(r));
+    assert.deepEqual(names(s.root).sort(), ['Cargo.lock', 'extra.txt']);
+    assert.equal(g(['show', 'HEAD:Cargo.lock'], s.root), 'resolved');
+    assert.equal(originSha(s.bare, s.root), r.landed.sha, 'pushed');
+  } finally { s.done(); }
+});
+
+test('a landing over a dirty Cargo.lock the run leaves alone commits the maintainer\'s lock', () => {
+  const { s, r } = dirtyLockLanding(PASS);
+  try {
+    assert.equal(r.status, 'landed', JSON.stringify(r));
+    assert.deepEqual(names(s.root).sort(), ['Cargo.lock', 'extra.txt']);
+    assert.equal(g(['show', 'HEAD:Cargo.lock'], s.root), 'maintainer');
+    assert.equal(g(['status', '--porcelain', '--', 'Cargo.lock'], s.root), '');
+  } finally { s.done(); }
+});

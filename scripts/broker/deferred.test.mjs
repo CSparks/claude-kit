@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { listDeferred, deferredLines } from './deferred.mjs';
 import { processOnce } from './queue.mjs';
@@ -71,5 +71,25 @@ test('a deferred test still failing while its dirty file is dirty stays on the l
     const r = processOnce(s.cfg, { fileBug: () => assert.fail('no bug expected') });
     assert.deepEqual(r.deferred.kept, ['t_flag']);
     assert.equal(listDeferred(s.cfg).length, 1);
+  } finally { s.done(); }
+});
+
+// The idle re-check runs cargo in the live tree; it must leave every Cargo.lock as found.
+test('a deferred re-check whose command rewrites Cargo.lock leaves it byte-identical', () => {
+  const rewrite = "require('fs').writeFileSync('Cargo.lock','resolved');";
+  const s = fixture();
+  try {
+    commitOnMain(s.root, 'Cargo.lock', 'base\n', 'lock');
+    commitOnMain(s.root, 'flag.txt', 'ok\n', 'flag');
+    writeFileSync(join(s.root, 'flag.txt'), 'bad\n');
+    const { job } = buildPatchJob(s.cfg, {}, '*** write marker.txt\nm\n');
+    writeJob(s.cfg, { ...job, commands: [suite(false).replace('node -e "', `node -e "${rewrite}`)] });
+    processOnce(s.cfg);
+    assert.equal(listDeferred(s.cfg).length, 1);
+    g(['checkout', '--', 'flag.txt'], s.root);
+    const r = processOnce(s.cfg, { fileBug: () => assert.fail('no bug expected') });
+    assert.deepEqual(r.deferred.dropped, ['t_flag']);
+    assert.equal(readFileSync(join(s.root, 'Cargo.lock'), 'utf8'), 'base\n');
+    assert.equal(g(['status', '--porcelain', '--', 'Cargo.lock'], s.root), '');
   } finally { s.done(); }
 });

@@ -2,7 +2,7 @@
 // (attribute.mjs) lets a job pass over a failure the patch did not cause; each such test lands
 // here with the command, repo, job, reason and the hand-edited paths that were dirty. When the
 // repo's HEAD moves or one of those paths turns clean, the broker re-runs only those tests on
-// the live tree while idle: a pass drops the entry; a failure with none of its recorded paths
+// the live tree while idle (Cargo.lock restored afterwards): a pass drops the entry; a failure with none of its recorded paths
 // still dirty is a real break, filed as `cap bug` in the repo and dropped.
 //
 // `addDeferred(cfg, entries)`, `listDeferred(cfg)`, `recheckDeferred(cfg, { fileBug })`.
@@ -16,6 +16,7 @@ import { repoByName } from './config.mjs';
 import { diagnose, testKey } from './diagnose.mjs';
 import { dirtyPaths, revParse } from './git.mjs';
 import { listQueue, logPathFor, ensureDirs } from './result.mjs';
+import { guardLocks } from './preimage.mjs';
 import { runCommand } from './run.mjs';
 
 const file = (cfg) => join(ensureDirs(cfg).home, 'deferred.json');
@@ -61,7 +62,7 @@ export function recheckDeferred(cfg, { fileBug = fileBugViaCap } = {}) {
     const { e: first, cwd } = members[0];
     const failures = members.map((m) => ({ binary: m.e.binary || null, test: m.e.test }));
     const logPath = logPathFor(cfg, 'deferred', n++);
-    runCommand(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs });
+    guardLocks(cfg, { id: 'deferred', cwd }, () => runCommand(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }));
     const seen = diagnose(readFileSync(logPath, 'utf8'));
     const failed = new Set(seen.failed.map(testKey));
     const passed = new Set(seen.passed.map(testKey));

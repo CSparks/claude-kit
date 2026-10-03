@@ -97,7 +97,7 @@ test('a dirty tracked file the patch touches pauses', () => {
 test('a dirty tracked file matching dirty_blocks pauses', () => {
   const r = runDirty('crates/a/src/lib.rs');
   try { assert.equal(r.sum.paused, true); assert.equal(r.result.status, 'dirty'); } finally { r.done(); }
-  assert.deepEqual(normalizeBroker('/r', {}).dirtyBlocks, ['**/*.rs', '**/Cargo.toml', '**/Cargo.lock']);
+  assert.deepEqual(normalizeBroker('/r', {}).dirtyBlocks, ['**/*.rs', '**/Cargo.toml']);
   assert.deepEqual(normalizeBroker('/r', { dirty_blocks: ['**/*.py'] }).dirtyBlocks, ['**/*.py']);
 });
 
@@ -114,5 +114,30 @@ test('a check-only run whose command rewrites Cargo.lock leaves it byte-identica
     const rr = readResult(cfg, job.id); assert.equal(rr.status, 'passed', JSON.stringify(rr.commands));
     assert.equal(readFileSync(join(root, 'Cargo.lock'), 'utf8'), 'base\n');
     assert.equal(g(['status', '--porcelain', '-uall'], root), '');
+  } finally { cleanup(root); }
+});
+
+test('a tree whose only dirt is a modified Cargo.lock runs the job and a check-only run leaves the lock as found', () => {
+  const r = runDirty('Cargo.lock');
+  try {
+    assert.equal(r.sum.paused, false);
+    assert.equal(r.result.status, 'passed');
+    assert.equal(readFileSync(join(r.root, 'Cargo.lock'), 'utf8'), 'hot edit\n');
+  } finally { r.done(); }
+});
+
+test('a check-only run that rewrites a dirty Cargo.lock restores the maintainer\'s version', () => {
+  const rewrite = `node -e "require('fs').writeFileSync('Cargo.lock','resolved')"`;
+  const root = makeRepo(tempDir('pause-m-'));
+  put(root, 'Cargo.lock', 'base\n');
+  g(['add', '-A'], root); g(['commit', '-m', 'lock'], root);
+  const cfg = normalizeBroker(root, { repos: [{ name: 'app', path: '.' }], verify_default: [PASS] });
+  try {
+    put(root, 'Cargo.lock', 'maintainer\n');
+    const { job } = buildPatchJob(cfg, {}, '*** write p.txt\np\n');
+    writeJob(cfg, { ...job, commands: [rewrite] });
+    processOnce(cfg);
+    assert.equal(readResult(cfg, job.id).status, 'passed');
+    assert.equal(readFileSync(join(root, 'Cargo.lock'), 'utf8'), 'maintainer\n');
   } finally { cleanup(root); }
 });

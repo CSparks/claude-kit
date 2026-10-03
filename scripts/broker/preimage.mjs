@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
-import { catBlob, hashObject } from './git.mjs';
+import { catBlob, hashObject, lockFiles } from './git.mjs';
 
 const journalPath = (cfg) => join(brokerPaths(cfg).home, 'inflight.json');
 
@@ -55,4 +55,19 @@ export function recoverInflight(cfg) {
   if (!journal) return null;
   restore(cfg, journal);
   return journal.id;
+}
+
+/** Remove every Cargo.lock that was not in `before`: a run created it. */
+export function dropNewLocks(cwd, before) {
+  for (const p of lockFiles(cwd)) if (!before.includes(p)) rmSync(join(cwd, p), { force: true });
+}
+
+/**
+ * Run `fn` and leave every Cargo.lock of `cwd` as found, dirty or not: cargo rewrites locks as a
+ * side effect of any build or test. For runs outside a job's own journal (idle re-checks).
+ */
+export function guardLocks(cfg, { id, cwd }, fn) {
+  const before = lockFiles(cwd);
+  const journal = capture(cfg, { id, cwd, paths: before });
+  try { return fn(); } finally { restore(cfg, journal); dropNewLocks(cwd, before); }
 }

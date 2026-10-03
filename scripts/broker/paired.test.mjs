@@ -3,6 +3,8 @@
 // attribute.test.mjs, so the baseline would call it foreign.
 
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { pairedPins } from './paired.mjs';
 import { processOnce } from './queue.mjs';
@@ -47,5 +49,37 @@ test('a pin for a different ticket keeps today\'s behaviour: the failure is fore
     assert.equal(pairedPins(s.root, base, 'T-OTHER').length, 1);
     assert.equal(pairedPins(s.root, null, 'T-OTHER').length, 0, 'no base, no pairing');
     assert.equal(g(['log', '-1', '--format=%s'], s.root).startsWith('chore: pin'), true);
+  } finally { s.done(); }
+});
+
+// A failed job must leave every Cargo.lock as it found it, on the suspect path and the plain one.
+const REWRITE = (cmd) => cmd.replace('node -e "', `node -e "require('fs').writeFileSync('Cargo.lock','resolved');`);
+const lockText = (s) => readFileSync(join(s.root, 'Cargo.lock'), 'utf8');
+
+function failedRun(cmd, pinTicket) {
+  const s = fixture();
+  commitOnMain(s.root, 'Cargo.lock', 'base\n', 'lock');
+  const { job } = buildPatchJob(s.cfg, { ticket: 'T-9' }, '*** write marker.txt\nm\n');
+  writeJob(s.cfg, { ...job, commands: [REWRITE(cmd)] });
+  if (pinTicket) commitOnMain(s.root, 'rapid-game.txt', 'pinned\n', pin(pinTicket));
+  processOnce(s.cfg);
+  return { s, r: readResult(s.cfg, job.id) };
+}
+
+test('a failed run on the suspect path leaves Cargo.lock byte-identical', () => {
+  const { s, r } = failedRun(FAILS, 'T-9');
+  try {
+    assert.equal(r.status, 'failed');
+    assert.equal(r.commands[0].suspect.length, 1);
+    assert.equal(lockText(s), 'base\n');
+    assert.equal(g(['status', '--porcelain', '--', 'Cargo.lock'], s.root), '');
+  } finally { s.done(); }
+});
+
+test('a failed run on the plain path leaves Cargo.lock byte-identical', () => {
+  const { s, r } = failedRun('node -e "process.exit(1)"', null);
+  try {
+    assert.equal(r.status, 'failed');
+    assert.equal(lockText(s), 'base\n');
   } finally { s.done(); }
 });

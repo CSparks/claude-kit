@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { dryRun } from './apply.mjs';
-import { capture, discard, restore } from './preimage.mjs';
+import { capture, discard, dropNewLocks, restore } from './preimage.mjs';
 import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
@@ -85,7 +85,7 @@ export function processPatch(cfg, job, repo) {
   let journal = captureTree();
   const restoreTree = () => {
     restore(cfg, journal);
-    for (const p of lockFiles(cwd)) if (!locksBefore.includes(p)) rmSync(join(cwd, p), { force: true });
+    dropNewLocks(cwd, locksBefore);
   };
   let keep = false;
   try {
@@ -102,7 +102,8 @@ export function processPatch(cfg, job, repo) {
     const foreign = foreignOf(commands);
     if (!green || !job.land) return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat, foreign });
 
-    // dirty_blocks keeps every Cargo.lock clean before the run, so a lock that differs now is the patch's.
+    // Every Cargo.lock was journalled as found (KIT-T306), so a lock that differs from HEAD now
+    // is either the maintainer's cargo-resolved lock or the run's; both belong in the landing.
     const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd)])]);
     keep = land.committed;
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, message: land.error });
