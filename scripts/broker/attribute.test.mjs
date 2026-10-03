@@ -50,6 +50,35 @@ test('diagnose: nextest binary id and test name are separate, counter skipped', 
   assert.equal(d.passed.length, 1);
 });
 
+// A nextest failure run ends with a summary and `error: test run failed`; that is not a build error.
+const lines = (...l) => l.join('\n');
+const NEXTEST_FAILED_RUN = lines(NEXTEST_LOG, '     Summary [   1.0s] 3 tests run: 1 passed, 2 failed, 0 skipped', 'error: test run failed', '');
+const RUSTC_FAILED_RUN = lines('error[E0425]: cannot find value `x`', '  --> crates/a/src/lib.rs:3:5', '', 'error: could not compile `a`', '', 'error: test run failed', '');
+
+test('diagnose: nextest "error: test run failed" is no compile error and the failed tests are named', () => {
+  const d = diagnose(NEXTEST_FAILED_RUN);
+  assert.deepEqual(d.errors, {});
+  assert.deepEqual(d.failedTests, ['the_catalog_matches_the_full_authored_inventory', 'scene::terrain::landform::tests::foo']);
+});
+
+test('attribute: a nextest failure run leads to a baseline run; a real rustc error does not', () => {
+  const dir = tempDir('attr-n-');
+  try {
+    const log = join(dir, 'b.log');
+    writeFileSync(log, NEXTEST_LOG);
+    const ran = [];
+    const runBaseline = (cmd) => { ran.push(cmd); return log; };
+    const r = attribute({ command: { cmd: 'cargo nextest run', ...diagnose(NEXTEST_FAILED_RUN) }, runBaseline });
+    assert.equal(ran.length, 1);
+    assert.deepEqual([r.foreign.length, r.caused.length], [2, 0]);
+
+    const build = diagnose(`${RUSTC_FAILED_RUN}${NEXTEST_LOG}`);
+    assert.ok(build.errors['crates/a/src/lib.rs'], 'the real rustc error is kept');
+    assert.equal(attribute({ command: { cmd: 'cargo nextest run', ...build }, runBaseline }), null);
+    assert.equal(ran.length, 1, 'no baseline run for a build error');
+  } finally { cleanup(dir); }
+});
+
 test('baselineCommand: nextest binary_id + test per failure, libtest exact filter', () => {
   assert.equal(baselineCommand('cargo nextest run -p x', diagnose(NEXTEST_LOG).failed),
     'cargo nextest run -p x -E "(binary_id(=editor::the_asset_tool_discovers_every_script) and test(=the_catalog_matches_the_full_authored_inventory)) or (binary_id(=rg-scene) and test(=scene::terrain::landform::tests::foo))"');

@@ -4,6 +4,8 @@
 
 const MAX_BLOCKS = 20;
 const ERROR_START = /^error(\[E\d+\])?: /;
+// nextest's closing line after failed tests; a test failure, not a build error.
+const RUN_TRAILER = /^error: test run failed\s*$/;
 const LOCATION = /^\s*--> (.+?):\d+:\d+/;
 const FAILED_TEST = /^test (\S+) \.\.\. FAILED/;
 // nextest: `FAIL [ 0.1s] (38/48) <binary-id> <test name>`; the (n/m) counter is optional.
@@ -25,7 +27,7 @@ export function diagnose(log) {
     if (lt) { add(failed, { binary: null, test: lt[1] }); continue; }
     if (ok) { add(passed, { binary: null, test: ok[1] }); continue; }
     if (nt) { add(nt[1] === 'FAIL' ? failed : passed, { binary: nt[2], test: nt[3] }); continue; }
-    if (!ERROR_START.test(lines[i]) || count >= MAX_BLOCKS) continue;
+    if (!ERROR_START.test(lines[i]) || RUN_TRAILER.test(lines[i]) || count >= MAX_BLOCKS) continue;
     let end = i + 1;
     while (end < lines.length && lines[end].trim() !== '') end++;
     const block = lines.slice(i, end);
