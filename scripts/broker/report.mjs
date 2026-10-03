@@ -13,6 +13,7 @@ export function printResult(r, log = console.log) {
   for (const c of r.commands || []) {
     log(`  $ ${c.composed}  â†’ exit ${c.exit} (${c.durationMs}ms)`);
     for (const f of c.foreign || []) log(`    foreign (also fails without the patch): ${f.test} — ${f.reason}`);
+    for (const f of c.suspect || []) log(`    ${f.reason}: ${f.test}`);
     if (c.exit === 0 || (c.foreign || []).length) continue;
     for (const t of c.failedTests || []) log(`    failed test: ${t}`);
     for (const [file, blocks] of Object.entries(c.errors || {})) for (const b of blocks) log(`    ${file}:\n${b.split('\n').map((l) => `      ${l}`).join('\n')}`);

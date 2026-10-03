@@ -10,6 +10,7 @@ import { capture, discard, restore } from './preimage.mjs';
 import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
+import { pairedPins, suspects } from './paired.mjs';
 import { addDeferred } from './deferred.mjs';
 import { gatePlan } from './gate.mjs';
 import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
@@ -30,7 +31,8 @@ function writePlan(cwd, files) {
 
 // Run the job's commands in order. A failed command with named failed tests is attributed
 // (attribute.mjs) against the pre-patch tree via `hooks.baseline(fn)`; all-foreign failures
-// let the job carry on, any caused failure or unattributable one stops it.
+// let the job carry on, any caused failure or unattributable one stops it. A paired pin for
+// the job's ticket (paired.mjs) makes every failure suspect: no baseline, the job fails.
 function runCommands(cfg, job, cwd, hooks) {
   const commands = Array.isArray(job.commands) && job.commands.length ? job.commands : cfg.verifyDefault;
   const out = [];
@@ -41,6 +43,8 @@ function runCommands(cfg, job, cwd, hooks) {
     out.push(entry);
     if (r.exit === 0) continue;
     if (!entry.failedTests.length || Object.keys(entry.errors).length) break;
+    const pins = pairedPins(cwd, job.base, job.ticket);
+    if (pins.length) { entry.suspect = suspects(entry.failed, pins); break; }
     const attributed = hooks.baseline((run) => attribute({ command: entry, runBaseline: (cmd) => run(cmd, `${n}-base`) }));
     if (!attributed || attributed.caused.length) break;
     entry.foreign = attributed.foreign;
