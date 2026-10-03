@@ -6,7 +6,8 @@
 //   node scripts/structure-audit.mjs [root] [--json]
 //
 // Rules:
-//   name-doubling        <crate>/src/<crate-name>/ or <dir>/<dir>/
+//   name-doubling        <dir>/<dir>/, or a folder / module file at any depth under a crate's src
+//                        named after the crate (minus rg-, - as _)
 //   single-file-folder   a folder holding exactly one source file and nothing else
 //   ungrouped-folder     more than FLAT_MAX source files directly in one folder
 //   two-homes            equivalent folder names inside one unit (util/utils/helpers/common…)
@@ -36,6 +37,26 @@ const stem = (n) => n.toLowerCase().replace(/[-_]/g, '').replace(/s$/, '');
 const homeKey = (n) => (SYNONYMS.includes(n.toLowerCase()) ? 'util-like' : stem(n));
 const srcFiles = (e) => e.files.filter(isSource);
 
+const crateWord = (dir) => baseOf(dir).toLowerCase().replace(/^rg-/, '').replace(/-/g, '_');
+
+// Folders and module files anywhere under a crate's src whose name is the crate's name.
+function crateNameRepeats(tree) {
+  const out = [];
+  for (const [crate, entry] of tree) {
+    if (!crate || !entry.files.some((f) => MANIFESTS.has(f)) || !tree.has(at(crate, 'src'))) continue;
+    const word = crateWord(crate);
+    const src = at(crate, 'src');
+    for (const [rel, e] of tree) {
+      if (rel !== src && !rel.startsWith(src + '/')) continue;
+      if (rel !== src && baseOf(rel).toLowerCase().replace(/-/g, '_') === word) out.push({ rule: 'name-doubling', path: rel, msg: `folder repeats the crate name "${word}" (${crate})` });
+      for (const f of e.files.filter((n) => extOf(n) === 'rs' && n.slice(0, -3).toLowerCase() === word)) {
+        out.push({ rule: 'name-doubling', path: at(rel, f), msg: `module file repeats the crate name "${word}" (${crate})` });
+      }
+    }
+  }
+  return out;
+}
+
 function nameDoubling(tree) {
   const out = [];
   for (const rel of tree.keys()) {
@@ -51,7 +72,8 @@ function nameDoubling(tree) {
       }
     }
   }
-  return out;
+  const seen = new Set(out.map((f) => f.path));
+  return [...out, ...crateNameRepeats(tree).filter((f) => !seen.has(f.path))];
 }
 
 function singleFileFolders(tree) {

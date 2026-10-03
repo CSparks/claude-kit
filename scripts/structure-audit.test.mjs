@@ -35,6 +35,26 @@ test('name-doubling: crate/src/<crate-name> is flagged; a distinct folder is not
   assert.deepEqual(hits(tree({ ...crate('audio', { 'crates/audio/src/waves/x.rs': 'fn x(){}' }) }), 'name-doubling'), []);
 });
 
+test('name-doubling: a folder or module file named after the crate is flagged at any depth', () => {
+  const root = tree({
+    ...crate('materials', { 'crates/materials/src/render/materials/x.rs': 'fn x(){}', 'crates/materials/src/render/y.rs': 'fn y(){}' }),
+    ...crate('terrain', { 'crates/terrain/src/scene/terrain/x.rs': 'fn x(){}', 'crates/terrain/src/scene/z.rs': 'fn z(){}' }),
+    'sim/Cargo.toml': '', 'sim/src/lib.rs': 'pub mod sim;\n', 'sim/src/sim.rs': 'fn s(){}',
+    'rg-engine/Cargo.toml': '', 'rg-engine/src/lib.rs': 'pub mod engine;\n', 'rg-engine/src/engine.rs': 'fn e(){}',
+  });
+  assert.deepEqual(hits(root, 'name-doubling').sort(), [
+    'crates/materials/src/render/materials', 'crates/terrain/src/scene/terrain', 'rg-engine/src/engine.rs', 'sim/src/sim.rs',
+  ]);
+});
+
+test('name-doubling: a sibling folder or file with a different name, and lib.rs, are not flagged', () => {
+  const root = tree({
+    ...crate('materials', { 'crates/materials/src/render/shading/x.rs': 'fn x(){}', 'crates/materials/src/render/surface.rs': 'fn y(){}' }),
+    'rg-engine/Cargo.toml': '', 'rg-engine/src/lib.rs': 'pub mod core;\n', 'rg-engine/src/core.rs': 'fn c(){}',
+  });
+  assert.deepEqual(hits(root, 'name-doubling'), []);
+});
+
 test('name-doubling: <dir>/<dir> repetition is flagged', () => {
   assert.deepEqual(hits(tree({ 'screens/screens/a.rs': 'fn a(){}', 'screens/b.rs': 'fn b(){}' }), 'name-doubling'), ['screens/screens']);
 });
@@ -103,7 +123,7 @@ test('style-drift: mod.rs vs name.rs module style among siblings, and mixed styl
 });
 
 test('a clean tree reports nothing', () => {
-  assert.deepEqual(auditStructure(tree({ ...crate('a'), ...crate('b') })), []);
+  assert.deepEqual(auditStructure(tree({ ...crate('alpha'), ...crate('beta') })), []);
 });
 
 for (const d of dirs) rmSync(d, { recursive: true, force: true });
