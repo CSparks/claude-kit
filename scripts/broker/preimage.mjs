@@ -18,7 +18,8 @@ export function capture(cfg, { id, cwd, paths }) {
   return journal;
 }
 
-function pruneEmptyDirs(from, stop) {
+/** Remove `from` and each parent that is empty, stopping at the first non-empty one and never at or above `stop`. */
+export function pruneEmptyDirs(from, stop) {
   for (let d = from; d.length > stop.length && d.startsWith(stop); d = dirname(d)) {
     try { rmdirSync(d); } catch { return; }
   }

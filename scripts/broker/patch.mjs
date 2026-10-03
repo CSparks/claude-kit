@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { dryRun } from './apply.mjs';
-import { capture, discard, dropNewLocks, restore, restoreMismatches } from './preimage.mjs';
+import { capture, discard, dropNewLocks, pruneEmptyDirs, restore, restoreMismatches } from './preimage.mjs';
 import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
@@ -22,10 +22,11 @@ export function staleEntries(cwd, base, stale) {
   return stale.map((s) => ({ ...s, since: base ? logSince(cwd, base, s.path) : [] }));
 }
 
+// Writes the plan's files; a deleted file's directories are pruned up to the first non-empty parent.
 function writePlan(cwd, files) {
   for (const [path, f] of files) {
     const abs = join(cwd, path);
-    if (f.text === null) rmSync(abs, { force: true });
+    if (f.text === null) { rmSync(abs, { force: true }); pruneEmptyDirs(dirname(abs), cwd); }
     else { mkdirSync(dirname(abs), { recursive: true }); writeFileSync(abs, f.text); }
   }
 }
