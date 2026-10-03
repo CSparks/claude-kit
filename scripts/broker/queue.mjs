@@ -28,6 +28,10 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
   if (held.size) return { processed, paused: true, pausedOn: [...held.values()][0], pausedRepos: [...held.keys()], reason: 'dirty' };
   // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired.
   const deferred = recheckDeferred(cfg, fileBug ? { fileBug } : {});
+  if (deferred.cancelled) {
+    const next = processOnce(cfg, { onResult, fileBug });
+    return { ...next, processed: [...processed, ...next.processed] };
+  }
   return { processed, paused: false, deferred };
 }
 

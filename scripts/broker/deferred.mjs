@@ -2,7 +2,8 @@
 // (attribute.mjs) lets a job pass over a failure the patch did not cause; each such test lands
 // here with the command, repo, job, reason and the hand-edited paths that were dirty. When the
 // repo's HEAD moves or one of those paths turns clean, the broker re-runs only those tests on
-// the live tree while idle (Cargo.lock restored afterwards): a pass drops the entry; a failure with none of its recorded paths
+// the live tree while idle (Cargo.lock restored afterwards). A re-check never delays real work:
+// none starts while a job is queued, and one running is killed (locks restored) the moment a job arrives. a pass drops the entry; a failure with none of its recorded paths
 // still dirty is a real break, filed as `cap bug` in the repo and dropped.
 //
 // `addDeferred(cfg, entries)`, `listDeferred(cfg)`, `recheckDeferred(cfg, { fileBug })`.
@@ -18,7 +19,7 @@ import { dirtyPaths, lockFiles, revParse } from './git.mjs';
 import { listQueue, logPathFor, ensureDirs } from './result.mjs';
 import { recordRun } from './health-store.mjs';
 import { guardLocks } from './preimage.mjs';
-import { runCommand } from './run.mjs';
+import { runCancellable } from './run-cancellable.mjs';
 
 const file = (cfg) => join(ensureDirs(cfg).home, 'deferred.json');
 const CAP = join(import.meta.dirname, '..', 'cap.mjs');
@@ -43,10 +44,11 @@ export function fileBugViaCap({ cwd, text }) {
 
 const bugText = (e, cwd) => `test ${e.test} fails on a clean committed tree (${cwd}); command: ${e.cmd}; failure: ${e.reason}`;
 
-/** Re-run triggered deferred tests while the queue is idle. Returns { dropped, filed, kept }. */
-export function recheckDeferred(cfg, { fileBug = fileBugViaCap } = {}) {
+/** Re-run triggered deferred tests while the queue is idle. Returns { dropped, filed, kept, cancelled? }. */
+export function recheckDeferred(cfg, { fileBug = fileBugViaCap, pollMs } = {}) {
   const out = { dropped: [], filed: [], kept: [] };
   let list = listDeferred(cfg);
+  if (listQueue(cfg).length) return out;
   const groups = new Map();
   for (const e of list) {
     const repo = repoByName(cfg, e.repo);
@@ -64,7 +66,8 @@ export function recheckDeferred(cfg, { fileBug = fileBugViaCap } = {}) {
     const failures = members.map((m) => ({ binary: m.e.binary || null, test: m.e.test }));
     const logPath = logPathFor(cfg, 'deferred', n++);
     const startedAt = new Date().toISOString();
-    guardLocks(cfg, { id: 'deferred', cwd }, () => runCommand(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }));
+    const run = guardLocks(cfg, { id: 'deferred', cwd }, () => runCancellable(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => listQueue(cfg).length > 0, pollMs }));
+    if (run.cancelled) { out.cancelled = true; break; }
     recordRun(cfg, { id: 'deferred', repo: first.repo, kind: 'recheck', startedAt, entries: lockFiles(cwd).map((path) => ({ path, blob: null })) });
     const seen = diagnose(readFileSync(logPath, 'utf8'));
     const failed = new Set(seen.failed.map(testKey));
