@@ -10,6 +10,14 @@ export function gitRoot(cwd = process.cwd()) {
   return git(['rev-parse', '--show-toplevel'], cwd).trim();
 }
 
+// The git root of the repo holding `file`, found from its nearest EXISTING ancestor directory:
+// a write that creates new folders has no directory for `git rev-parse` to run in yet.
+export function gitRootOfFile(file) {
+  let dir = dirname(file);
+  while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
+  return gitRoot(dir);
+}
+
 // A repo has adopted the workflow iff it has .ai/ (or a legacy root ROADMAP.md).
 // Every hook no-ops on unadopted repos, so the global install never interferes.
 export function adopted(root) {

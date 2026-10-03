@@ -2,7 +2,7 @@
 // comment blocks and discussion-narrating comments, warns on long ones, honours the standard
 // exclusions; the sweep reports the worst files. Run: node hooks/comment-gate.test.mjs
 
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { adopted, cleanup, hook, reporter } from './test-harness.mjs';
@@ -18,7 +18,7 @@ const code = (comment) => `${comment}\nexport const answer = () => 1;\n`;
 const write = (cwd, rel, content) => hook('pre-write.mjs', { tool_input: { file_path: join(cwd, rel), content } }, cwd, { KIT_USER: 'Pat' });
 
 try {
-  const d = adopted(false);
+  const d = realpathSync.native(adopted(false)); // git reports the long path form
 
   // --- length ---------------------------------------------------------------------
   ok('a short contract comment passes silently', (() => { const r = write(d, 'a.mjs', code(block(RUN_WARN))); return r.code === 0 && !/comment/i.test(r.out); })());

@@ -8,8 +8,7 @@
 // Window: CLAUDE_KIT_LIVE_TREE_MINUTES. Escape: [allow-live-tree: <reason>] in the prompt,
 // or CLAUDE_KIT_ALLOW_LIVE_TREE=1.
 
-import { dirname } from 'node:path';
-import { payload, git, gitRoot, adopted, excludeFooter, pathExcluded, readTurnState, writeTurnState } from './lib.mjs';
+import { payload, git, gitRoot, gitRootOfFile, adopted, excludeFooter, pathExcluded, readTurnState, writeTurnState } from './lib.mjs';
 import { liveness, LIVE_WINDOW_MIN } from './live-sessions.mjs';
 
 const CHECK = 'tree-liveness';
@@ -44,9 +43,9 @@ try {
   if (!file) process.exit(0);
 
   const sessionRoot = gitRoot(process.cwd());
-  const targetRoot = gitRoot(dirname(file));
+  const targetRoot = gitRootOfFile(file);
   if (!sessionRoot || !targetRoot) process.exit(0);
-  if (repoId(process.cwd()) === repoId(dirname(file))) process.exit(0);
+  if (repoId(process.cwd()) === repoId(targetRoot)) process.exit(0);
   if (!adopted(sessionRoot) && !adopted(targetRoot)) process.exit(0);
   if (pathExcluded(sessionRoot, CHECK, file) || pathExcluded(targetRoot, CHECK, file)) process.exit(0);
 
@@ -55,7 +54,7 @@ try {
 
   const { commit, dirty } = liveness(targetRoot, windowMin());
   if (!commit && !dirty.length) process.exit(0);
-  if (alreadyWarned(sessionRoot, repoId(dirname(file)))) process.exit(0);
+  if (alreadyWarned(sessionRoot, repoId(targetRoot))) process.exit(0);
 
   const lines = [
     '',

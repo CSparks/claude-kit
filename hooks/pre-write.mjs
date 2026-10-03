@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import {
-  payload, projectRoot, gitRoot, pathExcluded, markerExcludedLines, excludeFooter, VENDORED, LOCKFILES, fileExt,
+  payload, projectRoot, gitRootOfFile, pathExcluded, markerExcludedLines, excludeFooter, VENDORED, LOCKFILES, fileExt,
   loadWritePolicy, forbiddenBy, globToRegExp, relForGlob,
 } from './lib.mjs';
 import { recordTurnWrite } from './turn-writes.mjs';
@@ -171,7 +171,7 @@ const ext = fileExt(norm);
 // .claude-kit-ignore.yaml is found, not the superproject's (KIT-T084).  Falls back to
 // projectRoot (package.json / Cargo.toml walk) when git isn't available or the file
 // isn't inside a git repo — same fail-open contract.
-const _gitRoot = gitRoot(dirname(file));
+const _gitRoot = gitRootOfFile(file);
 const ROOT = _gitRoot || projectRoot(dirname(file));
 
 // KIT-T106: record the path in the turn's writes ledger BEFORE any quality check can exit, so

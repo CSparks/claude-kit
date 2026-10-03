@@ -11,7 +11,7 @@ export { readStdin, payload } from './lib/stdin.mjs';
 export { git, gitTry, have, run, runStatus, nodeCli } from './lib/exec.mjs';
 export { compileSignals, loadCaptureConfig, watchRepos, readLineage, uatDefault } from './lib/config.mjs';
 export {
-  gitRoot, adopted, projectName, centralDataRoot, storeRoot, projectRoot,
+  gitRoot, gitRootOfFile, adopted, projectName, centralDataRoot, storeRoot, projectRoot,
   VENDORED, LOCKFILES, fileExt,
 } from './lib/paths.mjs';
 export { ID_CITE_SRC } from './lib/ids.mjs';

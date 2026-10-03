@@ -5,7 +5,7 @@
 // Run: node hooks/exclusions.test.mjs
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +28,7 @@ function expect(name, actual, wanted) {
 
 // A throwaway adopted repo (.git marks the project root for projectRoot()).
 function makeRepo(ignoreYaml) {
-  const d = mkdtempSync(join(tmpdir(), 'kit-excl-'));
+  const d = mkdtempSync(join(realpathSync.native(tmpdir()), 'kit-excl-')) /* long form: git reports it */;
   fixtures.push(d);
   mkdirSync(join(d, '.git'), { recursive: true });
   mkdirSync(join(d, 'src', 'gen'), { recursive: true });
@@ -207,6 +207,16 @@ try {
     runPreWrite(patchRepo, 'src/other/staged.patch', PATCH_BODY), 0);
   expect('magic-numbers: a .diff body is allowed',
     runPreWrite(patchRepo, 'src/other/staged.diff', PATCH_BODY), 0);
+
+  // --- 10. a write into a not-yet-existing folder still reads the repo-root ignore (KIT-T302) ----
+  // git can't run in the missing directory; the root comes from the nearest existing ancestor,
+  // not the crate dir (Cargo.toml) the project-marker walk lands on.
+  const newDir = makeRepo('magic-numbers:\n  - sub/**/new/*.ts\n');
+  spawnSync('git', ['init', '-q'], { cwd: newDir });
+  mkdirSync(join(newDir, 'sub', 'a'), { recursive: true });
+  writeFileSync(join(newDir, 'sub', 'a', 'Cargo.toml'), '[package]\n');
+  expect('new folder: the repo-root yaml glob suppresses', runPreWrite(newDir, 'sub/a/new/a.ts', OFFENDING), 0);
+  expect('new folder: a path outside the glob is still checked', runPreWrite(newDir, 'sub/a/other/a.ts', OFFENDING), 2);
 } finally {
   for (const d of fixtures) {
     try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ }

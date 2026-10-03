@@ -7,7 +7,7 @@
 // Run: node hooks/pre-write.test.mjs
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -183,7 +183,7 @@ try {
   // write_policy.forbidden: a project declares files an agent must never write. The block is
   // loud, first, and lifted only by a per-path carve-out under `forbidden-path`.
   {
-    const policed = adopted(false);
+    const policed = realpathSync.native(adopted(false)); // git reports the long path form
     writeFileSync(
       join(policed, '.ai', 'config.yml'),
       'write_policy:\n  forbidden:\n    - glob: "**/*.ts"\n      reason: "editor is native Rust; TypeScript is a port reference only"\n    - glob: "**/*.tsx"\n      reason: "same"\n',
