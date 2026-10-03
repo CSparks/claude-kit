@@ -4,8 +4,8 @@
 
 const MAX_BLOCKS = 20;
 const ERROR_START = /^error(\[E\d+\])?: /;
-// nextest's closing line after failed tests; a test failure, not a build error.
-const RUN_TRAILER = /^error: test run failed\s*$/;
+// Test-run closers, not build errors: nextest's `error: test run failed`, cargo test's `error: test failed, to rerun pass ...` and `error: N target(s) failed:` (its indented target lines are no error start).
+const RUN_TRAILER = /^error: (test run failed\s*$|test failed, to rerun pass |\d+ targets? failed:)/;
 const LOCATION = /^\s*--> (.+?):\d+:\d+/;
 const FAILED_TEST = /^test (\S+) \.\.\. FAILED/;
 // nextest: `FAIL [ 0.1s] (38/48) <binary-id> <test name>`; the (n/m) counter is optional.

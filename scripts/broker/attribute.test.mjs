@@ -79,6 +79,34 @@ test('attribute: a nextest failure run leads to a baseline run; a real rustc err
   } finally { cleanup(dir); }
 });
 
+// cargo test (libtest) closes a failed run with these error lines and an indented target list.
+const LIBTEST_FAILED_RUN = lines('running 2 tests', 'test a_foreign ... FAILED', 'test b_ok ... ok', '', 'test result: FAILED. 1 passed; 1 failed', '',
+  'error: test failed, to rerun pass `-p editor --lib`', 'error: 1 target failed:', '    `-p editor --lib`', '');
+
+test('diagnose: cargo test closing lines are no compile error; the failed test is named', () => {
+  const d = diagnose(LIBTEST_FAILED_RUN);
+  assert.deepEqual(d.errors, {});
+  assert.deepEqual(d.failedTests, ['a_foreign']);
+});
+
+test('attribute: a libtest failure run leads to a baseline run; a real rustc error does not', () => {
+  const dir = tempDir('attr-l-');
+  try {
+    const log = join(dir, 'b.log');
+    writeFileSync(log, 'test a_foreign ... FAILED\n');
+    const ran = [];
+    const runBaseline = (cmd) => { ran.push(cmd); return log; };
+    const r = attribute({ command: { cmd: 'cargo test -p editor', ...diagnose(LIBTEST_FAILED_RUN) }, runBaseline });
+    assert.equal(ran.length, 1);
+    assert.deepEqual([r.foreign.length, r.caused.length], [1, 0]);
+
+    const build = diagnose(lines(RUSTC_FAILED_RUN, LIBTEST_FAILED_RUN));
+    assert.ok(build.errors['crates/a/src/lib.rs'], 'the real rustc error is kept');
+    assert.equal(attribute({ command: { cmd: 'cargo test -p editor', ...build }, runBaseline }), null);
+    assert.equal(ran.length, 1, 'no baseline run for a build error');
+  } finally { cleanup(dir); }
+});
+
 test('baselineCommand: nextest binary_id + test per failure, libtest exact filter', () => {
   assert.equal(baselineCommand('cargo nextest run -p x', diagnose(NEXTEST_LOG).failed),
     'cargo nextest run -p x -E "(binary_id(=editor::the_asset_tool_discovers_every_script) and test(=the_catalog_matches_the_full_authored_inventory)) or (binary_id(=rg-scene) and test(=scene::terrain::landform::tests::foo))"');
