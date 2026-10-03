@@ -18,12 +18,17 @@ function revisionOf(cfg, revises) {
   return (prior?.revision || 1) + 1;
 }
 
-/** { job } ready to queue, { result } when the dry run is stale, or { error } for a bad envelope. */
+/** `flags['no-patch']` builds a test-only job (no operations, never landing).
+ * { job } ready to queue, { result } when the dry run is stale, or { error } for a bad envelope. */
 export function buildPatchJob(cfg, flags, text) {
   const repo = typeof flags.repo === 'string' ? repoByName(cfg, flags.repo) : cfg.repos.find((r) => !r.submodule) || cfg.repos[0];
   if (!repo) return { error: 'no such repo in .ai/config.yml broker.repos' };
-  let ops;
-  try { ops = parseEnvelope(text); } catch (e) { return { error: e.message }; }
+  let ops = [];
+  if (flags['no-patch']) {
+    if (flags.land) return { error: '--no-patch cannot --land: a landing needs operations' };
+  } else {
+    try { ops = parseEnvelope(text); } catch (e) { return { error: e.message }; }
+  }
 
   const cwd = join(cfg.root, repo.path);
   const base = revParse(cwd, 'HEAD');

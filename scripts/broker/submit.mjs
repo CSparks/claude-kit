@@ -4,6 +4,8 @@
 // misses in seconds: the stale result prints as JSON and the exit code is 1. `wait.mjs <id>`
 // blocks on the outcome. When no live broker holds the lock, submit starts one detached
 // (BROKER_NO_AUTOSTART=1 opts out). `--land` (needs `--ticket`) commits and pushes a green patch.
+// `--no-patch` queues a test-only job: no envelope, the `--test` commands run on HEAD (check-only,
+// never with `--land`), e.g. to see whether a failure is already on main.
 //
 // USE:
 //   node submit.mjs --root <tree> --ticket ST-T123 --title "…" --test "cargo t -p x" \
@@ -26,7 +28,7 @@ if (flags.land && typeof flags.ticket !== 'string') {
   console.error('submit: --land needs --ticket (the commit message cites it)');
   process.exit(2);
 }
-const out = buildPatchJob(cfg, flags, readFileSync(0, 'utf8'));
+const out = buildPatchJob(cfg, flags, flags['no-patch'] ? '' : readFileSync(0, 'utf8'));
 if (out.error) {
   console.error(`submit: ${out.error}`);
   process.exit(2);

@@ -44,6 +44,7 @@ function runCommands(cfg, job, cwd, hooks) {
     const entry = { ...r, log, ...diagnose(readFileSync(log, 'utf8')) };
     out.push(entry);
     if (r.exit === 0) continue;
+    if (!(job.ops || []).length) continue; // a test-only job already runs on the baseline: its failures are the baseline's
     if (!entry.failedTests.length || Object.keys(entry.errors).length) break;
     const pins = pairedPins(cwd, job.base, job.ticket);
     if (pins.length) { entry.suspect = suspects(entry.failed, pins); break; }
@@ -85,6 +86,7 @@ export function processPatch(cfg, job, repo) {
   }
   if (gate.length) return done({ status: STATUS.GATE, phase: 'gate', gate });
 
+  if (job.land && !(job.ops || []).length) return done({ status: STATUS.FAILED, phase: 'land', message: 'a landing needs operations; a test-only job cannot --land' });
   if (job.land && !job.ticket) return done({ status: STATUS.FAILED, phase: 'land', message: 'a landing patch needs --ticket (the commit cites it)' });
 
   const locksBefore = lockFiles(cwd);
