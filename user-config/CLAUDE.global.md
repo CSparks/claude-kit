@@ -178,19 +178,19 @@ via `scaffold-agent`; prefer the kit when the domain generalises.
   into the kit KB the same turn.
 
 # SELF-COMMENTING CODE
-Comments are for a third party reading the CURRENT code cold — never for the
-reviewer of the change, never a channel for project history. (KIT-T205)
-- **Doc comments (module/API headers): what it is and how to use it** — purpose,
-  inputs, invariants a caller must hold. A few lines, reference-style.
-- **Inline comments: rare, only a why the code cannot show** — a non-obvious
-  tradeoff; a workaround for an external bug (with a link); an intentional violation
-  of an apparent best practice. A what-comment means rename/extract/restructure
-  until it's unnecessary.
-- **No backstory, EVER**: no development history, quoted conversations or maintainer
-  remarks, multi-paragraph rationale, or ticket archaeology. Persistent rationale
-  gets AT MOST a bare ticket/decision id. The story lives in git and the ticket.
-- **Fix on sight.** A file carrying backstory comments gets them rewritten as part
-  of whatever change touches it.
+A comment exists only to tell a reader what a block of code does. (KIT-D078)
+- **Concise.** A few lines at most; a comment that doesn't explain the code is CUT,
+  not reworded.
+- **Never a running dialogue about changes**: no history, no "was / now / used to /
+  no longer", no quotes of who asked, no dated stamps, no ticket archaeology. The
+  story lives in git and the ticket; a bare ticket/decision id is the ceiling.
+- **Doc comments (module/API headers):** what it is and how to use it — purpose,
+  inputs, invariants a caller must hold.
+- **Inline comments: rare** — only a why the code cannot show (non-obvious
+  tradeoff; external-bug workaround with a link; intentional violation of a best
+  practice). A what-comment means rename/extract/restructure until it's unnecessary.
+- **Fix on sight.** A file carrying such comments gets them rewritten as part of
+  whatever change touches it.
 
 # GIT WORKFLOW
 - **Trunk-based: work on `main`, in the ONE checkout — always (KIT-D039).** No feature
