@@ -22,7 +22,7 @@ const ANY_LABEL = /^labels:.*kit-(?:bug|feature)/m;
 const CLOSED = /^status:\s*(?:review|done|superseded)\b/m;
 const SHAPE_LINE = /^kit-bug-shape:\s*(.+)$/m;
 const TITLE_MAX = 140;
-const EXAMPLE_MAX = 300;
+const EXAMPLE_MAX = 300; // the one-line "seen again" comment only; a ticket's Description keeps the full capture
 
 export function kitStoreRoot() {
   const forced = process.env.CLAUDE_KIT_BUG_STORE;
@@ -53,7 +53,8 @@ export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bu
   try {
     const root = kitStoreRoot();
     if (!root || !shape) return null;
-    const example = String(detail).replace(/\s+/g, ' ').slice(0, EXAMPLE_MAX);
+    const full = String(detail).trim();
+    const example = full.replace(/\s+/g, ' ').slice(0, EXAMPLE_MAX);
     const where = project ? ` in ${project}` : '';
     const open = openFor(root, shape);
     if (open) {
@@ -62,7 +63,7 @@ export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bu
       if (!open.text.includes(`seen again${where}: ${example}`)) appendFileSync(open.path, line);
       return { id: idm ? idm[1] : '', created: false };
     }
-    const description = `${example}\n\nkit-bug-shape: ${shape}\nfirst seen${where}. Filed automatically (KIT-T286): every kit bug is a ticket and an agent dispatched to fix it.`;
+    const description = `${full}\n\nkit-bug-shape: ${shape}\nfirst seen${where}. Filed automatically (KIT-T286): every kit bug is a ticket and an agent dispatched to fix it.`;
     const { id, path } = scaffoldNew(root, kind === 'feature' ? 'feature' : 'bug', String(title).slice(0, TITLE_MAX), { description });
     writeFileSync(path, readFileSync(path, 'utf8').replace(/^labels: \[\]$/m,`labels: [${LABELS[kind] || LABELS.bug}]`));
     return { id, created: true };

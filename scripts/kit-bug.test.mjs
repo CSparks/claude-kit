@@ -35,6 +35,14 @@ await test('fileKitBug creates a labelled ticket carrying its shape', () => {
   assert.match(text, /first seen in game/);
 });
 
+await test('a long capture lands in the ticket Description whole', () => {
+  const body = Array.from({ length: 60 }, (_, i) => `clause-${i} of the capture`).join(', ') + '.\nsecond line stays';
+  const r = fileKitBug({ shape: 'long:capture', title: 'long capture', detail: body });
+  assert.equal(r.created, true);
+  const text = read(tickets().find((n) => /long:capture/.test(read(n))));
+  assert.ok(body.length > 1000 && text.includes(body), 'full text, newlines kept');
+});
+
 await test('the same shape recurs into the open ticket instead of a new one', () => {
   const before = tickets().length;
   const r = fileKitBug({ shape: 'q-gap:verb:nope', title: 'q gap: unknown query nope', detail: 'q nope y', project: 'other' });
