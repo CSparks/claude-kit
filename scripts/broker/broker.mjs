@@ -68,7 +68,7 @@ const note = (text) => { if (text !== lastNote) console.error(text); lastNote = 
 const drain = () => {
   announce(selfCheck(cfg, { heal: true }).entries, said);
   const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`) });
-  if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : `broker: paused — tree holds hand edits (job ${summary.pausedOn} stays queued)`);
+  if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : `broker: paused — ${summary.pausedRepos.join(', ')} holds hand edits (job ${summary.pausedOn} stays queued)`);
   else lastNote = '';
   return summary;
 };
