@@ -43,6 +43,7 @@ async function main() {
   const store = unbounded || root;
 
   deadCitationWarning(store);
+  await brokerHealthWarning(store);
 
   if (p.hook_event_name === 'Stop') {
     // The unbounded store lives inside the shared data repo, whose commit stream is other
@@ -75,6 +76,16 @@ function deadCitationWarning(root) {
     shown.map((m) => '    ' + m).join('\n') + more + '\n' +
     `Re-anchor each to a durable repo path (or drop the citation) — a cited artifact that died with its session is a lost deliverable.\n`,
   );
+}
+
+// One line per fault the build broker recorded for itself (KIT-T307); silent when healthy.
+async function brokerHealthWarning(root) {
+  try {
+    const { healthWarnings } = await import('../scripts/broker/health-read.mjs');
+    for (const w of healthWarnings(root)) process.stderr.write(`⚠ ${w}\n`);
+  } catch {
+    /* best-effort */
+  }
 }
 
 // --- PreCompact: flush reminder -------------------------------------------------

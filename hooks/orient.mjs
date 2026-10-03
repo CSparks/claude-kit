@@ -161,6 +161,13 @@ out.push('  q cannot do it? file it: cap feature "q: <what is missing>" --projec
 out.push('  Adoption ledger: <framework>/docs/CHOICES.toml — cite the row before naming any crate alternative.');
 out.push('  An empty/failed query is "NOT CHECKED", never "does not exist".');
 out.push('');
+// The build broker announces its own faults in target/broker/health.json (KIT-T307).
+try {
+  const { healthWarnings } = await import('../scripts/broker/health-read.mjs');
+  for (const w of healthWarnings(root)) out.push(`!! ${w}`);
+} catch {
+  /* broker health is best-effort */
+}
 // Any kit bug is a ticket plus an agent dispatched to fix it (KIT-T286): list the open ones.
 try {
   const { openKitBugs } = await import('../scripts/kit-bug.mjs');

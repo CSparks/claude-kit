@@ -39,6 +39,13 @@ export function restore(cfg, journal) {
   rmSync(journalPath(cfg), { force: true });
 }
 
+/** Paths whose bytes differ from the journal's pre-image (call after `restore`). */
+export function restoreMismatches(journal) {
+  return journal.entries
+    .filter(({ path, blob }) => (existsSync(join(journal.cwd, path)) ? hashObject(journal.cwd, path) : null) !== blob)
+    .map(({ path }) => path);
+}
+
 /** Drop the journal without restoring: the tree now matches a commit. */
 export function discard(cfg) {
   rmSync(journalPath(cfg), { force: true });

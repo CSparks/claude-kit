@@ -17,6 +17,7 @@
 import { parseFlags, loadCfg } from './cli.mjs';
 import { isPaused, pause, resume } from './control.mjs';
 import { deferredLines } from './deferred.mjs';
+import { announce, healthLine, selfCheck } from './health.mjs';
 import { acquireLock, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { processOnce } from './queue.mjs';
@@ -38,6 +39,7 @@ if (command === 'status') {
   const queued = listQueue(cfg).length;
   console.error(`broker: ${isPaused(cfg) ? 'PAUSED' : 'running'}, ${queued} queued`);
   for (const line of deferredLines(cfg)) console.error(`  ${line}`);
+  for (const e of selfCheck(cfg).entries) console.error(`  ${healthLine(e)}`);
   process.exit(0);
 }
 
@@ -59,10 +61,12 @@ const recovered = recoverInflight(cfg);
 if (recovered) console.error(`broker: restored the tree after interrupted job ${recovered}; it re-runs`);
 console.error(`broker: watching ${root} (target ${cfg.targetDir}, jobs -j ${cfg.jobs})`);
 
+const said = new Set();
 let lastNote = '';
 const note = (text) => { if (text !== lastNote) console.error(text); lastNote = text; };
 
 const drain = () => {
+  announce(selfCheck(cfg, { heal: true }).entries, said);
   const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`) });
   if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : `broker: paused — tree holds hand edits (job ${summary.pausedOn} stays queued)`);
   else lastNote = '';

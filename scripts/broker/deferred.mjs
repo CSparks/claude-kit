@@ -14,8 +14,9 @@ import { spawnSync } from 'node:child_process';
 import { baselineCommand } from './attribute.mjs';
 import { repoByName } from './config.mjs';
 import { diagnose, testKey } from './diagnose.mjs';
-import { dirtyPaths, revParse } from './git.mjs';
+import { dirtyPaths, lockFiles, revParse } from './git.mjs';
 import { listQueue, logPathFor, ensureDirs } from './result.mjs';
+import { recordRun } from './health-store.mjs';
 import { guardLocks } from './preimage.mjs';
 import { runCommand } from './run.mjs';
 
@@ -62,7 +63,9 @@ export function recheckDeferred(cfg, { fileBug = fileBugViaCap } = {}) {
     const { e: first, cwd } = members[0];
     const failures = members.map((m) => ({ binary: m.e.binary || null, test: m.e.test }));
     const logPath = logPathFor(cfg, 'deferred', n++);
+    const startedAt = new Date().toISOString();
     guardLocks(cfg, { id: 'deferred', cwd }, () => runCommand(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }));
+    recordRun(cfg, { id: 'deferred', repo: first.repo, kind: 'recheck', startedAt, entries: lockFiles(cwd).map((path) => ({ path, blob: null })) });
     const seen = diagnose(readFileSync(logPath, 'utf8'));
     const failed = new Set(seen.failed.map(testKey));
     const passed = new Set(seen.passed.map(testKey));

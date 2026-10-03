@@ -6,13 +6,14 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { dryRun } from './apply.mjs';
-import { capture, discard, dropNewLocks, restore } from './preimage.mjs';
+import { capture, discard, dropNewLocks, restore, restoreMismatches } from './preimage.mjs';
 import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
 import { addDeferred } from './deferred.mjs';
-import { gatePlan } from './gate.mjs';
+import { GATE_CRASH, gatePlan } from './gate.mjs';
+import { recordFault, recordRun } from './health-store.mjs';
 import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand } from './run.mjs';
@@ -76,12 +77,18 @@ export function processPatch(cfg, job, repo) {
   if (!plan.ok) return done({ status: STATUS.STALE, phase: 'apply', stale: staleEntries(cwd, job.base, plan.stale) });
 
   const gate = gatePlan(cwd, plan.files);
+  const crash = gate.find((g) => g.check === GATE_CRASH);
+  if (crash) {
+    recordFault(cfg, { kind: GATE_CRASH, id: job.id, detail: crash.msg });
+    return done({ status: STATUS.FAILED, phase: 'gate', gate, message: `the gate crashed (the broker's fault, not the patch's): ${crash.msg}` });
+  }
   if (gate.length) return done({ status: STATUS.GATE, phase: 'gate', gate });
 
   if (job.land && !job.ticket) return done({ status: STATUS.FAILED, phase: 'land', message: 'a landing patch needs --ticket (the commit cites it)' });
 
   const locksBefore = lockFiles(cwd);
   const captureTree = () => capture(cfg, { id: job.id, cwd, paths: [...new Set([...plan.files.keys(), ...locksBefore])] });
+  const startedAt = new Date().toISOString();
   let journal = captureTree();
   const restoreTree = () => {
     restore(cfg, journal);
@@ -110,6 +117,11 @@ export function processPatch(cfg, job, repo) {
     return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, landed: { sha: land.sha, superSha: land.superSha } });
   } finally {
     if (keep) discard(cfg);
-    else restoreTree();
+    else {
+      restoreTree();
+      const off = restoreMismatches(journal);
+      if (off.length) recordFault(cfg, { kind: 'restore-mismatch', id: job.id, detail: `after the restore ${off.join(', ')} differ(s) from the journal` });
+    }
+    recordRun(cfg, { id: job.id, repo: job.repo, kind: 'job', startedAt, entries: journal.entries });
   }
 }

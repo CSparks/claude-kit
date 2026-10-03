@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { parseFlags, loadCfg } from './cli.mjs';
 import { ensureBroker, IDLE_EXIT_MIN } from './ensure.mjs';
+import { announce, selfCheck } from './health.mjs';
 import { writeJob, writeResult } from './result.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
 
@@ -36,3 +37,4 @@ if (out.result) {
 }
 console.log(writeJob(cfg, out.job).id);
 if (!process.env.BROKER_NO_AUTOSTART && ensureBroker(cfg, root)) console.error(`submit: no broker was running; started one (idle exit ${IDLE_EXIT_MIN} min)`);
+else announce(selfCheck(cfg).entries, new Set());
