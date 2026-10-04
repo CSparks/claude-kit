@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { normalizeBroker } from './config.mjs';
 import { processOnce } from './queue.mjs';
 import { readResult, writeJob } from './result.mjs';
@@ -117,5 +118,65 @@ test('flag misuse is refused: --no-pin on a non-submodule repo, --pin on a submo
     assert.match(buildPatchJob(t.cfg, { 'no-pin': true }, '*** write a.txt\na\n').error, /submodule/);
     assert.match(buildPatchJob(t.cfg, { repo: 'rapid-game', pin: 'rapid-game=abcdef1' }, '*** write a.txt\na\n').error, /superproject job/);
     assert.match(buildPatchJob(t.cfg, { pin: 'nope=abcdef1' }, '*** write a.txt\na\n').error, /not a submodule/);
+  } finally { t.done(); }
+});
+
+// A framework commit landed with --no-pin: the live submodule now sits ahead of the recorded pin.
+function aheadOfPin(t) {
+  const pinned = g(['rev-parse', 'HEAD:rapid-game'], t.root);
+  const ahead = t.run({ repo: 'rapid-game', ticket: 'ST-T1', title: 'framework half', land: true, 'no-pin': true }, '*** write api.txt\nnew api\n').r.landed.sha;
+  assert.notEqual(pinned, ahead);
+  return { pinned, ahead };
+}
+
+test('a job without --pin builds with the submodule at the sha HEAD records, then restores the checkout', () => {
+  const t = setup();
+  try {
+    const { pinned, ahead } = aheadOfPin(t);
+    assert.equal(g(['rev-parse', 'HEAD'], t.sub), ahead);
+    const { r } = t.run({ ticket: 'ST-T9', title: 'unrelated', land: true }, '*** write other.txt\nunrelated\n', [SUB_HEAD]);
+    assert.equal(r.status, 'landed', JSON.stringify(r));
+    assert.match(r.commands[0].logTail.join('\n'), new RegExp(pinned), 'built at the recorded pin');
+    assert.doesNotMatch(r.commands[0].logTail.join('\n'), new RegExp(ahead));
+    assert.deepEqual(names(t.root), ['other.txt'], 'the landing does not move the gitlink');
+    assert.equal(g(['rev-parse', 'HEAD'], t.sub), ahead, 'the submodule is back at its own checkout');
+    assert.equal(g(['symbolic-ref', '--short', 'HEAD'], t.sub), 'main');
+  } finally { t.done(); }
+});
+
+test('a check-only job without --pin also builds at the pin and restores', () => {
+  const t = setup();
+  try {
+    const { pinned, ahead } = aheadOfPin(t);
+    const { r } = t.run({}, '*** write other.txt\nunrelated\n', [SUB_HEAD]);
+    assert.equal(r.status, 'passed', JSON.stringify(r));
+    assert.match(r.commands[0].logTail.join('\n'), new RegExp(pinned));
+    assert.equal(g(['rev-parse', 'HEAD'], t.sub), ahead);
+  } finally { t.done(); }
+});
+
+test('a --pin job still uses its own sha, and no pin is applied when the submodule already sits at the record', () => {
+  const t = setup();
+  try {
+    const { pinned, ahead } = aheadOfPin(t);
+    const { r } = t.run({ pin: `rapid-game=${ahead}` }, '*** write other.txt\nx\n', [SUB_HEAD]);
+    assert.match(r.commands[0].logTail.join('\n'), new RegExp(ahead));
+    g(['checkout', '-q', '--detach', pinned], t.sub);
+    const again = t.run({}, '*** write other2.txt\nx\n', [SUB_HEAD]).r;
+    assert.equal(again.status, 'passed');
+    assert.equal(g(['rev-parse', 'HEAD'], t.sub), pinned);
+  } finally { t.done(); }
+});
+
+test('negative: uncommitted work inside a submodule that must move refuses the job and is left alone', () => {
+  const t = setup();
+  try {
+    aheadOfPin(t);
+    writeFileSync(join(t.sub, 'api.txt'), 'hand edit\n');
+    const { r } = t.run({}, '*** write other.txt\nx\n', [SUB_HEAD]);
+    assert.equal(r.status, 'failed');
+    assert.equal(r.phase, 'pin');
+    assert.match(r.message, /uncommitted changes/);
+    assert.equal(readFileSync(join(t.sub, 'api.txt'), 'utf8'), 'hand edit\n');
   } finally { t.done(); }
 });

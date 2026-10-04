@@ -13,7 +13,7 @@ import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
 import { addDeferred } from './deferred.mjs';
 import { GATE_CRASH, gatePlan } from './gate.mjs';
-import { checkoutPins, preparePins, revertPins, settlePins } from './pin.mjs';
+import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
 import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
@@ -96,6 +96,10 @@ export function processPatch(cfg, job, repo) {
     if (prep.error) return done({ status: STATUS.FAILED, phase: 'pin', message: prep.error });
     pins = prep.pins;
   }
+  const held = implicitPins(cfg, repo, cwd, job);
+  if (held.error) return done({ status: STATUS.FAILED, phase: 'pin', message: held.error });
+  pins = [...pins, ...held.pins];
+  const explicit = () => pins.filter((p) => !p.implicit);
 
   const locksBefore = lockFiles(cwd);
   const captureTree = () => capture(cfg, { id: job.id, cwd, paths: [...new Set([...plan.files.keys(), ...locksBefore])] });
@@ -112,7 +116,7 @@ export function processPatch(cfg, job, repo) {
     const diffStat = git(['diff', '--stat'], cwd).out;
     const baseline = (fn) => {
       restoreTree();
-      revertPins(pins);
+      revertPins(explicit());
       const state = { dirty: dirtyPaths(cwd), head: revParse(cwd, 'HEAD') };
       try { return withState(state, fn((cmd, tag) => { const log = logPathFor(cfg, job.id, tag); runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs }); return log; })); }
       finally { restoreTree(); journal = captureTree(); checkoutPins(pins); writePlan(cwd, plan.files); }
@@ -129,7 +133,7 @@ export function processPatch(cfg, job, repo) {
       const known = new Set(foreign.map((f) => f.test));
       return { ok: again.every((c) => c.exit === 0 || (c.failedTests.length && !Object.keys(c.errors).length && c.failedTests.every((t) => known.has(t)))) };
     };
-    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...pins.map((p) => p.path)])], { verify: reverify });
+    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], { verify: reverify });
     keep = land.committed;
     if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, message: land.error });

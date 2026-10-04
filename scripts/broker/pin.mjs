@@ -61,6 +61,29 @@ export function preparePins(cfg, cwd, job) {
   return { pins: sessions };
 }
 
+/**
+ * Sessions for the submodules a superproject job did NOT pin: each is checked out at the sha HEAD
+ * records for the run and restored after it, so a framework commit landed with --no-pin never leaks
+ * into another job's build. A submodule already at its recorded sha needs nothing; one that must
+ * move but holds uncommitted work refuses the job.
+ */
+export function implicitPins(cfg, superRepo, cwd, job) {
+  if (superRepo.submodule) return { pins: [] };
+  const sessions = [];
+  for (const sub of cfg.repos.filter((r) => r.submodule && String(r.pinIn) === String(superRepo.path))) {
+    if ((job.pins || []).some((p) => p.repo === sub.name)) continue;
+    const subCwd = join(cfg.root, sub.path);
+    const recorded = git(['rev-parse', `HEAD:${sub.path}`], cwd).out;
+    const current = revParse(subCwd, 'HEAD');
+    if (!recorded || !current || recorded === current) continue;
+    if (dirtyPaths(subCwd).length) return { error: `${sub.path} sits at ${current.slice(0, 10)} but ${superRepo.name} pins ${recorded.slice(0, 10)}, and ${sub.path} has uncommitted changes; the broker will not check it out under them` };
+    if (git(['cat-file', '-e', `${recorded}^{commit}`], subCwd).code !== 0) return { error: `pin: ${recorded.slice(0, 10)} (recorded by ${superRepo.name}) is not a commit in ${sub.path}` };
+    const branch = git(['symbolic-ref', '-q', '--short', 'HEAD'], subCwd).out;
+    sessions.push({ repo: sub.name, path: sub.path, sha: recorded, sub, cwd: subCwd, prevBranch: branch || null, prevSha: current, implicit: true });
+  }
+  return { pins: sessions };
+}
+
 export function checkoutPins(pins) {
   for (const p of pins) git(['checkout', '-q', '--detach', p.sha], p.cwd);
 }
@@ -72,7 +95,8 @@ export function revertPins(pins) {
 
 /** After a landing: back on the submodule's branch, fast-forwarded to the pinned sha when possible. */
 export function settlePins(pins) {
-  for (const p of pins) {
+  revertPins(pins.filter((p) => p.implicit));
+  for (const p of pins.filter((q) => !q.implicit)) {
     const branch = p.prevBranch || p.sub.main;
     const on = git(['checkout', '-q', branch], p.cwd).code === 0;
     if (!on || git(['merge', '-q', '--ff-only', p.sha], p.cwd).code !== 0) git(['checkout', '-q', '--detach', p.sha], p.cwd);
