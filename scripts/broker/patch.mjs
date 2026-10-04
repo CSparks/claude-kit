@@ -114,8 +114,14 @@ export function processPatch(cfg, job, repo) {
 
     // Every Cargo.lock was journalled as found (KIT-T306), so a lock that differs from HEAD now
     // is either the maintainer's cargo-resolved lock or the run's; both belong in the landing.
-    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd)])]);
+    const reverify = () => {
+      const again = runCommands(cfg, job, cwd, { baseline: () => null });
+      const known = new Set(foreign.map((f) => f.test));
+      return { ok: again.every((c) => c.exit === 0 || (c.failedTests.length && !Object.keys(c.errors).length && c.failedTests.every((t) => known.has(t)))) };
+    };
+    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd)])], { verify: reverify });
     keep = land.committed;
+    if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, message: land.error });
     return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, landed: { sha: land.sha, superSha: land.superSha } });
   } finally {

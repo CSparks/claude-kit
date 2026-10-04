@@ -7,7 +7,7 @@
 //   empty `commands` means the broker fills `verify_default`.
 //
 // RESULT (target/broker/results/<id>.json), written by the broker or by submit on a stale dry run:
-//   { id, revises, revision, ticket, base, head, status: passed|failed|gate|stale|dirty|landed,
+//   { id, revises, revision, ticket, base, head, status: passed|failed|gate|stale|dirty|landed|conflict,
 //     phase, gate: [{ path, check, msg }], stale: [{ index, path, reason, excerpt, since }],
 //     commands: [{ cmd, composed, exit, durationMs, log, logTail, errors, failedTests, foreign? }],
 //     foreign: [{ test, reason }]  (failures that also occur without the patch; they do not fail the job),
@@ -17,7 +17,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 
-export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed' };
+export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict' };
 
 export function ensureDirs(cfg) {
   const p = brokerPaths(cfg);

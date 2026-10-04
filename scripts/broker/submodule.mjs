@@ -5,12 +5,13 @@
 // assert nothing else rode along, then commit that one pathspec.
 
 import { git, stagedPaths } from './git.mjs';
+import { syncPush } from './sync-push.mjs';
 
 // Re-pin `subPath` in the superproject at `superRoot`. Returns { ok, sha, error }.
 //   - refuses if anything is already staged (a writer's half-made commit would be captured);
 //   - stages only `subPath`, then asserts the staged set is exactly {subPath};
 //   - commits with a `-- <subPath>` pathspec and the [no-log: submodule pin] marker;
-//   - pushes the superproject.
+//   - pushes the superproject (fetching and rebasing first when its remote moved).
 export function repinSuperproject({ superRoot, subPath, remote = 'origin', main = 'main', sha, ticket, title }) {
   const preexisting = stagedPaths(superRoot);
   if (preexisting.length) {
@@ -34,8 +35,8 @@ export function repinSuperproject({ superRoot, subPath, remote = 'origin', main 
   const commit = git(['commit', '-m', msg, '--', subPath], superRoot);
   if (commit.code !== 0) return { ok: false, error: `superproject commit failed: ${commit.err}` };
 
-  const pushed = git(['push', remote, main], superRoot);
-  if (pushed.code !== 0) return { ok: false, error: `superproject push failed: ${pushed.err}` };
+  const pushed = syncPush(superRoot, remote, main);
+  if (!pushed.ok) return { ok: false, error: `superproject push failed: ${pushed.error}` };
   return { ok: true, sha };
 }
 

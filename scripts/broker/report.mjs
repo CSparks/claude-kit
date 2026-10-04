@@ -3,6 +3,7 @@
 export function printResult(r, log = console.log) {
   log(`${r.id}${r.revision > 1 ? ` (revision ${r.revision})` : ''} [${r.repo || ''}] → ${r.status}${r.phase ? ` at ${r.phase}` : ''}${r.landed ? ` landed ${r.landed.sha}` : ''}`);
   if (r.message) log(`  ${r.message}`);
+  for (const f of r.conflict || []) log(`  conflict: ${f}`);
   if (r.head) log(`  HEAD ${r.head}${r.base && r.base !== r.head ? ` (submitted on ${r.base})` : ''}`);
   for (const s of r.stale || []) {
     log(`  op ${s.index} ${s.path}: ${s.reason}`);
