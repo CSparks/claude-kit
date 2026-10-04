@@ -87,6 +87,8 @@ export function brokerPaths(cfg) {
     results: join(home, 'results'),
     logs: join(home, 'logs'),
     lock: join(home, 'broker.lock'),
+    beat: join(home, 'broker.beat'),
+    spawning: join(home, 'broker.spawning'),
   };
 }
 

@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
@@ -102,7 +103,7 @@ test('an inflight job older than 3x the longest recent command is stuck; a young
     const r = selfCheck(s.cfg, { now: t0 + 13_000, stuckFloorMs: 1000 });
     assert.deepEqual(kinds(r), ['stuck-inflight']);
     assert.match(r.entries[0].detail, /j-run.*12s limit/);
-    writeFileSync(brokerPaths(s.cfg).lock, '{}');
+    writeFileSync(brokerPaths(s.cfg).lock, JSON.stringify({ pid: spawnSync(process.execPath, ['-e', '0']).pid, host: hostname(), ts: 'x' }));
     assert.deepEqual(selfCheck(s.cfg, { now: t0 + 13_000, stuckFloorMs: 1000 }).entries, [], 'no daemon: a crash leftover, not a stuck job');
   } finally { s.done(); }
 });

@@ -4,13 +4,15 @@
 // 1 = failed/stale/gate/conflict/dirty; 2 = timed out. A result older than the job's current
 // inflight run is a previous attempt's and is not final.
 //
-// USE: node wait.mjs <id> --root <build-checkout> [--timeout <s>] [--poll <ms>]
+// USE: node wait.mjs <id> --root <build-checkout> [--timeout <s>] [--poll <ms>] [--grace-ms <ms>]
+// (--grace-ms: how long no broker may be seen before wait says so; default 10000, a restart's gap)
 
 import { parseFlags, loadCfg } from './cli.mjs';
 import { isCurrentResult } from './current.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
 import { printResult } from './report.mjs';
-import { noBrokerWarning } from './ensure.mjs';
+import { NO_BROKER_GRACE_MS, noBrokerWarning } from './ensure.mjs';
+import { observedLive } from './lock.mjs';
 import { announce, selfCheck } from './health.mjs';
 
 // Bash caps a foreground call at 600 s; 540 leaves room to print the queue position.
@@ -24,11 +26,13 @@ if (!id) {
 const { cfg } = loadCfg(flags);
 const timeoutMs = (Number(flags.timeout) || DEFAULT_TIMEOUT_S) * 1000;
 const pollMs = Number(flags.poll) || cfg.pollMs;
+const graceMs = flags['grace-ms'] === undefined ? NO_BROKER_GRACE_MS : Number(flags['grace-ms']);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const deadline = Date.now() + timeoutMs;
 let warned = false;
+let missingSince = null;
 const said = new Set();
 while (Date.now() < deadline) {
   const result = readResult(cfg, id);
@@ -36,9 +40,11 @@ while (Date.now() < deadline) {
     printResult(result);
     process.exit(result.status === STATUS.PASSED || result.status === STATUS.LANDED ? 0 : 1);
   }
-  const warning = warned ? null : noBrokerWarning(cfg, id);
+  const missingForMs = missingSince === null ? 0 : Date.now() - missingSince;
+  const warning = warned ? null : noBrokerWarning(cfg, id, { missingForMs, graceMs });
+  missingSince = observedLive(cfg) ? null : (missingSince ?? Date.now());
   if (warning) { console.error(warning); warned = true; }
-  announce(selfCheck(cfg).entries, said);
+  announce(selfCheck(cfg, { skipNoDaemon: missingSince === null || Date.now() - missingSince < graceMs }).entries, said);
   await sleep(pollMs);
 }
 const position = listQueue(cfg).findIndex((j) => j.id === id);

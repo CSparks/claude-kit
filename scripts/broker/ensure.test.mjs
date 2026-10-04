@@ -30,6 +30,7 @@ test('a dead lock starts a broker exactly once; no lock at all does too', () => 
     assert.equal(ensureBroker(s.cfg, s.root, spawner), true);
     assert.deepEqual(calls, [[s.root, 60]]);
     rmSync(brokerPaths(s.cfg).lock);
+    rmSync(brokerPaths(s.cfg).spawning); // the first daemon took the lock and cleared its claim
     assert.equal(ensureBroker(s.cfg, s.root, spawner), true);
     assert.equal(calls.length, 2);
   } finally { s.done(); }
@@ -50,7 +51,7 @@ test('wait with a dead lock and a queued job prints the no-broker warning; a liv
   try {
     const id = queue(s);
     lock(s, deadPid());
-    const waited = spawnSync(process.execPath, [join(import.meta.dirname, 'wait.mjs'), id, '--root', s.root, '--timeout', '1', '--poll', '100'], { encoding: 'utf8' });
+    const waited = spawnSync(process.execPath, [join(import.meta.dirname, 'wait.mjs'), id, '--root', s.root, '--timeout', '1', '--poll', '100', '--grace-ms', '0'], { encoding: 'utf8' });
     assert.equal(waited.status, 2);
     assert.match(waited.stderr, /wait: no broker running/);
     assert.equal(waited.stderr.match(/no broker running/g).length, 1, 'warned once');

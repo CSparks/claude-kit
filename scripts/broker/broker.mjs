@@ -19,7 +19,7 @@ import { parseFlags, loadCfg } from './cli.mjs';
 import { isPaused, pause, resume } from './control.mjs';
 import { deferredLines } from './deferred.mjs';
 import { announce, healthLine, selfCheck } from './health.mjs';
-import { acquireLock, releaseLock } from './lock.mjs';
+import { acquireLock, heartbeat, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { processOnce } from './queue.mjs';
 import { STATUS, ensureDirs, listQueue } from './result.mjs';
@@ -76,6 +76,7 @@ let lastNote = '';
 const note = (text) => { if (text !== lastNote) console.error(text); lastNote = text; };
 
 const drain = () => {
+  heartbeat(cfg);
   announce(selfCheck(cfg, { heal: true }).entries, said);
   const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`) });
   if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : `broker: paused — ${summary.pausedRepos.join(', ')} holds hand edits (job ${summary.pausedOn} stays queued)`);

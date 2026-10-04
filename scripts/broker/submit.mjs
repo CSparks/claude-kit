@@ -50,4 +50,4 @@ if (typeof flags.revises === 'string') {
   console.error(gone.ok ? `submit: withdrew queued ${flags.revises} (superseded by ${queuedJob.id})` : `submit: ${flags.revises} not withdrawn: ${gone.error}`);
 }
 if (!process.env.BROKER_NO_AUTOSTART && ensureBroker(cfg, root)) console.error(`submit: no broker was running; started one (idle exit ${IDLE_EXIT_MIN} min)`);
-else announce(selfCheck(cfg).entries, new Set());
+else announce(selfCheck(cfg, { skipNoDaemon: true }).entries, new Set());
