@@ -6,6 +6,10 @@
 // (BROKER_NO_AUTOSTART=1 opts out). `--land` (needs `--ticket`) commits and pushes a green patch.
 // `--no-patch` queues a test-only job: no envelope, the `--test` commands run on HEAD (check-only,
 // never with `--land`), e.g. to see whether a failure is already on main.
+// `--repo <submodule> --no-pin --land` pushes the submodule commit and leaves the superproject alone.
+// `--pin <submodule>=<sha>` (superproject job, repeatable) builds and tests with the submodule at <sha>;
+// with `--land` the gitlink and the patch paths land in ONE commit, and <sha> must already be on the
+// submodule's remote.
 //
 // USE:
 //   node submit.mjs --root <tree> --ticket ST-T123 --title "…" --test "cargo t -p x" \

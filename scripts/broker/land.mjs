@@ -34,7 +34,7 @@ export function landPatch(cfg, repo, job, cwd, paths, { verify } = {}) {
   }
   const sha = revParse(cwd, 'HEAD');
   if (!pushed.ok) return { ok: false, committed: true, sha, error: pushed.verifyFailed ? pushed.error : `committed ${sha} locally; push ${repo.remote} ${repo.main} failed: ${pushed.error}` };
-  if (!repo.submodule) return { ok: true, committed: true, sha, superSha: null };
+  if (!repo.submodule || job.noPin) return { ok: true, committed: true, sha, superSha: null };
 
   const superRepo = cfg.repos.find((r) => !r.submodule && normalize(r.path) === normalize(repo.pinIn));
   const superRoot = join(cfg.root, repo.pinIn);

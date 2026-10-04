@@ -9,6 +9,7 @@ import { asList } from './cli.mjs';
 import { repoByName } from './config.mjs';
 import { parseEnvelope } from './envelope.mjs';
 import { git, revParse, showFile } from './git.mjs';
+import { parsePins } from './pin.mjs';
 import { staleEntries } from './patch.mjs';
 import { STATUS, listQueue, newJobId, readResult } from './result.mjs';
 
@@ -18,7 +19,8 @@ function revisionOf(cfg, revises) {
   return (prior?.revision || 1) + 1;
 }
 
-/** `flags['no-patch']` builds a test-only job (no operations, never landing).
+/** `flags['no-patch']` builds a test-only job (no operations, never landing). `flags['no-pin']`
+ * lands a submodule commit without re-pinning; `flags.pin` (name=sha) pins a submodule for the job (pin.mjs).
  * { job } ready to queue, { result } when the dry run is stale, or { error } for a bad envelope. */
 export function buildPatchJob(cfg, flags, text) {
   const repo = typeof flags.repo === 'string' ? repoByName(cfg, flags.repo) : cfg.repos.find((r) => !r.submodule) || cfg.repos[0];
@@ -29,6 +31,11 @@ export function buildPatchJob(cfg, flags, text) {
   } else {
     try { ops = parseEnvelope(text); } catch (e) { return { error: e.message }; }
   }
+
+  if (flags['no-pin'] && !repo.submodule) return { error: '--no-pin applies to a job whose --repo is a submodule' };
+  if (flags.pin && repo.submodule) return { error: '--pin belongs on the superproject job, not on a submodule job' };
+  const pinned = flags.pin ? parsePins(cfg, repo, flags) : { pins: [] };
+  if (pinned.error) return { error: pinned.error };
 
   const cwd = join(cfg.root, repo.path);
   const base = revParse(cwd, 'HEAD');
@@ -43,5 +50,5 @@ export function buildPatchJob(cfg, flags, text) {
     return { result: { ...meta, head: base, status: STATUS.STALE, phase: 'submit-dryrun', stale, gate: [], commands: [], landed: null } };
   }
   const files = Object.fromEntries([...plan.files.keys()].map((p) => [p, git(['rev-parse', `HEAD:${p}`], cwd).out || null]));
-  return { job: { ...meta, ops, files, commands: asList(flags.test).map(String), land: !!flags.land } };
+  return { job: { ...meta, ops, files, commands: asList(flags.test).map(String), land: !!flags.land, pins: pinned.pins, noPin: !!flags['no-pin'] } };
 }
