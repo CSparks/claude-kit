@@ -7,7 +7,7 @@
 //   empty `commands` means the broker fills `verify_default`.
 //
 // RESULT (target/broker/results/<id>.json), written by the broker or by submit on a stale dry run:
-//   { id, revises, revision, ticket, base, head, status: passed|failed|gate|stale|dirty|landed|conflict,
+//   { id, revises, revision, ticket, base, head, status: passed|failed|gate|stale|dirty|landed|conflict|superseded|cancelled,
 //     phase, gate: [{ path, check, msg }], stale: [{ index, path, reason, excerpt, since }],
 //     commands: [{ cmd, composed, exit, durationMs, log, logTail, errors, failedTests, foreign? }],
 //     foreign: [{ test, reason }]  (failures that also occur without the patch; they do not fail the job),
@@ -17,7 +17,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 
-export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict' };
+export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict', SUPERSEDED: 'superseded', CANCELLED: 'cancelled' };
 
 export function ensureDirs(cfg) {
   const p = brokerPaths(cfg);
@@ -53,6 +53,9 @@ export function listQueue(cfg) {
     })
     .filter(Boolean);
 }
+
+/** True while the job's file is still in the queue. */
+export const queued = (cfg, id) => existsSync(join(brokerPaths(cfg).queue, `${id}.json`));
 
 // A job leaves the queue only once its result is written — a crash mid-job leaves the job file
 // in place, so an idempotent restart re-queues it by construction (queue.mjs relies on this).

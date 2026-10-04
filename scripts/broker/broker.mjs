@@ -11,6 +11,7 @@
 //   node broker.mjs --root <checkout> --poll 2000
 //   node broker.mjs pause --root <checkout>            # stop starting jobs (one in flight finishes)
 //   node broker.mjs resume --root <checkout>
+//   node broker.mjs cancel <job-id> --root <checkout>  # withdraw a QUEUED job; a running one is refused
 //   node broker.mjs status --root <checkout>           # queue, pause, deferred foreign failures
 // Start it with background Bash; a second start while one is live exits 1 (restart is idempotent).
 
@@ -21,7 +22,8 @@ import { announce, healthLine, selfCheck } from './health.mjs';
 import { acquireLock, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { processOnce } from './queue.mjs';
-import { ensureDirs, listQueue } from './result.mjs';
+import { STATUS, ensureDirs, listQueue } from './result.mjs';
+import { withdrawJob } from './withdraw.mjs';
 
 const MS_PER_MIN = 60 * 1000;
 const flags = parseFlags(process.argv.slice(2));
@@ -33,6 +35,14 @@ if (command === 'pause' || command === 'resume') {
   (command === 'pause' ? pause : resume)(cfg);
   console.error(`broker: ${command === 'pause' ? 'paused' : 'resumed'} (${root})`);
   process.exit(0);
+}
+
+if (command === 'cancel') {
+  const id = flags._[1];
+  if (!id) { console.error('broker: cancel needs a job id'); process.exit(2); }
+  const gone = withdrawJob(cfg, id, { status: STATUS.CANCELLED, message: 'cancelled by the operator' });
+  console.error(gone.ok ? `broker: cancelled queued ${id}` : `broker: ${gone.error}`);
+  process.exit(gone.ok ? 0 : 1);
 }
 
 if (command === 'status') {

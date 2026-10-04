@@ -7,7 +7,7 @@ import { repoByName } from './config.mjs';
 import { isPaused } from './control.mjs';
 import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
-import { STATUS, listQueue, removeJob, writeResult } from './result.mjs';
+import { STATUS, listQueue, queued, removeJob, writeResult } from './result.mjs';
 
 // Drain the queue until it is empty or the operator ran `pause`. A job whose repo holds a hand-driven
 // writer's changes stays queued and pauses THAT repo only: its later jobs wait behind it (order within a
@@ -18,7 +18,7 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
   if (isPaused(cfg)) return { processed, paused: true, reason: 'manual' };
   const held = new Map();
   for (const job of listQueue(cfg)) {
-    if (held.has(job.repo)) continue;
+    if (held.has(job.repo) || !queued(cfg, job.id)) continue; // withdrawn since the listing
     const { result, pause } = processJob(cfg, job);
     if (onResult) onResult(result);
     if (pause) { held.set(job.repo, job.id); continue; }
