@@ -3,6 +3,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const readJson = (path) => JSON.parse(readFileSync(join(ROOT, path), 'utf8'));
@@ -58,6 +59,21 @@ for (const command of commands) {
   const script = command.match(/compat-run\.mjs\"?\s+([a-z0-9-]+\.mjs)/)?.[1];
   ok(`hook target ${script || '(unparsed)'} exists`, Boolean(script) && existsSync(join(ROOT, 'hooks', script)));
 }
+
+// Every committed agent definition must be registered in the Claude manifest, and every
+// registered path must exist: an unlisted agent is never offered to a session.
+const tracked = spawnSync('git', ['ls-files', 'agents'], { cwd: ROOT, encoding: 'utf8' }).stdout
+  .split('\n').filter((f) => /^agents\/[^/]+\.md$/.test(f) && f !== 'agents/README.md');
+const registered = claude.agents || [];
+for (const file of tracked) {
+  ok(`agent ${file} is registered in the plugin manifest`, registered.includes(`./${file}`));
+  const head = (readFileSync(join(ROOT, file), 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/) || [, ''])[1];
+  const field = (k) => (head.match(new RegExp(`^${k}:\\s*(.+)$`, 'm')) || [, ''])[1].trim();
+  const stem = file.slice('agents/'.length, -3);
+  ok(`agent ${stem} frontmatter: name matches the file; description, tools and model present`, field('name') === stem && Boolean(field('description')) && Boolean(field('tools')) && Boolean(field('model')));
+}
+for (const entry of registered) ok(`registered agent ${entry} exists`, existsSync(join(ROOT, entry)));
+ok('no agent is registered twice', new Set(registered).size === registered.length);
 
 console.log(`\nplugin-compat: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

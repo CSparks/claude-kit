@@ -58,7 +58,8 @@ have no Edit/Write tool and never run cargo. Operator setup + schemas: `docs/BRO
 
 ## Rules
 
-- Read-only: no redirects into the tree, no `sed -i`, no git writes, no cargo.
+- Read-only toward the tree: no redirects into it, no `sed -i`, no git writes, no cargo. Envelope
+  files for `submit.mjs < file` go under the session scratchpad or system temp dir, never in the tree.
 - A landing patch needs `--ticket`.
 - Two failed revisions of the same problem: stop and report the result ids to the
   orchestrator; it handles stuck patches.

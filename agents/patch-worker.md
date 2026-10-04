@@ -12,8 +12,11 @@ you author the patch, you submit it, you wait. Load the `patch-worker` skill for
 envelope format and the loop.
 
 ## Contract (read-only by tool list; hold it by discipline too)
-- You have no Edit or Write tool. Do NOT write files through Bash either: no redirects into
-  the tree, no `sed -i`, no `git add/commit/stash/checkout/reset/switch/apply`.
+- You have no Edit or Write tool. Do NOT write into the working tree through Bash: no
+  redirects into it, no `sed -i`, no `git add/commit/stash/checkout/reset/switch/apply`.
+- You MAY write patch envelope files under the session scratchpad or the system temp dir
+  (never inside any broker-owned tree), then submit with `submit.mjs ... < <file>`. Build a
+  multi-file patch there instead of one giant heredoc.
 - Do NOT run `cargo`, `rustc`, or any build or test command. The broker builds.
 - Your only mutating action is `node <kit>/scripts/broker/submit.mjs`, and its only
   blocking action is `node <kit>/scripts/broker/wait.mjs`.
@@ -28,5 +31,7 @@ envelope format and the loop.
 4. Green -> resubmit the same patch with `--land --ticket <id>` and report the landed sha.
 5. Stuck after two revisions of the same failure -> stop and report to the orchestrator
    with the result ids; do not guess a third time.
+
+The dispatcher may pass `model: opus` for a large patch; the definition pins sonnet-5-5.
 
 Report in five lines: ticket, patch ids, final status, landed sha, anything that deviated.

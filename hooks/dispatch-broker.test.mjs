@@ -46,6 +46,8 @@ const writer = { subagent_type: 'general-purpose', prompt: 'implement the ticket
   expect('a writer-capable dispatch is blocked while the broker lock is live', blocked.code === 2 && /broker-owned-tree|broker daemon owns/.test(blocked.err));
   expect('the block points at patch-worker and names the exclusion id', /patch-worker/.test(blocked.err) && /broker-owned-tree/.test(blocked.err));
   expect('the patch-worker dispatches while the lock is live', run(live, { subagent_type: 'claude-kit:patch-worker', prompt: 'queue the patch' }).code === 0);
+  expect('an opus55 writer is blocked while the lock is live', run(live, { subagent_type: 'opus55', prompt: 'implement the ticket' }).code === 2);
+  expect('the block message says where a patch worker may write envelopes', /scratchpad or temp dir/.test(blocked.err));
   expect('[read-only: reason] on a writer type passes', run(live, { ...writer, prompt: `${writer.prompt} [read-only: survey only]` }).code === 0);
   expect('the maintainer escape passes', run(live, { ...writer, prompt: `${writer.prompt} [maintainer-asked-parallel: "go ahead"]` }).code === 0);
   expect('an empty escape token does not', run(live, { ...writer, prompt: `${writer.prompt} [maintainer-asked-parallel: ]` }).code === 2);
