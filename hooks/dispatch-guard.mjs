@@ -17,9 +17,9 @@ import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, par
 import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
 import { readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
 import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker } from './dispatch-broker.mjs';
-// The pin + session-model resolvers moved to model-tag.mjs when the activity line needed the same
-// answer (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
-import { pinnedModel, latestAssistantModel, modelDisplay } from './model-tag.mjs';
+// The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
+// (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
+import { latestAssistantModel, modelDisplay } from './model-tag.mjs';
 
 const LADDER_CHECK = 'dispatch-ladder';
 const COLD_BUILD_CHECK = 'cold-worktree-build';
@@ -39,7 +39,7 @@ const SERIAL_FIX = [
   '  • serialize: wait for the in-flight agent, collect its result, then hand THAT agent',
   '    (or one new one) the next ticket — warm build, warm context;',
   '  • research only: dispatch a READ-ONLY agent type (no Edit/Write in its tools:',
-  '    claude-kit:researcher, claude-kit:researcher-sonnet55, claude-kit:analyst, Explore, Plan),',
+  '    claude-kit:researcher, claude-kit:analyst, Explore, Plan),',
   '    or add [read-only: <reason>] to the prompt of a writer-capable type;',
   '  • writing in a DIFFERENT checkout: add [tree: <absolute path>] to the prompt;',
   '  • two writers in one checkout only on the maintainer words: include',
@@ -67,20 +67,16 @@ try {
 }
 
 // --- dispatch-ladder (KIT-T151) -------------------------------------------------
-// WHY: the ladder (KIT-D035/D042/D043) routes delegations DOWN — coding/research → opus,
-// trivial chores → haiku, fable reserved for orchestration + the hardest reasoning. But the
-// Agent tool's default is "inherit the session model", so on a fable main thread every
-// model-less delegation silently runs on the most expensive tier. Lived failure (2026-07-23,
-// groovegrid): five researcher delegations inherited fable and burned ~105k subagent tokens
-// before the miss was caught. Compliance was memory-dependent; this gate makes it structural.
+// WHY: the capability table (KIT-D080) routes delegations DOWN — the orchestrator names a family on
+// every dispatch, and kit agents carry no model of their own. But the Agent tool's default is
+// "inherit the session model", so on a fable main thread every model-less delegation silently
+// runs on the most expensive family. Lived failure (2026-07-23, groovegrid): five researcher
+// delegations inherited fable and burned ~105k subagent tokens before the miss was caught.
 //
-// BLOCKS exactly the failure mode — the SILENT INHERIT: no model on the call, no `model:`
-// pin in the agent's definition, and the latest assistant turn in the session transcript is
-// fable. An EXPLICIT model on the call (fable included) always passes: an explicit tier is a
-// visible, deliberate choice, and the config's own deep tier (dispatch.tiers) dispatches
-// tickets with model:'fable' explicitly — the gate must not fight the ladder it enforces.
-// ALLOWS: any explicit model; a definition that pins a tier (kit agents pin opus);
-//   indeterminate parent model (cannot prove a fable inherit — fail open).
+// BLOCKS exactly the failure mode — the SILENT INHERIT: no model on the call and the latest
+// assistant turn in the session transcript is fable. An EXPLICIT model on the call (fable
+// included) always passes: a named family is a visible, deliberate choice.
+// ALLOWS: any explicit model; indeterminate parent model (cannot prove a fable inherit — fail open).
 // ESCAPE: inline [allow-fable: <reason>] in the delegation prompt, or CLAUDE_KIT_ALLOW_FABLE=1
 //   (keeps a deliberate model-less fable delegation possible without naming a tier).
 function ladderBlock(root, input, prompt, p) {
@@ -90,7 +86,6 @@ function ladderBlock(root, input, prompt, p) {
     /^(1|true|yes)$/i.test(process.env.CLAUDE_KIT_ALLOW_FABLE || '');
   if (escaped) return null;
   if (input.model) return null; // an explicit model IS the choice — any tier, fable included
-  if (pinnedModel(root, String(input.subagent_type || input.agent_type || input.task_name || ''))) return null; // the definition authored its tier
   const parent = latestAssistantModel(p.transcript_path);
   if (!/fable/i.test(String(parent || ''))) return null; // cannot prove a fable inherit — fail open
 
@@ -98,13 +93,14 @@ function ladderBlock(root, input, prompt, p) {
     'BLOCKED: this delegation would run on fable — the orchestration tier.',
     `  agent: ${label(input)}   cause: no model on the call — inherits the fable session (${parent})`,
     '',
-    'The dispatch ladder (KIT-D035/D042/D043): coding/implementation/research -> opus;',
-    'trivial mechanical chores -> haiku; fable is for orchestration + the hardest',
-    'reasoning only — and must be CHOSEN, never inherited.',
+    'The kit capability table (.ai/config.yml dispatch.jobs, KIT-D080) picks a family per job:',
+    'fixes and refactors -> sonnet; big builds, design, assets -> opus; trivial chores -> haiku;',
+    'fable is for orchestration + explicit-only work — and must be CHOSEN, never inherited.',
+    'Kit agents carry no model; the call must name one.',
     '',
-    "Fix: pass an explicit model on the Agent call — model:'opus' (or 'haiku'), or",
-    "model:'fable' if this genuinely needs the top tier — or delegate to a kit agent",
-    '(researcher/code-reviewer/refactorer/test-author — they pin opus in frontmatter).',
+    "Fix: pass an explicit model on the Agent call — model:'sonnet', 'opus' or 'haiku' (resolve",
+    "with: node <kit>/scripts/dispatch-ladder.mjs resolve --job <job>), or model:'fable' if",
+    'this genuinely needs the top family.',
     'To keep a model-less fable inherit: include [allow-fable: <reason>] in the prompt.',
     '',
     excludeFooter(LADDER_CHECK),

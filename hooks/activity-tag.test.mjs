@@ -40,16 +40,16 @@ try {
 
   // explicit model on the call
   ok('explicit alias: sonnet', label(dispatch({ description: 'Fix it', model: 'sonnet' }), d) === '[Sonnet 5.5] Fix it');
-  ok('explicit alias: opus', label(dispatch({ description: 'Fix it', model: 'opus' }), d) === '[Opus 5] Fix it');
+  ok('explicit alias: opus', label(dispatch({ description: 'Fix it', model: 'opus' }), d) === '[Opus 5.5] Fix it');
   ok('explicit full id: opus 5.5', label(dispatch({ description: 'Fix it', model: 'claude-opus-5-5' }), d) === '[Opus 5.5] Fix it');
   ok('explicit full id: sonnet 5.5', label(dispatch({ description: 'Fix it', model: 'claude-sonnet-5-5' }), d) === '[Sonnet 5.5] Fix it');
   ok('explicit full id: fable 5', label(dispatch({ description: 'Fix it', model: 'claude-fable-5' }), d) === '[Fable 5] Fix it');
 
-  // plugin agent types resolve through their own pin
-  ok('kit agent: claude-kit:patch-worker', label(dispatch({ description: 'Land it', subagent_type: 'claude-kit:patch-worker' }), d) === '[Sonnet 5.5] Land it');
-  ok('kit agent: claude-kit:sonnet55', label(dispatch({ description: 'Land it', subagent_type: 'claude-kit:sonnet55' }), d) === '[Sonnet 5.5] Land it');
-  ok('kit agent: claude-kit:opus55', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:opus55' }), d) === '[Opus 5.5] Build it');
-  ok('an explicit model beats the agent pin', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:opus55', model: 'haiku' }), d) === '[Haiku 4.5] Build it');
+  // kit agents carry no model: the family on the call decides (KIT-D080)
+  ok('kit agent on a family: claude-kit:patch-worker + sonnet', label(dispatch({ description: 'Land it', subagent_type: 'claude-kit:patch-worker', model: 'sonnet' }), d) === '[Sonnet 5.5] Land it');
+  ok('kit agent on a family: claude-kit:refactorer + opus', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer', model: 'opus' }), d) === '[Opus 5.5] Build it');
+  ok('a kit agent with no model and no transcript is not tagged', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer' }), d) === null);
+  ok('local-qwen is a known family: a hand-written tag is replaced', label(dispatch({ description: '[local-qwen] Build it', model: 'haiku' }), d) === '[Haiku 4.5] Build it');
 
   // project agent pins and inherit
   projectAgent(d, 'proj-pinned', 'model: claude-opus-5-5');

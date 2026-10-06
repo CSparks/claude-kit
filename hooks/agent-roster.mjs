@@ -16,6 +16,7 @@ import { gitRoot, adopted, payload, recordAgent, updateAgent, ID_CITE_SRC } from
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { declaredReadOnly } from './dispatch-readonly.mjs';
 import { resolveDispatchModel, stripModelTag } from './model-tag.mjs';
+import { declaredJob, outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
 const ID_CITE_RE = new RegExp(ID_CITE_SRC); // at least one ticket/decision id anywhere in the brief
@@ -67,7 +68,9 @@ function recordDispatch(root, p) {
     // display map in model-tag.mjs stays the one place a lineup rename has to be made.
     const model = resolveDispatchModel(root, inp, p);
     const readOnly = declaredReadOnly(firstString(inp.prompt, inp.message));
-    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(readOnly ? { readOnly } : {}), source: 'posttooluse' });
+    // WHICH JOB it serves (`[job: fix]` in the brief) and what it cost where the response says (KIT-D080).
+    const job = declaredJob(firstString(inp.prompt, inp.message));
+    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(job ? { job } : {}), ...outcomeFromResponse(resp), ...(readOnly ? { readOnly } : {}), source: 'posttooluse' });
     // Advisory: a delegation with no ticket id is ungrounded work — warn, never block (exit 0).
     const brief = firstString(inp.description, inp.task, inp.title, inp.prompt, inp.message) || '';
     if (brief && !ID_CITE_RE.test(brief)) {
@@ -86,7 +89,8 @@ function recordStop(root, p) {
     const id = firstString(p.agent_id, p.agentId, p.task_id, p.id);
     if (!id) return; // no handle to reconcile against — leave the in-flight row for the stale-age flag
     const scope = firstString(p.agent_type, p.agentType);
-    updateAgent(root, id, { status: 'done', ...(scope ? { scope } : {}), source: 'subagentstop' });
+    const outcome = outcomeFromTranscript(firstString(p.agent_transcript_path, p.agentTranscriptPath));
+    updateAgent(root, id, { status: 'done', ...(scope ? { scope } : {}), ...outcome, source: 'subagentstop' });
   } catch {
     /* fail-open */
   }

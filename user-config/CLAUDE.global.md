@@ -101,28 +101,28 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   yourself and report. Genuinely the maintainer's: AskUserQuestion. Open discussion
   is exempt — there, prose questions ARE the medium.
 
-# SUBAGENT DISPATCH — one living ladder, one home
-- The model-routing hierarchy is the kit's **firepower ladder** (`.ai/config.yml →
-  dispatch.tiers`; KIT-D035/D042/D043). Model judgments are dated, lineup-dependent
-  facts — update the ladder + a superseding decision at the kit source. Never encode
-  model routing in a per-project memory.
-- Ad-hoc Agent-tool delegations follow the ladder: **straightforward fixes → sonnet
-  5.5**; big or spatially heavy builds → opus 5.5; trivial mechanical chores → haiku;
-  **opus and fable are the orchestrator models** (KIT-D076). On a fable usage-limit
-  error, relaunch on opus immediately.
-- **Kit agents pin `model: opus` in their frontmatter** (KIT-T151). On a fable main
-  thread, every delegation to an UNPINNED agent type must carry an explicit `model` —
-  the `dispatch-ladder` hook blocks the silent inherit. Explicit `model:'fable'`
-  stays legal; a deliberate model-less inherit needs an inline
-  `[allow-fable: <reason>]` token in the prompt.
-- **A model version NAMED in the request is BINDING (KIT-D061/D063).** Land on that
-  exact full id via an agent whose frontmatter pins it, or STOP and say why no pinned
-  lane exists — never resolve to an alias, never reopen the ladder in a
-  questionnaire. Receipts quote the full id.
-- **Every dispatch names its model in the agent LABEL**: the Agent tool's
-  `description` starts with a `[<model>]` prefix — `"[opus] Diagnose POI rate"`. No
-  unprefixed dispatches.
-- Don't burn main-thread fable context on basic work — delegate it DOWN the ladder.
+# SUBAGENT DISPATCH — one capability table, one home
+- Agent definitions carry NO `model:` line (KIT-D080). The orchestrator picks the model on
+  EVERY dispatch from the kit's **capability table** (`.ai/config.yml → dispatch.jobs`: job
+  type → family or `local-qwen`, each row with cost, evidence date and source; fed by the
+  research refresh and our own dispatch outcomes). Model judgments are dated facts — update
+  the table + a superseding decision at the kit source. Never encode routing in a memory.
+- A dispatch names a FAMILY only (sonnet / opus / haiku / fable), which resolves to that
+  family's newest model. No exact-version requests: an older version gets a plain "can't
+  target that" and nothing runs silently (supersedes KIT-D061/D063).
+- Straightforward targeted change → **local Qwen first** (`scripts/local-agent.mjs`; the
+  brief supplies files, line ranges, acceptance); after 2 failures on one ticket → sonnet.
+  Straightforward fixes and multi-file refactors → sonnet; big or spatially heavy builds,
+  design, asset authoring → opus; trivial chores → haiku. **Opus and fable are the
+  orchestrator models** (KIT-D076); fable is orchestration and explicit-only work, never
+  asset authoring. On a fable usage-limit error, relaunch on opus immediately.
+- On a fable main thread every dispatch carries an explicit `model` — the
+  `dispatch-ladder` hook blocks the silent inherit. A deliberate model-less inherit needs
+  an inline `[allow-fable: <reason>]` token in the prompt.
+- **Every dispatch names its model in the agent LABEL**: the Agent tool's `description`
+  starts with a `[<model>]` prefix — `"[opus] Diagnose POI rate"`; the hook rewrites it to
+  the resolved family's current model. No unprefixed dispatches.
+- Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout
 Cost tracks the **tool-call count**, not the size of the change: every call re-sends
@@ -149,16 +149,16 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   (KIT-D077, supersedes the KIT-T256 gate).** Two writers in one checkout are slower AND
   dearer (2026-08-25: four lanes, ~300–600k tokens each, then killed). The next ticket goes
   to the SAME agent after it lands (warm build, warm context). Read-only = no Edit/Write in
-  the definition's `tools:` (`claude-kit:analyst`, `researcher`, `researcher-sonnet55`,
+  the definition's `tools:` (`claude-kit:analyst`, `researcher`,
   Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in a
   different checkout declares `[tree: <absolute path>]`. Two writers in ONE checkout need
   the maintainer's quoted words: `[maintainer-asked-parallel: <his words>]`.
 
 ## Specialists over `general-purpose` — CREATE the missing specialist
 `general-purpose` is the last resort. Before every delegation: (1) pick `model` AND
-`effort` deliberately (`.ai/config.yml → dispatch.tiers`); (2) use the kit agent that
+`effort` deliberately (`.ai/config.yml → dispatch.jobs`); (2) use the kit agent that
 covers the domain — if none does, **create it in claude-kit** (`agents/<name>.md`,
-model pinned, tools scoped, conventions + gotchas written in), then dispatch. A
+no model line, tools scoped, conventions + gotchas written in), then dispatch. A
 domain seen twice has earned an agent; a long hand-written brief to `general-purpose`
 is a specialist never written down. Project one-offs go to `<repo>/.claude/agents/`
 via `scaffold-agent`; prefer the kit when the domain generalises.

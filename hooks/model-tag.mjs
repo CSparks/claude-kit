@@ -43,18 +43,16 @@ function kitAliases() {
   }
 }
 
-// Families the kit knows: alias names plus the families of every ladder model id.
+// Families the kit knows: the alias names plus every family a capability-table row names
+// (`local-qwen` included).
 function knownFamilies() {
   const families = new Set(Object.keys(kitAliases()));
   try {
-    for (const t of Object.values(readLadder().tiers)) {
-      for (const id of [t.model, t.fallback]) {
-        const m = String(id || '').match(FAMILY_ID);
-        if (m) families.add(m[1].toLowerCase());
-      }
+    for (const job of Object.values(readLadder().jobs)) {
+      for (const family of [job.family, job.fallback]) if (family) families.add(String(family).toLowerCase());
     }
   } catch {
-    /* no ladder — only vendor-shaped ids count as tags */
+    /* no table — only vendor-shaped ids count as tags */
   }
   return [...families];
 }
@@ -72,8 +70,8 @@ export function modelDisplay(raw) {
 }
 
 // Which model a dispatch will actually run on, in the order the harness decides it:
-//   1. an explicit `model` on the Agent call — the orchestrator chose a tier;
-//   2. the agent definition's `model:` frontmatter pin (kit agents pin opus, KIT-T151);
+//   1. an explicit `model` on the Agent call — the orchestrator named a family (KIT-D080);
+//   2. the agent definition's `model:` line — project-local definitions only, kit agents carry none;
 //   3. otherwise it INHERITS the session's model — the case dispatch-ladder exists to catch.
 // Returns the raw value ('' when indeterminate); callers map it through modelDisplay.
 export function resolveDispatchModel(root, input = {}, p = {}) {

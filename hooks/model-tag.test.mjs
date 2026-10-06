@@ -7,7 +7,7 @@
 //      permissionDecision (so it can never weaken dispatch-guard on the same event), and
 //      fails open on garbage / unadopted / model-less dispatches.
 //   5. roster: the dispatch row records the model; the task label does not double the tag.
-//   6. orient: in-flight and finished lines render `(scope [Opus 5])`, and a pre-T179 row
+//   6. orient: in-flight and finished lines render `(scope [Opus 5.5])`, and a pre-T179 row
 //      without a model renders exactly as it always did.
 //   7. wiring: both install paths (plugin hooks.json + bootstrap settings) register the hook.
 // Run: node hooks/model-tag.test.mjs
@@ -90,7 +90,7 @@ const dispatch = (input, extra = {}) => ({
 try {
   // ===== 1. the display map (DATED lineup fact) ==============================
   {
-    ok('display: the opus alias', modelDisplay('opus') === 'Opus 5');
+    ok('display: the opus alias', modelDisplay('opus') === 'Opus 5.5');
     ok('display: the fable alias', modelDisplay('fable') === 'Fable 5');
     ok('display: the sonnet alias', modelDisplay('sonnet') === 'Sonnet 5.5');
     ok('display: the current opus and sonnet ids carry their minor', modelDisplay('claude-opus-5-5') === 'Opus 5.5' && modelDisplay('claude-sonnet-5-5') === 'Sonnet 5.5');
@@ -102,8 +102,8 @@ try {
     ok('display: a full fable id', modelDisplay('claude-fable-5') === 'Fable 5');
     ok('display: a full haiku id', modelDisplay('claude-haiku-4-5-20251001') === 'Haiku 4.5');
     ok('display: a bedrock-prefixed id', modelDisplay('us.anthropic.claude-sonnet-5-v1:0') === 'Sonnet 5');
-    ok('display: case is not significant', modelDisplay('OPUS') === 'Opus 5');
-    ok('display: surrounding whitespace is trimmed', modelDisplay('  opus  ') === 'Opus 5');
+    ok('display: case is not significant', modelDisplay('OPUS') === 'Opus 5.5');
+    ok('display: surrounding whitespace is trimmed', modelDisplay('  opus  ') === 'Opus 5.5');
     ok('display: a PRIOR-generation opus shows its own generation', modelDisplay('claude-opus-4-1-20250805') === 'Opus 4.1');
     ok('display: an unknown model passes through verbatim', modelDisplay('gpt-5') === 'gpt-5');
     ok('display: an absent model yields no tag', modelDisplay('') === '' && modelDisplay(undefined) === '' && modelDisplay(null) === '');
@@ -122,8 +122,8 @@ try {
       resolveDispatchModel(d, { model: 'sonnet', subagent_type: 'proj-splitter' }, { transcript_path: tp }) === 'sonnet');
     ok('resolve: a project agent-definition pin beats the session model',
       resolveDispatchModel(d, { subagent_type: 'proj-splitter' }, { transcript_path: tp }) === 'haiku');
-    ok('resolve: a plugin-scoped agent name resolves to the same pin',
-      resolveDispatchModel(d, { subagent_type: 'claude-kit:researcher' }, { transcript_path: tp }) === 'claude-opus-5');
+    ok('resolve: a kit agent carries no model, so a model-less call falls to the session model (KIT-D080)',
+      resolveDispatchModel(d, { subagent_type: 'claude-kit:researcher' }, { transcript_path: tp }) === 'claude-fable-5');
     ok('resolve: an UNPINNED definition falls through to the session model',
       resolveDispatchModel(d, { subagent_type: 'proj-unpinned' }, { transcript_path: tp }) === 'claude-fable-5');
     ok('resolve: no model, no pin, no transcript -> indeterminate',
@@ -132,8 +132,8 @@ try {
       resolveDispatchModel(d, { model: '   ', subagent_type: 'proj-splitter' }, {}) === 'haiku');
     ok('resolve: garbage input is indeterminate, never a throw',
       resolveDispatchModel(d, {}, {}) === '' && resolveDispatchModel(null, undefined, undefined) === '');
-    ok('resolve: the kit agents are pinned in their own definitions (the shipped ladder)',
-      pinnedModel(ROOT, 'researcher') === 'claude-opus-5');
+    ok('resolve: the shipped kit agents carry no model line',
+      pinnedModel(ROOT, 'researcher') === '' && pinnedModel(ROOT, 'implementer') === '');
     ok('resolve: an unreadable transcript is indeterminate',
       latestAssistantModel(join(d, 'nope.jsonl')) === '' && latestAssistantModel('') === '');
   }
@@ -179,7 +179,7 @@ try {
     const v = verdict(res);
     ok('hook: exits 0 (a cosmetic rewrite never gates)', res.code === 0);
     ok('hook: the activity line carries the model tag',
-      v && v.hookSpecificOutput.updatedInput.description === '[Opus 5] Build CRX-T024 admin foundation');
+      v && v.hookSpecificOutput.updatedInput.description === '[Opus 5.5] Build CRX-T024 admin foundation');
     ok('hook: names the PreToolUse event the contract expects',
       v && v.hookSpecificOutput.hookEventName === 'PreToolUse');
     // updatedInput is a FULL replacement of tool_input — dropping a field would silently
@@ -193,7 +193,7 @@ try {
       v && !('permissionDecision' in v.hookSpecificOutput));
 
     ok('hook: an already-tagged description is left alone (no output)',
-      verdict(hook(HOOK, dispatch({ description: '[Opus 5] Build CRX-T024', model: 'opus' }), d)) === null);
+      verdict(hook(HOOK, dispatch({ description: '[Opus 5.5] Build CRX-T024', model: 'opus' }), d)) === null);
     ok('hook: an indeterminate model says nothing rather than guessing',
       verdict(hook(HOOK, dispatch({ description: 'Build CRX-T024', subagent_type: 'general-purpose' }), d)) === null);
     ok('hook: a dispatch with no description is a no-op',
@@ -206,9 +206,9 @@ try {
     const pv = verdict(hook(HOOK, dispatch({ description: 'Split the KIT-T179 monolith', subagent_type: 'proj-splitter' }), pinned));
     ok('hook: a definition-pinned agent is tagged from its frontmatter',
       pv && pv.hookSpecificOutput.updatedInput.description === '[Haiku 4.5] Split the KIT-T179 monolith');
-    const kv = verdict(hook(HOOK, dispatch({ description: 'Research the KIT-T179 surface', subagent_type: 'claude-kit:researcher' }), pinned));
-    ok('hook: a shipped kit agent is tagged from its own pinned tier',
-      kv && kv.hookSpecificOutput.updatedInput.description === '[Opus 5] Research the KIT-T179 surface');
+    const kv = verdict(hook(HOOK, dispatch({ description: 'Research the KIT-T179 surface', subagent_type: 'claude-kit:researcher', model: 'sonnet' }), pinned));
+    ok('hook: a shipped kit agent dispatched on a family is tagged with the current model of that family',
+      kv && kv.hookSpecificOutput.updatedInput.description === '[Sonnet 5.5] Research the KIT-T179 surface');
 
     const sess = makeRepo();
     const tp = transcript(sess, 'claude-fable-5');
@@ -219,7 +219,7 @@ try {
     // FAIL-OPEN: never a block; the tag applies in an unadopted repo too (KIT-T337).
     const un = makeRepo({ adopt: false });
     const unres = hook(HOOK, dispatch({ description: 'Build it', model: 'opus' }), un);
-    ok('hook: tags in an unadopted repo', unres.code === 0 && verdict(unres).hookSpecificOutput.updatedInput.description === '[Opus 5] Build it');
+    ok('hook: tags in an unadopted repo', unres.code === 0 && verdict(unres).hookSpecificOutput.updatedInput.description === '[Opus 5.5] Build it');
     const bad = hook(HOOK, null, d, '{not json at all');
     ok('hook: fails open on malformed stdin', bad.code === 0 && verdict(bad) === null);
     const empty = hook(HOOK, null, d, '');
@@ -234,7 +234,7 @@ try {
     hook(ROSTER, {
       hook_event_name: 'PostToolUse',
       tool_name: 'Task',
-      tool_input: { description: '[Opus 5] Build KIT-T179 admin foundation', subagent_type: 'general-purpose', model: 'opus' },
+      tool_input: { description: '[Opus 5.5] Build KIT-T179 admin foundation', subagent_type: 'general-purpose', model: 'opus' },
       tool_response: { agent_id: 'a0179' },
     }, d);
     const row = readAgents(d).find((r) => r.id === 'a0179');
@@ -262,7 +262,7 @@ try {
     recordAgent(d, { id: 'amodel02', status: 'done', task: 'Plan KIT-T179', scope: 'researcher', model: 'claude-fable-5' });
     const out = hook(ORIENT, { hook_event_name: 'SessionStart' }, d).out;
     ok('orient: an in-flight agent shows its model beside its scope',
-      /\[in-flight\] amodel01 \(general-purpose \[Opus 5\]\)/.test(out));
+      /\[in-flight\] amodel01 \(general-purpose \[Opus 5\.5\]\)/.test(out));
     ok('orient: a finished agent shows its model too',
       /\[done\] amodel02 \(researcher \[Fable 5\]\)/.test(out));
 

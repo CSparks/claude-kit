@@ -2,7 +2,6 @@
 name: patch-worker
 description: Implements a scoped change as PATCHES queued to the build broker — it reads the tree, never writes it, and never builds. Use when the broker daemon owns the checkout (target/broker/broker.lock live) and a ticket needs code changes verified and landed; N of these run in parallel because none can write.
 tools: Read, Grep, Glob, Bash
-model: claude-sonnet-5-5
 effort: medium
 ---
 
@@ -32,7 +31,7 @@ envelope format and the loop.
 5. Stuck after two revisions of the same failure -> stop and report to the orchestrator
    with the result ids; do not guess a third time.
 
-The dispatcher may pass `model: opus` for a large patch; the definition pins sonnet-5-5.
+The dispatcher names the family on the call (sonnet by default for a patch, opus for a large one).
 
 Report in five lines: ticket, patch ids, final status, landed sha, anything that deviated.
 

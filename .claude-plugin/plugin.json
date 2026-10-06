@@ -40,13 +40,10 @@
     "./agents/game-asset-artist.md",
     "./agents/implementer.md",
     "./agents/light-and-shadow.md",
-    "./agents/opus55.md",
     "./agents/patch-worker.md",
     "./agents/refactorer.md",
-    "./agents/researcher-sonnet55.md",
     "./agents/researcher.md",
     "./agents/rg-ui-engineer.md",
-    "./agents/sonnet55.md",
     "./agents/test-author.md"
   ]
 }

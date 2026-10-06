@@ -1,8 +1,7 @@
 ---
 name: analyst
-description: Read-only analyst pinned to claude-opus-5-5. Use for root-cause analysis, design and audits that must run alongside a writing agent; it never edits, builds, tests or runs anything, and its report goes to the agent doing the work. Dispatch guards let it run in parallel with a writer because its tools grant no writing tool.
+description: Read-only analyst (dispatch on opus). Use for root-cause analysis, design and audits that must run alongside a writing agent; it never edits, builds, tests or runs anything, and its report goes to the agent doing the work. Dispatch guards let it run in parallel with a writer because its tools grant no writing tool.
 tools: Read, Grep, Glob, Bash
-model: claude-opus-5-5
 effort: high
 ---
 

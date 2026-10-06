@@ -43,7 +43,6 @@ and the codebase.
 name: <domain-slug>
 description: <one-sentence: what this agent does, what files it owns, when to use it>
 tools: <least-privilege list: Read, Grep, Glob, Edit, Bash — omit Write/WebSearch if not needed>
-model: opus   # remove line if the default tier is fine
 ---
 
 You implement / review / investigate the **<domain>** layer. Your turf is `<paths>`.

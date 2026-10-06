@@ -71,7 +71,7 @@ in parallel while that thread waits.
 **SUBAGENTS — ONE READ/WRITE AGENT PER CHECKOUT (KIT-D077, KIT-D039):** every writing agent
 works in the one checkout, on main, serially — the next ticket goes to the same agent once the
 last one lands. No worktrees, clones, branches or second directories. Read-only agents
-(`claude-kit:analyst`, `researcher`, `researcher-sonnet55`, Explore, or `[read-only: <reason>]`)
+(`claude-kit:analyst`, `researcher`, Explore, or `[read-only: <reason>]`)
 are unrestricted; a writer in another checkout declares `[tree: <absolute path>]`. Batch all maintainer decisions into one AskUserQuestion questionnaire rather
 than surfacing them piecemeal. Never `git stash` (KIT-T233); baseline via `git diff > <file>` +
 checkout, or a WIP commit on main. A delegated agent must VERIFY its change by exercising it as the user would — run the

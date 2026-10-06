@@ -2,7 +2,6 @@
 name: editor-workbench
 description: Works on the rapid-game HTML editor — the React/vite workbench a game extends with its own manifest, asset catalog, and recipe tree. Use for adding or changing an editor tool, wiring a game into the editor, touching the `/api/editor/recipes` contract, or fixing the per-game vite config. Validates with tsc/vite/vitest and data dumps, never screenshots.
 tools: Read, Grep, Glob, Edit, Write, Bash
-model: claude-opus-5
 effort: low
 ---
 

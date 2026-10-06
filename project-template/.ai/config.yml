@@ -136,8 +136,8 @@ capture:
     - "at some point"
     - "would be (nice|good|worth)"
 
-# DISPATCH — none. Model routing (tiers, default_tier) lives only in the claude-kit ladder
-# (KIT-D079); a `dispatch:` block here is ignored and flagged by orient.
+# DISPATCH — none. Model routing (jobs, default_job) lives only in the claude-kit capability table
+# (KIT-D079, KIT-D080); a `dispatch:` block here is ignored and flagged by orient.
 
 # ---------------------------------------------------------------------------
 # IDS — scheme is <KEY>-<TYPE><NUM> (KIT-D011). key = project key (HOD, KIT, ...),

@@ -168,11 +168,14 @@ try {
 } catch {
   /* broker health is best-effort */
 }
-// A project-level dispatch: block is ignored (KIT-D079); flag it as drift.
+// A project-level dispatch: block is ignored (KIT-D079); flag it as drift. The kit capability
+// table carries evidence dates: warn when the newest is over 14 days old (KIT-D080).
 try {
-  const { dispatchDrift } = await import('../scripts/dispatch-ladder.mjs');
+  const { dispatchDrift, freshnessWarning } = await import('../scripts/dispatch-ladder.mjs');
   const drift = dispatchDrift(root);
   if (drift) out.push(`!! ${drift}`);
+  const stale = freshnessWarning();
+  if (stale) out.push(`!! ${stale}`);
 } catch {
   /* drift check is best-effort */
 }

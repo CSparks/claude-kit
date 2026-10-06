@@ -23,7 +23,7 @@ the tool payload from stdin, decides, and exits (`exit 2` = block, `0` = allow).
 | `SessionStart` | orient + housekeeping | Inject the on-disk record (`.ai/` ROADMAP + DECISIONS + SESSION + recent commits + **in-flight delegated agents**) so a fresh/compacted session resumes cold; surface any due weekly reviews + project gaps. |
 | `PreToolUse` (Edit\|Write) | pre-write | Code-quality gates on source; **doc files** get a broken-link check instead of magic-number/etc; license/meta + data files skip. |
 | `PostToolUse` (Edit\|Write) | lint + jscpd + ingest-data | Language-aware linters (ruff/clippy/eslint/…) + copy-paste detection (advisory — never block). **ingest-data** incrementally syncs the SQLite cache for the edited `.ai` store immediately, so a same-turn query sees the change (KIT-T026; fail-open). |
-| `PostToolUse` (Task\|Agent) + `SubagentStop` | agent-roster | Append each delegated subagent (task, scope, handle, status, its `model` — KIT-T179 — plus its `isolation` + `targetRoot` — which tree it lands in, KIT-T177) to the durable roster `.ai/agents.jsonl`, and mark its completion — so a clear/compact mid-delegation never orphans the work; orient replays it on resume (KIT-T014; fail-open, never blocks a delegation). A dispatch row arriving AFTER its own `SubagentStop` (synchronous delegations report in that order) keeps the terminal status instead of resurrecting the agent. |
+| `PostToolUse` (Task\|Agent) + `SubagentStop` | agent-roster | Append each delegated subagent (task, scope, handle, status, its `model` — KIT-T179 — its `job` (`[job: <name>]` in the brief) and cost where the payload carries it: `resolvedModel`, `durationMs`, `tokens`, `toolCalls` from the Agent tool_response and the SubagentStop `agent_transcript_path`; summarised by `scripts/dispatch-outcomes.mjs`, KIT-D080 — plus its `isolation` + `targetRoot` — which tree it lands in, KIT-T177) to the durable roster `.ai/agents.jsonl`, and mark its completion — so a clear/compact mid-delegation never orphans the work; orient replays it on resume (KIT-T014; fail-open, never blocks a delegation). A dispatch row arriving AFTER its own `SubagentStop` (synchronous delegations report in that order) keeps the terminal status instead of resurrecting the agent. |
 | `PostToolUse` (`mcp__*context7*`) | context7-ledger | Append one JSONL row (`ts`, `tool`, library/query extract) per **metered** context7 call to `~/.claude/context7-ledger.jsonl`, so paid docs spend is answerable from disk (KIT-T182/KIT-D055). Deliberately **not** `.ai/`-gated — the quota is per-machine, so the ledger is too. Also warns (stderr, never blocks) when the library is already covered by a doc in `research/README.md`'s index. |
 | `PreToolUse` (Write\|Edit) | tree-liveness | **`tree-liveness`** — WARN (stderr, exit 0) before a Write/Edit to a file in a repo OTHER than this session's when that repo looks LIVE (KIT-T219): a commit newer than 30 min (`CLAUDE_KIT_LIVE_TREE_MINUTES`) or dirty paths absent from this turn's writes ledger (KIT-T106). The other session's next commit scoops half-written edits. One warning per foreign repo per turn; fails open. Escape: `[allow-live-tree: reason]` in the prompt / `CLAUDE_KIT_ALLOW_LIVE_TREE=1`. |
 | `PreToolUse` (Bash\|PowerShell) | license-guard | Block `npm install` / `cargo add` of a GPL/LGPL/AGPL/unlicensed dependency (KIT-T022). Looks up the package license via the registry; fails open if offline. Escape: `[allow-license: reason]` or `CLAUDE_KIT_ALLOW_LICENSE=1`. Nudges to update `THIRD_PARTY_LICENSES` on permissive adds. |
@@ -51,7 +51,7 @@ fail open on a malformed payload or an unreadable file.
 
 | Check-id | Blocks | Escape token |
 | --- | --- | --- |
-| `dispatch-ladder` | The **silent fable inherit** (KIT-T151): no `model` on the call, no `model:` pin in the agent's definition, and the session transcript's latest turn is fable. An explicit model — fable included — always passes; a chosen tier is a deliberate choice. | `[allow-fable: <reason>]` in the prompt, or `CLAUDE_KIT_ALLOW_FABLE=1` |
+| `dispatch-ladder` | The **silent fable inherit** (KIT-T151): no `model` on the call (kit agents carry none, KIT-D080) and the session transcript's latest turn is fable. An explicit family — fable included — always passes; a named family is a deliberate choice. | `[allow-fable: <reason>]` in the prompt, or `CLAUDE_KIT_ALLOW_FABLE=1` |
 | `cold-worktree-build` | ANY worktree dispatch — `isolation: "worktree"` or a hand-made worktree named in the brief — in any adopted repo (KIT-T176, KIT-D074). Every project keeps ONE checkout on main; a provisioned `CARGO_TARGET_DIR` does not lift it. Fix: drop the isolation and run in the main checkout, one writing agent at a time. | `[maintainer-asked-worktree: <his words>]` in the prompt |
 | `shared-tree-dispatch` | A second READ/WRITE dispatch into a checkout that already has one (KIT-D077; tree-scoped by KIT-T177). Read-only dispatches never count and are never blocked: built-in Explore/Plan/claude-code-guide, a definition whose `tools:` grants no Edit/Write/NotebookEdit/MultiEdit and no `*` (plugin, project, user), or `[read-only: <reason>]` in the prompt (logged as `readOnly` on the roster row). Unknown and all-tools types are writers. The checkout is `[tree: <absolute path>]` in the prompt, else a repo root the brief names, else the session's; the count reads non-terminal `.ai/agents.jsonl` rows younger than 2h with the same `targetRoot`, not `isolation: worktree`. A pre-KIT-T177 row has no `targetRoot` and counts. | `[maintainer-asked-parallel: <his words>]` in the prompt |
 
@@ -64,15 +64,15 @@ one until the bill lands. `activity-tag` rewrites the line to
 into orient and the `shared-tree-dispatch` block message.
 
 - **Resolution** (`model-tag.mjs`, the one implementation — `dispatch-guard` imports it):
-  explicit `model` on the call → the agent definition's `model:` frontmatter pin → the session
-  model from the transcript. Indeterminate resolves to `''` and NOTHING is tagged; a guessed
+  explicit `model` on the call (a family) → a project-local definition's `model:` line (kit agents
+  carry none) → the session model from the transcript. Indeterminate resolves to `''` and NOTHING is tagged; a guessed
   tier would be worse than no tier.
 - **Display names are derived, never tabled** (KIT-T337): `claude-opus-5-5` -> `Opus 5.5`,
   `claude-haiku-4-5-20251001` -> `Haiku 4.5`; provider prefixes and date suffixes are ignored. The
-  only map is the kit config's `dispatch.aliases` (alias -> full id, e.g. `opus` -> `claude-opus-5`),
+  only map is the kit config's `dispatch.aliases` (family -> newest full id, e.g. `opus` -> `claude-opus-5-5`),
   so a retargeted alias is one config line. An unknown value passes through **verbatim**.
 - **One form on every dispatch**: adopted, unadopted or no repo, either tool name, background or
-  not. A leading model tag the caller wrote (`[opus]`, `[claude-opus-5-5]`, `[sonnet55]`, a stale
+  not. A leading model tag the caller wrote (`[opus]`, `[claude-opus-5-5]`, `[local-qwen]`, a stale
   `[Opus 5]`) is replaced by the resolved model's tag. `model: inherit` in a definition resolves to
   the session model. Not hookable: SendMessage resumes and Workflow `agent()` calls (no Agent
   PreToolUse event). Test per path: `hooks/activity-tag.test.mjs`.

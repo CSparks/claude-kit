@@ -91,7 +91,8 @@ expect('blocks inherit on Explore too', run(d, { subagent_type: 'Explore', promp
 expect('allows explicit opus from a fable session', run(d, { subagent_type: 'general-purpose', model: 'opus', prompt: 'x' }, fable).code, 0);
 expect('allows explicit haiku', run(d, { subagent_type: 'general-purpose', model: 'haiku', prompt: 'x' }, fable).code, 0);
 expect('allows explicit fable (a chosen tier — deep-tier dispatch)', run(d, { subagent_type: 'general-purpose', model: 'fable', prompt: 'x' }, fable).code, 0);
-expect('allows pinned kit agent (frontmatter model: opus)', run(d, { subagent_type: 'claude-kit:researcher', prompt: 'x' }, fable).code, 0);
+expect('blocks a kit agent dispatched with no model from a fable session (kit agents carry none, KIT-D080)', run(d, { subagent_type: 'claude-kit:researcher', prompt: 'x' }, fable).code, 2);
+expect('allows a kit agent when the call names a family', run(d, { subagent_type: 'claude-kit:researcher', model: 'sonnet', prompt: 'x' }, fable).code, 0);
 expect('allows [allow-fable: reason] escape on a model-less inherit', run(d, { subagent_type: 'general-purpose', prompt: 'judge panel [allow-fable: hardest-reasoning verify]' }, fable).code, 0);
 expect('allows inherit from a non-fable session', run(d, { subagent_type: 'general-purpose', prompt: 'x' }, opus).code, 0);
 expect('allows when the transcript is missing (indeterminate)', run(d, { subagent_type: 'general-purpose', prompt: 'x' }, join(d, 'missing.jsonl')).code, 0);
@@ -102,7 +103,8 @@ expect('allows on malformed stdin', runRaw(d, 'not json at all').code, 0);
 
 // Block message quality — the fix and the escape are both named.
 const msg = run(d, { subagent_type: 'general-purpose', prompt: 'x' }, fable).err;
-expect("block message names the fix (model:'opus')", /model:'opus'/.test(msg) ? 1 : 0, 1);
+expect("block message names the fix (model:'sonnet', 'opus' or 'haiku')", /model:'sonnet', 'opus' or 'haiku'/.test(msg) ? 1 : 0, 1);
+expect('block message points at the capability table resolver', /dispatch-ladder\.mjs resolve --job/.test(msg) ? 1 : 0, 1);
 expect('block message names the escape token', /\[allow-fable/.test(msg) ? 1 : 0, 1);
 expect('block message carries the exclude footer', /dispatch-ladder/.test(msg) ? 1 : 0, 1);
 
@@ -274,27 +276,16 @@ expect('blocks in a non-Rust repo too (the rule is per checkout)', run(roster(ma
   expect('a brief naming a SUBMODULE path is not a worktree dispatch', /cold-worktree-build/.test(run(main, { ...named, prompt: `Repos: \`${main}\` + submodule \`${sub}\`. Implement KIT-T256.` }).err) ? 1 : 0, 0);
 }
 
-// --- the pins the gate RELIES on (KIT-T151, KIT-D061) --------------------------------
-// The dispatch-ladder check treats a kit agent as safe because its frontmatter pins a model. That
-// makes the pins part of the gate's contract, so they are asserted here rather than trusted: an
-// unpinned agent silently inherits the session model, and an ALIAS is not a pin — `opus`
-// retargeted 4.8 -> Opus 5 at Claude Code v2.1.219 with no repo change, so pins must be full
-// versioned ids. Fable-class pins are legal only for the asset lane (KIT-D061: 3D/visual
-// authoring runs fable/medium; before KIT-T191 an implementation agent pinned to fable burned
-// ~230K tokens on an opus-grade job).
+// --- no pins anywhere (KIT-D080) -----------------------------------------------------
+// Kit agents carry no `model:` line: the orchestrator names a family on every dispatch, so the
+// dispatch-ladder check above treats a model-less call on a fable thread as the silent inherit
+// for every agent type alike. An agent that pinned a model would reintroduce a second routing home.
 {
-  const FABLE_LANE = new Set(['game-asset-artist.md', 'light-and-shadow.md']);
   const { readdirSync } = await import('node:fs');
   const agentsDir = fileURLToPath(new URL('../agents', import.meta.url));
   for (const file of readdirSync(agentsDir).filter((f) => f.endsWith('.md') && f !== 'README.md')) {
-    const pin = (readFileSync(join(agentsDir, file), 'utf8').match(/^model:[ \t]*(\S+)/m) || [])[1];
-    expect(`${file} pins a model`, pin ? 1 : 0, 1);
-    expect(`${file} pins a full versioned id, not an alias`, /^claude-/.test(pin || '') ? 1 : 0, 1);
-    expect(
-      `${file} fable pin is asset-lane only`,
-      /fable/.test(pin || '') && !FABLE_LANE.has(file) ? 0 : 1,
-      1,
-    );
+    const frontmatter = readFileSync(join(agentsDir, file), 'utf8').split('---')[1] || '';
+    expect(`${file} carries no model line`, /^model:/m.test(frontmatter) ? 1 : 0, 0);
   }
 }
 

@@ -1,8 +1,7 @@
 ---
 name: analyst-max
-description: Read-only deep analyst pinned to claude-opus-5-5 at maximum effort. Use for root-cause analysis and design on the hardest problems; it never edits, builds, tests or runs anything, and its report goes to the agent doing the work. Dispatch guards let it run in parallel with a writer because its tools grant no writing tool.
+description: Read-only deep analyst (dispatch on opus) at maximum effort. Use for root-cause analysis and design on the hardest problems; it never edits, builds, tests or runs anything, and its report goes to the agent doing the work. Dispatch guards let it run in parallel with a writer because its tools grant no writing tool.
 tools: Read, Grep, Glob, Bash
-model: claude-opus-5-5
 effort: max
 ---
 

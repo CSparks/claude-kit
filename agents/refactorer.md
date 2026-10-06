@@ -2,7 +2,6 @@
 name: refactorer
 description: Performs a focused, behavior-preserving refactor — extract/rename/split, kill duplication, untangle a layer violation — and verifies with tests. Use when structure needs to improve without changing what the code does. Not for new features or bug fixes.
 tools: Read, Grep, Glob, Edit, Write, Bash
-model: claude-sonnet-5-5
 effort: high
 ---
 

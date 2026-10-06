@@ -18,15 +18,17 @@ Work ticket $ARGUMENTS per the contract:
    handoff packet (ticket + governing trail + open criteria) before delegating (KIT-T029).
    `node <kit>/scripts/t.mjs status $ARGUMENTS doing`. Mirror each acceptance criterion
    into the native task list (TaskCreate) for live progress. If you DELEGATE this ticket to a
-   subagent, set its firepower from the KIT ladder (KIT-T034, KIT-D079): pass the Agent `model`/`effort`
-   resolved as — explicit ticket `model:`/`effort:` (per-axis override), else ticket `tier:`,
-   else the ticket's `type` default — via `node <kit>/scripts/dispatch-ladder.mjs resolve --tier <t>`
-   or `--type <type>`. The ladder is read from the kit only; a project `dispatch:` block is ignored.
-   One `tier` sets BOTH model and effort; never inherit the parent model by
-   default (Opus-inheritance is the token bleed — KIT-D022). If the resolved model is
-   UNAVAILABLE at dispatch (the harness rejects the value — e.g. `fable`, KIT-D042), retry the
-   same delegation with the tier's `fallback:` model and say so in the receipt. The same
-   resolved firepower applies when dispatch goes through a Workflow script: pass it as the
+   subagent, route it from the kit capability table (KIT-T034, KIT-D079, KIT-D080): pass the Agent
+   `model` (a FAMILY: sonnet, opus, haiku, fable) and `effort` resolved as — explicit ticket
+   `model:`/`effort:` (per-axis override), else ticket `tier:` (a job name), else the ticket's
+   `type` default — via `node <kit>/scripts/dispatch-ladder.mjs resolve --job <j>` or
+   `--type <type>`. The table is read from the kit only; a project `dispatch:` block is ignored.
+   A `local-qwen` family is dispatched through `scripts/local-agent.mjs` (docs/LOCAL-QWEN-LANE.md);
+   after 2 failures on the ticket it escalates to the row's `fallback:` family. A job row is one
+   family and one effort; never inherit the parent model by default (Opus-inheritance is the
+   token bleed — KIT-D022). If the family is UNAVAILABLE at dispatch (the harness rejects the
+   value), retry the same delegation on the row's `fallback:` family and say so in the receipt.
+   The same choice applies when dispatch goes through a Workflow script: pass it as the
    `agent()` call's `model`/`effort` opts.
    When delegating, ROUTE to the right agent (KIT-T015):
    - Check for a project-local knowledge-agent at `<repo>/.claude/agents/<domain>.md` first.

@@ -1,33 +1,22 @@
-// agent-pins.mjs — integrity of the kit's agent library: every `agents/*.md` pins a FULL
-// model id from the dispatch ladder, is registered in the plugin manifest, and matches the
-// copy actually installed under ~/.claude/plugins.
+// agent-pins.mjs — integrity of the kit's agent library (KIT-D080): no `agents/*.md` carries a
+// `model:` line (the orchestrator picks the family on every dispatch), every agent has an `effort:`,
+// is registered in the plugin manifest, and matches the copy installed under ~/.claude/plugins. No
+// model id appears in agents/, commands/ or skills/: ids live only in the kit config's aliases block.
 //
-// Model aliases (`opus`, `fable`, …) are not pins: `opus` retargeted Opus 4.8 -> Opus 5 with
-// no repo change (KIT-D061 rule 1). The checks here are the enforcement surface — consumed by
-// scripts/agent-pins.test.mjs (source truth) and hooks/housekeeping.mjs (installed drift).
-//
-//   checkPins(repoRoot)             -> string[] problems (alias pin, missing effort, off-ladder id)
+//   checkPins(repoRoot)             -> string[] problems (a `model:` line, missing effort)
+//   checkModelIds(repoRoot)         -> string[] problems (a model id outside the config aliases block)
 //   checkRegistration(repoRoot)     -> string[] problems (agent file absent from plugin.json)
 //   checkInstalledDrift(src, inst)  -> string[] problems (missing/mismatched installed copy)
 //   installedPluginRoot()           -> the installed claude-kit dir, or null
 
-import { readFileSync, readdirSync, existsSync, lstatSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, readdirSync, existsSync, lstatSync, statSync } from 'node:fs';
+import { join, relative, sep } from 'node:path';
 import { homedir } from 'node:os';
 import { frontmatterBlock, field } from './frontmatter.mjs';
-import { readLadder } from './dispatch-ladder.mjs';
 
-export const MODEL_ALIASES = ['opus', 'sonnet', 'haiku', 'fable'];
 const INSTALL_KEY = 'claude-kit@claude-kit';
 
-// Full model ids named by the dispatch ladder (the kit `.ai/config.yml` -> dispatch.tiers), including
-// `fallback:` targets. The ladder is the single source of truth for what a legal pin is.
-export function ladderModels(repoRoot) {
-  const { tiers } = readLadder(repoRoot);
-  return new Set(Object.values(tiers).flatMap((t) => [t.model, t.fallback].filter(Boolean)));
-}
-
-// Every agent definition in `agents/`, with its declared pin.
+// Every agent definition in `agents/`, with its declared `model:` (empty in the kit) and effort.
 export function readAgents(agentsDir) {
   if (!existsSync(agentsDir)) return [];
   return readdirSync(agentsDir)
@@ -40,16 +29,39 @@ export function readAgents(agentsDir) {
 }
 
 export function checkPins(repoRoot) {
-  const ladder = ladderModels(repoRoot);
   const problems = [];
   for (const a of readAgents(join(repoRoot, 'agents'))) {
-    if (!a.model) problems.push(`agents/${a.file}: no \`model:\` pin`);
-    else if (MODEL_ALIASES.includes(a.model)) {
-      problems.push(`agents/${a.file}: \`model: ${a.model}\` is an ALIAS, not a pin — use a full id (KIT-D061)`);
-    } else if (ladder.size && !ladder.has(a.model)) {
-      problems.push(`agents/${a.file}: \`model: ${a.model}\` is not on the dispatch ladder`);
-    }
+    if (a.model) problems.push(`agents/${a.file}: \`model: ${a.model}\` — kit agents carry no model; the orchestrator picks the family per dispatch (KIT-D080)`);
     if (!a.effort) problems.push(`agents/${a.file}: no \`effort:\` pin`);
+  }
+  return problems;
+}
+
+// A model id such as `claude-opus-5-5`: vendor-shaped, family plus version.
+const MODEL_ID = /\bclaude-(?:opus|sonnet|haiku|fable)-\d(?:[\w-]|\.\d)*/i;
+const ID_SCAN_DIRS = ['agents', 'commands', 'skills'];
+const ID_SCAN_EXT = /\.(md|mjs|js|json|ya?ml|txt)$/i;
+
+function* filesUnder(dir) {
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) yield* filesUnder(full);
+    else if (ID_SCAN_EXT.test(name)) yield full;
+  }
+}
+
+export function checkModelIds(repoRoot) {
+  const problems = [];
+  for (const dir of ID_SCAN_DIRS) {
+    for (const file of filesUnder(join(repoRoot, dir))) {
+      readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+        const hit = line.match(MODEL_ID);
+        if (!hit) return;
+        const rel = relative(repoRoot, file).split(sep).join('/');
+        problems.push(`${rel}:${i + 1}: model id \`${hit[0]}\` — ids live only in the kit config dispatch.aliases (KIT-D080); name a family`);
+      });
+    }
   }
   return problems;
 }
@@ -93,7 +105,7 @@ export function isDevLinked(installRoot) {
 }
 
 // Compare source `agents/` against the installed copy's. Reports a missing installed file or a
-// model/effort mismatch — the shape that silently un-pins a dispatch (KIT-T235).
+// model/effort mismatch — an installed copy still carrying a pin silently routes the dispatch (KIT-T235).
 export function checkInstalledDrift(sourceAgentsDir, installedAgentsDir) {
   const installed = new Map(readAgents(installedAgentsDir).map((a) => [a.file, a]));
   const problems = [];
@@ -103,7 +115,7 @@ export function checkInstalledDrift(sourceAgentsDir, installedAgentsDir) {
       problems.push(`${a.file}: missing from the installed copy`);
       continue;
     }
-    if (got.model !== a.model) problems.push(`${a.file}: installed model \`${got.model || 'none'}\` != source \`${a.model}\``);
+    if (got.model !== a.model) problems.push(`${a.file}: installed model \`${got.model || 'none'}\` != source \`${a.model || 'none'}\``);
     if (got.effort !== a.effort) problems.push(`${a.file}: installed effort \`${got.effort || 'none'}\` != source \`${a.effort}\``);
   }
   return problems;

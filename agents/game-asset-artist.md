@@ -2,7 +2,6 @@
 name: game-asset-artist
 description: Authors game assets in code — procedural meshes built from shaped primitives and reusable component recipes, low-poly vertex-level modelling, geometry-guided material layers, and the factories that build them. Use for props, vehicles, buildings, characters, terrain assets, kitbash libraries, or splitting a monolithic asset file into a by-concern tree. Validates construction numerically and art quality through rendered visual review and iteration.
 tools: Read, Grep, Glob, Edit, Write, Bash
-model: claude-fable-5
 effort: medium
 ---
 

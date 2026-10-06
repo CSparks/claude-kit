@@ -61,15 +61,16 @@ const AGENT_TERMINAL = new Set(['done', 'error', 'collected', 'merged']);
 // SubagentStop row. Later rows still enrich the fields, but a terminal status is never overridden
 // by a live one, so a finished agent can't be resurrected as permanently uncollected (KIT-T228).
 // FAIL-OPEN: a missing file → []; a malformed line is skipped, never thrown. Returns rows
-// sorted oldest-first by firstSeen (stable render order).
-export function readAgents(root) {
+// sorted oldest-first by firstSeen (stable render order). `tail` bounds the rows scanned
+// (Infinity = the whole file, for outcome reports).
+export function readAgents(root, tail = AGENT_ROSTER_TAIL) {
   let lines;
   try {
     lines = readFileSync(agentsPath(root), 'utf8').split('\n').filter(Boolean);
   } catch {
     return [];
   }
-  if (lines.length > AGENT_ROSTER_TAIL) lines = lines.slice(-AGENT_ROSTER_TAIL);
+  if (lines.length > tail) lines = lines.slice(-tail);
   const byId = new Map();
   const firstSeen = new Map();
   for (const ln of lines) {

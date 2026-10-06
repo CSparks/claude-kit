@@ -66,7 +66,7 @@ process failure; the stale-doing detector (housekeeping + orient) will flag it l
 ## Index
 | Agent | Role | Tools |
 | --- | --- | --- |
-| [analyst](analyst.md) | Read-only root-cause analysis and design on claude-opus-5-5 (high); never edits, builds or runs; may run alongside a writer | Read, Grep, Glob, Bash (read-only) |
+| [analyst](analyst.md) | Read-only root-cause analysis and design (effort high); never edits, builds or runs; may run alongside a writer | Read, Grep, Glob, Bash (read-only) |
 | [analyst-max](analyst-max.md) | Same as analyst at maximum effort, for the hardest problems | Read, Grep, Glob, Bash (read-only) |
 | [researcher](researcher.md) | Read-only investigation (codebase + web); returns sourced answers with pointers | Read, Grep, Glob, Bash, WebSearch, WebFetch |
 | [code-reviewer](code-reviewer.md) | Reviews changes for correctness/security/maintainability; reports, doesn't fix | Read, Grep, Glob, Bash |
@@ -75,9 +75,10 @@ process failure; the stale-doing detector (housekeeping + orient) will flag it l
 | [editor-workbench](editor-workbench.md) | rapid-game HTML editor: manifest injection, the `/api/editor/recipes` contract, per-game vite config | Read, Grep, Glob, Edit, Write, Bash |
 | [game-asset-artist](game-asset-artist.md) | Authors procedural game assets (mesh/material/texture factories); verifies numerically, never visually | Read, Grep, Glob, Edit, Write, Bash |
 
-`game-asset-artist` pins `model: fable` (the others pin `opus`) — asset authoring is
-spatial-reasoning-heavy and it must translate a visual ask into measurable structure
-without ever seeing a render.
+No agent here carries a `model:` line (KIT-D080): the orchestrator names a family on every
+dispatch from the capability table in the kit `.ai/config.yml` (`dispatch.jobs`). Asset authoring
+is the `asset` job (opus, never fable); `scripts/agent-pins.mjs` fails a `model:` line or a model
+id anywhere in agents/, commands/ or skills/.
 
 ## Project knowledge-agents (KIT-T015)
 
@@ -93,8 +94,8 @@ past mistakes instead of re-deriving them from scratch.
   project, NOT added to claude-kit (these encode private domain knowledge).
 - **Name:** the domain as a slug (`hod-render`, `hod-sim-core`, `backporter`,
   `scope-reviewer`).
-- **Shape:** standard agent frontmatter (`name`, `description`, `tools`, optional
-  `model`) + a body with four sections:
+- **Shape:** standard agent frontmatter (`name`, `description`, `tools`; no
+  `model` — the orchestrator picks the family per dispatch, KIT-D080) + a body with four sections:
   1. Role — what this agent does and what files/subsystems it owns.
   2. Conventions + gotchas — the invariants and past showstoppers it guards.
   3. Out-of-scope / legacy guard — what it must NOT touch; when to stop and surface.
