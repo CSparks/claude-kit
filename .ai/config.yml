@@ -86,10 +86,10 @@ drain:
 # ---------------------------------------------------------------------------
 # DISPATCH — the FIREPOWER a ticket gets when it is delegated to a subagent
 # (KIT-D022 complexity principle; KIT-T034). Model and reasoning-effort are ONE
-# decision, not two knobs: pick a `tier`, get both. The orchestrator reads THIS
-# block at delegation time and passes the resolved model + effort as the Agent
-# `model`/`effort` params — no code honors it, the orchestrator does (so the
-# field needs no parser; see commands/drain.md + commands/work.md).
+# decision, not two knobs: pick a `tier`, get both. THIS block is the ONLY ladder
+# (KIT-D079): projects carry none, and orient flags a project `dispatch:` block as ignored
+# drift. The orchestrator resolves it with `node <kit>/scripts/dispatch-ladder.mjs resolve
+# [--type <ticket type>] [--tier <tier>]` and passes the model + effort as the Agent params.
 #
 # RESOLUTION ORDER (first hit wins), per ticket:
 #   1. explicit `model:` / `effort:` on the ticket  → use verbatim (per-axis override)

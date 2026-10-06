@@ -18,10 +18,11 @@ Work ticket $ARGUMENTS per the contract:
    handoff packet (ticket + governing trail + open criteria) before delegating (KIT-T029).
    `node <kit>/scripts/t.mjs status $ARGUMENTS doing`. Mirror each acceptance criterion
    into the native task list (TaskCreate) for live progress. If you DELEGATE this ticket to a
-   subagent, set its firepower from `config.dispatch` (KIT-T034): pass the Agent `model`/`effort`
-   resolved as — explicit ticket `model:`/`effort:` (per-axis override), else ticket `tier:`
-   expanded via `dispatch.tiers`, else `dispatch.default_tier` for the ticket's `type` (then the
-   `*` catch-all). One `tier` sets BOTH model and effort; never inherit the parent model by
+   subagent, set its firepower from the KIT ladder (KIT-T034, KIT-D079): pass the Agent `model`/`effort`
+   resolved as — explicit ticket `model:`/`effort:` (per-axis override), else ticket `tier:`,
+   else the ticket's `type` default — via `node <kit>/scripts/dispatch-ladder.mjs resolve --tier <t>`
+   or `--type <type>`. The ladder is read from the kit only; a project `dispatch:` block is ignored.
+   One `tier` sets BOTH model and effort; never inherit the parent model by
    default (Opus-inheritance is the token bleed — KIT-D022). If the resolved model is
    UNAVAILABLE at dispatch (the harness rejects the value — e.g. `fable`, KIT-D042), retry the
    same delegation with the tier's `fallback:` model and say so in the receipt. The same

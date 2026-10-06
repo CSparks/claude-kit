@@ -1,6 +1,6 @@
 {
   "name": "claude-kit",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "A repeatable, context-durable workflow for Claude Code and Codex: capture fast, defer by default, drain automatically, and preserve working state across compaction.",
   "author": {
     "name": "Chris Sparks",

@@ -136,26 +136,8 @@ capture:
     - "at some point"
     - "would be (nice|good|worth)"
 
-# ---------------------------------------------------------------------------
-# DISPATCH — the FIREPOWER a ticket gets when delegated to a subagent (KIT-D035).
-# Resolution order (first hit wins): explicit ticket model:/effort: → ticket tier:
-# expanded via tiers → default_tier for the ticket's type (then * catch-all).
-# A tier's `fallback:` is the model to retry with when the primary is unavailable
-# at dispatch (KIT-D042) — availability handling, not a cost downgrade.
-# ---------------------------------------------------------------------------
-dispatch:
-  tiers:
-    light:    { model: haiku,  effort: low }
-    standard: { model: opus,   effort: medium }  # KIT-D043: sonnet off the coding ladder (override-only)
-    deep:     { model: fable,  fallback: opus, effort: high }
-  default_tier:
-    regression: standard
-    bug:        standard
-    feature:    standard
-    tech-debt:  light
-    request:    standard
-    epic:       deep
-    "*":        standard
+# DISPATCH — none. Model routing (tiers, default_tier) lives only in the claude-kit ladder
+# (KIT-D079); a `dispatch:` block here is ignored and flagged by orient.
 
 # ---------------------------------------------------------------------------
 # IDS — scheme is <KEY>-<TYPE><NUM> (KIT-D011). key = project key (HOD, KIT, ...),

@@ -15,17 +15,16 @@ import { readFileSync, readdirSync, existsSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { frontmatterBlock, field } from './frontmatter.mjs';
+import { readLadder } from './dispatch-ladder.mjs';
 
 export const MODEL_ALIASES = ['opus', 'sonnet', 'haiku', 'fable'];
 const INSTALL_KEY = 'claude-kit@claude-kit';
 
-// Full model ids named by the dispatch ladder (`.ai/config.yml` -> dispatch.tiers), including
+// Full model ids named by the dispatch ladder (the kit `.ai/config.yml` -> dispatch.tiers), including
 // `fallback:` targets. The ladder is the single source of truth for what a legal pin is.
 export function ladderModels(repoRoot) {
-  const text = readFileSync(join(repoRoot, '.ai', 'config.yml'), 'utf8');
-  const block = text.match(/^ {2}tiers:\n([\s\S]*?)(?=\n {2}\w|\n\w)/m);
-  const body = block ? block[1] : '';
-  return new Set([...body.matchAll(/\b(?:model|fallback):\s*([\w.-]+)/g)].map((m) => m[1]));
+  const { tiers } = readLadder(repoRoot);
+  return new Set(Object.values(tiers).flatMap((t) => [t.model, t.fallback].filter(Boolean)));
 }
 
 // Every agent definition in `agents/`, with its declared pin.

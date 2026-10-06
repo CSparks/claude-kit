@@ -168,6 +168,14 @@ try {
 } catch {
   /* broker health is best-effort */
 }
+// A project-level dispatch: block is ignored (KIT-D079); flag it as drift.
+try {
+  const { dispatchDrift } = await import('../scripts/dispatch-ladder.mjs');
+  const drift = dispatchDrift(root);
+  if (drift) out.push(`!! ${drift}`);
+} catch {
+  /* drift check is best-effort */
+}
 // Any kit bug is a ticket plus an agent dispatched to fix it (KIT-T286): list the open ones.
 try {
   const { openKitBugs } = await import('../scripts/kit-bug.mjs');
