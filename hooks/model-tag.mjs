@@ -15,40 +15,60 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 import { git } from './lib/exec.mjs';
+import { readLadder } from '../scripts/dispatch-ladder.mjs';
 
 const TRANSCRIPT_TAIL_BYTES = 256 * 1024; // enough JSONL tail to find the latest assistant turn
 const DEFINITION_HEAD_BYTES = 4 * 1024; // frontmatter lives at the top of an agent .md
 const TAG_LABEL_MAX = 40; // a bracketed prefix longer than this is prose, not a tag
 
-// DATED LINEUP FACT — true for the model lineup as of 2026-08-05. Model names are not stable
-// facts; they are a snapshot that goes stale the moment the lineup moves (the same reason
-// KIT-D035/D042/D043 are dated decisions rather than standing rules). WHEN THE LINEUP CHANGES,
-// EDIT THIS TABLE — it is the only place a display name is spelled, so a rename is one diff.
-//
-// Each entry matches BOTH the tier alias an orchestrator passes (`model: 'opus'`) and the full
-// model id a transcript carries (`claude-opus-5`, incl. provider prefixes like `us.anthropic.…`
-// and suffixes like `-20260101` / `[1m]`). The generation is part of every pattern on purpose:
-// `claude-opus-4-1` must NOT render as "Opus 5" — an unknown value passes through verbatim,
-// which is honest, where a bare /opus/ match would quietly lie.
-const LINEUP = [
-  [/^fable$|claude-fable-5\b/i, 'Fable 5'],
-  [/^opus$|claude-opus-5\b/i, 'Opus 5'],
-  [/^sonnet$|claude-sonnet-5\b/i, 'Sonnet 5'],
-  [/^haiku$|claude-haiku-4-5\b/i, 'Haiku 4.5'],
-];
+// The display name is DERIVED from the model id (`claude-opus-5-5` -> `Opus 5.5`): no lineup
+// table lives in code. Provider prefixes (`us.anthropic.`), date suffixes (`-20260101`) and
+// `[1m]` are ignored. The only map is the kit config's `dispatch.aliases` (alias -> full id),
+// so a retargeted alias is one config line (KIT-D079, KIT-T337).
+const FAMILY_ID = /claude-([a-z]+)-(\d+)(?:-(\d{1,2})(?!\d))?/i;
+const VENDOR_ID = /^(?:claude|gpt|gemini|llama|mistral|us\.anthropic|anthropic)[\w.\-[\]:]*$/i;
 
-const DISPLAY_NAMES = new Set(LINEUP.map(([, name]) => name.toLowerCase()));
+function idDisplay(id) {
+  const m = String(id).match(FAMILY_ID);
+  if (!m) return '';
+  const [, family, major, minor] = m;
+  return `${family[0].toUpperCase()}${family.slice(1).toLowerCase()} ${major}${minor ? `.${minor}` : ''}`;
+}
 
-// The display form of a raw model value: a known tier/id becomes its lineup name, anything else
-// passes through VERBATIM (an unrecognized model is still worth showing — better a raw id on the
-// line than a silent blank), and an absent value yields '' so callers can omit the tag entirely.
+function kitAliases() {
+  try {
+    return readLadder().aliases;
+  } catch {
+    return {};
+  }
+}
+
+// Families the kit knows: alias names plus the families of every ladder model id.
+function knownFamilies() {
+  const families = new Set(Object.keys(kitAliases()));
+  try {
+    for (const t of Object.values(readLadder().tiers)) {
+      for (const id of [t.model, t.fallback]) {
+        const m = String(id || '').match(FAMILY_ID);
+        if (m) families.add(m[1].toLowerCase());
+      }
+    }
+  } catch {
+    /* no ladder — only vendor-shaped ids count as tags */
+  }
+  return [...families];
+}
+
+// The display form of a raw model value: an id or alias becomes `Family N[.M]`, anything else
+// passes through VERBATIM (an unrecognized model is still worth showing), and an absent value
+// yields '' so callers can omit the tag entirely.
 export function modelDisplay(raw) {
   const value = String(raw || '').trim();
   if (!value) return '';
-  for (const [pattern, name] of LINEUP) {
-    if (pattern.test(value)) return name;
-  }
-  return value;
+  const fromId = idDisplay(value);
+  if (fromId) return fromId;
+  const aliased = kitAliases()[value.replace(/\[[^\]]*\]$/, '').toLowerCase()];
+  return aliased ? idDisplay(aliased) || aliased : value;
 }
 
 // Which model a dispatch will actually run on, in the order the harness decides it:
@@ -64,15 +84,14 @@ export function resolveDispatchModel(root, input = {}, p = {}) {
   return latestAssistantModel(p.transcript_path);
 }
 
-// Prepend `[<display>] ` to an activity description. IDEMPOTENT: a description already led by a
-// model tag is returned untouched, so a re-fired hook (or a payload that already went through
-// updatedInput) never stacks `[Opus 5] [Opus 5] …`. A NON-model bracket prefix — `[CRX-T024] fix
-// the thing` — is left in place and tagged in front of, because that bracket is the author's.
+// The ONE label form: `[<display>] <description>`. Any leading model tag the caller wrote
+// (`[opus]`, `[claude-opus-5-5]`, `[sonnet55]`, a stale `[Opus 5]`) is replaced by the resolved
+// model's tag, so the line states what the dispatch runs on, and a re-fired hook is IDEMPOTENT.
+// A NON-model bracket prefix — `[CRX-T024] fix the thing` — is the author's and stays after it.
 export function tagDescription(description, display) {
   const text = String(description ?? '');
   if (!display) return text;
-  if (leadingTag(text)) return text;
-  return `[${display}] ${text}`;
+  return `[${display}] ${stripModelTag(text)}`;
 }
 
 // The inverse, for surfaces that store the description as their own label: the roster's `task`
@@ -84,21 +103,19 @@ export function stripModelTag(description) {
   return tag ? text.slice(tag.length).trimStart() : text;
 }
 
-// The leading `[…] ` run when — and only when — it names a model: either a lineup display name
-// ("[Opus 5]") or a raw value modelDisplay would pass through verbatim ("[gpt-5]", from a
-// previous tag of an unknown model). Returns the matched prefix, or '' when there is none.
+// The leading `[…] ` run when — and only when — it names a model: a vendor-shaped id
+// (`claude-opus-5-5`, `gpt-5`) or a kit model family with an optional version (`opus`,
+// `Opus 5.5`, `sonnet55`). `[CRX-T024]` and `[WIP]` are the author's and never match.
+// Returns the matched prefix, or '' when there is none.
 function leadingTag(text) {
   const m = text.match(/^\[([^\]]+)\]\s*/);
   if (!m || m[1].length > TAG_LABEL_MAX) return '';
   const label = m[1].trim();
-  if (DISPLAY_NAMES.has(label.toLowerCase())) return m[0];
-  return modelDisplay(label) !== label || isModelish(label) ? m[0] : '';
-}
-
-// A raw model value that modelDisplay would pass through unchanged is only a TAG if it looks
-// like a model id — otherwise `[CRX-T024]` and `[WIP]` would be eaten as stale tags.
-function isModelish(label) {
-  return /^(claude|gpt|gemini|llama|mistral|us\.anthropic|anthropic)[\w.\-[\]]*$/i.test(label);
+  if (VENDOR_ID.test(label)) return m[0];
+  const families = knownFamilies();
+  if (!families.length) return '';
+  const family = new RegExp(`^(?:${families.join('|')})(?:[\\s.\\-]?\\d+(?:[.\\-]\\d+)?)?$`, 'i');
+  return family.test(label) ? m[0] : '';
 }
 
 // The repos above `root`, nearest first: a hook whose cwd sits inside a submodule must still
@@ -121,7 +138,7 @@ function superprojects(root) {
 // an unpinned type must be routed explicitly.
 export function pinnedModel(root, subagentType) {
   const m = definitionFrontmatter(root, subagentType).match(/^model:\s*([^\s#]+)/m);
-  return m ? m[1] : '';
+  return m && m[1] !== 'inherit' ? m[1] : '';
 }
 
 // The `tools:` list from the agent definition's frontmatter: an array of tool names, or null
@@ -177,7 +194,7 @@ export function latestAssistantModel(transcriptPath) {
       try {
         const row = JSON.parse(line);
         const model = row && row.type === 'assistant' && row.message && row.message.model;
-        if (model) return model;
+        if (model && !model.startsWith('<')) return model;
       } catch {
         /* clipped first line of the tail — keep scanning */
       }

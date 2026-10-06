@@ -1,6 +1,7 @@
 ---
 name: opus55
 description: Implementation workhorse pinned to claude-opus-5-5 — the `push` rung for big or spatially heavy builds (KIT-D073). Use for new crates, multi-file features and geometry work; straightforward fixes go to sonnet55.
+tools: Read, Grep, Glob, Edit, Write, Bash
 model: claude-opus-5-5
 effort: high
 ---

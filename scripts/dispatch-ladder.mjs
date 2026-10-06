@@ -2,7 +2,7 @@
 // kit's own `.ai/config.yml` (`dispatch.tiers` + `dispatch.default_tier`); a project config never
 // supplies or overrides it. A project-level `dispatch:` block is ignored and flagged as drift.
 //
-//   readLadder(kitRoot?)                    -> { tiers: {name: {model, effort, fallback}}, defaultTier: {type: tier} }
+//   readLadder(kitRoot?)                    -> { tiers: {name: {model, effort, fallback}}, defaultTier: {type: tier}, aliases: {alias: id} }
 //   resolveTier({ type, tier }, kitRoot?)   -> { tier, model, effort, fallback } (tier wins over type; `*` is the catch-all)
 //   dispatchDrift(projectRoot, kitRoot?)    -> string warning | null (project config carries a `dispatch:` block)
 //   CLI: node dispatch-ladder.mjs resolve [--type <ticket type>] [--tier <tier>]   prints JSON
@@ -37,7 +37,9 @@ export function readLadder(kitRoot = KIT_ROOT) {
   for (const m of subBlock(body, 'default_tier').matchAll(/^ {4}("[^"]+"|'[^']+'|[\w*-]+):\s*([\w-]+)/gm)) {
     defaultTier[unquote(m[1])] = m[2];
   }
-  return { tiers, defaultTier };
+  const aliases = {};
+  for (const m of subBlock(body, 'aliases').matchAll(/^ {4}([\w-]+):\s*([\w.-]+)/gm)) aliases[m[1].toLowerCase()] = m[2];
+  return { tiers, defaultTier, aliases };
 }
 
 export function resolveTier({ type, tier } = {}, kitRoot = KIT_ROOT) {

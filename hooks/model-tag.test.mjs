@@ -1,8 +1,8 @@
 // Tests for KIT-T179 — every delegated subagent carries its model where the work is watched.
-//   1. display: the DATED lineup map — aliases, full ids, provider prefixes, unknown verbatim,
-//      and the generation guard (claude-opus-4-1 must NOT read as "Opus 5").
+//   1. display: derived from the id (config aliases for bare names) — provider prefixes,
+//      date suffixes, minor versions, unknown verbatim.
 //   2. resolution: explicit model -> agent-definition pin -> session model from the transcript.
-//   3. tag: prepend is idempotent, an author's own bracket survives, strip is the inverse.
+//   3. tag: replaces a stale model tag, idempotent, an author's own bracket survives, strip is the inverse.
 //   4. the hook: rewrites description via hookSpecificOutput.updatedInput, emits NO
 //      permissionDecision (so it can never weaken dispatch-guard on the same event), and
 //      fails open on garbage / unadopted / model-less dispatches.
@@ -92,7 +92,9 @@ try {
   {
     ok('display: the opus alias', modelDisplay('opus') === 'Opus 5');
     ok('display: the fable alias', modelDisplay('fable') === 'Fable 5');
-    ok('display: the sonnet alias', modelDisplay('sonnet') === 'Sonnet 5');
+    ok('display: the sonnet alias', modelDisplay('sonnet') === 'Sonnet 5.5');
+    ok('display: the current opus and sonnet ids carry their minor', modelDisplay('claude-opus-5-5') === 'Opus 5.5' && modelDisplay('claude-sonnet-5-5') === 'Sonnet 5.5');
+    ok('display: derived from the id, so a family the code never named still renders', modelDisplay('claude-nova-7-2') === 'Nova 7.2');
     ok('display: the haiku alias', modelDisplay('haiku') === 'Haiku 4.5');
     ok('display: a full opus id', modelDisplay('claude-opus-5') === 'Opus 5');
     ok('display: a dated opus id', modelDisplay('claude-opus-5-20260101') === 'Opus 5');
@@ -102,8 +104,7 @@ try {
     ok('display: a bedrock-prefixed id', modelDisplay('us.anthropic.claude-sonnet-5-v1:0') === 'Sonnet 5');
     ok('display: case is not significant', modelDisplay('OPUS') === 'Opus 5');
     ok('display: surrounding whitespace is trimmed', modelDisplay('  opus  ') === 'Opus 5');
-    // The generation guard: a bare /opus/ match would quietly relabel a previous generation.
-    ok('display: a PRIOR-generation opus is NOT relabelled', modelDisplay('claude-opus-4-1-20250805') === 'claude-opus-4-1-20250805');
+    ok('display: a PRIOR-generation opus shows its own generation', modelDisplay('claude-opus-4-1-20250805') === 'Opus 4.1');
     ok('display: an unknown model passes through verbatim', modelDisplay('gpt-5') === 'gpt-5');
     ok('display: an absent model yields no tag', modelDisplay('') === '' && modelDisplay(undefined) === '' && modelDisplay(null) === '');
   }
@@ -155,10 +156,10 @@ try {
     ok('tag: prepends the display name', tagDescription('Build CRX-T024 admin foundation', 'Opus 5') === '[Opus 5] Build CRX-T024 admin foundation');
     ok('tag: IDEMPOTENT — never double-prepends the same tag',
       tagDescription('[Opus 5] Build CRX-T024', 'Opus 5') === '[Opus 5] Build CRX-T024');
-    ok('tag: a description already tagged with ANOTHER model is left alone',
-      tagDescription('[Fable 5] Plan the epic', 'Opus 5') === '[Fable 5] Plan the epic');
-    ok('tag: a previously-tagged unknown model still counts as tagged',
-      tagDescription('[gpt-5] do the thing', 'Opus 5') === '[gpt-5] do the thing');
+    ok('tag: a stale tag for ANOTHER model is replaced by the resolved model',
+      tagDescription('[Fable 5] Plan the epic', 'Opus 5') === '[Opus 5] Plan the epic');
+    ok('tag: a previously-tagged unknown vendor model is replaced too',
+      tagDescription('[gpt-5] do the thing', 'Opus 5') === '[Opus 5] do the thing');
     ok("tag: an AUTHOR's own bracket is not mistaken for a tag",
       tagDescription('[CRX-T024] fix the header', 'Opus 5') === '[Opus 5] [CRX-T024] fix the header');
     ok('tag: no display -> unchanged', tagDescription('Build it', '') === 'Build it');
@@ -215,10 +216,10 @@ try {
     ok('hook: an inherited session model is tagged as what it will actually cost',
       sv && sv.hookSpecificOutput.updatedInput.description === '[Fable 5] Plan the epic');
 
-    // FAIL-OPEN + opt-in: never a block, never a rewrite outside an adopted repo.
+    // FAIL-OPEN: never a block; the tag applies in an unadopted repo too (KIT-T337).
     const un = makeRepo({ adopt: false });
     const unres = hook(HOOK, dispatch({ description: 'Build it', model: 'opus' }), un);
-    ok('hook: no-ops on an unadopted repo', unres.code === 0 && verdict(unres) === null);
+    ok('hook: tags in an unadopted repo', unres.code === 0 && verdict(unres).hookSpecificOutput.updatedInput.description === '[Opus 5] Build it');
     const bad = hook(HOOK, null, d, '{not json at all');
     ok('hook: fails open on malformed stdin', bad.code === 0 && verdict(bad) === null);
     const empty = hook(HOOK, null, d, '');

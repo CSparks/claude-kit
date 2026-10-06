@@ -67,18 +67,22 @@ into orient and the `shared-tree-dispatch` block message.
   explicit `model` on the call → the agent definition's `model:` frontmatter pin → the session
   model from the transcript. Indeterminate resolves to `''` and NOTHING is tagged; a guessed
   tier would be worse than no tier.
-- **Display names are a DATED lineup fact**, spelled in exactly one table (`LINEUP`): `opus` /
-  `claude-opus-5*` → `Opus 5`, `fable` → `Fable 5`, `sonnet` → `Sonnet 5`, `haiku` /
-  `claude-haiku-4-5*` → `Haiku 4.5`. An unknown value passes through **verbatim**, and the
-  generation is part of every pattern on purpose — `claude-opus-4-1` must not read as "Opus 5".
-  **When the lineup changes, edit that table** (KIT-D035/D042/D043 territory).
+- **Display names are derived, never tabled** (KIT-T337): `claude-opus-5-5` -> `Opus 5.5`,
+  `claude-haiku-4-5-20251001` -> `Haiku 4.5`; provider prefixes and date suffixes are ignored. The
+  only map is the kit config's `dispatch.aliases` (alias -> full id, e.g. `opus` -> `claude-opus-5`),
+  so a retargeted alias is one config line. An unknown value passes through **verbatim**.
+- **One form on every dispatch**: adopted, unadopted or no repo, either tool name, background or
+  not. A leading model tag the caller wrote (`[opus]`, `[claude-opus-5-5]`, `[sonnet55]`, a stale
+  `[Opus 5]`) is replaced by the resolved model's tag. `model: inherit` in a definition resolves to
+  the session model. Not hookable: SendMessage resumes and Workflow `agent()` calls (no Agent
+  PreToolUse event). Test per path: `hooks/activity-tag.test.mjs`.
 - **Mechanism**: `hookSpecificOutput.updatedInput` — "an object with the same shape as
   `tool_input`, replacing the tool's arguments before it runs" (verified against
   code.claude.com/docs/en/hooks §"PreToolUse decision control", 2026-08-05). It is a FULL
   replacement, so the hook spreads the original input.
 - **It cannot weaken `dispatch-guard`**, which fires on the same event: `activity-tag` emits no
   `permissionDecision` at all, and omitting the field is documented as equivalent to `defer`.
-- Idempotent (never stacks `[Opus 5] [Opus 5]`), leaves an author's own bracket prefix
+- Idempotent (never stacks `[Opus 5] [Opus 5]`), leaves an author's own non-model bracket prefix
   (`[CRX-T024] …`) intact, and `agent-roster` strips the tag back off before storing the task
   label so the roster keeps model and task in separate fields.
 

@@ -15,10 +15,14 @@
 // BLOCKS with exit 2; per the docs, omitting the field "is equivalent to defer", so this hook
 // cannot promote a gate's deny into an allow. A cosmetic rewrite must never weaken a gate.
 //
-// FAIL-OPEN on everything: any throw, any unparseable payload, any unadopted repo exits 0 with
-// no output, which the harness reads as "no opinion" and the dispatch proceeds untouched.
+// ONE form on EVERY dispatch (KIT-T337): adopted repo, unadopted repo or no repo at all, with or
+// without a label the caller wrote — a leading model tag the caller wrote is replaced by the
+// resolved model's tag (see model-tag.mjs tagDescription).
+//
+// FAIL-OPEN on everything: any throw or unparseable payload exits 0 with no output, which the
+// harness reads as "no opinion" and the dispatch proceeds untouched.
 
-import { payload, gitRoot, adopted } from './lib.mjs';
+import { payload, gitRoot } from './lib.mjs';
 import { resolveDispatchModel, modelDisplay, tagDescription } from './model-tag.mjs';
 
 main().catch(() => process.exit(0));
@@ -27,7 +31,6 @@ async function main() {
   try {
     const p = await payload();
     const root = gitRoot();
-    if (!adopted(root)) process.exit(0);
 
     const input = p.tool_input || {};
     const description = input.description;
@@ -37,7 +40,7 @@ async function main() {
     if (!display) process.exit(0); // model indeterminate — say nothing rather than guess a tier
 
     const tagged = tagDescription(description, display);
-    if (tagged === description) process.exit(0); // already tagged — never rewrite for no reason
+    if (tagged === description) process.exit(0); // already in the canonical form
 
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {

@@ -1,6 +1,7 @@
 ---
 name: sonnet55
 description: Implementation agent pinned to claude-sonnet-5-5 — the `standard` rung for straightforward fixes (KIT-D076). Use for small, well-specified fixes and mechanical multi-file changes so the model never silently resolves to an alias or inherits an orchestrator model.
+tools: Read, Grep, Glob, Edit, Write, Bash
 model: claude-sonnet-5-5
 effort: high
 ---
