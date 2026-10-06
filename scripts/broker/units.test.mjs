@@ -58,6 +58,14 @@ test('composeCommand: cargo test gets --no-fail-fast + -j, idempotently', () => 
   assert.equal(composeCommand('cargo build', { jobs: 3 }), 'cargo build -j 3'); // no --no-fail-fast for build
   assert.equal(composeCommand('cargo test --no-fail-fast -j 2', { jobs: 3 }), 'cargo test --no-fail-fast -j 2'); // untouched
   assert.equal(composeCommand('echo hi', { jobs: 3 }), 'echo hi'); // non-cargo passthrough
+  assert.equal(
+    composeCommand('cargo test -p foo -- --nocapture', { jobs: 3 }),
+    'cargo test -p foo --no-fail-fast -j 3 -- --nocapture'
+  ); // KIT-T373: cargo flags stay ahead of the `--` separator
+  assert.equal(
+    composeCommand('cargo clippy -p foo -- -D warnings', { jobs: 3 }),
+    'cargo clippy -p foo -j 3 -- -D warnings'
+  );
 });
 
 test('lock: one holder, reclaim on release', () => {

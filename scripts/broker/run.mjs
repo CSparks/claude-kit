@@ -21,11 +21,15 @@ export function composeCommand(cmd, { jobs = 3 } = {}) {
   if (ci === -1) return String(cmd).trim();
   const sub = toks[ci + 1];
   if (!CARGO_BUILD_SUBS.has(sub)) return String(cmd).trim();
-  const has = (flag) => toks.includes(flag);
-  const out = toks.slice();
+  // Cargo stops reading its own flags at `--`; everything after goes to the test binary.
+  const sep = toks.indexOf('--');
+  const cargoToks = sep === -1 ? toks : toks.slice(0, sep);
+  const rest = sep === -1 ? [] : toks.slice(sep);
+  const has = (flag) => cargoToks.includes(flag);
+  const out = cargoToks.slice();
   if (TEST_SUBS.has(sub) && !has('--no-fail-fast')) out.push('--no-fail-fast');
   if (!has('-j') && !has('--jobs')) out.push('-j', String(jobs));
-  return out.join(' ');
+  return out.concat(rest).join(' ');
 }
 
 // Run one command through the platform shell (so the fixture's `node -e`/echoes and real cargo
