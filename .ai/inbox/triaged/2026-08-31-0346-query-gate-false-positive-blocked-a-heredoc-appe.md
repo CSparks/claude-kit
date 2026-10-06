@@ -1,0 +1,1 @@
+(bug) query-gate false positive: blocked a heredoc APPEND to a ~/.claude/projects/*/memory/*.md file as 'searching the .ai work store with a text tool' (store-grep). Writing a memory file is neither a search nor the .ai store; the cat>> pattern-match is too broad. Fix the matcher, not an exclusion.

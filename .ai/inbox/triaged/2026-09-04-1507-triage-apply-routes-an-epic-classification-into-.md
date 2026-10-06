@@ -1,0 +1,1 @@
+(bug) triage --apply routes an 'epic' classification into tickets/ (created ST-T572 as a ticket) even though config.classifications.epic.routes_to = epics and .ai/epics/ exists with its own template; ROUTE_STORE has no epics entry so it falls to 'tickets'. Root cause: the route→store map is a hard-coded subset, not derived from routes_to (stiletto 2026-09-04)

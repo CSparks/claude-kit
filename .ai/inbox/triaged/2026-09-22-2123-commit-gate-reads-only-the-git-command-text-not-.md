@@ -1,0 +1,1 @@
+(bug) Commit gate reads only the git command text, not a -F/--file message file; an agent committing with -F had to put the ticket token in a trailing shell comment to pass. Gate should read the -F file (and -m) contents.

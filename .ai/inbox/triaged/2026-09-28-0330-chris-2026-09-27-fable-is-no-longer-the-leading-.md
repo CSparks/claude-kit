@@ -1,0 +1,1 @@
+(decision) Chris 2026-09-27: Fable is no longer the leading-edge model. Hardest reasoning / higher-effort work goes to Opus 5.5 (claude-opus-5-5) at higher effort, not Fable. Supersede the ladder rule 'fable only for orchestration and the hardest reasoning' (KIT-D035/D042/D043/D073) in .ai/config.yml dispatch.tiers.

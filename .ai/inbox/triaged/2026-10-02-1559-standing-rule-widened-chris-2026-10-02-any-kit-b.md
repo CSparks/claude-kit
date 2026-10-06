@@ -1,0 +1,1 @@
+(decision) Standing rule widened (Chris 2026-10-02): ANY kit bug — q gap, hook false positive or miss, cap/t/q/orient error, gate misfire, process failure traced to tooling — is an immediate KIT ticket AND an agent dispatched to fix it in the claude-kit checkout, not an inbox item left for triage. Goes into the base contract (kit source, not the composed ~/.claude/CLAUDE.md).

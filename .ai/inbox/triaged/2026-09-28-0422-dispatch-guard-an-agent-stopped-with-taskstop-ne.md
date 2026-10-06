@@ -1,0 +1,1 @@
+(bug) dispatch-guard: an agent stopped with TaskStop never gets a completion row in .ai/agents.jsonl (SubagentStop doesn't fire on kill), so the guard blocks every later dispatch as 'already in flight'; had to append done rows by hand. Record a stopped/killed status on TaskStop, or treat agents with no activity past a threshold as not in flight.

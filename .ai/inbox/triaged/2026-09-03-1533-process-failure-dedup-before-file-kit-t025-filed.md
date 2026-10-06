@@ -1,0 +1,1 @@
+(bug) Process failure (dedup-before-file, KIT-T025): filed ST-T550 as a duplicate of ST-T489 because the q fts dedup query and the t new were fired in the SAME parallel tool call — the dedup result was not read before filing. Root cause: no gate on t new requiring a prior fts in the turn; fix: t new runs q similar itself and refuses/warns on a close title match.

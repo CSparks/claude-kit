@@ -1,0 +1,1 @@
+(decision) Chris 2026-10-02: ONE writer agent applies queued patches, builds, runs tests and lands on main in the one checkout; every other agent is read-only and queues patches plus the tests that prove them, getting results back to revise. Reuses scripts/broker queue/results; no worktrees or lane branches. Refines KIT-D074, resolves KIT-T276.

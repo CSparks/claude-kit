@@ -1,0 +1,1 @@
+(tech-debt) Strip the now-ignored dispatch: block from 11 project configs (KIT-D079 kit-only model routing): asset-forge, autoaudit, dirt-empire, fountain-previz, inv4d3rs, jollys-vinyl, marblequest, music-player, rapid-game-refactor, showtimewarp, woodshed. Orient flags each as drift until removed.

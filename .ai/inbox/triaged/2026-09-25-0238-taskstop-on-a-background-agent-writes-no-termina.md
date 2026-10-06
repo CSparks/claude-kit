@@ -1,0 +1,1 @@
+(bug) TaskStop on a background agent writes no terminal roster row (SubagentStop doesn't fire on kill), so dispatch-guard blocks every later dispatch until agents.jsonl is patched by hand; also 'killed' is not in AGENT_TERMINAL. Fix: PostToolUse(TaskStop) hook marks the id 'error'/'stopped' and add a terminal status for kills.

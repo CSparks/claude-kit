@@ -1,0 +1,1 @@
+(bug) Two pre-existing kit suite failures, unrelated to KIT-T272 but real: (1) server/server.test.mjs fails on a missing 'express' dependency; (2) scripts/agent-pins.test.mjs fails because agents/rg-ui-engineer.md is missing an 'effort:' pin. Found while running the full suite for KIT-T272 (64/66 files green). Neither area was touched by that work.
