@@ -41,6 +41,7 @@
     "./agents/implementer.md",
     "./agents/light-and-shadow.md",
     "./agents/patch-worker.md",
+    "./agents/perf-tuner.md",
     "./agents/refactorer.md",
     "./agents/researcher.md",
     "./agents/rg-ui-engineer.md",
