@@ -18,13 +18,12 @@ import { classifyGitSegment, tokenize } from './lib/branch-ops.mjs';
 const ESCAPE = /\[maintainer-asked-branch:\s*[^\]\s][^\]]*\]/i;
 const toPath = (p) => String(p).replace(/^["']|["']$/g, '').replace(/^\/([A-Za-z])\//, '$1:/');
 
-// The directory a command runs in: a leading `cd <dir>`, else `git -C <dir>`, else cwd.
-function targetDir(cmd) {
-  let m = cmd.match(/(?:^|&&|;)\s*cd\s+(\S[^&;|]*)/);
-  let path = m ? m[1].trim() : '';
-  if (!path) { m = cmd.match(/git\s+-C\s+("[^"]+"|'[^']+'|\S+)/); path = m ? m[1].trim() : ''; }
-  return path ? toPath(path) : process.cwd();
-}
+// The directory one segment runs in: its `git -C <dir>`, else the cwd tracked through earlier `cd`s.
+const segmentDir = (seg, cwd) => {
+  const m = seg.match(/git(?:\.exe)?\s+-C\s+("[^"]+"|'[^']+'|\S+)/);
+  return m ? resolve(cwd, toPath(m[1].trim())) : cwd;
+};
+const cdTarget = (seg) => { const m = seg.match(/^cd\s+(?:\/d\s+)?(\S.*)$/s); return m ? toPath(m[1].trim()) : ''; };
 
 const isUrl = (s) => /^[a-z][a-z0-9+.-]*:\/\//i.test(s) || (/^[^/\\]+@[^:]+:/.test(s) && !/^[A-Za-z]:[\\/]/.test(s));
 
@@ -91,21 +90,26 @@ try {
   if (!/\bgit\b/.test(command) || !/\b(?:switch|checkout|branch|worktree|clone)\b/.test(command)) process.exit(0);
   if (ESCAPE.test(command)) process.exit(0);
 
-  const cwd = targetDir(command);
-  const root = gitRoot(cwd);
-  const defaultBranch = root ? git(['-C', root, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).trim().replace(/^origin\//, '') : '';
-  const lookups = {
-    isBranch: (name) => !!root && git(['-C', root, 'rev-parse', '--verify', '--quiet', `refs/heads/${name}`]).trim() !== '',
-    isDefault: (name) => name === 'main' || name === 'master' || (!!defaultBranch && name === defaultBranch),
+  const lookupsFor = (root) => {
+    const defaultBranch = root ? git(['-C', root, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).trim().replace(/^origin\//, '') : '';
+    return {
+      isBranch: (name) => !!root && git(['-C', root, 'rev-parse', '--verify', '--quiet', `refs/heads/${name}`]).trim() !== '',
+      isDefault: (name) => name === 'main' || name === 'master' || (!!defaultBranch && name === defaultBranch),
+    };
   };
 
+  let cwd = process.cwd();
   for (const seg of command.split(/&&|\|\||[;&|]/).map((s) => s.trim()).filter(Boolean)) {
+    const cdTo = cdTarget(seg);
+    if (cdTo) { cwd = resolve(cwd, cdTo); continue; }
     const m = seg.match(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git(?:\.exe)?\s+(.+)/s); // a git INVOCATION, not git quoted inside another command
     if (!m) continue;
-    const verdict = classifyGitSegment(tokenize(m[1]), lookups);
+    const dir = segmentDir(seg, cwd);
+    const root = gitRoot(dir);
+    const verdict = classifyGitSegment(tokenize(m[1]), lookupsFor(root));
     let op = '';
     if (verdict.flip && adopted(root)) op = verdict.flip;
-    if (verdict.clone) { const why = cloneReason(verdict.clone, cwd); if (why) op = `${seg}   (${why})`; }
+    if (verdict.clone) { const why = cloneReason(verdict.clone, dir); if (why) op = `${seg}   (${why})`; }
     if (op) { process.stderr.write(blockMessage(op)); process.exit(2); }
   }
   process.exit(0);

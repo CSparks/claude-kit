@@ -67,6 +67,15 @@ try {
   ok('clone of a project remote beside it blocks (https spelling, default dest)', blocks('git clone https://github.com/CSparks/proj proj-copy', parent));
   ok('negative control: an unrelated clone beside the project is allowed', !blocks('git clone https://github.com/CSparks/other.git', parent));
 
+  const sh = (p) => p.replace(/\\/g, '/');
+  ok('compound cd: a clone into a NEW dir after a later cd is allowed (KIT-T387)',
+    !blocks(`cd "${sh(bg)}" && sha=$(git subtree split --prefix=site) && cd "${sh(parent)}" && git clone -q git@github.com:CSparks/pricklelab.git && cd pricklelab && git status`));
+  ok('compound cd: a relative later cd resolves against the prior cwd', !blocks(`cd "${sh(bg)}" && cd .. && git clone https://github.com/CSparks/pricklelab.git`));
+  ok('compound cd: clone of the SAME remote into a name beside the project still blocks',
+    blocks(`cd "${sh(bg)}" && cd .. && git clone https://github.com/CSparks/proj.git other`));
+  ok('compound cd: clone into the project after cd still blocks', blocks(`cd "${sh(bg)}" && git clone https://github.com/CSparks/proj.git other`));
+  ok('compound cd: clone into a subdir of the project after cd still blocks', blocks(`cd "${sh(parent)}" && cd proj && git clone https://example.com/lib.git vendor/lib`));
+
   ok('[maintainer-asked-branch: <words>] escapes', !blocks('git worktree add ../wt [maintainer-asked-branch: "spin up a worktree for the demo"]'));
   ok('an empty [maintainer-asked-branch:] does not escape', blocks('git worktree add ../wt [maintainer-asked-branch: ]'));
   ok('the retired [allow-branch:] token no longer escapes', blocks('git switch feature-x [allow-branch: deliberate]'));
