@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { classify, extractSymbols } from './code-index-extract.mjs';
 import { execFileSync } from 'node:child_process';
 import { listIndexable, refreshIndex } from './code-index.mjs';
-import { buildMatcher, codeVerbRows, parseCodeArgs, prefilter } from './code-index-query.mjs';
+import { buildMatcher, codeVerbRows, ftsCodeDefs, parseCodeArgs, prefilter } from './code-index-query.mjs';
 import { resolveEngine } from './db-engine.mjs';
 
 let pass = 0;
@@ -232,6 +232,40 @@ await test('no-engine fallback answers the same hits as the index', async () => 
   assert.deepEqual(got.sort(), want.sort());
 });
 
+// ---- ftsCodeDefs: the "also in code" section under q fts ----------------------
+const deco = mkdtempSync(join(tmpdir(), 'ci-deco-'));
+const putDeco = (rel, text) => { mkdirSync(dirname(join(deco, rel)), { recursive: true }); writeFileSync(join(deco, rel), text); };
+putDeco('.ai/config.yml', 'ids:\n  key: "DCO"\n');
+putDeco('.ai/tickets/DCO-T1-decor.md', '---\nid: DCO-T1\ntitle: photoshop-style layer decoration\n---\nroles and skinning\n');
+putDeco('rust/paint/decor.rs', 'pub struct Bevel { depth: u32 }\npub fn apply_bevel_pass() {}\nfn unrelated() {}\nuse crate::Bevel as Edge;\nimpl Bevel {}\n');
+putDeco('docs/notes.md', '# Bevel\n');
+
+await test('ftsCodeDefs: a term no ticket words surfaces the code definition, exact name first', async () => {
+  const defs = await ftsCodeDefs('procedural texture layer bevel', deco);
+  assert.deepEqual(defs.map((d) => [d.loc, d.type, d.name]), [
+    ['rust/paint/decor.rs:1', 'struct', 'Bevel'],
+    ['rust/paint/decor.rs:2', 'fn', 'apply_bevel_pass'],
+  ]);
+});
+
+await test('ftsCodeDefs: skips uses, impls and doc headings; operators and short terms are not terms', async () => {
+  assert.deepEqual(await ftsCodeDefs('edge OR NOT an', deco), []);
+  assert.equal((await ftsCodeDefs('bevel', deco)).some((d) => ['impl', 'use'].includes(d.type) || d.loc.startsWith('docs/')), false);
+});
+
+await test('ftsCodeDefs: at most five hits', async () => {
+  putDeco('rust/many.rs', Array.from({ length: 9 }, (_, i) => `fn widget_${i}() {}`).join('\n'));
+  assert.equal((await ftsCodeDefs('widget', deco)).length, 5);
+});
+
+await test('CLI: q fts prints an "also in code" section only when a term names a definition', () => {
+  const env = { ...process.env, CLAUDE_KIT_CODE_INDEX_DIR: cache, CLAUDE_KIT_Q_SERVER: 'off', CLAUDE_KIT_BUG_STORE: 'off' };
+  const fts = (term) => execFileSync(process.execPath, [join(import.meta.dirname, 'q.mjs'), '--no-db', '--root', deco, 'fts', term], { encoding: 'utf8', env });
+  assert.match(fts('bevel'), /also in code \(q sym\):\n.*rust\/paint\/decor\.rs:1\s+struct\s+Bevel/);
+  assert.doesNotMatch(fts('decoration'), /also in code/);
+});
+
+rmSync(deco, { recursive: true, force: true });
 rmSync(root, { recursive: true, force: true });
 rmSync(cache, { recursive: true, force: true });
 console.log(`\ncode-index: ${pass} passed, ${fail} failed`);

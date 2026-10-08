@@ -59,7 +59,7 @@ import { showRows } from './q-show.mjs';
 import { unsupportedFlags, reportGap } from './q-gap.mjs';
 import { basename } from 'node:path';
 import { printRows } from './q-print.mjs';
-import { codeVerbRows } from './code-index-query.mjs';
+import { codeVerbRows, ftsCodeDefs } from './code-index-query.mjs';
 import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
 
 const SNIPPET_COL = 2;       // items_fts column index of `body` for snippet()
@@ -441,7 +441,8 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P]
                               definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)
   file <substring|glob>       find files by path across the repo and its framework submodule
-  fts [--scope <s>] <q...>    full-text search title+body (default: this project + its adopted framework stores)
+  fts [--scope <s>] <q...>    full-text search title+body (default: this project + its adopted framework stores);
+                              then "also in code": the few code definitions the terms name
   similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only) — cross-scope
   next-id <scope> <type>      O(1) next free id (max(num)+1)
   rundown [scope]             per-scope open-item counts (\`rundown all\` = every project)
@@ -549,6 +550,16 @@ async function main() {
 
   const { rows } = await query(cmd, args, { root, cwdRoot, noDb, dbPath });
   printRows(rows, json);
+  if (cmd === 'fts' && !json) await printCodeDefs(splitFts(args.join(' ')).query, cwdRoot);
+}
+
+// The "also in code" section under `q fts`: code definitions named by the query terms, so a
+// concept the tickets word differently still surfaces where it is implemented.
+async function printCodeDefs(queryText, cwdRoot) {
+  const defs = await ftsCodeDefs(queryText, cwdRoot);
+  if (!defs.length) return;
+  process.stdout.write('also in code (q sym):\n');
+  printRows(defs, false);
 }
 
 /** CLI body for q.mjs: run main(), reporting a failure the way every q verb does. */

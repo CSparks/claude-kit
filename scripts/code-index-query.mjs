@@ -258,6 +258,44 @@ async function fileVerb(root, text, flags, refresh) {
   return out;
 }
 
+const DEF_TERM = /[a-z][a-z\d]*/g;
+const DEF_STOP_TYPES = ['use', 'impl', 'heading', 'section'];
+const DEF_HIT_LIMIT = 5;
+const DEF_MIN_TERM = 3;
+const nameWords = (name) => name.replace(/([a-z\d])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z\d]+/).filter(Boolean);
+
+/**
+ * Definitions in code whose name is, or contains as a camel/snake word, a term of an `fts` query:
+ * the "also in code" rows. Ranked by exact name, then how rare the matched term is among
+ * definitions (a generic word like "layer" yields to a specific one like "bevel"), terms matched,
+ * symbol type; at most DEF_HIT_LIMIT. Empty when no term qualifies, no SQLite engine, or the index cannot refresh.
+ */
+export async function ftsCodeDefs(queryText, root, refresh = refreshIndex) {
+  const terms = [...new Set(String(queryText || '').replace(/\b(?:AND|OR|NOT)\b/g, ' ').toLowerCase().match(DEF_TERM) || [])]
+    .filter((t) => t.length >= DEF_MIN_TERM);
+  if (!terms.length) return [];
+  let idx;
+  try { idx = await refresh(root, { tickets: false }); } catch { return []; }
+  if (!idx.handle) return [];
+  const like = terms.map(() => 's.name LIKE ?').join(' OR ');
+  const found = idx.handle.all(
+    `SELECT f.path, s.line, s.type, s.name, s.scope FROM symbols s JOIN files f ON f.id = s.file_id
+     WHERE f.kind = 'code' AND s.type NOT IN (${DEF_STOP_TYPES.map(() => '?').join(',')}) AND (${like})`,
+    [...DEF_STOP_TYPES, ...terms.map((t) => `%${t}%`)]);
+  idx.handle.close();
+  const hits = found
+    .map((r) => ({ ...r, matched: terms.filter((t) => nameWords(r.name).includes(t)) }))
+    .filter((r) => r.matched.length);
+  const termCount = new Map(terms.map((t) => [t, hits.filter((r) => r.matched.includes(t)).length]));
+  const rarest = (r) => Math.min(...r.matched.map((t) => termCount.get(t)));
+  const exact = (r) => (terms.includes(r.name.toLowerCase()) ? 0 : 1);
+  return hits
+    .sort((a, b) => exact(a) - exact(b) || rarest(a) - rarest(b) || b.matched.length - a.matched.length
+      || (TYPE_RANK[a.type] ?? UNRANKED) - (TYPE_RANK[b.type] ?? UNRANKED) || a.path.localeCompare(b.path) || a.line - b.line)
+    .slice(0, DEF_HIT_LIMIT)
+    .map((r) => ({ loc: `${r.path}:${r.line}`, type: r.type, name: r.name, scope: r.scope }));
+}
+
 // An option the verb does not take is a gap in q: file it (KIT-T286) instead of letting grep win.
 async function unknownFlagRows(cmd, args, unknown, root) {
   const { reportGap } = await import('./q-gap.mjs');
