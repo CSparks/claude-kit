@@ -41,6 +41,10 @@
       },
       {
         "matcher": "Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/upstream-gate.mjs\"" }]
+      },
+      {
+        "matcher": "Bash|PowerShell",
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/progress.mjs\"" }]
       },
       {

@@ -27,3 +27,9 @@ export function segments(cmd) {
   out.push({ text: cur, after: op });
   return out;
 }
+
+// A shell path argument as a native path: quotes stripped, MSYS `/d/x` drive form turned into `d:/x`.
+export const toPath = (p) => String(p).replace(/^["']|["']$/g, '').replace(/^\/([A-Za-z])\//, '$1:/');
+
+// The directory a `cd [/d] <dir>` segment moves to, or '' when the segment is not a cd.
+export const cdTarget = (seg) => { const m = seg.match(/^cd\s+(?:\/d\s+)?(\S.*)$/s); return m ? toPath(m[1].trim()) : ''; };

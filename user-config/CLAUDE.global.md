@@ -202,6 +202,10 @@ A comment exists only to tell a reader what a block of code does. (KIT-D078)
   hand them the command.
 - **Local = draft** (messy WIP OK). **PR/main = publish** (clean, logical,
   buildable).
+- **Upstream contributions to repos we don't own:** read the target's contribution + AI
+  policy first; where AI authorship is banned, the maintainer authors it (KIT-T395;
+  upstream-gate hook blocks `gh pr|issue create|comment` and `git push` until
+  `[upstream-policy-read: <url>; ai-allowed: yes|no]`).
 - **Commit AND push at every task boundary** — the pushed remote is the rewind point.
 - **Never seek sign-off for a routine commit/push** — commit, push, report done.
 - **Reference the work item in every commit** (`implements T-007` / `D-006`);

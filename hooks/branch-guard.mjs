@@ -14,16 +14,15 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { payload, git, gitRoot, adopted } from './lib.mjs';
 import { classifyGitSegment, tokenize } from './lib/branch-ops.mjs';
+import { cdTarget, toPath } from './lib/shell-segments.mjs';
 
 const ESCAPE = /\[maintainer-asked-branch:\s*[^\]\s][^\]]*\]/i;
-const toPath = (p) => String(p).replace(/^["']|["']$/g, '').replace(/^\/([A-Za-z])\//, '$1:/');
 
 // The directory one segment runs in: its `git -C <dir>`, else the cwd tracked through earlier `cd`s.
 const segmentDir = (seg, cwd) => {
   const m = seg.match(/git(?:\.exe)?\s+-C\s+("[^"]+"|'[^']+'|\S+)/);
   return m ? resolve(cwd, toPath(m[1].trim())) : cwd;
 };
-const cdTarget = (seg) => { const m = seg.match(/^cd\s+(?:\/d\s+)?(\S.*)$/s); return m ? toPath(m[1].trim()) : ''; };
 
 const isUrl = (s) => /^[a-z][a-z0-9+.-]*:\/\//i.test(s) || (/^[^/\\]+@[^:]+:/.test(s) && !/^[A-Za-z]:[\\/]/.test(s));
 
