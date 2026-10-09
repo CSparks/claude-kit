@@ -28,6 +28,7 @@ import {
   ftsMatchQuery, parseFts, defaultScope, resolveScope, resolveStore, requireStore, requireScope, formatId,
 } from './q-model.mjs';
 import { showRows } from './q-show.mjs';
+import { unsupportedFlags } from './q-gap.mjs';
 import { parseInboxArgs, ageDays, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 
 const Q_CLI = join(dirname(fileURLToPath(import.meta.url)), 'q.mjs');
@@ -280,8 +281,8 @@ test('q --help lists every verb the CLI actually dispatches', () => {
     assert.match(stdout, new RegExp(`^\\s{2}${verb.replace('-', '\\-')}\\b`, 'm'), `--help documents \`${verb}\``);
   }
 });
-test('q --help documents the fts --scope flag (KIT-T174)', () =>
-  assert.match(cli(['--help']).stdout, /fts \[--scope <s>\]/, 'the new flag is discoverable from --help'));
+test('q --help documents the fts --scope and --project flags (KIT-T174, KIT-T386)', () =>
+  assert.match(cli(['--help']).stdout, /fts \[--scope <s>\|--project <p>\]/, 'the flags are discoverable from --help'));
 test('a bare `q` still exits 2 with the surface on stderr (usage, not success)', () => {
   const r = cli([]);
   assert.equal(r.status, 2, 'no query = usage error');
@@ -325,6 +326,53 @@ if (!engine) {
 
   const ids = async (args, opts = {}) =>
     (await query('fts', args, { root: A.root, dbPath, ...opts })).rows.map((r) => r.id).sort();
+
+  // ---- KIT-T386: fts --project (cap's project resolution -> that project's scope) ---------
+  {
+    // A CRLF config: the id key must resolve the way the cache reads it (cap's own reader once
+    // returned '' for it, so `--project` on such a project found no scope).
+    const C = makeProject('proj-crlf', 'FQC');
+    writeFileSync(join(C.ai, 'config.yml'), 'ids:\r\n  key: "FQC"\r\n  pad: 3\r\n');
+    writeFileSync(join(C.ai, 'tickets', 'FQC-T001-crlf.md'),
+      '---\nid: FQC-T001\ntitle: crlf project ask-first gate\ntype: bug\nstatus: todo\n---\n## Description\nthe gate\n');
+    const registry = join(tmpRoot, 'registry.json');
+    writeFileSync(registry, JSON.stringify({ projects: { 'proj-a': A.root, 'proj-b': B.root, 'proj-crlf': C.root } }));
+    const priorRegistry = process.env.CLAUDE_KIT_REGISTRY;
+    process.env.CLAUDE_KIT_REGISTRY = registry;
+
+    await testAsync('fts --project <registered name> searches only that project', async () => {
+      assert.deepEqual(await ids(['--project', 'proj-b', 'gate']), ['FQB-T001']);
+    });
+    await testAsync('fts --project accepts the id key and any case, like cap', async () => {
+      assert.deepEqual(await ids(['--project', 'FQB', 'gate']), ['FQB-T001']);
+      assert.deepEqual(await ids(['--project', 'PROJ-B', 'gate']), ['FQB-T001']);
+    });
+    await testAsync('fts --project resolves a project whose config.yml is CRLF', async () => {
+      const dbC = join(tmpRoot, '.cache', 'crlf.db');
+      await hydrate({ root: C.root, dbPath: dbC });
+      assert.deepEqual(await ids(['--project', 'proj-crlf', 'gate'], { root: C.root, dbPath: dbC }), ['FQC-T001']);
+    });
+    await testAsync('fts --project with an unknown name is an error, never the cwd project', async () => {
+      await assert.rejects(ids(['--project', 'nope', 'gate']), /unknown project 'nope'/);
+    });
+    await testAsync('fts takes --scope or --project, not both', async () => {
+      await assert.rejects(ids(['--project', 'proj-b', '--scope', 'FQA', 'gate']), /not both/);
+    });
+    test('q-gap treats --project as a supported fts flag', () => {
+      assert.deepEqual(unsupportedFlags('fts', ['--project', 'proj-b']), []);
+    });
+    test('the CLI accepts fts --project (exit 0) and rejects an unknown project (exit 1)', () => {
+      const env = { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot, CLAUDE_KIT_REGISTRY: registry };
+      const ok = spawnSync(process.execPath, [Q_CLI, '--root', B.root, 'fts', 'gate', '--project', 'proj-b'], { encoding: 'utf8', env });
+      assert.equal(ok.status, 0, ok.stderr);
+      assert.match(ok.stdout, /FQB-T001/);
+      const bad = spawnSync(process.execPath, [Q_CLI, '--root', B.root, 'fts', 'gate', '--project', 'nope'], { encoding: 'utf8', env });
+      assert.equal(bad.status, 1);
+      assert.match(bad.stderr, /unknown project 'nope'/);
+    });
+
+    if (priorRegistry === undefined) delete process.env.CLAUDE_KIT_REGISTRY; else process.env.CLAUDE_KIT_REGISTRY = priorRegistry;
+  }
 
   // ---- KIT-T172 ------------------------------------------------------------
   await testAsync('fts on a HYPHENATED phrase returns rows instead of `no such column: first`', async () => {

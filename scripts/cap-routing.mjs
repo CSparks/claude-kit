@@ -3,7 +3,8 @@
 // question "whose store is this?" (KIT-T067 is the rule these functions implement).
 
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname } from 'node:path';
+import { readIdConfig } from './id-utils.mjs';
 import { projectAiDirs } from '../hooks/lib.mjs';
 
 // Minimal extraction of classification keys from config.yml (no yaml dep).
@@ -30,14 +31,10 @@ export function classificationKeys(configPath) {
 }
 
 // A project's id key (ids.key in config.yml) — the short alias (HOD/KIT) a capture is likely to
-// name. Tolerant subset scan, mirroring classificationKeys; '' when absent/unreadable.
+// name. Read by id-utils' readIdConfig, the one reader the cache and every scope use, so a
+// project's alias and its scope can never disagree (CRLF configs included); '' when absent.
 function idKey(aiDir) {
-  try {
-    const m = readFileSync(join(aiDir, 'config.yml'), 'utf8').match(/^ids:[ \t]*\n(?:[ \t]+.*\n)*?[ \t]+key:[ \t]*["']?([A-Za-z0-9_-]+)/m);
-    return m ? m[1] : '';
-  } catch {
-    return '';
-  }
+  return readIdConfig(dirname(aiDir), aiDir).key;
 }
 
 // Every registered project as { name, aiDir, key, aliases } — the routing table. `aliases` is

@@ -6,6 +6,7 @@
 import { resolve } from 'node:path';
 import { readIdConfig, STORE_TYPE, compareIds, formatItemId } from './id-utils.mjs';
 import { storeRoot } from '../hooks/lib.mjs';
+import { projectScope } from './q-project.mjs';
 
 export const OPEN = ['todo', 'doing', 'review'];
 export const FTS_LIMIT = 25;        // cap FTS hits — a retrieval list, not a full dump
@@ -103,15 +104,22 @@ export function resolveScope(scopeTok, root) {
   return /^all$/i.test(s) ? '' : s.toUpperCase();
 }
 
-// `fts [--scope <s>] <query...>` (KIT-T174) — split the scope filter off the free-text query
-// in ONE place so the cache and markdown-scan paths filter identically.
+// `fts [--scope <s> | --project <p>] <query...>` (KIT-T174, KIT-T386) — split the scope filter off
+// the free-text query in ONE place so the cache and markdown-scan paths filter identically.
+// `--project` names a registered project (cap's resolution) and becomes that project's scope.
 export function splitFts(text) {
   const toks = String(text || '').match(FTS_TOKEN) || [];
   const terms = [];
   let scope;
+  let project;
   for (let i = 0; i < toks.length; i++) {
     if (toks[i] === '--scope' && i + 1 < toks.length) { scope = toks[++i]; continue; }
+    if (toks[i] === '--project' && i + 1 < toks.length) { project = toks[++i]; continue; }
     terms.push(toks[i]);
+  }
+  if (project !== undefined) {
+    if (scope !== undefined) throw new Error('fts takes --scope or --project, not both.');
+    scope = projectScope(project);
   }
   return { scopeTok: scope, query: terms.join(' ') };
 }

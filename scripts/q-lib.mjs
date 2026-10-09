@@ -12,7 +12,7 @@
 //   node scripts/q.mjs by-commit <sha>              # tickets caused-by / fixed-by <sha>
 //   node scripts/q.mjs doc-trail <id>               # history events for <id>, newest first
 //   node scripts/q.mjs recent [Nd] [scope]          # time-windowed digest of what happened (KIT-T253)
-//   node scripts/q.mjs fts [--scope <s>] <query...> # full-text search title+body
+//   node scripts/q.mjs fts [--scope <s>|--project <p>] <query...> # full-text search title+body
 //
 // SCOPE (KIT-T255): every [scope] argument defaults to the CWD project; `all` widens to every
 // project and an explicit key picks one. Outside an adopted repo there is no key to default
@@ -443,7 +443,9 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P]
                               definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)
   file <substring|glob>       find files by path across the repo and its framework submodule
-  fts [--scope <s>] <q...>    full-text search title+body (default: this project + its adopted framework stores);
+  fts [--scope <s>|--project <p>] <q...>
+                              full-text search title+body (default: this project + its adopted framework stores;
+                              --project takes a registered project's name or id key, as cap does);
                               then "also in code": the few code definitions the terms name
   similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only) — cross-scope
   next-id <scope> <type>      O(1) next free id (max(num)+1)
