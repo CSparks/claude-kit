@@ -19,7 +19,7 @@ import { readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
 import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker } from './dispatch-broker.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
-import { latestAssistantModel, modelDisplay } from './model-tag.mjs';
+import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';
 
 const LADDER_CHECK = 'dispatch-ladder';
 const COLD_BUILD_CHECK = 'cold-worktree-build';
@@ -55,6 +55,7 @@ try {
 
   const blocks = [
     ladderBlock(root, input, prompt, p),
+    unlabelledBlock(root, input, p),
     coldWorktreeBlock(root, input, prompt),
     sharedTreeBlock(root, input, prompt),
     brokerOwnedBlock(root, input, prompt),
@@ -102,6 +103,28 @@ function ladderBlock(root, input, prompt, p) {
     "with: node <kit>/scripts/dispatch-ladder.mjs resolve --job <job>), or model:'fable' if",
     'this genuinely needs the top family.',
     'To keep a model-less fable inherit: include [allow-fable: <reason>] in the prompt.',
+    '',
+    excludeFooter(LADDER_CHECK),
+  ].join('\n');
+}
+
+// --- unlabelled dispatch (KIT-T403) ----------------------------------------------
+// The roster row, the activity line and every agent listing print the model first; a dispatch whose
+// model cannot be resolved (or names no known family) would be written unlabelled, so it never starts.
+function unlabelledBlock(root, input, p) {
+  if (!p.tool_input) return null; // unparseable payload — fail open
+  if (pathExcluded(root, LADDER_CHECK, root)) return null;
+  const model = rowModel(root, input, p);
+  if (model && isKnownModel(model)) return null;
+  const cause = model ? `unknown model "${model}"` : 'no model on the call and none resolvable from the session';
+  return [
+    'BLOCKED: this delegation cannot be labelled with a model (KIT-T403).',
+    `  agent: ${label(input)}   cause: ${cause}`,
+    '',
+    'Every agent listing prints [model] first; a dispatch with no resolvable model is refused.',
+    "Fix: pass an explicit model on the Agent call — model:'sonnet', 'opus', 'haiku' or 'fable'",
+    '(resolve with: node <kit>/scripts/dispatch-ladder.mjs resolve --job <job>), or include',
+    '[allow-fable: <reason>] in the prompt for a deliberate model-less fable inherit.',
     '',
     excludeFooter(LADDER_CHECK),
   ].join('\n');

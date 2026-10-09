@@ -18,6 +18,7 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
+import { formatAgentLine } from './lib/agent-format.mjs';
 import { recordAgent, agentsPath, readAgents } from './lib.mjs';
 import { modelDisplay, resolveDispatchModel, tagDescription, stripModelTag, pinnedModel, latestAssistantModel } from './model-tag.mjs';
 
@@ -245,14 +246,26 @@ try {
       !!row && row.scope === 'general-purpose' && row.status === 'in-flight' && !!row.targetRoot);
 
     const d2 = makeRepo();
-    hook(ROSTER, {
+    const refused = hook(ROSTER, {
       hook_event_name: 'PostToolUse', tool_name: 'Task',
       tool_input: { description: 'Do KIT-T179 work', subagent_type: 'general-purpose' },
       tool_response: { agent_id: 'a0180' },
     }, d2);
-    const row2 = readAgents(d2).find((r) => r.id === 'a0180');
-    ok('roster: an indeterminate model records an empty field, never a guess',
-      !!row2 && row2.model === '');
+    ok('roster gate: a row with no resolvable model is refused (exit 2) and never written (KIT-T403)',
+      refused.code === 2 && !readAgents(d2).some((r) => r.id === 'a0180'));
+    const refusedUnknown = hook(ROSTER, {
+      hook_event_name: 'PostToolUse', tool_name: 'Task',
+      tool_input: { description: 'x KIT-T403', subagent_type: 'general-purpose', model: 'banana' },
+      tool_response: { agent_id: 'a0181' },
+    }, d2);
+    ok('roster gate: an unknown model family is refused too', refusedUnknown.code === 2);
+    hook(ROSTER, {
+      hook_event_name: 'PostToolUse', tool_name: 'Task',
+      tool_input: { description: 'x KIT-T403', subagent_type: 'general-purpose', prompt: '[allow-fable: judge]' },
+      tool_response: { agent_id: 'a0182' },
+    }, d2);
+    ok('roster gate: [allow-fable] records model fable on the row',
+      (readAgents(d2).find((r) => r.id === 'a0182') || {}).model === 'fable');
   }
 
   // ===== 6. the orient render ===============================================
@@ -262,9 +275,9 @@ try {
     recordAgent(d, { id: 'amodel02', status: 'done', task: 'Plan KIT-T179', scope: 'researcher', model: 'claude-fable-5' });
     const out = hook(ORIENT, { hook_event_name: 'SessionStart' }, d).out;
     ok('orient: an in-flight agent shows its model beside its scope',
-      /\[in-flight\] amodel01 \(general-purpose \[Opus 5\.5\]\)/.test(out));
+      /\[Opus 5\.5\] general-purpose  amodel01  in-flight/.test(out));
     ok('orient: a finished agent shows its model too',
-      /\[done\] amodel02 \(researcher \[Fable 5\]\)/.test(out));
+      /\[Fable 5\] researcher  amodel02  done/.test(out));
 
     // BACK-COMPAT: rows written before the field existed must render exactly as they did.
     const old = makeRepo({ commit: true });
@@ -272,14 +285,21 @@ try {
       ts: new Date().toISOString(), id: 'aold01', status: 'in-flight', task: 'legacy row', scope: 'general-purpose',
     }) + '\n');
     const oldOut = hook(ORIENT, { hook_event_name: 'SessionStart' }, old).out;
-    ok('orient: a pre-KIT-T179 row renders unchanged (no empty brackets)',
-      /\[in-flight\] aold01 \(general-purpose\) — legacy row/.test(oldOut) && !/\(general-purpose \[/.test(oldOut));
+    ok('orient: a legacy unlabelled row prints [model?] and trips the !! lint (KIT-T403)',
+      /\[model\?\] general-purpose  aold01  in-flight/.test(oldOut) && /\!! 1 agent row\(s\) carry no model/.test(oldOut));
 
     // An unknown model is shown verbatim rather than dropped — honest beats tidy.
     const unk = makeRepo({ commit: true });
     recordAgent(unk, { id: 'aunk01', status: 'in-flight', task: 'odd model', scope: 'general-purpose', model: 'gpt-5' });
     ok('orient: an unknown model renders verbatim',
-      /\[in-flight\] aunk01 \(general-purpose \[gpt-5\]\)/.test(hook(ORIENT, { hook_event_name: 'SessionStart' }, unk).out));
+      /\[gpt-5\] general-purpose  aunk01  in-flight/.test(hook(ORIENT, { hook_event_name: 'SessionStart' }, unk).out));
+  }
+
+  // ===== 6b. the one formatter =============================================
+  {
+    const line = formatAgentLine({ id: 'a1', scope: 'general-purpose', status: 'in-flight', task: 'do it', model: 'opus', ts: new Date().toISOString() });
+    ok('formatter: the model tag comes first on the line', /^ {2}\[Opus 5\.5\] general-purpose  a1  in-flight/.test(line));
+    ok('formatter: no model prints [model?], never blank', formatAgentLine({ id: 'a2', status: 'done', task: 't' }).trimStart().startsWith('[model?]'));
   }
 
   // ===== 7. wiring parity (both install paths) ==============================

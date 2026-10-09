@@ -9,7 +9,7 @@ import { join, basename, resolve } from 'node:path';
 import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, readLineage, recordProject, aheadBehind, fetchRepos, centralDataRoot, globToRegExp, sessionStale, readAgents, partitionAgents, AGENT_STALE_MS, scanStaleDoingTickets, readRegistry } from './lib.mjs';
 import { unifyMemory, memoryLinkCommand } from './memory-link.mjs';
 import { readProgress, progressFor, formatProgress } from './progress-store.mjs';
-import { modelDisplay } from './model-tag.mjs';
+import { formatAgentLine, unlabelledAgents } from './lib/agent-format.mjs';
 import { recentCommits, ORIENT_WINDOW_MIN } from './live-sessions.mjs';
 import { frameworkSection } from './lib/frameworks.mjs';
 import { adoptedDocTree, trunkMap } from '../scripts/doc-tree.mjs';
@@ -110,12 +110,6 @@ const decisionMeta = (f) => {
   return metaByFile.get(f) || readDecisionMeta(join(root, '.ai', 'decisions', f));
 };
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
-// ` [Opus 5]` for a roster row that recorded which model it is burning (KIT-T179). A row written
-// before the field existed has none, and renders exactly as it always did.
-const agentModel = (r) => {
-  const display = modelDisplay(r && r.model);
-  return display ? ` [${display}]` : '';
-};
 // Recent decisions from a decisions/ DIRECTORY: ids+titles for the latest n, then a pointer.
 const recentDecisions = (n) => {
   const files = decisionFiles();
@@ -346,6 +340,8 @@ try {
     out.push('');
     out.push('--- In-flight agents (DELEGATED work — reattach or reconcile) ---');
     const staleMin = Math.round(AGENT_STALE_MS / 60000);
+    const unlabelled = unlabelledAgents(roster);
+    if (unlabelled.length) out.push(`!! ${unlabelled.length} agent row(s) carry no model (KIT-T403): ${unlabelled.slice(0, 5).map((r) => r.id).join(', ')} — shown as [model?]`);
     for (const r of inFlight) {
       const running = progressFor(live, r.id);
       if (running) joined.add(running);
@@ -354,10 +350,10 @@ try {
       const reattach = CODEX ? '/agents or the agent output' : 'TaskList/output';
       const flag = staleIds.has(r.id) && !running ? ` !! UNCOLLECTED (>${staleMin}m, no completion recorded — reattach via ${reattach} or reconcile)` : '';
       const busy = running ? ` — running: ${formatProgress(running, now)}` : '';
-      out.push(`  [in-flight] ${r.id} (${r.scope || '?'}${agentModel(r)})${r.background ? ' bg' : ''} — ${clip(r.task || '?', LINE_MAX)}${busy}${flag}`);
+      out.push(formatAgentLine(r, { nowMs: now, clipTask: (t) => clip(t, LINE_MAX) }) + busy + flag);
     }
     for (const r of finished.slice(-2)) {
-      out.push(`  [${r.status}] ${r.id} (${r.scope || '?'}${agentModel(r)}) — ${clip(r.task || r.summary || 'finished', LINE_MAX)} (collect output if not merged)`);
+      out.push(formatAgentLine(r, { nowMs: now, clipTask: (t) => clip(t, LINE_MAX) }) + ' (collect output if not merged)');
     }
     // A live build whose delegation has no roster row yet. NOT an edge case: PostToolUse(Task)
     // fires when the tool RESULT lands (KIT-T177), so a synchronous agent is mid-build for its

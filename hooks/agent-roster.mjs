@@ -15,7 +15,7 @@
 import { gitRoot, adopted, payload, recordAgent, updateAgent, ID_CITE_SRC } from './lib.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { declaredReadOnly } from './dispatch-readonly.mjs';
-import { resolveDispatchModel, stripModelTag } from './model-tag.mjs';
+import { rowModel, isKnownModel, stripModelTag } from './model-tag.mjs';
 import { declaredJob, outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
@@ -33,7 +33,7 @@ async function main() {
     recordStop(root, p);
   } else {
     // PostToolUse(Task) (the default wiring) — a delegation just dispatched.
-    recordDispatch(root, p);
+    if (!recordDispatch(root, p)) process.exit(2);
   }
   process.exit(0);
 }
@@ -47,6 +47,7 @@ async function main() {
 // SubagentStop row, and readAgents' terminal ratchet reconciles that ordering on read (KIT-T228).
 function recordDispatch(root, p) {
   try {
+    if (!p.tool_input) return true; // unparseable payload — fail open
     const inp = p.tool_input || {};
     const resp = p.tool_response || p.tool_result || {};
     const id = firstString(
@@ -66,7 +67,12 @@ function recordDispatch(root, p) {
     const targetRoot = dispatchTargetRoot(root, inp);
     // WHAT IT COSTS (KIT-T179). Stored RAW — the alias or full id actually resolved — so the
     // display map in model-tag.mjs stays the one place a lineup rename has to be made.
-    const model = resolveDispatchModel(root, inp, p);
+    const model = rowModel(root, inp, p);
+    if (!model || !isKnownModel(model)) {
+      process.stderr.write(`BLOCKED: agent roster refused an unlabelled row for ${id} (${scope}): ${model ? `unknown model "${model}"` : 'no resolvable model'} (KIT-T403). Re-dispatch with an explicit model:'sonnet'|'opus'|'haiku'|'fable'.
+`);
+      return false;
+    }
     const readOnly = declaredReadOnly(firstString(inp.prompt, inp.message));
     // WHICH JOB it serves (`[job: fix]` in the brief) and what it cost where the response says (KIT-D080).
     const job = declaredJob(firstString(inp.prompt, inp.message));
@@ -76,8 +82,10 @@ function recordDispatch(root, p) {
     if (brief && !ID_CITE_RE.test(brief)) {
       process.stderr.write('delegation cites no ticket — ground it in one if this is real work\n');
     }
+    return true;
   } catch {
     /* fail-open — a roster miss is reconciled by the orchestrator, never a wedged tool call */
+    return true;
   }
 }
 

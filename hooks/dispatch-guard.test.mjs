@@ -95,7 +95,12 @@ expect('blocks a kit agent dispatched with no model from a fable session (kit ag
 expect('allows a kit agent when the call names a family', run(d, { subagent_type: 'claude-kit:researcher', model: 'sonnet', prompt: 'x' }, fable).code, 0);
 expect('allows [allow-fable: reason] escape on a model-less inherit', run(d, { subagent_type: 'general-purpose', prompt: 'judge panel [allow-fable: hardest-reasoning verify]' }, fable).code, 0);
 expect('allows inherit from a non-fable session', run(d, { subagent_type: 'general-purpose', prompt: 'x' }, opus).code, 0);
-expect('allows when the transcript is missing (indeterminate)', run(d, { subagent_type: 'general-purpose', prompt: 'x' }, join(d, 'missing.jsonl')).code, 0);
+// KIT-T403 — a dispatch whose model cannot be resolved is refused, never written unlabelled.
+const noModel = run(d, { subagent_type: 'general-purpose', prompt: 'x' }, join(d, 'missing.jsonl'));
+expect('blocks a dispatch with no resolvable model (transcript missing)', noModel.code, 2);
+expect('the unlabelled block names the fix', /explicit model on the Agent call/.test(noModel.err) ? 1 : 0, 1);
+expect('blocks an explicit model of an unknown family', run(d, { subagent_type: 'general-purpose', model: 'banana', prompt: 'x' }, opus).code, 2);
+expect('allows [allow-fable] with an unresolvable session', run(d, { subagent_type: 'general-purpose', prompt: '[allow-fable: judge]' }, join(d, 'missing.jsonl')).code, 0);
 
 // FAIL-OPEN — never wedge a delegation.
 expect('allows on an unadopted repo', run(un, { subagent_type: 'general-purpose', prompt: 'x' }, fable).code, 0);
@@ -208,13 +213,13 @@ expect('blocks in a non-Rust repo too (the rule is per checkout)', run(roster(ma
 {
   const dir = live();
   expect('an all-tools type without the token is blocked', run(dir, { subagent_type: 'sonnet55', prompt: 'survey the docs' }).code, 2);
-  expect('[read-only: reason] lets an all-tools type through', run(dir, { subagent_type: 'sonnet55', prompt: 'survey the docs [read-only: research only]' }).code, 0);
+  expect('[read-only: reason] lets an all-tools type through', run(dir, { subagent_type: 'sonnet55', model: 'opus', prompt: 'survey the docs [read-only: research only]' }).code, 0);
   expect('an empty [read-only:] does not count', run(dir, { subagent_type: 'sonnet55', prompt: 'survey [read-only: ]' }).code, 2);
   const declared = roster(makeRepo({ cargo: true }), [inFlightRow(0, { scope: 'sonnet55', readOnly: 'research only' })]);
   expect('a row carrying readOnly never counts', run(declared, one).code, 0);
   spawnSync(process.execPath, [fileURLToPath(new URL('./agent-roster.mjs', import.meta.url))], {
     cwd: declared, encoding: 'utf8', env: { ...process.env, CLAUDE_PLUGIN_ROOT: '' },
-    input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Agent', tool_input: { subagent_type: 'sonnet55', description: 'survey', prompt: 'survey [read-only: research only]' }, tool_response: { agent_id: 'agent-ro' } }),
+    input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Agent', tool_input: { subagent_type: 'sonnet55', model: 'opus', description: 'survey', prompt: 'survey [read-only: research only]' }, tool_response: { agent_id: 'agent-ro' } }),
   });
   const rows = readFileSync(join(declared, '.ai', 'agents.jsonl'), 'utf8').trim().split(/\r?\n/).map((l) => JSON.parse(l));
   expect('the roster row logs the read-only declaration', rows.some((r) => r.id === 'agent-ro' && r.readOnly === 'research only') ? 1 : 0, 1);
@@ -237,9 +242,9 @@ expect('blocks in a non-Rust repo too (the rule is per checkout)', run(roster(ma
   expect('a project agent granted Edit still blocks', run(withAgents(defs), { subagent_type: 'writer', prompt: 'fix the generators' }).code, 2);
   expect('a project agent granted every tool still blocks', run(withAgents(defs), { subagent_type: 'anything', prompt: 'fix the generators' }).code, 2);
   expect('the built-in Explore agent dispatches while a writer is in flight', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: 'Explore', model: 'opus', prompt: 'find the callers' }).code, 0);
-  expect('the kit researcher (plugin-prefixed) dispatches while a writer is in flight', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: 'claude-kit:researcher', prompt: 'trace the load path' }).code, 0);
+  expect('the kit researcher (plugin-prefixed) dispatches while a writer is in flight', run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: 'claude-kit:researcher', model: 'opus', prompt: 'trace the load path' }).code, 0);
   for (const type of ['claude-kit:analyst', 'claude-kit:analyst-max']) {
-    expect(`the kit ${type} dispatches while a writer is in flight (read-only by definition)`, run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: type, prompt: 'root-cause the seam' }).code, 0);
+    expect(`the kit ${type} dispatches while a writer is in flight (read-only by definition)`, run(roster(makeRepo({ cargo: true }), [inFlightRow()]), { subagent_type: type, model: 'opus', prompt: 'root-cause the seam' }).code, 0);
   }
   const analystLive = roster(makeRepo({ cargo: true }), [inFlightRow(0, { scope: 'claude-kit:analyst', task: 'root-cause the seam' })]);
   expect('a writer dispatches while only a kit analyst is in flight', run(analystLive, one).code, 0);

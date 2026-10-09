@@ -158,7 +158,7 @@ try {
     writeRunning(d, { key: AGENT, cmd: 'cargo test', minutesAgo: 6 });
     const resume = hook(ORIENT, { hook_event_name: 'SessionStart' }, d);
     ok('orient: the in-flight agent shows what it is running, with elapsed',
-      /\[in-flight\] a55317e42f51677c0 .*running: cargo test \(6m\)/.test(resume.out));
+      /a55317e42f51677c0  in-flight .*running: cargo test \(6m\)/.test(resume.out));
 
     // The dispatch row lands only when the Task RESULT does (KIT-T177), so a build with no roster
     // row yet is the COMMON case for a synchronous agent — it must still be visible.

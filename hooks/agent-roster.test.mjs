@@ -114,7 +114,7 @@ try {
     const d = makeRepo();
     const r = hook(ROSTER_HOOK, {
       hook_event_name: 'PostToolUse', tool_name: 'Task',
-      tool_input: { description: 'fix 3 sim regressions', subagent_type: 'general-purpose', run_in_background: true },
+      tool_input: { description: 'fix 3 sim regressions', subagent_type: 'general-purpose', model: 'opus', run_in_background: true },
       tool_response: { agent_id: 'a55317e42f51677c0' },
     }, d);
     ok('hook: PostToolUse(Task) exits 0 (never blocks a delegation)', r.code === 0);
@@ -131,7 +131,7 @@ try {
 
     // No handle anywhere -> still recorded (minted id) so the row is trackable, not dropped.
     const d2 = makeRepo();
-    hook(ROSTER_HOOK, { hook_event_name: 'PostToolUse', tool_name: 'Task', tool_input: { prompt: 'a foreground task with no id' } }, d2);
+    hook(ROSTER_HOOK, { hook_event_name: 'PostToolUse', tool_name: 'Task', tool_input: { prompt: 'a foreground task with no id', model: 'sonnet' } }, d2);
     const r2 = readAgents(d2);
     ok('hook: a delegation with no returned handle still records a trackable row', r2.length === 1 && r2[0].status === 'in-flight' && /^agent-/.test(r2[0].id));
 
@@ -141,7 +141,7 @@ try {
       const dw = makeRepo();
       hook(ROSTER_HOOK, {
         hook_event_name: 'PostToolUse', tool_name: 'Task',
-        tool_input: { description: 'port the mesh (KIT-T177)', subagent_type: 'general-purpose', isolation: 'worktree' },
+        tool_input: { description: 'port the mesh (KIT-T177)', subagent_type: 'general-purpose', model: 'opus', isolation: 'worktree' },
         tool_response: { agent_id: 'iso01' },
       }, dw);
       const row = readAgents(dw)[0];
@@ -152,7 +152,7 @@ try {
       const other = gitTop(makeRepo());
       hook(ROSTER_HOOK, {
         hook_event_name: 'PostToolUse', tool_name: 'Task',
-        tool_input: { prompt: `Implement KIT-T177 in \`${other}\``, subagent_type: 'general-purpose' },
+        tool_input: { prompt: `Implement KIT-T177 in \`${other}\``, subagent_type: 'general-purpose', model: 'opus' },
         tool_response: { agent_id: 'tgt01' },
       }, dh);
       ok('tree: a brief naming another repo root records THAT tree', sameTree(readAgents(dh)[0].targetRoot, other));
@@ -161,7 +161,7 @@ try {
       const nested = join(gitTop(makeRepo()), 'src', 'thing.mjs');
       hook(ROSTER_HOOK, {
         hook_event_name: 'PostToolUse', tool_name: 'Task',
-        tool_input: { prompt: `see \`${nested}\` for context (KIT-T177)`, subagent_type: 'general-purpose' },
+        tool_input: { prompt: `see \`${nested}\` for context (KIT-T177)`, subagent_type: 'general-purpose', model: 'opus' },
         tool_response: { agent_id: 'tgt03' },
       }, dn);
       ok('tree: a FILE inside another repo does not retarget the dispatch', sameTree(readAgents(dn)[0].targetRoot, gitTop(dn)));
@@ -169,7 +169,7 @@ try {
       const dm = makeRepo();
       hook(ROSTER_HOOK, {
         hook_event_name: 'PostToolUse', tool_name: 'Task',
-        tool_input: { prompt: 'audit KIT-T177 against C:\\nope\\not\\a\\repo', subagent_type: 'general-purpose' },
+        tool_input: { prompt: 'audit KIT-T177 against C:\\nope\\not\\a\\repo', subagent_type: 'general-purpose', model: 'opus' },
         tool_response: { agent_id: 'tgt02' },
       }, dm);
       ok('tree: an unresolvable path falls back to the dispatching tree', sameTree(readAgents(dm)[0].targetRoot, gitTop(dm)));
@@ -184,7 +184,7 @@ try {
       hook(ROSTER_HOOK, { hook_event_name: 'SubagentStop', agent_id: 'sync01', agent_type: 'general-purpose' }, ds);
       hook(ROSTER_HOOK, {
         hook_event_name: 'PostToolUse', tool_name: 'Task',
-        tool_input: { description: 'a synchronous run (KIT-T177)', subagent_type: 'general-purpose' },
+        tool_input: { description: 'a synchronous run (KIT-T177)', subagent_type: 'general-purpose', model: 'opus' },
         tool_response: { agent_id: 'sync01' },
       }, ds);
       const rows = readAgents(ds);
@@ -230,7 +230,7 @@ try {
       const dl = makeRepo();
       const rNoId = hook(ROSTER_HOOK, {
         hook_event_name: 'PostToolUse', tool_name: 'Task',
-        tool_input: { description: 'do some refactoring without citing any ticket', subagent_type: 'general-purpose' },
+        tool_input: { description: 'do some refactoring without citing any ticket', subagent_type: 'general-purpose', model: 'opus' },
         tool_response: { agent_id: 'warn-test-01' },
       }, dl);
       ok('lint: ticket-less Task exits 0 (advisory, not a block)', rNoId.code === 0);
@@ -241,7 +241,7 @@ try {
       const dl2 = makeRepo();
       const rWithId = hook(ROSTER_HOOK, {
         hook_event_name: 'PostToolUse', tool_name: 'Task',
-        tool_input: { description: 'fix the collision bug — implements KIT-T001', subagent_type: 'general-purpose' },
+        tool_input: { description: 'fix the collision bug — implements KIT-T001', subagent_type: 'general-purpose', model: 'opus' },
         tool_response: { agent_id: 'warn-test-02' },
       }, dl2);
       ok('lint: Task citing KIT-T001 exits 0', rWithId.code === 0);
@@ -256,12 +256,12 @@ try {
     // Two background delegations land (captured automatically, exactly as in a live session)…
     hook(ROSTER_HOOK, {
       hook_event_name: 'PostToolUse', tool_name: 'Task',
-      tool_input: { description: 'fix 3 sim regressions', subagent_type: 'general-purpose', run_in_background: true },
+      tool_input: { description: 'fix 3 sim regressions', subagent_type: 'general-purpose', model: 'opus', run_in_background: true },
       tool_response: { agent_id: 'live01' },
     }, d);
     hook(ROSTER_HOOK, {
       hook_event_name: 'PostToolUse', tool_name: 'Task',
-      tool_input: { description: 'audit road topology', subagent_type: 'researcher', run_in_background: true },
+      tool_input: { description: 'audit road topology', subagent_type: 'researcher', model: 'opus', run_in_background: true },
       tool_response: { agent_id: 'live02' },
     }, d);
     // …one finishes before the clear, one is still running (the lose-able case).
@@ -273,8 +273,8 @@ try {
     // The cold resume: orient runs at SessionStart with an empty context.
     const resume = hook(join(HERE, 'orient.mjs'), { hook_event_name: 'SessionStart' }, d);
     ok('drill: orient emits the In-flight agents section', resume.out.includes('In-flight agents'));
-    ok('drill: the still-running delegation is surfaced (ZERO loss)', /\[in-flight\] live01 .*fix 3 sim regressions/.test(resume.out));
-    ok('drill: the finished delegation is shown so its output gets collected', /\[done\] live02/.test(resume.out));
+    ok('drill: the still-running delegation is surfaced (ZERO loss)', /live01  in-flight .*fix 3 sim regressions/.test(resume.out));
+    ok('drill: the finished delegation is shown so its output gets collected', /live02  done/.test(resume.out));
 
     // An UNCOLLECTED (stale) in-flight agent must be flagged loudly, not silently assumed done.
     const d2 = makeRepo({ commit: true });
@@ -285,7 +285,7 @@ try {
     writeFileSync(agentsPath(d2), JSON.stringify(rec) + '\n');
     const resume2 = hook(join(HERE, 'orient.mjs'), { hook_event_name: 'SessionStart' }, d2);
     ok('drill: an uncollected/stale in-flight agent is flagged UNCOLLECTED on resume',
-      /\[in-flight\] stuck .*!! UNCOLLECTED/.test(resume2.out));
+      /stuck  in-flight .*!! UNCOLLECTED/.test(resume2.out));
 
     // No roster -> orient stays silent about agents (no empty section noise).
     const d3 = makeRepo({ commit: true });

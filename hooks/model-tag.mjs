@@ -82,6 +82,29 @@ export function resolveDispatchModel(root, input = {}, p = {}) {
   return latestAssistantModel(p.transcript_path);
 }
 
+const HARNESS_FAMILIES = ['opus', 'sonnet', 'haiku', 'fable'];
+const ALLOW_FABLE = /\[allow-fable\b/i;
+
+// True when `raw` names a model the kit can label: a vendor-shaped id, a harness or kit family
+// (optionally versioned, optional `[1m]`), or a configured alias.
+export function isKnownModel(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return false;
+  if (VENDOR_ID.test(value)) return true;
+  const families = [...new Set([...HARNESS_FAMILIES, ...knownFamilies()])];
+  return new RegExp(`^(?:${families.join('|')})(?:[\\s.\\-]?\\d+(?:[.\\-]\\d+)?)?(?:\\[[^\\]]*\\])?$`, 'i').test(value);
+}
+
+// The model a dispatch ROW must carry (KIT-T403): resolveDispatchModel, or `fable` when the brief
+// carries the deliberate [allow-fable: reason] inherit. '' means the row cannot be labelled.
+export function rowModel(root, input = {}, p = {}) {
+  const resolved = resolveDispatchModel(root, input, p);
+  if (resolved) return resolved;
+  const prompt = String(input.prompt || input.message || '');
+  const escaped = ALLOW_FABLE.test(prompt) || /^(1|true|yes)$/i.test(process.env.CLAUDE_KIT_ALLOW_FABLE || '');
+  return escaped ? 'fable' : '';
+}
+
 // The ONE label form: `[<display>] <description>`. Any leading model tag the caller wrote
 // (`[opus]`, `[claude-opus-5-5]`, `[sonnet55]`, a stale `[Opus 5]`) is replaced by the resolved
 // model's tag, so the line states what the dispatch runs on, and a re-fired hook is IDEMPOTENT.
