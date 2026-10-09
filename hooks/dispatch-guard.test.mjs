@@ -17,6 +17,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
+import { fixtureKit, isoDaysAgo } from './test-harness.mjs';
+const FRESH_KIT = fixtureKit(isoDaysAgo(0));
 const HOOK = fileURLToPath(new URL('./dispatch-guard.mjs', import.meta.url));
 const HOURS = 60 * 60 * 1000;
 let failures = 0;
@@ -60,7 +62,7 @@ function runRaw(dir, stdin) {
     cwd: dir,
     input: stdin,
     encoding: 'utf8',
-    env: { ...process.env, CLAUDE_KIT_ALLOW_FABLE: '', CLAUDE_PLUGIN_ROOT: '' },
+    env: { ...process.env, CLAUDE_KIT_ALLOW_FABLE: '', CLAUDE_PLUGIN_ROOT: '', CLAUDE_KIT_LADDER_ROOT: process.env.DG_LADDER_ROOT || FRESH_KIT },
   });
   return { code: r.status, err: r.stderr || '' };
 }
@@ -112,6 +114,21 @@ expect("block message names the fix (model:'sonnet', 'opus' or 'haiku')", /model
 expect('block message points at the capability table resolver', /dispatch-ladder\.mjs resolve --job/.test(msg) ? 1 : 0, 1);
 expect('block message names the escape token', /\[allow-fable/.test(msg) ? 1 : 0, 1);
 expect('block message carries the exclude footer', /dispatch-ladder/.test(msg) ? 1 : 0, 1);
+
+// --- capability-table-stale (KIT-T339) ----------------------------------------------
+{
+  const goodCall = { subagent_type: 'general-purpose', model: 'opus', prompt: 'x' };
+  process.env.DG_LADDER_ROOT = fixtureKit(isoDaysAgo(30));
+  const stale = run(d, goodCall, opus);
+  expect('blocks a dispatch when the capability table evidence is older than the refresh period', stale.code, 2);
+  expect('the stale block names the refresh script', /model-refresh.mjs/.test(stale.err) ? 1 : 0, 1);
+  expect('the stale block carries the capability-table-stale exclude footer', /id: capability-table-stale/.test(stale.err) ? 1 : 0, 1);
+  const ignored = ignoreFile(makeRepo(), 'capability-table-stale');
+  expect('the ignore file lifts the stale gate', run(ignored, goodCall, opus).code, 0);
+  process.env.DG_LADDER_ROOT = fixtureKit(isoDaysAgo(0));
+  expect('a fresh table lets the same dispatch through', run(d, goodCall, opus).code, 0);
+  delete process.env.DG_LADDER_ROOT;
+}
 
 // --- cold-worktree-build (KIT-T176) ---------------------------------------------
 const rust = makeRepo({ cargo: true });

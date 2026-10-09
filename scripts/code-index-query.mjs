@@ -6,6 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
+import { projectRepo } from './q-project.mjs';
 
 export const DEFAULT_LIMIT = 40;
 const MIN_LITERAL = 3;
@@ -15,10 +16,10 @@ const GAP = '\u0000';
 const DEFAULT_KINDS = ['code', 'doc', 'config'];
 const ALL_KINDS = [...DEFAULT_KINDS, 'ticket'];
 const TYPE_RANK = { fn: 0, struct: 1, enum: 1, trait: 1, class: 1, type: 1, const: 2, var: 2, macro: 2, mod: 3, impl: 4, use: 5, heading: 6, section: 6 };
-const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--type', '--limit', '-C', '-A', '-B']);
+const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--type', '--limit', '--project', '-C', '-A', '-B']);
 
 const ATTACHED_COUNT = /^-([ABC])(\d+)$/;
-const ATTACHED_VALUE = /^(--(?:kind|lang|path|type|limit))=(.*)$/;
+const ATTACHED_VALUE = /^(--(?:kind|lang|path|type|limit|project))=(.*)$/;
 
 // `-B2` and `--lang=rust` mean `-B 2` and `--lang rust`, as in grep.
 const splitAttached = (args) => args.flatMap((a) => {
@@ -50,6 +51,7 @@ export function parseCodeArgs(rawArgs) {
       else if (a === '--type') flags.types = String(v).split(',');
       else if (a === '--lang') flags.lang = String(v);
       else if (a === '--path') flags.path = String(v).replace(/\\/g, '/').replace(/^\.\//, '');
+      else if (a === '--project') flags.project = String(v);
       else if (a === '--limit') flags.limit = Number(v);
       else if (a === '-C') { flags.before = Number(v) || 0; flags.after = Number(v) || 0; }
       else if (a === '-A') flags.after = Number(v) || 0;
@@ -310,6 +312,10 @@ async function unknownFlagRows(cmd, args, unknown, root) {
 export async function codeVerbRows(cmd, args, root, refresh = refreshIndex) {
   const { text, flags } = parseCodeArgs(args);
   if (flags.unknown.length) return unknownFlagRows(cmd, args, flags.unknown, root);
+  if (flags.project !== undefined) {
+    root = projectRepo(flags.project);
+    refresh = refreshIndex;
+  }
   if (cmd === 'code') return text ? codeVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q code <text> [--regex] [-i] [-w] [--lang L] [--path P] [-C n]' }];
   if (cmd === 'sym') return symVerb(root, text, flags, refresh);
   return text ? fileVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q file <substring|glob>' }];

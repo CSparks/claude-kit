@@ -107,6 +107,7 @@ drain:
 # across families: on a `fallback` re-derive it, never carry it.
 # ---------------------------------------------------------------------------
 dispatch:
+  refresh_days: 14   # gate: dispatch blocks when the table's evidence / last model refresh is older (KIT-T339)
   jobs:
     chore:
       family: haiku

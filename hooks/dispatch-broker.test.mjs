@@ -9,6 +9,8 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { fixtureKit, isoDaysAgo } from './test-harness.mjs';
+const FRESH_KIT = fixtureKit(isoDaysAgo(0));
 const HOOK = fileURLToPath(new URL('./dispatch-guard.mjs', import.meta.url));
 const DEAD_PID = 2147483646;
 let failures = 0;
@@ -28,7 +30,7 @@ function repo({ lock }) {
 function run(dir, input) {
   const r = spawnSync(process.execPath, [HOOK], {
     cwd: dir, encoding: 'utf8', input: JSON.stringify({ tool_name: 'Agent', tool_input: { model: 'opus', ...input } }),
-    env: { ...process.env, CLAUDE_KIT_ALLOW_FABLE: '', CLAUDE_PLUGIN_ROOT: '' },
+    env: { ...process.env, CLAUDE_KIT_ALLOW_FABLE: '', CLAUDE_PLUGIN_ROOT: '', CLAUDE_KIT_LADDER_ROOT: FRESH_KIT },
   });
   return { code: r.status, err: r.stderr || '' };
 }

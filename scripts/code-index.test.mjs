@@ -265,6 +265,32 @@ await test('CLI: q fts prints an "also in code" section only when a term names a
   assert.doesNotMatch(fts('decoration'), /also in code/);
 });
 
+await test('--project searches that registered project checkout from any cwd (code, sym, file)', async () => {
+  const other = mkdtempSync(join(tmpdir(), 'ci-other-'));
+  mkdirSync(join(other, '.ai'), { recursive: true });
+  writeFileSync(join(other, '.ai', 'config.yml'), 'ids:\n  key: "OTH"\n');
+  mkdirSync(join(other, 'scripts'), { recursive: true });
+  writeFileSync(join(other, 'scripts', 'deploy.mjs'), 'export function deployToDevice() {}\n');
+  const reg = join(cache, 'registry.json');
+  writeFileSync(reg, JSON.stringify({ projects: { 'other-proj': other } }));
+  const prior = process.env.CLAUDE_KIT_REGISTRY;
+  process.env.CLAUDE_KIT_REGISTRY = reg;
+  try {
+    assert.deepEqual(locs(await rows('code', ['deployToDevice'])), []);
+    assert.deepEqual(locs(await rows('code', ['deployToDevice', '--project', 'other-proj'])), ['scripts/deploy.mjs:1']);
+    assert.deepEqual(locs(await rows('code', ['--project=OTH', 'deployToDevice'])), ['scripts/deploy.mjs:1']);
+    assert.deepEqual(locs(await rows('sym', ['deployToDevice', '--project', 'other-proj'])), ['scripts/deploy.mjs:1']);
+    assert.deepEqual(locs(await rows('file', ['deploy', '--project', 'other-proj'])), ['scripts/deploy.mjs']);
+    await assert.rejects(rows('code', ['x', '--project', 'nope']), /unknown project 'nope'/);
+    const env = { ...process.env, CLAUDE_KIT_CODE_INDEX_DIR: cache, CLAUDE_KIT_Q_SERVER: 'off', CLAUDE_KIT_REGISTRY: reg };
+    const out = execFileSync(process.execPath, [join(import.meta.dirname, 'q.mjs'), '--root', root, 'code', 'deployToDevice', '--project', 'other-proj'], { encoding: 'utf8', env });
+    assert.match(out, /scripts\/deploy\.mjs:1/);
+  } finally {
+    if (prior === undefined) delete process.env.CLAUDE_KIT_REGISTRY; else process.env.CLAUDE_KIT_REGISTRY = prior;
+    rmSync(other, { recursive: true, force: true });
+  }
+});
+
 rmSync(deco, { recursive: true, force: true });
 rmSync(root, { recursive: true, force: true });
 rmSync(cache, { recursive: true, force: true });

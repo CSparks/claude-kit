@@ -440,6 +440,7 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   code <text> [filters]       SEARCH CODE/DOCS/CONFIG/TICKETS (the grep replacement): ranked, compact, verified
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
                               --path crates/sim  -C n|-A n|-B n  -l (files) -c (counts)  --limit N (0=all)
+                              --project <name>  search that registered project's checkout (name or id key), e.g. the kit's scripts
   sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P]
                               definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)
   file <substring|glob>       find files by path across the repo and its framework submodule

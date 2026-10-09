@@ -196,13 +196,20 @@ try {
 // A project-level dispatch: block is ignored (KIT-D079); flag it as drift. The kit capability
 // table carries evidence dates: warn when the newest is over 14 days old (KIT-D080).
 try {
-  const { dispatchDrift, freshnessWarning } = await import('../scripts/dispatch-ladder.mjs');
+  const { dispatchDrift } = await import('../scripts/dispatch-ladder.mjs');
   const drift = dispatchDrift(root);
   if (drift) out.push(`!! ${drift}`);
-  const stale = freshnessWarning();
-  if (stale) out.push(`!! ${stale}`);
+  const { capabilityStatus, modelsLine } = await import('../scripts/model-lineup.mjs');
+  out.push(modelsLine(capabilityStatus()));
 } catch {
   /* drift check is best-effort */
+}
+// Machine-level device targets this project deploys to (KIT-T406).
+try {
+  const { deviceBlock } = await import('../scripts/devices.mjs');
+  out.push(...deviceBlock(projectName(root)));
+} catch {
+  /* device block is best-effort */
 }
 // Any kit bug is a ticket plus an agent dispatched to fix it (KIT-T286): list the open ones.
 try {

@@ -20,7 +20,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { discoverProjects } from "./survey.mjs";
 
-export const TARGET_PATH = join(homedir(), ".claude", "steamdeck.json");
+export const TARGET_PATH = process.env.CLAUDE_KIT_STEAMDECK || join(homedir(), ".claude", "steamdeck.json");
 
 export function readTarget() {
   const t = JSON.parse(readFileSync(TARGET_PATH, "utf8"));

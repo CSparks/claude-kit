@@ -8,6 +8,7 @@
 //   resolveJob({ type, job }, kitRoot?)     -> { job, family, effort, fallback, explicitOnly } (job wins over type; `*` is the catch-all)
 //   capabilityFreshness(kitRoot?, nowMs?)   -> { newest: 'YYYY-MM-DD', ageDays } | null (no dated row)
 //   freshnessWarning(kitRoot?, nowMs?)      -> string | null (newest evidence older than FRESHNESS_DAYS)
+//   readLadder(...).refreshDays             -> the refresh period in days (config dispatch.refresh_days, default FRESHNESS_DAYS)
 //   dispatchDrift(projectRoot, kitRoot?)    -> string warning | null (project config carries a `dispatch:` block)
 //   CLI: node dispatch-ladder.mjs resolve [--type <ticket type>] [--job <job>]   prints JSON
 //        node dispatch-ladder.mjs freshness                                      prints the warning or `fresh`
@@ -18,6 +19,8 @@ import { fileURLToPath } from 'node:url';
 
 export const KIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const FRESHNESS_DAYS = 14;
+// Tests point the resolver at a fixture kit; production always reads the kit checkout.
+export const ladderRoot = () => process.env.CLAUDE_KIT_LADDER_ROOT || KIT_ROOT;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function dispatchBlock(text) {
@@ -51,7 +54,7 @@ function parseJobs(block) {
   return jobs;
 }
 
-export function readLadder(kitRoot = KIT_ROOT) {
+export function readLadder(kitRoot = ladderRoot()) {
   const body = dispatchBlock(readFileSync(join(kitRoot, '.ai', 'config.yml'), 'utf8'));
   const jobs = parseJobs(subBlock(body, 'jobs'));
   const defaultJob = {};
@@ -60,10 +63,11 @@ export function readLadder(kitRoot = KIT_ROOT) {
   }
   const aliases = {};
   for (const m of subBlock(body, 'aliases').matchAll(/^ {4}([\w-]+):\s*([\w.-]+)/gm)) aliases[m[1].toLowerCase()] = m[2];
-  return { jobs, defaultJob, aliases };
+  const refresh = body.match(/^ {2}refresh_days:[ 	]*(d+)/m);
+  return { jobs, defaultJob, aliases, refreshDays: refresh ? Number(refresh[1]) : FRESHNESS_DAYS };
 }
 
-export function resolveJob({ type, job } = {}, kitRoot = KIT_ROOT) {
+export function resolveJob({ type, job } = {}, kitRoot = ladderRoot()) {
   const ladder = readLadder(kitRoot);
   const name = job || ladder.defaultJob[type] || ladder.defaultJob['*'];
   const entry = ladder.jobs[name];
@@ -72,7 +76,7 @@ export function resolveJob({ type, job } = {}, kitRoot = KIT_ROOT) {
 }
 
 // The newest `evidence:` date across the table's rows.
-export function capabilityFreshness(kitRoot = KIT_ROOT, nowMs = Date.now()) {
+export function capabilityFreshness(kitRoot = ladderRoot(), nowMs = Date.now()) {
   const dates = Object.values(readLadder(kitRoot).jobs)
     .map((j) => String(j.evidence || ''))
     .filter((d) => Number.isFinite(Date.parse(d)))
@@ -82,7 +86,7 @@ export function capabilityFreshness(kitRoot = KIT_ROOT, nowMs = Date.now()) {
   return { newest, ageDays: Math.floor((nowMs - Date.parse(newest)) / MS_PER_DAY) };
 }
 
-export function freshnessWarning(kitRoot = KIT_ROOT, nowMs = Date.now()) {
+export function freshnessWarning(kitRoot = ladderRoot(), nowMs = Date.now()) {
   let fresh;
   try {
     fresh = capabilityFreshness(kitRoot, nowMs);
@@ -90,11 +94,12 @@ export function freshnessWarning(kitRoot = KIT_ROOT, nowMs = Date.now()) {
     return null;
   }
   if (!fresh) return 'model capability table (kit .ai/config.yml dispatch.jobs) carries no evidence dates — route from fresh research (KIT-T339).';
-  if (fresh.ageDays <= FRESHNESS_DAYS) return null;
-  return `model capability table is stale: newest evidence ${fresh.newest} (${fresh.ageDays} days old, limit ${FRESHNESS_DAYS}) — refresh from current model research and dispatch outcomes before routing (KIT-T339).`;
+  const limit = readLadder(kitRoot).refreshDays;
+  if (fresh.ageDays <= limit) return null;
+  return `model capability table is stale: newest evidence ${fresh.newest} (${fresh.ageDays} days old, limit ${limit}) — refresh from current model research and dispatch outcomes before routing (KIT-T339).`;
 }
 
-export function dispatchDrift(projectRoot, kitRoot = KIT_ROOT) {
+export function dispatchDrift(projectRoot, kitRoot = ladderRoot()) {
   if (resolve(projectRoot) === resolve(kitRoot)) return null;
   let text;
   try {

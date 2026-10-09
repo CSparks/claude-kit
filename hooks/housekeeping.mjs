@@ -130,6 +130,8 @@ const encodedHome = homedir().replace(/[:\\/ ]/g, '-');
 const memTs = join(claudeDir, 'projects', encodedHome, 'memory', '.last-reviewed');
 const maintTs = join(claudeDir, '.maintenance-last-reviewed');
 
+const MODEL_REFRESH_DAYS = 7;
+
 function daysSince(f) {
   try {
     return Math.floor((Date.now() - statSync(f).mtimeMs) / MS_PER_DAY);
@@ -267,6 +269,20 @@ if (maintAge >= REVIEW_DAYS) {
       `Before ending this session, show the user a grouped summary of gaps and ask what to act on. ` +
       `After review, touch ${maintTs}.`,
   );
+}
+
+// KIT-T339: the weekly model-lineup research. The dispatch gate blocks at dispatch.refresh_days;
+// this nag fires a week in, so the refresh lands before the gate ever does.
+try {
+  const { readLineup } = await import('../scripts/model-lineup.mjs');
+  const { ladderRoot } = await import('../scripts/dispatch-ladder.mjs');
+  const refreshed = (readLineup() || {}).refreshed;
+  const age = refreshed ? Math.floor((Date.now() - Date.parse(refreshed)) / MS_PER_DAY) : Infinity;
+  if (age >= MODEL_REFRESH_DAYS) {
+    reminders.push(`MODEL REFRESH DUE (${age === Infinity ? 'never refreshed' : `${age}d since last refresh`}). Run node ${join(ladderRoot(), 'scripts', 'model-refresh.mjs')}, review the proposed decision, and update the capability table (KIT-T339).`);
+  }
+} catch {
+  /* best-effort — never break orientation */
 }
 
 const subagentModel = subagentModelLine();

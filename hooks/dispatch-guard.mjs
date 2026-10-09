@@ -16,6 +16,8 @@ import { join } from 'node:path';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, partitionAgents } from './lib.mjs';
 import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
 import { readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
+import { ladderRoot } from '../scripts/dispatch-ladder.mjs';
+import { capabilityStatus } from '../scripts/model-lineup.mjs';
 import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker } from './dispatch-broker.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
@@ -24,6 +26,7 @@ import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './mo
 const LADDER_CHECK = 'dispatch-ladder';
 const COLD_BUILD_CHECK = 'cold-worktree-build';
 const SHARED_TREE_CHECK = 'shared-tree-dispatch';
+const STALE_TABLE_CHECK = 'capability-table-stale';
 // The only escapes are the maintainer's own words, quoted (KIT-D074). An agent cannot grant itself
 // a worktree or a second writer; an empty token does not count.
 const MAINTAINER_PARALLEL = /\[maintainer-asked-parallel:\s*[^\]\s][^\]]*\]/i;
@@ -56,6 +59,7 @@ try {
   const blocks = [
     ladderBlock(root, input, prompt, p),
     unlabelledBlock(root, input, p),
+    staleTableBlock(root, p),
     coldWorktreeBlock(root, input, prompt),
     sharedTreeBlock(root, input, prompt),
     brokerOwnedBlock(root, input, prompt),
@@ -127,6 +131,31 @@ function unlabelledBlock(root, input, p) {
     '[allow-fable: <reason>] in the prompt for a deliberate model-less fable inherit.',
     '',
     excludeFooter(LADDER_CHECK),
+  ].join('\n');
+}
+
+// --- capability-table-stale (KIT-T339) --------------------------------------------
+// Model routing reads only the kit capability table; a table older than dispatch.refresh_days or
+// behind a newer known model is guessing. The fix is the research refresh, not an override.
+function staleTableBlock(root, p) {
+  if (!p.tool_input) return null;
+  if (pathExcluded(root, STALE_TABLE_CHECK, root)) return null;
+  let status;
+  try {
+    status = capabilityStatus();
+  } catch {
+    return null;
+  }
+  if (!status.stale) return null;
+  return [
+    'BLOCKED: the model capability table is stale (KIT-T339).',
+    ...status.reasons.map((r) => `  - ${r}`),
+    '',
+    'Dispatch routes by cost and capability per model; a stale table routes by guesswork.',
+    `Fix: run the refresh — node ${join(ladderRoot(), 'scripts', 'model-refresh.mjs')} — then review the proposed`,
+    'decision in .ai/decisions/ and move the aliases in .ai/config.yml dispatch.aliases if a newer model landed.',
+    '',
+    excludeFooter(STALE_TABLE_CHECK),
   ].join('\n');
 }
 

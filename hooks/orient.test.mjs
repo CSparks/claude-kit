@@ -3,10 +3,10 @@
 // budget (KIT-T071). Run: node hooks/orient.test.mjs
 
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import {
-  adopted, ageFile, cleanup, git, hook, project, reporter, repo,
+  adopted, ageFile, cleanup, git, hook, project, reporter, repo, tmpDir, TMP_REG,
 } from './test-harness.mjs';
 
 const { ok, done } = reporter('orient');
@@ -56,6 +56,25 @@ try {
     ok('orient: RETRIEVAL FIRST precedes all content sections', ritual >= 0 && ritual < o.indexOf('--- Recent commits'));
   }
   ok('orient: non-adopted repo is silent', hook('orient.mjs', {}, repo()).out.trim() === '');
+  {
+    // KIT-T406: a project that is a configured game for a machine-level device is told the
+    // device exists and which kit script drives it; any other project sees no block.
+    const g = adopted(false);
+    writeFileSync(join(g, '.ai', 'config.yml'), 'deck:\n  name: Rig Game\n  bin: rig\n  cargo: [--bin, rig]\n');
+    writeFileSync(TMP_REG, JSON.stringify({ projects: { [basename(g)]: g } }));
+    const deckJson = join(tmpDir('kit-deck-'), 'steamdeck.json');
+    writeFileSync(deckJson, JSON.stringify({ host: '10.1.2.3', user: 'deck', key: '~/.ssh/steamdeck' }));
+    const env = { CLAUDE_KIT_STEAMDECK: deckJson };
+    const withDeck = hook('orient.mjs', { hook_event_name: 'SessionStart' }, g, env).out;
+    const block = (withDeck.split('--- DEVICES / DEPLOY TARGETS')[1] || '').split('\n---')[0];
+    ok('orient KIT-T406: a configured game gets the device line with host and deploy command',
+      block.includes('deck@10.1.2.3') && block.includes(`deck-deploy.mjs ${basename(g)}`) && block.includes('last-run.log'));
+    ok('orient KIT-T406: the device block stays tiny', block.trim().length < 400);
+    ok('orient KIT-T406: a project with no deck: block gets no device block',
+      !hook('orient.mjs', { hook_event_name: 'SessionStart' }, clean, env).out.includes('DEVICES / DEPLOY TARGETS'));
+    ok('orient KIT-T406: a missing device config is silent',
+      !hook('orient.mjs', { hook_event_name: 'SessionStart' }, g, { CLAUDE_KIT_STEAMDECK: join(deckJson, 'nope.json') }).out.includes('DEVICES / DEPLOY TARGETS'));
+  }
 
   // --- SESSION staleness: one line, only when stale (KIT-T062) --------------------
   {

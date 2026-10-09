@@ -2,7 +2,7 @@
 id: KIT-T403
 title: Process failure (dirt-empire 2026-10-09, Chris: 'I see two agents. Neither is prefixed by the model they're using'): both dispatches carried
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-09T21:05:24Z
-updated: 2026-10-09T21:06:39Z
+updated: 2026-10-09T21:28:04Z
 ---
 
 ## Description
@@ -37,3 +37,4 @@ Chris 2026-10-09: 'I don't want you to have to tell me that. I want to see it at
 ### comment #2 [2026-10-09 21:18] @chris
 2026-10-09: Chris asked for ENFORCEMENT. Built: dispatch-guard unlabelledBlock (exit 2), agent-roster refuses unlabelled rows (exit 2), hooks/lib/agent-format.mjs single formatter ([model?] never blank), orient !! lint. Running full suite.
 - [2026-10-09 21:28] (comment) @chris: 2026-10-09: tests: all kit suites green (hooks model-tag 70, agent-roster 46, dispatch-guard, progress, orient); server/*.test fails pre-existing (express not installed).
+- [2026-10-09 21:28] (status) doing → review

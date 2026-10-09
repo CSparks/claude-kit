@@ -53,7 +53,7 @@ async function asCaller(env, fn) {
 
 async function answer(req) {
   const [cmd, ...args] = req.argv;
-  if (!SERVED_VERBS.has(cmd) || unsupportedFlags(cmd, args).length) return { fallback: true };
+  if (!SERVED_VERBS.has(cmd) || unsupportedFlags(cmd, args).length || args.includes('--project')) return { fallback: true };
   return asCaller(req.env || {}, async () => {
     const root = req.root || resolveStoreRoot(req.cwd) || req.cwd;
     const session = await sessionFor(root);

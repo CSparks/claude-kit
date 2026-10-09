@@ -9,7 +9,7 @@
 // never replace a scope in the maintainer's live cache or registry.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -141,3 +141,15 @@ export function cleanup() {
     try { rmSync(d, { recursive: true, force: true }); } catch { /* best effort */ }
   }
 }
+
+// A throwaway kit root: the real capability table with every evidence date set to `date`, so a
+// test controls how stale the table is without touching the live kit (KIT-T339).
+export function fixtureKit(date) {
+  const dir = tmpDir('kit-ladder-');
+  mkdirSync(join(dir, '.ai'), { recursive: true });
+  const config = readFileSync(join(ROOT, '.ai', 'config.yml'), 'utf8').replace(/evidence: \d{4}-\d{2}-\d{2}/g, `evidence: ${date}`);
+  writeFileSync(join(dir, '.ai', 'config.yml'), config);
+  return dir;
+}
+
+export const isoDaysAgo = (days) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
