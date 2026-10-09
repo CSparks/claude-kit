@@ -1,15 +1,12 @@
 #!/usr/bin/env node
 // deck-deploy — build Rust/Bevy games as native Linux binaries in WSL and push them
 // to a Steam Deck over SSH; the first push adds each game to the Steam library.
-// Games live in ~/.claude/deck-games.json (machine-specific); `deck-deploy --help` shows
-// the schema. Needs rustup + Bevy's Linux dev libraries in WSL, and sshd on the Deck.
+// Games come from each project's `deck:` block, the Deck from ~/.claude/steamdeck.json
+// (deck-config.mjs). Needs rustup + Bevy's Linux dev libraries in WSL, and sshd on the Deck.
 
 import { spawnSync, execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { TARGET_PATH, readTarget, discoverGames } from "./deck-config.mjs";
 
-const CONFIG_PATH = join(homedir(), ".claude", "deck-games.json");
 const DEFAULT_INTERVAL_SEC = 60;
 const MS_PER_SEC = 1000;
 const ID_COLUMN = 16;
@@ -19,22 +16,23 @@ const USAGE = `usage:
   deck-deploy watch [--interval <sec>]        redeploy a game whenever its git HEAD moves
   deck-deploy list                            show configured games
 
-${CONFIG_PATH}:
-  { "host": "192.168.1.107", "user": "deck", "key": "~/.ssh/steamdeck",
-    "games": { "<id>": { "repo": "D:/dev/x", "name": "Shown In Steam",
-                         "cargo": ["--bin", "x"], "bin": "x", "assets": "assets",
-                         "env": { "BUILD_VAR": "value" }, "toolchain": "stable" } } }
-  (toolchain is optional and overrides the repo's rust-toolchain.toml)
+A game is any registered project whose .ai/config.yml carries a deck: block:
+  deck:
+    name: Shown In Steam
+    bin: binary-name
+    cargo: [-p, crate, --bin, binary-name]
+    assets: crates/crate/assets          (optional)
+    toolchain: stable                    (optional; overrides rust-toolchain.toml)
+    env:                                 (optional; exported for the build)
+      BUILD_VAR: value
 
-On the Deck each game lands in ~/Games/<id>/: the binary, assets/, launch.sh
-(sets BEVY_ASSET_ROOT, logs to last-run.log) and <id>.desktop (the Steam shortcut).`;
+${TARGET_PATH}:
+  { "host": "192.168.1.107", "user": "deck", "key": "~/.ssh/steamdeck" }
 
-function loadConfig() {
-  const cfg = JSON.parse(readFileSync(CONFIG_PATH, "utf8"));
-  cfg.user ??= "deck";
-  cfg.key = (cfg.key ?? "~/.ssh/steamdeck").replace(/^~/, homedir());
-  return cfg;
-}
+On the Deck each game lands in ~/Games/<project>/: the binary, assets/, launch.sh
+(sets BEVY_ASSET_ROOT, logs to last-run.log) and <project>.desktop (the Steam shortcut).`;
+
+const loadConfig = () => ({ ...readTarget(), games: discoverGames() });
 
 const toWsl = (winPath) =>
   winPath.replace(/\\/g, "/").replace(/^([A-Za-z]):/, (_, d) => `/mnt/${d.toLowerCase()}`);
