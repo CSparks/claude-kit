@@ -4,15 +4,17 @@
 // KIT-T071: gist + q-pointer design — essentials inline, big content behind commands.
 // Target: ≤1.2k tokens per session (vs ~3.2k before). FAIL-OPEN throughout.
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, basename, resolve } from 'node:path';
-import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, readLineage, recordProject, aheadBehind, centralDataRoot, globToRegExp, sessionStale, readAgents, partitionAgents, AGENT_STALE_MS, scanStaleDoingTickets, readRegistry, WIP_FILES, WIP_COMMITS } from './lib.mjs';
+import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, readLineage, recordProject, aheadBehind, fetchRepos, centralDataRoot, globToRegExp, sessionStale, readAgents, partitionAgents, AGENT_STALE_MS, scanStaleDoingTickets, readRegistry } from './lib.mjs';
 import { unifyMemory, memoryLinkCommand } from './memory-link.mjs';
 import { readProgress, progressFor, formatProgress } from './progress-store.mjs';
 import { modelDisplay } from './model-tag.mjs';
 import { recentCommits, ORIENT_WINDOW_MIN } from './live-sessions.mjs';
 import { frameworkSection } from './lib/frameworks.mjs';
 import { adoptedDocTree, trunkMap } from '../scripts/doc-tree.mjs';
+import { fitOrientation } from './lib/orient-budget.mjs';
+import { cacheDir, pathKey, statCached, statMarkdownFiles } from './lib/stat-cache.mjs';
 // q.mjs / id-utils.mjs are imported DYNAMICALLY at their (try-wrapped) use sites so a
 // broken scripts/ tree degrades that one section instead of crashing orientation (KIT-T055).
 
@@ -25,7 +27,12 @@ const ROADMAP_GIST_LINES = 8;   // first lines of ROADMAP.md shown inline
 // KIT-T028: a `doing` ticket with no update for this long is a zombie — flag it prominently.
 const ORIENT_DOING_STALE_MS = 2 * 60 * 60 * 1000; // 2 hours
 const ORIENT_TRAIL_LINES = 5; // KIT-T048: antecedents shown per in-flight `doing` ticket
-const MENTIONS_SHOWN = 5; // KIT-T130: unread @mentions listed inline before the pointer
+const MENTIONS_SHOWN = 3; // KIT-T130: unread @mentions listed inline before the pointer
+const LINE_MAX = 120; // clip for any one free-text line (commit subject, mention, ticket title)
+const INFLIGHT_SHOWN = 5; // in-flight (doing/review) tickets listed inline; the rest behind `q open`
+const TRAILS_SHOWN = 2; // `doing` tickets that get an antecedent trail inline
+const WIP_FILES_SHOWN = 8; // uncommitted files listed per repo before "+N more"
+const WIP_COMMITS_SHOWN = 5; // unpushed commits listed per repo
 const CODEX = Boolean(process.env.PLUGIN_ROOT);
 
 const root = gitRoot();
@@ -70,9 +77,10 @@ const decisionFiles = () => {
   }
 };
 const stripQuotes = (s) => (s || '').trim().replace(/^["']|["']$/g, '').trim();
-const decisionMeta = (f) => {
+const readDecisionMeta = (abs) => {
+  const f = basename(abs);
   try {
-    const t = readFileSync(join(root, '.ai', 'decisions', f), 'utf8');
+    const t = readFileSync(abs, 'utf8');
     const id = (t.match(/^id:[ \t]*(.+)$/m) || [])[1];
     const title = (t.match(/^title:[ \t]*(.+)$/m) || [])[1];
     const standing = /^standing:[ \t]*(true|yes)\b/im.test(t);
@@ -88,6 +96,18 @@ const decisionMeta = (f) => {
   } catch {
     return { id: '', title: f.replace(/\.md$/, ''), standing: false, foundational: false, scope: '', paths: [] };
   }
+};
+// Decision front-matter is read once per file change (stat-keyed cache): a store with hundreds
+// of decisions would otherwise cost one file open each, several times per orientation.
+let metaByFile = null;
+const decisionMeta = (f) => {
+  if (!metaByFile) {
+    const dir = join(root, '.ai', 'decisions');
+    const files = statMarkdownFiles(dir);
+    const metas = statCached(`decision-meta-${pathKey(dir)}`, files, readDecisionMeta);
+    metaByFile = new Map(files.map((fl, i) => [fl.name, metas[i]]));
+  }
+  return metaByFile.get(f) || readDecisionMeta(join(root, '.ai', 'decisions', f));
 };
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 // ` [Opus 5]` for a roster row that recorded which model it is burning (KIT-T179). A row written
@@ -140,6 +160,17 @@ const foundationalDecisions = () => {
   const files = decisionFiles();
   if (!files) return [];
   return files.map(decisionMeta).filter((m) => m.standing && m.foundational);
+};
+
+// Over-budget orientation is shortened to what the harness will inline; the untruncated text
+// is kept on disk and named in each shortened block.
+const budgeted = (text) => {
+  const full = join(cacheDir(), `orient-${projectName(root)}.txt`);
+  const fit = fitOrientation(text, { pointer: ` — full: ${full}` });
+  if (fit.demoted.length) {
+    try { mkdirSync(cacheDir(), { recursive: true }); writeFileSync(full, text); } catch { /* the pointer is then dead; the trimmed text still stands */ }
+  }
+  return fit.text;
 };
 
 const out = [];
@@ -216,7 +247,8 @@ try {
   /* doc tree is best-effort — orientation proceeds without it */
 }
 out.push('--- Recent commits ---');
-out.push(git(['-C', root, 'log', '--oneline', `-${COMMITS}`]).trim());
+const recentCommitLines = git(['-C', root, 'log', '--oneline', `-${COMMITS}`]) || '';
+out.push(recentCommitLines.trim().split('\n').map((l) => clip(l, LINE_MAX)).join('\n'));
 
 // KIT-T225: a commit landed minutes ago — before THIS session existed — is the signature of
 // another live session in the same repo. Surface it so the concurrency is seen, not guessed.
@@ -274,9 +306,11 @@ out.push('');
 out.push('--- Working tree (uncommitted + unpushed) ---');
 // KIT-T054: per-repo ahead/behind vs origin. DIVERGED gets a top banner.
 const divergedLabels = [];
+const wips = new Map(repos.map(([r]) => [r, wipSummary(r)]));
+await fetchRepos(repos.map(([r]) => r));
 for (const [r, label] of repos) {
-  out.push(formatWip(label, r, WIP_FILES, WIP_COMMITS));
-  const ab = aheadBehind(r, { fetch: true });
+  out.push(formatWip(label, r, WIP_FILES_SHOWN, WIP_COMMITS_SHOWN, wips.get(r)));
+  const ab = aheadBehind(r);
   if (ab && (ab.behind || ab.diverged)) {
     out.push(`  vs origin: ahead ${ab.ahead} / behind ${ab.behind}${ab.diverged ? ' — DIVERGED' : ''}`);
     if (ab.diverged) divergedLabels.push(label);
@@ -294,7 +328,7 @@ if (existsSync(session)) {
   out.push('--- .ai/SESSION.md (resume here — first lines) ---');
   const ss = sessionStale(root);
   if (ss.stale) out.push(`!! SESSION.md is STALE (${ss.sessionDays}d, older than the last commit) — reconcile it to the work below before trusting it.`);
-  out.push(head(session, SESSION_GIST_LINES));
+  out.push(head(session, SESSION_GIST_LINES).split('\n').map((l) => clip(l, LINE_MAX * 3)).join('\n'));
   const total = lineCount(session);
   if (total > SESSION_GIST_LINES) out.push(`  … (${total} lines total) — full: read .ai/SESSION.md`);
 }
@@ -320,10 +354,10 @@ try {
       const reattach = CODEX ? '/agents or the agent output' : 'TaskList/output';
       const flag = staleIds.has(r.id) && !running ? ` !! UNCOLLECTED (>${staleMin}m, no completion recorded — reattach via ${reattach} or reconcile)` : '';
       const busy = running ? ` — running: ${formatProgress(running, now)}` : '';
-      out.push(`  [in-flight] ${r.id} (${r.scope || '?'}${agentModel(r)})${r.background ? ' bg' : ''} — ${r.task || '?'}${busy}${flag}`);
+      out.push(`  [in-flight] ${r.id} (${r.scope || '?'}${agentModel(r)})${r.background ? ' bg' : ''} — ${clip(r.task || '?', LINE_MAX)}${busy}${flag}`);
     }
-    for (const r of finished.slice(-3)) {
-      out.push(`  [${r.status}] ${r.id} (${r.scope || '?'}${agentModel(r)}) — ${r.task || r.summary || 'finished'} (collect output if not merged)`);
+    for (const r of finished.slice(-2)) {
+      out.push(`  [${r.status}] ${r.id} (${r.scope || '?'}${agentModel(r)}) — ${clip(r.task || r.summary || 'finished', LINE_MAX)} (collect output if not merged)`);
     }
     // A live build whose delegation has no roster row yet. NOT an edge case: PostToolUse(Task)
     // fires when the tool RESULT lands (KIT-T177), so a synchronous agent is mid-build for its
@@ -365,9 +399,9 @@ const porcelainPath = (l) => {
 };
 const changedPaths = [];
 for (const [r] of repos) {
-  try { for (const l of wipSummary(r).dirty) { const p = porcelainPath(l); if (p) changedPaths.push(p); } } catch { /* skip */ }
+  try { for (const l of wips.get(r).dirty) { const p = porcelainPath(l); if (p) changedPaths.push(p); } } catch { /* skip */ }
 }
-const recentSubjects = git(['-C', root, 'log', '--oneline', `-${COMMITS}`]) || '';
+const recentSubjects = recentCommitLines;
 const activeSignals = changedPaths.join(' ') + ' ' + recentSubjects;
 const standing = standingDecisions(activeSignals, changedPaths);
 if (standing && (standing.shown || standing.deferredCount)) {
@@ -411,12 +445,14 @@ try {
     out.push('  by scope: ' + [...byScope.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([s, n]) => `${s}:${n}`).join('  '));
     if (inFlight.length) {
       out.push(`  in-flight (${key}):`);
-      for (const r of inFlight) out.push(`    [${r.status}] ${r.id} — ${r.title}`);
+      const shownFlight = [...inFlight.filter((x) => x.status === 'doing'), ...inFlight.filter((x) => x.status !== 'doing')].slice(0, INFLIGHT_SHOWN);
+      for (const r of shownFlight) out.push(`    [${r.status}] ${r.id} — ${clip(r.title || '', LINE_MAX)}`);
+      if (inFlight.length > shownFlight.length) out.push(`    +${inFlight.length - shownFlight.length} more in-flight — q open`);
       // Trail-on-action (KIT-D028): a `doing` ticket resumes with the governing context it
       // came from, summaries only — the full node is one `q trail <id>` away.
       const { renderTrail } = await import('../scripts/provenance.mjs');
-      for (const r of inFlight.filter((x) => x.status === 'doing')) {
-        const { rows: trailRows } = await query('trail', [r.id], { cwdRoot: root });
+      for (const r of inFlight.filter((x) => x.status === 'doing').slice(0, TRAILS_SHOWN)) {
+        const { rows: trailRows } = await query('trail', [r.id], { cwdRoot: root, assumeFresh: true });
         out.push(`    trail ${r.id}:`);
         out.push(...renderTrail(trailRows, { limit: ORIENT_TRAIL_LINES, indent: '      ' }));
       }
@@ -438,7 +474,7 @@ try {
   if (unread.length) {
     out.push('');
     out.push(`--- UNREAD @${agent} mentions (${unread.length}) — comments addressed to you; ack to clear ---`);
-    for (const r of unread.slice(0, MENTIONS_SHOWN)) out.push(`  ${r.ref} [${r.ts}] ${r.from}: ${r.text}`);
+    for (const r of unread.slice(0, MENTIONS_SHOWN)) out.push(`  ${r.ref} [${r.ts}] ${r.from}: ${clip(String(r.text || ''), LINE_MAX)}`);
     if (unread.length > MENTIONS_SHOWN) out.push(`  +${unread.length - MENTIONS_SHOWN} more — q mentions ${agent}`);
     out.push(`  ack once read: t ack <id>#<n> --agent ${agent}`);
   }
@@ -500,5 +536,5 @@ Read plan-of-record + DECISIONS before non-trivial work. On-disk record and git 
 Log work to a ticket (gate enforces). Record decisions in DECISIONS the turn they happen.
 Full rules: read ${CODEX ? 'AGENTS.md' : 'CLAUDE.md'} | q governing <hook-file> | code-graph --query surface
 ================================================================================`);
-console.log(out.join('\n'));
+console.log(budgeted(out.join('\n')));
 process.exit(0);

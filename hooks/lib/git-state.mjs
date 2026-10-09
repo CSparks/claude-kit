@@ -3,8 +3,11 @@
 // anywhere (D-010). Fail-open throughout — an offline or remote-less repo degrades to
 // null/empty rather than breaking orientation.
 
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { git } from './exec.mjs';
+import { cacheDir, pathKey } from './stat-cache.mjs';
 
 // Uncommitted (porcelain) + unpushed (local-only) commits, as raw lists — callers format.
 export function wipSummary(repoRoot) {
@@ -47,13 +50,53 @@ export function remoteCommitUrl(root, sha) {
 // Fail-open everywhere: offline fetch is swallowed (counts run against last-known remote
 // refs), and no-upstream / detached HEAD return null so callers degrade gracefully.
 const FETCH_TIMEOUT_MS = 4000;
+// A fetch inside this window is skipped: another machine's push shows up within minutes, and
+// a fetch costs ~1 s of network per repo at every SessionStart.
+const FETCH_MIN_AGE_MS = 5 * 60 * 1000;
+
+function fetchStamp(repoRoot) {
+  return join(cacheDir(), `fetched-${pathKey(repoRoot)}`);
+}
+
+function fetchDue(repoRoot, now = Date.now()) {
+  try {
+    return now - statSync(fetchStamp(repoRoot)).mtimeMs >= FETCH_MIN_AGE_MS;
+  } catch {
+    return true;
+  }
+}
+
+function stampFetch(repoRoot, now = Date.now()) {
+  try {
+    const stamp = fetchStamp(repoRoot);
+    if (!existsSync(stamp)) {
+      mkdirSync(cacheDir(), { recursive: true });
+      writeFileSync(stamp, '');
+    }
+    utimesSync(stamp, new Date(now), new Date(now));
+  } catch {
+    /* the stamp only throttles; losing it costs one extra fetch */
+  }
+}
+
+/** Fetch every repo concurrently (skipping those fetched within FETCH_MIN_AGE_MS); resolves when all settle. */
+export function fetchRepos(repoRoots) {
+  return Promise.all(repoRoots.filter((r) => fetchDue(r)).map((r) => new Promise((resolve) => {
+    execFile('git', ['-C', r, 'fetch', '--quiet'], { timeout: FETCH_TIMEOUT_MS, windowsHide: true }, () => {
+      stampFetch(r);
+      resolve();
+    });
+  })));
+}
+
 export function aheadBehind(repoRoot, { fetch = false } = {}) {
-  if (fetch) {
+  if (fetch && fetchDue(repoRoot)) {
     try {
       execFileSync('git', ['-C', repoRoot, 'fetch', '--quiet'], { stdio: 'ignore', timeout: FETCH_TIMEOUT_MS, windowsHide: true });
     } catch {
       /* offline / slow / no remote — judge against the refs we have */
     }
+    stampFetch(repoRoot);
   }
   const m = git(['-C', repoRoot, 'rev-list', '--left-right', '--count', 'HEAD...@{upstream}']).trim().match(/^(\d+)\s+(\d+)$/);
   if (!m) return null;
@@ -66,8 +109,8 @@ export function aheadBehind(repoRoot, { fetch = false } = {}) {
 // and survey (cross-project deep view) so the format is defined once.
 export const WIP_FILES = 12; // uncommitted files listed before collapsing to "+N more"
 export const WIP_COMMITS = 10; // unpushed commits listed
-export function formatWip(label, repoRoot, files = WIP_FILES, commits = WIP_COMMITS) {
-  const s = wipSummary(repoRoot);
+const UNPUSHED_LINE_MAX = 140; // a commit subject can run to hundreds of characters
+export function formatWip(label, repoRoot, files = WIP_FILES, commits = WIP_COMMITS, s = wipSummary(repoRoot)) {
   if (s.clean) return `${label}: clean + pushed`;
   const lines = [`${label}:`];
   if (s.dirty.length) {
@@ -77,7 +120,7 @@ export function formatWip(label, repoRoot, files = WIP_FILES, commits = WIP_COMM
   }
   if (s.unpushed.length) {
     lines.push(`  ${s.unpushed.length} unpushed (local-only) commit(s) —`);
-    s.unpushed.slice(0, commits).forEach((l) => lines.push(`    ${l}`));
+    s.unpushed.slice(0, commits).forEach((l) => lines.push(`    ${l.length > UNPUSHED_LINE_MAX ? `${l.slice(0, UNPUSHED_LINE_MAX - 1)}…` : l}`));
   }
   return lines.join('\n');
 }

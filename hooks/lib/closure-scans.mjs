@@ -5,10 +5,11 @@
 // is FAIL-OPEN: any read/parse slip returns the empty/clean result, never throws — a
 // nag must never wedge a session (the hook contract).
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ageDays } from './time.mjs';
+import { ageDays, MS_PER_DAY } from './time.mjs';
 import { uatDefault } from './config.mjs';
+import { pathKey, statCached, statMarkdownFiles } from './stat-cache.mjs';
 
 // Untriaged inbox: `.ai/inbox/*.md` (the triaged/ subdir + README are NOT intake).
 // triage drains inbox into the durable stores, so a file lingering here past a
@@ -32,15 +33,26 @@ export function scanInbox(root, thresholdDays) {
   return out;
 }
 
-// A ticket file's frontmatter `status` and per-ticket `uat:` override (either may be '').
-// Tolerant line-wise parse mirroring survey/t — only the two fields the review scan needs.
-function ticketStatusAndUat(text) {
+// Frontmatter facts of one ticket file: the fields the closure scans need, read tolerantly
+// line-wise (mirrors survey/t). Everything is a string; absent fields are ''.
+function parseTicketHead(path) {
+  let text = '';
+  try { text = readFileSync(path, 'utf8'); } catch { /* unreadable — empty head */ }
   const fm = (text.match(/^---\n([\s\S]*?)\n---/) || [, ''])[1];
   const pick = (k) => {
     const m = fm.match(new RegExp(`^${k}:[ \\t]*(.*)$`, 'm'));
     return m ? m[1].trim().replace(/^["']|["']$/g, '') : '';
   };
-  return { status: pick('status'), uat: pick('uat') };
+  return { status: pick('status'), uat: pick('uat'), id: pick('id'), updated: pick('updated') };
+}
+
+// Heads of every ticket under .ai/tickets, answered from a stat-keyed cache so an unchanged
+// ticket is never opened (~1,000 tickets: ~0.4 s of opens per scan without it).
+function ticketHeads(root) {
+  const dir = join(root, '.ai', 'tickets');
+  const files = statMarkdownFiles(dir, (n) => n.startsWith('_') || n === 'INDEX.md');
+  const heads = statCached(`ticket-heads-${pathKey(dir)}`, files, parseTicketHead);
+  return files.map((f, i) => ({ ...heads[i], file: f.name, mtimeMs: f.mtimeMs }));
 }
 
 // Review queue = tickets parked in `status: review` whose UAT resolves `required` (so the
@@ -52,21 +64,15 @@ function ticketStatusAndUat(text) {
 export function scanReviewQueue(root) {
   const out = { count: 0, oldestDays: 0, ids: [] };
   try {
-    const dir = join(root, '.ai', 'tickets');
     const def = uatDefault(root);
-    for (const f of readdirSync(dir)) {
-      if (!f.endsWith('.md') || f.startsWith('_') || f === 'INDEX.md') continue;
-      const path = join(dir, f);
-      let text;
-      try { text = readFileSync(path, 'utf8'); } catch { continue; }
-      const { status, uat } = ticketStatusAndUat(text);
-      if (status !== 'review') continue;
-      if ((uat || def) !== 'required') continue; // `none` → not a human-waiting queue
+    const now = Date.now();
+    for (const t of ticketHeads(root)) {
+      if (t.status !== 'review') continue;
+      if ((t.uat || def) !== 'required') continue; // `none` → not a human-waiting queue
       out.count++;
-      const id = (text.match(/^id:[ \t]*(.+)$/m) || [, f.replace(/\.md$/, '')])[1].trim();
-      out.ids.push(id);
-      const age = ageDays(path);
-      if (age !== null && age > out.oldestDays) out.oldestDays = age;
+      out.ids.push(t.id || t.file.replace(/\.md$/, ''));
+      const age = Math.floor((now - t.mtimeMs) / MS_PER_DAY);
+      if (age > out.oldestDays) out.oldestDays = age;
     }
   } catch {
     /* no tickets dir / unreadable — empty queue */
@@ -87,30 +93,16 @@ export function scanReviewQueue(root) {
 export function scanStaleDoingTickets(root, thresholdMs) {
   const out = { count: 0, ids: [], oldestMs: 0 };
   try {
-    const dir = join(root, '.ai', 'tickets');
     const now = Date.now();
-    for (const f of readdirSync(dir)) {
-      if (!f.endsWith('.md') || f.startsWith('_') || f === 'INDEX.md') continue;
-      const path = join(dir, f);
-      let text;
-      try { text = readFileSync(path, 'utf8'); } catch { continue; }
-      const fm = (text.match(/^---\n([\s\S]*?)\n---/) || [, ''])[1];
-      const pick = (k) => { const m = fm.match(new RegExp(`^${k}:[ \\t]*(.*)$`, 'm')); return m ? m[1].trim().replace(/^["']|["']$/g, '') : ''; };
-      if (pick('status') !== 'doing') continue;
-      const id = pick('id') || f.replace(/\.md$/, '');
-      // Parse `updated:` ISO field; fall back to file mtime.
+    for (const t of ticketHeads(root)) {
+      if (t.status !== 'doing') continue;
       let ageMs = 0;
-      const updatedStr = pick('updated');
-      if (updatedStr) {
-        const ts = Date.parse(updatedStr);
-        if (Number.isFinite(ts)) ageMs = now - ts;
-      }
-      if (!ageMs) {
-        try { ageMs = now - statSync(path).mtimeMs; } catch { continue; }
-      }
+      const ts = t.updated ? Date.parse(t.updated) : NaN;
+      if (Number.isFinite(ts)) ageMs = now - ts;
+      if (!ageMs) ageMs = now - t.mtimeMs;
       if (ageMs < thresholdMs) continue; // recently active — not stale
       out.count++;
-      out.ids.push(id);
+      out.ids.push(t.id || t.file.replace(/\.md$/, ''));
       if (ageMs > out.oldestMs) out.oldestMs = ageMs;
     }
   } catch {

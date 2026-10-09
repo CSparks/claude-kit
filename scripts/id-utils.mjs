@@ -81,7 +81,7 @@ export function readIdConfig(root, aiDir = join(root, '.ai')) {
 // The leading id token of a filename: HOD-T045-foo.md -> HOD-T045 (also legacy
 // R045 / D-010 forms, so a mid-migration store still scans). A KEY may carry digits
 // after its first letter (S2-T001) — matching only `[A-Za-z]+` read that as `S2`.
-function idFromFilename(f) {
+export function idFromFilename(f) {
   const m = f.match(/^([A-Za-z][A-Za-z0-9]*?-[A-Za-z]?\d+|[A-Za-z]+\d+)/);
   return m ? m[1] : '';
 }

@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { readRegistry } from '../hooks/lib.mjs';
 import { scaffoldNew } from './t.mjs';
 import { stamp } from './md-body.mjs';
+import { pathKey, statCached, statMarkdownFiles } from '../hooks/lib/stat-cache.mjs';
 
 const KIT_PROJECT = 'claude-kit';
 const LABELS = { bug: 'kit-bug', feature: 'kit-feature' };
@@ -72,16 +73,26 @@ export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bu
   }
 }
 
+// What openKitBugs needs from one ticket, computed once per file change (stat-keyed cache):
+// the kit store holds hundreds of tickets and opening each one costs ~0.4 ms.
+function bugRow(path) {
+  const text = readFileSync(path, 'utf8');
+  return {
+    open: ANY_LABEL.test(text) && !CLOSED.test(text),
+    status: (/^status:\s*(\S+)/m.exec(text) || [, ''])[1],
+    id: (/^id:\s*(\S+)/m.exec(text) || [, ''])[1],
+    title: (/^title:\s*(.+)$/m.exec(text) || [, ''])[1],
+  };
+}
+
 export function openKitBugs(limit = 8) {
   const root = kitStoreRoot();
   if (!root) return [];
-  const out = [];
-  for (const p of ticketFiles(root)) {
-    const text = readFileSync(p, 'utf8');
-    if (!ANY_LABEL.test(text) || CLOSED.test(text)) continue;
-    const status = (/^status:\s*(\S+)/m.exec(text) || [, ''])[1];
-    if (status === 'doing') continue; // an agent already has it
-    out.push({ id: (/^id:\s*(\S+)/m.exec(text) || [, ''])[1], title: (/^title:\s*(.+)$/m.exec(text) || [, ''])[1], status });
-  }
-  return out.slice(0, limit);
+  const dir = join(root, '.ai', 'tickets');
+  const files = statMarkdownFiles(dir, (n) => n.startsWith('_') || n === 'INDEX.md');
+  const rows = statCached(`kit-bugs-${pathKey(dir)}`, files, bugRow);
+  return rows
+    .filter((r) => r.open && r.status !== 'doing') // a doing ticket already has an agent
+    .map(({ id, title, status }) => ({ id, title, status }))
+    .slice(0, limit);
 }

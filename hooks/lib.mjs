@@ -26,7 +26,7 @@ export {
 } from './lib/session-identity.mjs';
 export { writeItemFile } from './lib/store-write.mjs';
 export {
-  wipSummary, remoteWebUrl, remoteCommitUrl, aheadBehind, formatWip, WIP_FILES, WIP_COMMITS,
+  wipSummary, remoteWebUrl, remoteCommitUrl, aheadBehind, fetchRepos, formatWip, WIP_FILES, WIP_COMMITS,
 } from './lib/git-state.mjs';
 export { loadIgnoreConfig, globToRegExp, relForGlob, pathExcluded, markerExcludedLines, excludeFooter } from './lib/exclusions.mjs';
 export { loadWritePolicy, forbiddenBy } from './lib/write-policy.mjs';

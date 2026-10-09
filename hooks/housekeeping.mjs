@@ -7,11 +7,12 @@
 // encoding replaces :, \, /, and spaces with '-'. Derived from $HOME so nothing
 // machine-specific is hardcoded (this kit is public).
 
-import { statSync, existsSync, readFileSync, readdirSync } from 'node:fs';
+import { statSync, existsSync, readFileSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { installedPluginRoot, isDevLinked, checkInstalledDrift } from '../scripts/agent-pins.mjs';
 import { docReviewAge, repoHasSource } from './lib/doc-review.mjs';
+import { cacheDir, pathKey } from './lib/stat-cache.mjs';
 import { payload, MAINT_LOG, git, gitRoot, adopted, wipSummary, scanInbox, scanReviewQueue, scanStaleDoingTickets, scanReminders, readTurnState, writeTurnState } from './lib.mjs';
 
 const REVIEW_DAYS = 7;
@@ -78,6 +79,29 @@ function flatBytes(dir) {
   return total;
 }
 
+// Total size of a deps dir. Statting ~50k artifacts costs ~0.7 s, so the total is cached per
+// directory: within BYTES_CACHE_MS the cached bytes-per-entry scales the current entry count
+// (a runaway tree's size moves slowly against the nag threshold), and the exact walk reruns
+// once the cache ages out. Returns { bytes, approx }.
+const BYTES_CACHE_MS = 24 * 60 * 60 * 1000;
+function depsBytes(dir, count) {
+  const file = join(cacheDir(), `deps-bytes-${pathKey(dir)}.json`);
+  try {
+    const c = JSON.parse(readFileSync(file, 'utf8'));
+    if (c.count > 0 && Date.now() - c.at < BYTES_CACHE_MS) return { bytes: (c.bytes / c.count) * count, approx: true };
+  } catch {
+    /* no cache yet */
+  }
+  const bytes = flatBytes(dir);
+  try {
+    mkdirSync(cacheDir(), { recursive: true });
+    writeFileSync(file, JSON.stringify({ count, bytes, at: Date.now() }));
+  } catch {
+    /* cache is best-effort */
+  }
+  return { bytes, approx: false };
+}
+
 // The build tree outgrew its working set. Silent for a healthy tree and for anything that is
 // not a cargo project; one line with the real number when it has run away.
 function buildTreeLine(root) {
@@ -88,8 +112,8 @@ function buildTreeLine(root) {
   if (deps < DEPS_ENTRY_NAG && sessions < INCREMENTAL_DIR_NAG) return null;
   const parts = [];
   if (deps >= DEPS_ENTRY_NAG) {
-    const gb = (flatBytes(join(debug, 'deps')) / 1024 ** 3).toFixed(1);
-    parts.push(`deps holds ${deps.toLocaleString()} artifacts (${gb} GB)`);
+    const { bytes, approx } = depsBytes(join(debug, 'deps'), deps);
+    parts.push(`deps holds ${deps.toLocaleString()} artifacts (${approx ? '~' : ''}${(bytes / 1024 ** 3).toFixed(1)} GB)`);
   }
   if (sessions >= INCREMENTAL_DIR_NAG) {
     parts.push(`${sessions.toLocaleString()} orphaned incremental sessions`);

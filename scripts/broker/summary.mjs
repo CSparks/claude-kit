@@ -11,11 +11,17 @@ import { readLock } from './lock.mjs';
 import { readInflight } from './preimage.mjs';
 
 const MAX_LANDS = 10;
+const MAX_DEFERRED = 4; // deferred failures listed inline; each can run to hundreds of characters
+const DEFERRED_LINE_MAX = 200;
 const MS_PER_MIN = 60 * 1000;
 
 function pidAlive(pid) {
   try { process.kill(pid, 0); return true; } catch (e) { return !!e && e.code === 'EPERM'; }
 }
+
+// A result file is written at or after its finishedAt, so one not modified since the last look
+// cannot have landed since; skipping it avoids opening hundreds of old results.
+const modifiedAfter = (file, since) => { try { return statSync(file).mtimeMs > since; } catch { return false; } };
 
 const readJson = (file) => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; } };
 
@@ -32,10 +38,12 @@ export function brokerLines(root, now = Date.now()) {
   const lines = [`broker: ${brokerLive(cfg) ? 'daemon live' : 'daemon not running'}${isPaused(cfg) ? ', PAUSED' : ''}`];
   const inflight = readInflight(cfg);
   if (inflight) lines.push(`  in flight: ${inflight.id} (${Math.round((now - Date.parse(inflight.startedAt)) / MS_PER_MIN)} min, tree holds its changes until it restores)`);
-  lines.push(...deferredLines(cfg).map((l) => `  ${l}`));
+  const deferred = deferredLines(cfg);
+  for (const l of deferred.slice(0, MAX_DEFERRED)) lines.push(`  ${l.length > DEFERRED_LINE_MAX ? `${l.slice(0, DEFERRED_LINE_MAX - 1)}…` : l}`);
+  if (deferred.length > MAX_DEFERRED) lines.push(`  +${deferred.length - MAX_DEFERRED} more deferred — ${join(p.home, 'deferred.json')}`);
   const seen = join(p.home, 'last-seen');
   const since = existsSync(seen) ? statSync(seen).mtimeMs : 0;
-  const landed = existsSync(p.results) ? readdirSync(p.results).filter((f) => f.endsWith('.json')).map((f) => readJson(join(p.results, f)))
+  const landed = existsSync(p.results) ? readdirSync(p.results).filter((f) => f.endsWith('.json') && modifiedAfter(join(p.results, f), since)).map((f) => readJson(join(p.results, f)))
     .filter((r) => r && r.status === 'landed' && Date.parse(r.finishedAt) > since)
     .sort((a, b) => Date.parse(a.finishedAt) - Date.parse(b.finishedAt)) : [];
   for (const r of landed.slice(-MAX_LANDS)) lines.push(`  landed ${String(r.landed.sha).slice(0, 8)} ${r.ticket || ''} (${r.id})`);

@@ -8,6 +8,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { collectItems } from './db-parse.mjs';
+import { collectItemsCached } from './items-cache.mjs';
 import { compareIds } from './id-utils.mjs';
 import { mentionsForAgent, readReceipts } from './comments.mjs';
 import { governing, drift } from './q-governing.mjs';
@@ -25,7 +26,7 @@ import {
 const statMs = (p) => { try { return statSync(p).mtimeMs; } catch { return null; } };
 
 export function fallback(cmd, args, root) {
-  const items = collectItems(root);
+  const items = collectItemsCached(root);
   const byId = new Map(items.map((i) => [i.id, i]));
   // Same scope vocabulary as the cache path (KIT-T255): absent = the cwd project, `all` =
   // every project, a key = that one. The scan only ever holds ONE root's items, so the

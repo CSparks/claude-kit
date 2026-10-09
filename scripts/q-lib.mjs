@@ -90,7 +90,7 @@ function newestAcross(sources) {
 // EXPORTED (KIT-T131) as the canonical cache-READ entry: the web-UI API opens the cache
 // through this so its reads inherit the SAME staleness→rehydrate guarantee the CLI has —
 // never a bespoke open that could serve stale rows.
-export async function dbOpen(root, dbPath) {
+export async function dbOpen(root, dbPath, { assumeFresh = false } = {}) {
   const open = await resolveEngine();
   if (!open) return { handle: null, wasStale: false };
   // The shared cache holds REGISTERED projects only (KIT-T164) — an unregistered root may not
@@ -102,7 +102,9 @@ export async function dbOpen(root, dbPath) {
   }
   // Backstop/audit for out-of-band drift (git pull / another machine / parallel session).
   // In-process writes hydrate at the mutation site via writeItemFile — KIT-T096.
-  const wasStale = !existsSync(dbPath) || statSync(dbPath).mtimeMs < newestAcross(hydrationSources(root));
+  // `assumeFresh`: a caller that just ran a verified query moments ago (orient's follow-up
+  // trails) skips the store walk, which statistics every .md under every registered project.
+  const wasStale = !existsSync(dbPath) || (!assumeFresh && statSync(dbPath).mtimeMs < newestAcross(hydrationSources(root)));
   if (wasStale) await hydrate({ root, dbPath });
   return { handle: open(dbPath), wasStale };
 }
@@ -371,7 +373,7 @@ export { verifyCache };
 // db-parse markdown scan when no SQLite engine exists or `noDb` is set — fail-open, the
 // cache is never a hard dependency. `root` forces single-scope; `cwdRoot` keys id-format
 // (next-id) and seeds the fallback scan. Returns the same rows the CLI prints.
-export async function query(cmd, args = [], { root, cwdRoot = root || process.cwd(), noDb = false, dbPath = defaultDbPath() } = {}) {
+export async function query(cmd, args = [], { root, cwdRoot = root || process.cwd(), noDb = false, dbPath = defaultDbPath(), assumeFresh = false } = {}) {
   // governing/drift/topics are scan-only (the cache schema carries no files/scope/paths/body
   // and no topic column), so
   // route them straight to the markdown scan over cwdRoot regardless of the engine — the
@@ -384,7 +386,7 @@ export async function query(cmd, args = [], { root, cwdRoot = root || process.cw
   if (cmd === 'governing' || cmd === 'drift' || cmd === 'mentions' || cmd === 'topics' || cmd === 'topic') {
     return { rows: fallback(cmd, args, cwdRoot), cached: false };
   }
-  const { handle, wasStale } = noDb ? { handle: null, wasStale: false } : await dbOpen(root, dbPath);
+  const { handle, wasStale } = noDb ? { handle: null, wasStale: false } : await dbOpen(root, dbPath, { assumeFresh });
   if (!handle) {
     return { rows: fallback(cmd, args, cwdRoot), cached: false };
   }
