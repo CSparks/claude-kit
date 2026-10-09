@@ -2,7 +2,7 @@
 // deck-config.test.mjs — the `deck:` block parser deck-deploy relies on (KIT-T397).
 
 import assert from "node:assert/strict";
-import { parseDeckBlock } from "./deck-config.mjs";
+import { parseDeckBlock, unsafeField } from "./deck-config.mjs";
 
 const CONFIG = `uat:
   default: required
@@ -38,5 +38,15 @@ assert.deepEqual(crlf, { env: { A: "1" }, bin: "x", cargo: ["-p", "x", "--bin", 
 // No block, or a block without bin/cargo, is not a game.
 assert.equal(parseDeckBlock("ids:\n  key: X\n"), null);
 assert.equal(parseDeckBlock("deck:\n  name: Half Done\n"), null);
+
+// Fields spliced unquoted into the deploy script must be plain tokens.
+assert.equal(unsafeField("stiletto-2349", game), null);
+assert.match(unsafeField("x", { ...game, bin: "x; rm -rf ~" }), /^bin/);
+assert.match(unsafeField("x", { ...game, toolchain: "$(id)" }), /^toolchain/);
+assert.match(unsafeField("a b", game), /^project name/);
+assert.match(unsafeField("x", { ...game, env: { "A=1;id;B": "v" } }), /^env key/);
+for (const key of ["RUSTC_WRAPPER", "LD_PRELOAD", "PATH", "CARGO_BUILD_RUSTC", "BASH_ENV"]) {
+  assert.match(unsafeField("x", { ...game, env: { [key]: "/tmp/evil" } }), /^reserved env key/, key);
+}
 
 console.log("deck-config: all assertions passed");

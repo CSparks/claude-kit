@@ -24,10 +24,32 @@ export const TARGET_PATH = join(homedir(), ".claude", "steamdeck.json");
 
 export function readTarget() {
   const t = JSON.parse(readFileSync(TARGET_PATH, "utf8"));
-  return { host: t.host, user: t.user ?? "deck", key: (t.key ?? "~/.ssh/steamdeck").replace(/^~/, homedir()) };
+  const target = { host: t.host, user: t.user ?? "deck", key: (t.key ?? "~/.ssh/steamdeck").replace(/^~/, homedir()) };
+  for (const f of ["host", "user"]) {
+    if (!TOKEN.test(target[f] ?? "")) throw new Error(`${TARGET_PATH}: ${f} must be a plain hostname/user token`);
+  }
+  return target;
 }
 
 const unquote = (s) => s.trim().replace(/^(["'])(.*)\1$/, "$2");
+
+// Fields deck-deploy splices into a shell script unquoted must be plain tokens.
+const TOKEN = /^[A-Za-z0-9][A-Za-z0-9._+-]*$/;
+const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+// Variables that would redirect the toolchain, loader or shell rather than inform the build.
+const RESERVED_ENV = /^(PATH|HOME|SHELL|IFS|ENV|BASH_ENV|BASH_FUNC_.*|LD_.*|RUSTC.*|RUSTFLAGS|RUSTDOCFLAGS|RUSTUP_.*|CARGO.*)$/;
+
+export function unsafeField(id, game) {
+  if (!TOKEN.test(id)) return `project name '${id}'`;
+  if (!TOKEN.test(game.bin)) return `bin '${game.bin}'`;
+  if (game.toolchain !== undefined && !TOKEN.test(game.toolchain)) return `toolchain '${game.toolchain}'`;
+  const badKey = Object.keys(game.env).find((k) => !ENV_KEY.test(k));
+  if (badKey) return `env key '${badKey}'`;
+  const reserved = Object.keys(game.env).find((k) => RESERVED_ENV.test(k));
+  if (reserved) return `reserved env key '${reserved}'`;
+  if (/[\r\n]/.test(game.name ?? "")) return "name containing a newline";
+  return null;
+}
 
 export function parseDeckBlock(text) {
   const m = text.replace(/\r\n/g, "\n").match(/^deck:[ \t]*\n((?:(?:[ \t]+.*)?\n?)*)/m);
@@ -54,7 +76,10 @@ export function discoverGames() {
     let text;
     try { text = readFileSync(join(notebook, "config.yml"), "utf8"); } catch { continue; }
     const game = parseDeckBlock(text);
-    if (game) games[name] = { ...game, repo, name: game.name ?? name };
+    if (!game) continue;
+    const bad = unsafeField(name, game);
+    if (bad) { console.error(`[deck-deploy] skipping ${name}: unsafe ${bad} in its deck: block`); continue; }
+    games[name] = { ...game, repo, name: game.name ?? name };
   }
   return games;
 }
