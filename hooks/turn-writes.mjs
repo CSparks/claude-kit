@@ -27,9 +27,13 @@ export function repoRelative(root, file) {
   return `${prefix}${basename(raw)}`;
 }
 
-export function recordTurnWrite(root, file) {
+const SESSION_WRITES_MAX = 3000;
+const sessionSlot = (sid) => `swrites-${String(sid).replace(/[^A-Za-z0-9_-]/g, '_')}`;
+
+export function recordTurnWrite(root, file, sessionId = '') {
   const rel = repoRelative(root, file);
   if (!rel) return;
+  if (sessionId) recordSessionWrite(root, rel, sessionId);
   const prev = readTurnState(root, TURN_WRITES_SLOT) || {};
   const files = Array.isArray(prev.files) ? prev.files : [];
   files.push({ p: rel, ts: Date.now() });
@@ -48,4 +52,31 @@ export function turnWrites(root, sinceMs = 0) {
 export function turnStartMs(root) {
   const snap = readTurnState(root, 'request-capture') || {};
   return Number(snap.ts) || 0;
+}
+
+// SESSION ledger (KIT-T407): every repo-relative path this SESSION's Write/Edit calls touched,
+// kept per session id so a second session in the same checkout is never mistaken for this one.
+function recordSessionWrite(root, rel, sessionId) {
+  const slot = sessionSlot(sessionId);
+  const prev = readTurnState(root, slot) || {};
+  const files = Array.isArray(prev.files) ? prev.files : [];
+  if (!files.includes(rel)) files.push(rel);
+  writeTurnState(root, { files: files.slice(-SESSION_WRITES_MAX) }, slot);
+}
+
+export function sessionWrites(root, sessionId) {
+  if (!sessionId) return new Set();
+  const state = readTurnState(root, sessionSlot(sessionId)) || {};
+  return new Set(Array.isArray(state.files) ? state.files : []);
+}
+
+// Workflow-store paths are written by cap/t through Bash, so no Write hook sees them.
+const isStorePath = (p) => p.startsWith('.ai/') || p.includes('/.ai/');
+
+// Source paths in `paths` this session never wrote. [] when the session has no ledger (a
+// resumed or unidentified session cannot be judged — fail open).
+export function foreignPaths(root, paths, sessionId) {
+  const mine = sessionWrites(root, sessionId);
+  if (!mine.size) return [];
+  return paths.filter((p) => !isStorePath(p) && !mine.has(p));
 }

@@ -221,6 +221,47 @@ try {
     r = cite('implements S-T001');
     ok('a single-character key does NOT cite', r.code === 2 && r.out.includes('BLOCKED'), r.out.trim());
   }
+  // --- KIT-T407: a commit carrying source this session never wrote ----------------------
+  {
+    const state = mkdtempSync(join(tmpdir(), 'kit-cg-state-'));
+    fixtures.push(state);
+    const env = { CLAUDE_KIT_TURN_STATE: state };
+    const d = adopted();
+    const gate = (command, s) => {
+      const r = spawnSync(process.execPath, [join(HOOKS, 'commit-gate.mjs')], {
+        input: JSON.stringify({ session_id: s, tool_input: { command } }), cwd, encoding: 'utf8', env: { ...process.env, ...env },
+      });
+      return { code: r.status, out: `${r.stdout || ''}${r.stderr || ''}` };
+    };
+    const write = (file, s) => {
+      writeFileSync(join(d, file), 'export const x = 1;\n');
+      spawnSync(process.execPath, [join(HOOKS, 'pre-write.mjs')], {
+        input: JSON.stringify({ session_id: s, tool_input: { file_path: join(d, file), content: 'export const x = 1;\n' } }),
+        cwd: d, encoding: 'utf8', env: { ...process.env, ...env },
+      });
+    };
+    write('mine.js', 'A');
+    writeFileSync(join(d, 'theirs.js'), 'export const y = 2;\n'); // another session's file
+    g(['add', 'mine.js', 'theirs.js'], d);
+    const msg = (extra = '') => `git -C ${d} commit -m "implements KIT-T407 ${extra}"`;
+
+    let r = gate(msg(), 'A');
+    ok('a staged path this session did not write blocks (exit 2) and is named',
+      r.code === 2 && r.out.includes('theirs.js') && !r.out.includes('  mine.js'), r.out.trim());
+
+    r = gate(msg('[commit-foreign: finishing the earlier session]'), 'A');
+    ok('[commit-foreign: reason] passes', r.code === 0, r.out.trim());
+
+    r = gate(msg(), 'B');
+    ok('a session with no writes ledger is not judged (fail open)', r.code === 0, r.out.trim());
+
+    g(['reset', '-q', 'theirs.js'], d);
+    r = gate(msg(), 'A');
+    ok('only own paths staged -> allowed (negative control)', r.code === 0, r.out.trim());
+
+    r = gate(msg(), undefined);
+    ok('no session id -> allowed (fail open)', r.code === 0, r.out.trim());
+  }
 } finally {
   for (const f of fixtures) { try { rmSync(f, { recursive: true, force: true }); } catch { /* best-effort */ } }
   harness.cleanup();

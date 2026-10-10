@@ -18,6 +18,7 @@ import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispat
 import { readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
 import { ladderRoot } from '../scripts/dispatch-ladder.mjs';
 import { capabilityStatus } from '../scripts/model-lineup.mjs';
+import { FOREIGN_TREE_CHECK, FOREIGN_TREE_OK, foreignEdits, foreignTreeMessage } from './dispatch-foreign.mjs';
 import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker } from './dispatch-broker.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
@@ -63,6 +64,7 @@ try {
     coldWorktreeBlock(root, input, prompt),
     sharedTreeBlock(root, input, prompt),
     brokerOwnedBlock(root, input, prompt),
+    foreignTreeBlock(root, input, prompt, p),
   ].filter(Boolean);
   if (!blocks.length) process.exit(0);
   console.error(blocks.join('\n'));
@@ -223,6 +225,19 @@ function brokerOwnedBlock(root, input, prompt) {
   const tree = dispatchTargetRoot(root, input);
   const held = liveBroker(tree);
   return held ? brokerOwnedMessage({ agent: label(input), tree, held, footer: excludeFooter(BROKER_OWNED_CHECK) }) : null;
+}
+
+// --- foreign-tree-edits (KIT-T407) ---------------------------------------------
+// A writer into a tree already dirty with edits this session did not make. Roster writers in
+// flight are shared-tree-dispatch's business and are skipped here.
+function foreignTreeBlock(root, input, prompt, p) {
+  if (isWorktreeIsolation(input.isolation) || MAINTAINER_PARALLEL.test(prompt) || FOREIGN_TREE_OK.test(prompt)) return null;
+  if (readOnlyDispatch(root, label(input), prompt)) return null;
+  if (pathExcluded(root, FOREIGN_TREE_CHECK, root)) return null;
+  const tree = dispatchTargetRoot(root, input);
+  if (liveAgents(root, Date.now(), tree).some((r) => !readOnlyRow(root, r))) return null;
+  const files = foreignEdits(tree, p.session_id);
+  return files.length ? foreignTreeMessage({ agent: label(input), tree, files, footer: excludeFooter(FOREIGN_TREE_CHECK) }) : null;
 }
 
 // Does the brief name a checkout that is a git WORKTREE? A worktree's .git is a FILE whose

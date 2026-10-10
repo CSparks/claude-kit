@@ -6,13 +6,14 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SRC } from './lib.mjs';
 import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
-import { turnWrites, turnStartMs } from './turn-writes.mjs';
+import { turnWrites, turnStartMs, foreignPaths } from './turn-writes.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
 );
 // Foreign staged paths listed before the warning collapses to a "+N more" tail.
 const MAX_FOREIGN = 10;
+const COMMIT_FOREIGN_ESCAPE = /\[commit-foreign:\s*[^\]\s][^\]]*\]/i;
 
 const p = await payload();
 const command = (p.tool_input && p.tool_input.command) || '';
@@ -157,6 +158,37 @@ if (dataRepo) {
   }
 }
 if (!adopted(root)) process.exit(0);
+
+// KIT-T407: block a commit carrying source this SESSION never wrote — a directory-wide `git add`
+// sweeping another session's WIP (596d1fc). Judged only when the session has a writes ledger
+// (hooks/turn-writes.mjs); `[commit-foreign: <reason>]` or the commit-foreign ignore key lifts it.
+if (!COMMIT_FOREIGN_ESCAPE.test(command)) {
+  try {
+    const judged = spec.mode === 'tree' ? uniq(lines(git(['-C', root, 'diff', '--cached', '--name-only']))) : changed;
+    const foreign = foreignPaths(root, judged, p.session_id).filter((f) => !pathExcluded(root, 'commit-foreign', f));
+    if (foreign.length) {
+      const shown = foreign.slice(0, MAX_FOREIGN);
+      process.stderr.write(
+        [
+          '',
+          `BLOCKED: ${foreign.length} path(s) in this commit were not written by this session (KIT-T407).`,
+          '',
+          ...shown.map((f) => `  ${f}`),
+          ...(foreign.length > shown.length ? [`  +${foreign.length - shown.length} more`] : []),
+          '',
+          "Another session's work is in this tree; a directory-wide add would publish it under your message.",
+          'Stage and commit only your own files by explicit path:',
+          '  git add -- <your files>   &&   git commit -m "<msg>" -- <your files>',
+          'Foreign paths intended (e.g. a resumed session finishing earlier work): add [commit-foreign: <reason>] to the message.',
+          '',
+        ].join('\n') + excludeFooter('commit-foreign'),
+      );
+      process.exit(2);
+    }
+  } catch {
+    /* the foreign-path check is best-effort — never wedge a commit on a scan error */
+  }
+}
 
 // KIT-T106: a bare `git commit` commits the WHOLE index, including anything staged outside this
 // turn's work — that is how a perf commit swept in the maintainer's separately-staged deletions.
