@@ -527,7 +527,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|status|tick|untick|criterion|link|comment|ack|move> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|status|tick|untick|criterion|link|comment|ack|asked|move> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
@@ -593,6 +593,18 @@ async function main() {
     await refresh(root);
     const mentioned = r.mentions.length ? ` — mentions ${r.mentions.map((m) => '@' + m).join(' ')}` : '';
     process.stdout.write(`comment: ${r.ref} by @${author}${r.spilled ? ' (body → Notes)' : ''}${mentioned}\n`);
+    return;
+  }
+  if (cmd === 'asked') {
+    const [id] = rest;
+    if (!id) { console.error('usage: t asked <id> [--note <capture file or text>]'); process.exit(2); }
+    const found = findTicket(root, id);
+    if (!found) { console.error(`t asked: no ticket ${id}`); process.exit(2); }
+    const { bumpAsked } = await import('./asked-again.mjs');
+    const r = bumpAsked(found.path, flags.note || 'asked again', readConfig(root).priorities);
+    await refresh(root);
+    process.stdout.write(`asked: ${r.id} asked ${r.asked}x, priority ${r.from} -> ${r.to}
+`);
     return;
   }
   if (cmd === 'move') {

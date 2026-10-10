@@ -13,7 +13,8 @@
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readRegistry } from '../hooks/lib.mjs';
-import { scaffoldNew } from './t.mjs';
+import { scaffoldNew, readConfig } from './t.mjs';
+import { bumpAsked } from './asked-again.mjs';
 import { stamp } from './md-body.mjs';
 import { pathKey, statCached, statMarkdownFiles } from '../hooks/lib/stat-cache.mjs';
 
@@ -50,7 +51,8 @@ function openFor(root, shape) {
   return null;
 }
 
-export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bug' }) {
+// `repeatAsk` marks a human capture: an exact shape match then also escalates the ticket (KIT-T405).
+export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bug', repeatAsk = false }) {
   try {
     const root = kitStoreRoot();
     if (!root || !shape) return null;
@@ -62,6 +64,7 @@ export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bu
       const idm = /^id:\s*(\S+)/m.exec(open.text);
       const line = `- [${stamp()}] (comment) seen again${where}: ${example}\n`;
       if (!open.text.includes(`seen again${where}: ${example}`)) appendFileSync(open.path, line);
+      if (repeatAsk) bumpAsked(open.path, shape, readConfig(root).priorities);
       return { id: idm ? idm[1] : '', created: false };
     }
     const description = `${full}\n\nkit-bug-shape: ${shape}\nfirst seen${where}. Filed automatically (KIT-T286): every kit bug is a ticket and an agent dispatched to fix it.`;

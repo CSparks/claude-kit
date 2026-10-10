@@ -223,6 +223,18 @@ try {
 } catch {
   /* kit-bug listing is best-effort */
 }
+// A repeat ask is an escalation (KIT-T405): open tickets the maintainer asked for more than once.
+try {
+  const { askedAgainOpen } = await import('../scripts/asked-again.mjs');
+  const repeats = askedAgainOpen(root);
+  if (repeats.length) {
+    out.push('--- DISPATCH NOW: tickets asked for again (a repeat ask outranks the queue) ---');
+    for (const r of repeats.slice(0, 8)) out.push(`  ${r.id} — asked ${r.asked}x — ${clip(r.title, 100)}`);
+    out.push('');
+  }
+} catch {
+  /* asked-again listing is best-effort */
+}
 const foundational = foundationalDecisions();
 if (foundational.length) {
   out.push('--- PROJECT IDENTITY (foundational — ALWAYS true; this is what the project IS; cite, never contradict) ---');

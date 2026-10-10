@@ -305,7 +305,7 @@ watch_repos: []
 # ---------------------------------------------------------------------------
 history:
   # event vocabulary for "- [YYYY-MM-DD HH:MM] (event) detail" lines in ## History
-  events: [created, status, comment, decision, blocker, unblocked, fixed, regressed]
+  events: [created, status, comment, decision, blocker, unblocked, fixed, regressed, asked again]
   # done tickets move here (relative to .ai/) so the active board stays small
   archive_done_to: tickets/archive
 regressions:

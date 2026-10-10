@@ -41,7 +41,7 @@ export async function asKitBug(aiDir, text, slug, kind = 'bug') {
     const { kitStoreRoot, fileKitBug } = await import('./kit-bug.mjs');
     const kit = kitStoreRoot();
     if (!kit || realpathSync.native(join(kit, '.ai')).toLowerCase() !== realpathSync.native(aiDir).toLowerCase()) return null;
-    return fileKitBug({ shape: `cap:${kind}:${slug}`, title: text, detail: text, project: basename(process.cwd()), kind });
+    return fileKitBug({ shape: `cap:${kind}:${slug}`, title: text, detail: text, project: basename(process.cwd()), kind, repeatAsk: true });
   } catch {
     return null;
   }
