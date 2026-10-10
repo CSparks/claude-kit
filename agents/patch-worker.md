@@ -1,5 +1,6 @@
 ---
 name: patch-worker
+job: fix
 description: Implements a scoped change as PATCHES queued to the build broker — it reads the tree, never writes it, and never builds. Use when the broker daemon owns the checkout (target/broker/broker.lock live) and a ticket needs code changes verified and landed; N of these run in parallel because none can write.
 tools: Read, Grep, Glob, Bash
 effort: medium

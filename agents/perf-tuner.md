@@ -1,5 +1,6 @@
 ---
 name: perf-tuner
+job: fix
 description: Performance-tuning writer for game repos - lands one lever at a time (CPU frame cost, GPU fill, hitches, startup, upload/streaming) with measured before/after numbers and a fidelity proof. Use when a perf ticket names a lever and the dominant cause is known or must be pinned down from docs/perf and the theory ledger. Framework level by default; never takes a lever that changes the picture.
 tools: Read, Grep, Glob, Edit, Write, Bash
 effort: high

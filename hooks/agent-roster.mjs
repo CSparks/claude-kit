@@ -16,7 +16,8 @@ import { gitRoot, adopted, payload, recordAgent, updateAgent, ID_CITE_SRC } from
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { declaredReadOnly } from './dispatch-readonly.mjs';
 import { rowModel, isKnownModel, stripModelTag } from './model-tag.mjs';
-import { declaredJob, outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs';
+import { dispatchJob, modelOverride } from './dispatch-job.mjs';
+import { outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
 const ID_CITE_RE = new RegExp(ID_CITE_SRC); // at least one ticket/decision id anywhere in the brief
@@ -75,8 +76,9 @@ function recordDispatch(root, p) {
     }
     const readOnly = declaredReadOnly(firstString(inp.prompt, inp.message));
     // WHICH JOB it serves (`[job: fix]` in the brief) and what it cost where the response says (KIT-D080).
-    const job = declaredJob(firstString(inp.prompt, inp.message));
-    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(job ? { job } : {}), ...outcomeFromResponse(resp), ...(readOnly ? { readOnly } : {}), source: 'posttooluse' });
+    const job = dispatchJob(root, inp);
+    const override = modelOverride(firstString(inp.prompt, inp.message));
+    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(job ? { job } : {}), ...(override ? { modelOverride: override } : {}), ...outcomeFromResponse(resp), ...(readOnly ? { readOnly } : {}), source: 'posttooluse' });
     // Advisory: a delegation with no ticket id is ungrounded work — warn, never block (exit 0).
     const brief = firstString(inp.description, inp.task, inp.title, inp.prompt, inp.message) || '';
     if (brief && !ID_CITE_RE.test(brief)) {

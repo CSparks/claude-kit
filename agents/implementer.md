@@ -1,5 +1,6 @@
 ---
 name: implementer
+job: fix
 description: Implements a scoped feature or bug fix from a ticket — code plus the automated tests for what it touched. Use for ordinary implementation work (the `fix` job); reserve higher effort / Fable for design, debugging a real defect, or adversarial review. Never runs a full test suite (that goes to Codex); never waits on one.
 tools: Read, Grep, Glob, Edit, Write, Bash
 effort: high

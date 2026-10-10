@@ -1,5 +1,6 @@
 ---
 name: analyst-max
+job: design
 description: Read-only deep analyst (dispatch on opus) at maximum effort. Use for root-cause analysis and design on the hardest problems; it never edits, builds, tests or runs anything, and its report goes to the agent doing the work. Dispatch guards let it run in parallel with a writer because its tools grant no writing tool.
 tools: Read, Grep, Glob, Bash
 effort: max

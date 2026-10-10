@@ -48,7 +48,8 @@ try {
   // kit agents carry no model: the family on the call decides (KIT-D080)
   ok('kit agent on a family: claude-kit:patch-worker + sonnet', label(dispatch({ description: 'Land it', subagent_type: 'claude-kit:patch-worker', model: 'sonnet' }), d) === '[Sonnet 5.5] Land it');
   ok('kit agent on a family: claude-kit:refactorer + opus', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer', model: 'opus' }), d) === '[Opus 5.5] Build it');
-  ok('a kit agent with no model and no transcript is not tagged', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer' }), d) === null);
+  ok('a kit agent with no model and no transcript is not tagged', label(dispatch({ description: 'Build it', subagent_type: 'unjobbed-agent' }), d) === null);
+  ok('a kit agent default job fills the table family', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer' }), d) === '[Sonnet 5.5] Build it');
   ok('local-qwen is a known family: a hand-written tag is replaced', label(dispatch({ description: '[local-qwen] Build it', model: 'haiku' }), d) === '[Haiku 4.5] Build it');
 
   // project agent pins and inherit
@@ -95,6 +96,9 @@ try {
   });
   ok('through compat-run (the installed command path) the label is applied',
     /\[Opus 5\.5\] Do it/.test(launched.stdout || ''));
+  const jobbed = JSON.parse(hook('activity-tag.mjs', dispatch({ description: 'Fix it', prompt: 'x [job: fix]' }), d).out).hookSpecificOutput.updatedInput;
+  ok('a job with no model takes the table family', jobbed.model === 'sonnet' && jobbed.description === '[Sonnet 5.5] Fix it');
+  ok('an explicit model is never replaced by the table', label(dispatch({ description: 'Fix it', model: 'opus', prompt: 'x [job: fix]' }), d) === '[Opus 5.5] Fix it');
   const wiring = JSON.parse(readFileSync(join(ROOT, 'hooks', 'hooks.json'), 'utf8'));
   const entry = wiring.hooks.PreToolUse.find((e) => e.hooks.some((h) => h.command.includes('activity-tag')));
   ok('hooks.json matches both Task and Agent', !!entry && entry.matcher.split('|').includes('Task') && entry.matcher.split('|').includes('Agent'));

@@ -1,5 +1,6 @@
 ---
 name: test-author
+job: refactor
 description: Writes and extends automated tests for a behavior, bug, or untested module — then runs them. Use when told to "add a test" or to lock in a fix. Delivers a real, runnable test and a test-backed basis for any "it's fixed" claim — never manual-retry theater.
 tools: Read, Grep, Glob, Edit, Write, Bash
 effort: high

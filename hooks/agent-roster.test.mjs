@@ -123,6 +123,11 @@ try {
       rows.length === 1 && rows[0].id === 'a55317e42f51677c0' && rows[0].status === 'in-flight' &&
       rows[0].task === 'fix 3 sim regressions' && rows[0].scope === 'general-purpose' && rows[0].background === true);
 
+    const dj = makeRepo();
+    hook(ROSTER_HOOK, { hook_event_name: 'PostToolUse', tool_name: 'Task', tool_input: { description: 'x', subagent_type: 'general-purpose', model: 'opus', prompt: '[job: fix] [model-override: needs 1M window]' }, tool_response: { agent_id: 'aj1' } }, dj);
+    const jr = readAgents(dj)[0] || {};
+    ok('hook: the row records the job and the override reason', jr.job === 'fix' && jr.modelOverride === 'needs 1M window');
+
     // SubagentStop closes it out by agent_id.
     const rs = hook(ROSTER_HOOK, { hook_event_name: 'SubagentStop', agent_id: 'a55317e42f51677c0', agent_type: 'general-purpose' }, d);
     ok('hook: SubagentStop exits 0', rs.code === 0);

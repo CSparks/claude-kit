@@ -67,10 +67,12 @@ function runRaw(dir, stdin) {
   return { code: r.status, err: r.stderr || '' };
 }
 
+// Legacy checks exercise the other gates: the job token and a model override keep dispatch-job quiet.
 function run(dir, toolInput, transcriptPath) {
+  const input = toolInput.jobless ? { ...toolInput, jobless: undefined } : { ...toolInput, prompt: `${toolInput.prompt || ''} [job: fix] [model-override: fixture]` };
   return runRaw(
     dir,
-    JSON.stringify({ tool_name: 'Agent', tool_input: toolInput, transcript_path: transcriptPath })
+    JSON.stringify({ tool_name: 'Agent', tool_input: input, transcript_path: transcriptPath })
   );
 }
 
@@ -324,7 +326,7 @@ expect('blocks in a non-Rust repo too (the rule is per checkout)', run(roster(ma
   writeFileSync(join(tree, '.ai', 'T1.md'), 'x\n');
   git('add', '-A');
   git('commit', '-qm', 'init');
-  const send = (sid, input) => runRaw(tree, JSON.stringify({ tool_name: 'Agent', session_id: sid, tool_input: { model: 'sonnet', ...input } }));
+  const send = (sid, input) => runRaw(tree, JSON.stringify({ tool_name: 'Agent', session_id: sid, tool_input: { model: 'sonnet', ...input, prompt: `${input.prompt} [job: fix]` } }));
   const writer = { subagent_type: 'general-purpose', prompt: 'x' };
 
   writeFileSync(join(tree, '.ai', 'T1.md'), 'changed\n');
@@ -337,7 +339,7 @@ expect('blocks in a non-Rust repo too (the rule is per checkout)', run(roster(ma
   expect('a read-only agent type is allowed into the dirty tree', send('S1', { subagent_type: 'claude-kit:researcher', prompt: 'x' }).code, 0);
   expect('[read-only: reason] on a writer type is allowed', send('S1', { ...writer, prompt: 'x [read-only: audit]' }).code, 0);
   expect('[foreign-edits-ok: reason] lifts the block', send('S1', { ...writer, prompt: 'x [foreign-edits-ok: known wip]' }).code, 0);
-  expect('an unidentified session fails open', runRaw(tree, JSON.stringify({ tool_name: 'Agent', tool_input: { model: 'sonnet', ...writer } })).code, 0);
+  expect('an unidentified session fails open', runRaw(tree, JSON.stringify({ tool_name: 'Agent', tool_input: { model: 'sonnet', ...writer, prompt: 'x [job: fix]' } })).code, 0);
 
   spawnSync(process.execPath, [fileURLToPath(new URL('./pre-write.mjs', import.meta.url))], {
     cwd: tree, encoding: 'utf8',
@@ -347,6 +349,32 @@ expect('blocks in a non-Rust repo too (the rule is per checkout)', run(roster(ma
   expect('the same edit stays foreign to another session', send('S2', writer).code, 2);
   rmSync(stateDir, { recursive: true, force: true });
   delete process.env.CLAUDE_KIT_TURN_STATE;
+}
+
+// --- dispatch-job (KIT-T419) ---------------------------------------------------------
+{
+  const call = (input) => run(d, { jobless: true, subagent_type: 'general-purpose', ...input }, opus);
+  expect('blocks a dispatch naming no job', call({ model: 'sonnet', prompt: 'x' }).code, 2);
+  const noJob = call({ model: 'sonnet', prompt: 'x' }).err;
+  expect('the no-job block lists the job ids', /Job ids: .*targeted-change.*fix/.test(noJob) ? 1 : 0, 1);
+  expect('blocks an unknown job id', call({ model: 'sonnet', prompt: 'x [job: nonesuch]' }).code, 2);
+  expect('job + matching model passes', call({ model: 'sonnet', prompt: 'x [job: fix]' }).code, 0);
+  expect('the job may ride in the description label', call({ model: 'sonnet', description: '[sonnet] x [job: fix]', prompt: 'x' }).code, 0);
+  const higher = call({ model: 'opus', prompt: 'x [job: fix]' });
+  expect('job + higher model, no override, blocks', higher.code, 2);
+  expect('the model block names the table row', /table row: fix -> sonnet/.test(higher.err) ? 1 : 0, 1);
+  expect('[model-override: reason] lets the higher model through', call({ model: 'opus', prompt: 'x [job: fix] [model-override: needs the larger window]' }).code, 0);
+  expect('an empty override does not count', call({ model: 'opus', prompt: 'x [job: fix] [model-override: ]' }).code, 2);
+  expect('a model-less dispatch with a job passes (the table fills the family)', call({ prompt: 'x [job: fix]' }).code, 0);
+  expect('the targeted-change fallback family is allowed', call({ model: 'sonnet', prompt: 'x [job: targeted-change]' }).code, 0);
+  const ignored = ignoreFile(makeRepo(), 'dispatch-job');
+  expect('the ignore file lifts the job gate', run(ignored, { jobless: true, subagent_type: 'general-purpose', model: 'opus', prompt: 'x' }, opus).code, 0);
+
+  const agents = join(d, '.claude', 'agents');
+  mkdirSync(agents, { recursive: true });
+  writeFileSync(join(agents, 'jobbed.md'), ['---', 'name: jobbed', 'description: x', 'job: refactor', '---', 'body', ''].join('\n'));
+  expect('an agent definition default job passes', call({ subagent_type: 'jobbed', model: 'sonnet', prompt: 'x' }).code, 0);
+  expect('the definition job still checks the model', call({ subagent_type: 'jobbed', model: 'opus', prompt: 'x' }).code, 2);
 }
 
 process.exit(failures ? 1 : 0);

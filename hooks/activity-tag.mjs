@@ -24,6 +24,8 @@
 
 import { payload, gitRoot } from './lib.mjs';
 import { resolveDispatchModel, modelDisplay, tagDescription } from './model-tag.mjs';
+import { dispatchJob, jobFamilies } from './dispatch-job.mjs';
+import { readLadder } from '../scripts/dispatch-ladder.mjs';
 
 main().catch(() => process.exit(0));
 
@@ -36,20 +38,28 @@ async function main() {
     const description = input.description;
     if (typeof description !== 'string' || !description.trim()) process.exit(0); // nothing to tag
 
-    const display = modelDisplay(resolveDispatchModel(root, input, p));
+    const family = tableFamily(root, input);
+    const display = modelDisplay(family || resolveDispatchModel(root, input, p));
     if (!display) process.exit(0); // model indeterminate — say nothing rather than guess a tier
 
     const tagged = tagDescription(description, display);
-    if (tagged === description) process.exit(0); // already in the canonical form
+    if (tagged === description && !family) process.exit(0); // already in the canonical form
 
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        updatedInput: { ...input, description: tagged },
+        updatedInput: { ...input, description: tagged, ...(family ? { model: family } : {}) },
       },
     }));
   } catch {
     /* fail-open — a missing tag is cosmetic, a wedged dispatch is not */
   }
   process.exit(0);
+}
+
+// A dispatch naming a job but no model runs on the table's family for that job (KIT-T419).
+function tableFamily(root, input) {
+  if (typeof input.model === 'string' && input.model.trim()) return '';
+  const row = readLadder().jobs[dispatchJob(root, input)];
+  return row ? jobFamilies(row)[0] || '' : '';
 }

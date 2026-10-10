@@ -162,6 +162,12 @@ export function pinnedModel(root, subagentType) {
   return m && m[1] !== 'inherit' ? m[1] : '';
 }
 
+// The default `job:` from the agent definition's frontmatter, '' when none (KIT-T419).
+export function definitionJob(root, subagentType) {
+  const m = definitionFrontmatter(root, subagentType).match(/^job:\s*([\w-]+)/m);
+  return m ? m[1].toLowerCase() : '';
+}
+
 // The `tools:` list from the agent definition's frontmatter: an array of tool names, or null
 // when no definition was found, it lists no tools, or it grants everything ('*'). A caller
 // asking whether a type can WRITE treats null as "unknown — assume it can".

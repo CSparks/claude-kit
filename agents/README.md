@@ -79,7 +79,9 @@ process failure; the stale-doing detector (housekeeping + orient) will flag it l
 No agent here carries a `model:` line (KIT-D080): the orchestrator names a family on every
 dispatch from the capability table in the kit `.ai/config.yml` (`dispatch.jobs`). Asset authoring
 is the `asset` job (opus, never fable); `scripts/agent-pins.mjs` fails a `model:` line or a model
-id anywhere in agents/, commands/ or skills/.
+id anywhere in agents/, commands/ or skills/. Each agent carries a default `job:` (a
+`dispatch.jobs` id); a dispatch overrides it with `[job: <id>]` in the prompt, and the hook blocks
+a model that differs from the job's table family unless `[model-override: <reason>]` is present (KIT-T419).
 
 ## Project knowledge-agents (KIT-T015)
 
