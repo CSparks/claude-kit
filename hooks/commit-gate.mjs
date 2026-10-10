@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SRC } from './lib.mjs';
 import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
-import { turnWrites, turnStartMs, foreignPaths } from './turn-writes.mjs';
+import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
@@ -40,6 +40,10 @@ function targetDir(cmd) {
 
 const root = gitRoot(targetDir(command));
 const dataRepo = isDataRepo(root);
+// A commit made inside a submodule marks its gitlink as this session's in the superproject.
+if (isCommit) {
+  try { recordSubmoduleActivity(root, p.session_id); } catch { /* ledger is best-effort */ }
+}
 
 // KIT-T230: warn on a tree-wide add in the shared data repo, BEFORE the adopted() gate — the
 // data repo's own root holds `projects/`, not `.ai`, so it is never "adopted".

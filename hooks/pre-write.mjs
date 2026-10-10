@@ -9,7 +9,7 @@ import {
   payload, projectRoot, gitRootOfFile, pathExcluded, markerExcludedLines, excludeFooter, VENDORED, LOCKFILES, fileExt,
   loadWritePolicy, forbiddenBy, globToRegExp, relForGlob,
 } from './lib.mjs';
-import { recordTurnWrite } from './turn-writes.mjs';
+import { recordTurnWrite, recordSubmoduleActivity } from './turn-writes.mjs';
 import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 import { FILE_HARD, FILE_SOFT } from './lib/limits.mjs';
 import { commentFindings } from './lib/comment-gate.mjs';
@@ -176,7 +176,11 @@ const ROOT = _gitRoot || projectRoot(dirname(file));
 
 // KIT-T106: record the path in the turn's writes ledger BEFORE any quality check can exit, so
 // the commit gate knows what this turn authored even when a later gate blocks this write.
-if (_gitRoot && !process.env.CLAUDE_KIT_BROKER_GATE) recordTurnWrite(_gitRoot, file, p.session_id); // the broker gate is not a turn write
+// The broker gate is not a turn write. A write inside a submodule also marks its gitlink as this session's.
+if (_gitRoot && !process.env.CLAUDE_KIT_BROKER_GATE) {
+  recordTurnWrite(_gitRoot, file, p.session_id);
+  recordSubmoduleActivity(_gitRoot, p.session_id);
+}
 
 // write_policy (KIT: forbidden-path). A project can declare files an agent must never write —
 // e.g. a retired TypeScript tree kept only as a port reference. This is the FIRST check and a

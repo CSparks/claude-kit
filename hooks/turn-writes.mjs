@@ -64,6 +64,17 @@ function recordSessionWrite(root, rel, sessionId) {
   writeTurnState(root, { files: files.slice(-SESSION_WRITES_MAX) }, slot);
 }
 
+// Activity inside a submodule (a Write/Edit there, or a commit made in it) counts as this session
+// authoring that submodule's gitlink in the superproject, so pinning it is not a foreign path.
+// No-op when `subRoot` is not a submodule; fails open on any error.
+export function recordSubmoduleActivity(subRoot, sessionId) {
+  if (!sessionId || !subRoot) return;
+  const superRoot = git(['rev-parse', '--show-superproject-working-tree'], subRoot).trim();
+  if (!superRoot) return;
+  const rel = repoRelative(superRoot, subRoot);
+  if (rel) recordSessionWrite(superRoot, rel, sessionId);
+}
+
 export function sessionWrites(root, sessionId) {
   if (!sessionId) return new Set();
   const state = readTurnState(root, sessionSlot(sessionId)) || {};

@@ -227,7 +227,7 @@ try {
     fixtures.push(state);
     const env = { CLAUDE_KIT_TURN_STATE: state };
     const d = adopted();
-    const gate = (command, s) => {
+    const gate = (command, s) => { if (process.env.DBG) console.log(JSON.stringify(readdirSync(state).map((f) => [f, readFileSync(join(state, f), 'utf8')])));
       const r = spawnSync(process.execPath, [join(HOOKS, 'commit-gate.mjs')], {
         input: JSON.stringify({ session_id: s, tool_input: { command } }), cwd, encoding: 'utf8', env: { ...process.env, ...env },
       });
@@ -261,6 +261,61 @@ try {
 
     r = gate(msg(), undefined);
     ok('no session id -> allowed (fail open)', r.code === 0, r.out.trim());
+  }
+  // --- KIT-T418: a submodule pin following this session's work inside the submodule ------
+  {
+    const state = mkdtempSync(join(tmpdir(), 'kit-cg-state-'));
+    fixtures.push(state);
+    const env = { CLAUDE_KIT_TURN_STATE: state };
+    const sess = (name, s, command, cwdOf) => spawnSync(process.execPath, [join(HOOKS, name)], {
+      input: JSON.stringify({ session_id: s, tool_input: name === 'pre-write.mjs' ? { file_path: command, content: 'x\n' } : { command } }),
+      cwd: cwdOf, encoding: 'utf8', env: { ...process.env, ...env },
+    });
+    const gate = (command, s) => { const r = sess('commit-gate.mjs', s, command, cwd); return { code: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }; };
+    const upstream = repo();
+    writeFileSync(join(upstream, 'a.txt'), 'a\n');
+    g(['add', 'a.txt'], upstream);
+    g(['commit', '-q', '-m', 'init'], upstream);
+    const mkSuper = () => {
+      const d = adopted();
+      writeFileSync(join(d, 'mine.js'), 'export const x = 1;\n');
+      g(['-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', upstream, 'sub'], d);
+      g(['config', 'user.email', 't@t'], join(d, 'sub'));
+      g(['config', 'user.name', 't'], join(d, 'sub'));
+      g(['add', 'mine.js', '.gitmodules', 'sub'], d);
+      g(['commit', '-q', '-m', 'base'], d);
+      return d;
+    };
+    const advance = (d, session, how) => {
+      writeFileSync(join(d, 'sub', 'a.txt'), 'b\n');
+      if (how === 'write') sess('pre-write.mjs', session, join(d, 'sub', 'a.txt'), join(d, 'sub'));
+      if (how === 'commit') {
+        g(['-C', join(d, 'sub'), 'add', 'a.txt'], d);
+        sess('commit-gate.mjs', session, `git -C ${join(d, 'sub')} commit -m "implements KIT-T418"`, cwd);
+        g(['-C', join(d, 'sub'), 'commit', '-q', '-m', 'in sub'], d);
+      }
+      writeFileSync(join(d, 'mine.js'), 'export const x = 2;\n');
+      sess('pre-write.mjs', session, join(d, 'mine.js'), d);
+      g(['add', 'mine.js', 'sub'], d);
+      return `git -C ${d} commit -m "implements KIT-T418"`;
+    };
+
+    let d = mkSuper();
+    let cmd = advance(d, 'A', 'commit');
+    let r = gate(cmd, 'A');
+    ok('pin after this session committed in the submodule passes (KIT-T418)', r.code === 0, r.out.trim());
+
+    d = mkSuper();
+    cmd = advance(d, 'A', 'write');
+    r = gate(cmd, 'A');
+    ok('pin after this session edited inside the submodule passes (KIT-T418)', r.code === 0, r.out.trim());
+
+    d = mkSuper();
+    cmd = advance(d, 'B', 'commit'); // B did the submodule work; A only wrote mine.js
+    sess('pre-write.mjs', 'A', join(d, 'mine.js'), d);
+    r = gate(cmd, 'A');
+    ok('pin moved with no activity by this session in the submodule -> blocked and named',
+      r.code === 2 && r.out.includes('sub'), r.out.trim());
   }
 } finally {
   for (const f of fixtures) { try { rmSync(f, { recursive: true, force: true }); } catch { /* best-effort */ } }
