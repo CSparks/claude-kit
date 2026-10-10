@@ -62,6 +62,7 @@ export function parseCodeArgs(rawArgs) {
     else if (a === '--fuzzy') flags.fuzzy = true;
     else if (a === '--exact') flags.fuzzy = false;
     else if (a === '-l') flags.filesOnly = true;
+    else if (a === '-o') flags.only = true;
     else if (a === '-c') flags.count = true;
     else if (a.startsWith('-') && a.length > 1 && !/^-\d/.test(a)) flags.unknown.push(a);
     else words.push(a);
@@ -83,6 +84,23 @@ export function buildMatcher(text, flags) {
     if (flags.word) src = `\\b(?:${src})\\b`;
     const re = new RegExp(src, flags.ignoreCase ? 'i' : '');
     return (line) => re.test(line);
+  } catch {
+    return null;
+  }
+}
+
+/** Matched substrings of a line (rg -o), or null when the pattern does not compile. */
+export function buildExtractor(text, flags) {
+  try {
+    if (flags.fuzzy && !flags.regex) {
+      const terms = text.split(/s+/).filter(Boolean).map(escapeRe);
+      const re = new RegExp(terms.join('|'), 'gi');
+      return (line) => line.match(re) || [];
+    }
+    let src = flags.regex ? text : escapeRe(text);
+    if (flags.word) src = `\b(?:${src})\b`;
+    const re = new RegExp(src, flags.ignoreCase ? 'gi' : 'g');
+    return (line) => [...line.matchAll(re)].map((m) => m[0]).filter(Boolean);
   } catch {
     return null;
   }
@@ -202,10 +220,10 @@ async function codeVerb(root, text, flags, refresh) {
   const rank = (f) => f.rank ?? 1;
   perFile.sort((a, b) => rank(a) - rank(b) || b.hits.length - a.hits.length || byName(a.path, b.path));
   if (flags.filesOnly || flags.count) return perFile.map((f) => ({ loc: f.path, text: flags.count ? String(f.hits.length) : `${f.hits.length} hit(s)` }));
-  return renderHits(perFile, flags);
+  return renderHits(perFile, flags, flags.only ? buildExtractor(text, flags) : null);
 }
 
-function renderHits(perFile, flags) {
+function renderHits(perFile, flags, extract) {
   const rows = [];
   let shown = 0;
   let total = 0;
@@ -217,6 +235,10 @@ function renderHits(perFile, flags) {
     for (const i of f.hits) {
       if (flags.limit && shown >= flags.limit) continue;
       shown++;
+      if (extract) {
+        for (const m of extract(lines[i])) rows.push({ loc: `${f.path}:${i + 1}`, text: clip(m) });
+        continue;
+      }
       for (let j = Math.max(0, i - flags.before); j <= Math.min(lines.length - 1, i + flags.after); j++) {
         if (emitted.has(j)) continue;
         emitted.add(j);

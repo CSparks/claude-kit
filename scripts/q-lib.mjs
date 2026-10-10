@@ -47,6 +47,7 @@ import { resolveEngine } from './db-engine.mjs';
 import { hydrate, defaultDbPath, hydrationSources, isRegisteredStore, isSharedDb } from './hydrate-db.mjs';
 import { readIdConfig, statStoreFiles } from './id-utils.mjs';
 import { fallback } from './q-fallback.mjs';
+import { parseOpenArgs } from './q-open-args.mjs';
 import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import {
   OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, splitFts, requireStore, requireScope, formatId,
@@ -191,15 +192,16 @@ function cannedQueries(root) {
     // The active/drain set EXCLUDES superseded tickets (KIT-T024): a `superseded` status OR
     // any non-archived ticket carrying a `superseded_by` pointer is out — so a forgotten
     // status flip can't leak a retired duplicate back into the drain.
-    open: (db, scopeTok) => {
+    open: (db, ...args) => {
+      const { scopeTok, statuses } = parseOpenArgs(args);
       const scope = scopeOf(scopeTok);
       return db.all(
         `SELECT i.id, i.type, i.status, i.priority, i.title FROM items i
-         WHERE i.status IN (${OPEN.map(() => '?').join(',')}) AND i.archived = 0
+         WHERE i.status IN (${statuses.map(() => '?').join(',')}) AND i.archived = 0
            AND i.status <> 'superseded'
            AND NOT EXISTS (SELECT 1 FROM links l WHERE l.from_id = i.id AND l.rel = 'superseded_by')
            ${scope ? 'AND i.scope = ?' : ''}`,
-        scope ? [...OPEN, scope] : [...OPEN]).sort(compareOpen);
+        scope ? [...statuses, scope] : [...statuses]).sort(compareOpen);
     },
 
     // The untriaged capture queue (KIT-T238) — the first-class verb the store-grep gate
@@ -418,7 +420,8 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   is every project. Applies to: open, inbox, confirmations, orphans, rundown, recent,
   regressions, supersedes, verify, and fts's --scope.
 
-  open [scope]                open items (todo|doing|review)
+  open [scope] [--status todo|doing|review[,…]]
+                              open items (todo|doing|review); --status narrows them
   inbox [scope] [--older-than Nd]
                               untriaged captures — id, age, scope, type, file path
   confirmations [scope]       captures aged past the confirmation threshold
@@ -439,7 +442,7 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   show <id>                   print one item in full (ticket, decision, note, question) from any store
   code <text> [filters]       SEARCH CODE/DOCS/CONFIG/TICKETS (the grep replacement): ranked, compact, verified
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
-                              --path crates/sim  -C n|-A n|-B n  -l (files) -c (counts)  --limit N (0=all)
+                              --path crates/sim  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
                               --project <name>  search that registered project's checkout (name or id key), e.g. the kit's scripts
   sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P]
                               definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)

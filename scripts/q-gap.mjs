@@ -7,7 +7,7 @@ import { fileKitBug } from './kit-bug.mjs';
 const GLOBAL_FLAGS = new Set(['--json', '--no-db', '--root', '--topic', '--help']);
 const VERB_FLAGS = {
   fts: ['--scope', '--project'], inbox: ['--older-than'], confirmations: ['--older-than'], similar: ['--store', '--scopes'],
-  sessions: ['--project'], recent: [], open: [], trail: [], orphans: [], rundown: [], governing: [], drift: [], mentions: [],
+  sessions: ['--project'], recent: [], open: ['--status'], trail: [], orphans: [], rundown: [], governing: [], drift: [], mentions: [],
   children: [], backlinks: [], 'by-commit': [], 'doc-trail': [], topics: [], topic: [], 'next-id': [], regressions: [],
   supersedes: [], integrity: [], verify: [], session: [], said: [], show: [], sql: [],
 };

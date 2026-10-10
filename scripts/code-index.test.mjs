@@ -152,6 +152,8 @@ await test('q code: -i, -w, --regex, --fuzzy, --lang, --path, -C, -l, -c, --limi
   assert.deepEqual(locs(await rows('code', ['Light', '--lang', 'wgsl', '-A', '1'])).slice(0, 2), ['shaders/terrain.wgsl:1', 'shaders/terrain.wgsl-2']);
   assert.deepEqual((await rows('code', ['camp', '--lang', 'rust', '-l'])).map((r) => r.loc), ['src/sim.rs']);
   assert.match((await rows('code', ['camp', '--lang', 'rust', '-c']))[0].text, /^\d+$/);
+  assert.deepEqual(await rows('code', ['(?<=async fn )\\w+', '--regex', '--lang', 'rust', '--path', 'src/sim.rs', '-o']), [{ loc: 'src/sim.rs:13', text: 'spawn' }], '-o prints the matched text only');
+  assert.deepEqual((await rows('code', ['Wake', '--path', 'rapid-game', '-o'])).map((r) => r.text), ['Wake']);
   const limited = await rows('code', ['camp', '--limit', '1', '--kind', 'code,doc,config']);
   assert.match(limited[limited.length - 1].text, /more hit\(s\).*--limit 0/);
 });
@@ -289,6 +291,30 @@ await test('--project searches that registered project checkout from any cwd (co
     if (prior === undefined) delete process.env.CLAUDE_KIT_REGISTRY; else process.env.CLAUDE_KIT_REGISTRY = prior;
     rmSync(other, { recursive: true, force: true });
   }
+});
+
+await test('a framework submodule without a work store is indexed whole, whatever its crate folders are called', async () => {
+  const g = mkdtempSync(join(tmpdir(), 'ci-fw-'));
+  const w = (rel, text) => { mkdirSync(dirname(join(g, rel)), { recursive: true }); writeFileSync(join(g, rel), text); };
+  const db = join(cache, 'fw-fixture.db');
+  w('.gitmodules', '[submodule "rapid-game"]\n\tpath = rapid-game\n');
+  w('rapid-game/rust/engine/rg-a/src/lib.rs', 'pub struct PendingUploads;\n');
+  w('rapid-game/crates/rg-b/src/lib.rs', 'pub fn derive_paths_fixture() {}\n');
+  w('src/main.rs', 'fn main() {}\n');
+  const refresh = async () => { const r = await refreshIndex(g, { dbPath: db }); r.handle?.close(); return r; };
+  const hit = async (sym) => (await codeVerbRows('code', [sym], g, (r, o) => refreshIndex(r, { ...o, dbPath: db }))).map((r) => r.loc);
+  try {
+    execFileSync('git', ['-C', g, 'init', '-q']);
+    execFileSync('git', ['-C', join(g, 'rapid-game'), 'init', '-q']);
+    const r = await refresh();
+    assert.ok(r.files.some((f) => f.rel === 'rapid-game/rust/engine/rg-a/src/lib.rs'), 'crate under rust/ indexed');
+    assert.ok(r.files.some((f) => f.rel === 'rapid-game/crates/rg-b/src/lib.rs'), 'crate under crates/ indexed');
+    assert.deepEqual(await hit('PendingUploads'), ['rapid-game/rust/engine/rg-a/src/lib.rs:1']);
+    assert.deepEqual(await hit('derive_paths_fixture'), ['rapid-game/crates/rg-b/src/lib.rs:1']);
+    w('rapid-game/rust/engine/rg-a/src/extra.rs', 'pub fn warm_added() {}\n');
+    await refresh();
+    assert.deepEqual(await hit('warm_added'), ['rapid-game/rust/engine/rg-a/src/extra.rs:1'], 'warm refresh sees framework edits');
+  } finally { rmSync(g, { recursive: true, force: true }); }
 });
 
 rmSync(deco, { recursive: true, force: true });

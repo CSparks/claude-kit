@@ -30,6 +30,21 @@ export function frameworkStores(root) {
   return out;
 }
 
+/** Checked-out framework submodule dirs of `root`, with or without a work store: [{ name, dir }]. */
+export function frameworkRoots(root) {
+  const out = [];
+  try {
+    for (const fw of frameworksFor(root)) {
+      if (!fw.submodule) continue;
+      const dir = join(root, fw.submodule);
+      if (existsSync(dir)) out.push({ name: fw.name || fw.submodule, dir });
+    }
+  } catch {
+    /* framework layer unavailable — the project tree alone is indexed */
+  }
+  return out;
+}
+
 /**
  * Scopes a retrieval covers. An explicit token (`--scope X`, `all`) is honoured verbatim;
  * absent, it is the project plus every adopted framework. `[]` means no scope predicate.
