@@ -13,6 +13,7 @@ import { homedir } from 'node:os';
 import { installedPluginRoot, isDevLinked, checkInstalledDrift } from '../scripts/agent-pins.mjs';
 import { docReviewAge, repoHasSource } from './lib/doc-review.mjs';
 import { cacheDir, pathKey } from './lib/stat-cache.mjs';
+import { autoReviewDirective } from './lib/auto-review.mjs';
 import { payload, MAINT_LOG, git, gitRoot, adopted, wipSummary, scanInbox, scanReviewQueue, scanStaleDoingTickets, scanReminders, readTurnState, writeTurnState } from './lib.mjs';
 
 const REVIEW_DAYS = 7;
@@ -129,8 +130,6 @@ const claudeDir = join(homedir(), '.claude');
 const encodedHome = homedir().replace(/[:\\/ ]/g, '-');
 const memTs = join(claudeDir, 'projects', encodedHome, 'memory', '.last-reviewed');
 const maintTs = join(claudeDir, '.maintenance-last-reviewed');
-
-const MODEL_REFRESH_DAYS = 7;
 
 function daysSince(f) {
   try {
@@ -271,15 +270,23 @@ if (maintAge >= REVIEW_DAYS) {
   );
 }
 
-// KIT-T339: the weekly model-lineup research. The dispatch gate blocks at dispatch.refresh_days;
-// this nag fires a week in, so the refresh lands before the gate ever does.
+// KIT-T339, KIT-D088: the weekly model reassessment runs as an agent. The dispatch gate blocks past
+// dispatch.refresh_days; the directive fires one day before, so the agent lands before the gate does.
 try {
   const { readLineup } = await import('../scripts/model-lineup.mjs');
-  const { ladderRoot } = await import('../scripts/dispatch-ladder.mjs');
+  const { ladderRoot, readLadder } = await import('../scripts/dispatch-ladder.mjs');
   const refreshed = (readLineup() || {}).refreshed;
   const age = refreshed ? Math.floor((Date.now() - Date.parse(refreshed)) / MS_PER_DAY) : Infinity;
-  if (age >= MODEL_REFRESH_DAYS) {
-    reminders.push(`MODEL REFRESH DUE (${age === Infinity ? 'never refreshed' : `${age}d since last refresh`}). Run node ${join(ladderRoot(), 'scripts', 'model-refresh.mjs')}, review the proposed decision, and update the capability table (KIT-T339).`);
+  if (age >= readLadder().refreshDays - 1) {
+    const kit = ladderRoot();
+    reminders.push(autoReviewDirective({
+      title: 'WEEKLY MODEL REASSESSMENT',
+      age,
+      job: 'research',
+      brief: `in ${kit}: run node scripts/model-refresh.mjs; read research/models-<date>.md; web-research each family's documented strengths for every dispatch.jobs row and add them to its "Documented strengths" section; re-date confirmed rows with node scripts/job-capability.mjs redate <date> <job,job|all>; commit and push. `
+        + 'Rank by cost per landing: routing decides how fast the weekly usage limit is hit.',
+      receipt: 'model reassessment <date>: N rows confirmed, M exceptions',
+    }) + ' Exceptions: a proposed family change on a row; a model or alias you cannot resolve.');
   }
 } catch {
   /* best-effort — never break orientation */

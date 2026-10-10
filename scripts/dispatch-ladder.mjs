@@ -63,7 +63,7 @@ export function readLadder(kitRoot = ladderRoot()) {
   }
   const aliases = {};
   for (const m of subBlock(body, 'aliases').matchAll(/^ {4}([\w-]+):\s*([\w.-]+)/gm)) aliases[m[1].toLowerCase()] = m[2];
-  const refresh = body.match(/^ {2}refresh_days:[ 	]*(d+)/m);
+  const refresh = body.match(/^ {2}refresh_days:[ \t]*(\d+)/m);
   return { jobs, defaultJob, aliases, refreshDays: refresh ? Number(refresh[1]) : FRESHNESS_DAYS };
 }
 

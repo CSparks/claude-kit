@@ -107,23 +107,25 @@ drain:
 # across families: on a `fallback` re-derive it, never carry it.
 # ---------------------------------------------------------------------------
 dispatch:
-  refresh_days: 14   # gate: dispatch blocks when the table's evidence / last model refresh is older (KIT-T339)
+  refresh_days: 7   # gate: dispatch blocks when the table's evidence / last model refresh is older; weekly reassessment (KIT-T339, KIT-D088)
   jobs:
     chore:
       family: haiku
       effort: low
-      cost: "cheapest; claude-haiku-4-5 retires 2026-10-15 (research/model-routing-ladder-2026-08.md)"
-      evidence: 2026-08-06
-      source: "KIT-D061 light rung; KIT-D022"
+      cost: "cheapest; haiku 5.5 at $0.1 / $0.5 per MTok (research/models-2026-10-10.md)"
+      evidence: 2026-10-10
+      source: "KIT-D061 light rung; KIT-D022; KIT-D088 (haiku alias moved to 5.5)"
       use: "search, triage, mechanical edits"
     targeted-change:
-      family: local-qwen
+      family: haiku
+      alternate: local-qwen
       fallback: sonnet
       effort: high
-      cost: "free (local V100, 3 concurrent agents); escalate to sonnet after 2 failures on one ticket"
-      evidence: 2026-10-05
-      source: "KIT-D080; Chris 2026-10-05: 'Qwen is a decent coder if the change is straight forward and it's not having to be too creative or consider a large breadth of code. It's probably fine at making most targeted changes, given enough context.'"
-      use: "a straightforward change in named files; the brief supplies files, line ranges and acceptance"
+      context_tokens: 100000
+      cost: "haiku 5.5 $0.1 / $0.5 per MTok; local-qwen is free where the V100 lane runs; sonnet above ~100k tokens of named files"
+      evidence: 2026-10-10
+      source: "KIT-D088; Chris 2026-10-10: 'Hell, even haiku now handles straightforward edits really efficiently. It just needs to be within a 100k context window.'; Chris 2026-10-05 on Qwen (KIT-D080)"
+      use: "a straightforward change in named files; the brief lists files and line ranges, the dispatcher sums their size: under ~100k tokens haiku (or local-qwen when available), above it sonnet; after 2 failures on one ticket escalate to sonnet"
     fix:
       family: sonnet
       effort: high
@@ -159,13 +161,20 @@ dispatch:
       evidence: 2026-09-30
       source: "KIT-D076"
       use: "architecture, planning, epics, root-cause analysis"
-    ui:
+    ui-creative:
       family: opus
       effort: high
       cost: "high"
-      evidence: 2026-08-06
-      source: "KIT-D061, KIT-D072"
-      use: "UI and frontend creative work"
+      evidence: 2026-10-10
+      source: "KIT-D061, KIT-D072; narrowed by KIT-D088"
+      use: "visual and creative UI: layout, look, interaction design, new components"
+    wiring:
+      family: sonnet
+      effort: high
+      cost: "mid"
+      evidence: 2026-10-10
+      source: "KIT-D088; Chris 2026-10-10: 'do we really need to be using opus for all that? ... straightforward enough that Sonnet can handle it'"
+      use: "framework API wiring, crate adoption, submodule re-pins, instrumentation, settings and menu plumbing"
     asset:
       family: opus
       effort: medium
@@ -203,10 +212,10 @@ dispatch:
   # one line here. A model id anywhere in agents/, commands/ or skills/ fails the lint
   # (scripts/agent-pins.mjs).
   aliases:
-    fable:  claude-fable-5
+    fable:  claude-fable-5-1
     opus:   claude-opus-5-5
     sonnet: claude-sonnet-5-5
-    haiku:  claude-haiku-4-5
+    haiku:  claude-haiku-5-5
 
 # ---------------------------------------------------------------------------
 # PROVENANCE (KIT-D028 / KIT-T048) — an item must point UP to where it came from.

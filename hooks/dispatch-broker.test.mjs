@@ -29,7 +29,7 @@ function repo({ lock }) {
 
 function run(dir, input) {
   const r = spawnSync(process.execPath, [HOOK], {
-    cwd: dir, encoding: 'utf8', input: JSON.stringify({ tool_name: 'Agent', tool_input: { model: 'opus', ...input } }),
+    cwd: dir, encoding: 'utf8', input: JSON.stringify({ tool_name: 'Agent', tool_input: { model: 'opus', ...input, prompt: `${input.prompt || ''} [job: build]` } }),
     env: { ...process.env, CLAUDE_KIT_ALLOW_FABLE: '', CLAUDE_PLUGIN_ROOT: '', CLAUDE_KIT_LADDER_ROOT: FRESH_KIT },
   });
   return { code: r.status, err: r.stderr || '' };

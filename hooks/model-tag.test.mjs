@@ -92,11 +92,11 @@ try {
   // ===== 1. the display map (DATED lineup fact) ==============================
   {
     ok('display: the opus alias', modelDisplay('opus') === 'Opus 5.5');
-    ok('display: the fable alias', modelDisplay('fable') === 'Fable 5');
+    ok('display: the fable alias', modelDisplay('fable') === 'Fable 5.1');
     ok('display: the sonnet alias', modelDisplay('sonnet') === 'Sonnet 5.5');
     ok('display: the current opus and sonnet ids carry their minor', modelDisplay('claude-opus-5-5') === 'Opus 5.5' && modelDisplay('claude-sonnet-5-5') === 'Sonnet 5.5');
     ok('display: derived from the id, so a family the code never named still renders', modelDisplay('claude-nova-7-2') === 'Nova 7.2');
-    ok('display: the haiku alias', modelDisplay('haiku') === 'Haiku 4.5');
+    ok('display: the haiku alias', modelDisplay('haiku') === 'Haiku 5.5');
     ok('display: a full opus id', modelDisplay('claude-opus-5') === 'Opus 5');
     ok('display: a dated opus id', modelDisplay('claude-opus-5-20260101') === 'Opus 5');
     ok('display: a context-suffixed opus id', modelDisplay('claude-opus-5[1m]') === 'Opus 5');
@@ -206,7 +206,7 @@ try {
     agentDef(pinned, 'proj-splitter', '---\nname: proj-splitter\nmodel: haiku\n---\n');
     const pv = verdict(hook(HOOK, dispatch({ description: 'Split the KIT-T179 monolith', subagent_type: 'proj-splitter' }), pinned));
     ok('hook: a definition-pinned agent is tagged from its frontmatter',
-      pv && pv.hookSpecificOutput.updatedInput.description === '[Haiku 4.5] Split the KIT-T179 monolith');
+      pv && pv.hookSpecificOutput.updatedInput.description === '[Haiku 5.5] Split the KIT-T179 monolith');
     const kv = verdict(hook(HOOK, dispatch({ description: 'Research the KIT-T179 surface', subagent_type: 'claude-kit:researcher', model: 'sonnet' }), pinned));
     ok('hook: a shipped kit agent dispatched on a family is tagged with the current model of that family',
       kv && kv.hookSpecificOutput.updatedInput.description === '[Sonnet 5.5] Research the KIT-T179 surface');

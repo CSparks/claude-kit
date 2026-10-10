@@ -16,6 +16,8 @@ import { fileURLToPath } from 'node:url';
 import { ladderRoot, readLadder } from './dispatch-ladder.mjs';
 import { capabilityStatus, modelVersion, LINEUP_REL } from './model-lineup.mjs';
 import { nextId } from './id-utils.mjs';
+import { jobCapabilityTable } from './job-capability.mjs';
+import { readOutcomes } from '../hooks/lib/dispatch-ledger.mjs';
 
 const MODELS_API = 'https://api.anthropic.com/v1/models?limit=1000';
 const DOCS_MODELS = 'https://docs.claude.com/en/docs/about-claude/models/overview';
@@ -53,7 +55,7 @@ export async function fetchCosts({ fetchImpl = fetch } = {}) {
   return costs;
 }
 
-function note(date, lineup, costs, status) {
+function note(date, lineup, costs, status, capability) {
   const rows = Object.entries(costs).map(([f, c]) => `| ${f} | ${c.model} | $${c.inputPerMTok} | $${c.outputPerMTok} |`);
   return [
     `# Model lineup refresh ${date}`, '',
@@ -61,6 +63,11 @@ function note(date, lineup, costs, status) {
     '## Known models', '', ...lineup.models.sort().map((id) => `- ${id}`), '',
     '## Cost per family (per MTok)', '',
     rows.length ? ['| family | model | input | output |', '|---|---|---|---|', ...rows].join('\n') : 'Prices not parsed from the pricing page; check it by hand.', '',
+    '## Capability per job', '',
+    'Each dispatch.jobs row against its family cost and the outcome ledger. Routing sets how fast the weekly usage limit is hit, so cost per landing is the ranking metric.', '',
+    capability, '',
+    '## Documented strengths', '',
+    'The reassessment agent adds the documented strengths of each family from the docs page here and re-dates every row it confirmed (node scripts/job-capability.mjs redate <date> <job,job|all>).', '',
     '## Gate status after refresh', '',
     status.stale ? status.reasons.map((r) => `- ${r}`).join('\n') : '- table is current for this lineup', '',
   ].join('\n');
@@ -80,7 +87,7 @@ function proposal(kitRoot, date, status, ladder) {
   return file;
 }
 
-export async function refresh({ kitRoot = ladderRoot(), now = new Date(), fetchImpl = fetch, env = process.env } = {}) {
+export async function refresh({ kitRoot = ladderRoot(), now = new Date(), fetchImpl = fetch, env = process.env, outcomeRoots = [] } = {}) {
   const date = now.toISOString().slice(0, 10);
   const lineup = await fetchLineup({ fetchImpl, env });
   if (!lineup.models.length) throw new Error(`no model ids found at ${lineup.source}; the gate stays blocked`);
@@ -90,13 +97,16 @@ export async function refresh({ kitRoot = ladderRoot(), now = new Date(), fetchI
   const status = capabilityStatus(kitRoot, now.getTime());
   mkdirSync(join(kitRoot, 'research'), { recursive: true });
   const research = join(kitRoot, 'research', `models-${date}.md`);
-  writeFileSync(research, note(date, lineup, costs, status));
+  const outcomes = [kitRoot, ...outcomeRoots].flatMap((r) => readOutcomes(r));
+  writeFileSync(research, note(date, lineup, costs, status, jobCapabilityTable({ jobs: readLadder(kitRoot).jobs, costs, outcomes })));
   const decision = status.newerThanAliases.length ? proposal(kitRoot, date, status, readLadder(kitRoot)) : null;
   return { date, research, decision, status };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  refresh().then((r) => {
+  const roots = [];
+  process.argv.forEach((a, i) => { if (a === '--root') roots.push(resolve(process.argv[i + 1])); });
+  refresh({ outcomeRoots: roots }).then((r) => {
     console.log(`refreshed ${r.date}: ${r.research}${r.decision ? `\nproposed: ${r.decision}` : ''}`);
     if (r.status.stale) console.log(`gate still blocking: ${r.status.reasons.join('; ')}`);
   }).catch((e) => { console.error(`model-refresh failed: ${e.message}`); process.exit(1); });

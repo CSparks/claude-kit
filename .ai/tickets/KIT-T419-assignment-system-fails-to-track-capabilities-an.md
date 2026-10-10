@@ -37,3 +37,6 @@ Chris 2026-10-10 (verbatim): 'There needs to be a weekly reassessment based on r
 Chris 2026-10-10 (verbatim): 'and that process should run automatically with an agent unless the agent sees something that needs to be raised to my attention.' -> the weekly run is an AGENT dispatched automatically when due (housekeeping/orient auto-dispatch or a scheduled trigger), not a nag for Chris: it runs the script, applies what is safe (table re-dates, docs moves proposed as a ticket, trims within the ceiling), and raises ONLY exceptions (a proposed model downgrade/upgrade, an injection that cannot be trimmed under 25k) as one AskUserQuestion-ready item
 - [2026-10-10 16:15] (status) todo → doing
 - [2026-10-10 16:25] (comment) @claude: A landed: hooks/dispatch-job.mjs (job-typed dispatch gate), agent default job:, roster records job+modelOverride
+- [2026-10-10 16:33] (comment) @claude: B, C landed: ledger + dispatch-report; D088 (ui split, haiku targeted-change, refresh_days 7, aliases fable-5-1/haiku-5- (full comment #5 in ## Notes)
+### comment #5 [2026-10-10 16:33] @claude
+B, C landed: ledger + dispatch-report; D088 (ui split, haiku targeted-change, refresh_days 7, aliases fable-5-1/haiku-5-5), per-job capability section, weekly reassessment as an agent directive; fixed refresh_days regex that never matched (always 14)

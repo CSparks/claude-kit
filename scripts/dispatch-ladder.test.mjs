@@ -33,8 +33,8 @@ try {
     resolveJob({ type: 'regression' }).job === 'forensic' && resolveJob({ type: 'unknown-type' }).job === 'fix');
   ok('an explicit job wins over the type', resolveJob({ type: 'bug', job: 'build' }).job === 'build');
   ok('rows name families, never model ids', Object.values(readLadder().jobs).every((j) => !/claude-/.test(`${j.family}${j.fallback || ''}`)));
-  ok('the targeted-change row routes to local-qwen and falls back to sonnet',
-    resolveJob({ job: 'targeted-change' }).family === 'local-qwen' && resolveJob({ job: 'targeted-change' }).fallback === 'sonnet');
+  ok('the targeted-change row routes to haiku, escalates to sonnet, with local-qwen as the free lane',
+    resolveJob({ job: 'targeted-change' }).family === 'haiku' && resolveJob({ job: 'targeted-change' }).fallback === 'sonnet' && readLadder().jobs['targeted-change'].alternate === 'local-qwen');
   ok('asset authoring is opus, never fable', resolveJob({ job: 'asset' }).family === 'opus');
   ok('fable rows are explicit-only', Object.values(readLadder().jobs).filter((j) => j.family === 'fable').every((j) => j.explicit_only === true));
   ok('an unknown job throws', (() => { try { resolveJob({ job: 'nope' }); return false; } catch { return true; } })());
