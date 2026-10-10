@@ -201,6 +201,10 @@ try {
   if (drift) out.push(`!! ${drift}`);
   const { capabilityStatus, modelsLine } = await import('../scripts/model-lineup.mjs');
   out.push(modelsLine(capabilityStatus()));
+  const { dispatchLine } = await import('../scripts/dispatch-report.mjs');
+  const { KIT_ROOT } = await import('../scripts/dispatch-ladder.mjs');
+  const proposal = dispatchLine([root, KIT_ROOT]);
+  if (proposal) out.push(proposal);
 } catch {
   /* drift check is best-effort */
 }

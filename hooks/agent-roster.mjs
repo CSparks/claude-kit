@@ -12,10 +12,11 @@
 // FAIL-OPEN on EVERYTHING (try/catch, exit 0). A durability hook must never wedge a session or
 // block a delegation; the worst case is a missing/extra roster row the orchestrator reconciles.
 
-import { gitRoot, adopted, payload, recordAgent, updateAgent, ID_CITE_SRC } from './lib.mjs';
+import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, ID_CITE_SRC } from './lib.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { declaredReadOnly } from './dispatch-readonly.mjs';
 import { rowModel, isKnownModel, stripModelTag } from './model-tag.mjs';
+import { appendOutcome, outcomeRow } from './lib/dispatch-ledger.mjs';
 import { dispatchJob, modelOverride } from './dispatch-job.mjs';
 import { outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs';
 
@@ -100,7 +101,9 @@ function recordStop(root, p) {
     if (!id) return; // no handle to reconcile against — leave the in-flight row for the stale-age flag
     const scope = firstString(p.agent_type, p.agentType);
     const outcome = outcomeFromTranscript(firstString(p.agent_transcript_path, p.agentTranscriptPath));
+    const rosterRow = readAgents(root).find((r) => r.id === id) || {};
     updateAgent(root, id, { status: 'done', ...(scope ? { scope } : {}), ...outcome, source: 'subagentstop' });
+    appendOutcome(root, outcomeRow({ id, rosterRow, stop: p, outcome }));
   } catch {
     /* fail-open */
   }
