@@ -8,7 +8,7 @@ milestone:
 labels: [kit-bug]
 links: []
 files: []
-supersedes:
+supersedes: KIT-T318
 superseded_by:
 created: 2026-10-03T10:11:55Z
 updated: 2026-10-03T16:58:16Z

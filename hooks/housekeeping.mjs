@@ -292,6 +292,25 @@ try {
   /* best-effort — never break orientation */
 }
 
+// KIT-T420, KIT-D089: the weekly session-start context review runs as an agent too.
+try {
+  const { lastReviewed } = await import('../scripts/context-budget.mjs');
+  const { ladderRoot } = await import('../scripts/dispatch-ladder.mjs');
+  const last = lastReviewed();
+  const age = last ? Math.floor((Date.now() - Date.parse(last)) / MS_PER_DAY) : Infinity;
+  if (age >= REVIEW_DAYS) {
+    reminders.push(autoReviewDirective({
+      title: 'WEEKLY CONTEXT-BUDGET REVIEW',
+      age,
+      job: 'wiring',
+      brief: `in ${ladderRoot()}: run node scripts/context-budget.mjs --record; for each oversize item file a ticket (cap) naming the docs/ home it moves to; apply the safe trims yourself (SESSION.md back to one screen, orient sections cut). Ceremonial context is pointers and hard rules only; the ceiling is 25k tokens.`,
+      receipt: 'context budget <date>: N projects, largest X tokens, M exceptions',
+    }) + ' Exception: an injection that cannot get under 25k.');
+  }
+} catch {
+  /* best-effort — never break orientation */
+}
+
 const subagentModel = subagentModelLine();
 if (subagentModel) reminders.push(subagentModel);
 

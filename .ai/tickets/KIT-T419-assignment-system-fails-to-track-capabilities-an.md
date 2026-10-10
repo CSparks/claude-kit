@@ -2,7 +2,7 @@
 id: KIT-T419
 title: Assignment system fails to track capabilities and route to the right model (Chris 2026-10-10, dirt-empire: 'do we really need to be using opus for all that? … straightforward enough that Sonnet can handle it' / 'that's a failure of the assignment system … not doing a good job tracking capabilities and assigning to the most appropriate agent model'; same complaint 2026-10-01). Root causes: (1) a dispatch names a MODEL but never its JOB TYPE, so dispatch-guard/dispatch-ladder cannot check the model against dispatch.jobs — routing stays free-hand per dispatch and drifts to opus; (2) no outcome ledger feeds the table — nothing records that sonnet landed job X, so evidence never updates; (3) stale rows: ui = opus on 2026-08-06 evidence (KIT-D061) made an rg-ui-engineer → opus dispatch look table-conformant; model refresh never run (nag firing). Fix: (A) every dispatch carries [job: <dispatch.jobs id>] (agent frontmatter may carry a default job:, no model:); the hook RESOLVES the family from the table and BLOCKS a labelled model that differs unless [model-override: <reason>] — a missing job blocks; (B) SubagentStop appends {job, model, tokens, tool_uses, outcome} to .ai/dispatch-outcomes.jsonl; scripts/dispatch-report.mjs per job type: tokens/landings by model, proposes table edits ('sonnet landed N ui jobs → downgrade'); orient prints the proposals; (C) run model-refresh now and re-date rows; split ui into ui-creative (opus) and framework-wiring/adoption/re-pin/instrumentation (sonnet) with Chris's 2026-10-10 words as source, as a superseding decision over KIT-D061/KIT-D080 --link KIT-T339 --link KIT-T403 --link KIT-D080
 type: bug
-status: doing
+status: review
 priority: critical
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-10T16:12:01Z
-updated: 2026-10-10T16:15:47Z
+updated: 2026-10-10T16:40:42Z
 ---
 
 ## Description
@@ -40,3 +40,7 @@ Chris 2026-10-10 (verbatim): 'and that process should run automatically with an 
 - [2026-10-10 16:33] (comment) @claude: B, C landed: ledger + dispatch-report; D088 (ui split, haiku targeted-change, refresh_days 7, aliases fable-5-1/haiku-5- (full comment #5 in ## Notes)
 ### comment #5 [2026-10-10 16:33] @claude
 B, C landed: ledger + dispatch-report; D088 (ui split, haiku targeted-change, refresh_days 7, aliases fable-5-1/haiku-5-5), per-job capability section, weekly reassessment as an agent directive; fixed refresh_days regex that never matched (always 14)
+- [2026-10-10 16:40] (comment) @claude: Tests: hooks/dispatch-guard.test.mjs, scripts/dispatch-report.test.mjs 15, scripts/job-capability.test.mjs 13, activity- (full comment #6 in ## Notes)
+### comment #6 [2026-10-10 16:40] @claude
+Tests: hooks/dispatch-guard.test.mjs, scripts/dispatch-report.test.mjs 15, scripts/job-capability.test.mjs 13, activity-tag 29, agent-roster 47, model-tag 70, dispatch-ladder 22; commits 261f039 f4f0edd f64e051
+- [2026-10-10 16:40] (status) doing → review

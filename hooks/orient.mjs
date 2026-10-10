@@ -555,5 +555,12 @@ Read plan-of-record + DECISIONS before non-trivial work. On-disk record and git 
 Log work to a ticket (gate enforces). Record decisions in DECISIONS the turn they happen.
 Full rules: read ${CODEX ? 'AGENTS.md' : 'CLAUDE.md'} | q governing <hook-file> | code-graph --query surface
 ================================================================================`);
-console.log(budgeted(out.join('\n')));
+let text = budgeted(out.join('\n'));
+try {
+  const { contextLine, estimateTokens } = await import('../scripts/context-budget.mjs');
+  text += `\n${contextLine({ orientTokens: estimateTokens(text), root })}`;
+} catch {
+  /* the cost line is best-effort */
+}
+console.log(text);
 process.exit(0);

@@ -26,3 +26,4 @@ updated: 2026-10-09T18:25:16Z
 
 ## History
 - [2026-10-09 18:25] (created) feature — deck-deploy: build Bevy games for Linux in WSL and push them to a Steam Deck over SSH, with a watch mode
+- [2026-10-09 19:47] (comment) @claude: Chris 2026-10-09: trigger is manual only (deck-deploy <game>|all); no logon watcher, no nightly task. watch mode stays available on demand.

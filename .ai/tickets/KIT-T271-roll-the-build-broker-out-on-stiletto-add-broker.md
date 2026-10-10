@@ -42,3 +42,6 @@ daemon. BLOCKED on stiletto being free; no stiletto files are touched before the
 - [2026-10-02 18:09] (comment) @chris: 2026-10-02 rollout prep under KIT-T276 L5: stiletto .ai/config.yml broker: section already present and corrected (verify (full comment #1 in ## Notes)
 ### comment #1 [2026-10-02 18:09] @chris
 2026-10-02 rollout prep under KIT-T276 L5: stiletto .ai/config.yml broker: section already present and corrected (verify_default cargo t, stale worktree comment fixed); BROKER.md matches; smoke step now uses the patch-worker skill. NOT started: first daemon start on stiletto is the maintainer's call with Chris.
+- [2026-10-02 18:27] (comment) @chris: First start 2026-10-02 (Chris approved): daemon on stiletto --idle-exit 60. Smoke: check-only patch j-murao4bm-zfzpm5 pa (full comment #2 in ## Notes)
+### comment #2 [2026-10-02 18:27] @chris
+First start 2026-10-02 (Chris approved): daemon on stiletto --idle-exit 60. Smoke: check-only patch j-murao4bm-zfzpm5 passed (cargo t -p sim --test relevance_sources, 24.5 s), players.rs blob de1b244f identical before/after, no tracked changes; stale control j-muraoto1-iotyl2 -> stale at submit-dryrun in 0.16 s. Stiletto untracked_blocks scoped to workspace code (tools/generator-reload would pause it forever under the default).

@@ -105,6 +105,7 @@ export function quietHome() {
   mkdirSync(join(home, '.claude', 'projects', enc, 'memory'), { recursive: true });
   writeFileSync(join(home, '.claude', 'projects', enc, 'memory', '.last-reviewed'), '');
   writeFileSync(join(home, '.claude', '.maintenance-last-reviewed'), '');
+  writeFileSync(join(home, '.claude', 'context-budget.json'), JSON.stringify({ reviewed: isoDaysAgo(0) }));
   return home;
 }
 
