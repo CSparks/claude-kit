@@ -23,6 +23,7 @@ import { indexEquivalent } from './lib/index-answerable.mjs';
 import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
+import { FAMILIES } from '../scripts/code-graph-families.mjs';
 
 const KIT = dirname(dirname(fileURLToPath(import.meta.url)));
 const Q = join(KIT, 'scripts', 'q.mjs');
@@ -39,11 +40,12 @@ const STORE = /\.ai[\\/]|(?:^|[\s"'=])\.?[\\/]?(?:tickets|decisions|inbox|questi
 // A recursive/tree-wide grep is DISCOVERY ("find me where X is"), the code-graph's job.
 const RECURSIVE_FLAG = /(?:^|\s)(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive|--include\b|--include-dir\b)/;
 const FILEISH = /\.[A-Za-z0-9]{1,6}$/; // a concrete file arg (has an extension)
-// Extensions code-graph DOES index (JS/TS ecosystem). Tree-wide greps over these extensions
-// are discovery — code-graph can answer them. All other source extensions (Rust, WGSL,
-// GLSL, Python, …) are NOT indexed, so blocking them is a dead end with no sanctioned
-// alternative — those greps must be allowed (KIT-T085).
-const GRAPH_INDEXED_EXTS = new Set(['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts', '.jsx', '.tsx', '.vue', '.svelte']);
+// Extensions where code-graph resolves the MODULE graph (relative-import edges: JS/TS), so a
+// grep q cannot answer exactly still has a full code-graph answer and is blocked. Other source
+// (Rust, Python, Go, C-family: definitions only, no import edges; WGSL, GLSL, TOML: not at all)
+// has no full answer there, so such greps are allowed (KIT-T085, KIT-T424).
+const IMPORT_GRAPH_EXTS = new Set(['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts', '.jsx', '.tsx', '.vue', '.svelte']);
+const DEFINITION_LANGS = FAMILIES.map((f) => f.name).join(', ');
 // Detects --include=*.rs / --include=*.wgsl / -g '*.rs' style glob flags, or a path/dir
 // argument that ends in a non-indexed extension or a dir segment that implies one
 // (e.g. `src/shaders/` cannot signal ext, but `**/*.rs` can). Also matches `rg -t rust`.
@@ -84,7 +86,7 @@ function targetsOnlyNonIndexedExtensions(c) {
   // A path argument ending in a source extension (e.g. `grep foo crates/` has no ext hint,
   // but `grep -r foo crates/*.rs` does via the glob above; plain dir paths give no signal).
   if (exts.size === 0) return false; // no signal — keep current behaviour (block)
-  const hasIndexed = [...exts].some((e) => GRAPH_INDEXED_EXTS.has(e));
+  const hasIndexed = [...exts].some((e) => IMPORT_GRAPH_EXTS.has(e));
   return !hasIndexed; // ALL hints are non-indexed → allow
 }
 
@@ -182,11 +184,10 @@ function judge(c, piped = false) {
   }
 
   // RULE 2 — discovery search of the source tree belongs to the code graph.
-  // EXCEPTION (KIT-T085): when the grep explicitly targets file types that code-graph does
-  // NOT index (Rust .rs, WGSL .wgsl, and all other non-JS/TS source), the redirect is a dead
-  // end — code-graph has no answer for those symbols. Allow such greps so the agent isn't
-  // stranded. If there is NO extension signal (no --include / glob / -t flag), keep blocking
-  // (conservative — unknown scope still routes to code-graph for JS/TS discovery).
+  // EXCEPTION (KIT-T085): a grep the code index cannot answer exactly, explicitly scoped to
+  // source outside code-graph's module graph (anything but JS/TS), is allowed: code-graph has
+  // definitions at most for it, so blocking strands the agent. With NO extension signal (no
+  // --include / glob / -t flag) keep blocking — unknown scope routes to code-graph.
   if (isSearch) {
     const args = (gitGrep ? tok.slice(2) : tok.slice(1)).filter((a) => !a.startsWith('-'));
     const targetsOneFile = args.some((a) => FILEISH.test(a)); // a concrete file = "you know where"
@@ -290,8 +291,10 @@ function graphMsg(c) {
     'For a TARGETED look once you know the file, use the Grep/Glob/Read tools',
     '(not Bash grep). A bare `grep <pattern> <one-specific-file>` is allowed.',
     '',
-    'NOTE: greps restricted to non-JS/TS source (--include=*.rs, --include=*.wgsl, -t rust, etc.)',
-    'are ALLOWED — code-graph only indexes JS/TS and cannot redirect those queries (KIT-T085).',
+    `NOTE: code-graph indexes definitions (defines / surface / duplicate-defines) for ${DEFINITION_LANGS};`,
+    'import edges (importers-of, entry-points) resolve for JS/TS relative imports only, and submodule',
+    'contents are not indexed. A grep scoped to non-JS/TS source (--include=*.rs, --include=*.wgsl,',
+    '-t rust, etc.) that q code cannot answer exactly is ALLOWED (KIT-T085).',
     '',
   ].join('\n');
 }

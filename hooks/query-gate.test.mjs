@@ -92,8 +92,8 @@ expect('allows reading ONE named decision ITEM file (KIT-T272)', run(d, 'cat .ai
 expect('allows reading ONE named ticket ITEM file (KIT-T272)', run(d, 'sed -n 1,5p .ai/tickets/KIT-T001.md').code, 0);
 expect('blocks multi-file store read (not "one specific")', run(d, 'cat .ai/config.yml .ai/SESSION.md').code, 2);
 
-// KIT-T085 — Rust/WGSL and other non-indexed-extension greps MUST be allowed.
-// code-graph only indexes JS/TS; blocking Rust/WGSL discovery is a dead end.
+// KIT-T085 — a Rust/WGSL grep the code index cannot answer exactly is allowed: code-graph
+// resolves import edges for JS/TS only, so blocking other source discovery is a dead end.
 expect('redirects grep --include=*.rs to the code index (KIT-T101)', run(d, 'grep -rn "set_environment" --include=*.rs src/').code, 2);
 expect('redirects grep --include=*.wgsl to the code index (KIT-T101)', run(d, 'grep -rn "terrain" --include=*.wgsl src/shaders/').code, 2);
 expect('the redirect names the exact q equivalent', /q\.mjs" code terrain --lang wgsl --path src\/shaders/.test(run(d, 'grep -rn "terrain" --include=*.wgsl src/shaders/').err), true);
@@ -104,6 +104,16 @@ expect('allows find . -name "*.wgsl" (WGSL — not indexed)', run(d, 'find . -na
 expect('redirects rg --include=*.rs to the code index (KIT-T101)', run(d, 'rg --include=*.rs "impl Vehicle"').code, 2);
 expect('still blocks rg --include=*.ts (TS is indexed)', run(d, 'rg --include=*.ts "PhysicsSim"').code, 2);
 expect('still blocks plain rg with no ext signal (unknown scope)', run(d, 'rg PhysicsBody').code, 2);
+
+// KIT-T424 — the code-graph redirect states the languages code-graph actually indexes, read
+// from its family table, and never claims it is JS/TS-only.
+{
+  const { FAMILIES } = await import('../scripts/code-graph-families.mjs');
+  const graphBlock = run(d, 'rg -v --include=*.ts "PhysicsSim"');
+  expect('a TS grep the index cannot answer gets the code-graph redirect', graphBlock.code, 2);
+  expect('the redirect names every code-graph family, rust included', FAMILIES.every((f) => graphBlock.err.includes(f.name)) && /definitions[^\n]*rust/.test(graphBlock.err), true);
+  expect('the redirect no longer claims code-graph is JS/TS-only', /only indexes JS\/TS/.test(graphBlock.err), false);
+}
 
 // KIT-T167 — listing workflow DATA (.ai stores, the claude-kit-data projects tree) is not
 // source discovery: code-graph indexes none of it. store-grep stays the arbiter for .ai paths;

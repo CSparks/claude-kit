@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { loadTreeSitter } from './treesitter.mjs';
 import { wantsHelp } from './cli-help.mjs';
+import { FAMILIES } from './code-graph-families.mjs';
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'target', 'dist', 'build', '.venv', 'venv', '__pycache__',
@@ -40,63 +41,6 @@ const EXCLUDED_SEGMENTS = new Set([...SKIP_DIRS, '.claude']);
 function hasExcludedSegment(rel) {
   return rel.split(/[\\/]/).some((seg) => EXCLUDED_SEGMENTS.has(seg));
 }
-
-// Per-family extraction rules. `imports` capture a module/path string (group 1);
-// `defs` capture a symbol name (group 1) with a kind. The GENERIC rules below run on
-// every file too, so any language gets at least a best-effort graph.
-const FAMILIES = [
-  {
-    name: 'js',
-    exts: ['.js', '.mjs', '.cjs', '.jsx', '.ts', '.tsx'],
-    imports: [
-      /^\s*import\b[^'"]*['"]([^'"]+)['"]/,
-      /\brequire\(\s*['"]([^'"]+)['"]\s*\)/,
-      /^\s*export\b[^'"]*\bfrom\s+['"]([^'"]+)['"]/,
-    ],
-    defs: [
-      [/^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/, 'function'],
-      [/^\s*(?:export\s+)?class\s+([A-Za-z_$][\w$]*)/, 'class'],
-      [/^\s*(?:export\s+)?(?:abstract\s+)?(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)/, 'type'],
-      [/^\s*export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)/, 'const'],
-    ],
-  },
-  {
-    name: 'python',
-    exts: ['.py'],
-    imports: [/^\s*import\s+([\w.]+)/, /^\s*from\s+([\w.]+)\s+import\b/],
-    defs: [
-      [/^\s*def\s+([A-Za-z_]\w*)/, 'function'],
-      [/^\s*class\s+([A-Za-z_]\w*)/, 'class'],
-    ],
-  },
-  {
-    name: 'rust',
-    exts: ['.rs'],
-    imports: [/^\s*use\s+([\w:]+)/, /^\s*(?:pub\s+)?mod\s+(\w+)/],
-    defs: [
-      [/^\s*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)/, 'function'],
-      [/^\s*(?:pub\s+)?(?:struct|enum|trait|type)\s+([A-Za-z_]\w*)/, 'type'],
-    ],
-  },
-  {
-    name: 'go',
-    exts: ['.go'],
-    imports: [/^\s*import\s+(?:[\w.]+\s+)?["`]([^"`]+)["`]/],
-    defs: [
-      [/^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)/, 'function'],
-      [/^\s*type\s+([A-Za-z_]\w*)/, 'type'],
-    ],
-  },
-  {
-    name: 'c-family',
-    exts: ['.c', '.h', '.cc', '.cpp', '.cxx', '.hpp', '.java', '.cs'],
-    imports: [/^\s*#\s*include\s+[<"]([^>"]+)[>"]/, /^\s*import\s+([\w.]+);/],
-    defs: [
-      [/^\s*(?:public|private|protected|static|final|\s)*\bclass\s+([A-Za-z_]\w*)/, 'class'],
-      [/^\s*(?:struct|enum|interface)\s+([A-Za-z_]\w*)/, 'type'],
-    ],
-  },
-];
 
 // Generic fallback for ANY language: catches common shapes the families miss (and
 // gives unknown extensions a usable graph). Conservative to limit false positives.
