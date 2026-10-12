@@ -6,7 +6,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readLadder, resolveJob, dispatchDrift, capabilityFreshness, freshnessWarning, FRESHNESS_DAYS, KIT_ROOT } from './dispatch-ladder.mjs';
-import { adopted, hook, git, cleanup, reporter, tmpDir } from '../hooks/test-harness.mjs';
+import { adopted, hook, git, cleanup, reporter, tmpDir, fixtureKit, isoDaysAgo } from '../hooks/test-harness.mjs';
 
 const { ok, done } = reporter('dispatch-ladder');
 const FORKED = 'dispatch:\n  jobs:\n    fix:\n      family: opus\n      effort: low\n  default_job:\n    "*": fix\n';
@@ -36,7 +36,8 @@ try {
   ok('the targeted-change row routes to haiku, escalates to sonnet, with local-qwen as the free lane',
     resolveJob({ job: 'targeted-change' }).family === 'haiku' && resolveJob({ job: 'targeted-change' }).fallback === 'sonnet' && readLadder().jobs['targeted-change'].alternate === 'local-qwen');
   ok('asset authoring is opus, never fable', resolveJob({ job: 'asset' }).family === 'opus');
-  ok('fable rows are explicit-only', Object.values(readLadder().jobs).filter((j) => j.family === 'fable').every((j) => j.explicit_only === true));
+  ok('fable rows are explicit-only, except the plan job, which is itself the escalation', Object.entries(readLadder().jobs).filter(([, j]) => j.family === 'fable').every(([id, j]) => (id === 'plan' ? j.self_escalating === true && j.explicit_only !== true : j.explicit_only === true)));
+  ok('build runs on sonnet with an opus fallback; design and forensic stay opus', resolveJob({ job: 'build' }).family === 'sonnet' && resolveJob({ job: 'build' }).fallback === 'opus' && resolveJob({ job: 'design' }).family === 'opus' && resolveJob({ job: 'forensic' }).family === 'opus');
   ok('an unknown job throws', (() => { try { resolveJob({ job: 'nope' }); return false; } catch { return true; } })());
   ok('the table has the core job set', ['chore', 'targeted-change', 'fix', 'refactor', 'build', 'asset', 'deep'].every((t) => t in readLadder().jobs));
   ok('every row carries an evidence date and a source', Object.entries(readLadder().jobs).every(([, j]) => Number.isFinite(Date.parse(j.evidence)) && j.source));
@@ -44,9 +45,12 @@ try {
 
   const kit = kitWith(['2026-10-01', '2026-09-01']);
   const day0 = Date.parse('2026-10-01');
-  ok('freshness reads the NEWEST evidence date', capabilityFreshness(kit, day0 + 3 * DAY).newest === '2026-10-01');
-  ok('a table within 14 days is fresh', freshnessWarning(kit, day0 + FRESHNESS_DAYS * DAY) === null);
-  ok('a table 15 days past its newest evidence warns', /stale: newest evidence 2026-10-01 \(15 days old/.test(freshnessWarning(kit, day0 + (FRESHNESS_DAYS + 1) * DAY) || ''));
+  const fresh0 = capabilityFreshness(kit, day0 + 3 * DAY);
+  ok('freshness reports the newest and the OLDEST evidence date, aged by the oldest', fresh0.newest === '2026-10-01' && fresh0.oldest === '2026-09-01' && fresh0.oldestJob === 'job1' && fresh0.ageDays === 33);
+  const kit2 = kitWith(['2026-10-01', '2026-10-01']);
+  ok('a table whose every row is within 14 days is fresh', freshnessWarning(kit2, day0 + FRESHNESS_DAYS * DAY) === null);
+  ok('one stale row makes the table stale while another row is current', /stale: oldest row "job1" evidence 2026-09-01 \(30 days old/.test(freshnessWarning(kit, day0) || ''));
+  ok('a table 15 days past its oldest evidence warns', /stale: oldest row "job0" evidence 2026-10-01 \(15 days old/.test(freshnessWarning(kit2, day0 + (FRESHNESS_DAYS + 1) * DAY) || ''));
   ok('a table with no evidence dates warns', /no evidence dates/.test(freshnessWarning(kitWith([]), day0) || ''));
   ok('the shipped table carries evidence dates', capabilityFreshness(KIT_ROOT) !== null);
 
@@ -58,7 +62,7 @@ try {
   ok('the project dispatch block is flagged as drift', /ignored/.test(dispatchDrift(proj) || ''));
   ok('the kit checkout never flags itself', dispatchDrift(KIT_ROOT) === null);
 
-  const r = hook('orient.mjs', { hook_event_name: 'SessionStart' }, proj);
+  const r = hook('orient.mjs', { hook_event_name: 'SessionStart' }, proj, { CLAUDE_KIT_LADDER_ROOT: fixtureKit(isoDaysAgo(0)) });
   ok('orient surfaces the drift warning', r.out.includes('`dispatch:` block — ignored'));
   ok('orient stays quiet about a fresh capability table', !r.out.includes('capability table is stale'));
 } finally {

@@ -67,9 +67,9 @@ function runRaw(dir, stdin) {
   return { code: r.status, err: r.stderr || '' };
 }
 
-// Legacy checks exercise the other gates: the job token and a model override keep dispatch-job quiet.
+// Legacy checks exercise the other gates: the job token, a model override and an escalate keep dispatch-job and dispatch-escalation quiet.
 function run(dir, toolInput, transcriptPath) {
-  const input = toolInput.jobless ? { ...toolInput, jobless: undefined } : { ...toolInput, prompt: `${toolInput.prompt || ''} [job: fix] [model-override: fixture]` };
+  const input = toolInput.jobless ? { ...toolInput, jobless: undefined } : { ...toolInput, prompt: `${toolInput.prompt || ''} [job: fix] [model-override: fixture] [escalate: fixture]` };
   return runRaw(
     dir,
     JSON.stringify({ tool_name: 'Agent', tool_input: input, transcript_path: transcriptPath })
@@ -398,6 +398,11 @@ body
   expect('the escalation block names the cheaper job', /dispatch \[job: fix\] \(sonnet\)/.test(esc.err) ? 1 : 0, 1);
   expect('the escalation block names the escape token', /\[escalate: <reason>\]/.test(esc.err) ? 1 : 0, 1);
   expect('the escalation block carries its check footer', /dispatch-escalation/.test(esc.err) ? 1 : 0, 1);
+  expect('build on sonnet (an exhaustive brief) passes on a bug ticket', call({ model: 'sonnet', prompt: 'apply KIT-T901 [job: build]' }).code, 0);
+  expect('an opus model on a build job needs [escalate] on a bug ticket', call({ model: 'opus', prompt: 'apply KIT-T901 [job: build]' }).code, 2);
+  expect('the plan job (fable) passes on a bug ticket with no escalate', call({ model: 'fable', prompt: 'plan the KIT-T901 terrain integration [job: plan]' }).code, 0);
+  expect('read-only planning with no ticket passes on the plan job', call({ subagent_type: 'Explore', model: 'fable', prompt: 'plan the mine entrances [job: plan]' }).code, 0);
+  expect('a fable model on a fix job still needs [escalate]', call({ model: 'fable', prompt: 'KIT-T901 [job: fix] [model-override: x]' }).code, 2);
   expect('a bug ticket as fix passes', call({ model: 'sonnet', prompt: 'fix KIT-T901 [job: fix]' }).code, 0);
   expect('[escalate: reason] lets the opus build through', call({ model: 'opus', prompt: 'fix KIT-T901 [job: build] [escalate: novel geometry]' }).code, 0);
   expect('an empty [escalate:] does not count', call({ model: 'opus', prompt: 'fix KIT-T901 [job: build] [escalate: ]' }).code, 2);

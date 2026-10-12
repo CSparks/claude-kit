@@ -5,7 +5,8 @@
 //   jobCapabilityTable({ jobs, costs, outcomes }) -> markdown table, one row per job:
 //        job | table family | cost per MTok | ledger by model (landings, tokens/landing) | proposal
 //   redateRows(kitRoot, date, ids)                -> sets `evidence: <date>` on the named rows ('all' = every row)
-//                                                    in the kit config; returns the ids it touched
+//                                                    in the kit config; returns the ids it touched. Throws unless
+//                                                    research/models-capability-<date>.md grades each named row (KIT-T433).
 //   CLI: node job-capability.mjs redate <date> <job,job|all>
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -13,6 +14,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ladderRoot, readLadder } from './dispatch-ladder.mjs';
 import { jobStats, proposals } from './dispatch-report.mjs';
+import { capabilityCoverage } from './capability-research.mjs';
 
 export function jobCapabilityTable({ jobs, costs = {}, outcomes = [] }) {
   const stats = jobStats(outcomes);
@@ -30,6 +32,11 @@ export function redateRows(kitRoot, date, ids) {
   const file = join(kitRoot, '.ai', 'config.yml');
   const wanted = new Set(ids);
   const known = new Set(Object.keys(readLadder(kitRoot).jobs));
+  const named = wanted.has('all') ? [...known] : [...wanted];
+  const unknown = named.filter((id) => !known.has(id));
+  if (unknown.length) throw new Error(`unknown dispatch job(s): ${unknown.join(', ')}`);
+  const { file: note, missing } = capabilityCoverage(kitRoot, date, named);
+  if (missing.length) throw new Error(`cannot re-date without capability evidence: ${note} has no graded (A/B/C) Basis for ${missing.join(', ')}`);
   const touched = [];
   let current = '';
   const lines = readFileSync(file, 'utf8').split('\n').map((line) => {
@@ -47,5 +54,10 @@ export function redateRows(kitRoot, date, ids) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === 'redate') {
-  console.log(`re-dated: ${redateRows(ladderRoot(), process.argv[3], String(process.argv[4] || '').split(',')).join(', ') || 'none'}`);
+  try {
+    console.log(`re-dated: ${redateRows(ladderRoot(), process.argv[3], String(process.argv[4] || '').split(',')).join(', ') || 'none'}`);
+  } catch (e) {
+    console.error(`redate refused: ${e.message}`);
+    process.exit(1);
+  }
 }

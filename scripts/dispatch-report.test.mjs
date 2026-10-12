@@ -47,8 +47,8 @@ try {
   mkdirSync(join(live, '.ai'), { recursive: true });
   ok('no ledger -> no orient line', dispatchLine([live]) === null);
   const day = new Date(Date.now() + 86400000).toISOString();
-  writeFileSync(join(live, '.ai', 'dispatch-outcomes.jsonl'), `${many(3, 'build', 'sonnet', 'completed', 1000, day).map((x) => JSON.stringify(x)).join('\n')}\n`);
-  ok('orient line: one !! dispatch: line naming the proposal', /^!! dispatch: 1 open proposal\(s\) — build: opus->sonnet/.test(dispatchLine([live]) || ''));
+  writeFileSync(join(live, '.ai', 'dispatch-outcomes.jsonl'), `${many(3, 'design', 'sonnet', 'completed', 1000, day).map((x) => JSON.stringify(x)).join('\n')}\n`);
+  ok('orient line: one !! dispatch: line naming the proposal', /^!! dispatch: 1 open proposal\(s\) — design: opus->sonnet/.test(dispatchLine([live]) || ''));
 } finally {
   cleanup();
 }

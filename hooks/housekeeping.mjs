@@ -274,16 +274,18 @@ if (maintAge >= REVIEW_DAYS) {
 // dispatch.refresh_days; the directive fires one day before, so the agent lands before the gate does.
 try {
   const { readLineup } = await import('../scripts/model-lineup.mjs');
-  const { ladderRoot, readLadder } = await import('../scripts/dispatch-ladder.mjs');
+  const { ladderRoot, readLadder, capabilityFreshness } = await import('../scripts/dispatch-ladder.mjs');
   const refreshed = (readLineup() || {}).refreshed;
-  const age = refreshed ? Math.floor((Date.now() - Date.parse(refreshed)) / MS_PER_DAY) : Infinity;
+  const lineupAge = refreshed ? Math.floor((Date.now() - Date.parse(refreshed)) / MS_PER_DAY) : Infinity;
+  const rowAge = (capabilityFreshness() || { ageDays: Infinity }).ageDays;
+  const age = Math.max(lineupAge, rowAge);
   if (age >= readLadder().refreshDays - 1) {
     const kit = ladderRoot();
     reminders.push(autoReviewDirective({
       title: 'WEEKLY MODEL REASSESSMENT',
       age,
       job: 'research',
-      brief: `in ${kit}: run node scripts/model-refresh.mjs; read research/models-<date>.md; web-research each family's documented strengths for every dispatch.jobs row and add them to its "Documented strengths" section; re-date confirmed rows with node scripts/job-capability.mjs redate <date> <job,job|all>; commit and push. `
+      brief: `in ${kit}: web-research what each current model can do for EVERY dispatch.jobs row (benchmarks plus named hands-on reports, each source graded A Anthropic / B named hands-on / C aggregator) and write research/models-capability-<date>.md with a table whose columns include Job and Basis, one row per job; then run node scripts/model-refresh.mjs (it refuses without that table); re-date only the rows the evidence confirms with node scripts/job-capability.mjs redate <date> <job,job|all>; commit and push. `
         + 'Rank by cost per landing: routing decides how fast the weekly usage limit is hit.',
       receipt: 'model reassessment <date>: N rows confirmed, M exceptions',
     }) + ' Exceptions: a proposed family change on a row; a model or alias you cannot resolve.');

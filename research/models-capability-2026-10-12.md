@@ -78,3 +78,15 @@ Nothing tests:
 ## Caveats
 - KIT-D043 ("sonnet off the coding ladder") rested on Sonnet 5's token inflation. The 5.5 generation reverses that, so the decision needs revisiting.
 - To close the gaps, run an in-repo trial: 3–4 real Rust briefs on Sonnet 5.5 vs Opus 5.5 at medium effort, comparing pass rate and tokens.
+
+## Maintainer approval 2026-10-12 (KIT-D091)
+Chris approved the per-job verdicts above and added that fable handles the more complicated planning. Rows the research could not grade from sources (inference, none, or absent from the table) rest on that quoted decision, graded M. Verbatim: "This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain."
+
+| Job | Verdict | Basis |
+|---|---|---|
+| wiring | Sonnet 5.5 | M (approval above); inference only in the research |
+| asset | Opus 5.5, spatial work unresearched | M (approval above); no source evidence |
+| chore | Haiku 5.5, unchanged | C (Haiku 5.5 section above; price unverified) |
+| targeted-change | Haiku 5.5, unchanged | C (Haiku 5.5 section above); M (approval above) |
+| plan | Fable, complicated multi-system or spatial planning | M (approval above) |
+| deep | Fable, explicit only, unchanged | M (approval above) |

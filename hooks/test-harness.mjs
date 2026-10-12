@@ -13,6 +13,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync, readFileSync
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readLadder } from '../scripts/dispatch-ladder.mjs';
 
 const SECONDS_PER_DAY = 86400;
 
@@ -151,6 +152,14 @@ export function fixtureKit(date) {
   const config = readFileSync(join(ROOT, '.ai', 'config.yml'), 'utf8').replace(/evidence: \d{4}-\d{2}-\d{2}/g, `evidence: ${date}`);
   writeFileSync(join(dir, '.ai', 'config.yml'), config);
   return dir;
+}
+
+// Write research/models-capability-<date>.md in a fixture kit: a graded Basis for every dispatch.jobs
+// row except those in `omit` (absent) and `ungraded` (basis names no A/B/C source) (KIT-T433).
+export function capabilityNote(kitRoot, date, { omit = [], ungraded = [] } = {}) {
+  const rows = Object.keys(readLadder(kitRoot).jobs).filter((j) => !omit.includes(j)).map((j) => `| ${j} | Sonnet 5.5 | ${ungraded.includes(j) ? 'inference' : 'A, B'} |`);
+  mkdirSync(join(kitRoot, 'research'), { recursive: true });
+  writeFileSync(join(kitRoot, 'research', `models-capability-${date}.md`), ['# capability', '', '| Job | Verdict | Basis |', '|---|---|---|', ...rows, ''].join('\n'));
 }
 
 export const isoDaysAgo = (days) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);

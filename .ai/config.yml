@@ -113,8 +113,8 @@ dispatch:
       family: haiku
       effort: low
       cost: "cheapest; haiku 5.5 at $0.1 / $0.5 per MTok (research/models-2026-10-10.md)"
-      evidence: 2026-10-10
-      source: "KIT-D061 light rung; KIT-D022; KIT-D088 (haiku alias moved to 5.5)"
+      evidence: 2026-10-12
+      source: "KIT-D061 light rung; KIT-D022; KIT-D088; KIT-D091; research/models-capability-2026-10-12.md (C: Haiku 5.5 section)"
       use: "search, triage, mechanical edits"
     targeted-change:
       family: haiku
@@ -123,79 +123,88 @@ dispatch:
       effort: high
       context_tokens: 100000
       cost: "haiku 5.5 $0.1 / $0.5 per MTok; local-qwen is free where the V100 lane runs; sonnet above ~100k tokens of named files"
-      evidence: 2026-10-10
-      source: "KIT-D088; Chris 2026-10-10: 'Hell, even haiku now handles straightforward edits really efficiently. It just needs to be within a 100k context window.'; Chris 2026-10-05 on Qwen (KIT-D080)"
+      evidence: 2026-10-12
+      source: "KIT-D088; KIT-D091; research/models-capability-2026-10-12.md (C: Haiku 5.5 section); Chris 2026-10-10: 'Hell, even haiku now handles straightforward edits really efficiently. It just needs to be within a 100k context window.'; Chris 2026-10-05 on Qwen (KIT-D080)"
       use: "a straightforward change in named files; the brief lists files and line ranges, the dispatcher sums their size: under ~100k tokens haiku (or local-qwen when available), above it sonnet; after 2 failures on one ticket escalate to sonnet"
     fix:
       family: sonnet
       effort: high
       cost: "mid; cheaper than opus for the same straightforward work"
-      evidence: 2026-09-30
-      source: "KIT-D076; Chris 2026-09-30: 'Going forward sonnet 5.5 handles straightforward fixes.'"
+      evidence: 2026-10-12
+      source: "KIT-D076; KIT-D091; research/models-capability-2026-10-12.md (A, B); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
       use: "straightforward fixes, gate wiring, diagnose-and-fix"
     refactor:
       family: sonnet
       effort: high
       cost: "mid"
-      evidence: 2026-09-30
-      source: "KIT-D076; KIT-T326"
-      use: "multi-file behavior-preserving refactors and test authoring"
+      evidence: 2026-10-12
+      source: "KIT-D076; KIT-T326; KIT-D091; research/models-capability-2026-10-12.md (C unverified, inference); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
+      use: "multi-file behavior-preserving refactors and test authoring on sonnet with a precise brief and a build/test gate; opus only for a brief over ~10 files with no file list"
     research:
       family: sonnet
       effort: low
       cost: "mid; read-only"
-      evidence: 2026-10-01
-      source: "memory default-to-sonnet-for-contained-work (Chris 2026-10-01)"
-      use: "read-only investigation across a codebase or the web"
-    build:
-      family: opus
-      effort: high
-      cost: "high"
       evidence: 2026-10-12
-      source: "KIT-D073, KIT-D076; KIT-D090; Chris 2026-10-12: 'Here's the fucking thing, your opus buddy, can you not write prompts that are good enough for Sonnet to go fucking apply?'"
-      use: "the exception, needs [escalate: <reason>]: novel spatial or geometry work a brief cannot pin down. Opus design/forensic writes the PLAN and apply brief (file:line, exact change, test, acceptance); Sonnet applies it as fix/refactor/wiring"
+      source: "memory default-to-sonnet-for-contained-work (Chris 2026-10-01); KIT-D091; research/models-capability-2026-10-12.md (C); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
+      use: "read-only investigation across a codebase or the web on sonnet; opus where synthesis or factual recall matters"
+    build:
+      family: sonnet
+      effort: high
+      cost: "mid on sonnet; high on the opus fallback"
+      evidence: 2026-10-12
+      source: "KIT-D073, KIT-D076; KIT-D090; KIT-D091; research/models-capability-2026-10-12.md (A, C); Chris 2026-10-12: 'Here's the fucking thing, your opus buddy, can you not write prompts that are good enough for Sonnet to go fucking apply?'; Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
+      use: "implementing an exhaustive brief (plan-then-apply: file:line, exact change, test, acceptance) on sonnet, including new crates and multi-file features; opus only with [escalate: <reason>], e.g. novel spatial or geometry work a brief cannot pin down"
+      fallback: opus
     design:
       family: opus
       effort: high
       cost: "high"
-      evidence: 2026-09-30
-      source: "KIT-D076"
-      use: "architecture, planning, epics, root-cause analysis"
+      evidence: 2026-10-12
+      source: "KIT-D076; KIT-D091; research/models-capability-2026-10-12.md (A, C); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
+      use: "ordinary architecture, planning and root-cause analysis on opus; it writes the plan and apply brief that sonnet implements; multi-system or spatial plans go to the plan job"
     ui-creative:
       family: opus
       effort: high
       cost: "high"
-      evidence: 2026-10-10
-      source: "KIT-D061, KIT-D072; narrowed by KIT-D088"
+      evidence: 2026-10-12
+      source: "KIT-D061, KIT-D072; narrowed by KIT-D088; KIT-D091; research/models-capability-2026-10-12.md (B, one test: sonnet viable, left on opus); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
       use: "visual and creative UI: layout, look, interaction design, new components"
     wiring:
       family: sonnet
       effort: high
       cost: "mid"
-      evidence: 2026-10-10
-      source: "KIT-D088; Chris 2026-10-10: 'do we really need to be using opus for all that? ... straightforward enough that Sonnet can handle it'"
+      evidence: 2026-10-12
+      source: "KIT-D088; KIT-D091; research/models-capability-2026-10-12.md (inference); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
       use: "framework API wiring, crate adoption, submodule re-pins, instrumentation, settings and menu plumbing"
     asset:
       family: opus
       effort: medium
       cost: "high"
-      evidence: 2026-10-05
-      source: "Chris 2026-10-06: 'I doubt the game asset artist really fucking needs fable.'"
-      use: "3D modeling and game-asset authoring; never fable"
+      evidence: 2026-10-12
+      source: "Chris 2026-10-06: 'I doubt the game asset artist really fucking needs fable.'; KIT-D091; research/models-capability-2026-10-12.md (none: spatial work unresearched, kept on opus); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
+      use: "3D modeling and game-asset authoring; never fable; spatial work is unresearched, so it stays on opus"
     forensic:
       family: opus
       effort: high
       cost: "high; a failed first pass escalates to xhigh"
-      evidence: 2026-08-06
-      source: "KIT-D061 forensic row, fable dropped by KIT-D080"
-      use: "regression first pass"
+      evidence: 2026-10-12
+      source: "KIT-D061 forensic row, fable dropped by KIT-D080; KIT-D091; research/models-capability-2026-10-12.md (B/C: CodeRabbit hardest cases, Opus 8 vs Sonnet 6); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
+      use: "regression first pass and hard-case diagnosis; free of [escalate] only on a regression ticket (KIT-D090)"
+    plan:
+      family: fable
+      effort: high
+      self_escalating: true
+      cost: "highest; a dispatch to this job is itself the escalation, so it needs no [escalate]"
+      evidence: 2026-10-12
+      source: "KIT-D091; Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
+      use: "complicated planning: multi-system or spatial plans (rolling terrain edges, integrating mine entrances into the surrounding terrain); the plan ends in an apply brief that sonnet implements"
     deep:
       family: fable
       effort: high
       explicit_only: true
       cost: "highest; explicit request only"
-      evidence: 2026-08-06
-      source: "KIT-D061, KIT-D076"
+      evidence: 2026-10-12
+      source: "KIT-D061, KIT-D076; KIT-D091; Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
       use: "frontier problems the orchestrator asks for by name"
   # Default job by ticket `type` when the ticket names no tier/model. Keys are classification
   # types (config.classifications); `*` is the catch-all.

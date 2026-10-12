@@ -6,8 +6,8 @@
 //   readLadder(kitRoot?)                    -> { jobs: {name: {family, effort, fallback, cost, evidence, source, use, explicit_only}},
 //                                               defaultJob: {type: job}, aliases: {family: id} }
 //   resolveJob({ type, job }, kitRoot?)     -> { job, family, effort, fallback, explicitOnly } (job wins over type; `*` is the catch-all)
-//   capabilityFreshness(kitRoot?, nowMs?)   -> { newest: 'YYYY-MM-DD', ageDays } | null (no dated row)
-//   freshnessWarning(kitRoot?, nowMs?)      -> string | null (newest evidence older than FRESHNESS_DAYS)
+//   capabilityFreshness(kitRoot?, nowMs?)   -> { newest, oldest, oldestJob, ageDays (of the oldest row) } | null (no dated row)
+//   freshnessWarning(kitRoot?, nowMs?)      -> string | null (OLDEST row evidence older than the refresh period)
 //   readLadder(...).refreshDays             -> the refresh period in days (config dispatch.refresh_days, default FRESHNESS_DAYS)
 //   dispatchDrift(projectRoot, kitRoot?)    -> string warning | null (project config carries a `dispatch:` block)
 //   CLI: node dispatch-ladder.mjs resolve [--type <ticket type>] [--job <job>]   prints JSON
@@ -75,15 +75,16 @@ export function resolveJob({ type, job } = {}, kitRoot = ladderRoot()) {
   return { job: name, family: entry.family, effort: entry.effort, fallback: entry.fallback || null, explicitOnly: entry.explicit_only === true };
 }
 
-// The newest `evidence:` date across the table's rows.
+// Row evidence dates: the newest, and the OLDEST (the table is only as current as its stalest row).
 export function capabilityFreshness(kitRoot = ladderRoot(), nowMs = Date.now()) {
-  const dates = Object.values(readLadder(kitRoot).jobs)
-    .map((j) => String(j.evidence || ''))
-    .filter((d) => Number.isFinite(Date.parse(d)))
-    .sort();
-  if (!dates.length) return null;
-  const newest = dates[dates.length - 1];
-  return { newest, ageDays: Math.floor((nowMs - Date.parse(newest)) / MS_PER_DAY) };
+  const dated = Object.entries(readLadder(kitRoot).jobs)
+    .map(([job, j]) => ({ job, date: String(j.evidence || '') }))
+    .filter((r) => Number.isFinite(Date.parse(r.date)))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!dated.length) return null;
+  const oldest = dated[0];
+  const newest = dated[dated.length - 1];
+  return { newest: newest.date, oldest: oldest.date, oldestJob: oldest.job, ageDays: Math.floor((nowMs - Date.parse(oldest.date)) / MS_PER_DAY) };
 }
 
 export function freshnessWarning(kitRoot = ladderRoot(), nowMs = Date.now()) {
@@ -96,7 +97,7 @@ export function freshnessWarning(kitRoot = ladderRoot(), nowMs = Date.now()) {
   if (!fresh) return 'model capability table (kit .ai/config.yml dispatch.jobs) carries no evidence dates — route from fresh research (KIT-T339).';
   const limit = readLadder(kitRoot).refreshDays;
   if (fresh.ageDays <= limit) return null;
-  return `model capability table is stale: newest evidence ${fresh.newest} (${fresh.ageDays} days old, limit ${limit}) — refresh from current model research and dispatch outcomes before routing (KIT-T339).`;
+  return `model capability table is stale: oldest row "${fresh.oldestJob}" evidence ${fresh.oldest} (${fresh.ageDays} days old, limit ${limit}) — research that row's capability and re-date it before routing (KIT-T339, KIT-T433).`;
 }
 
 export function dispatchDrift(projectRoot, kitRoot = ladderRoot()) {

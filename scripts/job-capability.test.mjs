@@ -7,7 +7,7 @@ import { jobCapabilityTable, redateRows } from './job-capability.mjs';
 import { readLadder } from './dispatch-ladder.mjs';
 import { refresh } from './model-refresh.mjs';
 import { autoReviewDirective } from '../hooks/lib/auto-review.mjs';
-import { hook, cleanup, reporter, fixtureKit, isoDaysAgo, quietHome, homeEnv } from '../hooks/test-harness.mjs';
+import { hook, cleanup, reporter, fixtureKit, isoDaysAgo, quietHome, homeEnv, capabilityNote } from '../hooks/test-harness.mjs';
 
 const { ok, done } = reporter('job-capability');
 const fetchStub = async (url) => ({ ok: true, text: async () => (/pricing/.test(url) ? '' : '<code>claude-opus-5-5</code> <code>claude-sonnet-5-5</code>') });
@@ -20,17 +20,30 @@ try {
   ok('the refresh period is weekly', readLadder(kit).refreshDays === 7);
 
   const day = new Date(Date.now() + 86400000).toISOString();
-  const outcomes = Array.from({ length: 3 }, () => ({ ts: day, id: 'x', job: 'build', model: 'sonnet', tokens: 2000, outcome: 'completed' }));
+  const outcomes = Array.from({ length: 3 }, () => ({ ts: day, id: 'x', job: 'design', model: 'sonnet', tokens: 2000, outcome: 'completed' }));
   const table = jobCapabilityTable({ jobs, costs: { sonnet: { inputPerMTok: 2, outputPerMTok: 10 } }, outcomes });
   ok('the table has one row per job', table.split('\n').length === 2 + Object.keys(jobs).length);
-  ok('the ledger and its proposal appear on the job row', /\| build \| opus .*sonnet 3 @ 2000 .*propose downgrade/.test(table));
+  ok('the ledger and its proposal appear on the job row', /\| design \| opus .*sonnet 3 @ 2000 .*propose downgrade/.test(table));
   ok('a job with no outcomes says so and keeps', /\| wiring \| sonnet .*\| \$2 \/ \$10 \| no outcomes \| keep \|/.test(table));
 
+  let refusal = '';
+  try { redateRows(kit, '2026-10-10', ['wiring']); } catch (e) { refusal = e.message; }
+  ok('redate refuses without a capability note for that date', /cannot re-date without capability evidence/.test(refusal) && readLadder(kit).jobs.wiring.evidence === '2026-09-01');
+  capabilityNote(kit, '2026-10-10', { omit: ['chore'], ungraded: ['asset'] });
+  for (const id of ['chore', 'asset']) {
+    let why = '';
+    try { redateRows(kit, '2026-10-10', [id]); } catch (e) { why = e.message; }
+    ok('redate refuses row ' + id + ' when the note omits it or grades no source', new RegExp('Basis for ' + id).test(why) && readLadder(kit).jobs[id].evidence === '2026-09-01');
+  }
+  ok('redate all refuses unless every row is graded', (() => { try { redateRows(kit, '2026-10-10', ['all']); return false; } catch { return true; } })());
+  capabilityNote(kit, '2026-10-10');
   const touched = redateRows(kit, '2026-10-10', ['wiring', 'chore']);
   const after = readLadder(kit).jobs;
   ok('redate sets the named rows only', touched.length === 2 && after.wiring.evidence === '2026-10-10' && after.chore.evidence === '2026-10-10' && after.fix.evidence === '2026-09-01');
+  capabilityNote(kit, '2026-10-11');
   ok('redate all touches every row', redateRows(kit, '2026-10-11', ['all']).length === Object.keys(after).length);
 
+  capabilityNote(kit, new Date().toISOString().slice(0, 10));
   const r = await refresh({ kitRoot: kit, now: new Date(), fetchImpl: fetchStub, env: {} });
   ok('the research note carries the per-job capability section', /## Capability per job/.test(readFileSync(r.research, 'utf8')) && /\| wiring \|/.test(readFileSync(r.research, 'utf8')));
 
@@ -43,6 +56,12 @@ try {
   writeFileSync(join(stale, '.ai', 'model-lineup.json'), JSON.stringify({ refreshed: isoDaysAgo(9), models: ['claude-opus-5-5'] }));
   const out = hook('housekeeping.mjs', { hook_event_name: 'SessionStart' }, stale, { CLAUDE_KIT_LADDER_ROOT: stale, ...homeEnv(quietHome()) });
   ok('housekeeping prints the weekly reassessment as a dispatch directive', /WEEKLY MODEL REASSESSMENT DUE \(9d/.test(out.out) && /DISPATCH NOW/.test(out.out) && !/MODEL REFRESH DUE/.test(out.out));
+  ok('the directive orders the graded capability note before the refresh', /models-capability-<date>\.md/.test(out.out) && /Basis/.test(out.out));
+
+  const lineupFresh = fixtureKit(isoDaysAgo(9));
+  writeFileSync(join(lineupFresh, '.ai', 'model-lineup.json'), JSON.stringify({ refreshed: isoDaysAgo(0), models: ['claude-opus-5-5'] }));
+  const rowsOld = hook('housekeeping.mjs', { hook_event_name: 'SessionStart' }, lineupFresh, { CLAUDE_KIT_LADDER_ROOT: lineupFresh, ...homeEnv(quietHome()) });
+  ok('housekeeping fires on a stale ROW even when the lineup refresh is fresh', /WEEKLY MODEL REASSESSMENT DUE \(9d/.test(rowsOld.out));
   ok('the live research notes exist', existsSync(new URL('../research/models-2026-10-10.md', import.meta.url)));
 } finally {
   cleanup();

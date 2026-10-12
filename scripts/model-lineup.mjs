@@ -3,8 +3,9 @@
 // lineup that scripts/model-refresh.mjs records (.ai/model-lineup.json) and answers
 //   capabilityStatus() -> { stale, reasons[], ageDays, asOf, refreshDays, newestKnown, newerThanAliases[] }
 //   modelsLine(status) -> the one SessionStart line orient prints (`!!`-prefixed when stale)
-// Stale = no dated evidence, the newest of (row evidence, last refresh) older than the refresh
-// period, or a known model newer than the alias for its family.
+// Stale = no dated evidence, the OLDEST row's evidence (KIT-T433), or the lineup refresh, older than
+// the refresh period, or a known model newer than the alias for its family. A refresh does not
+// re-date rows; only capability evidence does (job-capability.mjs redate).
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -37,9 +38,10 @@ export function capabilityStatus(kitRoot = ladderRoot(), nowMs = Date.now()) {
   const ladder = readLadder(kitRoot);
   const evidence = capabilityFreshness(kitRoot, nowMs);
   const lineup = readLineup(kitRoot);
-  const dates = [evidence && evidence.newest, lineup && lineup.refreshed].filter((d) => Number.isFinite(Date.parse(d))).sort();
-  const asOf = dates.length ? dates[dates.length - 1] : '';
-  const ageDays = asOf ? Math.floor((nowMs - Date.parse(asOf)) / MS_PER_DAY) : null;
+  const asOf = evidence ? evidence.oldest : '';
+  const oldestJob = evidence ? evidence.oldestJob : '';
+  const ageDays = evidence ? evidence.ageDays : null;
+  const lineupAge = lineup && Number.isFinite(Date.parse(lineup.refreshed)) ? Math.floor((nowMs - Date.parse(lineup.refreshed)) / MS_PER_DAY) : null;
 
   const aliasIds = Object.values(ladder.aliases);
   const known = [...(lineup ? lineup.models : []), ...aliasIds].filter((id) => modelVersion(id));
@@ -55,12 +57,13 @@ export function capabilityStatus(kitRoot = ladderRoot(), nowMs = Date.now()) {
 
   const reasons = [];
   if (!asOf) reasons.push('the capability table carries no evidence dates');
-  else if (ageDays > ladder.refreshDays) reasons.push(`table evidence/refresh ${asOf} is ${ageDays} days old (period ${ladder.refreshDays})`);
+  else if (ageDays > ladder.refreshDays) reasons.push(`row "${oldestJob}" evidence ${asOf} is ${ageDays} days old (period ${ladder.refreshDays})`);
+  if (lineupAge !== null && lineupAge > ladder.refreshDays) reasons.push(`lineup refresh ${lineup.refreshed} is ${lineupAge} days old (period ${ladder.refreshDays})`);
   for (const id of newerThanAliases) reasons.push(`${id} is newer than the ${modelVersion(id).family} alias (${ladder.aliases[modelVersion(id).family]})`);
-  return { stale: reasons.length > 0, reasons, ageDays, asOf, refreshDays: ladder.refreshDays, newestKnown, newerThanAliases, hasLineup: !!lineup };
+  return { stale: reasons.length > 0, reasons, ageDays, asOf, oldestJob, refreshDays: ladder.refreshDays, newestKnown, newerThanAliases, hasLineup: !!lineup };
 }
 
 export function modelsLine(status) {
-  const body = `models: table evidence ${status.asOf || 'none'} (${status.ageDays === null ? '?' : `${status.ageDays} d`}), newest known ${status.newestKnown ? pretty(status.newestKnown) : 'none'}`;
-  return status.stale ? `!! ${body} — STALE: ${status.reasons.join('; ')}. Run node ${join(ladderRoot(), 'scripts', 'model-refresh.mjs')}` : body;
+  const body = `models: oldest row evidence ${status.asOf || 'none'}${status.oldestJob ? ` (${status.oldestJob}, ` : ' ('}${status.ageDays === null ? '?' : `${status.ageDays} d`}), newest known ${status.newestKnown ? pretty(status.newestKnown) : 'none'}`;
+  return status.stale ? `!! ${body} — STALE: ${status.reasons.join('; ')}. Write research/models-capability-<date>.md (graded per-job table), run node ${join(ladderRoot(), 'scripts', 'model-refresh.mjs')}, then node ${join(ladderRoot(), 'scripts', 'job-capability.mjs')} redate <date> <jobs>` : body;
 }

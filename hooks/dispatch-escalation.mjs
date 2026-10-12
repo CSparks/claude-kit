@@ -1,6 +1,8 @@
 // Dispatch escalation gate (KIT-T432, KIT-D090). A dispatch's `[job: X]` may not outrank the job the
 // work's ticket type routes to (.ai/config.yml dispatch.default_job) unless the prompt carries
-// `[escalate: <reason>]`.
+// `[escalate: <reason>]`. The family compared is the dispatch's explicit model when it names one
+// (an opus build on a bug ticket escalates), else the job row's family. A row marked
+// `self_escalating: true` (plan) is itself the escalation and passes.
 //
 //   ticketTypes(roots, text)   -> ticket types of every ticket id the text names, found under roots
 //   expectedJob(ladder, types, readOnly) -> { job, why } | null   the cheapest-defensible job to hold the dispatch to
@@ -13,6 +15,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { readLadder } from '../scripts/dispatch-ladder.mjs';
+import { familyOf } from '../scripts/dispatch-outcomes.mjs';
 import { dispatchJob } from './dispatch-job.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 
@@ -52,6 +55,7 @@ export function ticketTypes(roots, text) {
 }
 
 const rank = (ladder, job) => COST_RANK[ladder.jobs[job]?.family] ?? -1;
+const modelRank = (model) => COST_RANK[familyOf(model)] ?? -1;
 
 export function expectedJob(ladder, types, readOnly) {
   if (!types.length) {
@@ -70,21 +74,23 @@ export function expectedJob(ladder, types, readOnly) {
 export function escalationBlock({ root, input, prompt, readOnly, footer }) {
   const job = dispatchJob(root, input);
   const ladder = readLadder();
-  if (!ladder.jobs[job] || escalateReason(prompt)) return null;
+  if (!ladder.jobs[job] || ladder.jobs[job].self_escalating === true || escalateReason(prompt)) return null;
   const text = `${prompt}\n${input.description || ''}`;
   const target = dispatchTargetRoot(root, input);
   const types = ticketTypes(target === root ? [root] : [target, root], text);
   const expected = expectedJob(ladder, types, readOnly);
   if (!expected) return null;
 
-  const outranks = rank(ladder, job) > rank(ladder, expected.job);
+  const model = typeof input.model === 'string' ? input.model.trim() : '';
+  const spend = Math.max(rank(ladder, job), model ? modelRank(model) : -1);
+  const outranks = spend > rank(ladder, expected.job);
   const needsRegression = job === REGRESSION_ONLY_JOB && !types.includes('regression');
   if (!outranks && !needsRegression) return null;
 
   const cheaper = ladder.jobs[expected.job];
   const reason = needsRegression && !outranks
     ? `job "${job}" is the regression first pass, and no regression ticket is named`
-    : `job "${job}" (${ladder.jobs[job].family}) outranks "${expected.job}" (${cheaper.family}), the default for ${expected.why}`;
+    : `job "${job}" (${model ? familyOf(model) : ladder.jobs[job].family}) outranks "${expected.job}" (${cheaper.family}), the default for ${expected.why}`;
   return [
     `BLOCKED: dispatch escalates past the default job (KIT-T432). ${reason}.`,
     `  agent: ${String(input.subagent_type || input.agent_type || '(default)')}   table: .ai/config.yml dispatch.default_job`,

@@ -6,9 +6,11 @@
 //   research/models-<date>.md        the dated research note
 //   .ai/decisions/<KEY>-D###-…md     a PROPOSED superseding decision, only when a family has a newer model
 // It never edits the table: accepting the proposal (aliases + rows) is a human decision.
+// It REFUSES to run (writing nothing, so the gate stays shut) unless research/models-capability-<date>.md
+// holds a graded per-job table for every dispatch.jobs row (capability-research.mjs, KIT-T433).
 //   CLI: node scripts/model-refresh.mjs        refresh now
-// A successful run stamps `refreshed`, which clears the age half of the gate; a newer model
-// stays blocking until the aliases move.
+// A successful run stamps the lineup `refreshed`; rows are re-dated separately, by capability
+// evidence only (job-capability.mjs redate). A newer model stays blocking until the aliases move.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -17,6 +19,7 @@ import { ladderRoot, readLadder } from './dispatch-ladder.mjs';
 import { capabilityStatus, modelVersion, LINEUP_REL } from './model-lineup.mjs';
 import { nextId } from './id-utils.mjs';
 import { jobCapabilityTable } from './job-capability.mjs';
+import { capabilityCoverage } from './capability-research.mjs';
 import { readOutcomes } from '../hooks/lib/dispatch-ledger.mjs';
 
 const MODELS_API = 'https://api.anthropic.com/v1/models?limit=1000';
@@ -64,6 +67,7 @@ function note(date, lineup, costs, status, capability) {
     '## Cost per family (per MTok)', '',
     rows.length ? ['| family | model | input | output |', '|---|---|---|---|', ...rows].join('\n') : 'Prices not parsed from the pricing page; check it by hand.', '',
     '## Capability per job', '',
+    `Capability evidence: research/models-capability-${date}.md (graded source for every row).`, '',
     'Each dispatch.jobs row against its family cost and the outcome ledger. Routing sets how fast the weekly usage limit is hit, so cost per landing is the ranking metric.', '',
     capability, '',
     '## Documented strengths', '',
@@ -89,6 +93,9 @@ function proposal(kitRoot, date, status, ladder) {
 
 export async function refresh({ kitRoot = ladderRoot(), now = new Date(), fetchImpl = fetch, env = process.env, outcomeRoots = [] } = {}) {
   const date = now.toISOString().slice(0, 10);
+  const coverage = capabilityCoverage(kitRoot, date);
+  if (!coverage.exists) throw new Error(`no capability research at ${coverage.file}; write the per-job table (Job | ... | Basis with an A/B/C source) first. The gate stays shut`);
+  if (coverage.missing.length) throw new Error(`${coverage.file} has no graded (A/B/C) Basis for: ${coverage.missing.join(', ')}. The gate stays shut`);
   const lineup = await fetchLineup({ fetchImpl, env });
   if (!lineup.models.length) throw new Error(`no model ids found at ${lineup.source}; the gate stays blocked`);
   const costs = await fetchCosts({ fetchImpl });
