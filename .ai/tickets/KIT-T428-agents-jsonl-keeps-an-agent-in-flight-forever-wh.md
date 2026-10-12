@@ -2,7 +2,7 @@
 id: KIT-T428
 title: agents.jsonl keeps an agent 'in-flight' forever when it dies from a usage-limit 429 (SubagentStop never fires): dirt-empire a326e808 showed
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-12T18:53:19Z
-updated: 2026-10-12T18:53:19Z
+updated: 2026-10-12T18:56:17Z
 ---
 
 ## Description
@@ -29,3 +29,4 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-10-12 18:53] (created) bug — agents.jsonl keeps an agent 'in-flight' forever when it dies from a usage-limit 429 (SubagentStop never fires): dirt-empire a326e808 showed
+- [2026-10-12 18:56] (status) todo → review
