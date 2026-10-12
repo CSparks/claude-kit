@@ -21,7 +21,9 @@ function ageText(row, nowMs) {
 // `clipTask` shortens the label to the caller's line budget; `nowMs` is injectable for tests.
 export function formatAgentLine(row, { nowMs = Date.now(), clipTask = (s) => s, indent = '  ' } = {}) {
   const task = clipTask(row.task || row.summary || '?');
-  return `${indent}${modelTag(row)} ${row.scope || '?'}  ${row.id}  ${row.status || 'in-flight'}${ageText(row, nowMs)}${row.background ? ' bg' : ''}  ${task}`;
+  const status = `${row.status || 'in-flight'}${row.reason && row.status === 'killed' ? `: ${row.reason}` : ''}`;
+  const wip = Array.isArray(row.wip) && row.wip.length ? `  WIP: ${row.wip.join(', ')}` : '';
+  return `${indent}${modelTag(row)} ${row.scope || '?'}  ${row.id}  ${status}${ageText(row, nowMs)}${row.background ? ' bg' : ''}  ${task}${wip}`;
 }
 
 // Rows the lint must flag: no model recorded.

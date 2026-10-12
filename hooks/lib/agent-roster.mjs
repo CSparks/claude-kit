@@ -15,6 +15,7 @@
 
 import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { reconcileAgents } from './agent-reconcile.mjs';
 
 export const AGENT_ROSTER_REL = '.ai/agents.jsonl';
 // An in-flight row older than this with no terminal row is "uncollected" — surfaced loudly on
@@ -52,7 +53,7 @@ export function updateAgent(root, id, patch) {
 
 // The statuses that mean an agent's life is OVER. Terminal is a RATCHET: once an id reaches one,
 // no later row can move it back to a live status (see readAgents).
-const AGENT_TERMINAL = new Set(['done', 'error', 'collected', 'merged']);
+const AGENT_TERMINAL = new Set(['done', 'error', 'collected', 'merged', 'killed', 'stale']);
 
 // Parse the roster's tail into the COLLAPSED current view: the latest row per id, with
 // `firstSeen` carried from the id's earliest row so age can be measured from delegation, not
@@ -62,8 +63,9 @@ const AGENT_TERMINAL = new Set(['done', 'error', 'collected', 'merged']);
 // by a live one, so a finished agent can't be resurrected as permanently uncollected (KIT-T228).
 // FAIL-OPEN: a missing file → []; a malformed line is skipped, never thrown. Returns rows
 // sorted oldest-first by firstSeen (stable render order). `tail` bounds the rows scanned
-// (Infinity = the whole file, for outcome reports).
-export function readAgents(root, tail = AGENT_ROSTER_TAIL) {
+// (Infinity = the whole file, for outcome reports). By default in-flight rows whose agent died
+// without a SubagentStop are reconciled to killed/stale (KIT-T428); `{ reconcile: false }` is a pure read.
+export function readAgents(root, tail = AGENT_ROSTER_TAIL, { reconcile = true } = {}) {
   let lines;
   try {
     lines = readFileSync(agentsPath(root), 'utf8').split('\n').filter(Boolean);
@@ -87,7 +89,10 @@ export function readAgents(root, tail = AGENT_ROSTER_TAIL) {
     }
     byId.set(row.id, merged);
   }
-  return [...byId.values()].sort((a, b) => String(a.firstSeen).localeCompare(String(b.firstSeen)));
+  const rows = [...byId.values()].sort((a, b) => String(a.firstSeen).localeCompare(String(b.firstSeen)));
+  if (!reconcile) return rows;
+  const verdicts = reconcileAgents(root, rows, { update: updateAgent });
+  return verdicts.length ? rows.map((r) => verdicts.find((v) => v.id === r.id) || r) : rows;
 }
 
 // Split the collapsed roster into what a resume needs to act on: still IN-FLIGHT (no terminal
