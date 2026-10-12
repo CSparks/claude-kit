@@ -169,6 +169,22 @@ await test('q file: substring, glob and filters', async () => {
   assert.ok(locs(await rows('file', ['lib.rs', '--path', 'rapid-game'])).every((l) => l.startsWith('rapid-game/')));
 });
 
+await test('--not-path drops globs and directories from code, sym and file; repeatable', async () => {
+  const all = locs(await rows('code', ['camp', '--lang', 'rust']));
+  assert.ok(all.some((l) => l.startsWith('src/sim.rs')), 'baseline has src/sim.rs hits');
+  assert.deepEqual(locs(await rows('code', ['camp', '--lang', 'rust', '--not-path', 'src'])), all.filter((l) => !l.startsWith('src/')), 'a plain directory drops its subtree');
+  assert.deepEqual(locs(await rows('code', ['camp', '--lang', 'rust', '--not-path', '**/sim.rs'])), all.filter((l) => !l.startsWith('src/sim.rs')), 'a glob drops matching paths');
+  assert.deepEqual(locs(await rows('code', ['camp', '--lang', 'rust', '--not-path', 'sim.*'])), all.filter((l) => !l.startsWith('src/sim.rs')), 'a glob with no slash also matches the file name');
+  assert.deepEqual(locs(await rows('code', ['camp', '--lang', 'rust', '--not-path=src'])), all.filter((l) => !l.startsWith('src/')), '--not-path=VALUE is the same flag');
+  assert.deepEqual(locs(await rows('code', ['frame_budget', '--not-path', 'rapid-game', '--not-path', 'docs'])), [], 'repeated flags all apply');
+  assert.ok(locs(await rows('code', ['frame_budget'])).length > 0, 'the excluded text exists without the flag');
+  assert.deepEqual(locs(await rows('code', ['camp', '--lang', 'rust', '--not-path', 'nothing/**'])), all, 'a glob matching nothing changes nothing');
+  assert.deepEqual(locs(await rows('sym', ['--type', 'trait', '--not-path', 'rapid-game'])).filter((l) => l.startsWith('rapid-game/')), [], 'sym honours --not-path');
+  assert.ok((await rows('sym', ['--type', 'trait'])).length > (await rows('sym', ['--type', 'trait', '--not-path', 'rapid-game'])).length, 'sym baseline has more');
+  assert.deepEqual(locs(await rows('file', ['*.toml', '--not-path', 'config'])), [], 'file honours --not-path');
+  assert.deepEqual(locs(await rows('file', ['terrain', '--not-path', '*.wgsl'])), [], 'file honours a basename glob');
+});
+
 await test('unknown flag is reported, not silently ignored', async () => {
   process.env.CLAUDE_KIT_BUG_STORE = 'off';
   const r = await rows('code', ['camp', '--bogus']);

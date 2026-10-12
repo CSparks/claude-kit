@@ -442,11 +442,12 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
   show <id>                   print one item in full (ticket, decision, note, question) from any store
   code <text> [filters]       SEARCH CODE/DOCS/CONFIG/TICKETS (the grep replacement): ranked, compact, verified
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
-                              --path crates/sim  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
+                              --path crates/sim  --not-path <glob|dir> (repeatable; drops matches)  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
                               --project <name>  search that registered project's checkout (name or id key), e.g. the kit's scripts
-  sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P]
+  sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P] [--not-path G]
                               definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)
-  file <substring|glob>       find files by path across the repo and its framework submodule
+  file <substring|glob> [--not-path G]
+                              find files by path across the repo and its framework submodule
   fts [--scope <s>|--project <p>] <q...>
                               full-text search title+body (default: this project + its adopted framework stores;
                               --project takes a registered project's name or id key, as cap does);

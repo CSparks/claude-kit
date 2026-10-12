@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
 import { projectRepo } from './q-project.mjs';
+import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 
 export const DEFAULT_LIMIT = 40;
 const MIN_LITERAL = 3;
@@ -16,10 +17,10 @@ const GAP = '\u0000';
 const DEFAULT_KINDS = ['code', 'doc', 'config'];
 const ALL_KINDS = [...DEFAULT_KINDS, 'ticket'];
 const TYPE_RANK = { fn: 0, struct: 1, enum: 1, trait: 1, class: 1, type: 1, const: 2, var: 2, macro: 2, mod: 3, impl: 4, use: 5, heading: 6, section: 6 };
-const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--type', '--limit', '--project', '-C', '-A', '-B']);
+const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--not-path', '--type', '--limit', '--project', '-C', '-A', '-B']);
 
 const ATTACHED_COUNT = /^-([ABC])(\d+)$/;
-const ATTACHED_VALUE = /^(--(?:kind|lang|path|type|limit|project))=(.*)$/;
+const ATTACHED_VALUE = /^(--(?:kind|lang|path|not-path|type|limit|project))=(.*)$/;
 
 // `-B2` and `--lang=rust` mean `-B 2` and `--lang rust`, as in grep.
 const splitAttached = (args) => args.flatMap((a) => {
@@ -41,7 +42,7 @@ export function breAlternation(text) {
 /** Split argv-style tokens into { text, flags }. */
 export function parseCodeArgs(rawArgs) {
   const args = splitAttached(rawArgs);
-  const flags = { before: 0, after: 0, limit: DEFAULT_LIMIT, kinds: null, types: null, unknown: [] };
+  const flags = { before: 0, after: 0, limit: DEFAULT_LIMIT, kinds: null, types: null, notPaths: [], unknown: [] };
   const words = [];
   for (let i = 0; i < args.length; i++) {
     const a = String(args[i]);
@@ -51,6 +52,7 @@ export function parseCodeArgs(rawArgs) {
       else if (a === '--type') flags.types = String(v).split(',');
       else if (a === '--lang') flags.lang = String(v);
       else if (a === '--path') flags.path = String(v).replace(/\\/g, '/').replace(/^\.\//, '');
+      else if (a === '--not-path') flags.notPaths.push(String(v).replace(/\\/g, '/').replace(/^\.\//, ''));
       else if (a === '--project') flags.project = String(v);
       else if (a === '--limit') flags.limit = Number(v);
       else if (a === '-C') { flags.before = Number(v) || 0; flags.after = Number(v) || 0; }
@@ -172,8 +174,23 @@ function sqlFilters(flags, kinds) {
   return { where, params };
 }
 
-const memFilter = (files, flags, kinds) => files.filter((f) => kinds.includes(f.kind) && (!flags.lang || f.lang === flags.lang)
-  && (!flags.path || f.rel === flags.path || f.rel.startsWith(dirPrefix(flags.path))));
+// --not-path drops a path: a glob (`**/tests/**`, `*_test.rs`; a glob with no `/` also matches the file name) or a plain directory/file prefix.
+const excluder = (flags) => {
+  const tests = flags.notPaths.map((p) => {
+    if (/[*?]/.test(p)) {
+      const re = globToRegExp(p);
+      return (rel) => re.test(rel) || (!p.includes('/') && re.test(rel.slice(rel.lastIndexOf('/') + 1)));
+    }
+    return (rel) => rel === p || rel.startsWith(dirPrefix(p));
+  });
+  return (rel) => tests.some((t) => t(rel));
+};
+
+const memFilter = (files, flags, kinds) => {
+  const dropped = excluder(flags);
+  return files.filter((f) => kinds.includes(f.kind) && (!flags.lang || f.lang === flags.lang)
+    && (!flags.path || f.rel === flags.path || f.rel.startsWith(dirPrefix(flags.path))) && !dropped(f.rel));
+};
 
 const byName = new Intl.Collator().compare; // same order as String#localeCompare, without its per-call setup cost
 // The newline ending a file starts no line.
@@ -200,7 +217,8 @@ async function codeVerb(root, text, flags, refresh) {
   if (!matcher) return [{ loc: '', text: `invalid pattern: ${text}` }];
   const kinds = flags.kinds || DEFAULT_KINDS;
   const idx = await refresh(root, { tickets: kinds.includes('ticket') });
-  const candidates = await candidatesFor(idx, text, flags, kinds);
+  const dropped = excluder(flags);
+  const candidates = (await candidatesFor(idx, text, flags, kinds)).filter((c) => !dropped(c.path));
   const abs = idx.handle ? null : new Map(idx.files.map((f) => [f.rel, f.abs]));
   const perFile = [];
   for (const c of candidates) {
@@ -258,7 +276,8 @@ async function symVerb(root, text, flags, refresh) {
   if (text && flags.fuzzy) { where.push("s.name LIKE ? ESCAPE '\\'"); params.push(`%${text.replace(/[%_\\]/g, '\\$&')}%`); }
   else if (text) { where.push('s.name = ?'); params.push(text); }
   if (flags.types) { where.push(`s.type IN (${flags.types.map(() => '?').join(',')})`); params.push(...flags.types); }
-  const rows = idx.handle.all(`SELECT f.path, s.line, s.type, s.name, s.scope FROM symbols s JOIN files f ON f.id = s.file_id WHERE ${where.join(' AND ')}`, params);
+  const dropped = excluder(flags);
+  const rows = idx.handle.all(`SELECT f.path, s.line, s.type, s.name, s.scope FROM symbols s JOIN files f ON f.id = s.file_id WHERE ${where.join(' AND ')}`, params).filter((r) => !dropped(r.path));
   idx.handle.close();
   rows.sort((a, b) => (TYPE_RANK[a.type] ?? UNRANKED) - (TYPE_RANK[b.type] ?? UNRANKED) || a.path.localeCompare(b.path) || a.line - b.line);
   const cut = flags.limit ? rows.slice(0, flags.limit) : rows;
@@ -338,7 +357,7 @@ export async function codeVerbRows(cmd, args, root, refresh = refreshIndex) {
     root = projectRepo(flags.project);
     refresh = refreshIndex;
   }
-  if (cmd === 'code') return text ? codeVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q code <text> [--regex] [-i] [-w] [--lang L] [--path P] [-C n]' }];
+  if (cmd === 'code') return text ? codeVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q code <text> [--regex] [-i] [-w] [--lang L] [--path P] [--not-path G] [-C n]' }];
   if (cmd === 'sym') return symVerb(root, text, flags, refresh);
   return text ? fileVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q file <substring|glob>' }];
 }
