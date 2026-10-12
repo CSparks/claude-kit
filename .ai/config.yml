@@ -151,9 +151,9 @@ dispatch:
       family: opus
       effort: high
       cost: "high"
-      evidence: 2026-09-24
-      source: "KIT-D073, KIT-D076 (opus and fable orchestrate; big pushes stay opus)"
-      use: "big pushes: new crates, multi-file features, spatial or geometry work"
+      evidence: 2026-10-12
+      source: "KIT-D073, KIT-D076; KIT-D090; Chris 2026-10-12: 'Here's the fucking thing, your opus buddy, can you not write prompts that are good enough for Sonnet to go fucking apply?'"
+      use: "the exception, needs [escalate: <reason>]: novel spatial or geometry work a brief cannot pin down. Opus design/forensic writes the PLAN and apply brief (file:line, exact change, test, acceptance); Sonnet applies it as fix/refactor/wiring"
     design:
       family: opus
       effort: high

@@ -3,6 +3,7 @@
 // where a delegation's cost is decided: the moment it is dispatched.
 //   dispatch-ladder      (KIT-T151) — the silent fable inherit
 //   dispatch-job         (KIT-T419) — no job, or a model off the capability table's row
+//   dispatch-escalation  (KIT-T432) — a job dearer than the ticket type's default, no [escalate:]
 //   cold-worktree-build  (KIT-T176, KIT-D074) — any worktree dispatch, any project
 //   shared-tree-dispatch (KIT-T176, KIT-D077) — a second read/write agent into a checkout that has one
 //   broker-owned-tree    (KIT-T276) — a writer-capable agent into a checkout a broker daemon owns
@@ -21,6 +22,7 @@ import { ladderRoot } from '../scripts/dispatch-ladder.mjs';
 import { capabilityStatus } from '../scripts/model-lineup.mjs';
 import { FOREIGN_TREE_CHECK, FOREIGN_TREE_OK, foreignEdits, foreignTreeMessage } from './dispatch-foreign.mjs';
 import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
+import { ESCALATION_CHECK, escalationBlock } from './dispatch-escalation.mjs';
 import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker } from './dispatch-broker.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
@@ -63,6 +65,7 @@ try {
     ladderBlock(root, input, prompt, p),
     unlabelledBlock(root, input, p),
     jobCheck(root, input, prompt, p),
+    escalationCheck(root, input, prompt, p),
     staleTableBlock(root, p),
     coldWorktreeBlock(root, input, prompt),
     sharedTreeBlock(root, input, prompt),
@@ -143,6 +146,12 @@ function unlabelledBlock(root, input, p) {
 function jobCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, JOB_CHECK, root)) return null;
   return jobBlock({ root, input, prompt, footer: excludeFooter(JOB_CHECK) });
+}
+
+// --- dispatch-escalation (KIT-T432) ---------------------------------------------
+function escalationCheck(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, ESCALATION_CHECK, root)) return null;
+  return escalationBlock({ root, input, prompt, readOnly: readOnlyDispatch(root, label(input), prompt), footer: excludeFooter(ESCALATION_CHECK) });
 }
 
 // --- capability-table-stale (KIT-T339) --------------------------------------------
