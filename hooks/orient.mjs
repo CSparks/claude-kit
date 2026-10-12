@@ -239,6 +239,14 @@ try {
 } catch {
   /* asked-again listing is best-effort */
 }
+// A game doing a concern its framework declares it owns (KIT-T423), at most 5 lines.
+try {
+  const { concernBlock } = await import('../scripts/concern-check.mjs');
+  const block = await concernBlock(root);
+  if (block.length) out.push(...block, '');
+} catch {
+  /* concern check is best-effort */
+}
 const foundational = foundationalDecisions();
 if (foundational.length) {
   out.push('--- PROJECT IDENTITY (foundational — ALWAYS true; this is what the project IS; cite, never contradict) ---');
