@@ -14,7 +14,7 @@
 //   contextLine({ orientTokens, root })      -> the one-line orient cost, `!!` over the warn line
 //   CLI: node context-budget.mjs [--project <name>] [--json] [--record]    exit 1 on fail
 
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, realpathSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -123,9 +123,10 @@ export function contextLine({ orientTokens, root, home = homedir(), kit = KIT })
 
 const SKIP_PATH = /[\\/]\.claude[\\/]worktrees[\\/]/;
 export function registeredProjects(registry = readRegistry()) {
-  const temp = resolve(tmpdir()).toLowerCase();
+  const real = (p) => { try { return realpathSync.native(p).toLowerCase(); } catch { return resolve(p).toLowerCase(); } };
+  const temp = real(tmpdir());
   return Object.entries(registry.projects)
-    .filter(([, path]) => existsSync(path) && !SKIP_PATH.test(path) && !resolve(path).toLowerCase().startsWith(temp) && (existsSync(join(path, '.ai')) || existsSync(join(path, 'CLAUDE.md'))))
+    .filter(([, path]) => existsSync(path) && !SKIP_PATH.test(path) && !real(path).startsWith(temp) && (existsSync(join(path, '.ai')) || existsSync(join(path, 'CLAUDE.md'))))
     .map(([name, path]) => ({ name, root: path }));
 }
 
