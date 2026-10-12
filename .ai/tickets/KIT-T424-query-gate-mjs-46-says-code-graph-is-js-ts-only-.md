@@ -2,7 +2,7 @@
 id: KIT-T424
 title: query-gate.mjs:46 says code-graph is JS/TS-only, but code-graph.mjs:73 has a Rust family; the gate's redirect text is stale or wrong for Rus
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-12T16:38:58Z
-updated: 2026-10-12T16:38:58Z
+updated: 2026-10-12T17:05:33Z
+fixed_commit: e385687
 ---
 
 ## Description
@@ -37,3 +38,5 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 - [2026-10-12 17:05] (comment) @claude: code-graph's FAMILIES table moved to scripts/code-graph-families.mjs; query-gate imports it for the NOTE line, renames G (full comment #1 in ## Notes)
 ### comment #1 [2026-10-12 17:05] @claude
 code-graph's FAMILIES table moved to scripts/code-graph-families.mjs; query-gate imports it for the NOTE line, renames GRAPH_INDEXED_EXTS -> IMPORT_GRAPH_EXTS (behaviour unchanged: non-JS/TS greps q cannot answer exactly stay allowed, since code-graph has definitions but no import edges for them). Tests: hooks/query-gate.test.mjs 70 PASS, all pass (2 new assertions FAIL against the old gate); scripts/code-graph.test.mjs 53 passed; hooks/code-graph.test.mjs 2 passed; index-redirect 44 passed.
+- [2026-10-12 17:05] (status) todo → review
+- [2026-10-12 17:05] (comment) (fixed) e385687; query-gate.test.mjs 70 PASS
