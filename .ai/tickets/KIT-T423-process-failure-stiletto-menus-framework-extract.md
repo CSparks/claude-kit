@@ -2,7 +2,7 @@
 id: KIT-T423
 title: Process failure (stiletto menus): framework-extraction work was scoped by what RENDERS, not by what OWNS THE BEHAVIOUR, and the one ticket o
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-12T16:34:52Z
-updated: 2026-10-12T16:34:52Z
+updated: 2026-10-12T17:01:26Z
+fixed_commit: 453fa17
 ---
 
 ## Description
@@ -49,3 +50,5 @@ First slice landed: scripts/concern-check.mjs + orient FRAMEWORK OWNS THIS block
 - [2026-10-12 17:00] (comment) @claude: First slice landed: scripts/concern-check.mjs + orient FRAMEWORK OWNS THIS block (<=5 lines) + scripts/concern-check.tes (full comment #1 in ## Notes)
 - [2026-10-12 17:00] (comment) unticked: triage tags extract/migrate tickets with concern:, and the closing evidence floor (commit-gate.mjs:263) runs concern-check for them
 - [2026-10-12 17:00] (comment) ticked: orient prints a FRAMEWORK OWNS THIS block, at most 5 lines
+- [2026-10-12 17:01] (status) todo → review
+- [2026-10-12 17:01] (comment) first slice (fixed) 453fa17; concern-check.test.mjs 7 passed; remaining: waits_on + triage criteria
