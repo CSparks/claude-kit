@@ -3,6 +3,7 @@
 // where a delegation's cost is decided: the moment it is dispatched.
 //   dispatch-ladder      (KIT-T151) — the silent fable inherit
 //   dispatch-job         (KIT-T419) — no job, or a model off the capability table's row
+//   agent-registry-stale (KIT-T431) — WARNS when a plugin agent type post-dates the session start
 //   dispatch-escalation  (KIT-T432) — a job dearer than the ticket type's default, no [escalate:]
 //   cold-worktree-build  (KIT-T176, KIT-D074) — any worktree dispatch, any project
 //   shared-tree-dispatch (KIT-T176, KIT-D077) — a second read/write agent into a checkout that has one
@@ -23,6 +24,7 @@ import { capabilityStatus } from '../scripts/model-lineup.mjs';
 import { FOREIGN_TREE_CHECK, FOREIGN_TREE_OK, foreignEdits, foreignTreeMessage } from './dispatch-foreign.mjs';
 import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
 import { ESCALATION_CHECK, escalationBlock } from './dispatch-escalation.mjs';
+import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loaded.mjs';
 import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker } from './dispatch-broker.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
@@ -72,7 +74,11 @@ try {
     brokerOwnedBlock(root, input, prompt),
     foreignTreeBlock(root, input, prompt, p),
   ].filter(Boolean);
-  if (!blocks.length) process.exit(0);
+  if (!blocks.length) {
+    const warning = agentRegistryWarning(root, input, p);
+    if (warning) console.error(warning);
+    process.exit(0);
+  }
   console.error(blocks.join('\n'));
   process.exit(2);
 } catch {
@@ -146,6 +152,16 @@ function unlabelledBlock(root, input, p) {
 function jobCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, JOB_CHECK, root)) return null;
   return jobBlock({ root, input, prompt, footer: excludeFooter(JOB_CHECK) });
+}
+
+// --- agent-registry-stale (KIT-T431) ----------------------------------------------
+// Warn-only: the agent type was added to the kit after this session started.
+function agentRegistryWarning(root, input, p) {
+  if (!p.tool_input || pathExcluded(root, AGENT_LOADED_CHECK, root)) return null;
+  const warning = unloadedAgentWarning({ input, transcriptPath: p.transcript_path, kitRoot: ladderRoot() });
+  return warning ? `${warning}
+
+${excludeFooter(AGENT_LOADED_CHECK)}` : null;
 }
 
 // --- dispatch-escalation (KIT-T432) ---------------------------------------------

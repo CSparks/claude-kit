@@ -422,4 +422,31 @@ body
   expect('the ignore file lifts the escalation gate', run(ignored, { jobless: true, subagent_type: 'Explore', model: 'opus', prompt: 'x [job: forensic]' }, opus).code, 0);
 }
 
+// --- agent-registry-stale (KIT-T431) -------------------------------------------------
+{
+  const kit = fixtureKit(isoDaysAgo(0));
+  execFileSync('git', ['init', '-q'], { cwd: kit });
+  mkdirSync(join(kit, 'agents'), { recursive: true });
+  writeFileSync(join(kit, 'agents', 'newbie.md'), ['---', 'name: newbie', 'description: x', '---', ''].join('\n'));
+  execFileSync('git', ['add', '-A'], { cwd: kit });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'add newbie'], { cwd: kit });
+  const repo = makeRepo();
+  const session = (name, stamp) => {
+    const file = join(repo, `${name}.jsonl`);
+    writeFileSync(file, [JSON.stringify({ type: 'user', timestamp: stamp, message: { content: 'hi' } }), JSON.stringify({ type: 'assistant', message: { model: 'claude-opus-5-5', content: [] } })].join('\n') + '\n');
+    return file;
+  };
+  const send = (type, transcript_path) => runRaw(repo, JSON.stringify({ tool_name: 'Agent', transcript_path, tool_input: { subagent_type: type, model: 'sonnet', prompt: 'x [job: fix]' } }));
+  process.env.DG_LADDER_ROOT = kit;
+  const old = send('claude-kit:newbie', session('old', '2026-01-01T00:00:00.000Z'));
+  expect('a session older than the agent still dispatches (warn-only)', old.code, 0);
+  expect('the stale-registry warning names the agent and the fix', /agent type "claude-kit:newbie" was added/.test(old.err) && /reload-plugins/.test(old.err) ? 1 : 0, 1);
+  expect('the warning carries its check footer', /agent-registry-stale/.test(old.err) ? 1 : 0, 1);
+  expect('a session newer than the agent gets no warning', /WARNING: agent type/.test(send('claude-kit:newbie', session('new', '2099-01-01T00:00:00.000Z')).err) ? 1 : 0, 0);
+  expect('an agent the kit does not hold gets no warning', /WARNING: agent type/.test(send('claude-kit:ghost', session('old2', '2026-01-01T00:00:00.000Z')).err) ? 1 : 0, 0);
+  expect('an unprefixed type gets no warning', /WARNING: agent type/.test(send('general-purpose', session('old3', '2026-01-01T00:00:00.000Z')).err) ? 1 : 0, 0);
+  expect('the ignore file lifts the warning', /WARNING: agent type/.test(runRaw(ignoreFile(repo, 'agent-registry-stale'), JSON.stringify({ tool_name: 'Agent', transcript_path: session('old4', '2026-01-01T00:00:00.000Z'), tool_input: { subagent_type: 'claude-kit:newbie', model: 'sonnet', prompt: 'x [job: fix]' } })).err) ? 1 : 0, 0);
+  delete process.env.DG_LADDER_ROOT;
+}
+
 process.exit(failures ? 1 : 0);
