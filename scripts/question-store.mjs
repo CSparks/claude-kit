@@ -4,6 +4,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { splitFrontmatter, field } from './frontmatter.mjs';
+import { askedEntries, isOpenQuestion } from './question-asks.mjs';
 
 /** Every question file under `<root>/.ai/questions/`; [] when the directory is absent. */
 export function readQuestions(root) {
@@ -21,4 +22,11 @@ export function readQuestions(root) {
     } catch { /* unreadable file — skip */ }
   }
   return out;
+}
+
+/** Open question files this `session` stamped `(asked)` on `today` (YYYY-MM-DD) and still open. */
+export function unresolvedAsks(root, session, today) {
+  if (!session) return [];
+  return readQuestions(root).filter((q) => isOpenQuestion(q.text)
+    && askedEntries(q.text).some((e) => e.session === session && e.date === today));
 }

@@ -8,6 +8,7 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { citedPaths } from './session-citations.mjs';
+import { stampAsk } from '../scripts/question-asks.mjs';
 
 const HOOK = fileURLToPath(new URL('./flush.mjs', import.meta.url));
 let failures = 0;
@@ -82,6 +83,30 @@ ok('unadopted repo: exits 0', rNone.code === 0);
 // --- the PreCompact reminder itself --------------------------------------------------
 const reminder = run(makeRepo({ session: '# SESSION\n' }));
 ok('adopted repo emits the flush reminder', /COMPACTION|flush/i.test(reminder.out + reminder.err));
+
+// --- Stop: the unresolved-question nag (KIT-T448) -------------------------------------
+const TODAY = new Date().toISOString().slice(0, 10);
+const question = (id, status, resolution = '<answer>') => `---\nid: ${id}\nstatus: ${status}\n---\n\n**Q:** Burrow?\n\n**Resolution:** ${resolution}\n`;
+function runStop(dir, session) {
+  const r = spawnSync(process.execPath, [HOOK], {
+    cwd: dir, input: JSON.stringify({ hook_event_name: 'Stop', session_id: session }), encoding: 'utf8',
+    env: { ...process.env, CLAUDE_KIT_REGISTRY: NO_REGISTRY, CLAUDE_KIT_UNBOUNDED_AI: '' },
+  });
+  return { code: r.status, err: r.stderr || '' };
+}
+const asks = stampAsk(question('FQF-Q001', 'todo'), 'me', `${TODAY} 09:00`);
+const stale = stampAsk(question('FQF-Q002', 'todo'), 'me', '2020-01-01 09:00');
+const answered = stampAsk(question('FQF-Q003', 'resolved', '(2026-10-13, chris) yes'), 'me', `${TODAY} 09:00`);
+const theirs = stampAsk(question('FQF-Q004', 'todo'), 'them', `${TODAY} 09:00`);
+const qrepo = makeRepo({ files: {
+  '.ai/questions/FQF-Q001-a.md': asks, '.ai/questions/FQF-Q002-b.md': stale,
+  '.ai/questions/FQF-Q003-c.md': answered, '.ai/questions/FQF-Q004-d.md': theirs,
+} });
+const nag = runStop(qrepo, 'me');
+ok('Stop warns about this session\'s unresolved ask stamped today', nag.err.includes('FQF-Q001') && nag.err.includes('t resolve FQF-Q001'));
+ok('Stop stays quiet about a stale ask, a resolved one and another session\'s', !/FQF-Q00[234]/.test(nag.err));
+ok('Stop never blocks on the question nag', nag.code === 0);
+ok('another session gets no nag for this session\'s ask', !runStop(qrepo, 'someone-else').err.includes('FQF-Q001'));
 
 console.log(`\n${count - failures}/${count} passed`);
 process.exit(failures ? 1 : 0);

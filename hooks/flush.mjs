@@ -17,6 +17,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitRoot, adopted, git, payload, sessionMtimeMs, unboundedRoot } from './lib.mjs';
 import { missingCitations } from './session-citations.mjs';
+import { unresolvedAsks } from '../scripts/question-store.mjs';
 
 // Cap the dead-citation list so a badly-drifted SESSION.md can't swamp the flush output.
 const CITATION_LIST_MAX = 8;
@@ -49,7 +50,10 @@ async function main() {
     // The unbounded store lives inside the shared data repo, whose commit stream is other
     // sessions' syncs — not this turn's work. That makes the anchor nudge's evidence a lie
     // here, so it stays a managed-repo ratchet.
-    if (!unbounded) stopAnchorNudge(root, p);
+    if (!unbounded) {
+      unresolvedQuestionWarning(root, p.session_id);
+      stopAnchorNudge(root, p);
+    }
   } else {
     precompactReminder(store);
   }
@@ -85,6 +89,21 @@ async function brokerHealthWarning(root) {
     for (const w of healthWarnings(root)) process.stderr.write(`⚠ ${w}\n`);
   } catch {
     /* best-effort */
+  }
+}
+
+// --- questions asked this session and still open (KIT-T448) -----------------------
+
+function unresolvedQuestionWarning(root, session) {
+  try {
+    const open = unresolvedAsks(root, String(session || ''), new Date().toISOString().slice(0, 10));
+    if (!open.length) return;
+    process.stderr.write(
+      `⚠ This session asked ${open.length} question(s) that are still open:\n` +
+      open.map((q) => `    ${q.id} — answered? write the Resolution: t resolve ${q.id} "<answer>"\n`).join(''),
+    );
+  } catch {
+    /* advisory only */
   }
 }
 
