@@ -1,7 +1,7 @@
 // Background shells that never exited (KIT-T455). A Bash `run_in_background` shell writes its
 // output to `<tmp>/claude/<project>/<session>/tasks/<id>.output` and ends the file with
-// `[exited with code N]`; one without that marker is still running or its owner is gone, and it
-// sits in the maintainer's task list with a dead timer. Pure reads, fail-open.
+// `[exited with code N]` (or `[killed]` once TaskStop ends it); one with neither marker is still
+// running or its owner is gone, and it sits in the maintainer's task list with a dead timer. Pure reads, fail-open.
 //
 //   orphanShells({ project, session?, ids?, minAgeMin?, commands?, now?, base? }) -> [{ id, ageMin, command }]
 //   shellCommands(transcriptPath)  -> Map<taskId, command> of the background shells a transcript started
@@ -18,7 +18,7 @@ import { pathExcluded, excludeFooter } from './lib.mjs';
 export const CHECK_ID = 'orphan-shells';
 export const ORPHAN_AGE_MIN = 30;
 const SHELL_OUTPUT = /^(b[a-z0-9]{5,12})\.output$/;
-const EXIT_MARK = '[exited with code';
+const END_MARKS = ['[exited with code', '[killed]'];
 const TAIL_BYTES = 512;
 const MAX_AGE_MIN = 2880; // older than two days is a long-dead leftover, not a live problem
 const COMMAND_CLIP = 80;
@@ -35,7 +35,8 @@ function exited(file) {
     const len = Math.min(size, TAIL_BYTES);
     const buf = Buffer.alloc(len);
     readSync(fd, buf, 0, len, size - len);
-    return buf.toString('utf8').includes(EXIT_MARK);
+    const tail = buf.toString('utf8');
+    return END_MARKS.some((mark) => tail.includes(mark));
   } finally {
     closeSync(fd);
   }

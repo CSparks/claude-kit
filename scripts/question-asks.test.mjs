@@ -71,6 +71,16 @@ ok('t ask refuses a non-question', t(['ask', 'FQK-T001', '--session', 'x']).stat
 const r2 = t(['resolve', 'FQK-Q001', 'Yes, burrow.']);
 ok('t resolve exits 0 and resolves', r2.status === 0 && !isOpenQuestion(readFileSync(file, 'utf8')) && /, pat\) Yes, burrow\./.test(readFileSync(file, 'utf8')));
 
+// KIT-T449: a q code query full of regex metacharacters never crashes q.mjs, whether it is read
+// as text or as a pattern.
+const Q = fileURLToPath(new URL('./q.mjs', import.meta.url));
+const SELF = fileURLToPath(import.meta.url);
+const probes = [['*foo'], ['a+?'], ['*foo', '--regex'], ['\\.measure\\(\\)|\\.origin\\(|hit_test\\(', '--regex', '--path', SELF]];
+for (const args of probes) {
+  const r = spawnSync(process.execPath, [Q, 'code', ...args], { encoding: 'utf8' });
+  ok(`q code ${args.join(' ')} does not crash`, !/SyntaxError|\n\s+at /.test(r.stderr || ''));
+}
+
 rmSync(dir, { recursive: true, force: true });
 console.log(`\nquestion-asks: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

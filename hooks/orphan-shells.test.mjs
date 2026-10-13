@@ -26,6 +26,7 @@ try {
   shell('bhung0001', 'compiling...\n', 90);
   shell('bdone0002', 'ok\n\n[exited with code 0]\n', 90);
   shell('bfresh003', 'starting\n', 2);
+  shell('bstop0004', 'compiling...\n\n[killed]\n', 90);
   shell('a1234567890abcdef', 'agent transcript, no exit marker\n', 90);
 
   const transcript = join(base, 'agent.jsonl');
@@ -39,6 +40,7 @@ try {
   const all = orphanShells({ project: projectSlug(top), commands });
   ok('a shell without the exit marker is an orphan', all.some((o) => o.id === 'bhung0001'));
   ok('an exited shell and an agent output file are not', !all.some((o) => o.id === 'bdone0002' || o.id.startsWith('a')));
+  ok('a shell stopped with TaskStop ([killed]) is not', !all.some((o) => o.id === 'bstop0004'));
   ok('the age is in minutes', all.find((o) => o.id === 'bhung0001').ageMin >= 89);
   ok('minAgeMin drops the fresh shell', !orphanShells({ project: projectSlug(top), minAgeMin: 30 }).some((o) => o.id === 'bfresh003'));
   ok('ids restricts to the named shells', orphanShells({ project: projectSlug(top), ids: ['bfresh003'] }).length === 1);
