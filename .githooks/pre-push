@@ -1,17 +1,35 @@
 #!/bin/sh
-# pre-push — upload Git LFS objects, only where the repo opts in.
+# pre-push — upload Git LFS objects where the repo opts in, then chain to the repo's own hook.
 #
-# This is the hook LFS genuinely cannot work without: the clean/smudge filters
-# turn files into pointers locally, but nothing UPLOADS the blobs without it.
-# A repo with .gitattributes but no working pre-push pushes pointer files whose
-# contents never leave the machine — it looks fine locally and is broken for
-# everyone else, which is the one genuinely bad failure mode here.
+# LFS half: the clean/smudge filters turn files into pointers locally, but nothing UPLOADS the
+# blobs without this hook. A repo with .gitattributes but no working pre-push pushes pointer
+# files whose contents never leave the machine.
+# Written as part of the kit's own hook set rather than by `git lfs install`, because that
+# command OVERWRITES hooks and once wiped the KIT-T097 hydrate hooks for every adopted repo.
 #
-# Written as part of the kit's own hook set rather than by `git lfs install`,
-# because that command OVERWRITES hooks and once wiped the KIT-T097 hydrate
-# hooks for every adopted repo at a stroke (2026-08-04).
+# Chain half: core.hooksPath points every adopted repo at this directory, so a repo-owned
+# <repo>/.githooks/pre-push would never run. After LFS, run it with the same args and the same
+# stdin lines; its status is the push's status. Skipped when it is this very file (repo whose
+# hooksPath is its own .githooks).
 DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 
 . "$DIR/lfs-enabled.sh"
-[ -n "$LFS_ON" ] && git lfs pre-push "$@"
-exit 0
+
+STDIN_COPY=$(mktemp "${TMPDIR:-/tmp}/kit-pre-push.XXXXXX") || exit 0
+trap 'rm -f "$STDIN_COPY"' EXIT
+cat > "$STDIN_COPY"
+
+if [ -n "$LFS_ON" ]; then
+  git lfs pre-push "$@" < "$STDIN_COPY" || exit $?
+fi
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+REPO_HOOK="$REPO_ROOT/.githooks/pre-push"
+[ -f "$REPO_HOOK" ] && [ -x "$REPO_HOOK" ] || exit 0
+
+REPO_HOOK_DIR=$(CDPATH= cd "$(dirname "$REPO_HOOK")" && pwd -P)
+SELF_DIR=$(CDPATH= cd "$DIR" && pwd -P)
+[ "$REPO_HOOK_DIR" = "$SELF_DIR" ] && exit 0
+
+"$REPO_HOOK" "$@" < "$STDIN_COPY"
+exit $?
