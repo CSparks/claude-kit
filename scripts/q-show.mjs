@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { hydrationSources } from './hydrate-db.mjs';
 import { frameworkStores } from './q-framework.mjs';
 import { landedLine } from './landed.mjs';
+import { askedLabel } from './question-asks.mjs';
 
 const STORES = ['tickets', 'tickets/archive', 'decisions', 'notes', 'questions', 'inbox', 'epics'];
 
@@ -39,5 +40,17 @@ export function showRows(id, root) {
   if (!file) return [`q show: no item '${want}' in the project, framework or registered stores`];
   const text = readFileSync(file, 'utf8').replace(/\r\n/g, '\n').trimEnd();
   const landed = landedLine(text);
-  return [`# ${file}`, ...(landed ? [landed] : []), ...text.split('\n')];
+  const asked = askedLabel(text);
+  return [`# ${file}`, ...(landed ? [landed] : []), ...(asked ? [asked] : []), ...text.split('\n')];
+}
+
+/** `q open` rows with the ASKED label appended to each asked question's title (KIT-T448). */
+export function withAsked(rows, root) {
+  if (!Array.isArray(rows)) return rows;
+  return rows.map((row) => {
+    if (!row || row.type !== 'Q') return row;
+    const file = findItemFile(row.id, root);
+    const asked = file ? askedLabel(readFileSync(file, 'utf8')) : '';
+    return asked ? { ...row, title: [row.title, asked].filter(Boolean).join('  ') } : row;
+  });
 }

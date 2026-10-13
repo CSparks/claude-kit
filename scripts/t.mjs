@@ -43,6 +43,7 @@ import { readConfig } from './t-config.mjs';
 import { findDuplicates, refusal } from './t-dedup.mjs';
 import { SHA_RE, findTicket, setField } from './t/ticket-file.mjs';
 import { setStatus } from './t/status.mjs';
+import { askQuestion, resolveQuestionFile } from './t/ask.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
@@ -372,6 +373,8 @@ function parseArgs(argv) {
     else if (a === '--priority') flags.priority = argv[++i];
     else if (a === '--author') flags.author = argv[++i];
     else if (a === '--agent') flags.agent = argv[++i];
+    else if (a === '--session') flags.session = argv[++i];
+    else if (a === '--by') flags.by = argv[++i];
     else if (a === '--root') flags.root = argv[++i];
     else if (a === '--not-dup') flags.notDup = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
@@ -388,7 +391,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|status|tick|untick|criterion|link|comment|ack|asked|move> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
@@ -471,6 +474,15 @@ async function main() {
     await refresh(root);
     process.stdout.write(`asked: ${r.id} asked ${r.asked}x, priority ${r.from} -> ${r.to}
 `);
+    return;
+  }
+  if (cmd === 'ask' || cmd === 'resolve') {
+    const [id, ...answerWords] = rest;
+    const answer = answerWords.join(' ');
+    if (!id || (cmd === 'resolve' && !answer.trim())) { console.error('usage: t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" [--by <who>]'); process.exit(2); }
+    const r = cmd === 'ask' ? askQuestion(root, id, flags) : resolveQuestionFile(root, id, answer, flags);
+    await refresh(root);
+    process.stdout.write(cmd === 'ask' ? `ask: ${r.id} asked by ${r.session}\n` : `resolve: ${r.id} resolved by ${r.who}\n`);
     return;
   }
   if (cmd === 'move') {

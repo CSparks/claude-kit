@@ -56,7 +56,7 @@ import {
 import { orphanRows } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
 import { searchScopes } from './q-framework.mjs';
-import { showRows } from './q-show.mjs';
+import { showRows, withAsked } from './q-show.mjs';
 import { unsupportedFlags, reportGap } from './q-gap.mjs';
 import { basename } from 'node:path';
 import { printRows } from './q-print.mjs';
@@ -380,6 +380,7 @@ export { verifyCache };
 // answers in full is retried with `--any` and flagged `relaxed`.
 export async function query(cmd, args = [], opts = {}) {
   const first = await queryOnce(cmd, args, opts);
+  if (cmd === 'open') return { ...first, rows: withAsked(first.rows, opts.cwdRoot || opts.root || process.cwd()) };
   if (cmd !== 'fts' || first.rows.length || args.includes('--any')) return first;
   const any = await queryOnce(cmd, ['--any', ...args], opts);
   return any.rows.length ? { ...any, relaxed: true } : first;
