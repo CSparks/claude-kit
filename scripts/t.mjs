@@ -9,7 +9,9 @@
 // SAME invocation. PROSE sections (Description / Notes body) stay direct-edit (Edit) — the
 // boundary is "enforce structure with a tool, never lock the prose".
 //
-//   t new <type> "<title>" [--priority <p>] [--root <dir>]   scaffold a ticket (id minted, never picked)
+//   t new <type> "<title>" [--priority <p>] [--not-dup <id,...>] [--root <dir>]   scaffold a ticket (id minted,
+//                                                   never picked); refuses when an open ticket looks like the
+//                                                   same work (t-dedup.mjs) unless --not-dup names the items checked
 //   t status <id> <state> [--human] [--note "…"] [--fixed-commit <sha>] [--no-trail-check "<reason>"]
 //   t tick <id> <ordinal|substring> [--note "…"]   check an acceptance box
 //   t untick <id> <ordinal|substring>               uncheck one (ordinal counts CHECKED boxes)
@@ -36,6 +38,8 @@ import { addCriterion, setCriterionAt, tickCriterion, untickCriterion } from './
 import { wantsHelp } from './cli-help.mjs';
 import { readProvenanceGate, trailGate } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
+import { readConfig } from './t-config.mjs';
+import { findDuplicates, refusal } from './t-dedup.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
@@ -77,65 +81,7 @@ function addToList(fm, key, value) {
   return fm.replace(re, `$1 [${cur.join(', ')}]`);
 }
 
-// --- config (the taxonomy the mutations enforce) -------------------------------------------
-
-// Read just the knobs the mutations need, line-wise (no yaml dep), mirroring the other tooling.
-// `aiDir` is separable from `root` (the readIdConfig precedent) so a CENTRAL notebook — whose store
-// is not `<root>/.ai` — can be read for its taxonomy too.
-export function readConfig(root, aiDir = join(root, '.ai')) {
-  const out = {
-    flow: ['todo', 'doing', 'review', 'done'],
-    humanOnly: [],
-    offBoard: ['superseded'],
-    uatDefault: 'required',
-    archiveDir: 'tickets/archive',
-    classifications: [],
-    ticketTypes: [],
-    routes: {},
-    classPriority: {},
-    priorities: ['critical', 'high', 'medium', 'low'],
-  };
-  let cfg = '';
-  try {
-    cfg = readFileSync(join(aiDir, 'config.yml'), 'utf8');
-  } catch {
-    return out;
-  }
-  const arr = (re) => {
-    const m = cfg.match(re);
-    return m ? m[1].split(',').map((s) => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean) : null;
-  };
-  out.flow = arr(/^\s*flow:\s*\[([^\]]*)\]/m) || out.flow;
-  out.humanOnly = arr(/^\s*human_only:\s*\[([^\]]*)\]/m) ?? out.humanOnly;
-  out.offBoard = arr(/^\s*off_board:\s*\[([^\]]*)\]/m) || out.offBoard;
-  out.priorities = arr(/^priorities:\s*\[([^\]]*)\]/m) || out.priorities;
-  const uat = cfg.match(/^uat:[ \t]*\n(?:[ \t]+.*\n)*?[ \t]+default:[ \t]*(\w+)/m);
-  if (uat) out.uatDefault = uat[1];
-  const arch = cfg.match(/archive_done_to:[ \t]*(\S+)/);
-  if (arch) out.archiveDir = arch[1];
-  // classification keys = the valid `t new` types (two-space-indented under `classifications:`).
-  // ticketTypes narrows those to the ones that BELONG on the ticket board (routes_to tickets or
-  // backlog) — a create form offering `question` or `decision` would file the item in the wrong
-  // store; the CLI stays permissive over the full list.
-  const BOARD_ROUTES = ['tickets', 'backlog'];
-  const lines = cfg.split('\n');
-  let inBlock = false;
-  for (const line of lines) {
-    if (/^classifications:\s*$/.test(line)) { inBlock = true; continue; }
-    if (inBlock) {
-      if (/^\S/.test(line)) break;
-      const m = line.match(/^\s{2}([A-Za-z][\w-]*):/);
-      if (!m) continue;
-      out.classifications.push(m[1]);
-      const route = (line.match(/routes_to:[ \t]*([A-Za-z-]+)/) || [])[1];
-      if (route) out.routes[m[1]] = route;
-      const prio = (line.match(/priority:[ \t]*([A-Za-z-]+)/) || [])[1];
-      if (prio) out.classPriority[m[1]] = prio;
-      if (!route || BOARD_ROUTES.includes(route)) out.ticketTypes.push(m[1]);
-    }
-  }
-  return out;
-}
+export { readConfig };
 
 // --- ticket lookup -------------------------------------------------------------------------
 
@@ -167,6 +113,11 @@ export function findTicket(root, id) {
 // frontmatter + the section skeleton. The prose body stays a placeholder the author fills via
 // Edit — this kills the T039-T043 class where a hand-copied template shipped with KIT-T000 and
 // `<short imperative title>` still in the fields.
+// The Notes section recording which near-matches `t new --not-dup` was told are different work.
+function notDupNotes(ids) {
+  return ids && ids.length ? `\n## Notes\nChecked as possible duplicates and judged different work (--not-dup): ${ids.join(', ')}\n` : '';
+}
+
 export function scaffoldNew(root, type, title, opts = {}) {
   const { classifications, ticketTypes, routes, priorities, classPriority } = readConfig(root);
   if (!type) throw new Error('t new: a <type> is required');
@@ -228,7 +179,7 @@ ${description}
 
 ## Plan
 1.
-
+${notDupNotes(opts.notDup)}
 ## History
 - [${stamp()}] (created) ${type} — ${title.trim()}
 `;
@@ -514,6 +465,7 @@ function parseArgs(argv) {
     else if (a === '--author') flags.author = argv[++i];
     else if (a === '--agent') flags.agent = argv[++i];
     else if (a === '--root') flags.root = argv[++i];
+    else if (a === '--not-dup') flags.notDup = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
     else pos.push(a);
   }
@@ -534,7 +486,12 @@ async function main() {
 
   if (cmd === 'new') {
     const [type, ...titleWords] = rest;
-    const { id, path } = scaffoldNew(root, type, titleWords.join(' '), flags);
+    const title = titleWords.join(' ');
+    if (!flags.notDup?.length && title.trim()) {
+      const hits = await findDuplicates(root, title);
+      if (hits.length) { console.error(refusal(title, hits)); process.exit(1); }
+    }
+    const { id, path } = scaffoldNew(root, type, title, flags);
     await refresh(root);
     process.stdout.write(`new: ${id} -> ${path.replace(resolve(root) + '/', '').replace(resolve(root) + '\\', '')}\n`);
     return;

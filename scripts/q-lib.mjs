@@ -302,7 +302,7 @@ function cannedQueries(root) {
     similar: (db, raw) => {
       const { store, scopes, query } = parseSimilar(raw);
       return db.all(
-        `SELECT i.id, i.type, i.status, i.title
+        `SELECT i.id, i.type, i.status, i.title, -rank AS score
          FROM items_fts f JOIN items i ON i.id = f.id
          WHERE items_fts MATCH ? AND i.store = ? AND i.archived = 0
            AND i.status <> 'superseded'${scopes ? ` AND i.scope IN (${scopes.map(() => '?').join(',')})` : ''}
