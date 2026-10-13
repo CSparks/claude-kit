@@ -6,12 +6,12 @@
 
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, sep } from 'node:path';
 import assert from 'node:assert/strict';
 import { classify, extractSymbols } from './code-index-extract.mjs';
 import { execFileSync } from 'node:child_process';
 import { listIndexable, refreshIndex } from './code-index.mjs';
-import { buildMatcher, codeVerbRows, ftsCodeDefs, parseCodeArgs, prefilter } from './code-index-query.mjs';
+import { buildMatcher, codeVerbRows, ftsCodeDefs, ftsDocLines, parseCodeArgs, prefilter } from './code-index-query.mjs';
 import { resolveEngine } from './db-engine.mjs';
 
 let pass = 0;
@@ -210,7 +210,8 @@ await test('--regex reads grep\'s \\| as alternation when no bare | is present (
   assert.equal(parseCodeArgs(['a\\|b', '--regex']).text, 'a|b');
   assert.equal(parseCodeArgs(['a\\|b|c', '--regex']).text, 'a\\|b|c', 'a bare | keeps JS meaning');
   assert.equal(parseCodeArgs(['a\\|b']).text, 'a\\|b', 'literal text is untouched without --regex');
-  assert.deepEqual(locs(await rows('code', ['Light\\|shade', '--lang', 'wgsl'])), [], 'a literal search for the pipe text finds nothing');
+  const plain = await rows('code', ['Light\\|shade', '--lang', 'wgsl']);
+  assert.match(plain[0].text, /no literal "Light\\\|shade"; matched as 2 alternatives/, 'the literal pipe text finds nothing, and the fallback says so');
 });
 
 await test('prefilter soundness: a matching line always satisfies the prefilter (random regexes)', () => {
@@ -330,6 +331,31 @@ await test('a framework submodule without a work store is indexed whole, whateve
     w('rapid-game/rust/engine/rg-a/src/extra.rs', 'pub fn warm_added() {}\n');
     await refresh();
     assert.deepEqual(await hit('warm_added'), ['rapid-game/rust/engine/rg-a/src/extra.rs:1'], 'warm refresh sees framework edits');
+  } finally { rmSync(g, { recursive: true, force: true }); }
+});
+
+// KIT-T311 / KIT-T324: the greps that followed an empty q, with the terms they logged.
+await test('q code answers a grep-style pattern, a --lang list, an absolute --path, .ai/config.yml, and says why it found nothing', async () => {
+  const g = mkdtempSync(join(tmpdir(), 'ci-gap-'));
+  const w = (rel, text) => { mkdirSync(dirname(join(g, rel)), { recursive: true }); writeFileSync(join(g, rel), text); };
+  w('src/held.rs', 'sim.held.push(Held { id: 1 });\nuse rg_screens::in_play;\nlet name = "rg-screens";\n');
+  w('docs/CLAUDE.md', '# SELF-COMMENTING CODE\nA comment says what the block does.\n');
+  w('docs/guards.md', 'the branch-guard hook\n');
+  w('hooks/branch-guard.mjs', '// branch-guard\n');
+  w('.ai/config.yml', 'statuses:\n  - todo\n');
+  const run = (args) => codeVerbRows('code', args, g);
+  try {
+    const bre = await run(['held.push\|Held {', '--lang', 'rust']);
+    assert.match(bre[0].text, /matched as 2 alternatives/);
+    assert.deepEqual(locs(bre).filter((l) => l), ['src/held.rs:1']);
+    const bare = await run(['rg_screens|rg-screens', '--lang', 'rust', '--path', 'src']);
+    assert.deepEqual(locs(bare), ['src/held.rs:2', 'src/held.rs:3']);
+    assert.deepEqual(locs(await run(['branch-guard', '--lang', 'json,md,mjs', '-l'])).sort(), ['docs/guards.md', 'hooks/branch-guard.mjs']);
+    assert.deepEqual(locs(await run(['held.push', '--lang', 'rs'])), ['src/held.rs:1'], 'a file extension names its language');
+    assert.deepEqual(locs(await run(['statuses:', '--path', `${g.split(sep).join('/')}/.ai/config.yml`])), ['.ai/config.yml:1']);
+    assert.match((await run(['x', '--path', 'crates/nonexistent']))[0].text, /no indexed file passes --path crates\/nonexistent/);
+    assert.deepEqual(await run(['zzz_nowhere', '--path', 'src']), [], 'a real miss stays empty');
+    assert.deepEqual(locs(await ftsDocLines('SELF-COMMENTING CODE', g)), ['docs/CLAUDE.md:1']);
   } finally { rmSync(g, { recursive: true, force: true }); }
 });
 

@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { resolveEngine } from './db-engine.mjs';
 import { cacheDir } from './q-server-proto.mjs';
 import { extractSymbols } from './code-index-extract.mjs';
-import { aiPaths, changedPaths, describe, gitStates, indexRoots, listIndexable } from './code-index-source.mjs';
+import { aiPaths, aiTopFiles, changedPaths, describe, gitStates, indexRoots, listIndexable } from './code-index-source.mjs';
 
 export { listIndexable };
 
@@ -92,7 +92,7 @@ function gitSync(db, root, roots, prev, cur, tickets) {
   const rows = db.all('SELECT id, path, kind, lang, mtime, size FROM files');
   const byPath = new Map(rows.map((k) => [k.path, k]));
   const ai = new Set(tickets ? roots.flatMap((r) => aiPaths(r.dir, r.prefix)) : []);
-  for (const p of ai) paths.add(p);
+  for (const p of [...ai, ...roots.flatMap((r) => aiTopFiles(r.dir, r.prefix))]) paths.add(p);
   const stale = [];
   const gone = [];
   for (const rel of paths) {

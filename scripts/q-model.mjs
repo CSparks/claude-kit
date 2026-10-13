@@ -81,6 +81,15 @@ export function ftsMatchQuery(text) {
   return out.length ? out.join(' ') : '""';
 }
 
+// The any-term form of ftsMatchQuery: the same quoted tokens joined by OR, operators dropped.
+// `q fts` retries with it (`--any`) when no item holds every term, so a long query still
+// answers with the best partial matches. One surviving term leaves the strict form.
+export function ftsAnyQuery(text) {
+  const strict = ftsMatchQuery(text);
+  const terms = (strict.match(FTS_TOKEN) || []).filter((t) => !FTS_BOOLEAN.has(t));
+  return terms.length > 1 ? terms.join(' OR ') : strict;
+}
+
 // The id-prefix scope of the project a directory belongs to, or '' outside an adopted repo.
 // Walks UP to the nearest ancestor holding .ai/config.yml, so running from a subdirectory
 // still resolves to the project's key.
@@ -107,14 +116,17 @@ export function resolveScope(scopeTok, root) {
 // `fts [--scope <s> | --project <p>] [--limit N] <query...>` (KIT-T174, KIT-T386, KIT-T325) — split
 // the scope filter and hit cap off the free-text query in ONE place so the cache and markdown-scan
 // paths filter identically. `--project` names a registered project (cap's resolution) and becomes
-// that project's scope. `--limit N` caps hits (0 = all); absent, FTS_LIMIT.
+// that project's scope. `--limit N` caps hits (0 = all); absent, FTS_LIMIT. `--any` matches
+// items holding ANY term, best match first.
 export function splitFts(text) {
   const toks = String(text || '').match(FTS_TOKEN) || [];
   const terms = [];
   let scope;
   let project;
   let limit = FTS_LIMIT;
+  let any = false;
   for (let i = 0; i < toks.length; i++) {
+    if (toks[i] === '--any') { any = true; continue; }
     if (toks[i] === '--scope' && i + 1 < toks.length) { scope = toks[++i]; continue; }
     if (toks[i] === '--project' && i + 1 < toks.length) { project = toks[++i]; continue; }
     if (toks[i] === '--limit' && i + 1 < toks.length) {
@@ -129,7 +141,7 @@ export function splitFts(text) {
     if (scope !== undefined) throw new Error('fts takes --scope or --project, not both.');
     scope = projectScope(project);
   }
-  return { scopeTok: scope, query: terms.join(' '), limit };
+  return { scopeTok: scope, query: terms.join(' '), limit, any };
 }
 
 export function parseFts(text, root) {

@@ -50,7 +50,7 @@ import { fallback } from './q-fallback.mjs';
 import { parseOpenArgs } from './q-open-args.mjs';
 import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import {
-  OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, parseSimilar, splitFts, requireStore, requireScope, formatId,
+  OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, ftsAnyQuery, parseSimilar, splitFts, requireStore, requireScope, formatId,
   compareOpen, findGaps, walkAncestry, resolveScope,
 } from './q-model.mjs';
 import { orphanRows } from './provenance.mjs';
@@ -60,7 +60,8 @@ import { showRows } from './q-show.mjs';
 import { unsupportedFlags, reportGap } from './q-gap.mjs';
 import { basename } from 'node:path';
 import { printRows } from './q-print.mjs';
-import { codeVerbRows, ftsCodeDefs } from './code-index-query.mjs';
+import { codeVerbRows } from './code-index-query.mjs';
+import { printFtsExtras } from './q-fts-extras.mjs';
 import { registryRows, takeRegistry } from './q-registry.mjs';
 import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
 
@@ -239,14 +240,14 @@ function cannedQueries(root) {
     fts: (db, raw) => {
       // No --scope: the project PLUS its adopted frameworks' stores (KIT-T278); each row
       // carries its scope so a framework hit reads as one.
-      const { scopeTok, query, limit } = splitFts(raw);
+      const { scopeTok, query, limit, any } = splitFts(raw);
       const scopes = searchScopes(scopeTok, root);
-      const run = (match) => db.all(
+      return db.all(
         `SELECT i.scope, f.id, i.type, i.status, i.title, snippet(items_fts, ?, '[', ']', '…', ?) AS hit
          FROM items_fts f JOIN items i ON i.id = f.id
          WHERE items_fts MATCH ?${scopes.length ? ` AND i.scope IN (${scopes.map(() => '?').join(',')})` : ''}
-         ORDER BY rank LIMIT ?`, [SNIPPET_COL, SNIPPET_TOKENS, match, ...scopes, limit || -1]);
-      return run(ftsMatchQuery(query));
+         ORDER BY rank LIMIT ?`,
+        [SNIPPET_COL, SNIPPET_TOKENS, any ? ftsAnyQuery(query) : ftsMatchQuery(query), ...scopes, limit || -1]);
     },
 
     // Per-scope open counts. `rundown all` is the cross-project board; bare `rundown` answers
@@ -375,8 +376,16 @@ export { verifyCache };
 // Runs a canned query against the cache, auto-(re)hydrating, and degrades to the
 // db-parse markdown scan when no SQLite engine exists or `noDb` is set — fail-open, the
 // cache is never a hard dependency. `root` forces single-scope; `cwdRoot` keys id-format
-// (next-id) and seeds the fallback scan. Returns the same rows the CLI prints.
-export async function query(cmd, args = [], { root, cwdRoot = root || process.cwd(), noDb = false, dbPath = defaultDbPath(), assumeFresh = false } = {}) {
+// (next-id) and seeds the fallback scan. Returns the same rows the CLI prints; an `fts` no item
+// answers in full is retried with `--any` and flagged `relaxed`.
+export async function query(cmd, args = [], opts = {}) {
+  const first = await queryOnce(cmd, args, opts);
+  if (cmd !== 'fts' || first.rows.length || args.includes('--any')) return first;
+  const any = await queryOnce(cmd, ['--any', ...args], opts);
+  return any.rows.length ? { ...any, relaxed: true } : first;
+}
+
+async function queryOnce(cmd, args, { root, cwdRoot = root || process.cwd(), noDb = false, dbPath = defaultDbPath(), assumeFresh = false }) {
   // governing/drift/topics are scan-only (the cache schema carries no files/scope/paths/body
   // and no topic column), so
   // route them straight to the markdown scan over cwdRoot regardless of the engine — the
@@ -452,9 +461,10 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
                               definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)
   file <substring|glob> [--not-path G]
                               find files by path across the repo and its framework submodule
-  fts [--scope <s>|--project <p>] [--limit N] <q...>
+  fts [--scope <s>|--project <p>] [--limit N] [--any] <q...>
                               full-text search title+body (default: this project + its adopted framework stores;
-                              --project takes a registered project's name or id key, as cap does; --limit N caps hits, 0 = all);
+                              --project takes a registered project's name or id key, as cap does; --limit N caps hits, 0 = all;
+                              --any = items holding any term; used automatically when none holds them all, plus doc/config lines);
                               then "also in code": the few code definitions the terms name
   similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only) — cross-scope
   next-id <scope> <type>      O(1) next free id (max(num)+1)
@@ -561,18 +571,10 @@ async function main() {
     return;
   }
 
-  const { rows } = await query(cmd, args, { root, cwdRoot, noDb, dbPath });
+  const { rows, relaxed } = await query(cmd, args, { root, cwdRoot, noDb, dbPath });
+  if (relaxed) process.stderr.write('q: no item holds every term — showing items with any term, best match first.\n');
   printRows(rows, json);
-  if (cmd === 'fts' && !json) await printCodeDefs(splitFts(args.join(' ')).query, cwdRoot);
-}
-
-// The "also in code" section under `q fts`: code definitions named by the query terms, so a
-// concept the tickets word differently still surfaces where it is implemented.
-async function printCodeDefs(queryText, cwdRoot) {
-  const defs = await ftsCodeDefs(queryText, cwdRoot);
-  if (!defs.length) return;
-  process.stdout.write('also in code (q sym):\n');
-  printRows(defs, false);
+  if (cmd === 'fts' && !json) await printFtsExtras(splitFts(args.join(' ')).query, cwdRoot, rows.length > 0 && !relaxed);
 }
 
 /** CLI body for q.mjs: run main(), reporting a failure the way every q verb does. */

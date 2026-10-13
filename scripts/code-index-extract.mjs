@@ -17,6 +17,9 @@ const DOC = new Set(['md', 'txt', 'rst']);
 const CONFIG = new Set(['toml', 'json', 'yaml', 'yml', 'ron', 'ini', 'cfg']);
 const SKIP_NAMES = /(?:^|\/)(?:Cargo\.lock|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/;
 
+/** The indexed language a `--lang` token names: a language (`rust`) or a file extension (`rs`, `mjs`). */
+export const langOfToken = (token) => (Object.values(LANG).includes(token) ? token : LANG[token.toLowerCase()] || token);
+
 export function classify(path) {
   if (SKIP_NAMES.test(path)) return null;
   const ext = path.includes('.') ? path.split('.').pop().toLowerCase() : '';

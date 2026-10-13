@@ -4,14 +4,15 @@
 // is exactly what grep would print: the trigram table only narrows candidate files. Flags: see QUERY_HELP in q.mjs.
 
 import { readFileSync } from 'node:fs';
-import { extractSymbols } from './code-index-extract.mjs';
-import { basename } from 'node:path';
+import { extractSymbols, langOfToken } from './code-index-extract.mjs';
+import { basename, isAbsolute, relative } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
 import { projectRepo } from './q-project.mjs';
 import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 
 export const DEFAULT_LIMIT = 40;
 const MIN_LITERAL = 3;
+const DOC_LINE_LIMIT = 5;
 const LINE_CLIP = 160;
 const UNRANKED = 9;
 const GAP = '\u0000';
@@ -51,7 +52,7 @@ export function parseCodeArgs(rawArgs) {
       const v = args[++i];
       if (a === '--kind') flags.kinds = String(v).split(',');
       else if (a === '--type') flags.types = String(v).split(',');
-      else if (a === '--lang') flags.lang = String(v);
+      else if (a === '--lang') flags.langs = String(v).split(',').map(langOfToken);
       else if (a === '--path') flags.path = String(v).replace(/\\/g, '/').replace(/^\.\//, '');
       else if (a === '--not-path') flags.notPaths.push(String(v).replace(/\\/g, '/').replace(/^\.\//, ''));
       else if (a === '--project') flags.project = String(v);
@@ -74,7 +75,14 @@ export function parseCodeArgs(rawArgs) {
   return { text: flags.regex ? breAlternation(text) : text, flags };
 }
 
-const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// `--path D:/dev/repo/crates/x` names the same place as `--path crates/x` from inside the repo.
+function repoRelative(root, path) {
+  if (!isAbsolute(path) && !/^[A-Za-z]:\//.test(path)) return path;
+  const rel = relative(root, path).replace(/\\/g, '/');
+  return rel.startsWith('..') || isAbsolute(rel) ? path : rel;
+}
+
+const escapeRe = (s) =>s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Line matcher for the query, or null when the regex does not compile. */
 export function buildMatcher(text, flags) {
@@ -167,7 +175,7 @@ const dirPrefix = (p) => p.replace(/\/?$/, '/');
 function sqlFilters(flags, kinds) {
   const where = [`f.kind IN (${kinds.map(() => '?').join(',')})`];
   const params = [...kinds];
-  if (flags.lang) { where.push('f.lang = ?'); params.push(flags.lang); }
+  if (flags.langs) { where.push(`f.lang IN (${flags.langs.map(() => '?').join(',')})`); params.push(...flags.langs); }
   if (flags.path) {
     where.push("(f.path = ? OR f.path LIKE ? ESCAPE '\\')");
     params.push(flags.path, dirPrefix(flags.path).replace(/[%_\\]/g, '\\$&') + '%');
@@ -189,7 +197,7 @@ const excluder = (flags) => {
 
 const memFilter = (files, flags, kinds) => {
   const dropped = excluder(flags);
-  return files.filter((f) => kinds.includes(f.kind) && (!flags.lang || f.lang === flags.lang)
+  return files.filter((f) => kinds.includes(f.kind) && (!flags.langs || flags.langs.includes(f.lang))
     && (!flags.path || f.rel === flags.path || f.rel.startsWith(dirPrefix(flags.path))) && !dropped(f.rel));
 };
 
@@ -235,11 +243,44 @@ async function codeVerb(root, text, flags, refresh) {
     for (const r of defs) defLines.add(`${r.path}:${r.line}`);
   }
   idx.handle?.close();
+  if (!perFile.length) return emptyResult(root, text, flags, refresh, memFilter(idx.files, flags, kinds).length);
   if (defLines.size) for (const f of perFile) f.rank = f.hits.some((i) => defLines.has(`${f.path}:${i + 1}`)) ? 0 : 1;
   const rank = (f) => f.rank ?? 1;
   perFile.sort((a, b) => rank(a) - rank(b) || b.hits.length - a.hits.length || byName(a.path, b.path));
   if (flags.filesOnly || flags.count) return perFile.map((f) => ({ loc: f.path, text: flags.count ? String(f.hits.length) : `${f.hits.length} hit(s)` }));
   return renderHits(perFile, flags, flags.only ? buildExtractor(text, flags) : null);
+}
+
+// Alternatives of a grep-style pattern typed without --regex (`a\|b`, `a|b`), or null.
+const pipeAlternatives = (text) => {
+  const parts = text.split(/\\?\|/).map((p) => p.trim()).filter(Boolean);
+  return parts.length > 1 ? parts : null;
+};
+
+// A search that found nothing says why: a `|` pattern read literally is retried as alternatives
+// (grep habit), and an empty filter set is named, so neither sends the caller to grep.
+async function emptyResult(root, text, flags, refresh, filtered) {
+  const parts = !flags.regex && !flags.fuzzy && pipeAlternatives(text);
+  if (parts) {
+    const rows = await codeVerb(root, parts.map(escapeRe).join('|'), { ...flags, regex: true }, refresh);
+    if (rows.length) return [{ loc: '', text: `no literal "${text}"; matched as ${parts.length} alternatives (--regex)` }, ...rows];
+  }
+  if (!filtered) return [{ loc: '', text: `(no results: no indexed file passes ${filterSummary(flags)})` }];
+  return [];
+}
+
+const filterSummary = (flags) => [flags.path && `--path ${flags.path}`, flags.langs && `--lang ${flags.langs.join(',')}`, flags.kinds && `--kind ${flags.kinds.join(',')}`]
+  .filter(Boolean).join(' ') || 'the default kinds';
+
+/**
+ * Doc and config lines holding every term of an `fts` query (case-insensitive), at most
+ * DOC_LINE_LIMIT: the "also in docs/config" rows. Empty when no term is searchable.
+ */
+export async function ftsDocLines(queryText, root, refresh = refreshIndex) {
+  const terms = String(queryText || '').split(/\s+/).map((t) => t.replace(/\*$/, '')).filter((t) => t.length >= MIN_LITERAL && !/^(?:AND|OR|NOT)$/.test(t));
+  if (!terms.length) return [];
+  const flags = { before: 0, after: 0, limit: DOC_LINE_LIMIT, kinds: ['doc', 'config'], notPaths: [], fuzzy: true };
+  try { return (await codeVerb(root, terms.join(' '), flags, refresh)).filter((r) => r.loc); } catch { return []; }
 }
 
 function renderHits(perFile, flags, extract) {
@@ -378,6 +419,7 @@ export async function codeVerbRows(cmd, args, root, refresh = refreshIndex) {
     root = projectRepo(flags.project);
     refresh = refreshIndex;
   }
+  if (flags.path) flags.path = repoRelative(root, flags.path);
   if (cmd === 'code') return text ? codeVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q code <text> [--regex] [-i] [-w] [--lang L] [--path P] [--not-path G] [-C n]' }];
   if (cmd === 'sym') return symVerb(root, text, flags, refresh);
   return text ? fileVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q file <substring|glob>' }];
