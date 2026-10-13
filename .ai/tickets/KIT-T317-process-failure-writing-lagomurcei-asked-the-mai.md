@@ -29,3 +29,8 @@ first seen in lagomurcei. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## History
 - [2026-10-03 22:25] (created) bug — Process failure (writing/lagomurcei): asked the maintainer to rule on Milo's death timing, already settled in canon.md:103 and restated in o
+- [2026-10-13 19:52] (comment) @sonnet55: Proposed fix (not built; for the maintainer) (full comment #1 in ## Notes)
+
+## Notes
+### comment #1 [2026-10-13 19:52] @sonnet55
+Proposed fix (not built; for the maintainer). Note: this id is shared with a second ticket, KIT-T317-broker-submit-mjs-no-patch (id collision, filed separately). The failure: a decision question raised from truncated grep fragments (cut -c) of a fact already settled in canon.md:103. The antidote is grounding, and the kit already has a question gate (hooks/question-gate.mjs). Proposal: the gate blocks an AskUserQuestion that claims a conflict between past facts unless the question carries a `[grounded: path:line]` token per cited fact and the transcript shows a Read (not a grep fragment) of that file this turn; plus one line in the global contract: 'a question about a past fact cites the line read in full context'. Cheap variant if the full gate is too heavy: only the contract line plus a q-side helper `q show`-style 'canon lookup' for writing projects. Decision needed: gate (recommended) or contract line only.

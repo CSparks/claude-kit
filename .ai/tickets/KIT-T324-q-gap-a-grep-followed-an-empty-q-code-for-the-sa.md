@@ -2,7 +2,7 @@
 id: KIT-T324
 title: q gap: a grep followed an empty q code for the same terms
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-04T20:38:38Z
-updated: 2026-10-04T20:38:38Z
+updated: 2026-10-13T19:50:03Z
 ---
 
 ## Description
@@ -68,3 +68,20 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 - [2026-10-09 20:04] (comment) seen again in dirt-empire: q: q code "pub const FOV" then Grep: fn compute_aabb|trait MeshAabb|pub struct ViewFrustum|pub struct Frustum|fn from_clip_from_world|fn intersects_obb
 - [2026-10-10 05:51] (comment) seen again in dirt-empire: q: q code "pub struct WallLine" -C 12 then grep: pub struct Line\|^use
 - [2026-10-10 14:46] (comment) seen again in dirt-empire: q: q code "last-run.log" --path rapid-game then grep: last-run
+- [2026-10-11 02:09] (comment) seen again in dirt-empire: q: q code "engine" --path crates/dirt-empire/src --lang rust -l then grep: engine/
+- [2026-10-11 04:43] (comment) seen again in stiletto-2349: q: q code "fit::|ui_viewport|ui_point|impl.*for UiSize|impl.*UiSize" --regex --lang rust --path rapid-game/rust/ui then Grep: fit|UiScale
+- [2026-10-11 04:53] (comment) seen again in stiletto-2349: q: q code "floaters_view::sync|HudPlugin" --lang rust --path crates then Grep: floaters_view::sync|HudPlugin|fn hud_app|init_resource::<Floaters|Floaters::default
+- [2026-10-12 17:14] (comment) seen again in stiletto-2349: q: q code "pub fn new(" --path rapid-game/rust/ui/rg-ui/src/screens then grep: pub fn \(new\|open\|draw\|set_rows\|set_slots\|refresh\|set_progress\|named\)
+- [2026-10-12 17:33] (comment) seen again in rapid-game: q: q code 'normalized|RelativeCursorPosition' --path crates/bay then Grep: normalized|RelativeCursorPosition|cell_at_normalized
+- [2026-10-13 06:41] (comment) seen again in stiletto-2349: q: q code "claude-kit@inline" --kind doc -l 2>&1 then grep: claude-kit
+- [2026-10-13 10:25] (comment) seen again in stiletto-2349: q: q code '^\s*use rg_|rg_engine' --regex --path rapid-game/rust/world/rg-chunk-stream/src/engine --limit 0 then Grep: rg_engine|rg_|cfg\(feature
+- [2026-10-13 12:15] (comment) seen again in stiletto-2349: q: q code "pub enum PanLaw" --registry firewheel-core then grep: pub fn held_beyond
+- [2026-10-13 12:18] (comment) seen again in stiletto-2349: q: q code "AudioPlayer|AudioSource|bevy::audio|PlaybackSettings" --regex --path crates then grep: audio
+- [2026-10-13 12:25] (comment) seen again in stiletto-2349: q: q code "^glam" --regex --path rapid-game/rust/engine --kind config then grep: glam
+- [2026-10-13 13:06] (comment) seen again in stiletto-2349: q: q code "pub use rg_terrain|ChunkMesh|HoleRect" --regex --path rapid-game/rust/world/rg-landform/src/lib.rs then grep: pub fn drawn_floor_below
+- [2026-10-13 13:53] (comment) seen again in stiletto-2349: q: q code 'default: "baked"' then grep: default
+- [2026-10-13 17:31] (comment) seen again in dirt-empire: q: q code "turn_cdeg" --path crates/dirt-empire/tests then grep: turn_cdeg
+- [2026-10-13 19:50] (comment) @sonnet55: Fixed c6cd74d. Replayed the logged terms: remaining reproducible causes were (1) grep-style 'a|b' / 'a\|b' without --reg (full comment #1 in ## Notes)
+### comment #1 [2026-10-13 19:50] @sonnet55
+Fixed c6cd74d. Replayed the logged terms: remaining reproducible causes were (1) grep-style 'a|b' / 'a\|b' without --regex, (2) --lang lists and extension names (json,md,mjs), (3) absolute --path, (4) .ai/config.yml not indexed, (5) silent empty --path filter. All now answer or name the empty filter; many other logged queries already answered (index freshness/earlier fixes) and the paths in dirt-empire-only logs could not be replayed from other trees. Not fixed: non-source files (*.log) and ~/.claude settings are outside the index. Tests: scripts/code-index.test.mjs (+1 using the logged terms), npm test exit 0.
+- [2026-10-13 19:50] (status) todo → review

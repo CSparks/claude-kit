@@ -2,7 +2,7 @@
 id: KIT-T296
 title: broker check-only run leaks Cargo.lock into the live tree: a patch adding a dependency (stiletto crates/editor/Cargo.toml + rg-landform) lef
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-02T20:02:02Z
-updated: 2026-10-02T20:02:02Z
+updated: 2026-10-13T19:50:05Z
 ---
 
 ## Description
@@ -29,3 +29,7 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 
 ## History
 - [2026-10-02 20:02] (created) bug — broker check-only run leaks Cargo.lock into the live tree: a patch adding a dependency (stiletto crates/editor/Cargo.toml + rg-landform) lef
+- [2026-10-13 19:50] (comment) @sonnet55: Already fixed by 776cb1c (T271) and 2a61906 (T306: every Cargo.lock journalled and restored, new locks dropped, deferred (full comment #1 in ## Notes)
+### comment #1 [2026-10-13 19:50] @sonnet55
+Already fixed by 776cb1c (T271) and 2a61906 (T306: every Cargo.lock journalled and restored, new locks dropped, deferred re-check guarded). Pinned the exact scenario in 60a51da: scripts/broker/lock-leak.test.mjs (failed dependency-adding run leaves tree clean, next job not paused); mutation (dropNewLocks disabled) fails it. npm test exit 0.
+- [2026-10-13 19:50] (status) todo → review
