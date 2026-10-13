@@ -16,6 +16,7 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMain } from './is-main.mjs';
 
 export const KIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const FRESHNESS_DAYS = 14;
@@ -112,7 +113,7 @@ export function dispatchDrift(projectRoot, kitRoot = ladderRoot()) {
   return `.ai/config.yml carries a \`dispatch:\` block — ignored: model routing lives only in the kit capability table (KIT-D079, KIT-D080). Delete the block.`;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const arg = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : undefined; };
   if (process.argv[2] === 'resolve') {
     try {

@@ -10,6 +10,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readAgents } from '../hooks/lib/agent-roster.mjs';
 import { gitRoot } from '../hooks/lib/paths.mjs';
+import { isMain } from './is-main.mjs';
 
 const FAMILY_IN_ID = /(?:^|[^a-z])(opus|sonnet|haiku|fable)(?![a-z])/i;
 
@@ -60,7 +61,7 @@ function renderTable(summary) {
   return [line(head), ...rows.map(line)].join('\n');
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const roots = [];
   process.argv.forEach((a, i) => { if (a === '--root') roots.push(resolve(process.argv[i + 1])); });
   if (!roots.length) roots.push(gitRoot());

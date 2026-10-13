@@ -16,6 +16,7 @@ import { spawnSync } from 'node:child_process';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { excludedAmong } from './lib/excluded-trees.mjs';
+import { isMain } from '../scripts/is-main.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FILE_PAYLOAD_HOOKS = new Set([
@@ -213,6 +214,4 @@ async function main() {
   if (output) process.stdout.write(output);
 }
 
-const THIS_FILE = resolve(fileURLToPath(import.meta.url));
-const INVOKED = process.argv[1] ? resolve(process.argv[1]) : '';
-if (INVOKED === THIS_FILE) await main();
+if (isMain(import.meta.url)) await main();

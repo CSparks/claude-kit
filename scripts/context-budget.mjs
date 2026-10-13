@@ -20,6 +20,7 @@ import { homedir, tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readRegistry } from '../hooks/lib/registry.mjs';
+import { isMain } from './is-main.mjs';
 
 export const WARN_TOKENS = 20000;
 export const FAIL_TOKENS = 25000;
@@ -149,7 +150,7 @@ export function lastReviewed() {
   try { return JSON.parse(read(stampPath())).reviewed || ''; } catch { return ''; }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const arg = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : undefined; };
   const only = arg('--project');
   const projects = registeredProjects().filter((p) => !only || p.name === only).map((p) => measureProject(p));

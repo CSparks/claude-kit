@@ -22,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { walkTree, isSource, extOf, MANIFESTS } from './tree-walk.mjs';
 import { findUnits } from './doc-tree.mjs';
 import { FILE_SOFT, FILE_HARD } from '../hooks/lib/limits.mjs';
+import { isMain } from './is-main.mjs';
 
 const FLAT_MAX = 20;
 const DRIFT_MIN_SIBLINGS = 3;
@@ -208,4 +209,4 @@ function main(argv) {
   return found.length ? 1 : 0;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main(process.argv.slice(2)));
+if (isMain(import.meta.url)) process.exit(main(process.argv.slice(2)));

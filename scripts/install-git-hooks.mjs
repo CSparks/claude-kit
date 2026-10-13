@@ -20,6 +20,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { isMain } from './is-main.mjs';
 
 // The plugin root is two levels up from this file (scripts/ → plugin root).
 const PLUGIN_ROOT = resolve(join(fileURLToPath(import.meta.url), '..', '..'));
@@ -101,7 +102,7 @@ export async function installGitHooks(repoPath) {
 }
 
 // CLI entry point.
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const repoArg = process.argv[2];
   const ok = await installGitHooks(repoArg);
   process.exit(ok ? 0 : 1);

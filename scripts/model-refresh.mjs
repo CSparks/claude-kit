@@ -21,6 +21,7 @@ import { reserveNextId } from './id-reserve.mjs';
 import { jobCapabilityTable } from './job-capability.mjs';
 import { capabilityCoverage } from './capability-research.mjs';
 import { readOutcomes } from '../hooks/lib/dispatch-ledger.mjs';
+import { isMain } from './is-main.mjs';
 
 const MODELS_API = 'https://api.anthropic.com/v1/models?limit=1000';
 const DOCS_MODELS = 'https://docs.claude.com/en/docs/about-claude/models/overview';
@@ -110,7 +111,7 @@ export async function refresh({ kitRoot = ladderRoot(), now = new Date(), fetchI
   return { date, research, decision, status };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const roots = [];
   process.argv.forEach((a, i) => { if (a === '--root') roots.push(resolve(process.argv[i + 1])); });
   refresh({ outcomeRoots: roots }).then((r) => {

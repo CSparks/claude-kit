@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 // `status: todo   # todo | doing | …` read as the whole comment string.
 import { frontmatterBlock, field } from './frontmatter.mjs';
 import { listCriteria } from './criteria.mjs';
+import { isMain } from './is-main.mjs';
 
 const DEFAULT_MAP = { todo: 'pending', doing: 'in_progress', review: 'completed', done: 'completed' };
 // Generated/reference files that live in the ticket dir but are not tickets (index-tickets' set).
@@ -100,7 +101,7 @@ export function taskSpec(root, { all = false } = {}) {
   return { prefix, count: tasks.length, tasks };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const args = process.argv.slice(2);
   const all = args.includes('--all');
   const root = args.find((a) => !a.startsWith('--')) || process.cwd();

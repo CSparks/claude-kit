@@ -16,7 +16,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from './is-main.mjs';
 import { frameworkRoots } from './q-framework.mjs';
 
 export const BLOCK_MAX = 5;
@@ -128,4 +128,4 @@ async function main(argv) {
   if (!found.length) console.log('concern-check: no declared framework concern is done locally by the game.');
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) await main(process.argv.slice(2));
+if (isMain(import.meta.url)) await main(process.argv.slice(2));

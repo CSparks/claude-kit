@@ -28,6 +28,7 @@ import { writeItemFile } from '../hooks/lib.mjs';
 // template-fresh ticket got flipped to status: superseded on the next board rebuild
 // (mass phantom-supersede, 2026-07-14).
 import { splitFrontmatter, field } from './frontmatter.mjs';
+import { isMain } from './is-main.mjs';
 
 const SKIP = new Set(['_TEMPLATE.md', 'INDEX.md']);
 
@@ -202,7 +203,7 @@ export async function reconcileSupersede(root) {
   return { changed, scanned: byId.size };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const root = process.argv[2] || process.cwd();
   // Auto-dedup writes supersedes edges for unambiguous duplicates FIRST, then reconcile
   // flips the loser's status + writes the reciprocal pointer through the one KIT-T024 path.

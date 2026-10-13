@@ -69,6 +69,18 @@
       {
         "matcher": "Task|Agent",
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/activity-tag.mjs\"" }]
+      },
+      {
+        "matcher": "Bash|PowerShell|Monitor",
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/row-tag.mjs\"" }]
+      },
+      {
+        "matcher": "Workflow",
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/workflow-gate.mjs\"" }]
+      },
+      {
+        "matcher": "SendMessage",
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/resume-check.mjs\"" }]
       }
     ],
     "PostToolUse": [

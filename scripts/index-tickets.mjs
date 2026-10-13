@@ -27,6 +27,7 @@ const SKIP = new Set(['_TEMPLATE.md', 'INDEX.md']);
 // quote/bracket awareness — and an LF-only block regex that returned NO frontmatter for a
 // file whose first line ends CRLF (junk board rows, duplicate-id aborts).
 import { frontmatterBlock, field, listField } from './frontmatter.mjs';
+import { isMain } from './is-main.mjs';
 
 function readTickets(dir, archived) {
   if (!existsSync(dir)) return [];
@@ -372,7 +373,7 @@ export async function regenerateIndexes(root) {
   };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const root = process.argv[2] || process.cwd();
   regenerateIndexes(root)
     .then((r) => {

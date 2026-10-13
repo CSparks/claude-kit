@@ -26,5 +26,12 @@ export function formatAgentLine(row, { nowMs = Date.now(), clipTask = (s) => s, 
   return `${indent}${modelTag(row)} ${row.scope || '?'}  ${row.id}  ${status}${ageText(row, nowMs)}${row.background ? ' bg' : ''}  ${task}${wip}`;
 }
 
-// Rows the lint must flag: no model recorded.
-export const unlabelledAgents = (rows) => rows.filter((r) => !String((r && r.model) || '').trim());
+// A DISPATCH row carries the brief's task; a row with only id/status/source is a status update
+// (SubagentStop, a reconcile mark) for an agent whose dispatch this roster never recorded.
+export const isDispatchRow = (r) => Boolean(r && String(r.task || '').trim());
+
+// Dispatch rows the lint must flag: no model recorded. Status-only rows are never dispatches.
+export const unlabelledAgents = (rows) => rows.filter((r) => isDispatchRow(r) && !String(r.model || '').trim());
+
+// Status-only rows: counted separately so they never read as unlabelled dispatches.
+export const statusOnlyAgents = (rows) => rows.filter((r) => r && !isDispatchRow(r));

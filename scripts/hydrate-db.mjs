@@ -39,6 +39,7 @@ import { rowFromScan } from './db-parse.mjs';
 import { statStoreFiles, readIdConfig } from './id-utils.mjs';
 import { resolveEngine } from './db-engine.mjs';
 import { projectAiDirs } from '../hooks/lib.mjs';
+import { isMain } from './is-main.mjs';
 
 const KIT_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -447,7 +448,7 @@ async function main() {
   process.stdout.write(`hydrate-db: ${r.items} items -> ${dbPath} [${r.engine}]\n`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   main().catch((e) => {
     process.stderr.write('hydrate-db: ' + (e && e.message ? e.message : e) + '\n');
     process.exit(1);

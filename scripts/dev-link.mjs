@@ -16,6 +16,7 @@ import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { runtimeCurrent } from './runtime-path.mjs';
+import { isMain } from './is-main.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const KEY = 'claude-kit@claude-kit';
@@ -62,7 +63,7 @@ export function unlinkPlugin({ claudeHome = defaultHome() } = {}) {
   return { action: 'unlinked', installPath };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const flag = (name) => process.argv.includes(name);
   try {
     if (flag('--unlink')) {

@@ -16,6 +16,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname, resolve, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { walkTree, isSource, MANIFESTS } from './tree-walk.mjs';
+import { isMain } from './is-main.mjs';
 
 export const HEADER = 'README.md';
 export const INDEX_REL = 'docs/TREE.md';
@@ -200,4 +201,4 @@ function main(argv) {
   return 2;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main(process.argv.slice(2)));
+if (isMain(import.meta.url)) process.exit(main(process.argv.slice(2)));

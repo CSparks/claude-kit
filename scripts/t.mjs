@@ -45,6 +45,7 @@ import { findDuplicates, refusal } from './t-dedup.mjs';
 import { SHA_RE, findTicket, setField } from './t/ticket-file.mjs';
 import { setStatus } from './t/status.mjs';
 import { askQuestion, resolveQuestionFile } from './t/ask.mjs';
+import { isMain } from './is-main.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
@@ -507,7 +508,7 @@ async function main() {
   process.exit(2);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   main().catch((e) => {
     process.stderr.write('t: ' + (e && e.message ? e.message : e) + '\n');
     process.exit(1);

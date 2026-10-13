@@ -31,6 +31,7 @@ import { join, dirname, basename, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { resolveEngine } from './db-engine.mjs';
+import { isMain } from './is-main.mjs';
 
 const KIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -190,7 +191,7 @@ export async function ingestSessions({ dbPath = sessionsDbPath(), root = transcr
   return stats;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const argv = process.argv.slice(2);
   const flag = (name) => {
     const i = argv.indexOf(name);

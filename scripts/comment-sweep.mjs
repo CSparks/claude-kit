@@ -10,6 +10,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { walkTree, isSource, extOf } from './tree-walk.mjs';
 import { commentRuns, narrationHits, commentStats } from '../hooks/lib/comment-scan.mjs';
+import { isMain } from './is-main.mjs';
 
 const DEFAULT_TOP = 15;
 const RATIO_PRECISION = 100;
@@ -53,4 +54,4 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main(process.argv.slice(2)));
+if (isMain(import.meta.url)) process.exit(main(process.argv.slice(2)));

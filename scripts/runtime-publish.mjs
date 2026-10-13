@@ -15,6 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { runtimeRoot as defaultRuntimeRoot } from './runtime-path.mjs';
+import { isMain } from './is-main.mjs';
 
 const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
@@ -74,7 +75,7 @@ export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep 
   return { sha, dir, current: join(runtimeRoot, 'current') };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const arg = (flag) => { const i = process.argv.indexOf(flag); return i === -1 ? undefined : process.argv[i + 1]; };
   const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   if (process.env.npm_lifecycle_event !== PUBLISH_SCRIPT) {

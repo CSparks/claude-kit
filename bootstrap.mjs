@@ -111,6 +111,7 @@ function relinkPlugin() {
     console.log('No sealed runtime published (npm run publish:runtime) — the plugin install stays as it is.');
     return;
   }
+  console.log(`  Sessions launched with \`claude --plugin-dir <dir>\` (a shell wrapper) load from <dir>, not the install: point that wrapper at ${RUNTIME}.`);
   if (DRY_RUN) { console.log(`  [dry-run] plugin install -> ${RUNTIME}`); return; }
   try {
     const r = linkPlugin({ claudeHome: CLAUDE, target: RUNTIME });

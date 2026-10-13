@@ -6,10 +6,11 @@
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, basename, resolve } from 'node:path';
-import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, readLineage, recordProject, aheadBehind, fetchRepos, centralDataRoot, globToRegExp, sessionStale, readAgents, partitionAgents, AGENT_STALE_MS, scanStaleDoingTickets, readRegistry } from './lib.mjs';
+import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, readLineage, recordProject, aheadBehind, fetchRepos, centralDataRoot, globToRegExp, sessionStale, readAgents, partitionAgents, AGENT_STALE_MS, scanStaleDoingTickets, readRegistry, projectAiDirs } from './lib.mjs';
 import { unifyMemory, memoryLinkCommand } from './memory-link.mjs';
 import { readProgress, progressFor, formatProgress } from './progress-store.mjs';
-import { formatAgentLine, unlabelledAgents } from './lib/agent-format.mjs';
+import { formatAgentLine, unlabelledAgents, statusOnlyAgents } from './lib/agent-format.mjs';
+import { liveAgents, liveAgentLines, terminalAgentIds } from './lib/live-agents.mjs';
 import { recentCommits, ORIENT_WINDOW_MIN } from './live-sessions.mjs';
 import { frameworkSection } from './lib/frameworks.mjs';
 import { adoptedDocTree, trunkMap } from '../scripts/doc-tree.mjs';
@@ -374,6 +375,8 @@ try {
     const staleMin = Math.round(AGENT_STALE_MS / 60000);
     const unlabelled = unlabelledAgents(roster);
     if (unlabelled.length) out.push(`!! ${unlabelled.length} agent row(s) carry no model (KIT-T403): ${unlabelled.slice(0, 5).map((r) => r.id).join(', ')} — shown as [model?]`);
+    const statusOnly = statusOnlyAgents(roster).length;
+    if (statusOnly) out.push(`  (${statusOnly} status-only row(s): stops and reconciles with no dispatch recorded - not dispatches, not counted above)`);
     for (const r of inFlight) {
       const running = progressFor(live, r.id);
       if (running) joined.add(running);
@@ -398,6 +401,15 @@ try {
   }
 } catch {
   /* roster unavailable — orientation proceeds without the in-flight-agent view */
+}
+
+// KIT-T461: every live agent on this machine, all sessions, with model, job and its capability-table row.
+try {
+  const live = liveAgents({ terminalIds: terminalAgentIds(projectAiDirs().map((p) => p.aiDir)) });
+  const lines = liveAgentLines(live);
+  if (lines.length) out.push('', ...lines);
+} catch {
+  /* cross-session agent view is best-effort */
 }
 
 // KIT-T455: background shells that never exited and sit in the task list with a dead timer.

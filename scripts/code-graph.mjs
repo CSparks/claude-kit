@@ -24,6 +24,7 @@ import { execFileSync } from 'node:child_process';
 import { loadTreeSitter } from './treesitter.mjs';
 import { wantsHelp } from './cli-help.mjs';
 import { FAMILIES } from './code-graph-families.mjs';
+import { isMain } from './is-main.mjs';
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'target', 'dist', 'build', '.venv', 'venv', '__pycache__',
@@ -528,7 +529,7 @@ async function main() {
 }
 
 // Run main only as a CLI, not when imported by the tests.
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   main().catch((e) => {
     console.error('code-graph: ' + (e && e.message ? e.message : e));
     process.exit(1);

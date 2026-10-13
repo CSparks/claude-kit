@@ -14,6 +14,7 @@ import { auditStructure } from './structure-audit.mjs';
 import { frameworkStores } from './q-framework.mjs';
 import { touchDocReview } from '../hooks/lib/doc-review.mjs';
 import { logReport } from './search-report.mjs';
+import { isMain } from './is-main.mjs';
 
 const DEFAULT_TOP = 6;
 
@@ -55,4 +56,4 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main(process.argv.slice(2)));
+if (isMain(import.meta.url)) process.exit(main(process.argv.slice(2)));

@@ -12,6 +12,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyCalls } from '../hooks/lib/search-shape.mjs';
 import { readSearchLog } from '../hooks/lib/search-log.mjs';
+import { isMain } from './is-main.mjs';
 
 export const DEFAULT_DAYS = 14;
 const TOP = 8;
@@ -128,4 +129,4 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exit(main(process.argv.slice(2)));
+if (isMain(import.meta.url)) process.exit(main(process.argv.slice(2)));

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { readLadder } from './dispatch-ladder.mjs';
 import { readOutcomes } from '../hooks/lib/dispatch-ledger.mjs';
 import { gitRoot } from '../hooks/lib/paths.mjs';
+import { isMain } from './is-main.mjs';
 
 export const MIN_LANDINGS = 3;
 export const FLAG_RUNS = 2;
@@ -77,7 +78,7 @@ function render(stats, open) {
   return lines.join('\n');
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const roots = [];
   process.argv.forEach((a, i) => { if (a === '--root') roots.push(process.argv[i + 1]); });
   if (!roots.length) roots.push(gitRoot());

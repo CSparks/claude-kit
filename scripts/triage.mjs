@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { defaultDbPath } from './hydrate-db.mjs';
 import { plan } from './triage/plan.mjs';
 import { apply } from './triage/apply.mjs';
+import { isMain } from './is-main.mjs';
 
 export { plan, apply };
 
@@ -50,7 +51,7 @@ async function main() {
   process.exit(2);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   main().catch((e) => {
     process.stderr.write(`triage: ${e && e.message ? e.message : e}\n`);
     process.exit(1);

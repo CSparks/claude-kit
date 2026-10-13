@@ -27,6 +27,7 @@ import {
   formatWip, watchRepos, wipSummary, WIP_FILES, WIP_COMMITS,
 } from '../hooks/lib.mjs';
 import { resolveUser } from './identity.mjs';
+import { isMain } from './is-main.mjs';
 
 const OPEN_STATUSES = ['todo', 'doing', 'review'];
 const SESSION_PEEK = 28; // lines of SESSION.md shown in a deep view
@@ -280,6 +281,6 @@ function main() {
   process.exit(0);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   main();
 }

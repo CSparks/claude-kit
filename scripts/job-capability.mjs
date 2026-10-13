@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { ladderRoot, readLadder } from './dispatch-ladder.mjs';
 import { jobStats, proposals } from './dispatch-report.mjs';
 import { capabilityCoverage } from './capability-research.mjs';
+import { isMain } from './is-main.mjs';
 
 export function jobCapabilityTable({ jobs, costs = {}, outcomes = [] }) {
   const stats = jobStats(outcomes);
@@ -53,7 +54,7 @@ export function redateRows(kitRoot, date, ids) {
   return touched;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv[2] === 'redate') {
+if (isMain(import.meta.url) && process.argv[2] === 'redate') {
   try {
     console.log(`re-dated: ${redateRows(ladderRoot(), process.argv[3], String(process.argv[4] || '').split(',')).join(', ') || 'none'}`);
   } catch (e) {
