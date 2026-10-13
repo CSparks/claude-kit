@@ -72,9 +72,11 @@ export function resolveQuestion(text, who, answer, now = stamp()) {
 
 const words = (s) => new Set(String(s).toLowerCase().match(/[a-z][a-z0-9]+/g)?.filter((w) => w.length >= MIN_WORD && !STOPWORDS.has(w)) ?? []);
 
+export const citesId = (text, id) => new RegExp(`\\b${id}\\b`).test(text);
+
 /** True when `asked` cites `id` or shares most of its distinctive words with the file's **Q:**. */
 export function questionMatches(asked, fileText, id = '') {
-  if (id && new RegExp(`\\b${id}\\b`).test(asked)) return true;
+  if (id && citesId(asked, id)) return true;
   const mine = words(asked);
   const theirs = words(questionText(fileText));
   const shared = [...mine].filter((w) => theirs.has(w)).length;

@@ -57,7 +57,10 @@
       },
       {
         "matcher": "AskUserQuestion",
-        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/question-gate.mjs\"" }]
+        "hooks": [
+          { "type": "command", "command": "node \"$HOME/.claude/hooks/question-gate.mjs\"" },
+          { "type": "command", "command": "node \"$HOME/.claude/hooks/reask-gate.mjs\"" }
+        ]
       },
       {
         "matcher": "Task|Agent",
