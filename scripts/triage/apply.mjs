@@ -7,7 +7,8 @@
 import { readFileSync } from 'node:fs';
 import { resolveEngine } from '../db-engine.mjs';
 import { hydrate } from '../hydrate-db.mjs';
-import { readIdConfig, maxStoreNum, formatItemId, compareIds } from '../id-utils.mjs';
+import { readIdConfig, maxStoreNum, compareIds } from '../id-utils.mjs';
+import { reserveId } from '../id-reserve.mjs';
 import { openHandle } from './handle.mjs';
 import { loadScope, scopeIndex, ROUTE_STORE } from './config.mjs';
 import { capText, capTitle, truncate } from './cap-text.mjs';
@@ -23,14 +24,17 @@ const TITLE_COL = 60;
 //     triage re-minted GB-T001..T005 over five live tickets (KIT-T166);
 //   • `alloc`, this run's high-water mark per scope/store — the cache is not re-synced between
 //     creates, so without it every create in one batch lands on the same id (KIT-T009).
+// The floor is then CLAIMED through the shared reservation, so a concurrent `t new`, `cap` or
+// `triage --apply` in the same store cannot mint the same id before either file exists.
 // Exported so the allocator is testable directly, without driving a whole --apply batch.
 export function mintId(db, scope, store, root, alloc, aiDir) {
   const row = db.all('SELECT MAX(num) AS m FROM items WHERE scope = ? AND store = ?', [scope, store])[0];
   const key = `${scope}/${store}`;
   const onDisk = maxStoreNum(root, store, aiDir);
-  const next = Math.max(row && row.m ? row.m : 0, onDisk, alloc.get(key) || 0) + 1;
-  alloc.set(key, next);
-  return formatItemId(scope, store, next, readIdConfig(root).pad);
+  const floor = Math.max(row && row.m ? row.m : 0, onDisk, alloc.get(key) || 0);
+  const { id, num } = reserveId({ root, store, key: scope, pad: readIdConfig(root).pad, floor });
+  alloc.set(key, num);
+  return id;
 }
 
 function resolveRouteStore(decision, sc) {

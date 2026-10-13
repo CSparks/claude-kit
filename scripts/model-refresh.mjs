@@ -17,7 +17,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ladderRoot, readLadder } from './dispatch-ladder.mjs';
 import { capabilityStatus, modelVersion, LINEUP_REL } from './model-lineup.mjs';
-import { nextId } from './id-utils.mjs';
+import { reserveNextId } from './id-reserve.mjs';
 import { jobCapabilityTable } from './job-capability.mjs';
 import { capabilityCoverage } from './capability-research.mjs';
 import { readOutcomes } from '../hooks/lib/dispatch-ledger.mjs';
@@ -78,7 +78,7 @@ function note(date, lineup, costs, status, capability) {
 }
 
 function proposal(kitRoot, date, status, ladder) {
-  const id = nextId(kitRoot, 'decisions');
+  const id = reserveNextId(kitRoot, 'decisions');
   const lines = status.newerThanAliases.map((m) => `- ${modelVersion(m).family}: alias ${ladder.aliases[modelVersion(m).family]} -> ${m}`);
   mkdirSync(join(kitRoot, '.ai', 'decisions'), { recursive: true });
   const file = join(kitRoot, '.ai', 'decisions', `${id}-model-table-refresh-${date}.md`);

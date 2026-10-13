@@ -130,11 +130,15 @@ console.log('\n[triage mintId] batch allocator answers from disk, not just the h
   const first = mintId(staleDb, 'TST', 'tickets', p.root, new Map(), aiDir);
   ok('mintId skips past every id on disk (TST-T006)', first === 'TST-T006', `got ${first}`);
 
-  // Batch-local high-water mark still applies within one run (KIT-T009).
+  // Batch-local high-water mark still applies within one run (KIT-T009). A fresh store: the
+  // first block's TST-T006 is reserved and never reissued (KIT-T459).
+  const p2 = makeProject('mint-batch', ['TST-T001', 'TST-T002', 'TST-T003', 'TST-T004', 'TST-T005']);
   const alloc = new Map();
-  const a = mintId(staleDb, 'TST', 'tickets', p.root, alloc, aiDir);
-  const b = mintId(staleDb, 'TST', 'tickets', p.root, alloc, aiDir);
+  const a = mintId(staleDb, 'TST', 'tickets', p2.root, alloc, join(p2.root, '.ai'));
+  const b = mintId(staleDb, 'TST', 'tickets', p2.root, alloc, join(p2.root, '.ai'));
   ok('sequential creates in one batch stay sequential', a === 'TST-T006' && b === 'TST-T007', `${a}, ${b}`);
+  const again = mintId(staleDb, 'TST', 'tickets', p.root, new Map(), aiDir);
+  ok('a reserved id is never reissued to a later batch (TST-T007)', again === 'TST-T007', `got ${again}`);
 }
 
 // ---- the create path REFUSES a taken id -------------------------------------

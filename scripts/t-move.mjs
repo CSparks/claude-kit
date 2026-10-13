@@ -18,7 +18,8 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { basename, join, resolve } from 'node:path';
 import { collectItems } from './db-parse.mjs';
 import { splitFrontmatter } from './frontmatter.mjs';
-import { nextId, STORE_TYPE } from './id-utils.mjs';
+import { STORE_TYPE } from './id-utils.mjs';
+import { reserveNextId } from './id-reserve.mjs';
 import { appendUnderSection, stamp } from './md-body.mjs';
 import { storeRoot, writeItemFile } from '../hooks/lib.mjs';
 
@@ -75,7 +76,7 @@ function moveCapture(srcAi, destAi, item, destName, srcName) {
 
 // Move a durable item: re-keyed into the destination's store, the old id kept as an alias.
 function moveDurable(srcAi, destRoot, destAi, item, srcName) {
-  const newId = nextId(destRoot, item.store);
+  const newId = reserveNextId(destRoot, item.store);
   const srcAbs = join(srcAi, item.file);
   const text = readFileSync(srcAbs, 'utf8');
   const parts = splitFrontmatter(text);
