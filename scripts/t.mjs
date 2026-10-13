@@ -26,7 +26,7 @@
 // the derived board (index-tickets, which also reconciles supersede edges) and ingests the
 // SQLite cache — both fail-open, so a missing engine never wedges a mutation.
 
-import { readFileSync, writeFileSync, renameSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -41,11 +41,11 @@ import { readProvenanceGate, trailGate } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
 import { readConfig } from './t-config.mjs';
 import { findDuplicates, refusal } from './t-dedup.mjs';
-import { remainingNote } from './landed.mjs';
+import { SHA_RE, findTicket, setField } from './t/ticket-file.mjs';
+import { setStatus } from './t/status.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
-const SHA_RE = /^[0-9a-f]{7,40}$/i; // a git short/long sha
 
 // A typed-link relation either points at another ITEM (id-shaped) or a COMMIT (sha-shaped).
 // Anything else is rejected — `t link` never writes a free-text edge.
@@ -63,16 +63,6 @@ const LINK_RELS = {
 // The local reader copies this file carried were LF-only: a ticket whose delimiters end CRLF
 // (any Windows editor, any autocrlf checkout) matched nothing, so every mutation died with
 // "no frontmatter block to update" while the block looked perfectly valid on inspection.
-
-// Set a scalar in place, preserving the existing (possibly empty) line; append the key at the
-// end of the block when absent. Mirrors reconcile-supersede.setField so an edge written here
-// reads back identically to one the reconcile pass writes.
-function setField(fm, key, value) {
-  const re = new RegExp(`^(${key}:)[ \\t]*.*$`, 'm');
-  if (re.test(fm)) return fm.replace(re, `$1 ${value}`);
-  return `${fm}\n${key}: ${value}`;
-}
-
 function addToList(fm, key, value) {
   const re = new RegExp(`^(${key}:)[ \\t]*(.*)$`, 'm');
   const m = fm.match(re);
@@ -83,31 +73,7 @@ function addToList(fm, key, value) {
   return fm.replace(re, `$1 [${cur.join(', ')}]`);
 }
 
-export { readConfig };
-
-// --- ticket lookup -------------------------------------------------------------------------
-
-function ticketDirs(root) {
-  const base = join(root, '.ai', 'tickets');
-  return [base, join(base, 'archive')];
-}
-
-// Resolve an id to its on-disk file (active dir or archive). Throws loudly on an unknown id —
-// no subcommand ever invents or guesses one.
-export function findTicket(root, id) {
-  for (const dir of ticketDirs(root)) {
-    if (!existsSync(dir)) continue;
-    for (const f of readdirSync(dir)) {
-      if (!f.endsWith('.md') || f === '_TEMPLATE.md' || f === 'INDEX.md') continue;
-      const path = join(dir, f);
-      const text = readFileSync(path, 'utf8');
-      const parts = splitFrontmatter(text);
-      const fid = (parts && field(parts.fm, 'id')) || (f.match(/[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+/) || [])[0];
-      if (fid === id) return { id, path, dir, file: f, text, parts, archived: dir.endsWith('archive') };
-    }
-  }
-  throw new Error(`unknown id '${id}' — no ticket file carries it (ids are minted by t new, never guessed)`);
-}
+export { readConfig, findTicket, setStatus };
 
 // --- t new ---------------------------------------------------------------------------------
 
@@ -188,69 +154,6 @@ ${notDupNotes(opts.notDup)}
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, doc);
   return { id, path };
-}
-
-// --- t status ------------------------------------------------------------------------------
-
-function resolveUat(parts, cfg) {
-  return field(parts.fm, 'uat') || cfg.uatDefault;
-}
-
-// Transition a ticket's status. Enforces config.statuses (target must be a known state),
-// guards human_only / uat-required closes behind --human, stamps a (status) History line, and
-// — for `done` — runs the done tail (archive + fixed_commit hygiene). Pure markdown mutation:
-// the CLI main wraps this with the index/cache refresh so tests can drive it in isolation.
-export function setStatus(root, id, state, opts = {}) {
-  const cfg = readConfig(root);
-  const t = findTicket(root, id);
-  if (!t.parts) throw new Error(`${id}: no frontmatter block to update`);
-  const known = new Set([...cfg.flow, ...cfg.offBoard, ...cfg.humanOnly]);
-  if (!known.has(state)) {
-    throw new Error(`${id}: '${state}' is not a known status (flow: ${cfg.flow.join(', ')}; off-board: ${cfg.offBoard.join(', ')})`);
-  }
-  const from = field(t.parts.fm, 'status') || '—';
-  const remaining = remainingNote(id, state, t.text, opts.remaining);
-
-  const uatRequiredClose = state === 'done' && resolveUat(t.parts, cfg) === 'required';
-  const humanGated = cfg.humanOnly.includes(state) || uatRequiredClose;
-  if (humanGated && !opts.human) {
-    const why = uatRequiredClose ? `uat=required for ${id}` : `'${state}' is human_only`;
-    throw new Error(`${id}: ${why} — re-run with --human (this transition is the maintainer's call)`);
-  }
-
-  let fm = setField(t.parts.fm, 'status', state);
-  fm = setField(fm, 'updated', new Date().toISOString().replace(/\.\d+Z$/, 'Z'));
-
-  const type = field(t.parts.fm, 'type');
-  const tailNotes = [];
-  // A sha the caller PASSED is written on any transition and any type (KIT-T190). It used to be
-  // read only inside the done+bug/regression branch, so `t status <id> review --fixed-commit <sha>`
-  // — the closing shape of every uat=required project — dropped the flag without a word, and the
-  // ticket's provenance link to its fixing commit was simply lost (seen on GB-T039).
-  if (opts.fixedCommit) {
-    if (!SHA_RE.test(opts.fixedCommit)) throw new Error(`--fixed-commit '${opts.fixedCommit}' is not a sha`);
-    fm = setField(fm, 'fixed_commit', opts.fixedCommit);
-  } else if (state === 'done' && (type === 'bug' || type === 'regression') && !field(t.parts.fm, 'fixed_commit')) {
-    tailNotes.push(`set fixed_commit on this ${type} (pass --fixed-commit <sha>) — regression tracking needs the fixing commit`);
-  }
-
-  let body = appendUnderSection(t.parts.rest, 'History', `- [${stamp()}] (status) ${from} → ${state}`);
-  if (opts.note) body = appendUnderSection(body, 'History', `- [${stamp()}] (comment) ${opts.note}`);
-  if (remaining) body = appendUnderSection(body, 'History', `- [${stamp()}] (comment) ${remaining}`);
-
-  const out = t.parts.open + fm + t.parts.close + body;
-  writeFileSync(t.path, out);
-
-  // done tail: archive the file so the active board stays small (config.history.archive_done_to).
-  let movedTo = null;
-  if (state === 'done' && !t.archived) {
-    const archDir = join(root, '.ai', cfg.archiveDir);
-    mkdirSync(archDir, { recursive: true });
-    const dest = join(archDir, t.file);
-    renameSync(t.path, dest);
-    movedTo = dest;
-  }
-  return { id, from, to: state, path: movedTo || t.path, archived: !!movedTo, warnings: tailNotes };
 }
 
 // --- t tick / t untick / t criterion --------------------------------------------------------
