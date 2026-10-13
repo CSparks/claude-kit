@@ -16,7 +16,7 @@ copyFileSync(join(KIT, '.ai', 'config.yml'), join(store, '.ai', 'config.yml'));
 const env = { CLAUDE_KIT_BUG_STORE: store, CLAUDE_KIT_TURN_STATE: tmpDir('kit-turn-'), CLAUDE_KIT_SEARCH_LOG_DIR: tmpDir('kit-slog-') };
 process.env.CLAUDE_KIT_BUG_STORE = store;
 const { fileKitBug, openKitBugs, kitStoreRoot } = await import('./kit-bug.mjs');
-const { reportHookCrash } = await import('../hooks/compat-run.mjs');
+const { reportHookCrash } = await import('../hooks/compat-core.mjs');
 
 let pass = 0;
 let fail = 0;

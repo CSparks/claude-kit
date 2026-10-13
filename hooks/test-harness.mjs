@@ -31,7 +31,7 @@ export function tmpDir(prefix) {
 export const TMP_REG = join(tmpDir('kit-reg-'), 'registry.json');
 process.env.CLAUDE_PLUGIN_ROOT = tmpDir('kit-hooks-plugin-');
 
-export const ENV = { ...process.env, CLAUDE_KIT_REGISTRY: TMP_REG, CLAUDE_HOME: tmpDir('kit-claude-home-') };
+export const ENV = { ...process.env, CLAUDE_KIT_REGISTRY: TMP_REG, CLAUDE_HOME: tmpDir('kit-claude-home-'), CLAUDE_KIT_LIVE: '1' };
 
 export function hook(name, payload, cwd, extraEnv) {
   const r = spawnSync(process.execPath, [join(HOOKS, name)], {

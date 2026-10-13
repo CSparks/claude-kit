@@ -301,7 +301,8 @@ half-edited, any session loading it loads the half-edit. `npm run publish:runtim
 `~/.claude/claude-kit-runtime/<sha>/` and repoints `~/.claude/claude-kit-runtime/current` at it; that is the
 only way `current` moves. `node bootstrap.mjs` then points the plugin install (hooks, commands, agents,
 skills, the `q`/`t`/`cap` shims), the statusline and every `<kit>` path in the composed `~/.claude/CLAUDE.md`
-at `current`. Run bootstrap once after the first publish; later publishes need no re-run. The last 3 shas stay
+at `current`. Run bootstrap once after the first publish; later publishes need no re-run.
+**Hooks** run the sealed copy whatever the plugin root is: `hooks/compat-run.mjs` is a tiny stable launcher that loads `compat-core.mjs` and the hook scripts from `current/hooks` when a published copy exists (`--live` as the first argument or `CLAUDE_KIT_LIVE=1` selects the working tree; a published core that fails to load falls back to the working tree). A hook CODE change therefore reaches every session at its next event after `publish:runtime`, with no restart; only a NEW `hooks.json` entry needs a plugin reload, because registrations are read at session start. The last 3 shas stay
 for sessions still inside them; the query cache is shared across shas.
 
 **Writer loop — live in your session:** `node scripts/dev-link.mjs --live` points the installed plugin at this

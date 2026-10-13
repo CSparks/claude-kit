@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { codexFilePayloads, formatCodexSuccess, parsePatchFiles } from './compat-run.mjs';
+import { codexFilePayloads, formatCodexSuccess, parsePatchFiles } from './compat-core.mjs';
 
 let pass = 0;
 let fail = 0;
@@ -65,7 +65,7 @@ const runner = fileURLToPath(new URL('./compat-run.mjs', import.meta.url));
 const pluginRoot = fileURLToPath(new URL('..', import.meta.url));
 const blocked = spawnSync(process.execPath, [runner, 'pre-write.mjs'], {
   cwd: repo,
-  env: { ...process.env, PLUGIN_ROOT: pluginRoot, CLAUDE_PLUGIN_ROOT: pluginRoot },
+  env: { ...process.env, PLUGIN_ROOT: pluginRoot, CLAUDE_PLUGIN_ROOT: pluginRoot, CLAUDE_KIT_LIVE: '1' },
   input: JSON.stringify({
     cwd: repo,
     hook_event_name: 'PreToolUse',
