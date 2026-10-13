@@ -11,7 +11,9 @@
 //     parallelism: { jobs: 3 }                     # default 3
 //     verify_default: [ "cargo test --no-fail-fast" ]  # commands a job may omit
 //     poll_ms: 2000                                # daemon queue poll interval
-//     untracked_blocks: ["**/*.rs", "**/Cargo.toml"]  # untracked paths that pause the queue
+//     untracked_blocks: ["crates/**/*.rs"]        # untracked paths that pause the queue; absent, derived from
+//                                                    # the checkout's tracked crates and workspace members (blocks.mjs),
+//                                                    # falling back to ["**/*.rs", "**/Cargo.toml"] without a Cargo.toml
 //     dirty_blocks: ["**/*.rs", "**/Cargo.toml"]  # tracked modifications that pause
 //                                                    # the queue (plus any path the job's patch
 //                                                    # touches); other dirty tracked files are left alone.
@@ -56,6 +58,7 @@ export function normalizeBroker(root, broker) {
     verifyDefault,
     pollMs: num(broker.poll_ms, DEFAULT_POLL_MS),
     untrackedBlocks: Array.isArray(broker.untracked_blocks) ? broker.untracked_blocks.map(String) : DEFAULT_UNTRACKED_BLOCKS.slice(),
+    untrackedDerived: !Array.isArray(broker.untracked_blocks),
     dirtyBlocks: Array.isArray(broker.dirty_blocks) ? broker.dirty_blocks.map(String) : DEFAULT_DIRTY_BLOCKS.slice(),
     repos,
   };

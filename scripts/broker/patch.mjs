@@ -6,6 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { dryRun } from './apply.mjs';
+import { derivedUntrackedBlocks } from './blocks.mjs';
 import { capture, discard, dropNewLocks, pruneEmptyDirs, restore, restoreMismatches } from './preimage.mjs';
 import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
@@ -71,7 +72,8 @@ export function processPatch(cfg, job, repo) {
   const done = (fields) => ({ result: writeResult(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields }) });
 
   const touched = (job.ops || []).map((o) => String(o.path).replace(/[\\]/g, '/'));
-  const state = checkoutState(cwd, { untrackedBlocks: cfg.untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks, touched });
+  const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
+  const state = checkoutState(cwd, { untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks, touched });
   if (!state.clean) {
     return { ...done({ status: STATUS.DIRTY, phase: 'apply', dirtyEntries: state.entries, message: `build checkout dirty (${cwd}) — queue paused until clean` }), pause: true };
   }

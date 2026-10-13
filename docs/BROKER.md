@@ -77,7 +77,9 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
 The daemon pauses (job stays queued) when the checkout holds a modified tracked file that
 matches `broker.dirty_blocks` (default `**/*.rs`, `**/Cargo.toml`, `**/Cargo.lock`) or is a path
 the job's patch edits, writes or deletes; or an untracked file matching `broker.untracked_blocks`
-(default `**/*.rs`, `**/Cargo.toml`: cargo discovers new `tests/*.rs`). Any other dirty tracked
+(default: derived from the checkout's tracked crates and `[workspace] members`, so cargo-built
+new files like `tests/*.rs` pause it and an untracked standalone crate outside the workspace does not;
+`**/*.rs`, `**/Cargo.toml` when no Cargo.toml is tracked). Any other dirty tracked
 file (a hot-edited asset script) and other untracked files (assets, images) never pause it.
 Every Cargo.lock in the repo is journalled with the patched paths, so a check-only run restores
 what cargo rewrote. Check-only runs touch the live tree for the length of the run;
@@ -126,7 +128,7 @@ broker:
     jobs: 3                                  # -j 3 (Windows pagefile, os error 1455)
   verify_default:
     - cargo t                                # the project's fastdev alias
-  untracked_blocks: ["**/*.rs", "**/Cargo.toml"]
+  # untracked_blocks: ["crates/**/*.rs"]   # absent = derived from the cargo layout (see above)
   dirty_blocks: ["**/*.rs", "**/Cargo.toml", "**/Cargo.lock"]   # tracked edits that pause the queue
   repos:
     - { name: stiletto,   path: ., main: main, remote: origin }
