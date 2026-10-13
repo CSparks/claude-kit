@@ -49,7 +49,7 @@ function knownFamilies() {
   const families = new Set(Object.keys(kitAliases()));
   try {
     for (const job of Object.values(readLadder().jobs)) {
-      for (const family of [job.family, job.fallback]) if (family) families.add(String(family).toLowerCase());
+      for (const family of [job.family, job.alternate, job.fallback]) if (family) families.add(String(family).toLowerCase());
     }
   } catch {
     /* no table — only vendor-shaped ids count as tags */

@@ -50,7 +50,7 @@ try {
   ok('kit agent on a family: claude-kit:refactorer + opus', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer', model: 'opus' }), d) === '[Opus 5.5] Build it');
   ok('a kit agent with no model and no transcript is not tagged', label(dispatch({ description: 'Build it', subagent_type: 'unjobbed-agent' }), d) === null);
   ok('a kit agent default job fills the table family', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer' }), d) === '[Sonnet 5.5] Build it');
-  ok('local-qwen is a known family: a hand-written tag is replaced', label(dispatch({ description: '[local-qwen] Build it', model: 'haiku' }), d) === '[Haiku 4.5] Build it');
+  ok('local-qwen is a known family: a hand-written tag is replaced', label(dispatch({ description: '[local-qwen] Build it', model: 'haiku' }), d) === '[Haiku 5.5] Build it');
 
   // project agent pins and inherit
   projectAgent(d, 'proj-pinned', 'model: claude-opus-5-5');

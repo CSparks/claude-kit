@@ -543,9 +543,13 @@ if (!engine) {
     assert.deepEqual(back.map((r) => r.to_id), ['TST-T003'], 'older→newer superseded_by edge');
   });
 
+  // The scan has no bm25, so `score` exists only on cache rows (t-dedup.mjs treats its absence as no signal).
+  const withoutScore = (rows) => rows.map(({ score: _score, ...rest }) => rest);
+
   await testAsync('parity: similar surfaces likely duplicates (cache == scan, suggest-only)', async () => {
     const { cache, scan } = await parity('similar', ['widget', 'engine']);
-    assert.deepEqual(cache, scan, 'cache-backed similar must equal the markdown scan');
+    assert.deepEqual(withoutScore(cache), scan, 'cache-backed similar must equal the markdown scan');
+    assert.ok(cache.every((r) => r.score > 0), 'the cache path carries the bm25 score the t new dedup reads (KIT-T353)');
     const ids = cache.map((r) => r.id);
     assert.ok(ids.includes('TST-T003'), 'the live widget-engine ticket is surfaced as a candidate');
     assert.ok(!ids.includes('TST-T001'), 'an already-superseded ticket is NOT suggested as a duplicate');
@@ -560,7 +564,7 @@ if (!engine) {
   // Cross-store dedup (KIT-T025): `--store <s>` confines candidates to that store, cache==scan.
   await testAsync('parity: similar --store decisions confines to decisions (cache == scan)', async () => {
     const { cache, scan } = await parity('similar', ['--store', 'decisions', 'widgets']);
-    assert.deepEqual(cache, scan, 'cross-store similar must equal the markdown scan');
+    assert.deepEqual(withoutScore(cache), scan, 'cross-store similar must equal the markdown scan');
     const ids = cache.map((r) => r.id);
     assert.ok(ids.includes('TST-D001'), 'the matching decision is surfaced in its own store');
     assert.ok(ids.every((id) => id.startsWith('TST-D')), 'only decisions are candidates (tickets excluded)');
