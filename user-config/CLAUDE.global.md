@@ -49,6 +49,9 @@ language, docs, configs, tickets, across the repo and its framework submodule; f
 `q file <glob>`, `q fts <terms>` (work items), `q show <id>`. Ranked, compact, exact — and
 tracked (`search-report.mjs`): the share of greps against q is a measured regression.
 - The query-gate redirects a grep to its exact `q` equivalent; follow it, don't route around it.
+- Dependency sources (cargo registry, vendored crates): `q code <text> --registry <crate-version>`
+  (e.g. `rapier3d-0.25.1`; a bare crate name works when Cargo.lock pins one version) — also `q sym`,
+  same filters, absolute paths. Never grep `~/.cargo/registry` or a `vendor/` dir.
 - A subagent brief says so: "Search with q.mjs, never grep." Agent definitions inherit it.
 - q cannot do it? That is a kit feature: `cap feature "q: …" --project claude-kit`, a ticket
   the kit team builds. Never a silent grep.

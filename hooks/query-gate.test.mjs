@@ -157,6 +157,20 @@ expect('allows tail filter, newline, git add of a store path', run(d, 'node t.mj
 expect('allows 2>&1 | tail then mv into .ai', run(d, 'node cap.mjs x 2>&1 | tail -1; mv .ai/inbox/a.md .ai/inbox/triaged/').code, 0);
 expect('still blocks a real store grep after a newline', run(d, 'echo hi\ngrep -rn physics .ai/decisions/').code, 2);
 
+// KIT-T392 — a grep of dependency sources (cargo registry / vendor dir) is redirected to the exact
+// `q code <text> --registry <crate-version>` command; one named file inside stays a plain grep.
+const regCrate = '~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rapier3d-0.25.1';
+const regGrep = run(d, `rg -t rust "reset_forces" ${regCrate}`);
+expect('blocks rg over a registry crate dir (the dir name looks like a file)', regGrep.code, 2);
+expect('registry redirect names the exact --registry equivalent', /code reset_forces --registry rapier3d-0\.25\.1/.test(regGrep.err) ? 1 : 0, 1);
+expect('blocks grep -r over a glob-indexed registry crate src dir', run(d, 'grep -rn "wake" ~/.cargo/registry/src/*/avian3d-0.7.0/src').code, 2);
+const vendorGrep = run(d, 'rg "extrude" rapid-game/rust/vendor/manifold-rs');
+expect('blocks rg over a vendored crate', vendorGrep.code, 2);
+expect('vendor redirect names the vendored crate', /code extrude --registry manifold-rs/.test(vendorGrep.err) ? 1 : 0, 1);
+expect('a registry search naming no crate asks for one', /--registry <crate-version>/.test(run(d, 'rg foo ~/.cargo/registry/src').err) ? 1 : 0, 1);
+expect('allows grep of ONE file inside a registry crate', run(d, `grep -n reset_forces ${regCrate}/src/lib.rs`).code, 0);
+expect('allows a piped filter that merely names a vendor word', run(d, 'cargo tree | grep vendor').code, 0);
+
 // FAIL-OPEN (KIT-T272) — this hook is loaded LIVE by other sessions; a crash/parse error mid-flight
 // must NEVER block a tool call. Feed raw non-JSON on stdin and assert exit 0, not a block.
 function runRaw(dir, input) {

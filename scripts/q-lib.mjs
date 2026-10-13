@@ -61,6 +61,7 @@ import { unsupportedFlags, reportGap } from './q-gap.mjs';
 import { basename } from 'node:path';
 import { printRows } from './q-print.mjs';
 import { codeVerbRows, ftsCodeDefs } from './code-index-query.mjs';
+import { registryRows, takeRegistry } from './q-registry.mjs';
 import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
 
 const SNIPPET_COL = 2;       // items_fts column index of `body` for snippet()
@@ -383,7 +384,8 @@ export async function query(cmd, args = [], { root, cwdRoot = root || process.cw
   if (cmd === 'show') return { rows: showRows(args[0], cwdRoot), cached: false };
   // code/sym/file answer from the code index (scripts/code-index.mjs), not the workflow cache.
   if (cmd === 'code' || cmd === 'sym' || cmd === 'file') {
-    return { rows: await codeVerbRows(cmd, args, cwdRoot), cached: false };
+    const crate = takeRegistry(args).spec !== undefined;
+    return { rows: await (crate ? registryRows(cmd, args, { root: cwdRoot }) : codeVerbRows(cmd, args, cwdRoot)), cached: false };
   }
   if (cmd === 'governing' || cmd === 'drift' || cmd === 'mentions' || cmd === 'topics' || cmd === 'topic') {
     return { rows: fallback(cmd, args, cwdRoot), cached: false };
@@ -444,7 +446,9 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
                               --path crates/sim  --not-path <glob|dir> (repeatable; drops matches)  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
                               --project <name>  search that registered project's checkout (name or id key), e.g. the kit's scripts
-  sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P] [--not-path G]
+                              --registry <crate-version|crate>  search one dependency crate's source (cargo registry or a vendor dir), paths absolute;
+                              a bare crate resolves to the one version Cargo.lock pins, e.g. q code force --registry rapier3d-0.25.1 --lang rust
+  sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P] [--not-path G] [--registry <crate>]
                               definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)
   file <substring|glob> [--not-path G]
                               find files by path across the repo and its framework submodule

@@ -4,6 +4,7 @@
 // is exactly what grep would print: the trigram table only narrows candidate files. Flags: see QUERY_HELP in q.mjs.
 
 import { readFileSync } from 'node:fs';
+import { extractSymbols } from './code-index-extract.mjs';
 import { basename } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
 import { projectRepo } from './q-project.mjs';
@@ -268,17 +269,37 @@ function renderHits(perFile, flags, extract) {
   return rows;
 }
 
-async function symVerb(root, text, flags, refresh) {
-  const kinds = flags.kinds || DEFAULT_KINDS;
-  const idx = await refresh(root, { tickets: kinds.includes('ticket') });
-  if (!idx.handle) return [{ loc: '', text: 'q sym needs a SQLite engine (none found)' }];
+// Symbols of the listed files, extracted here: the answer when there is no index to ask.
+function scanSymbols(files, text, flags, kinds) {
+  const wanted = text && flags.fuzzy ? text.toLowerCase() : null;
+  const out = [];
+  for (const f of memFilter(files, flags, kinds)) {
+    let body;
+    try { body = readFileSync(f.abs, 'utf8'); } catch { continue; }
+    for (const s of extractSymbols(f.lang, body)) {
+      if (text && (wanted ? !s.name.toLowerCase().includes(wanted) : s.name !== text)) continue;
+      if (flags.types && !flags.types.includes(s.type)) continue;
+      out.push({ path: f.rel, line: s.line, type: s.type, name: s.name, scope: s.scope });
+    }
+  }
+  return out;
+}
+
+function indexedSymbols(handle, text, flags, kinds) {
   const { where, params } = sqlFilters(flags, kinds);
   if (text && flags.fuzzy) { where.push("s.name LIKE ? ESCAPE '\\'"); params.push(`%${text.replace(/[%_\\]/g, '\\$&')}%`); }
   else if (text) { where.push('s.name = ?'); params.push(text); }
   if (flags.types) { where.push(`s.type IN (${flags.types.map(() => '?').join(',')})`); params.push(...flags.types); }
+  return handle.all(`SELECT f.path, s.line, s.type, s.name, s.scope FROM symbols s JOIN files f ON f.id = s.file_id WHERE ${where.join(' AND ')}`, params);
+}
+
+async function symVerb(root, text, flags, refresh) {
+  const kinds = flags.kinds || DEFAULT_KINDS;
+  const idx = await refresh(root, { tickets: kinds.includes('ticket') });
   const dropped = excluder(flags);
-  const rows = idx.handle.all(`SELECT f.path, s.line, s.type, s.name, s.scope FROM symbols s JOIN files f ON f.id = s.file_id WHERE ${where.join(' AND ')}`, params).filter((r) => !dropped(r.path));
-  idx.handle.close();
+  const found = idx.handle ? indexedSymbols(idx.handle, text, flags, kinds) : scanSymbols(idx.files, text, flags, kinds);
+  const rows = found.filter((r) => !dropped(r.path));
+  idx.handle?.close();
   rows.sort((a, b) => (TYPE_RANK[a.type] ?? UNRANKED) - (TYPE_RANK[b.type] ?? UNRANKED) || a.path.localeCompare(b.path) || a.line - b.line);
   const cut = flags.limit ? rows.slice(0, flags.limit) : rows;
   const out = cut.map((r) => ({ loc: `${r.path}:${r.line}`, type: r.type, name: r.name, scope: r.scope }));

@@ -22,6 +22,7 @@ import { segments } from './lib/shell-segments.mjs';
 import { indexEquivalent } from './lib/index-answerable.mjs';
 import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
+import { registryLine, registryTarget } from './lib/registry-target.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { FAMILIES } from '../scripts/code-graph-families.mjs';
 
@@ -192,6 +193,8 @@ function judge(c, piped = false) {
     const args = (gitGrep ? tok.slice(2) : tok.slice(1)).filter((a) => !a.startsWith('-'));
     const targetsOneFile = args.some((a) => FILEISH.test(a)); // a concrete file = "you know where"
     const recursive = RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep;
+    const dependency = recursive && registryTarget(c); // a crate dir looks like a file (`rapier3d-0.25.1`), so judge it first
+    if (dependency) return { id: 'registry-grep', msg: registryMsg(c, dependency) };
     if (recursive && !targetsOneFile) {
       if (targetsWorkflowData(c)) return null;             // workflow data — RULE 1's business
       // The code index answers a language-scoped grep exactly (KIT-T101): redirect those and keep
@@ -242,6 +245,24 @@ function storeMsg(c) {
     'silently fall back to grep (KIT-T236).',
     'For ONE specific config/state file (e.g. config.yml, SESSION.md) read it directly with the Read',
     'tool — q does not index those; it is for tickets/decisions/questions.',
+    '',
+  ].join('\n');
+}
+
+function registryMsg(c, { spec }) {
+  const call = classifyCalls('Bash', { command: c })[0];
+  return [
+    '',
+    'BLOCKED: grepping dependency sources (cargo registry / vendor dir) — q searches one crate directly.',
+    `  ${trunc(c)}`,
+    '',
+    'Same hits, ranked and compact, with absolute paths (--limit 0 for all):',
+    `  ${registryLine(spec, call && call.pattern, Q)}`,
+    '',
+    spec ? 'Add --lang rust --regex -i -w -C 2 as needed; q sym <name> --registry … lists definitions.'
+      : 'Name the crate: --registry <crate-version> (rapier3d-0.25.1), or a bare <crate> when Cargo.lock pins one version.',
+    'A targeted look at ONE file stays a plain grep of that file or the Read tool.',
+    'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it (KIT-T236).',
     '',
   ].join('\n');
 }
