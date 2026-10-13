@@ -12,7 +12,7 @@
 //   node scripts/q.mjs by-commit <sha>              # tickets caused-by / fixed-by <sha>
 //   node scripts/q.mjs doc-trail <id>               # history events for <id>, newest first
 //   node scripts/q.mjs recent [Nd] [scope]          # time-windowed digest of what happened (KIT-T253)
-//   node scripts/q.mjs fts [--scope <s>|--project <p>] <query...> # full-text search title+body
+//   node scripts/q.mjs fts [--scope <s>|--project <p>] [--limit N] <query...> # full-text search title+body
 //
 // SCOPE (KIT-T255): every [scope] argument defaults to the CWD project; `all` widens to every
 // project and an explicit key picks one. Outside an adopted repo there is no key to default
@@ -239,14 +239,14 @@ function cannedQueries(root) {
     fts: (db, raw) => {
       // No --scope: the project PLUS its adopted frameworks' stores (KIT-T278); each row
       // carries its scope so a framework hit reads as one.
-      const { scopeTok, query } = splitFts(raw);
+      const { scopeTok, query, limit } = splitFts(raw);
       const scopes = searchScopes(scopeTok, root);
-      const params = [SNIPPET_COL, SNIPPET_TOKENS, ftsMatchQuery(query), ...scopes];
-      return db.all(
+      const run = (match) => db.all(
         `SELECT i.scope, f.id, i.type, i.status, i.title, snippet(items_fts, ?, '[', ']', '…', ?) AS hit
          FROM items_fts f JOIN items i ON i.id = f.id
          WHERE items_fts MATCH ?${scopes.length ? ` AND i.scope IN (${scopes.map(() => '?').join(',')})` : ''}
-         ORDER BY rank LIMIT ?`, [...params, FTS_LIMIT]);
+         ORDER BY rank LIMIT ?`, [SNIPPET_COL, SNIPPET_TOKENS, match, ...scopes, limit || -1]);
+      return run(ftsMatchQuery(query));
     },
 
     // Per-scope open counts. `rundown all` is the cross-project board; bare `rundown` answers
@@ -452,9 +452,9 @@ const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [a
                               definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)
   file <substring|glob> [--not-path G]
                               find files by path across the repo and its framework submodule
-  fts [--scope <s>|--project <p>] <q...>
+  fts [--scope <s>|--project <p>] [--limit N] <q...>
                               full-text search title+body (default: this project + its adopted framework stores;
-                              --project takes a registered project's name or id key, as cap does);
+                              --project takes a registered project's name or id key, as cap does; --limit N caps hits, 0 = all);
                               then "also in code": the few code definitions the terms name
   similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only) — cross-scope
   next-id <scope> <type>      O(1) next free id (max(num)+1)

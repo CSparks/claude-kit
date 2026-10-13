@@ -25,7 +25,7 @@ import { resolveEngine } from './db-engine.mjs';
 import { hydrate } from './hydrate-db.mjs';
 import { query } from './q-lib.mjs';
 import {
-  ftsMatchQuery, parseFts, defaultScope, resolveScope, resolveStore, requireStore, requireScope, formatId,
+  ftsMatchQuery, parseFts, splitFts, defaultScope, resolveScope, resolveStore, requireStore, requireScope, formatId,
 } from './q-model.mjs';
 import { showRows } from './q-show.mjs';
 import { unsupportedFlags } from './q-gap.mjs';
@@ -326,6 +326,17 @@ if (!engine) {
 
   const ids = async (args, opts = {}) =>
     (await query('fts', args, { root: A.root, dbPath, ...opts })).rows.map((r) => r.id).sort();
+
+  // ---- KIT-T325: fts --limit caps hits; KIT-T311: no item holds every term -> any-term retry ----
+  await testAsync('fts --limit N caps the hit list (the logged shape: q fts <terms> --limit 8)', async () => {
+    assert.equal((await ids(['--scope', 'all', 'gate', '--limit', '2'])).length, 2);
+    assert.equal((await ids(['--scope', 'all', 'gate', '--limit', '0'])).length, 4, '--limit 0 is all');
+    assert.equal((await ids(['--limit', '1', 'ask-first', 'gate'])).length, 1, 'the flag may lead');
+  });
+  test('fts --limit refuses a non-number instead of treating it as a search term', () =>
+    assert.throws(() => splitFts('gate --limit lots'), /--limit takes a whole number/));
+  test('verbs list --limit as an fts flag (no kit-bug filed)', () =>
+    assert.deepEqual(unsupportedFlags('fts', ['gate', '--limit']), []));
 
   // ---- KIT-T386: fts --project (cap's project resolution -> that project's scope) ---------
   {

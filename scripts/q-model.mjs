@@ -104,24 +104,32 @@ export function resolveScope(scopeTok, root) {
   return /^all$/i.test(s) ? '' : s.toUpperCase();
 }
 
-// `fts [--scope <s> | --project <p>] <query...>` (KIT-T174, KIT-T386) — split the scope filter off
-// the free-text query in ONE place so the cache and markdown-scan paths filter identically.
-// `--project` names a registered project (cap's resolution) and becomes that project's scope.
+// `fts [--scope <s> | --project <p>] [--limit N] <query...>` (KIT-T174, KIT-T386, KIT-T325) — split
+// the scope filter and hit cap off the free-text query in ONE place so the cache and markdown-scan
+// paths filter identically. `--project` names a registered project (cap's resolution) and becomes
+// that project's scope. `--limit N` caps hits (0 = all); absent, FTS_LIMIT.
 export function splitFts(text) {
   const toks = String(text || '').match(FTS_TOKEN) || [];
   const terms = [];
   let scope;
   let project;
+  let limit = FTS_LIMIT;
   for (let i = 0; i < toks.length; i++) {
     if (toks[i] === '--scope' && i + 1 < toks.length) { scope = toks[++i]; continue; }
     if (toks[i] === '--project' && i + 1 < toks.length) { project = toks[++i]; continue; }
+    if (toks[i] === '--limit' && i + 1 < toks.length) {
+      const n = Number(toks[++i]);
+      if (!Number.isInteger(n) || n < 0) throw new Error('fts --limit takes a whole number (0 = all).');
+      limit = n;
+      continue;
+    }
     terms.push(toks[i]);
   }
   if (project !== undefined) {
     if (scope !== undefined) throw new Error('fts takes --scope or --project, not both.');
     scope = projectScope(project);
   }
-  return { scopeTok: scope, query: terms.join(' ') };
+  return { scopeTok: scope, query: terms.join(' '), limit };
 }
 
 export function parseFts(text, root) {

@@ -82,12 +82,12 @@ export function fallback(cmd, args, root) {
       // Same `--scope` split as the cache path (KIT-T174); the scan needs no FTS escaping
       // because it never builds a MATCH expression — it substring-matches the raw terms.
       // Default scope also covers adopted frameworks' stores (KIT-T278), labelled by scope.
-      const { scopeTok, query } = splitFts(args.join(' '));
+      const { scopeTok, query, limit } = splitFts(args.join(' '));
       const scopes = searchScopes(scopeTok, root);
       const pool = scopeTok ? items : [...items, ...frameworkStores(root).flatMap((f) => collectItems(join(root, f.aiDir, '..'), f.aiDir))];
       const needle = query.toLowerCase();
       return pool.filter((i) => (!scopes.length || scopes.includes(i.scope)) && (`${i.title} ${i.body}`).toLowerCase().includes(needle))
-        .slice(0, FTS_LIMIT).map((i) => ({ scope: i.scope, id: i.id, type: i.type, status: i.status, title: i.title }));
+        .slice(0, limit || undefined).map((i) => ({ scope: i.scope, id: i.id, type: i.type, status: i.status, title: i.title }));
     }
     case 'rundown': {
       const scope = scopeOf(args[0]);
