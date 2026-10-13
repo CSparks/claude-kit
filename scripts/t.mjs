@@ -12,7 +12,8 @@
 //   t new <type> "<title>" [--priority <p>] [--not-dup <id,...>] [--root <dir>]   scaffold a ticket (id minted,
 //                                                   never picked); refuses when an open ticket looks like the
 //                                                   same work (t-dedup.mjs) unless --not-dup names the items checked
-//   t status <id> <state> [--human] [--note "…"] [--fixed-commit <sha>] [--no-trail-check "<reason>"]
+//   t status <id> <state> [--human] [--note "…"] [--fixed-commit <sha>] [--no-trail-check "<reason>"] [--remaining "…"]
+//                                                   (todo on a ticket with landed commits needs --remaining)
 //   t tick <id> <ordinal|substring> [--note "…"]   check an acceptance box
 //   t untick <id> <ordinal|substring>               uncheck one (ordinal counts CHECKED boxes)
 //   t criterion <id> "<text>"                       append an acceptance criterion
@@ -40,6 +41,7 @@ import { readProvenanceGate, trailGate } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
 import { readConfig } from './t-config.mjs';
 import { findDuplicates, refusal } from './t-dedup.mjs';
+import { remainingNote } from './landed.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
@@ -207,6 +209,7 @@ export function setStatus(root, id, state, opts = {}) {
     throw new Error(`${id}: '${state}' is not a known status (flow: ${cfg.flow.join(', ')}; off-board: ${cfg.offBoard.join(', ')})`);
   }
   const from = field(t.parts.fm, 'status') || '—';
+  const remaining = remainingNote(id, state, t.text, opts.remaining);
 
   const uatRequiredClose = state === 'done' && resolveUat(t.parts, cfg) === 'required';
   const humanGated = cfg.humanOnly.includes(state) || uatRequiredClose;
@@ -233,6 +236,7 @@ export function setStatus(root, id, state, opts = {}) {
 
   let body = appendUnderSection(t.parts.rest, 'History', `- [${stamp()}] (status) ${from} → ${state}`);
   if (opts.note) body = appendUnderSection(body, 'History', `- [${stamp()}] (comment) ${opts.note}`);
+  if (remaining) body = appendUnderSection(body, 'History', `- [${stamp()}] (comment) ${remaining}`);
 
   const out = t.parts.open + fm + t.parts.close + body;
   writeFileSync(t.path, out);
@@ -461,6 +465,7 @@ function parseArgs(argv) {
     if (a === '--human') flags.human = true;
     else if (a === '--note') flags.note = argv[++i];
     else if (a === '--fixed-commit') flags.fixedCommit = argv[++i];
+    else if (a === '--remaining') flags.remaining = argv[++i];
     else if (a === '--priority') flags.priority = argv[++i];
     else if (a === '--author') flags.author = argv[++i];
     else if (a === '--agent') flags.agent = argv[++i];

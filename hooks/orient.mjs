@@ -484,6 +484,10 @@ try {
         out.push(...renderTrail(trailRows, { limit: ORIENT_TRAIL_LINES, indent: '      ' }));
       }
     }
+    const { builtButUnticked } = await import('../scripts/landed.mjs');
+    const built = builtButUnticked(root);
+    for (const r of built.slice(0, INFLIGHT_SHOWN)) out.push(`    [${r.status}] ${r.id} built-but-unticked (${r.count} landed commits) — ${clip(r.title, LINE_MAX)}`);
+    if (built.length > INFLIGHT_SHOWN) out.push(`    +${built.length - INFLIGHT_SHOWN} more built-but-unticked — q show <id> prints LANDED COMMITS`);
     out.push(`  drill-in: q open | q trail <id> | q fts <terms>`);
   }
 } catch {
