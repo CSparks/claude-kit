@@ -20,6 +20,7 @@ import { familyOf } from '../../scripts/dispatch-outcomes.mjs';
 import { jobFamilies, modelOverride } from '../dispatch-job.mjs';
 import { declaredJob } from '../agent-outcome.mjs';
 import { modelDisplay } from '../model-tag.mjs';
+import { excludedRoots } from './excluded-trees.mjs';
 import { MODEL_UNKNOWN } from './agent-format.mjs';
 
 export const LIVE_IDLE_MIN = 90;
@@ -71,9 +72,10 @@ export function terminalAgentIds(aiDirs) {
   return done;
 }
 
-function flagsFor({ model, job, brief, jobs }) {
+function flagsFor({ model, job, brief, jobs, excluded }) {
   const flags = [];
   if (!model) flags.push('no model');
+  if (excluded) return flags;
   if (!job) flags.push('no job');
   else if (!jobs[job]) flags.push(`job '${job}' is not in the capability table`);
   else if (model && !modelOverride(brief)) {
@@ -100,6 +102,7 @@ function* metaFiles(projectsDir) {
 
 export function liveAgents({ claudeHome = claudeHomeDir(), nowMs = Date.now(), terminalIds = new Set() } = {}) {
   const jobs = readLadder().jobs;
+  const excludedSlugs = excludedRoots().map((r) => r.replace(/[^A-Za-z0-9-]/g, '-'));
   const out = [];
   for (const { project, session, dir, name } of metaFiles(join(claudeHome, 'projects'))) {
     const id = META.exec(name)[1];
@@ -110,13 +113,14 @@ export function liveAgents({ claudeHome = claudeHomeDir(), nowMs = Date.now(), t
     if (idleMin > LIVE_IDLE_MIN) continue;
     const meta = readJson(join(dir, name)) || {};
     const brief = briefOf(transcript);
+    const excluded = excludedSlugs.some((slug) => project.startsWith(slug));
     const job = declaredJob(brief);
     const model = String(meta.model || '').trim();
     out.push({
-      id, project, session, type: meta.agentType || '?', model, job, idleMin,
+      id, project, session, type: meta.agentType || '?', model, job, idleMin, excluded,
       row: jobs[job] ? jobFamilies(jobs[job]).join('|') : '',
       description: String(meta.description || ''),
-      flags: flagsFor({ model, job, brief, jobs }),
+      flags: flagsFor({ model, job, brief, jobs, excluded }),
     });
   }
   return out.sort((a, b) => a.idleMin - b.idleMin);
@@ -126,13 +130,14 @@ export function liveAgentLines(list) {
   if (!list.length) return [];
   const lines = list.map((a) => {
     const tag = a.model ? `[${modelDisplay(a.model)}]` : MODEL_UNKNOWN;
-    const job = a.job ? `job=${a.job}${a.row ? ` (table: ${a.row})` : ''}` : 'job=?';
+    const job = a.excluded ? 'kit OFF (excluded tree)' : a.job ? `job=${a.job}${a.row ? ` (table: ${a.row})` : ''}` : 'job=?';
     const desc = a.description.length > TASK_CLIP ? `${a.description.slice(0, TASK_CLIP - 1)}…` : a.description;
     const flag = a.flags.length ? `  !! ${a.flags.join('; ')}` : '';
     return `  ${tag} ${a.type}  ${a.id.slice(0, 8)}  ${a.project.replace(/^C--Users-[^-]+-[^-]+-/, '')}  idle ${a.idleMin}m  ${job}  ${desc}${flag}`;
   });
   const bad = list.filter((a) => a.flags.length).length;
-  const header = `--- LIVE agents on this machine, all sessions (${list.length}${bad ? `, ${bad} flagged !!` : ', all match the capability table'}) ---`;
+  const off = list.filter((a) => a.excluded).length;
+  const header = `--- LIVE agents on this machine, all sessions (${list.length}${off ? `, ${off} kit OFF` : ''}${bad ? `, ${bad} flagged !!` : ', none flagged'}) ---`;
   const shown = [...lines.filter((l) => l.includes('!!')), ...lines.filter((l) => !l.includes('!!'))].slice(0, MAX_LINES);
   return [header, ...shown, ...(lines.length > MAX_LINES ? [`  ... ${lines.length - MAX_LINES} more`] : [])];
 }

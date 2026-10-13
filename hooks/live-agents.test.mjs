@@ -5,7 +5,7 @@
 import { mkdirSync, writeFileSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
+import { TMP_REG, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 import { liveAgents, liveAgentLines, terminalAgentIds } from './lib/live-agents.mjs';
 import { statusOnlyAgents, unlabelledAgents } from './lib/agent-format.mjs';
 
@@ -32,9 +32,17 @@ try {
   agent('adone00001', { model: 'sonnet' }, '[job: fix] do it');
   agent('aidle000001', { model: 'sonnet' }, '[job: fix] do it', 300);
 
+  // an agent under an excluded root (kit OFF) is still shown, and still needs a model, but owes no job
+  const excl = join(home, 'projects', 'D--dev-excluded-fleet-sub', 'sess-2', 'subagents');
+  mkdirSync(excl, { recursive: true });
+  writeFileSync(join(excl, 'agent-aexcl00001.meta.json'), JSON.stringify({ agentType: 'implementer', description: '[Opus 5.5] fleet work', model: 'opus' }));
+  writeFileSync(join(excl, 'agent-aexcl00001.jsonl'), `${JSON.stringify({ type: 'user', message: { content: 'no job here' } })}\n`);
+  writeFileSync(TMP_REG, JSON.stringify({ excluded: ['D:/dev/excluded-fleet'] }));
+  process.env.CLAUDE_KIT_REGISTRY = TMP_REG;
+
   const list = liveAgents({ claudeHome: home, terminalIds: new Set(['adone00001']) });
   const byId = Object.fromEntries(list.map((a) => [a.id, a]));
-  ok('a finished agent and a long-idle agent are not live', !byId.adone00001 && !byId.aidle000001 && list.length === 6);
+  ok('a finished agent and a long-idle agent are not live', !byId.adone00001 && !byId.aidle000001 && list.length === 7);
   ok('an agent on its table row carries no flag', byId.aok0000001.flags.length === 0 && byId.aok0000001.row === 'sonnet');
   ok('a model off its job row is flagged', byId.abadmodel1.flags.some((f) => /opus is not in the table row for fix/.test(f)));
   ok('[model-override: reason] lifts the model flag', byId.aoverride1.flags.length === 0);
@@ -43,9 +51,10 @@ try {
   ok('a job outside the table is flagged', byId.abadjob001.flags.some((f) => /not in the capability table/.test(f)));
 
   const lines = liveAgentLines(list);
-  ok('the header counts live agents and flagged ones', /LIVE agents on this machine, all sessions \(6, 4 flagged !!\)/.test(lines[0]));
+  ok('the header counts live agents and flagged ones', /LIVE agents on this machine, all sessions \(7, 1 kit OFF, 4 flagged !!\)/.test(lines[0]));
   ok('a row shows its model tag, job and table row', lines.some((l) => /^\s+\[Sonnet 5\.5\] general-purpose  aok00000.*job=fix \(table: sonnet\)/.test(l)));
   ok('flagged rows print first', /!!/.test(lines[1]));
+  ok('an excluded-tree agent owes no job and says the kit is off', byId.aexcl00001.flags.length === 0 && lines.some((l) => /aexcl000.*kit OFF/.test(l)));
   ok('nothing live prints nothing', liveAgentLines([]).length === 0);
 
   // terminal ids come from the rosters
