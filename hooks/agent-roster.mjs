@@ -19,6 +19,7 @@ import { rowModel, isKnownModel, stripModelTag } from './model-tag.mjs';
 import { appendOutcome, outcomeRow } from './lib/dispatch-ledger.mjs';
 import { dispatchJob, modelOverride } from './dispatch-job.mjs';
 import { outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs';
+import { subagentOrphans, orphanLines } from './orphan-shells.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
 const ID_CITE_RE = new RegExp(ID_CITE_SRC); // at least one ticket/decision id anywhere in the brief
@@ -100,6 +101,7 @@ function recordStop(root, p) {
   try {
     const id = firstString(p.agent_id, p.agentId, p.task_id, p.id);
     if (!id) return; // no handle to reconcile against — leave the in-flight row for the stale-age flag
+    reportOrphanShells(root, id, p);
     const scope = firstString(p.agent_type, p.agentType);
     const outcome = outcomeFromTranscript(firstString(p.agent_transcript_path, p.agentTranscriptPath));
     const rosterRow = readAgents(root).find((r) => r.id === id) || {};
@@ -108,6 +110,15 @@ function recordStop(root, p) {
   } catch {
     /* fail-open */
   }
+}
+
+// The stopped agent's background shells that never exited: printed for the orchestrator and kept
+// on the roster row so orient shows them until stopped (KIT-T455).
+function reportOrphanShells(root, id, p) {
+  const orphans = subagentOrphans(p, root);
+  if (!orphans.length) return;
+  process.stderr.write(orphanLines(orphans).join('\n') + '\n');
+  updateAgent(root, id, { orphan_shells: orphans.map((o) => o.id) });
 }
 
 function isBackground(inp) {

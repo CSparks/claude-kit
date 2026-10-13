@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { gitRoot, adopted, git, payload, sessionMtimeMs, unboundedRoot } from './lib.mjs';
 import { missingCitations } from './session-citations.mjs';
 import { unresolvedAsks } from '../scripts/question-store.mjs';
+import { orphanShells, projectSlug, excludedIds, nagText, ORPHAN_AGE_MIN } from './orphan-shells.mjs';
 
 // Cap the dead-citation list so a badly-drifted SESSION.md can't swamp the flush output.
 const CITATION_LIST_MAX = 8;
@@ -52,6 +53,7 @@ async function main() {
     // here, so it stays a managed-repo ratchet.
     if (!unbounded) {
       unresolvedQuestionWarning(root, p.session_id);
+      orphanShellWarning(root, p.session_id);
       stopAnchorNudge(root, p);
     }
   } else {
@@ -102,6 +104,18 @@ function unresolvedQuestionWarning(root, session) {
       `⚠ This session asked ${open.length} question(s) that are still open:\n` +
       open.map((q) => `    ${q.id} — answered? write the Resolution: t resolve ${q.id} "<answer>"\n`).join(''),
     );
+  } catch {
+    /* advisory only */
+  }
+}
+
+// --- background shells this session started and never closed (KIT-T455) --------
+
+function orphanShellWarning(root, session) {
+  try {
+    if (!session) return;
+    const list = orphanShells({ project: projectSlug(root), session, minAgeMin: ORPHAN_AGE_MIN, skip: excludedIds(root) });
+    if (list.length) process.stderr.write(nagText(list));
   } catch {
     /* advisory only */
   }

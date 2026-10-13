@@ -14,6 +14,7 @@ import { recentCommits, ORIENT_WINDOW_MIN } from './live-sessions.mjs';
 import { frameworkSection } from './lib/frameworks.mjs';
 import { adoptedDocTree, trunkMap } from '../scripts/doc-tree.mjs';
 import { fitOrientation } from './lib/orient-budget.mjs';
+import { orphanShells, projectSlug, excludedIds, orphanLines, ORPHAN_AGE_MIN } from './orphan-shells.mjs';
 import { cacheDir, pathKey, statCached, statMarkdownFiles } from './lib/stat-cache.mjs';
 // q.mjs / id-utils.mjs are imported DYNAMICALLY at their (try-wrapped) use sites so a
 // broken scripts/ tree degrades that one section instead of crashing orientation (KIT-T055).
@@ -397,6 +398,14 @@ try {
   }
 } catch {
   /* roster unavailable — orientation proceeds without the in-flight-agent view */
+}
+
+// KIT-T455: background shells that never exited and sit in the task list with a dead timer.
+try {
+  const orphans = orphanShells({ project: projectSlug(root), minAgeMin: ORPHAN_AGE_MIN, skip: excludedIds(root) });
+  if (orphans.length) out.push('', '--- In-flight agents: ORPHAN background shells (stop them with TaskStop) ---', ...orphanLines(orphans).map((l) => '  ' + l.replace('ORPHAN SHELLS:', 'ORPHAN')));
+} catch {
+  /* orphan-shell scan is best-effort */
 }
 
 // KIT-T276: the broker daemon's lands and in-flight patch since the last look. Fail-open.
