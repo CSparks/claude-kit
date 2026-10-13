@@ -15,6 +15,7 @@
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { excludedAmong } from './lib/excluded-trees.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FILE_PAYLOAD_HOOKS = new Set([
@@ -186,6 +187,9 @@ async function main() {
 
   const raw = await readStdin();
   const payload = safeJson(raw);
+  // An excluded tree (KIT-T447) never runs a hook: the session's cwd, the launcher's cwd and
+  // the file a tool is about to touch are all checked, and a hit exits silently.
+  if (excludedAmong(payload.cwd, process.cwd(), payload?.tool_input?.file_path)) process.exit(0);
   const isCodex = Boolean(process.env.PLUGIN_ROOT);
   const payloads = isCodex ? codexFilePayloads(payload, scriptName) : [payload];
   const results = payloads.map((item) => runHook(scriptPath, item));

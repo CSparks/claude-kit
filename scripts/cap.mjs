@@ -35,6 +35,7 @@ import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve, basename } from 'node:path';
 import {
   readRegistry, writeItemFile, resolveStoreRoot, noStoreMessage, readIdentity, identityBlock,
+  refuseIfExcluded,
 } from '../hooks/lib.mjs';
 import { wantsHelpFirst } from './cli-help.mjs';
 import { runTopic } from './cap-topic.mjs';
@@ -95,6 +96,7 @@ then the unbounded catch-all store (a cwd with no .ai above it).
 
 const argv = process.argv.slice(2);
 if (wantsHelpFirst(argv)) { process.stdout.write(USAGE); process.exit(0); }
+refuseIfExcluded('cap');
 if (argv.length === 0) {
   console.error(USAGE);
   process.exit(1);

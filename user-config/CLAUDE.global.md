@@ -265,7 +265,8 @@ provenance (git log + graph), never a skim. (KIT-T113/T234/T237)
 # HOOK CONTRACT
 Portable Node enforcement hooks (from claude-kit) gate Write/Edit (code quality),
 `git commit` (work-log), SessionStart (orientation), PreCompact/Stop (flush);
-opt-in-aware — each no-ops unless the repo has `.ai/`.
+opt-in-aware — each no-ops unless the repo has `.ai/`, and inert under any registry
+`excluded` root (KIT-T447): no hooks, and `q`/`cap`/`t` refuse there — do not route around it.
 - **Never bypass a hook. Never loosen one without explicit approval.** A block gets
   a root-cause fix, not a weakened check.
 - A payload-reading hook reads stdin robustly and **fails open** on a parse error.

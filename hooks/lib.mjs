@@ -22,6 +22,9 @@ export {
   UNBOUNDED_DIR, unboundedAiDir, unboundedRoot, isUnbounded, resolveStoreRoot, noStoreMessage,
 } from './lib/unbounded.mjs';
 export {
+  excludedRoots, excludedRoot, excludedAmong, excludedMessage, refuseIfExcluded,
+} from './lib/excluded-trees.mjs';
+export {
   SESSION_FILE, sessionFile, readIdentity, writeIdentity, normalizeTopic, identityBlock,
 } from './lib/session-identity.mjs';
 export { writeItemFile } from './lib/store-write.mjs';

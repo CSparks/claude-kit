@@ -38,7 +38,7 @@ import { appendUnderSection, stamp } from './md-body.mjs';
 import { addCriterion, setCriterionAt, tickCriterion, untickCriterion } from './criteria.mjs';
 import { wantsHelp } from './cli-help.mjs';
 import { readProvenanceGate, trailGate } from './provenance.mjs';
-import { resolveStoreRoot } from '../hooks/lib.mjs';
+import { resolveStoreRoot, refuseIfExcluded } from '../hooks/lib.mjs';
 import { readConfig } from './t-config.mjs';
 import { findDuplicates, refusal } from './t-dedup.mjs';
 import { SHA_RE, findTicket, setField } from './t/ticket-file.mjs';
@@ -381,6 +381,7 @@ function parseArgs(argv) {
 }
 
 async function main() {
+  refuseIfExcluded('t');
   const { flags, pos } = parseArgs(process.argv.slice(2));
   // ONE resolution rule (KIT-T189): an explicit --root, else the nearest store above the cwd,
   // else the unbounded catch-all. The cwd stays the last resort so an uninitialized machine

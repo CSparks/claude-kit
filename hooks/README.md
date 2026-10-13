@@ -3,7 +3,8 @@
 Portable **Node** enforcement hooks — the layer that makes the workflow
 non-skippable, installed globally by `bootstrap.sh` but **opt-in-aware** (each
 exits immediately unless the repo has `.ai/`, so they never interfere with
-unadopted projects).
+unadopted projects). Hooks are also inert under any registry `excluded` root (KIT-T447),
+enforced in `compat-run.mjs` before a hook script runs.
 
 The plugin wiring is dual-host. `hooks/hooks.json` launches every handler through
 `compat-run.mjs`: Claude Code receives its original payloads and output unchanged;

@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { readRegistry } from './registry.mjs';
 import { storeRoot } from './paths.mjs';
+import { excludedRoot, excludedMessage } from './excluded-trees.mjs';
 
 export const UNBOUNDED_DIR = 'unbounded';
 
@@ -43,14 +44,19 @@ export function isUnbounded(root) {
 // THE resolution rule, shared by every entry point (cap, t, q, orient, flush): the nearest
 // store above `start`, else the unbounded catch-all, else null (nothing configured — the
 // caller keeps its historical no-op). Never guesses a project: the unbounded store is a
-// deliberate catch-all, not an inference.
+// deliberate catch-all, not an inference. An excluded tree (KIT-T447) resolves to NO store:
+// the catch-all must not quietly adopt it.
 export function resolveStoreRoot(start = process.cwd()) {
+  if (excludedRoot(start)) return null;
   return storeRoot(resolve(start)) || unboundedRoot();
 }
 
-// Why a cwd resolved to NO store at all: nothing above it, and no unbounded catch-all ready.
-// One sentence, one home — every entry point that has to refuse says the same thing.
-export function noStoreMessage() {
+// Why a cwd resolved to NO store at all: an excluded tree, else nothing above it and no
+// unbounded catch-all ready. One sentence, one home — every entry point that has to refuse
+// says the same thing.
+export function noStoreMessage(start = process.cwd()) {
+  const off = excludedRoot(start);
+  if (off) return excludedMessage(off);
   const ai = unboundedAiDir();
   return ai
     ? `the unbounded store at ${ai} is not initialized — run scripts/init-unbounded.mjs`

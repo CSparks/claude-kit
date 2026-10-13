@@ -193,6 +193,23 @@ scheme (keeping the old id as `aka:`), carries its `## History` verbatim, and le
 pointer behind: a capture goes to `inbox/triaged/`, a durable item to `status: superseded`
 with `moved_to:`.
 
+### 4a. Excluded trees — where the kit is OFF (KIT-T447)
+
+A registry key `excluded: [<absolute root>, ...]` in `~/.claude/claude-kit-projects.json`
+makes the kit inert beneath each root. It is **machine-local**: nothing is written into the
+excluded tree, so a tree that runs its own workflow (e.g. a CDX fleet root) stays untouched.
+Matching lives in `hooks/lib/excluded-trees.mjs` (case-insensitive on Windows, boundary-safe,
+fail-open). Two chokepoints:
+
+- `hooks/compat-run.mjs` — every hook launch checks the payload `cwd`, `process.cwd()` and
+  `tool_input.file_path`; a hit exits 0 before any hook script runs.
+- `resolveStoreRoot` (`hooks/lib/unbounded.mjs`) returns null, and `cap` / `t` / `q` call
+  `refuseIfExcluded` and exit 2: `claude-kit is off under <root> (registry `excluded`, KIT-T447) — this tree runs its own workflow`.
+
+Per-project `enabledPlugins: {"claude-kit@claude-kit": false}` in Claude Code settings only
+reaches sessions started in that exact directory (no ancestor lookup), so the registry key is
+the enforcement for a tree of nested repos.
+
 ### 5. Cache-hydration git hooks — per clone, **per machine** (KIT-T097)
 
 The derived SQLite cache hydrates on every in-process item write (KIT-T096) **and** on

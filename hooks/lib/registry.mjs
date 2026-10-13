@@ -21,9 +21,12 @@ export const REGISTRY = registryPath();
 export function readRegistry() {
   try {
     const r = JSON.parse(readFileSync(registryPath(), 'utf8'));
-    return { dataRoot: r.dataRoot || null, unbounded: r.unbounded || null, user: r.user || null, projects: r.projects || {} };
+    return {
+      dataRoot: r.dataRoot || null, unbounded: r.unbounded || null, user: r.user || null,
+      projects: r.projects || {}, excluded: Array.isArray(r.excluded) ? r.excluded : [],
+    };
   } catch {
-    return { dataRoot: null, user: null, projects: {} };
+    return { dataRoot: null, user: null, projects: {}, excluded: [] };
   }
 }
 
