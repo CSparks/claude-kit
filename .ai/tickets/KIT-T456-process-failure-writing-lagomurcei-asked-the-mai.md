@@ -1,5 +1,5 @@
 ---
-id: KIT-T317
+id: KIT-T456
 title: Process failure (writing/lagomurcei): asked the maintainer to rule on Milo's death timing, already settled in canon.md:103 and restated in o
 type: bug
 status: todo
@@ -30,6 +30,7 @@ first seen in lagomurcei. Filed automatically (KIT-T286): every kit bug is a tic
 ## History
 - [2026-10-03 22:25] (created) bug — Process failure (writing/lagomurcei): asked the maintainer to rule on Milo's death timing, already settled in canon.md:103 and restated in o
 - [2026-10-13 19:52] (comment) @sonnet55: Proposed fix (not built; for the maintainer) (full comment #1 in ## Notes)
+- [2026-10-13 20:17] (comment) re-keyed KIT-T317 -> KIT-T456: two files carried KIT-T317 (KIT-T451); the other file keeps it
 
 ## Notes
 ### comment #1 [2026-10-13 19:52] @sonnet55

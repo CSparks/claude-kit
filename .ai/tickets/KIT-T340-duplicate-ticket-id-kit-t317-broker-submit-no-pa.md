@@ -2,16 +2,16 @@
 id: KIT-T340
 title: Duplicate ticket id KIT-T317 (broker-submit-no-patch file and process-failure-writing-lagomurcei file) blocks index-tickets regeneration; re
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:
 labels: [kit-bug]
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T451
 created: 2026-10-06T01:55:32Z
-updated: 2026-10-06T01:55:32Z
+updated: 2026-10-13T20:17:08Z
 ---
 
 ## Description
@@ -29,3 +29,5 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## History
 - [2026-10-06 01:55] (created) bug — Duplicate ticket id KIT-T317 (broker-submit-no-patch file and process-failure-writing-lagomurcei file) blocks index-tickets regeneration; re
+- [2026-10-13 20:17] (status) todo → superseded
+- [2026-10-13 20:17] (status) → superseded (by KIT-T451)

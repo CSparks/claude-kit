@@ -1,5 +1,5 @@
 ---
-id: KIT-T409
+id: KIT-T457
 title: hook tree-liveness.mjs crashed or failed open
 type: bug
 status: todo
@@ -29,3 +29,4 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-10-09 23:58] (created) bug — hook tree-liveness.mjs crashed or failed open
+- [2026-10-13 20:17] (comment) re-keyed KIT-T409 -> KIT-T457: two files carried KIT-T409 (KIT-T451); the other file keeps it
