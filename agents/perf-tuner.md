@@ -65,6 +65,12 @@ undressed frame, different pixels) is LISTED in the doc, status `visible`, and n
 Numbers table (scene + mode per row), shas, probe runs used, time ledger, and the next lever
 you would take with its measured ms.
 
+## Waiting on builds and tests (KIT-T355)
+Cost is per tool call, so a wait is ONE call and one read of the result.
+- Run a long build or test in one Bash call with the max timeout, or with `run_in_background` and wait for the completion notification.
+- Pipe the output through a filter that keeps only failures, panics, assertion lines and the `test result` totals.
+- Never poll an output file, never sleep-loop, and never re-run a whole suite to see one test: run that test by name.
+
 ## Search — q first (the kit's search tool)
 Search with `q.mjs` (`node <kit>/scripts/q.mjs`), never grep or rg: it indexes the repo and its
 framework submodule — code in every language, docs, configs, tickets — and answers ranked, compact, exact.

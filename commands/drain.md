@@ -96,3 +96,4 @@ framework submodule — code in every language, docs, configs, tickets — and a
 - If q cannot do what you need, that is a kit bug or feature: `cap feature "q: <what is missing>" --project claude-kit`
   (a ticket the kit team builds) — never fall back to grep silently.
 - Put this line in every dispatch brief: "Search with q.mjs (q code / sym / file / fts), never grep."
+- Put this block in every dispatch brief (source: docs/wait-rule.md): wait ONCE per build or test — one Bash call with the max timeout or run_in_background, output filtered to failures/panics/assertions/`test result` totals, never poll or sleep-loop, re-run one test by name.

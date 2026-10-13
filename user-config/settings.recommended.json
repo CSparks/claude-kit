@@ -48,6 +48,10 @@
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/progress.mjs\"" }]
       },
       {
+        "matcher": "Read|Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/wait-poll.mjs\"" }]
+      },
+      {
         "matcher": "AskUserQuestion",
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/question-gate.mjs\"" }]
       },
