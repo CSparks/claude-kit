@@ -20,7 +20,7 @@ model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pi
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
-fixed_commit: d317c03
+fixed_commit: 2b206ff
 created: 2026-10-06T14:51:22.484Z
 updated: 2026-10-13T02:30:00Z
 ---
@@ -65,3 +65,5 @@ Landed d317c03: scripts/t-dedup.mjs (reuses q similar; similar now returns bm25 
 - [2026-10-13 02:29] (comment) @claude: Landed d317c03: scripts/t-dedup.mjs (reuses q similar; similar now returns bm25 score), t new wired, readConfig split to (full comment #2 in ## Notes)
 - [2026-10-13 02:30] (status) todo → review
 - [2026-10-13 03:20] (fixed) d317c03
+- [2026-10-13 02:30] (comment) @claude: Correction: the fixing commit is 2b206ff (the earlier comment's d317c03 is the KIT-T355 ticket commit).
+- [2026-10-13 03:25] (fixed) 2b206ff
