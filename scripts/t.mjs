@@ -21,7 +21,7 @@
 //                                                   causing_commit|fixed_commit|parent|link
 //   t move <id> <repo-path>                         promote an item into an adopted repo's .ai/
 //
-// IDs are NEVER hand-picked — `t new` mints via id-utils.nextId (KIT-D011). Every subcommand
+// IDs are NEVER hand-picked — `t new` mints via id-reserve.reserveNextId (KIT-D011). Every subcommand
 // fails loudly on an unknown id rather than inventing one. After a mutation the CLI refreshes
 // the derived board (index-tickets, which also reconciles supersede edges) and ingests the
 // SQLite cache — both fail-open, so a missing engine never wedges a mutation.
@@ -30,7 +30,8 @@ import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { nextId, readIdConfig, idExists, fileForId } from './id-utils.mjs';
+import { readIdConfig, idExists, fileForId } from './id-utils.mjs';
+import { reserveNextId } from './id-reserve.mjs';
 import { splitFrontmatter, field } from './frontmatter.mjs';
 import { buildComment, parseComments, recordAck } from './comments.mjs';
 import { resolveUser } from './identity.mjs';
@@ -112,7 +113,7 @@ export function scaffoldNew(root, type, title, opts = {}) {
     throw new Error(`t new: unknown priority '${priority}' (config.priorities: ${priorities.join(', ')})`);
   }
   const description = String(opts.description ?? '').trim() || '<!-- what and why — fill in via Edit -->';
-  const id = nextId(root, 'tickets');
+  const id = reserveNextId(root, 'tickets');
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'ticket';
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const path = join(root, '.ai', 'tickets', `${id}-${slug}.md`);
