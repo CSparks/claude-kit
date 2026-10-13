@@ -96,7 +96,7 @@ function runStop(dir, session) {
 }
 const asks = stampAsk(question('FQF-Q001', 'todo'), 'me', `${TODAY} 09:00`);
 const stale = stampAsk(question('FQF-Q002', 'todo'), 'me', '2020-01-01 09:00');
-const answered = stampAsk(question('FQF-Q003', 'resolved', '(2026-10-13, chris) yes'), 'me', `${TODAY} 09:00`);
+const answered = stampAsk(question('FQF-Q003', 'resolved', '(2026-10-13, pat) yes'), 'me', `${TODAY} 09:00`);
 const theirs = stampAsk(question('FQF-Q004', 'todo'), 'them', `${TODAY} 09:00`);
 const qrepo = makeRepo({ files: {
   '.ai/questions/FQF-Q001-a.md': asks, '.ai/questions/FQF-Q002-b.md': stale,

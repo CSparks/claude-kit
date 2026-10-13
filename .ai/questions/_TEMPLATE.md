@@ -1,6 +1,6 @@
 ---
 id: KIT-Q001
-status: open           # open | resolved
+status: open           # open | resolved  (asked is a History event: t ask)
 answerable_by: chris   # chris | claude  (see config.yml classifications.question)
 created: <YYYY-MM-DD>
 ---

@@ -174,7 +174,7 @@ native_task_sync:
 # bugs link recurrences. INDEX/REGRESSIONS/ROADMAP are GENERATED, never hand-kept.
 # ---------------------------------------------------------------------------
 history:
-  events: [created, status, comment, decision, blocker, unblocked, fixed, regressed]
+  events: [created, status, comment, decision, blocker, unblocked, fixed, regressed, asked, resolved]
   archive_done_to: tickets/archive
 regressions:
   links: [regressed_from, causing_commit, fixed_commit]

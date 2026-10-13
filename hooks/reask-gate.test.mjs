@@ -46,11 +46,13 @@ try {
   writeFileSync(file, stampAsk(QUESTION('FQR-Q001', GRABOIDS), 'other-session', daysAgo(9)));
   ok('an ask older than 7 days passes', ask('mine', 'Do graboids burrow under razed camps before the raid timer?').code === 0);
 
-  writeFileSync(file, stampAsk(QUESTION('FQR-Q001', GRABOIDS).replace('<answer>', '(2026-10-12, chris) Yes'), 'other-session', daysAgo(1)));
+  writeFileSync(file, stampAsk(QUESTION('FQR-Q001', GRABOIDS).replace('<answer>', '(2026-10-12, pat) Yes'), 'other-session', daysAgo(1)));
   ok('a question with a Resolution passes', ask('mine', 'Do graboids burrow under razed camps before the raid timer?').code === 0);
 
   writeFileSync(file, QUESTION('FQR-Q001', GRABOIDS));
-  ok('an unasked question passes', ask('mine', 'Do graboids burrow under razed camps before the raid timer?').code === 0);
+  ok('an unasked question passes and is stamped as asked by this session',
+    ask('mine', 'Do graboids burrow under razed camps before the raid timer?').code === 0 && askedEntries(readFileSync(file, 'utf8')).some((e) => e.session === 'mine'));
+writeFileSync(file, QUESTION('FQR-Q001', GRABOIDS));
   ok('a pass citing the id stamps (asked) for this session',
     ask('mine', 'Resolve FQR-Q001', { header: 'x' }).code === 0 && askedEntries(readFileSync(file, 'utf8')).some((e) => e.session === 'mine' && e.date === TODAY));
 

@@ -5,8 +5,8 @@
 // A question file `.ai/questions/<KEY>-Q###.md` carries `(asked) <session>` History lines
 // (`t ask`, or stamped here). A questionnaire whose question restates an OPEN question file
 // that a DIFFERENT session asked within ASK_WINDOW_DAYS blocks. Override: `[re-ask: <reason>]`
-// in any question text. A pass stamps `(asked) <this session>` on every question file the
-// questionnaire cites by id. Check id: reask-gate. Fails open on any error.
+// in any question text. A pass stamps `(asked) <this session>` on every open question file the
+// questionnaire restates or cites by id. Check id: reask-gate. Fails open on any error.
 
 import { writeFileSync } from 'node:fs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
@@ -43,23 +43,21 @@ try {
   const files = readQuestions(root).filter((f) => isOpenQuestion(f.text) && !pathExcluded(root, CHECK_ID, f.file));
   const session = String(p.session_id || '');
   const cutoff = Date.now() - ASK_WINDOW_DAYS * MS_PER_DAY;
+  const matched = files.filter((f) => questions.some((q) => citesId(textOf(q), f.id) || questionMatches(askText(q), f.text)));
   const hits = [];
-  for (const f of files) {
+  for (const f of matched) {
     const last = askedEntries(f.text).pop();
-    const matched = questions.some((q) => citesId(textOf(q), f.id) || questionMatches(askText(q), f.text));
-    if (!matched || !last || last.session === session || resolutionText(f.text)) continue;
-    if (Date.parse(last.date) >= cutoff) hits.push({ ...f, ...last });
+    if (last && last.session !== session && !resolutionText(f.text) && Date.parse(last.date) >= cutoff) hits.push({ ...f, ...last });
   }
   if (hits.length) {
     process.stderr.write(blockMessage(hits));
     process.exit(2);
   }
 
-  const cited = (f) => questions.some((q) => citesId(textOf(q), f.id));
   const today = new Date().toISOString().slice(0, 10);
-  for (const f of files) {
+  for (const f of matched) {
     const last = askedEntries(f.text).pop();
-    if (session && cited(f) && !(last && last.session === session && last.date === today)) writeFileSync(f.file, stampAsk(f.text, session));
+    if (session && !(last && last.session === session && last.date === today)) writeFileSync(f.file, stampAsk(f.text, session));
   }
 } catch {
   /* fail open */

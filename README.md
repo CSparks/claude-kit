@@ -31,6 +31,8 @@ round it off and a fresh session resumes cold.
    a regression from the current edit, or you saying "stop").
 3. **Triage** drains `inbox/` into `tickets/` (a file-based kanban) — every item
    category (`tickets/ decisions/ questions/ notes/`) is a folder of one-file-per-item.
+   A question runs open → asked (`t ask`) → resolved (`t resolve`); the `reask-gate` hook
+   blocks a second session from re-asking what another already asked (`[re-ask: <reason>]` overrides).
 4. **Work** a ticket: `/work KIT-T001` → restate acceptance criteria → confirm
    scope → execute, ticking boxes.
 5. **Drain** keeps going between tickets without being asked.

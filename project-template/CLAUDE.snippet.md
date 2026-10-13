@@ -53,7 +53,7 @@ the receipt, and continue — do not halt to ask.
   `/drain` resolves the `answerable_by: claude` ones from code + `.ai/decisions/` — writing
   the answer + date into the file's `**Resolution:**` and setting `status: resolved` (RECORD
   the answer, never delete) — and batches the `answerable_by: user` ones into the next
-  `/decide`. Lifecycle is open → resolved; the store never rots into a dead drop.
+  `/decide`. Lifecycle is open → asked → resolved: `t ask <id>` (or a passing questionnaire that cites the id) stamps `(asked) <session>` in History; the `reask-gate` hook blocks a questionnaire that restates a question another session asked within 7 days and left unresolved (override: `[re-ask: <reason>]` in the question text); the answering session writes `t resolve <id> "<answer>"` the turn it is answered (the Stop flush warns while its asked questions stay open). The store never rots into a dead drop.
 - **Regressions**: priority-bumped per config; surface proactively.
 - **Anti-relitigation**: if an interjection reopens a point already in
   `.ai/DECISIONS.md`, cite it in one line ("settled 2026-05-30: X because Y —

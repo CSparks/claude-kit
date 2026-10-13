@@ -1,6 +1,6 @@
 ---
 id: KEY-Q001
-status: open           # open | resolved
+status: open           # open | resolved  (asked is a History event: t ask)
 answerable_by: user    # user | claude  (see config.yml classifications.question)
 created: <YYYY-MM-DD>
 ---

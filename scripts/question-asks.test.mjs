@@ -22,7 +22,7 @@ const ok = (name, cond) => { if (cond) { pass++; console.log('  ok    ' + name);
 const TEMPLATE = `---
 id: FQK-Q001
 status: open           # open | resolved
-answerable_by: chris
+answerable_by: pat
 created: 2026-10-01
 ---
 
@@ -45,9 +45,9 @@ ok('askedLabel is empty for an unasked question', askedLabel(TEMPLATE) === '');
 const twice = stampAsk(asked, 'sess-b', '2026-10-14 10:00');
 ok('the latest ask wins the label', askedLabel(twice) === 'ASKED: sess-b 2026-10-14' && askedEntries(twice).length === 2);
 
-const done = resolveQuestion(twice, 'chris', 'Yes, burrow.', '2026-10-14 11:00');
-ok('resolve writes the Resolution line', resolutionText(done) === '(2026-10-14, chris) Yes, burrow.');
-ok('resolve flips status and logs (resolved)', !isOpenQuestion(done) && /status: resolved/.test(done) && /\(resolved\) chris/.test(done));
+const done = resolveQuestion(twice, 'pat', 'Yes, burrow.', '2026-10-14 11:00');
+ok('resolve writes the Resolution line', resolutionText(done) === '(2026-10-14, pat) Yes, burrow.');
+ok('resolve flips status and logs (resolved)', !isOpenQuestion(done) && /status: resolved/.test(done) && /\(resolved\) pat/.test(done));
 ok('resolve keeps the asked history', askedEntries(done).length === 2);
 
 ok('questionMatches: shared distinctive words match', questionMatches('Do graboids burrow under razed camps?', TEMPLATE));
@@ -60,7 +60,7 @@ mkdirSync(join(dir, '.ai', 'tickets'), { recursive: true });
 writeFileSync(join(dir, '.ai', 'config.yml'), 'ids:\n  key: "FQK"\n  pad: 3\n');
 const file = join(dir, '.ai', 'questions', 'FQK-Q001-graboids.md');
 writeFileSync(file, TEMPLATE.replace('status: open ', 'status: todo '));
-const env = { ...process.env, CLAUDE_PLUGIN_ROOT: dir, CLAUDE_KIT_REGISTRY: join(dir, 'reg.json'), KIT_USER: 'chris' };
+const env = { ...process.env, CLAUDE_PLUGIN_ROOT: dir, CLAUDE_KIT_REGISTRY: join(dir, 'reg.json'), KIT_USER: 'pat' };
 const t = (args) => spawnSync(process.execPath, [T, '--root', dir, ...args], { encoding: 'utf8', env });
 const r1 = t(['ask', 'FQK-Q001', '--session', 'x']);
 ok('t ask exits 0 and stamps', r1.status === 0 && askedLabel(readFileSync(file, 'utf8')) === `ASKED: x ${new Date().toISOString().slice(0, 10)}`);
@@ -69,7 +69,7 @@ const openRows = (await query('open', [], { root: dir, noDb: true })).rows;
 ok('q open appends ASKED to the asked question', openRows.some((r) => r.id === 'FQK-Q001' && r.title.startsWith('ASKED: x ')));
 ok('t ask refuses a non-question', t(['ask', 'FQK-T001', '--session', 'x']).status !== 0);
 const r2 = t(['resolve', 'FQK-Q001', 'Yes, burrow.']);
-ok('t resolve exits 0 and resolves', r2.status === 0 && !isOpenQuestion(readFileSync(file, 'utf8')) && /, chris\) Yes, burrow\./.test(readFileSync(file, 'utf8')));
+ok('t resolve exits 0 and resolves', r2.status === 0 && !isOpenQuestion(readFileSync(file, 'utf8')) && /, pat\) Yes, burrow\./.test(readFileSync(file, 'utf8')));
 
 rmSync(dir, { recursive: true, force: true });
 console.log(`\nquestion-asks: ${pass} passed, ${fail} failed`);
