@@ -1,57 +1,81 @@
 #!/usr/bin/env node
-// dev-link — point the INSTALLED claude-kit plugin at this working repo, so edits go
-// live on `/reload-plugins` alone: no marketplace update, no version bump, no reinstall.
-// The published plugin and every other machine are unaffected — this only relinks the
-// local install dir to the repo. Reversible.
+// dev-link — point the INSTALLED claude-kit plugin at a kit tree. The install dir becomes a
+// junction, so hooks, commands, agents, skills and the bin/ shims (q, t, cap) all load from it.
 //
-//   node scripts/dev-link.mjs           # link the install dir -> this repo
+//   node scripts/dev-link.mjs           # link the install dir -> the sealed runtime (`current`)
+//   node scripts/dev-link.mjs --live    # link the install dir -> this working repo (writer loop)
 //   node scripts/dev-link.mjs --unlink  # restore the frozen snapshot
 //
-// After linking: edit the repo, run /reload-plugins, done. (`/plugin update` will
-// replace the link with a fresh snapshot — just re-run dev-link to re-link.)
+// The sealed runtime holds the tested, committed tree and moves only through
+// `npm run publish:runtime` (KIT-T450). `--live` runs half-edits, so only the writer uses it.
+// `/plugin update` replaces the link with a fresh snapshot — re-run dev-link to re-link.
+// bootstrap.mjs calls linkPlugin, so a bootstrap run keeps the install on the runtime.
 
-import { readFileSync, existsSync, rmSync, renameSync, symlinkSync, lstatSync } from 'node:fs';
+import { readFileSync, existsSync, rmSync, renameSync, symlinkSync, lstatSync, realpathSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { runtimeCurrent } from './runtime-path.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const KEY = 'claude-kit@claude-kit';
-const reg = join(homedir(), '.claude', 'plugins', 'installed_plugins.json');
+const LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
 
-let entry;
-try {
-  const data = JSON.parse(readFileSync(reg, 'utf8'));
-  entry = ((data.plugins && data.plugins[KEY]) || [])[0];
-} catch {
-  /* no registry */
-}
-if (!entry || !entry.installPath) {
-  console.error(`${KEY} is not installed — run /plugin install ${KEY} first.`);
-  process.exit(1);
-}
-const installPath = entry.installPath;
-const bak = installPath + '.snapshot-bak';
-const linked = () => {
-  try { return lstatSync(installPath).isSymbolicLink(); } catch { return false; }
-};
+const defaultHome = () => process.env.CLAUDE_HOME || join(homedir(), '.claude');
 
-if (process.argv.includes('--unlink')) {
-  if (linked()) {
-    rmSync(installPath, { recursive: true, force: true });
-    if (existsSync(bak)) renameSync(bak, installPath);
-    console.log('unlinked — frozen snapshot restored. /reload-plugins to apply.');
-  } else {
-    console.log('not dev-linked — nothing to do.');
+/** The installed plugin's directory per installed_plugins.json, or '' when not installed. */
+export function pluginInstallPath(claudeHome = defaultHome()) {
+  try {
+    const data = JSON.parse(readFileSync(join(claudeHome, 'plugins', 'installed_plugins.json'), 'utf8'));
+    return ((data.plugins && data.plugins[KEY]) || [])[0]?.installPath || '';
+  } catch {
+    return '';
   }
-  process.exit(0);
 }
 
-if (linked()) {
-  console.log(`already dev-linked: ${installPath} -> ${REPO}`);
-  process.exit(0);
+const isLink = (path) => { try { return lstatSync(path).isSymbolicLink(); } catch { return false; } };
+const sameTree = (a, b) => { try { return realpathSync(a) === realpathSync(b); } catch { return false; } };
+
+/** Point the install dir at `target`; the frozen snapshot is kept once as `<dir>.snapshot-bak`. */
+export function linkPlugin({ claudeHome = defaultHome(), target }) {
+  const installPath = pluginInstallPath(claudeHome);
+  if (!installPath) throw new Error(`${KEY} is not installed — run /plugin install ${KEY} first.`);
+  if (isLink(installPath)) {
+    if (sameTree(installPath, target)) return { action: 'unchanged', installPath };
+    rmSync(installPath, { recursive: true, force: true });
+  } else if (existsSync(installPath)) {
+    const bak = installPath + '.snapshot-bak';
+    if (existsSync(bak)) rmSync(installPath, { recursive: true, force: true });
+    else renameSync(installPath, bak);
+  }
+  symlinkSync(target, installPath, LINK_TYPE);
+  return { action: 'linked', installPath };
 }
-if (existsSync(installPath) && !existsSync(bak)) renameSync(installPath, bak);
-else if (existsSync(installPath)) rmSync(installPath, { recursive: true, force: true });
-symlinkSync(REPO, installPath, process.platform === 'win32' ? 'junction' : 'dir');
-console.log(`dev-linked: ${installPath}\n         -> ${REPO}\n\nLoop is now: edit the repo, /reload-plugins. (node scripts/dev-link.mjs --unlink to revert.)`);
+
+/** Remove the link and restore the frozen snapshot. */
+export function unlinkPlugin({ claudeHome = defaultHome() } = {}) {
+  const installPath = pluginInstallPath(claudeHome);
+  if (!installPath || !isLink(installPath)) return { action: 'unchanged', installPath };
+  rmSync(installPath, { recursive: true, force: true });
+  const bak = installPath + '.snapshot-bak';
+  if (existsSync(bak)) renameSync(bak, installPath);
+  return { action: 'unlinked', installPath };
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const flag = (name) => process.argv.includes(name);
+  try {
+    if (flag('--unlink')) {
+      const r = unlinkPlugin();
+      console.log(r.action === 'unlinked' ? 'unlinked — frozen snapshot restored. /reload-plugins to apply.' : 'not dev-linked — nothing to do.');
+    } else {
+      const target = flag('--live') ? REPO : runtimeCurrent();
+      if (!target) throw new Error('no sealed runtime published yet — run `npm run publish:runtime` (or pass --live for the working repo).');
+      const r = linkPlugin({ target });
+      console.log(r.action === 'unchanged' ? `already linked: ${r.installPath} -> ${target}` : `linked: ${r.installPath}\n    -> ${target}\n\n/reload-plugins to apply. (node scripts/dev-link.mjs --unlink to revert.)`);
+    }
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
+  }
+}

@@ -3,20 +3,20 @@
 // (KIT-T450). Writers edit the repo; every other session loads scripts and hooks from
 // `<runtime>/current`, so a half-edited file is never loaded.
 //
-//   node scripts/runtime-publish.mjs [--runtime <dir>] [--keep N]
-//   npm run publish:runtime        # npm test first, then publish
+//   npm run publish:runtime        # npm test first, then publish: the ONLY way `current` moves
+//   node scripts/runtime-publish.mjs [--runtime <dir>] [--keep N]   # refuses outside that npm script
 //
 // Layout: <runtime>/<sha>/ (immutable `git archive HEAD`), <runtime>/current -> <sha> (junction),
 // <runtime>/cache (the shared query cache, linked in as <sha>/.cache), node_modules linked from the
 // repo when present. `current` moves only after the export is complete.
 
 import { mkdirSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync, realpathSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { runtimeRoot as defaultRuntimeRoot } from './runtime-path.mjs';
 
-const DEFAULT_RUNTIME = join(homedir(), '.claude', 'claude-kit-runtime');
+const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
 const SHA_DIR = /^[0-9a-f]{7,40}$/;
 const LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
@@ -52,7 +52,7 @@ function prune(runtimeRoot, keep, currentSha) {
 }
 
 /** Export HEAD of `repo` and repoint `current`; throws before touching `current` if the export fails. */
-export function publishRuntime({ repo, runtimeRoot = DEFAULT_RUNTIME, keep = DEFAULT_KEEP }) {
+export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep = DEFAULT_KEEP }) {
   const sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
   mkdirSync(runtimeRoot, { recursive: true });
   const dir = join(runtimeRoot, sha);
@@ -77,8 +77,12 @@ export function publishRuntime({ repo, runtimeRoot = DEFAULT_RUNTIME, keep = DEF
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const arg = (flag) => { const i = process.argv.indexOf(flag); return i === -1 ? undefined : process.argv[i + 1]; };
   const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  if (process.env.npm_lifecycle_event !== PUBLISH_SCRIPT) {
+    process.stderr.write('runtime-publish: refusing - run `npm run ' + PUBLISH_SCRIPT + '` so the suite is green before `current` moves.\n');
+    process.exit(1);
+  }
   try {
-    const r = publishRuntime({ repo, runtimeRoot: arg('--runtime') || DEFAULT_RUNTIME, keep: Number(arg('--keep')) || DEFAULT_KEEP });
+    const r = publishRuntime({ repo, runtimeRoot: arg('--runtime') || defaultRuntimeRoot(), keep: Number(arg('--keep')) || DEFAULT_KEEP });
     process.stdout.write(`runtime: ${r.sha} -> ${r.current}\nrun kit scripts from ${r.current}/scripts/ (q.mjs, t.mjs, cap.mjs)\n`);
   } catch (e) {
     process.stderr.write(`runtime-publish: ${e.message}\n`);

@@ -295,17 +295,19 @@ Don't run the publish loop on every edit.
   and Codex payload/output adapters.
 - `claude plugin validate .` checks the plugin + marketplace manifests.
 
-**Dev loop — live in your session, one command:** run `node scripts/dev-link.mjs` **once**
-to point the installed plugin at this working repo (junction). After that the entire loop
-is: **edit the repo → `/reload-plugins`.** No marketplace update, no version bump, no
-reinstall. (`node scripts/dev-link.mjs --unlink` restores the frozen snapshot.)
+**Sealed runtime — what sessions run (KIT-T450, KIT-D092):** while a writer has the repo
+half-edited, any session loading it loads the half-edit. `npm run publish:runtime` (`npm test`, then
+`scripts/runtime-publish.mjs`, which refuses to run outside that npm script) exports the COMMITTED tree to
+`~/.claude/claude-kit-runtime/<sha>/` and repoints `~/.claude/claude-kit-runtime/current` at it; that is the
+only way `current` moves. `node bootstrap.mjs` then points the plugin install (hooks, commands, agents,
+skills, the `q`/`t`/`cap` shims), the statusline and every `<kit>` path in the composed `~/.claude/CLAUDE.md`
+at `current`. Run bootstrap once after the first publish; later publishes need no re-run. The last 3 shas stay
+for sessions still inside them; the query cache is shared across shas.
 
-**Sealed runtime — what other live sessions run (KIT-T450):** while a writer has the repo
-half-edited, any session calling `node <repo>/scripts/q.mjs` loads the half-edit. `npm run publish:runtime`
-(`npm test`, then `scripts/runtime-publish.mjs`) exports the COMMITTED tree to
-`~/.claude/claude-kit-runtime/<sha>/` and repoints `~/.claude/claude-kit-runtime/current` at it;
-sessions run `current/scripts/q.mjs`, `t.mjs`, `cap.mjs` (or point `dev-link` at `current`). The
-last 3 shas stay for sessions still inside them; the query cache is shared across shas.
+**Writer loop — live in your session:** `node scripts/dev-link.mjs --live` points the installed plugin at this
+working repo (junction): edit the repo, `/reload-plugins`, no version bump. `node scripts/dev-link.mjs` with no
+flag points it back at the sealed runtime; `--unlink` restores the frozen snapshot. `/plugin update` replaces
+the link with a fresh snapshot, so re-run bootstrap or dev-link afterwards.
 
 **Publish loop — occasional, for *other* machines / consumers:**
 1. `npm test` and `npm run test:compat` green; bump **both**

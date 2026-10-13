@@ -34,3 +34,6 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 - [2026-10-13 19:52] (asked again) 2026-10-13 — cap:bug:kit-writers-edit-the-live-scripts-every-session-
 - [2026-10-13 20:34] (status) todo → review
 - [2026-10-13 20:34] (comment) 4ac3ce2; scripts/runtime-publish.test.mjs 7 passed; npm test exit 0. Sessions adopt it by running kit scripts from ~/.claude/claude-kit-runtime/current
+- [2026-10-13 21:07] (comment) @claude: Decided 2026-10-13 (KIT-D092): sessions run the kit from the tested, published runtime copy, not the live checkout. Chri (full comment #1 in ## Notes)
+### comment #1 [2026-10-13 21:07] @claude
+Decided 2026-10-13 (KIT-D092): sessions run the kit from the tested, published runtime copy, not the live checkout. Chris: "Run from tested copy". Wiring is KIT-T460: bootstrap, dev-link and the composed CLAUDE.md point at ~/.claude/claude-kit-runtime/current; npm run publish:runtime is the only way current moves.
