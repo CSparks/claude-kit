@@ -3,7 +3,7 @@ id: KIT-T355
 title: Agents burn tokens WAITING: token cost is per tool call (each call re-sends the whole transcript), and an agent that waits for a build by…
 summary:               # OPTIONAL one-line gist — what a trail/brief shows instead of a clipped title
 type: bug
-status: todo
+status: review
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -20,8 +20,9 @@ model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pi
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
+fixed_commit: 33e385c
 created: 2026-10-06T14:51:22.625Z
-updated: 2026-10-06T14:51:22.625Z
+updated: 2026-10-13T02:24:55Z
 ---
 
 ## Description
@@ -33,7 +34,7 @@ Agents burn tokens WAITING: token cost is per tool call (each call re-sends the 
      →done when none) requires this ticket to cite a test artifact — a test path, a suite-run
      reference (npm test / "N passed"), or the fixing commit sha — OR an explicit
      [no-test: <reason>]. The commit gate blocks the close otherwise. -->
-- [ ]
+- [x] wait-poll hook warns twice then blocks on re-read of a task output file or sleep/check loop; wait rule (docs/wait-rule.md) in every agent + work/drain briefs
 
 ## Plan
 <!-- filled in before editing; Claude waits for OK if the plan changes scope -->
@@ -42,6 +43,10 @@ Agents burn tokens WAITING: token cost is per tool call (each call re-sends the 
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+### comment #1 [2026-10-13 02:16] @chris
+Recurrence 2026-10-12 (stiletto ST-T755): Sonnet apply agent a4ae1671 spent ~500k tokens watching cargo test output while debugging one drawn_slab assertion; Chris flagged it, orchestrator killed it. Still unenforced: needs a hook/brief rule — run tests in background, filter to failures, one read on completion, no tail/poll loops.
+### comment #2 [2026-10-13 02:24] @claude
+Landed 33e385c: hooks/wait-poll.mjs (check-id wait-poll), hooks/wait-poll.test.mjs 21 passed (incl. negative control: one/two reads of a completed output pass), search-adoption 7 passed; rule in docs/wait-rule.md carried verbatim in 14 agents + work/drain brief line. fixed_commit 33e385c
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -54,3 +59,9 @@ Agents burn tokens WAITING: token cost is per tool call (each call re-sends the 
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-10-13 02:16] (comment) @chris: Recurrence 2026-10-12 (stiletto ST-T755): Sonnet apply agent a4ae1671 spent ~500k tokens watching cargo test output whil (full comment #1 in ## Notes)
+- [2026-10-13 02:24] (comment) criterion added: wait-poll hook warns twice then blocks on re-read of a task output file or sleep/check loop; wait rule (docs/wait-rule.md) in every agent + work/drain briefs
+- [2026-10-13 02:24] (comment) ticked: wait-poll hook warns twice then blocks on re-read of a task output file or sleep/check loop; wait rule (docs/wait-rule.md) in every agent + work/drain briefs
+- [2026-10-13 02:24] (comment) @claude: Landed 33e385c: hooks/wait-poll.mjs (check-id wait-poll), hooks/wait-poll.test.mjs 21 passed (incl. negative control: on (full comment #2 in ## Notes)
+- [2026-10-13 02:24] (status) todo → review
+- [2026-10-13 02:50] (fixed) 33e385c
