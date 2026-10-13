@@ -91,3 +91,8 @@ export function foreignPaths(root, paths, sessionId) {
   if (!mine.size) return [];
   return paths.filter((p) => !isStorePath(p) && !mine.has(p));
 }
+
+// Record a path a non-Write tool changed (a Bash/PowerShell/node script) as this session's own.
+export function recordSessionPath(root, rel, sessionId) {
+  if (sessionId && rel) recordSessionWrite(root, rel, sessionId);
+}

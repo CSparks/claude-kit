@@ -48,6 +48,10 @@
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/progress.mjs\"" }]
       },
       {
+        "matcher": "Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/shell-writes.mjs\"" }]
+      },
+      {
         "matcher": "Read|Bash|PowerShell",
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/wait-poll.mjs\"" }]
       },
@@ -81,6 +85,7 @@
         "matcher": "Bash|PowerShell",
         "hooks": [
           { "type": "command", "command": "node \"$HOME/.claude/hooks/git-pull-hydrate.mjs\"" },
+          { "type": "command", "command": "node \"$HOME/.claude/hooks/shell-writes.mjs\"" },
           { "type": "command", "command": "node \"$HOME/.claude/hooks/progress.mjs\"" }
         ]
       },
