@@ -300,6 +300,13 @@ to point the installed plugin at this working repo (junction). After that the en
 is: **edit the repo → `/reload-plugins`.** No marketplace update, no version bump, no
 reinstall. (`node scripts/dev-link.mjs --unlink` restores the frozen snapshot.)
 
+**Sealed runtime — what other live sessions run (KIT-T450):** while a writer has the repo
+half-edited, any session calling `node <repo>/scripts/q.mjs` loads the half-edit. `npm run publish:runtime`
+(`npm test`, then `scripts/runtime-publish.mjs`) exports the COMMITTED tree to
+`~/.claude/claude-kit-runtime/<sha>/` and repoints `~/.claude/claude-kit-runtime/current` at it;
+sessions run `current/scripts/q.mjs`, `t.mjs`, `cap.mjs` (or point `dev-link` at `current`). The
+last 3 shas stay for sessions still inside them; the query cache is shared across shas.
+
 **Publish loop — occasional, for *other* machines / consumers:**
 1. `npm test` and `npm run test:compat` green; bump **both**
    `.claude-plugin/plugin.json` and `.codex-plugin/plugin.json` to the same version
