@@ -4,7 +4,10 @@
 // fail there too are foreign and the run carries on; otherwise the entry keeps `caused` for
 // train-blame.mjs.
 //
-// `runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseline })`
+// A red command with only compile errors in files no member touched goes through known-red.mjs
+// (`knownRed(entry)`): errors main already has are left out and the rerun judges the train.
+//
+// `runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseline, knownRed })`
 //   commands  [{ cmd, owners, from }] from train-commands.mjs
 //   nextLog   () → the next log number for this train
 //   baseline  baseline.mjs's runner, or null (a re-verify after a rebase: no attribution)
@@ -17,7 +20,7 @@ import { diagnose } from './diagnose.mjs';
 import { logPathFor } from './result.mjs';
 import { runCommand } from './run.mjs';
 
-export function runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseline }) {
+export function runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseline, knownRed = null }) {
   const entries = [];
   for (const c of commands) {
     const log = logPathFor(cfg, id, nextLog());
@@ -25,7 +28,13 @@ export function runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseli
     const entry = { ...r, log, owners: c.owners, ...(c.from ? { coalesced: c.from } : {}), ...diagnose(readFileSync(log, 'utf8')) };
     entries.push(entry);
     if (r.exit === 0) continue;
-    if (!baseline || !entry.failedTests.length || Object.keys(entry.errors).length) return { entries, failing: entry };
+    if (Object.keys(entry.errors).length) {
+      const red = knownRed ? knownRed(entry) : null;
+      if (red) entry.knownRed = red;
+      if (red && red.clean) continue;
+      return { entries, failing: entry };
+    }
+    if (!baseline || !entry.failedTests.length) return { entries, failing: entry };
     const attributed = baseline((run) => attribute({ command: entry, runBaseline: (cmd) => run(cmd, `${nextLog()}-base`) }));
     if (!attributed) return { entries, failing: entry };
     if (attributed.caused.length) {

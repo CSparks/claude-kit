@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { openSync, closeSync, readFileSync, existsSync } from 'node:fs';
 import { runCancellable } from './run-cancellable.mjs';
 import { pulseActive } from './stall.mjs';
+import { diagnose } from './diagnose.mjs';
 
 const LOG_TAIL_LINES = 60;
 const CARGO_BUILD_SUBS = new Set(['test', 'build', 'check', 'clippy', 'bench', 'nextest', 'run', 't', 'b', 'r']);
@@ -62,6 +63,12 @@ export function runCommand(cmd, { cwd, targetDir, logPath, jobs }) {
     closeSync(fd);
   }
   return { cmd: String(cmd).trim(), composed, exit: code, durationMs: Date.now() - started, logTail: tail(logPath) };
+}
+
+/** One command run to a result entry with its log diagnosis (rustc errors, failed tests). */
+export function runDiagnosed(cfg, cmd, cwd, log) {
+  const r = runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
+  return { ...r, log, ...diagnose(readFileSync(log, 'utf8')) };
 }
 
 export function tail(logPath, n = LOG_TAIL_LINES) {

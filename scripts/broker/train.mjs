@@ -22,12 +22,14 @@ import { foreignOf } from './job-commands.mjs';
 import { phaseTracker } from './phase.mjs';
 import { checkoutPins, implicitPins, revertPins } from './pin.mjs';
 import { capture, discard, dropNewLocks, restore, restoreMismatches } from './preimage.mjs';
-import { STATUS, removeJob, writeResult } from './result.mjs';
+import { STATUS, logPathFor, removeJob, writeResult } from './result.mjs';
 import { blame } from './train-blame.mjs';
 import { trainCommands } from './train-commands.mjs';
 import { landGroup } from './train-land.mjs';
 import { runTrainCommands } from './train-run.mjs';
 import { filesOf, writePlan } from './write-plan.mjs';
+import { foreignBuild } from './known-red.mjs';
+import { runDiagnosed } from './run.mjs';
 
 function baseFields(job, startedAt) {
   return {
@@ -84,7 +86,12 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
       const baseline = makeBaseline({ cfg, job: { id, repo: repo.name }, cwd, pre, held: pins, enter: putBack, leave: () => { putBack(); journal = snap(); writePool(); } });
       ph.enter('run');
       builds++;
-      const run = runTrainCommands(cfg, { id, repo: repo.name, cwd, commands, nextLog, baseline });
+      const knownRed = (entry) => foreignBuild({
+        cfg, cwd, entry, touched: pool.flatMap((m) => m.touched), tree: pre.tree, head: pre.head,
+        runBase: (cmd) => { const b = baseline((run) => ({ log: run(cmd, `${nextLog()}-red`) })); return b && b.log; },
+        runAgain: (cmd) => runDiagnosed(cfg, cmd, cwd, logPathFor(cfg, id, `${nextLog()}-rerun`)),
+      });
+      const run = runTrainCommands(cfg, { id, repo: repo.name, cwd, commands, nextLog, baseline, knownRed });
       const foreign = foreignOf(run.entries);
       const ranFor = (m) => ({ commands: run.entries, foreign, diffStat: git(['diff', '--stat', '--', ...filesOf(m)], cwd).out, selection: own(m).selection });
 

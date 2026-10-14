@@ -23,9 +23,10 @@ import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from 
 import { recordFault, recordRun } from './health-store.mjs';
 import { changedLocks, dirtyPaths, git, lockFiles, revParse } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
-import { runCommand } from './run.mjs';
+import { runCommand, runDiagnosed } from './run.mjs';
 import { writePlan } from './write-plan.mjs';
 import { foreignOf, isGreen, jobCommands, landedJob } from './job-commands.mjs';
+import { foreignBuild } from './known-red.mjs';
 
 // Run the job's commands in order. A failed command with named failed tests is attributed
 // (attribute.mjs) against the pre-patch tree via `hooks.baseline(fn)`; all-foreign failures
@@ -41,7 +42,13 @@ function runCommands(cfg, job, cwd, hooks) {
     out.push(entry);
     if (r.exit === 0) continue;
     if (!(job.ops || []).length) continue; // a test-only job already runs on the baseline: its failures are the baseline's
-    if (!entry.failedTests.length || Object.keys(entry.errors).length) break;
+    if (Object.keys(entry.errors).length) {
+      const red = hooks.knownRed ? hooks.knownRed(entry, n) : null;
+      if (red) entry.knownRed = red;
+      if (red && red.clean) continue;
+      break;
+    }
+    if (!entry.failedTests.length) break;
     const pins = pairedPins(cwd, job.base, job.ticket);
     if (pins.length) { entry.suspect = suspects(entry.failed, pins); break; }
     const attributed = hooks.baseline((run) => attribute({ command: entry, runBaseline: (cmd) => run(cmd, `${n}-base`) }));
@@ -103,7 +110,12 @@ export function processPatch(cfg, job, repo) {
     const runJob = gated ? { ...job, commands: gated.commands } : job;
     const selection = gated ? gated.selection : null;
     ph.enter('run');
-    const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, runJob, cwd, { baseline });
+    const knownRed = (entry, n) => foreignBuild({
+      cfg, cwd, entry, touched: [...plan.files.keys()], tree: pre.tree, head: pre.head,
+      runBase: (cmd) => { const b = baseline((run) => ({ log: run(cmd, `${n}-red`) })); return b && b.log; },
+      runAgain: (cmd) => runDiagnosed(cfg, cmd, cwd, logPathFor(cfg, job.id, `${n}-rerun`)),
+    });
+    const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, runJob, cwd, { baseline, knownRed });
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
     if (green && !job.land && (job.ops || []).length) recordGreen(cfg, key, { job: job.id, commands, foreign });
