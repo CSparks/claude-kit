@@ -217,15 +217,10 @@ try {
 } catch {
   /* device block is best-effort */
 }
-// Any kit bug is a ticket plus an agent dispatched to fix it (KIT-T286): list the open ones.
+// Any kit bug is a ticket plus the standing kit agent (KIT-T286, KIT-T480): list the open ones.
 try {
-  const { openKitBugs } = await import('../scripts/kit-bug.mjs');
-  const bugs = openKitBugs();
-  if (bugs.length) {
-    out.push('--- DISPATCH NOW: open kit-bug / kit-feature tickets (a kit bug or missing feature is a ticket + an agent dispatched in the claude-kit checkout, never a workaround) ---');
-    for (const b of bugs) out.push(`  ${b.id} — ${clip(b.title, 120)}`);
-    out.push('');
-  }
+  const { kitBugBlock } = await import('../scripts/kit-bug.mjs');
+  out.push(...kitBugBlock());
 } catch {
   /* kit-bug listing is best-effort */
 }

@@ -15,7 +15,7 @@ mkdirSync(join(store, '.ai', 'tickets'), { recursive: true });
 copyFileSync(join(KIT, '.ai', 'config.yml'), join(store, '.ai', 'config.yml'));
 const env = { CLAUDE_KIT_BUG_STORE: store, CLAUDE_KIT_TURN_STATE: tmpDir('kit-turn-'), CLAUDE_KIT_SEARCH_LOG_DIR: tmpDir('kit-slog-') };
 process.env.CLAUDE_KIT_BUG_STORE = store;
-const { fileKitBug, openKitBugs, kitStoreRoot } = await import('./kit-bug.mjs');
+const { fileKitBug, openKitBugs, kitStoreRoot, kitBugBlock, STANDING_KIT_AGENT } = await import('./kit-bug.mjs');
 const { reportHookCrash } = await import('../hooks/compat-core.mjs');
 
 let pass = 0;
@@ -152,6 +152,12 @@ await test('orient lists open kit-bug tickets under DISPATCH NOW', () => {
   const r = hook('orient.mjs', { hook_event_name: 'SessionStart' }, o, env);
   assert.match(r.out, /--- DISPATCH NOW: open kit-bug \/ kit-feature tickets/);
   assert.match(r.out, /KIT-T\d+ — /);
+  assert.match(r.out, /Policy \(KIT-T480, Chris 2026-10-14\): keep ONE standing kit agent/, 'the standing-agent rule is replayed with them');
+});
+
+await test('negative: no open kit tickets, no DISPATCH NOW block and no policy line', () => {
+  assert.deepEqual(kitBugBlock([]), []);
+  assert.equal(kitBugBlock([{ id: 'KIT-T1', title: 'x' }])[1], `  ${STANDING_KIT_AGENT}`);
 });
 
 cleanup();

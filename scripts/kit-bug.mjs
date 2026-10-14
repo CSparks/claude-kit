@@ -99,3 +99,20 @@ export function openKitBugs(limit = 8) {
     .map(({ id, title, status }) => ({ id, title, status }))
     .slice(0, limit);
 }
+
+const SHOWN_TITLE_MAX = 120;
+const clipTitle = (s) => (s.length > SHOWN_TITLE_MAX ? s.slice(0, SHOWN_TITLE_MAX - 1) + '…' : s);
+
+/** The standing-agent rule orient replays with the open kit tickets (KIT-T480). */
+export const STANDING_KIT_AGENT = 'Policy (KIT-T480, Chris 2026-10-14): keep ONE standing kit agent (writer in the claude-kit checkout, reused warm); hand it every kit misbehaviour at once (ticket, diagnosis, fix, publish). No inline kit diagnosis by the orchestrator.';
+
+/** Orient's DISPATCH NOW block for open kit tickets: [] when none are open. */
+export function kitBugBlock(bugs = openKitBugs()) {
+  if (!bugs.length) return [];
+  return [
+    '--- DISPATCH NOW: open kit-bug / kit-feature tickets (a kit bug or missing feature is a ticket + an agent dispatched in the claude-kit checkout, never a workaround) ---',
+    `  ${STANDING_KIT_AGENT}`,
+    ...bugs.map((b) => `  ${b.id} — ${clipTitle(b.title)}`),
+    '',
+  ];
+}

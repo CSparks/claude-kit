@@ -85,6 +85,10 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   landing IS a reason to hand back. A genuine decision goes in an AskUserQuestion,
   never a pause. Blocked on something only the maintainer can clear (credential,
   external approval, judgement call): say so plainly and stop.
+- **An unreachable device is a maintainer action, announced at once (KIT-T480).** A Deck,
+  phone or host that does not answer gets one line to the maintainer ("Deck unreachable —
+  wake it and connect Wi-Fi") the moment it is seen. Never a background wait, poll loop or
+  watcher on it: the kit's deploy scripts exit at once, and so does the orchestrator.
 
 # DECISIONS — discussion first; the questionnaire is the LAST step
 - **A questionnaire is for a decision that has been talked through.** A floated idea
@@ -288,6 +292,13 @@ positive or miss, a process failure traced to tooling — and any kit FEATURE th
 becomes a ticket in the claude-kit store AT ONCE (`kit-bug` / `kit-feature` label), and an agent
 is dispatched in the claude-kit checkout to build it, unless the maintainer directs otherwise.
 Never a silent grep or workaround, never a mention in prose.
+- **One standing kit agent per session (KIT-T480; Chris 2026-10-14: "Please spin up an
+  agent to handle any kit fixes like that. That should be policy.").** Each session keeps ONE
+  kit agent: a writer in the claude-kit checkout, reused warm for every fix. The moment a kit misbehaviour
+  shows up, the orchestrator hands it over whole: filing the ticket, diagnosis, fix, tests,
+  publish. The orchestrator does NO inline kit diagnosis: no hunting a launcher, reading
+  kit source or poking at a hook itself. It relays the agent's runtime sha and goes back to
+  its own work.
 - The kit files many of these itself (q gaps, hook crashes, a grep after an empty q, `cap bug` /
   `cap feature` into the kit store); orient lists the open ones under DISPATCH NOW — dispatch them.
 - Filing by hand: `cap bug …` / `cap feature …` with `--project claude-kit`, or `t new` in the kit
