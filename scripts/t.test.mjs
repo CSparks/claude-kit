@@ -324,6 +324,14 @@ const cli = project({ uatDefault: 'none' }, { 'KIT-T001': {} });
 registerFixture('t-cli-fixture', cli);
 const liveDb = join(dirname(dirname(SCRIPT)), '.cache', 'workflow.db');
 const liveBefore = existsSync(liveDb) ? statSync(liveDb).mtimeMs : null;
+function kitRows() {
+  try {
+    const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+    const db = new DatabaseSync(liveDb, { readOnly: true });
+    try { return db.prepare("SELECT count(*) AS n FROM items WHERE scope = 'KIT'").get().n; } finally { db.close(); }
+  } catch { return Infinity; }
+}
+const kitRowsBefore = liveBefore === null ? 0 : kitRows();
 try {
   execFileSync('node', [SCRIPT, 'status', 'KIT-T001', 'doing', '--root', cli], { stdio: 'pipe', env: CHILD_ENV });
   const idx = readFileSync(join(cli, '.ai', 'tickets', 'INDEX.md'), 'utf8');
@@ -389,8 +397,10 @@ function statusCli(root, id, state, extra = []) {
 // 56 → 1). Assert the refresh landed in the sandbox and never reached the session's cache.
 ok('KIT-T142: CLI refresh writes the redirected cache, not the live one',
   existsSync(join(PLUGIN_ROOT, '.cache', 'workflow.db')));
-ok('KIT-T142: the live session cache is untouched by the suite',
-  liveBefore === null || statSync(liveDb).mtimeMs === liveBefore);
+// Other live sessions refresh that cache too (KIT-T484), so a changed mtime alone is no leak. The
+// leak this guards against replaced the live KIT scope with the fixture's few items: its row count shrank.
+ok('KIT-T142: the live session cache kept its KIT scope',
+  liveBefore === null || statSync(liveDb).mtimeMs === liveBefore || kitRows() >= kitRowsBefore);
 
 for (const d of fixtures) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\nt: ${pass} passed, ${fail} failed`);

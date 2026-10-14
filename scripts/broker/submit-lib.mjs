@@ -8,6 +8,9 @@ import { repoByName } from './config.mjs';
 import { parseEnvelope } from './envelope.mjs';
 import { git, revParse } from './git.mjs';
 import { planAtHead } from './plan.mjs';
+import { isSuiteShaped } from './landgate.mjs';
+
+export const SUITE_REFUSAL = 'full suites run on the cadence; list the targets you touched (--test "cargo t -p <crate> --test <name>")';
 import { parsePins } from './pin.mjs';
 import { staleEntries } from './patch.mjs';
 import { STATUS, listQueue, newJobId, readResult } from './result.mjs';
@@ -31,6 +34,12 @@ export function buildPatchJob(cfg, flags, text) {
     try { ops = parseEnvelope(text); } catch (e) { return { error: e.message }; }
   }
 
+  // Under the affected gate a worker job never runs the whole suite: it holds the one writer for
+  // the suite's length (a 1,426 s check-only run blocked dirt-empire's queue for 24 min).
+  const tests = asList(flags.test).map(String);
+  if (cfg.landGate === 'affected' && tests.some((c) => isSuiteShaped(c, cfg.suite))) return { error: SUITE_REFUSAL };
+  if (cfg.landGate === 'affected' && flags['no-patch'] && !tests.length) return { error: SUITE_REFUSAL };
+
   if (flags['no-pin'] && !repo.submodule) return { error: '--no-pin applies to a job whose --repo is a submodule' };
   if (flags.pin && repo.submodule) return { error: '--pin belongs on the superproject job, not on a submodule job' };
   const pinned = flags.pin ? parsePins(cfg, repo, flags) : { pins: [] };
@@ -49,5 +58,5 @@ export function buildPatchJob(cfg, flags, text) {
     return { result: { ...meta, head: base, status: STATUS.STALE, phase: 'submit-dryrun', stale, gate: [], commands: [], landed: null } };
   }
   const files = Object.fromEntries([...plan.files.keys()].map((p) => [p, git(['rev-parse', `HEAD:${p}`], cwd).out || null]));
-  return { job: { ...meta, ops, files, commands: asList(flags.test).map(String), land: !!flags.land, pins: pinned.pins, noPin: !!flags['no-pin'] } };
+  return { job: { ...meta, ops, files, commands: tests, land: !!flags.land, pins: pinned.pins, noPin: !!flags['no-pin'] } };
 }

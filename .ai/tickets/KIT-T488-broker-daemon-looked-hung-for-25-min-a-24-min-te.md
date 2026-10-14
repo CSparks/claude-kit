@@ -32,3 +32,6 @@ updated: 2026-10-14T20:00:19Z
 ### comment #1 [2026-10-14 20:00] @claude
 Cause (read-only, D:\dev\dirt-empire\target\broker): not a hang. After j-mv8hjxwe-cxbkqs started at 19:17:49Z, the daemon ran a test-only job (no ops, no ticket) whose command was the full suite 'cargo test --offline -p dirt-empire': 1,426 s, finished 19:41:55Z, passed. The beat is written only between drains, so it froze for the whole run and status still said 'running'. Fixed: pulse during commands; STALLED status and health entry; a watchdog restart in submit/wait past 10 min. Broker 162 passed.
 - [2026-10-14 20:00] (status) todo → review
+- [2026-10-14 20:14] (comment) @claude: Also: under land_gate affected, submit refuses a suite-shaped --test in any worker job and a --no-patch job without --te (full comment #2 in ## Notes)
+### comment #2 [2026-10-14 20:14] @claude
+Also: under land_gate affected, submit refuses a suite-shaped --test in any worker job and a --no-patch job without --test ('full suites run on the cadence; list the targets you touched'); a patch job without --test takes the affected gate, never verify_default. suite-refusal.test.mjs 2 passed; broker 164 passed.

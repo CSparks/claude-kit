@@ -132,7 +132,9 @@ export function processPatch(cfg, job, repo) {
       enter: () => { restoreTree(); revertPins(explicit()); },
       leave: () => { restoreTree(); journal = captureTree(); checkoutPins(pins); writePlan(cwd, plan.files); },
     });
-    const gated = job.land && !reused ? landGate(cfg, cwd, job, plan.files) : null;
+    // A patch job with no commands takes the affected gate too, never the full verify_default.
+    const wantsGate = job.land || ((job.ops || []).length && !(job.commands || []).length);
+    const gated = wantsGate && !reused ? landGate(cfg, cwd, job, plan.files) : null;
     const runJob = gated ? { ...job, commands: gated.commands } : job;
     const selection = gated ? gated.selection : null;
     const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, runJob, cwd, { baseline });
