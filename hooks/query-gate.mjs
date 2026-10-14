@@ -41,6 +41,13 @@ const STORE = /\.ai[\\/]|(?:^|[\s"'=])\.?[\\/]?(?:tickets|decisions|inbox|questi
 // A recursive/tree-wide grep is DISCOVERY ("find me where X is"), the code-graph's job.
 const RECURSIVE_FLAG = /(?:^|\s)(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive|--include\b|--include-dir\b)/;
 const FILEISH = /\.[A-Za-z0-9]{1,6}$/; // a concrete file arg (has an extension)
+// Session scratchpad dirs hold logs and tool output, never source: searching them is not
+// discovery (KIT-T464).
+const SCRATCH = /(?:^|[\\/])scratchpad(?:[\\/]|$)/i;
+function targetsOnlyScratch(args) {
+  const paths = args.map((a) => a.replace(/^["']|["']$/g, '')).filter((a) => /[\\/]/.test(a));
+  return paths.length > 0 && paths.every((a) => SCRATCH.test(a));
+}
 // Extensions where code-graph resolves the MODULE graph (relative-import edges: JS/TS), so a
 // grep q cannot answer exactly still has a full code-graph answer and is blocked. Other source
 // (Rust, Python, Go, C-family: definitions only, no import edges; WGSL, GLSL, TOML: not at all)
@@ -191,7 +198,7 @@ function judge(c, piped = false) {
   // --include / glob / -t flag) keep blocking — unknown scope routes to code-graph.
   if (isSearch) {
     const args = (gitGrep ? tok.slice(2) : tok.slice(1)).filter((a) => !a.startsWith('-'));
-    const targetsOneFile = args.some((a) => FILEISH.test(a)); // a concrete file = "you know where"
+    const targetsOneFile = args.some((a) => FILEISH.test(a)) || targetsOnlyScratch(args); // a concrete file or a scratch dir = "not source discovery"
     const recursive = RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep;
     const dependency = recursive && registryTarget(c); // a crate dir looks like a file (`rapier3d-0.25.1`), so judge it first
     if (dependency) return { id: 'registry-grep', msg: registryMsg(c, dependency) };

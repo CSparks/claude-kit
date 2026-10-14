@@ -181,5 +181,15 @@ expect('fail-open: malformed (non-JSON) payload exits 0, never blocks', runRaw(d
 expect('fail-open: empty payload exits 0', runRaw(d, ''), 0);
 expect('fail-open: JSON without tool_input exits 0', runRaw(d, JSON.stringify({ foo: 1 })), 0);
 
+// KIT-T464 — a scratchpad/temp path is output, not source: bash and PowerShell agree.
+const SP = String.raw`C:\Users\me\AppData\Local\Temp\claude\scratchpad`;
+expect('allows grep of a scratchpad log', run(d, `grep -n foo ${SP}\\run.log`).code, 0);
+expect('allows Select-String of a scratchpad log', run(d, `Select-String -Path ${SP}\\run.log -Pattern foo`).code, 0);
+expect('allows Select-String of a QUOTED scratchpad log', run(d, `Select-String -Path "${SP}\\run.log" -Pattern "foo"`).code, 0);
+expect('allows grep -r over the scratchpad dir', run(d, `grep -rn foo ${SP}`).code, 0);
+expect('allows Select-String over the scratchpad dir', run(d, `Select-String -Path ${SP}\\* -Pattern foo`).code, 0);
+expect('still blocks recursive grep of source', run(d, 'grep -rn foo src/').code, 2);
+expect('still blocks Select-String -Recurse of source', run(d, 'Select-String -Path src\\* -Pattern foo -Recurse').code, 2);
+
 console.log(failures ? `\n${failures} FAIL` : '\nall pass');
 process.exit(failures ? 1 : 0);
