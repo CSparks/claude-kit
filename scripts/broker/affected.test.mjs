@@ -65,3 +65,16 @@ test('negative: an unnamed module runs only the unit tests, docs pick nothing, a
     assert.deepEqual(specs(dir, ['crates/app/tests/gone.rs']).app, [], 'a deleted test file has no target left');
   } finally { cleanup(dir); }
 });
+
+test('a deleted bin, test or lib picks no target; the same paths live still do (KIT-T475)', () => {
+  const dir = layout();
+  try {
+    const gone = (paths) => [...(selectAffected(dir, paths, { deleted: paths }).crates.get('app') || [])].sort();
+    assert.deepEqual(gone(['crates/app/src/bin/probe.rs']), []);
+    assert.deepEqual(gone(['crates/app/tests/alpha.rs']), []);
+    assert.deepEqual(gone(['crates/app/tests/wall/main.rs']), []);
+    assert.deepEqual(gone(['crates/app/src/lib.rs']), [], 'no --lib once lib.rs is gone');
+    assert.deepEqual(gone(['crates/app/src/camera.rs']), ['--lib', '--test alpha'], 'a deleted module still checks its dependents');
+    assert.deepEqual(specs(dir, ['crates/app/src/bin/probe.rs']).app, ['--bin probe'], 'negative control: a live bin keeps --bin');
+  } finally { cleanup(dir); }
+});

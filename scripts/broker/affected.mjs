@@ -11,7 +11,9 @@
 //   *.md / *.txt                                       → nothing
 //   a .rs or Cargo.toml outside every crate            → unmapped (the caller falls back to the full gate)
 //
-// `selectAffected(cwd, paths)` → { crates: Map<crate, Set<spec>>, reasons: [{ path, crate, picks }], unmapped: [path] }.
+// A deleted target root (a test, a bin, src/lib.rs) picks nothing: its target no longer exists.
+//
+// `selectAffected(cwd, paths, { deleted })` → { crates: Map<crate, Set<spec>>, reasons: [{ path, crate, picks }], unmapped: [path] }.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, extname, join } from 'node:path';
@@ -60,24 +62,27 @@ const naming = (targets, word) => {
   return targets.filter((t) => re.test(t.text)).map((t) => `--test ${t.name}`);
 };
 
-// Specs for one path inside a crate; `rel` is crate-relative.
-function picksFor(rel, targets, crateRoot) {
-  if (CRATE_WIDE.has(rel)) return ['--lib'];
+// Specs for one path inside a crate; `rel` is crate-relative. `live(rel)` says whether a file is
+// in the patched tree: a deleted target root picks nothing, and `--lib` needs a live src/lib.rs.
+function picksFor(rel, targets, crateRoot, live) {
+  const lib = live('src/lib.rs') ? ['--lib'] : [];
+  if (CRATE_WIDE.has(rel)) return lib;
   const test = rel.match(/^tests\/([^/]+)\.rs$/) || rel.match(/^tests\/([^/]+)\/main\.rs$/);
-  if (test) return targets.some((t) => t.name === test[1]) ? [`--test ${test[1]}`] : [];
+  if (test) return live(rel) && targets.some((t) => t.name === test[1]) ? [`--test ${test[1]}`] : [];
   const shared = rel.match(/^tests\/([^/]+)\//);
-  if (shared) return existsSync(join(crateRoot, 'tests', shared[1], 'main.rs')) ? [`--test ${shared[1]}`] : naming(targets, shared[1]);
+  if (shared) return live(`tests/${shared[1]}/main.rs`) ? [`--test ${shared[1]}`] : naming(targets, shared[1]);
   const bin = rel.match(/^src\/bin\/([^/]+?)(?:\.rs|\/main\.rs)$/);
-  if (bin) return [`--bin ${bin[1]}`];
+  if (bin) return live(rel) ? [`--bin ${bin[1]}`] : [];
   if (rel.startsWith('src/') && rel.endsWith('.rs')) {
     const file = basename(rel, '.rs');
     const mod = file === 'mod' ? basename(dirname(rel)) : file;
-    return ['--lib', ...naming(targets, mod)];
+    return [...lib, ...naming(targets, mod)];
   }
   return naming(targets, basename(rel));
 }
 
-export function selectAffected(cwd, paths) {
+export function selectAffected(cwd, paths, { deleted = [] } = {}) {
+  const gone = new Set(deleted.map(posix));
   const memo = new Map();
   const targetsOf = new Map();
   const crates = new Map();
@@ -94,7 +99,9 @@ export function selectAffected(cwd, paths) {
     }
     if (!targetsOf.has(crate.dir)) targetsOf.set(crate.dir, testTargets(cwd, crate.dir));
     const rel = crate.dir ? path.slice(crate.dir.length + 1) : path;
-    const picks = picksFor(rel, targetsOf.get(crate.dir), join(cwd, crate.dir));
+    const crateRoot = join(cwd, crate.dir);
+    const live = (r) => !gone.has(crate.dir ? `${crate.dir}/${r}` : r) && existsSync(join(crateRoot, r));
+    const picks = picksFor(rel, targetsOf.get(crate.dir), crateRoot, live);
     if (!crates.has(crate.name)) crates.set(crate.name, new Set());
     for (const p of picks) crates.get(crate.name).add(p);
     reasons.push({ path, crate: crate.name, picks });

@@ -32,7 +32,7 @@ const crateFixture = (gate) => {
   const dir = tempDir('landgate-log-');
   const log = join(dir, 'ran').replace(/\\/g, '/');
   const rec = (tag) => `node -e "require('fs').appendFileSync('${log}','${tag} '+process.argv.slice(1).join(' ')+'\\n')" --`;
-  const files = { 'crates/app/Cargo.toml': '[package]\nname = "app"\n', 'crates/app/src/camera.rs': 'x\n', 'crates/app/tests/alpha.rs': 'use app::camera;\n', 'crates/app/tests/beta.rs': '\n' };
+  const files = { 'crates/app/Cargo.toml': '[package]\nname = "app"\n', 'crates/app/src/camera.rs': 'x\n', 'crates/app/tests/alpha.rs': 'use app::camera;\n', 'crates/app/tests/beta.rs': '\n', 'crates/app/src/lib.rs': 'pub mod camera;\n', 'crates/app/src/bin/probe.rs': 'fn main() {}\n' };
   for (const [p, t] of Object.entries(files)) { mkdirSync(join(s.root, p, '..'), { recursive: true }); writeFileSync(join(s.root, p), t); }
   g(['add', '-A', 'crates'], s.root);
   g(['commit', '-m', 'crate'], s.root);
@@ -77,4 +77,14 @@ test('negative: land_gate full runs the job commands as given, and an unmapped .
     assert.deepEqual(stray.ran(), ['JOB', 'SUITE'], 'the job commands as given, then the cadence');
     assert.equal(r.selection, null);
   } finally { stray.done(); }
+});
+
+test('a landing that deletes a bin and a test runs no target for them (KIT-T475)', () => {
+  const t = crateFixture('affected');
+  try {
+    const r = t.land('*** delete crates/app/src/bin/probe.rs\n*** delete crates/app/tests/beta.rs\n', [t.suiteCmd]);
+    assert.equal(r.status, 'landed', JSON.stringify(r));
+    assert.deepEqual(t.ran(), ['CHECK', 'SUITE'], 'no --bin probe, no --test beta');
+    assert.deepEqual(r.selection.reasons.map((x) => x.picks), [[], []]);
+  } finally { t.done(); }
 });

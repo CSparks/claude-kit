@@ -3,7 +3,7 @@
 // the worker's own targeted commands; suite-shaped commands leave the gate and run on the suite
 // cadence (suite.mjs). A path the map cannot place falls back to the job's full commands.
 //
-// `landGate(cfg, cwd, job, paths)` → null (run the job's commands as given) or
+// `landGate(cfg, cwd, job, files)` (the plan's Map path → { text }, text null = deleted) → null (run the job's commands as given) or
 //   { commands, selection: { reasons, dropped } }.
 // `isSuiteShaped(cmd, suite)` → true for a suite command (modulo -j / --no-fail-fast) or an
 //   unfiltered `cargo test`.
@@ -43,9 +43,10 @@ export function isSuiteShaped(cmd, suite) {
   return suite.some((s) => normalize(s) === n) || unfilteredTest(cmd);
 }
 
-export function landGate(cfg, cwd, job, paths) {
+export function landGate(cfg, cwd, job, files) {
   if (cfg.landGate !== 'affected') return null;
-  const sel = selectAffected(cwd, paths);
+  const deleted = [...files].filter(([, f]) => f.text === null).map(([p]) => p);
+  const sel = selectAffected(cwd, [...files.keys()], { deleted });
   if (sel.unmapped.length) return null;
   const given = Array.isArray(job.commands) && job.commands.length ? job.commands : [];
   const dropped = given.filter((c) => isSuiteShaped(c, cfg.suite));
