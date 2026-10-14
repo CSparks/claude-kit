@@ -2,7 +2,7 @@
 id: KIT-T480
 title: Process failure: deck-deploy waits on an offline Deck for hours, and a deck-deploy watch is spawned as a side effect of cap and inherits its stdio
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-14T16:40:34Z
-updated: 2026-10-14T16:40:34Z
+updated: 2026-10-14T17:01:05Z
 ---
 
 ## Description
@@ -43,3 +43,7 @@ DECISION TEXT (proposed KIT-D093; the decision-file Write was refused by the cla
 - [2026-10-14 16:48] (comment) ticked: deck-deploy checks the Deck answers (TCP to its ssh port, 5 s) before any build; unreachable exits 3 at once with 'MAINTAINER ACTION: Deck unreachable ... wake it and connect Wi-Fi' and an alert orient shows (scripts/deck-deploy.test.mjs, devices.test.mjs)
 - [2026-10-14 16:48] (comment) ticked: watch never waits on an offline Deck (exits 3 at start and before each redeploy) and never holds its caller (detached, log file) (scripts/deck-deploy.test.mjs)
 - [2026-10-14 16:48] (comment) ticked: Base CLAUDE.md: an unreachable device is a maintainer action announced at once; one standing kit agent per session, replayed by orient (scripts/kit-bug.test.mjs)
+- [2026-10-14 17:00] (comment) @claude: Spawner check on the coordinator's pointer (read-only): claude-kit-data core.hooksPath = D:\dev\claude-kit\.githooks; it (full comment #2 in ## Notes)
+### comment #2 [2026-10-14 17:00] @claude
+Spawner check on the coordinator's pointer (read-only): claude-kit-data core.hooksPath = D:\dev\claude-kit\.githooks; its .git/hooks holds only samples; it tracks no .githooks; global and system core.hooksPath are unset. So a cap push to claude-kit-data runs only the kit pre-push (LFS where opted in, then the repo-hook chain, which finds none there). Its post-checkout/merge/rewrite run hydrate-db and LFS only. The kit's detached spawns are the broker daemon (broker/ensure.mjs) and q-server (q-client.mjs), both stdio ignore. cap.mjs has no spawn. No deck reference in ~/.claude configs outside the runtime copies. Launcher not identified; the detached-watch fix makes the stdio hold impossible either way. Runtime 4969079 published, npm test green.
+- [2026-10-14 17:01] (status) todo → review
