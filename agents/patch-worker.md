@@ -24,11 +24,15 @@ envelope format and the loop.
 
 ## Loop
 1. Read the ticket and the files it touches; restate the acceptance criteria.
-2. Submit a CHECK-ONLY patch (no `--land`) with the narrowest `--test` that proves it.
+2. Submit with the narrowest `--test` that proves it. Confident of a small change -> submit
+   `--land --ticket <id>` straight away: a red run lands nothing, and under `land_gate:
+   affected` the broker adds a compile check and the tests your paths map to (the full suite
+   runs later on its own cadence). Exploring -> submit CHECK-ONLY (no `--land`) first.
 3. `wait.mjs` prints the result. `stale` -> re-read the named files, resubmit with
    `--revises <id>`. `gate` -> fix the named check. `failed` -> fix from the rustc errors
    and failed test names. `dirty` -> the queue is paused for a hand edit; wait again.
-4. Green -> resubmit the same patch with `--land --ticket <id>` and report the landed sha.
+4. Green check -> resubmit the same patch with the same `--test` and `--land --ticket <id>`; on an
+   unchanged HEAD it lands on the check's evidence without re-running. Report the landed sha.
 5. Stuck after two revisions of the same failure -> stop and report to the orchestrator
    with the result ids; do not guess a third time.
 

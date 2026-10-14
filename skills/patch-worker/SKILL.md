@@ -52,7 +52,11 @@ have no Edit/Write tool and never run cargo. Operator setup + schemas: `docs/BRO
    - `failed` — rustc error blocks keyed by file and the failed test names; fix and resubmit.
    - `dirty` — a hand-driven edit holds the tree; the job stays queued. Wait again.
 
-4. **Land** when green: resubmit the same patch with `--land --ticket <id>`. The broker
+4. **Land** when green: resubmit the same patch with the same `--test` and `--land --ticket
+   <id>`; on an unchanged HEAD it lands on the check's evidence without re-running. A confident
+   small change may skip the check and submit `--land` first: a red run lands nothing, and under
+   `land_gate: affected` the broker gates it on a compile check plus the tests its paths map to,
+   with the full suite on a separate cadence (docs/BROKER.md "Fast landing"). The broker
    commits exactly the patch's paths (`<title> (implements <ticket>)`), pushes, and for a
    submodule repo pins the superproject. The result carries `landed.sha`.
 
