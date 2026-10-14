@@ -119,6 +119,55 @@ const read = (p) => (existsSync(p) ? readFileSync(p, 'utf8') : null);
   ok('self hooksPath: exits 0 without recursing', r.status === 0, `status=${r.status} signal=${r.signal} ${r.stderr}`);
 }
 
+// A work tree at <dir>/w whose gitdir sits apart at <dir>/g (the submodule layout), with a
+// committed .githooks/pre-push recorder exiting `code`.
+function separateGitdirRepo(code) {
+  const dir = mkdtempSync(join(tmpdir(), 'kit-prepush-sep-'));
+  fixtures.push(dir);
+  const work = join(dir, 'w');
+  const gitdir = join(dir, 'g');
+  mkdirSync(work);
+  execFileSync('git', ['init', '-q', '--separate-git-dir', gitdir], { cwd: work });
+  writeRecorder(join(work, '.githooks', 'pre-push'), join(dir, 'seen'), code);
+  execFileSync('git', ['add', '-A'], { cwd: work });
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'hook'], { cwd: work });
+  return { dir, work, gitdir, seen: join(dir, 'seen.args') };
+}
+
+// Run the kit hook the way git runs it for a bare repo: cwd and GIT_DIR at the gitdir.
+const runAtGitdir = (gitdir) => spawnSync('sh', [KIT_HOOK, 'origin', 'u'], { cwd: gitdir, input: STDIN_LINES, encoding: 'utf8', env: { ...process.env, GIT_DIR: gitdir } });
+
+// Case 7 (KIT-T479): gitdir at core.bare=true + core.worktree → no toplevel → refused with the repair.
+{
+  const r = separateGitdirRepo(0);
+  execFileSync('git', ['--git-dir', r.gitdir, 'config', 'core.bare', 'true']);
+  execFileSync('git', ['--git-dir', r.gitdir, 'config', 'core.worktree', r.work]);
+  const run = runAtGitdir(r.gitdir);
+  ok('bare+worktree gitdir with a tracked repo hook: refused (exit 1)', run.status === 1, `status=${run.status} ${run.stderr}`);
+  ok('bare+worktree: the repair names core.bare false', /repair: git --git-dir=".*" config core\.bare false/.test(run.stderr), run.stderr);
+  ok('bare+worktree: the green repo hook never ran', read(r.seen) === null);
+  execFileSync('git', ['--git-dir', r.gitdir, 'config', 'core.bare', 'false']);
+  const fixed = spawnSync('sh', [KIT_HOOK, 'origin', 'u'], { cwd: r.work, input: STDIN_LINES, encoding: 'utf8' });
+  ok('negative control: after the repair the same green hook runs and the push passes', fixed.status === 0 && read(r.seen) !== null, `status=${fixed.status} ${fixed.stderr}`);
+}
+
+// Case 8 (KIT-T479): HEAD tracks the repo hook but the work tree lost it → refused.
+{
+  const r = separateGitdirRepo(0);
+  rmSync(join(r.work, '.githooks', 'pre-push'));
+  const run = spawnSync('sh', [KIT_HOOK, 'origin', 'u'], { cwd: r.work, input: STDIN_LINES, encoding: 'utf8' });
+  ok('tracked repo hook missing from the work tree: refused (exit 1)', run.status === 1 && /checkout -- \.githooks\/pre-push/.test(run.stderr), `status=${run.status} ${run.stderr}`);
+}
+
+// Case 9 (negative control): a genuinely bare repo that tracks no repo hook still pushes.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'kit-prepush-bare-'));
+  fixtures.push(dir);
+  execFileSync('git', ['init', '-q', '--bare', dir]);
+  const run = runAtGitdir(dir);
+  ok('bare repo with no tracked repo hook: exits 0', run.status === 0, `status=${run.status} ${run.stderr}`);
+}
+
 for (const d of fixtures) { try { rmSync(d, { recursive: true, force: true }); } catch { /* temp */ } }
 console.log(`\npre-push-chain: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -10,7 +10,8 @@
 # Chain half: core.hooksPath points every adopted repo at this directory, so a repo-owned
 # <repo>/.githooks/pre-push would never run. After LFS, run it with the same args and the same
 # stdin lines; its status is the push's status. Skipped when it is this very file (repo whose
-# hooksPath is its own .githooks).
+# hooksPath is its own .githooks). A repo whose HEAD tracks that hook but whose work tree or hook
+# cannot be found is refused, not pushed ungated.
 DIR=$(CDPATH= cd "$(dirname "$0")" && pwd)
 
 . "$DIR/lfs-enabled.sh"
@@ -23,9 +24,25 @@ if [ -n "$LFS_ON" ]; then
   git lfs pre-push "$@" < "$STDIN_COPY" || exit $?
 fi
 
-REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+# Fail closed (KIT-T479): a repo whose HEAD tracks .githooks/pre-push has a gate, so a push that
+# cannot run it is refused with the repair, never passed ungated.
+gated() { git cat-file -e HEAD:.githooks/pre-push 2>/dev/null; }
+refuse() {
+  echo "pre-push (kit): push REFUSED — $1, so the repo gate .githooks/pre-push cannot run." >&2
+  echo "  repair: $2" >&2
+  exit 1
+}
+
+if ! REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
+  gated || exit 0
+  GITDIR=$(git rev-parse --absolute-git-dir 2>/dev/null)
+  refuse "git cannot set up the work tree (core.bare=$(git config core.bare))" "git --git-dir=\"$GITDIR\" config core.bare false"
+fi
 REPO_HOOK="$REPO_ROOT/.githooks/pre-push"
-[ -f "$REPO_HOOK" ] && [ -x "$REPO_HOOK" ] || exit 0
+if [ ! -f "$REPO_HOOK" ] || [ ! -x "$REPO_HOOK" ]; then
+  gated || exit 0
+  refuse "HEAD tracks it but $REPO_HOOK is missing or not executable" "git -C \"$REPO_ROOT\" checkout -- .githooks/pre-push && chmod +x \"$REPO_HOOK\""
+fi
 
 REPO_HOOK_DIR=$(CDPATH= cd "$(dirname "$REPO_HOOK")" && pwd -P)
 SELF_DIR=$(CDPATH= cd "$DIR" && pwd -P)
