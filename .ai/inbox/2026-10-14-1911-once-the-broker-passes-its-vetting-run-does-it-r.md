@@ -1,0 +1,1 @@
+(question) Once the broker passes its vetting run, does it replace the hand-off writer turn: every session on a checkout hands its changes to the broker and nobody edits code by hand while the daemon runs? (Recommended: yes) [KIT-T482] --not-dup KIT-T270,KIT-T482

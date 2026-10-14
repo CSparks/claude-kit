@@ -1,0 +1,1 @@
+(question) Should the broker treat a failing golden test that reads one of Chris's uncommitted .rhai edits as already-red instead of blaming the patch under test? (Recommended: yes) [KIT-T482, KIT-T440] --not-dup KIT-T270,KIT-T482,KIT-T440
