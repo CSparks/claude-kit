@@ -53,7 +53,7 @@ while (Date.now() < deadline) {
   missingSince = observedLive(cfg) ? null : (missingSince ?? Date.now());
   if (warning) { console.error(warning); warned = true; }
   announce(selfCheck(cfg, { skipNoDaemon: missingSince === null || Date.now() - missingSince < graceMs }).entries, said);
-  if (!process.env.BROKER_NO_AUTOSTART) restartIfWedged(cfg, root, { spawner: (r) => spawnBroker(r, IDLE_EXIT_MIN) });
+  if (!process.env.BROKER_NO_AUTOSTART) restartIfWedged(cfg, root, { spawner: (r, why) => spawnBroker(r, null, `wait.mjs pid ${process.pid}: ${why}`) });
   if (beatMs > 0 && Date.now() >= nextBeat) {
     const line = heartbeatLine(cfg, id);
     if (line) console.error(line);

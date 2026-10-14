@@ -12,10 +12,11 @@ import { runtimeTag } from '../runtime-pin.mjs';
 // Acquire the lock. Returns { ok:true } or { ok:false, holder } when a live broker holds it.
 // The lock is created exclusively, so two daemons starting together cannot both win: the loser
 // finds a live holder (or a lock the winner just wrote) and exits.
-export function acquireLock(cfg) {
+// `spawnedBy` (who started it and why) and `log` (its log file) go into the record for status and orient.
+export function acquireLock(cfg, { spawnedBy = null, log = null } = {}) {
   ensureDirs(cfg);
   const path = brokerPaths(cfg).lock;
-  const record = JSON.stringify({ pid: process.pid, host: hostname(), ts: new Date().toISOString(), runtime: runtimeTag() }, null, 2);
+  const record = JSON.stringify({ pid: process.pid, host: hostname(), ts: new Date().toISOString(), runtime: runtimeTag(), ...(spawnedBy ? { spawnedBy } : {}), ...(log ? { log } : {}) }, null, 2);
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       writeFileSync(path, record, { flag: 'wx' });

@@ -2,14 +2,14 @@
 id: KIT-T496
 title: broker replacement daemon spawned by wait/submit (restartIfWedged, ensureBroker) runs as a child of a worker's Bash shell with stdio ignored: no log, and it dies or orphans with that shell; it must be fully detached (no parent shell) and log to target/broker/logs
 type: bug
-status: review
+status: superseded
 priority: high
 milestone:
 labels: []
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T495
 created: 2026-10-14T21:42:37Z
 updated: 2026-10-14T22:01:22Z
 ---
@@ -33,3 +33,4 @@ Fixed: launch.mjs starts replacement daemons via Win32_Process.Create (hidden, o
 - [2026-10-14 21:42] (created) bug — broker replacement daemon spawned by wait/submit (restartIfWedged, ensureBroker) runs as a child of a worker's Bash shell with stdio ignored: no log, and it dies or orphans with that shell; it must be fully detached (no parent shell) and log to target/broker/logs
 - [2026-10-14 22:01] (comment) @claude: Fixed: launch.mjs starts replacement daemons via Win32_Process.Create (hidden, outside the caller's tree and job object; (full comment #1 in ## Notes)
 - [2026-10-14 22:01] (status) todo → review
+- [2026-10-14 22:22] (status) → superseded (by KIT-T495)

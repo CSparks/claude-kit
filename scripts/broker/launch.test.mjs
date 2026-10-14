@@ -34,7 +34,7 @@ test('negative: a failed Create is reported, never silent', () => {
 test('live: the launched daemon is not our child and writes its own log', { skip: process.platform !== 'win32' }, async () => {
   const s = fixture();
   try {
-    const r = launchDaemon(BROKER, s.root, ['--idle-exit', '0.05', '--poll', '200']);
+    const r = launchDaemon(BROKER, s.root, ['--idle-exit', '0.05', '--poll', '200', '--spawned-by', 'launch.test: live']);
     assert.ok(r.ok, r.error);
     const logs = brokerPaths(s.cfg).logs;
     const end = Date.now() + 30_000;
@@ -45,6 +45,9 @@ test('live: the launched daemon is not our child and writes its own log', { skip
       else await sleep(200);
     }
     assert.ok(log, 'the daemon wrote target/broker/logs/daemon-*.log');
+    const lock = JSON.parse(readFileSync(brokerPaths(s.cfg).lock, 'utf8'));
+    assert.equal(lock.spawnedBy, 'launch.test: live', 'the lock says who started it and why');
+    assert.equal(lock.log, log);
     const parent = spawnSync('powershell.exe', ['-NoProfile', '-Command', `(Get-CimInstance Win32_Process -Filter "ProcessId=${r.pid}").ParentProcessId`], { encoding: 'utf8' }).stdout.trim();
     if (parent) assert.notEqual(Number(parent), process.pid, 'its parent is not the caller');
     while (Date.now() < end && !readFileSync(log, 'utf8').includes('idle for')) await sleep(200);

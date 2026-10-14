@@ -35,7 +35,9 @@ export function brokerLines(root, now = Date.now()) {
   const cfg = readBrokerConfig(root);
   const p = brokerPaths(cfg);
   if (!existsSync(p.home)) return [];
-  const lines = [`broker: ${brokerLive(cfg) ? 'daemon live' : 'daemon not running'}${isPaused(cfg) ? ', PAUSED' : ''}`];
+  const holder = brokerLive(cfg) ? readLock(brokerPaths(cfg).lock) : null;
+  const origin = holder && holder.spawnedBy ? ` (spawned by ${holder.spawnedBy}${holder.log ? `; log ${holder.log}` : ''})` : '';
+  const lines = [`broker: ${brokerLive(cfg) ? 'daemon live' : 'daemon not running'}${origin}${isPaused(cfg) ? ', PAUSED' : ''}`];
   const inflight = readInflight(cfg);
   if (inflight) lines.push(`  in flight: ${inflight.id} (${Math.round((now - Date.parse(inflight.startedAt)) / MS_PER_MIN)} min, tree holds its changes until it restores)`);
   const deferred = deferredLines(cfg);

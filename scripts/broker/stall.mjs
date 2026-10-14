@@ -83,6 +83,6 @@ export function restartIfWedged(cfg, root, { now = Date.now(), kill = killTree, 
   kill(s.pid);
   rmSync(brokerPaths(cfg).lock, { force: true });
   console.error(`broker: ${stallLine(s)}; killed it and started a new daemon (it restores the tree and re-runs the job)`);
-  if (spawner) spawner(root);
+  if (spawner) spawner(root, `replaced pid ${s.pid}, silent ${Math.round(s.beatAgeMs / MS_PER_S)} s${inflight ? ` on ${inflight.id}${phase ? ` (${phase.phase})` : ''}` : ''}`);
   return true;
 }

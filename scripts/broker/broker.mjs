@@ -20,7 +20,7 @@ import { parseFlags, loadCfg } from './cli.mjs';
 import { isPaused, pause, resume } from './control.mjs';
 import { deferredLines } from './deferred.mjs';
 import { announce, healthLine, selfCheck } from './health.mjs';
-import { acquireLock, heartbeat, releaseLock } from './lock.mjs';
+import { acquireLock, heartbeat, liveHolder, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { resumeLanding } from './resume.mjs';
 import { processOnce } from './queue.mjs';
@@ -39,8 +39,9 @@ const MS_PER_MIN = 60 * 1000;
 const flags = parseFlags(process.argv.slice(2));
 const { root, cfg } = loadCfg(flags);
 ensureDirs(cfg);
+let logFile = null;
 if (flags.log) {
-  const logFile = flags.log === 'auto' ? join(brokerPaths(cfg).logs, `daemon-${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}.log`) : String(flags.log);
+  logFile = flags.log === 'auto' ? join(brokerPaths(cfg).logs, `daemon-${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}.log`) : String(flags.log);
   console.error = (...parts) => { try { appendFileSync(logFile, `${new Date().toISOString()} ${parts.join(' ')}\n`); } catch { /* the log is best effort */ } };
 }
 
@@ -62,6 +63,8 @@ if (command === 'cancel') {
 if (command === 'status') {
   const queued = listQueue(cfg).length;
   const stall = stallState(cfg);
+  const holder = liveHolder(cfg);
+  if (holder) console.error(`broker: pid ${holder.pid} (runtime ${holder.runtime || '?'})${holder.spawnedBy ? `, spawned by ${holder.spawnedBy}` : ''}${holder.log ? `, log ${holder.log}` : ''}`);
   console.error(`broker: ${stall ? stallLine(stall) : `${isPaused(cfg) ? 'PAUSED' : 'running'}, ${queued} queued`}`);
   for (const line of deferredLines(cfg)) console.error(`  ${line}`);
   const suite = suiteLine(cfg);
@@ -70,7 +73,7 @@ if (command === 'status') {
   process.exit(0);
 }
 
-const lock = acquireLock(cfg);
+const lock = acquireLock(cfg, { spawnedBy: typeof flags['spawned-by'] === 'string' ? flags['spawned-by'] : null, log: logFile });
 if (lock.ok) { pinRuntime(); setPulse(() => heartbeat(cfg)); }
 if (!lock.ok) {
   console.error(`broker: another broker holds the lock (pid ${lock.holder.pid} on ${lock.holder.host} since ${lock.holder.ts})`);
