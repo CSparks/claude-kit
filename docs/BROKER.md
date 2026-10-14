@@ -100,6 +100,8 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
 - **-j auto** (`jobs.mjs`): every core the RAM feeds at 4 GiB a job, unless a number pins it.
 - **Suite due** (KIT-T483): once `suite_every` landings have accumulated, the suite runs before the next queued job and is not cancelled by it, so a busy queue never starves it.
 - **runner: nextest** (`coalesce.mjs`): a job's per-target `cargo test`/`cargo t` commands for one package (no `--` filters) run as one `cargo nextest run --no-fail-fast`: one build, test binaries in parallel. The result entry lists them under `coalesced`.
+- **Suite partitions** (`suite-shard.mjs`, KIT-T482): with `suite_partitions: N` each suite run covers one rotating partition (`cargo nextest run … --partition count:k/N`; other suite commands take turns), so a forced run holds the writer for 1/N of the suite.
+- **Health faults** carry the runtime and daemon pid they happened under; a gate crash is resolved once a later job's gate answers.
 - **Heartbeat** (`heartbeat.mjs`): `wait.mjs` prints the job's queue position, or its running time and command, every `--heartbeat` seconds (default 60).
 
 ## Coexistence with a hand-driven writer

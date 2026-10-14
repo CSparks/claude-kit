@@ -25,6 +25,7 @@ import { guardLocks } from './preimage.mjs';
 import { listQueue, logPathFor } from './result.mjs';
 import { runCancellable } from './run-cancellable.mjs';
 import { failingTargets, landingsIn, suspects } from './suite-blame.mjs';
+import { nextShard, shardCommands } from './suite-shard.mjs';
 
 const dir = (cfg) => join(brokerPaths(cfg).home, 'suite');
 const stateFile = (cfg) => join(dir(cfg), 'state.json');
@@ -66,12 +67,16 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, force = false }
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   if (!checkoutState(cwd, { untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks }).clean) return null;
 
-  const id = `suite-${short(head)}`;
+  const parts = cfg.suitePartitions;
+  const k = Math.min(state.shard || 1, parts);
+  const tag = parts > 1 ? `-p${k}` : '';
+  const suite = shardCommands(cfg.suite, k, parts);
+  const id = `suite-${short(head)}${tag}`;
   const startedAt = new Date().toISOString();
   const commands = [];
-  for (let n = 0; n < cfg.suite.length; n++) {
+  for (let n = 0; n < suite.length; n++) {
     const logPath = logPathFor(cfg, id, n);
-    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(cfg.suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => !force && listQueue(cfg).length > 0, pollMs }));
+    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => !force && listQueue(cfg).length > 0, pollMs }));
     if (run.cancelled) return { sha: head, status: 'cancelled', cancelled: true };
     commands.push({ cmd: run.cmd, exit: run.exit, durationMs: run.durationMs, log: logPath });
   }
@@ -80,24 +85,28 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, force = false }
   const red = commands.filter((c) => c.exit !== 0);
   const failing = red.flatMap((c) => failingTargets(readFileSync(c.log, 'utf8')));
   const status = red.length ? 'failed' : 'passed';
-  const out = { sha: head, status, startedAt, finishedAt: new Date().toISOString(), commands, failing, filed: null };
+  const out = { sha: head, shard: `${k}/${parts}`, status, startedAt, finishedAt: new Date().toISOString(), commands, failing, filed: null };
+  const greens = state.greens || {};
+  const lastGreen = parts > 1 ? greens[k] || null : state.lastGreen;
   if (red.length) {
-    const key = failing.map((f) => f.test).sort().join(' ') || red.map((c) => c.cmd).join(' | ');
-    const landings = landingsIn(cwd, state.lastGreen, head);
+    const key = `${k}:${failing.map((f) => f.test).sort().join(' ') || red.map((c) => c.cmd).join(' | ')}`;
+    const landings = landingsIn(cwd, lastGreen, head);
     const blamed = suspects(cwd, landings, failing);
     out.suspects = blamed;
     if (!state.filed[key]) {
-      fileBug({ cwd, type: 'regression', text: regressionText(head, state, failing, landings, blamed, red.map((c) => c.log)) });
+      fileBug({ cwd, type: 'regression', text: regressionText(head, { ...state, lastGreen }, failing, landings, blamed, red.map((c) => c.log)) });
       state.filed[key] = head;
       out.filed = key;
     }
   } else {
     state.lastGreen = head;
-    state.filed = {};
+    state.greens = { ...greens, [k]: head };
+    state.filed = Object.fromEntries(Object.entries(state.filed).filter(([f]) => !f.startsWith(`${k}:`)));
   }
   state.lastRun = head;
+  state.shard = nextShard(k, parts);
   mkdirSync(dir(cfg), { recursive: true });
-  writeFileSync(join(dir(cfg), `${head}.json`), JSON.stringify(out, null, 2));
+  writeFileSync(join(dir(cfg), `${head}${tag}.json`), JSON.stringify(out, null, 2));
   save(cfg, state);
   return out;
 }
@@ -107,5 +116,5 @@ export function suiteLine(cfg) {
   if (cfg.landGate !== 'affected') return null;
   const s = suiteState(cfg);
   const red = Object.keys(s.filed || {}).length;
-  return `suite: last run ${short(s.lastRun)}, last green ${short(s.lastGreen)}${red ? `, RED (${red} regression filed)` : ''}; every ${cfg.suiteEvery} landing(s)`;
+  return `suite: last run ${short(s.lastRun)}, last green ${short(s.lastGreen)}${red ? `, RED (${red} regression filed)` : ''}; every ${cfg.suiteEvery} landing(s)${cfg.suitePartitions > 1 ? `, partition ${s.shard || 1}/${cfg.suitePartitions} next` : ''}`;
 }

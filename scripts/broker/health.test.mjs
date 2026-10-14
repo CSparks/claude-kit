@@ -124,6 +124,10 @@ test('a crashing gate fails the job and is recorded as the broker\'s fault; a he
     const r = selfCheck(s.cfg);
     assert.deepEqual(kinds(r), ['own-fault:gate-crash']);
     assert.match(r.entries[0].detail, new RegExp(job.id));
+    assert.match(r.entries[0].detail, new RegExp(`\[runtime \S+, pid ${process.pid}\]`), 'names the runtime and pid it happened under');
+    queueJob(s);
+    processOnce(s.cfg);
+    assert.deepEqual(kinds(selfCheck(s.cfg)), [], 'a later job whose gate answered resolves the crash');
   } finally { delete process.env.BROKER_GATE_HOOK; s.done(); }
   const ok = fixture();
   try {

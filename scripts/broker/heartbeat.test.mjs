@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { hostname } from 'node:os';
 import { brokerPaths } from './config.mjs';
 import { heartbeatLine } from './heartbeat.mjs';
 import { capture } from './preimage.mjs';
@@ -37,5 +38,21 @@ test('wait prints the heartbeat while it blocks; negative: --heartbeat 0 prints 
     assert.match(run('1').stderr, /wait: j-9-z queued at position 1 of 1/);
     assert.doesNotMatch(run('0').stderr, /queued at position/);
     assert.equal(heartbeatLine(s.cfg, 'j-unknown'), null);
+  } finally { s.done(); }
+});
+
+test('a timed-out wait with a live daemon and a queued job says to wait again; negative: no daemon, no such advice', () => {
+  const s = fixture();
+  try {
+    ensureDirs(s.cfg);
+    writeJob(s.cfg, { id: 'j-9-q', repo: 'app', ops: [] });
+    const run = () => spawnSync(process.execPath, [WAIT, 'j-9-q', '--root', s.root, '--timeout', '1', '--poll', '200', '--heartbeat', '0', '--grace-ms', '600000'], { encoding: 'utf8' });
+    const dead = run();
+    assert.equal(dead.status, 2);
+    assert.doesNotMatch(dead.stderr, /run wait again/);
+    writeFileSync(brokerPaths(s.cfg).lock, JSON.stringify({ pid: process.pid, host: hostname(), ts: new Date().toISOString() }));
+    const live = run();
+    assert.equal(live.status, 2);
+    assert.match(live.stderr, /the daemon is alive and the job is queued at position 1 of 1: run wait again, do not withdraw it/);
   } finally { s.done(); }
 });

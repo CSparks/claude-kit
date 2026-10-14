@@ -32,3 +32,9 @@ export function liveUsers(dir) {
   if (!existsSync(marks)) return [];
   return readdirSync(marks).map(Number).filter((pid) => Number.isInteger(pid) && pid > 0 && alive(pid));
 }
+
+/** The runtime sha this process runs from, or 'repo' when it runs from a checkout. */
+export function runtimeTag() {
+  const name = basename(kitRoot());
+  return SHA_DIR.test(name) ? name : 'repo';
+}

@@ -21,7 +21,7 @@ import { landGate } from './landgate.mjs';
 import { coalesce } from './coalesce.mjs';
 import { gateTrailer } from './trailer.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
-import { recordFault, recordRun } from './health-store.mjs';
+import { recordFault, recordGatePass, recordRun } from './health-store.mjs';
 import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand } from './run.mjs';
@@ -94,6 +94,7 @@ export function processPatch(cfg, job, repo) {
     recordFault(cfg, { kind: GATE_CRASH, id: job.id, detail: crash.msg });
     return done({ status: STATUS.FAILED, phase: 'gate', gate, message: `the gate crashed (the broker's fault, not the patch's): ${crash.msg}` });
   }
+  recordGatePass(cfg);
   if (gate.length) return done({ status: STATUS.GATE, phase: 'gate', gate });
 
   if (job.land && !(job.ops || []).length) return done({ status: STATUS.FAILED, phase: 'land', message: 'a landing needs operations; a test-only job cannot --land' });

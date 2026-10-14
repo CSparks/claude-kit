@@ -33,6 +33,8 @@ envelope format and the loop.
 3. `wait.mjs` prints the result. `stale` -> re-read the named files, resubmit with
    `--revises <id>`. `gate` -> fix the named check. `failed` -> fix from the rustc errors
    and failed test names. `dirty` -> the queue is paused for a hand edit; wait again.
+   Exit 2 (timed out) while the daemon is alive and the job is queued or running -> run wait
+   again (background it for a long queue); never withdraw a job for waiting.
 4. Green check -> resubmit the same patch with the same `--test` and `--land --ticket <id>`; on an
    unchanged HEAD it lands on the check's evidence without re-running. Report the landed sha.
 5. Stuck after two revisions of the same failure -> stop and report to the orchestrator

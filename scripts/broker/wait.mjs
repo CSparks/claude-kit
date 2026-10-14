@@ -60,5 +60,7 @@ while (Date.now() < deadline) {
   await sleep(pollMs);
 }
 const position = listQueue(cfg).findIndex((j) => j.id === id);
-console.error(`wait: timed out after ${timeoutMs / 1000}s waiting for ${id}${position >= 0 ? ` (queue position ${position + 1})` : ''}`);
+const where = heartbeatLine(cfg, id);
+const alive = observedLive(cfg) && where;
+console.error(`wait: timed out after ${timeoutMs / 1000}s waiting for ${id}${position >= 0 ? ` (queue position ${position + 1})` : ''}${alive ? `; the daemon is alive and the job is ${where.replace(/^wait: \S+ /, '')}: run wait again, do not withdraw it` : ''}`);
 process.exit(2);

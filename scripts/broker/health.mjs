@@ -15,7 +15,7 @@ import { catBlob, dirtyPaths, revParse } from './git.mjs';
 import { liveHolder, observedLive } from './lock.mjs';
 import { readInflight } from './preimage.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
-import { readHealth, readRun, recentFaults, writeHealth } from './health-store.mjs';
+import { readGatePass, readHealth, readRun, recentFaults, writeHealth } from './health-store.mjs';
 
 export const OWN_DIRT_WINDOW_MS = 10_000;
 const STUCK_FACTOR = 3;
@@ -96,8 +96,13 @@ export function stuckInflight(cfg, nowMs, floorMs = STUCK_FLOOR_MS) {
     cause: `a command hung or the daemon is wedged mid-run; ${ticketHint('stuck-inflight', inflight.id)}` }];
 }
 
+// A gate crash is over once a later job's gate answered. The detail names the runtime and pid it
+// happened under, so a fault from a replaced daemon reads as history, not as the live state.
 export function ownFaults(cfg, nowMs) {
-  return recentFaults(cfg, nowMs, FAULT_AGE_MS).map((f) => ({ kind: `own-fault:${f.kind}`, detail: `job ${f.id}: ${f.detail}`,
+  const pass = readGatePass(cfg);
+  const resolved = (f) => f.kind === 'gate-crash' && pass && Date.parse(pass.at) > Date.parse(f.at);
+  const under = (f) => (f.runtime || f.pid ? ` [runtime ${f.runtime || '?'}, pid ${f.pid || '?'}]` : '');
+  return recentFaults(cfg, nowMs, FAULT_AGE_MS).filter((f) => !resolved(f)).map((f) => ({ kind: `own-fault:${f.kind}`, detail: `job ${f.id}: ${f.detail}${under(f)}`,
     cause: `${f.kind === 'gate-crash' ? 'the pre-write gate hook crashed instead of answering' : 'the tree after a restore differs from its journal'}; ${ticketHint(f.kind, f.id)}` }));
 }
 
