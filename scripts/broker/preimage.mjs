@@ -10,10 +10,10 @@ import { catBlob, hashObject, lockFiles } from './git.mjs';
 
 const journalPath = (cfg) => join(brokerPaths(cfg).home, 'inflight.json');
 
-/** Record the pre-image of `paths` (relative to `cwd`) and return the journal. */
-export function capture(cfg, { id, cwd, paths }) {
+/** Record the pre-image of `paths` (relative to `cwd`) and return the journal; a train names its member job ids. */
+export function capture(cfg, { id, cwd, paths, members, startedAt }) {
   const entries = paths.map((path) => ({ path, blob: existsSync(join(cwd, path)) ? hashObject(cwd, path) : null }));
-  const journal = { id, cwd, startedAt: new Date().toISOString(), entries };
+  const journal = { id, cwd, startedAt: startedAt || new Date().toISOString(), entries, ...(members ? { members } : {}) };
   writeFileSync(journalPath(cfg), JSON.stringify(journal, null, 2));
   return journal;
 }
@@ -51,6 +51,15 @@ export function restore(cfg, journal) {
   rmSync(journalPath(cfg), { force: true });
   return failed;
 }
+
+/** Put back only `paths` of the journal, which stays in force for the rest. */
+export function restorePaths(journal, paths) {
+  const want = new Set(paths);
+  for (const entry of journal.entries.filter((e) => want.has(e.path))) restoreEntry(journal.cwd, entry);
+}
+
+/** True when the in-flight journal is job `id`'s own run or a train carrying it. */
+export const inflightHas = (inflight, id) => !!inflight && (inflight.id === id || (inflight.members || []).includes(id));
 
 /** Paths whose bytes differ from the journal's pre-image (call after `restore`). */
 export function restoreMismatches(journal) {

@@ -38,21 +38,41 @@ function undoLanding(cwd, repo, paths, preHead, pushed) {
   return { ok: false, committed: true, sha: revParse(cwd, 'HEAD'), error: `rebased onto ${tip} but did not land, commit undone: ${why}` };
 }
 
-export function landPatch(cfg, repo, job, cwd, paths, { verify, trailer, onPhase = () => {} } = {}) {
-  onPhase('commit');
-  const preHead = revParse(cwd, 'HEAD');
+function commitOne(cwd, { job, paths, trailer }) {
   const add = git(['add', '--', ...paths], cwd);
-  if (add.code !== 0) return { ok: false, committed: false, error: `git add: ${add.err}` };
+  if (add.code !== 0) return `git add: ${add.err}`;
   const title = job.title || `patch ${job.id}`;
   const subject = title.includes(`(implements ${job.ticket})`) ? title : `${title} (implements ${job.ticket})`;
   const message = trailer ? `${subject}\n\n${trailer}` : subject;
   const commit = git(['commit', '-m', message, '--', ...paths], cwd);
   if (commit.code !== 0) {
     git(['reset', '-q', '--', ...paths], cwd);
-    return { ok: false, committed: false, error: `git commit: ${commit.err}` };
+    return `git commit: ${commit.err}`;
   }
+  return null;
+}
+
+const unique = (list) => [...new Set(list.filter(Boolean))];
+
+/**
+ * Land several commits with ONE push (a train, KIT-T482 item 1): `commits` = [{ job, paths, trailer }]
+ * in landing order. Same contract as landPatch, plus `shas` (each commit's sha on the remote, in
+ * order). A submodule repo pins its superproject once, to the last sha, naming every ticket.
+ */
+export function landCommits(cfg, repo, cwd, commits, { verify, onPhase = () => {} } = {}) {
+  onPhase('commit');
+  const preHead = revParse(cwd, 'HEAD');
+  for (const c of commits) {
+    const error = commitOne(cwd, c);
+    if (error) {
+      git(['reset', '-q', '--mixed', preHead], cwd);
+      return { ok: false, committed: false, error };
+    }
+  }
+  const paths = unique(commits.flatMap((c) => c.paths));
+  const first = commits[0].job;
   const beforePush = repo.prePush ? () => {
-    const gate = runPrePush(cfg, cwd, repo.remote, repo.main, logPathFor(cfg, job.id, 'pre-push'));
+    const gate = runPrePush(cfg, cwd, repo.remote, repo.main, logPathFor(cfg, first.id, 'pre-push'));
     return { ok: gate.ok, error: `the repo's pre-push gate refused (exit ${gate.exit}): ${gate.log.slice(-8).join(' | ')}` };
   } : null;
   const pushed = syncPush(cwd, repo.remote, repo.main, { verify, env: buildEnv(cfg), beforePush, onPhase });
@@ -62,15 +82,20 @@ export function landPatch(cfg, repo, job, cwd, paths, { verify, trailer, onPhase
   }
   if (!pushed.ok) return undoLanding(cwd, repo, paths, preHead, pushed);
   const sha = revParse(cwd, 'HEAD');
-  if (!repo.submodule || job.noPin) return { ok: true, committed: true, sha, superSha: null };
+  const shas = git(['rev-list', '--reverse', '-n', String(commits.length), 'HEAD'], cwd).out.split(/\r?\n/).filter(Boolean);
+  if (!repo.submodule || commits.every((c) => c.job.noPin)) return { ok: true, committed: true, sha, shas, superSha: null };
 
   onPhase('pin');
   const superRepo = cfg.repos.find((r) => !r.submodule && normalize(r.path) === normalize(repo.pinIn));
   const superRoot = join(cfg.root, repo.pinIn);
   const pin = repinSuperproject({
     superRoot, subPath: repo.path, remote: superRepo ? superRepo.remote : repo.remote, main: superRepo ? superRepo.main : 'main',
-    sha, ticket: job.ticket, title: job.title || repo.path,
+    sha, ticket: unique(commits.map((c) => c.job.ticket)).join(', '), title: unique(commits.map((c) => c.job.title)).join('; ') || repo.path,
   });
-  if (!pin.ok) return { ok: false, committed: true, sha, error: `landed ${sha} in ${repo.path}; superproject pin failed: ${pin.error}` };
-  return { ok: true, committed: true, sha, superSha: revParse(superRoot, 'HEAD') };
+  if (!pin.ok) return { ok: false, committed: true, sha, shas, error: `landed ${sha} in ${repo.path}; superproject pin failed: ${pin.error}` };
+  return { ok: true, committed: true, sha, shas, superSha: revParse(superRoot, 'HEAD') };
+}
+
+export function landPatch(cfg, repo, job, cwd, paths, { verify, trailer, onPhase = () => {} } = {}) {
+  return landCommits(cfg, repo, cwd, [{ job, paths, trailer }], { verify, onPhase });
 }

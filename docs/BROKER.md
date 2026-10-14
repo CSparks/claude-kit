@@ -15,7 +15,7 @@ Worker workflow: the `patch-worker` skill. This page is for the OPERATOR.
 - `submit.mjs` — a worker pipes a patch envelope on stdin; prints the job id.
 - `wait.mjs` — blocks on a result (default 540 s), exits with the status, prints the queue
   position on timeout.
-- by concern: `envelope` (parse) · `apply` (in-memory dry run) · `patch` (one job) · `gate`
+- by concern: `envelope` (parse) · `apply` (in-memory dry run) · `admit` (dirty/plan/gate checks) · `patch` (one job) · `train*` (several jobs, one build) · `gate`
   (pre-write hook) · `land` (path commit, push, pin) · `preimage` (restore journal) ·
   `diagnose` (rustc / test extraction) · `report` · `summary` (orient lines) · `control` ·
   `config` · `git` · `glob` · `run` · `result` · `submodule` · `queue` · `lock`.
@@ -103,6 +103,8 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
 - **Suite partitions** (`suite-shard.mjs`, KIT-T482): with `suite_partitions: N` each suite run covers one rotating partition (`cargo nextest run … --partition count:k/N`; other suite commands take turns), so a forced run holds the writer for 1/N of the suite.
 - **Push gate** (`prepush.mjs`, KIT-T482 item 3): every `git push` and build the broker runs gets the shared `CARGO_TARGET_DIR` and `CARGO_BUILD_JOBS`. A repo entry with `pre_push: true` has the daemon run the repo's own pre-push hook (`git hook run pre-push`) on the landing commit before `git push`; a gate that stamps its green run (rapid-game's rg-gate-green.json) then passes the push at once, so a long gate never outlives git's connection (exit 141). A refused or failed push leaves no local commit: before a rebase the commit is undone and the files restored, after one HEAD returns to the remote tip.
 - **Health faults** carry the runtime and daemon pid they happened under; a gate crash is resolved once a later job's gate answers.
+- **Batch trains** (KIT-T482 item 1; `train-form.mjs`, `train.mjs`, `train-commands.mjs`, `train-run.mjs`, `train-blame.mjs`, `train-land.mjs`): the head of the queue takes along up to `batch` (default 8; 1 = off) later jobs of its repo that carry operations, hold no `--pin`, touch no Cargo.toml/Cargo.lock, pass admission (`admit.mjs`) and touch no path another member, or an earlier skipped job, touches. All their files go on the tree under one journal, the union of their commands runs once (owners kept per command; `runner: nextest` merges one package's targets into one run). Green: check-only members pass and are restored, landing members commit by their own paths in submit order and leave in ONE push (`landCommits`); a submodule train pins its superproject once, naming every ticket. Red: foreign tests are attributed against the pre-train tree as for a solo job; the rest is traced to one member (`train-blame.mjs`: a compile error to the member that touched the file; a test to the only member running its command, else selecting its target, else touching its test file or module). Blamed members fail at once with `blame` and the rest rebuild without them; a red nobody can be blamed for splits the group in halves, first half first, each half on the HEAD the earlier one landed. Results carry `train: { id, members, size, builds }`; the landing trailer names the train. A job alone in the queue takes the solo path unchanged. Vetting run on real cargo: `node scripts/broker/acceptance/train.mjs` (serial vs trains, invariants PASS/FAIL).
+- **Queue stats** (`stats.mjs`): `node scripts/broker/stats.mjs --root <checkout> [--split <ISO time>]` reads the result files: jobs, builds, trains, waiting split into behind-a-running-job and no-job-running, median and p90 wait, median run and first-command time, before/after a moment.
 - **Heartbeat** (`heartbeat.mjs`): `wait.mjs` prints the job's queue position, or its running time and command, every `--heartbeat` seconds (default 60).
 
 ## Coexistence with a hand-driven writer
@@ -168,6 +170,7 @@ broker:
   suite: ["cargo t --offline", "cargo run --offline --release --bin probe"]   # default verify_default
   suite_every: 3                             # landings between suite runs; default 1
   runner: nextest                            # default cargo; nextest merges a job's per-target test runs
+  batch: 8                                   # most disjoint queued jobs one build carries (trains); 1 = one build per job
   repos:
     - { name: stiletto,   path: ., main: main, remote: origin }
     - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }

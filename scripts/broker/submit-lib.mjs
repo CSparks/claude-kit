@@ -12,7 +12,7 @@ import { isSuiteShaped } from './landgate.mjs';
 
 export const SUITE_REFUSAL = 'full suites run on the cadence; list the targets you touched (--test "cargo t -p <crate> --test <name>")';
 import { parsePins } from './pin.mjs';
-import { staleEntries } from './patch.mjs';
+import { staleEntries } from './admit.mjs';
 import { STATUS, listQueue, newJobId, readResult } from './result.mjs';
 
 function revisionOf(cfg, revises) {

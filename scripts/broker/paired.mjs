@@ -7,7 +7,8 @@
 
 import { git } from './git.mjs';
 
-const PIN = /^chore: pin (\S+) ([0-9a-f]{7,40}) — .*\(implements ([^)\s]+)\)/;
+// A train's pin names every ticket it landed: (implements A, B).
+const PIN = /^chore: pin (?<path>\S+) (?<sha>[0-9a-f]{7,40}) — .*\(implements (?<tickets>[^)]+)\)/;
 
 /** Pins for `ticket` in `base..HEAD`, earliest first: [{ commit, path, sha }]. [] without a base or ticket. */
 export function pairedPins(cwd, base, ticket) {
@@ -18,7 +19,7 @@ export function pairedPins(cwd, base, ticket) {
   for (const line of log.out.split('\n')) {
     const [commit, ...subject] = line.split('\t');
     const m = PIN.exec(subject.join('\t'));
-    if (m && m[3] === ticket) pins.push({ commit, path: m[1], sha: m[2] });
+    if (m && m.groups.tickets.split(/,\s*/).includes(ticket)) pins.push({ commit, path: m.groups.path, sha: m.groups.sha });
   }
   return pins;
 }

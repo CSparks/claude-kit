@@ -1,5 +1,6 @@
 // suite-due.test.mjs — a busy queue never starves the suite (KIT-T483): once suite_every landings
 // have accumulated, the suite runs before the next queued job, and it is not cancelled by it.
+// One build per job (batch: 1) so the cadence is visible between landings.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,7 +21,7 @@ function setup(suiteEvery) {
   const dir = tempDir('suite-due-');
   const log = join(dir, 'order').replace(/\\/g, '/');
   const rec = (tag) => `node -e "const h=require('child_process').execSync('git rev-parse --short HEAD').toString().trim();require('fs').appendFileSync('${log}','${tag} '+h+'\\n')"`;
-  s.cfg = normalizeBroker(s.root, { repos: [{ name: 'app', path: '.', main: 'main', remote: 'origin' }], land_gate: 'affected', suite_every: suiteEvery, suite: [rec('SUITE')], affected: { check: PASS, test: PASS } });
+  s.cfg = normalizeBroker(s.root, { repos: [{ name: 'app', path: '.', main: 'main', remote: 'origin' }], land_gate: 'affected', suite_every: suiteEvery, suite: [rec('SUITE')], affected: { check: PASS, test: PASS }, batch: 1 });
   const order = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map((l) => l.trim().split(' ')[0]) : []);
   const queueLandings = (n) => {
     for (let i = 0; i < n; i++) {

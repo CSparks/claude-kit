@@ -1,19 +1,17 @@
-// patch.mjs — run one patch job on the live checkout (KIT-T276): re-dry-run against current
-// HEAD (content-addressed), journal the pre-images, write the files, run the commands, then
-// restore the tree byte for byte (check-only) or, for a green `land` job, commit by paths and
-// push. Returns { result, pause }; pause leaves the job queued.
+// patch.mjs — run one patch job on the live checkout (KIT-T276): admit it (admit.mjs), journal
+// the pre-images, write the files, run the commands, then restore the tree byte for byte
+// (check-only) or, for a green `land` job, commit by paths and push. Returns { result, pause };
+// pause leaves the job queued. Several disjoint jobs run together as a train (train.mjs).
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { planAtHead } from './plan.mjs';
-import { derivedUntrackedBlocks } from './blocks.mjs';
-import { capture, discard, dropNewLocks, pruneEmptyDirs, restore, restoreMismatches } from './preimage.mjs';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { admit } from './admit.mjs';
+import { capture, discard, dropNewLocks, restore, restoreMismatches } from './preimage.mjs';
 import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
 import { addDeferred } from './deferred.mjs';
-import { GATE_CRASH, RUNTIME_GONE, gatePlan } from './gate.mjs';
 import { findGreen, greenKey, recordGreen } from './green.mjs';
 import { treeState } from './cache.mjs';
 import { makeBaseline } from './baseline.mjs';
@@ -22,30 +20,17 @@ import { coalesce } from './coalesce.mjs';
 import { phaseTracker } from './phase.mjs';
 import { gateTrailer } from './trailer.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
-import { recordFault, recordGatePass, recordRun } from './health-store.mjs';
-import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse } from './git.mjs';
+import { recordFault, recordRun } from './health-store.mjs';
+import { changedLocks, dirtyPaths, git, lockFiles, revParse } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand } from './run.mjs';
-
-export function staleEntries(cwd, base, stale) {
-  return stale.map((s) => ({ ...s, since: base ? logSince(cwd, base, s.path) : [] }));
-}
-
-// Writes the plan's files; a deleted file's directories are pruned up to the first non-empty parent.
-function writePlan(cwd, files) {
-  for (const [path, f] of files) {
-    const abs = join(cwd, path);
-    if (f.text === null) { rmSync(abs, { force: true }); pruneEmptyDirs(dirname(abs), cwd); }
-    else { mkdirSync(dirname(abs), { recursive: true }); writeFileSync(abs, f.text); }
-  }
-}
+import { writePlan } from './write-plan.mjs';
+import { foreignOf, isGreen, jobCommands } from './job-commands.mjs';
 
 // Run the job's commands in order. A failed command with named failed tests is attributed
 // (attribute.mjs) against the pre-patch tree via `hooks.baseline(fn)`; all-foreign failures
 // let the job carry on, any caused failure or unattributable one stops it. A paired pin for
 // the job's ticket (paired.mjs) makes every failure suspect: no baseline, the job fails.
-const jobCommands = (cfg, job) => (Array.isArray(job.commands) && job.commands.length ? job.commands : cfg.verifyDefault);
-
 function runCommands(cfg, job, cwd, hooks) {
   const commands = cfg.runner === 'nextest' ? coalesce(jobCommands(cfg, job)) : jobCommands(cfg, job).map((cmd) => ({ cmd, from: null }));
   const out = [];
@@ -67,44 +52,18 @@ function runCommands(cfg, job, cwd, hooks) {
   return out;
 }
 
-const isGreen = (commands) => commands.every((c) => c.exit === 0 || (c.foreign && c.foreign.length));
-const foreignOf = (commands) => commands.flatMap((c) => c.foreign || []);
-
 export function processPatch(cfg, job, repo) {
-  const cwd = join(cfg.root, repo.path);
   const base = {
     id: job.id, revises: job.revises || null, revision: job.revision || 1, repo: job.repo, ticket: job.ticket || null,
     base: job.base || null, startedAt: new Date().toISOString(), land: !!job.land,
     gate: [], stale: [], commands: [], foreign: [], diffStat: '', landed: null, message: null,
   };
   const ph = phaseTracker(cfg, job.id);
-  ph.enter('apply');
+  const cwd = join(cfg.root, repo.path);
   const done = (fields) => ({ result: writeResult(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields, timings: ph.timings() }) });
-
-  const { ops, plan } = planAtHead(cwd, job.ops || []);
-  const touched = ops.map((o) => String(o.path).replace(/[\\]/g, '/'));
-  const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
-  const state = checkoutState(cwd, { untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks, touched });
-  if (!state.clean) {
-    return { ...done({ status: STATUS.DIRTY, phase: 'apply', dirtyEntries: state.entries, message: `build checkout dirty (${cwd}) — queue paused until clean` }), pause: true };
-  }
-
-  if (!plan.ok) return done({ status: STATUS.STALE, phase: 'apply', stale: staleEntries(cwd, job.base, plan.stale) });
-
-  ph.enter('gate');
-  const gate = gatePlan(cwd, plan.files);
-  const gone = gate.find((g) => g.check === RUNTIME_GONE);
-  if (gone) return done({ status: STATUS.FAILED, phase: 'gate', gate, message: `${gone.msg} (the broker's fault, not the patch's; resubmit once it restarted)` });
-  const crash = gate.find((g) => g.check === GATE_CRASH);
-  if (crash) {
-    recordFault(cfg, { kind: GATE_CRASH, id: job.id, detail: crash.msg });
-    return done({ status: STATUS.FAILED, phase: 'gate', gate, message: `the gate crashed (the broker's fault, not the patch's): ${crash.msg}` });
-  }
-  recordGatePass(cfg);
-  if (gate.length) return done({ status: STATUS.GATE, phase: 'gate', gate });
-
-  if (job.land && !(job.ops || []).length) return done({ status: STATUS.FAILED, phase: 'land', message: 'a landing needs operations; a test-only job cannot --land' });
-  if (job.land && !job.ticket) return done({ status: STATUS.FAILED, phase: 'land', message: 'a landing patch needs --ticket (the commit cites it)' });
+  const admitted = admit(cfg, job, repo, { onPhase: (p) => ph.enter(p) });
+  if (!admitted.ok) return { ...done(admitted.fields), pause: admitted.pause };
+  const { plan } = admitted;
 
   let pins = [];
   if ((job.pins || []).length) {

@@ -50,10 +50,15 @@ have no Edit/Write tool and never run cargo. Operator setup + schemas: `docs/BRO
    - `gate` — a pre-write check failed (file length, comments, forbidden path); the message
      names it. Fix the patch; nothing touched the tree.
    - `failed` — rustc error blocks keyed by file and the failed test names; fix and resubmit.
+     Built in a train (`train` in the result: other queued patches shared the build), `blame`
+     says why the failure is yours (a compile error in your file, a test only your patch
+     selects or whose module you touched). A blame your patch cannot have caused: resubmit
+     unchanged with `--revises`; it rebuilds on the current HEAD.
    - `dirty` — a hand-driven edit holds the tree; the job stays queued. Wait again.
 
 4. **Land** when green: resubmit the same patch with the same `--test` and `--land --ticket
-   <id>`; on an unchanged HEAD it lands on the check's evidence without re-running. A confident
+   <id>`; on an unchanged HEAD it lands on the check's evidence without re-running, unless the
+   check shared its build with other patches (a train), which leaves no reusable evidence. A confident
    small change may skip the check and submit `--land` first: a red run lands nothing, and under
    `land_gate: affected` the broker gates it on a compile check plus the tests its paths map to,
    with the full suite on a separate cadence (docs/BROKER.md "Fast landing"). The broker

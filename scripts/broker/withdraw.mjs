@@ -4,12 +4,12 @@
 //
 // `withdrawJob(cfg, id, { status, message })` -> { ok, error? }
 
-import { readInflight } from './preimage.mjs';
+import { inflightHas, readInflight } from './preimage.mjs';
 import { STATUS, listQueue, readResult, removeJob, writeResult } from './result.mjs';
 
 export function withdrawJob(cfg, id, { status = STATUS.CANCELLED, message = 'cancelled' } = {}) {
   const running = readInflight(cfg);
-  if (running && running.id === id) return { ok: false, error: `${id} is running; a running job is never cancelled` };
+  if (inflightHas(running, id)) return { ok: false, error: `${id} is running; a running job is never cancelled` };
   const job = listQueue(cfg).find((j) => j.id === id);
   if (!job) {
     const done = readResult(cfg, id);

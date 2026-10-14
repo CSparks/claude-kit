@@ -7,7 +7,7 @@
 
 import { existsSync, readdirSync } from 'node:fs';
 import { brokerPaths } from './config.mjs';
-import { readInflight } from './preimage.mjs';
+import { inflightHas, readInflight } from './preimage.mjs';
 import { listQueue } from './result.mjs';
 import { readPhase } from './phase.mjs';
 
@@ -23,12 +23,13 @@ function runningCommand(cfg, id) {
 
 export function heartbeatLine(cfg, id, now = Date.now()) {
   const inflight = readInflight(cfg);
-  if (inflight && inflight.id === id) {
+  if (inflightHas(inflight, id)) {
     const secs = Math.round((now - Date.parse(inflight.startedAt)) / MS_PER_SEC);
+    const train = inflight.id === id ? '' : ` in ${inflight.id} (${inflight.members.length} patches, one build)`;
     const ph = readPhase(cfg);
-    if (ph && ph.id === id && ph.phase !== 'run') return `wait: ${id} running ${secs}s, phase ${ph.phase} for ${Math.round((now - Date.parse(ph.since)) / MS_PER_SEC)}s`;
-    const n = runningCommand(cfg, id);
-    return `wait: ${id} running ${secs}s${n >= 0 ? `, on command ${n + 1}` : ', applying'}`;
+    if (ph && ph.id === inflight.id && ph.phase !== 'run') return `wait: ${id} running${train} ${secs}s, phase ${ph.phase} for ${Math.round((now - Date.parse(ph.since)) / MS_PER_SEC)}s`;
+    const n = runningCommand(cfg, inflight.id);
+    return `wait: ${id} running${train} ${secs}s${n >= 0 ? `, on command ${n + 1}` : ', applying'}`;
   }
   const queue = listQueue(cfg);
   const at = queue.findIndex((j) => j.id === id);

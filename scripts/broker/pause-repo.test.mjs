@@ -40,12 +40,14 @@ test('a dirty repo holds its own jobs; a clean repo\'s job behind it still runs'
   } finally { t.done(); }
 });
 
-test('negative: with every repo clean nothing is held and every job runs in order', () => {
+test('negative: with every repo clean nothing is held and every job runs, in order within its repo', () => {
   const t = twoRepos(false);
   try {
     const ids = [t.queue('app', 'a1.txt'), t.queue('lib', 'l1.txt'), t.queue('app', 'a2.txt')].map((j) => j.id);
     const sum = processOnce(t.cfg);
     assert.equal(sum.paused, false);
-    assert.deepEqual(sum.processed.map((r) => r.id), ids);
+    const done = sum.processed.map((r) => r.id);
+    assert.deepEqual([...done].sort(), [...ids].sort());
+    assert.ok(done.indexOf(ids[0]) < done.indexOf(ids[2]), 'app jobs keep their order (a train carries a2 with a1)');
   } finally { t.done(); }
 });
