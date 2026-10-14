@@ -34,3 +34,4 @@ DEFECT (stiletto 2026-10-14 ~11:12): the chain fails open when git cannot set up
 - [2026-10-13 22:28] (comment) @claude: (fixed) 94ef352. Test evidence: scripts/pre-push-chain.test.mjs 13 passed; mutation: dropping the chain fails 5; npm test green
 - [2026-10-13 22:28] (status) todo → review
 - [2026-10-14 16:14] (comment) @claude: DEFECT (stiletto 2026-10-14 ~11:12): the chain fails open when git cannot set up the work tree. The stiletto rapid-game  (full comment #2 in ## Notes)
+- [2026-10-14 16:17] (comment) @claude: Defect from comment #2 fixed under KIT-T479 in b8dfa30 (pre-push-chain 19 passed).
