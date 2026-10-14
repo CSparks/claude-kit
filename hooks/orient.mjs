@@ -217,7 +217,7 @@ try {
 } catch {
   /* device block is best-effort */
 }
-// Any kit bug is a ticket plus the standing kit agent (KIT-T286, KIT-T480): list the open ones.
+// Any kit bug is a ticket plus the standing kit agent (KIT-T286, KIT-D094): list the open ones.
 try {
   const { kitBugBlock } = await import('../scripts/kit-bug.mjs');
   out.push(...kitBugBlock());

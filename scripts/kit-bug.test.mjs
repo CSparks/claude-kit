@@ -152,7 +152,7 @@ await test('orient lists open kit-bug tickets under DISPATCH NOW', () => {
   const r = hook('orient.mjs', { hook_event_name: 'SessionStart' }, o, env);
   assert.match(r.out, /--- DISPATCH NOW: open kit-bug \/ kit-feature tickets/);
   assert.match(r.out, /KIT-T\d+ — /);
-  assert.match(r.out, /Policy \(KIT-T480, Chris 2026-10-14\): keep ONE standing kit agent/, 'the standing-agent rule is replayed with them');
+  assert.match(r.out, /Policy \(KIT-D094\): keep ONE standing kit agent/, 'the standing-agent rule is replayed with them');
 });
 
 await test('negative: no open kit tickets, no DISPATCH NOW block and no policy line', () => {

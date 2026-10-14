@@ -27,7 +27,7 @@
 // SQLite cache — both fail-open, so a missing engine never wedges a mutation.
 
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { readIdConfig, idExists, fileForId } from './id-utils.mjs';
@@ -395,7 +395,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|decide|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" | t decide --file <draft.md> | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
@@ -489,6 +489,14 @@ async function main() {
     const r = cmd === 'ask' ? askQuestion(root, id, flags) : resolveQuestionFile(root, id, answer, flags);
     await refresh(root);
     process.stdout.write(cmd === 'ask' ? `ask: ${r.id} asked by ${r.session}\n` : `resolve: ${r.id} resolved by ${r.who}\n`);
+    return;
+  }
+  if (cmd === 'decide') {
+    if (!flags.file) { console.error('usage: t decide --file <draft.md>'); process.exit(2); }
+    const { recordDecision } = await import('./t-decide.mjs');
+    const r = recordDecision(root, readFileSync(flags.file, 'utf8'));
+    await refresh(root);
+    process.stdout.write(`decide: ${r.id} -> ${relative(root, r.path)}\n`);
     return;
   }
   if (cmd === 'move') {

@@ -85,7 +85,7 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   landing IS a reason to hand back. A genuine decision goes in an AskUserQuestion,
   never a pause. Blocked on something only the maintainer can clear (credential,
   external approval, judgement call): say so plainly and stop.
-- **An unreachable device is a maintainer action, announced at once (KIT-T480).** A Deck,
+- **An unreachable device is a maintainer action, announced at once (KIT-D094).** A Deck,
   phone or host that does not answer gets one line to the maintainer ("Deck unreachable —
   wake it and connect Wi-Fi") the moment it is seen. Never a background wait, poll loop or
   watcher on it: the kit's deploy scripts exit at once, and so does the orchestrator.
@@ -292,7 +292,7 @@ positive or miss, a process failure traced to tooling — and any kit FEATURE th
 becomes a ticket in the claude-kit store AT ONCE (`kit-bug` / `kit-feature` label), and an agent
 is dispatched in the claude-kit checkout to build it, unless the maintainer directs otherwise.
 Never a silent grep or workaround, never a mention in prose.
-- **One standing kit agent per session (KIT-T480; Chris 2026-10-14: "Please spin up an
+- **One standing kit agent per session (KIT-D094; Chris 2026-10-14: "Please spin up an
   agent to handle any kit fixes like that. That should be policy.").** Each session keeps ONE
   kit agent: a writer in the claude-kit checkout, reused warm for every fix. The moment a kit misbehaviour
   shows up, the orchestrator hands it over whole: filing the ticket, diagnosis, fix, tests,
