@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { runtimeRoot as defaultRuntimeRoot } from './runtime-path.mjs';
 import { isMain } from './is-main.mjs';
+import { liveUsers } from './runtime-pin.mjs';
 
 const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
@@ -49,7 +50,10 @@ function repointCurrent(runtimeRoot, sha) {
 function prune(runtimeRoot, keep, currentSha) {
   const dirs = readdirSync(runtimeRoot).filter((n) => SHA_DIR.test(n))
     .map((n) => ({ n, t: statSync(join(runtimeRoot, n)).mtimeMs })).sort((a, b) => b.t - a.t);
-  for (const { n } of dirs.slice(keep)) if (n !== currentSha) rmSync(join(runtimeRoot, n), { recursive: true, force: true });
+  for (const { n } of dirs.slice(keep)) {
+    if (n === currentSha || liveUsers(join(runtimeRoot, n)).length) continue; // a running daemon still loads from it (KIT-T486)
+    rmSync(join(runtimeRoot, n), { recursive: true, force: true });
+  }
 }
 
 /** Export HEAD of `repo` and repoint `current`; throws before touching `current` if the export fails. */

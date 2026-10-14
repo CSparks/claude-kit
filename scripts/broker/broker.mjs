@@ -24,6 +24,7 @@ import { recoverInflight } from './preimage.mjs';
 import { processOnce } from './queue.mjs';
 import { STATUS, ensureDirs, listQueue } from './result.mjs';
 import { suiteLine } from './suite.mjs';
+import { pinRuntime } from '../runtime-pin.mjs';
 import { withdrawJob } from './withdraw.mjs';
 
 const MS_PER_MIN = 60 * 1000;
@@ -57,6 +58,7 @@ if (command === 'status') {
 }
 
 const lock = acquireLock(cfg);
+if (lock.ok) pinRuntime();
 if (!lock.ok) {
   console.error(`broker: another broker holds the lock (pid ${lock.holder.pid} on ${lock.holder.host} since ${lock.holder.ts})`);
   process.exit(1);

@@ -12,6 +12,7 @@ import { resolveStoreRoot } from '../hooks/lib/unbounded.mjs';
 import { unsupportedFlags } from './q-gap.mjs';
 import { endpoint, kitEnv, SERVED_VERBS, stamp } from './q-server-proto.mjs';
 import { Session } from './q-server-session.mjs';
+import { pinRuntime } from './runtime-pin.mjs';
 
 const IDLE_MS = Number(process.env.CLAUDE_KIT_Q_SERVER_IDLE_MS) || 30 * 60 * 1000;
 const PATH = endpoint();
@@ -97,6 +98,7 @@ server.on('error', (e) => {
   probe.on('error', () => { try { unlinkSync(PATH); } catch { /* raced */ } server.listen(PATH); });
 });
 server.listen(PATH, () => {
+  pinRuntime();
   if (process.platform !== 'win32') try { chmodSync(PATH, 0o600); } catch { /* best effort */ }
   retime();
 });

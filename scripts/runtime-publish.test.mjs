@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { publishRuntime, currentRuntime } from './runtime-publish.mjs';
+import { liveUsers, pinRuntime } from './runtime-pin.mjs';
 
 let pass = 0;
 let fail = 0;
@@ -43,8 +44,19 @@ ok('the previous sha stays for sessions still inside it', existsSync(join(runtim
 
 writeFileSync(join(repo, 'scripts', 'lib.mjs'), 'export const v = 3;\n');
 git(repo, 'commit', '-aqm', 'three');
+// KIT-T486: sha2 is pinned by this live process, sha1 by a dead pid.
+pinRuntime(join(runtimeRoot, sha2));
+mkdirSync(join(runtimeRoot, sha1, '.in-use'), { recursive: true });
+writeFileSync(join(runtimeRoot, sha1, '.in-use', '999999'), 'dead');
 publishRuntime({ repo, runtimeRoot, keep: 1 });
-ok('keep prunes older sha directories', readdirSync(runtimeRoot).filter((n) => /^[0-9a-f]{7,}$/.test(n)).length === 1);
+const shaDirs = () => readdirSync(runtimeRoot).filter((n) => /^[0-9a-f]{7,}$/.test(n));
+ok('a runtime a live daemon pinned survives the prune', existsSync(join(runtimeRoot, sha2, 'scripts', 'lib.mjs')) && liveUsers(join(runtimeRoot, sha2)).includes(process.pid));
+ok('negative control: a pin by a dead pid does not hold its runtime', !existsSync(join(runtimeRoot, sha1)));
+rmSync(join(runtimeRoot, sha2, '.in-use'), { recursive: true, force: true });
+writeFileSync(join(repo, 'scripts', 'lib.mjs'), 'export const v = 4;\n');
+git(repo, 'commit', '-aqm', 'four');
+publishRuntime({ repo, runtimeRoot, keep: 1 });
+ok('keep prunes older sha directories once nothing pins them', shaDirs().length === 1);
 
 const before = currentRuntime(runtimeRoot);
 let threw = false;
