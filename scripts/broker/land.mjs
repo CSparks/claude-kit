@@ -12,16 +12,17 @@ const normalize = (p) => String(p).replace(/\\/g, '/').replace(/\/$/, '') || '.'
 /**
  * Commit `paths` in `cwd`, push `repo.main`, re-pin a submodule's superproject.
  * A remote that moved is fetched and the commit rebased onto it first (sync-push.mjs); `verify`
- * re-runs the job's tests after such a rebase. Returns { ok, committed, sha, superSha, conflict,
- * error }; `committed` is true while the commit exists locally, so the caller knows the tree
+ * re-runs the job's tests after such a rebase. `trailer` becomes the commit body.
+ * Returns { ok, committed, sha, superSha, conflict, error }; `committed` is true while the commit exists locally, so the caller knows the tree
  * already matches HEAD even when the push failed. A conflicting rebase drops the local commit
  * (`committed` false, `conflict` names the files) and leaves the working files for the caller to restore.
  */
-export function landPatch(cfg, repo, job, cwd, paths, { verify } = {}) {
+export function landPatch(cfg, repo, job, cwd, paths, { verify, trailer } = {}) {
   const preHead = revParse(cwd, 'HEAD');
   const add = git(['add', '--', ...paths], cwd);
   if (add.code !== 0) return { ok: false, committed: false, error: `git add: ${add.err}` };
-  const message = `${job.title || `patch ${job.id}`} (implements ${job.ticket})`;
+  const subject = `${job.title || `patch ${job.id}`} (implements ${job.ticket})`;
+  const message = trailer ? `${subject}\n\n${trailer}` : subject;
   const commit = git(['commit', '-m', message, '--', ...paths], cwd);
   if (commit.code !== 0) {
     git(['reset', '-q', '--', ...paths], cwd);

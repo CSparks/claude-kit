@@ -25,6 +25,7 @@
 import { readFileSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
 import { resolveJobs } from './jobs.mjs';
+import { pipelineConfig } from './pipeline-config.mjs';
 
 const DEFAULT_POLL_MS = 2000;
 const DEFAULT_VERIFY = ['cargo test --no-fail-fast'];
@@ -61,6 +62,7 @@ export function normalizeBroker(root, broker) {
     untrackedDerived: !Array.isArray(broker.untracked_blocks),
     dirtyBlocks: Array.isArray(broker.dirty_blocks) ? broker.dirty_blocks.map(String) : DEFAULT_DIRTY_BLOCKS.slice(),
     repos,
+    ...pipelineConfig(broker, verifyDefault),
   };
 }
 

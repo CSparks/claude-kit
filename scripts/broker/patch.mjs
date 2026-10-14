@@ -17,6 +17,8 @@ import { GATE_CRASH, gatePlan } from './gate.mjs';
 import { findGreen, greenKey, recordGreen } from './green.mjs';
 import { treeState } from './cache.mjs';
 import { makeBaseline } from './baseline.mjs';
+import { landGate } from './landgate.mjs';
+import { gateTrailer } from './trailer.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
 import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
@@ -128,24 +130,27 @@ export function processPatch(cfg, job, repo) {
       enter: () => { restoreTree(); revertPins(explicit()); },
       leave: () => { restoreTree(); journal = captureTree(); checkoutPins(pins); writePlan(cwd, plan.files); },
     });
-    const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, job, cwd, { baseline });
+    const gated = job.land && !reused ? landGate(cfg, cwd, job, [...plan.files.keys()]) : null;
+    const runJob = gated ? { ...job, commands: gated.commands } : job;
+    const selection = gated ? gated.selection : null;
+    const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, runJob, cwd, { baseline });
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
     if (green && !job.land && (job.ops || []).length) recordGreen(cfg, key, { job: job.id, commands, foreign });
-    if (!green || !job.land) return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat, foreign });
+    if (!green || !job.land) return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat, foreign, selection });
 
     // Every Cargo.lock was journalled as found (KIT-T306), so a lock that differs from HEAD now
     // is either the maintainer's cargo-resolved lock or the run's; both belong in the landing.
     const reverify = () => {
-      const again = runCommands(cfg, job, cwd, { baseline: () => null });
+      const again = runCommands(cfg, runJob, cwd, { baseline: () => null });
       const known = new Set(foreign.map((f) => f.test));
       return { ok: again.every((c) => c.exit === 0 || (c.failedTests.length && !Object.keys(c.errors).length && c.failedTests.every((t) => known.has(t)))) };
     };
-    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], { verify: reverify });
+    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], { verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }) });
     keep = land.committed;
     if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
-    if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, message: land.error });
-    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha } });
+    if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, selection, message: land.error });
+    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, selection, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha } });
   } finally {
     if (keep) { discard(cfg); settlePins(pins); }
     else {
