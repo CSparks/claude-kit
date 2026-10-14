@@ -16,7 +16,7 @@ const DOCS_ONLY = /\.(?:md|txt)$/i;
 
 const lines = (out) => (out ? out.split('\n').map((l) => l.trim()).filter(Boolean) : []);
 
-export function syncPush(cwd, remote, branch, { verify, env, beforePush } = {}) {
+export function syncPush(cwd, remote, branch, { verify, env, beforePush, onPhase = () => {} } = {}) {
   let rebased = false;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const fetched = git(['fetch', remote, branch], cwd);
@@ -27,6 +27,7 @@ export function syncPush(cwd, remote, branch, { verify, env, beforePush } = {}) 
       const dirty = new Set(dirtyPaths(cwd));
       const overlap = incoming.filter((p) => dirty.has(p));
       if (overlap.length) return { ok: false, rebased, conflict: overlap, error: `${tip} changed files with uncommitted edits: ${overlap.join(', ')}` };
+      onPhase('rebase');
       const rebase = git(['rebase', '--autostash', tip], cwd);
       if (rebase.code !== 0) {
         const unmerged = lines(git(['diff', '--name-only', '--diff-filter=U'], cwd).out);
@@ -34,14 +35,16 @@ export function syncPush(cwd, remote, branch, { verify, env, beforePush } = {}) 
         return { ok: false, rebased, conflict: unmerged.length ? unmerged : incoming, error: `rebase onto ${tip} conflicted: ${rebase.err.trim().slice(0, 300)}` };
       }
       rebased = true;
-      if (verify && !incoming.every((p) => DOCS_ONLY.test(p)) && !verify(incoming).ok) {
+      if (verify && !incoming.every((p) => DOCS_ONLY.test(p)) && (onPhase('reverify'), !verify(incoming).ok)) {
         return { ok: false, rebased, verifyFailed: true, error: `rebased onto ${tip}, but the job's tests fail on the rebased tree; the commit stays local` };
       }
     }
     if (beforePush) {
+      onPhase('pre-push gate');
       const gate = beforePush();
       if (!gate.ok) return { ok: false, rebased, gateRefused: true, error: gate.error };
     }
+    onPhase('push');
     const pushed = push(cwd, remote, branch, env);
     if (pushed.ok) return { ok: true, rebased };
     if (attempt === MAX_ATTEMPTS - 1) return { ok: false, rebased, error: pushed.err };

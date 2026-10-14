@@ -13,12 +13,13 @@ import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
 import { addDeferred } from './deferred.mjs';
-import { GATE_CRASH, gatePlan } from './gate.mjs';
+import { GATE_CRASH, RUNTIME_GONE, gatePlan } from './gate.mjs';
 import { findGreen, greenKey, recordGreen } from './green.mjs';
 import { treeState } from './cache.mjs';
 import { makeBaseline } from './baseline.mjs';
 import { landGate } from './landgate.mjs';
 import { coalesce } from './coalesce.mjs';
+import { phaseTracker } from './phase.mjs';
 import { gateTrailer } from './trailer.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordGatePass, recordRun } from './health-store.mjs';
@@ -76,7 +77,9 @@ export function processPatch(cfg, job, repo) {
     base: job.base || null, startedAt: new Date().toISOString(), land: !!job.land,
     gate: [], stale: [], commands: [], foreign: [], diffStat: '', landed: null, message: null,
   };
-  const done = (fields) => ({ result: writeResult(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields }) });
+  const ph = phaseTracker(cfg, job.id);
+  ph.enter('apply');
+  const done = (fields) => ({ result: writeResult(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields, timings: ph.timings() }) });
 
   const { ops, plan } = planAtHead(cwd, job.ops || []);
   const touched = ops.map((o) => String(o.path).replace(/[\\]/g, '/'));
@@ -88,7 +91,10 @@ export function processPatch(cfg, job, repo) {
 
   if (!plan.ok) return done({ status: STATUS.STALE, phase: 'apply', stale: staleEntries(cwd, job.base, plan.stale) });
 
+  ph.enter('gate');
   const gate = gatePlan(cwd, plan.files);
+  const gone = gate.find((g) => g.check === RUNTIME_GONE);
+  if (gone) return done({ status: STATUS.FAILED, phase: 'gate', gate, message: `${gone.msg} (the broker's fault, not the patch's; resubmit once it restarted)` });
   const crash = gate.find((g) => g.check === GATE_CRASH);
   if (crash) {
     recordFault(cfg, { kind: GATE_CRASH, id: job.id, detail: crash.msg });
@@ -137,6 +143,7 @@ export function processPatch(cfg, job, repo) {
     const gated = wantsGate && !reused ? landGate(cfg, cwd, job, plan.files) : null;
     const runJob = gated ? { ...job, commands: gated.commands } : job;
     const selection = gated ? gated.selection : null;
+    ph.enter('run');
     const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, runJob, cwd, { baseline });
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
@@ -150,7 +157,7 @@ export function processPatch(cfg, job, repo) {
       const known = new Set(foreign.map((f) => f.test));
       return { ok: again.every((c) => c.exit === 0 || (c.failedTests.length && !Object.keys(c.errors).length && c.failedTests.every((t) => known.has(t)))) };
     };
-    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], { verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }) });
+    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], { verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }), onPhase: (p) => ph.enter(p) });
     keep = land.committed;
     if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, selection, message: land.error });

@@ -38,7 +38,8 @@ function undoLanding(cwd, repo, paths, preHead, pushed) {
   return { ok: false, committed: true, sha: revParse(cwd, 'HEAD'), error: `rebased onto ${tip} but did not land, commit undone: ${why}` };
 }
 
-export function landPatch(cfg, repo, job, cwd, paths, { verify, trailer } = {}) {
+export function landPatch(cfg, repo, job, cwd, paths, { verify, trailer, onPhase = () => {} } = {}) {
+  onPhase('commit');
   const preHead = revParse(cwd, 'HEAD');
   const add = git(['add', '--', ...paths], cwd);
   if (add.code !== 0) return { ok: false, committed: false, error: `git add: ${add.err}` };
@@ -54,7 +55,7 @@ export function landPatch(cfg, repo, job, cwd, paths, { verify, trailer } = {}) 
     const gate = runPrePush(cfg, cwd, repo.remote, repo.main, logPathFor(cfg, job.id, 'pre-push'));
     return { ok: gate.ok, error: `the repo's pre-push gate refused (exit ${gate.exit}): ${gate.log.slice(-8).join(' | ')}` };
   } : null;
-  const pushed = syncPush(cwd, repo.remote, repo.main, { verify, env: buildEnv(cfg), beforePush });
+  const pushed = syncPush(cwd, repo.remote, repo.main, { verify, env: buildEnv(cfg), beforePush, onPhase });
   if (pushed.conflict) {
     git(['reset', '-q', '--mixed', preHead], cwd);
     return { ok: false, committed: false, conflict: pushed.conflict, error: pushed.error };
@@ -63,6 +64,7 @@ export function landPatch(cfg, repo, job, cwd, paths, { verify, trailer } = {}) 
   const sha = revParse(cwd, 'HEAD');
   if (!repo.submodule || job.noPin) return { ok: true, committed: true, sha, superSha: null };
 
+  onPhase('pin');
   const superRepo = cfg.repos.find((r) => !r.submodule && normalize(r.path) === normalize(repo.pinIn));
   const superRoot = join(cfg.root, repo.pinIn);
   const pin = repinSuperproject({
