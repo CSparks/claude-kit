@@ -64,7 +64,7 @@ try {
     writeFileSync(TMP_REG, JSON.stringify({ projects: { [basename(g)]: g } }));
     const deckJson = join(tmpDir('kit-deck-'), 'steamdeck.json');
     writeFileSync(deckJson, JSON.stringify({ host: '10.1.2.3', user: 'deck', key: '~/.ssh/steamdeck' }));
-    const env = { CLAUDE_KIT_STEAMDECK: deckJson };
+    const env = { CLAUDE_KIT_STEAMDECK: deckJson, CLAUDE_KIT_DECK_HOME: tmpDir('kit-deck-home-') };
     const withDeck = hook('orient.mjs', { hook_event_name: 'SessionStart' }, g, env).out;
     const block = (withDeck.split('--- DEVICES / DEPLOY TARGETS')[1] || '').split('\n---')[0];
     ok('orient KIT-T406: a configured game gets the device line with host and deploy command',
