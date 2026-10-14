@@ -6,11 +6,12 @@
 //
 // `buildEnv(cfg)` → the environment for every broker build or hook: the shared CARGO_TARGET_DIR,
 //   CARGO_BUILD_JOBS, and no inherited GIT_* variables.
-// `runPrePush(cfg, cwd, remote, branch, logPath)` → { ok, exit, log }.
+// `runPrePush(cfg, cwd, remote, branch, logPath)` → { ok, exit, log }. The gate runs beside a beating
+//   daemon (run-pulsing.mjs), so a 17-minute gate never reads as a stall (KIT-T493).
 
-import { spawnSync } from 'node:child_process';
-import { openSync, closeSync, writeFileSync, rmSync } from 'node:fs';
+import { writeFileSync, rmSync } from 'node:fs';
 import { git, revParse } from './git.mjs';
+import { runPulsing } from './run-pulsing.mjs';
 import { tail } from './run.mjs';
 
 const ZERO = '0'.repeat(40);
@@ -26,15 +27,10 @@ export function runPrePush(cfg, cwd, remote, branch, logPath) {
   const url = git(['remote', 'get-url', remote], cwd).out || remote;
   const stdin = `${logPath}.stdin`;
   writeFileSync(stdin, `refs/heads/${branch} ${local} refs/heads/${branch} ${remoteSha}\n`);
-  const fd = openSync(logPath, 'w');
   let exit;
   try {
-    const r = spawnSync('git', ['hook', 'run', '--ignore-missing', `--to-stdin=${stdin}`, 'pre-push', '--', remote, url], {
-      cwd, env: buildEnv(cfg), stdio: ['ignore', fd, fd], windowsHide: true,
-    });
-    exit = r.status == null ? 1 : r.status;
+    exit = runPulsing(['git', 'hook', 'run', '--ignore-missing', `--to-stdin=${stdin}`, 'pre-push', '--', remote, url], { cwd, env: buildEnv(cfg), logPath }).status;
   } finally {
-    closeSync(fd);
     rmSync(stdin, { force: true });
   }
   return { ok: exit === 0, exit, log: tail(logPath) };

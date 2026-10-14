@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
-import { catBlob, hashObject, lockFiles } from './git.mjs';
+import { catBlob, git, hashObject, lockFiles } from './git.mjs';
 
 const journalPath = (cfg) => join(brokerPaths(cfg).home, 'inflight.json');
 
@@ -78,12 +78,32 @@ export function readInflight(cfg) {
   try { return JSON.parse(readFileSync(journalPath(cfg), 'utf8')); } catch { return null; }
 }
 
-/** Restore from a crash's journal; returns the job id it belonged to, or null. */
+/**
+ * Re-base the journal at a landing's commit (KIT-T493): `committed` = { sha, preHead, paths, repo,
+ * jobs: [{ id, ticket, title, noPin }] }. From here a restart never restores the pre-images while
+ * HEAD still holds the commit; it finishes the landing instead (resume.mjs).
+ */
+export function markCommitted(cfg, journal, committed) {
+  writeFileSync(journalPath(cfg), JSON.stringify({ ...journal, committed }, null, 2));
+}
+
+/** True when the journal's landing commit is HEAD or under it in its checkout. */
+export function commitStands(journal) {
+  const c = journal && journal.committed;
+  return !!c && git(['merge-base', '--is-ancestor', c.sha, 'HEAD'], journal.cwd).code === 0;
+}
+
+/**
+ * Recover a crash's journal: { id, resume: journal } when its landing commit stands (nothing is
+ * restored; the caller finishes the landing), { id, resume: null } after restoring the
+ * pre-images, null without a journal.
+ */
 export function recoverInflight(cfg) {
   const journal = readInflight(cfg);
   if (!journal) return null;
+  if (commitStands(journal)) return { id: journal.id, resume: journal };
   for (const f of restore(cfg, journal)) console.error(`broker: could not restore ${f} (job ${journal.id})`);
-  return journal.id;
+  return { id: journal.id, resume: null };
 }
 
 /** Remove every Cargo.lock that was not in `before`: a run created it. */

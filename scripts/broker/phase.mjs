@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
+import { pulse } from './stall.mjs';
 
 const file = (cfg) => join(brokerPaths(cfg).home, 'phase.json');
 
@@ -24,6 +25,7 @@ export function phaseTracker(cfg, id) {
       const now = Date.now();
       close(now);
       current = { phase, at: now };
+      pulse();
       try { writeFileSync(file(cfg), JSON.stringify({ id, phase, since: new Date(now).toISOString() })); } catch { /* best effort */ }
     },
     snapshot() {

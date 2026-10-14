@@ -10,7 +10,8 @@
 
 import { changedLocks } from './git.mjs';
 import { landCommits } from './land.mjs';
-import { restorePaths } from './preimage.mjs';
+import { landedJob } from './job-commands.mjs';
+import { markCommitted, restorePaths } from './preimage.mjs';
 import { STATUS } from './result.mjs';
 import { gateTrailer } from './trailer.mjs';
 import { trainCommands } from './train-commands.mjs';
@@ -33,7 +34,8 @@ export function landGroup(cfg, repo, { id, cwd, pool, journal, entries, foreign,
     trailer: gateTrailer(m.job, entries, { selection: own(m).selection, train }),
   }));
   const verify = () => ({ ok: reverifyOk(runTrainCommands(cfg, { id, repo: repo.name, cwd, commands: trainCommands(cfg, cwd, landers).commands, nextLog, baseline: null }), foreign) });
-  const land = landCommits(cfg, repo, cwd, commits, { verify, onPhase });
+  const onCommitted = (c) => markCommitted(cfg, journal, { ...c, repo: repo.name, jobs: landers.map((m) => landedJob(m.job)) });
+  const land = landCommits(cfg, repo, cwd, commits, { verify, onPhase, onCommitted });
   landers.forEach((m, i) => {
     const fields = ran.get(m.job.id);
     if (land.conflict) finish(m, { status: STATUS.CONFLICT, phase: 'land', ...fields, conflict: land.conflict, message: land.error });

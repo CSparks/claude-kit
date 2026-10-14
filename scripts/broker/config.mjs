@@ -11,6 +11,7 @@
 //     parallelism: { jobs: auto }                  # default auto (jobs.mjs: the cores RAM can feed); a number pins it
 //     verify_default: [ "cargo test --no-fail-fast" ]  # commands a job may omit
 //     poll_ms: 2000                                # daemon queue poll interval
+//     stall_kill_s: 600                            # wait/submit kill a daemon silent this long (default 600; 0 never kills)
 //     untracked_blocks: ["crates/**/*.rs"]        # untracked paths that pause the queue; absent, derived from
 //                                                    # the checkout's tracked crates and workspace members (blocks.mjs),
 //                                                    # falling back to ["**/*.rs", "**/Cargo.toml"] without a Cargo.toml
@@ -59,6 +60,7 @@ export function normalizeBroker(root, broker) {
     jobs,
     verifyDefault,
     pollMs: num(broker.poll_ms, DEFAULT_POLL_MS),
+    stallKillS: broker.stall_kill_s == null || broker.stall_kill_s === '' ? null : num(broker.stall_kill_s, null),
     untrackedBlocks: Array.isArray(broker.untracked_blocks) ? broker.untracked_blocks.map(String) : DEFAULT_UNTRACKED_BLOCKS.slice(),
     untrackedDerived: !Array.isArray(broker.untracked_blocks),
     dirtyBlocks: Array.isArray(broker.dirty_blocks) ? broker.dirty_blocks.map(String) : DEFAULT_DIRTY_BLOCKS.slice(),

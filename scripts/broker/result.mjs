@@ -11,7 +11,10 @@
 //     phase, gate: [{ path, check, msg }], stale: [{ index, path, reason, excerpt, since }],
 //     commands: [{ cmd, composed, exit, durationMs, log, logTail, errors, failedTests, foreign? }],
 //     foreign: [{ test, reason }]  (failures that also occur without the patch; they do not fail the job),
-//     diffStat, landed: { sha, superSha }|null, dirtyEntries, message, startedAt, finishedAt }
+//     diffStat, landed: { sha, superSha }|null, dirtyEntries, message, startedAt, finishedAt,
+//     killed?: { pid, at, beatAgeS, phase }  (the watchdog killed the daemon running this job; stall.mjs),
+//     resumed?: { journal, sha }  (a restarted daemon finished a landing past its commit; resume.mjs),
+//     train?: { id, members, size, builds }, blame?: [reason] }
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -65,9 +68,25 @@ export function removeJob(cfg, id) {
   if (existsSync(f)) rmSync(f);
 }
 
+// A watchdog kill of the daemon that was running this job (stall.mjs killed.json), taken once.
+function takeKill(cfg, id) {
+  const file = join(brokerPaths(cfg).home, 'killed.json');
+  let kills;
+  try { kills = JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
+  const at = kills.findIndex((k) => (k.ids || []).includes(id));
+  if (at < 0) return null;
+  const kill = kills[at];
+  kill.ids = kill.ids.filter((x) => x !== id);
+  if (!kill.ids.length) kills.splice(at, 1);
+  writeFileSync(file, JSON.stringify(kills, null, 2));
+  const { ids, ...rest } = kill;
+  return rest;
+}
+
 export function writeResult(cfg, result) {
   const p = ensureDirs(cfg);
-  const full = { finishedAt: new Date().toISOString(), ...result };
+  const killed = result.killed || takeKill(cfg, result.id);
+  const full = { finishedAt: new Date().toISOString(), ...result, ...(killed ? { killed } : {}) };
   writeFileSync(join(p.results, `${result.id}.json`), JSON.stringify(full, null, 2));
   return full;
 }

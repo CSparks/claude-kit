@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { admit } from './admit.mjs';
-import { capture, discard, dropNewLocks, restore, restoreMismatches } from './preimage.mjs';
+import { capture, discard, dropNewLocks, markCommitted, restore, restoreMismatches } from './preimage.mjs';
 import { landPatch } from './land.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
@@ -25,7 +25,7 @@ import { changedLocks, dirtyPaths, git, lockFiles, revParse } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand } from './run.mjs';
 import { writePlan } from './write-plan.mjs';
-import { foreignOf, isGreen, jobCommands } from './job-commands.mjs';
+import { foreignOf, isGreen, jobCommands, landedJob } from './job-commands.mjs';
 
 // Run the job's commands in order. A failed command with named failed tests is attributed
 // (attribute.mjs) against the pre-patch tree via `hooks.baseline(fn)`; all-foreign failures
@@ -116,7 +116,10 @@ export function processPatch(cfg, job, repo) {
       const known = new Set(foreign.map((f) => f.test));
       return { ok: again.every((c) => c.exit === 0 || (c.failedTests.length && !Object.keys(c.errors).length && c.failedTests.every((t) => known.has(t)))) };
     };
-    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], { verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }), onPhase: (p) => ph.enter(p) });
+    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], {
+      verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }), onPhase: (p) => ph.enter(p),
+      onCommitted: (c) => markCommitted(cfg, journal, { ...c, repo: job.repo, jobs: [landedJob(job)] }),
+    });
     keep = land.committed;
     if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, selection, message: land.error });

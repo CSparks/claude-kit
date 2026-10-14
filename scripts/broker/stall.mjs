@@ -6,10 +6,15 @@
 // `stallState(cfg, now?)` → null, or { beatAgeMs, queued, pid } for a live lock holder that stalled.
 // `stallLine(s)` → "STALLED: no beat for N s, M queued (pid P)".
 // `restartIfWedged(cfg, root, { now, kill, spawner })` → true when it killed a holder stalled past
-//   RESTART_MS and started a new daemon (the new one restores the journal and re-runs the job).
+//   the kill limit (`stall_kill_s`, default RESTART_MS; 0 never kills) and started a new daemon (the
+//   new one restores the journal and re-runs the job). It never kills a daemon inside a landing
+//   phase (phase.json) or past its commit (inflight.json `committed`): a push or a repo gate that
+//   long is the gate's time, and a restart there would strand the commit. The kill is written to
+//   killed.json, and the job's next result carries it (result.mjs).
 
 import { spawnSync } from 'node:child_process';
-import { rmSync, statSync } from 'node:fs';
+import { readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { liveHolder } from './lock.mjs';
 import { listQueue } from './result.mjs';
@@ -17,6 +22,23 @@ import { listQueue } from './result.mjs';
 export const STALL_MS = 2 * 60 * 1000;
 export const RESTART_MS = 10 * 60 * 1000;
 const PULSE_EVERY_MS = 1000;
+const MS_PER_S = 1000;
+export const LAND_PHASES = new Set(['commit', 'pre-push gate', 'rebase', 'reverify', 'push', 'pin', 'resume']);
+
+const readJson = (path) => { try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; } };
+
+/** The kill limit in ms, or 0 when this checkout never kills (`stall_kill_s: 0`). */
+export const killLimitMs = (cfg) => (cfg.stallKillS == null ? RESTART_MS : cfg.stallKillS * MS_PER_S);
+
+/** Why a stalled holder must not be killed, or null: it is landing or past its commit. */
+export function landingHold(cfg) {
+  const home = brokerPaths(cfg).home;
+  const phase = readJson(join(home, 'phase.json'));
+  const inflight = readJson(join(home, 'inflight.json'));
+  if (inflight && inflight.committed) return `job ${inflight.id} is past its commit ${String(inflight.committed.sha).slice(0, 10)}`;
+  if (phase && inflight && LAND_PHASES.has(phase.phase)) return `job ${inflight.id} is in its ${phase.phase} phase`;
+  return null;
+}
 
 let beat = null;
 let last = 0;
@@ -48,7 +70,16 @@ function killTree(pid) {
 
 export function restartIfWedged(cfg, root, { now = Date.now(), kill = killTree, spawner } = {}) {
   const s = stallState(cfg, now);
-  if (!s || s.beatAgeMs < RESTART_MS) return false;
+  const limit = killLimitMs(cfg);
+  if (!s || !limit || s.beatAgeMs < limit || landingHold(cfg)) return false;
+  const home = brokerPaths(cfg).home;
+  const inflight = readJson(join(home, 'inflight.json'));
+  const phase = readJson(join(home, 'phase.json'));
+  if (inflight) {
+    const kills = readJson(join(home, 'killed.json')) || [];
+    kills.push({ ids: [inflight.id, ...(inflight.members || [])], pid: s.pid, at: new Date(now).toISOString(), beatAgeS: Math.round(s.beatAgeMs / MS_PER_S), phase: phase ? phase.phase : null });
+    writeFileSync(join(home, 'killed.json'), JSON.stringify(kills, null, 2));
+  }
   kill(s.pid);
   rmSync(brokerPaths(cfg).lock, { force: true });
   console.error(`broker: ${stallLine(s)}; killed it and started a new daemon (it restores the tree and re-runs the job)`);

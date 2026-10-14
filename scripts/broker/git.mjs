@@ -5,12 +5,31 @@
 // worktrees to manage.
 
 import { spawnSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { matchesAny } from './glob.mjs';
+import { runPulsing } from './run-pulsing.mjs';
+import { pulseActive } from './stall.mjs';
 
 // Run a git subcommand; returns { code, out, err }. Never throws.
 export function git(args, cwd) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
   return { code: r.status == null ? 1 : r.status, out: (r.stdout || '').trim(), err: (r.stdout || '') + (r.stderr || '') };
+}
+
+// A git call that can run repo hooks for minutes (commit, push): inside the daemon it keeps the
+// heartbeat fresh (run-pulsing.mjs, KIT-T493); `env` replaces the environment when given.
+export function gitLong(args, cwd, env) {
+  if (!pulseActive()) {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, ...(env ? { env } : {}) });
+    return { code: r.status == null ? 1 : r.status, out: (r.stdout || '').trim(), err: (r.stdout || '') + (r.stderr || '') };
+  }
+  const logPath = join(tmpdir(), `broker-git-${process.pid}-${Date.now()}.log`);
+  try {
+    const r = runPulsing(['git', ...args], { cwd, env: env || process.env, logPath });
+    return { code: r.status, out: r.out.trim(), err: r.out };
+  } finally { rmSync(logPath, { force: true }); }
 }
 
 // Working-tree state a hand-driven writer can collide with. A modified tracked file counts when
@@ -63,8 +82,8 @@ export function revParse(cwd, ref) {
 
 // `env` (prepush.mjs buildEnv) reaches the repo's pre-push hook, so a gate it runs builds in the shared cache.
 export function push(cwd, remote, branch, env) {
-  const r = spawnSync('git', ['push', remote, branch], { cwd, encoding: 'utf8', windowsHide: true, ...(env ? { env } : {}) });
-  return { ok: r.status === 0, err: (r.stdout || '') + (r.stderr || '') };
+  const r = gitLong(['push', remote, branch], cwd, env);
+  return { ok: r.code === 0, err: r.err };
 }
 
 // The staged pathspecs — used by the submodule re-pin to assert nothing but the pointer is staged.

@@ -68,7 +68,7 @@ test('crash recovery: a journal entry naming a directory (old capture) is left a
     assert.deepEqual(snapshot(s.root), before);
     capture(s.cfg, { id: 'crash', cwd: s.root, paths: [DIR, 'src.txt'] });
     writeFileSync(join(s.root, 'src.txt'), 'torn\n');
-    assert.equal(recoverInflight(s.cfg), 'crash', 'the daemon start path recovers');
+    assert.deepEqual(recoverInflight(s.cfg), { id: 'crash', resume: null }, 'the daemon start path recovers');
     assert.deepEqual(snapshot(s.root), before, 'the tree is back at HEAD');
     assert.equal(recoverInflight(s.cfg), null, 'journal cleared');
   } finally { s.done(); }

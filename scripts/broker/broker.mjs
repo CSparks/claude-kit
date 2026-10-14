@@ -9,6 +9,7 @@
 //   node broker.mjs --root <checkout> --idle-exit 30   # also exit after 30 idle minutes
 //   node broker.mjs --root <checkout> --once           # drain once and exit (ops/tests)
 //   node broker.mjs --root <checkout> --poll 2000
+//   node broker.mjs --root <checkout> --log auto       # log to target/broker/logs/daemon-<time>-<pid>.log (launch.mjs passes it)
 //   node broker.mjs pause --root <checkout>            # stop starting jobs (one in flight finishes)
 //   node broker.mjs resume --root <checkout>
 //   node broker.mjs cancel <job-id> --root <checkout>  # withdraw a QUEUED job; a running one is refused
@@ -21,14 +22,16 @@ import { deferredLines } from './deferred.mjs';
 import { announce, healthLine, selfCheck } from './health.mjs';
 import { acquireLock, heartbeat, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
+import { resumeLanding } from './resume.mjs';
 import { processOnce } from './queue.mjs';
 import { STATUS, ensureDirs, listQueue } from './result.mjs';
 import { suiteLine } from './suite.mjs';
 import { pinRuntime } from '../runtime-pin.mjs';
 import { setPulse, stallLine, stallState } from './stall.mjs';
-import { existsSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawn } from 'node:child_process';
+import { launchDaemon } from './launch.mjs';
+import { brokerPaths } from './config.mjs';
 import { runtimeCurrent } from '../runtime-path.mjs';
 import { withdrawJob } from './withdraw.mjs';
 
@@ -36,6 +39,10 @@ const MS_PER_MIN = 60 * 1000;
 const flags = parseFlags(process.argv.slice(2));
 const { root, cfg } = loadCfg(flags);
 ensureDirs(cfg);
+if (flags.log) {
+  const logFile = flags.log === 'auto' ? join(brokerPaths(cfg).logs, `daemon-${new Date().toISOString().replace(/[:.]/g, '-')}-${process.pid}.log`) : String(flags.log);
+  console.error = (...parts) => { try { appendFileSync(logFile, `${new Date().toISOString()} ${parts.join(' ')}\n`); } catch { /* the log is best effort */ } };
+}
 
 const command = flags._[0];
 if (command === 'pause' || command === 'resume') {
@@ -79,7 +86,10 @@ process.on('SIGINT', () => stop());
 process.on('SIGTERM', () => stop());
 
 const recovered = recoverInflight(cfg);
-if (recovered) console.error(`broker: restored the tree after interrupted job ${recovered}; it re-runs`);
+if (recovered && recovered.resume) {
+  console.error(`broker: ${recovered.id} stopped after its commit; finishing the landing (the tree stays at the commit)`);
+  for (const r of resumeLanding(cfg, recovered.resume)) console.error(`  ${r.id} → ${r.status}`);
+} else if (recovered) console.error(`broker: restored the tree after interrupted job ${recovered.id}; it re-runs`);
 console.error(`broker: watching ${root} (target ${cfg.targetDir}, jobs -j ${cfg.jobs})`);
 
 const said = new Set();
@@ -111,7 +121,8 @@ const runtimeGone = () => !existsSync(join(import.meta.dirname, 'gate.mjs'));
 function restartFromCurrent() {
   const cur = runtimeCurrent();
   releaseLock(cfg);
-  if (cur) spawn(process.execPath, [join(cur, 'scripts', 'broker', 'broker.mjs'), ...process.argv.slice(2)], { cwd: root, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  const args = process.argv.slice(2).filter((a, i, all) => a !== '--root' && all[i - 1] !== '--root' && a !== '--log' && all[i - 1] !== '--log');
+  if (cur) launchDaemon(join(cur, 'scripts', 'broker', 'broker.mjs'), root, args);
   console.error(`broker: runtime gone (${import.meta.dirname}); ${cur ? `restarted from ${cur}` : 'no published runtime to restart from'}`);
   process.exit(0);
 }

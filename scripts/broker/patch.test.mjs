@@ -127,7 +127,7 @@ test('check-only run restores byte for byte, including created files and a crash
     mkdirSync(join(s.root, 'deep/new'), { recursive: true });
     writeFileSync(join(s.root, 'deep/new/file.txt'), 'torn\n');
     assert.ok(journal.entries.length);
-    assert.equal(recoverInflight(s.cfg), 'crash');
+    assert.deepEqual(recoverInflight(s.cfg), { id: 'crash', resume: null });
     assert.deepEqual(snapshot(s.root), before);
     assert.equal(recoverInflight(s.cfg), null, 'journal cleared');
   } finally { s.done(); }

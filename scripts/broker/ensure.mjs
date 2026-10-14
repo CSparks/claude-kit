@@ -2,7 +2,6 @@
 // holds the lock would sit unstarted, so submit starts one; wait names the gap instead of
 // timing out silently.
 
-import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { rmSync, statSync, writeFileSync } from 'node:fs';
 import { brokerPaths } from './config.mjs';
@@ -10,16 +9,16 @@ import { liveHolder, observedLive } from './lock.mjs';
 import { ensureDirs } from './result.mjs';
 import { listQueue } from './result.mjs';
 import { restartIfWedged } from './stall.mjs';
+import { launchDaemon } from './launch.mjs';
 
 export const IDLE_EXIT_MIN = 60;
 const BROKER = join(import.meta.dirname, 'broker.mjs');
 
-// Start the daemon detached and hidden; it outlives this process.
+// Start the daemon owned by no caller, hidden, logging to target/broker/logs (launch.mjs).
 export function spawnBroker(root, idleExit = IDLE_EXIT_MIN) {
-  const child = spawn(process.execPath, [BROKER, '--root', root, '--idle-exit', String(idleExit)], {
-    cwd: root, detached: true, stdio: 'ignore', windowsHide: true,
-  });
-  child.unref();
+  const r = launchDaemon(BROKER, root, ['--idle-exit', String(idleExit)]);
+  if (!r.ok) console.error(`broker: could not start a daemon: ${r.error}`);
+  return r;
 }
 
 /** Start a broker unless a live one holds the lock; a holder stalled past RESTART_MS is killed and replaced (stall.mjs). `spawner(root, idleExit)` is injectable. Returns true when it started one. */

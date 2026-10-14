@@ -1,10 +1,15 @@
-// run-child.mjs — the child half of run-cancellable.mjs: runs `<command>` through the platform
-// shell with the inherited log descriptors, then writes its exit code to `<marker>`.
-// USE: node run-child.mjs <marker> <command>
+// run-child.mjs — the child half of run-cancellable.mjs and run-pulsing.mjs: runs a command with
+// the inherited descriptors, then writes its exit code to `<marker>` (renamed into place, so a
+// reader never sees it half written).
+// USE: node run-child.mjs <marker> <shell command>
+//      node run-child.mjs <marker> --argv <json array>      (no shell: argv[0] with argv[1..])
 
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { renameSync, writeFileSync } from 'node:fs';
 
-const [marker, command] = process.argv.slice(2);
-const r = spawnSync(command, { shell: true, stdio: 'inherit', windowsHide: true });
-writeFileSync(marker, String(r.status == null ? 1 : r.status));
+const [marker, command, json] = process.argv.slice(2);
+const r = command === '--argv'
+  ? (([file, ...args]) => spawnSync(file, args, { stdio: 'inherit', windowsHide: true }))(JSON.parse(json))
+  : spawnSync(command, { shell: true, stdio: 'inherit', windowsHide: true });
+writeFileSync(`${marker}.tmp`, String(r.status == null ? 1 : r.status));
+renameSync(`${marker}.tmp`, marker);

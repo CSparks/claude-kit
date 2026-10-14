@@ -4,7 +4,7 @@
 // staged. Hence: never `git add -A`, never `git commit -a` — stage only the submodule path,
 // assert nothing else rode along, then commit that one pathspec.
 
-import { git, stagedPaths } from './git.mjs';
+import { git, gitLong, stagedPaths } from './git.mjs';
 import { syncPush } from './sync-push.mjs';
 
 // Re-pin `subPath` in the superproject at `superRoot`. Returns { ok, sha, error }.
@@ -32,7 +32,7 @@ export function repinSuperproject({ superRoot, subPath, remote = 'origin', main 
   }
 
   const msg = `chore: pin ${subPath} ${sha} — ${title} (implements ${ticket}) [no-log: submodule pin]`;
-  const commit = git(['commit', '-m', msg, '--', subPath], superRoot);
+  const commit = gitLong(['commit', '-m', msg, '--', subPath], superRoot);
   if (commit.code !== 0) return { ok: false, error: `superproject commit failed: ${commit.err}` };
 
   const pushed = syncPush(superRoot, remote, main);
