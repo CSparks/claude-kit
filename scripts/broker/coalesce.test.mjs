@@ -27,10 +27,16 @@ test('per-target cargo tests of one package merge into one nextest run, in first
   assert.equal(out[1].from, null);
 });
 
-test('negative: name filters, unfiltered runs, other packages or flags and lone targets keep their own run', () => {
+test('targets of several packages merge into one nextest run naming every package', () => {
+  const out = coalesce(['cargo test --offline -p game --lib --test lanes', 'cargo check --workspace', 'cargo test --offline -p ui --lib', 'cargo test --offline -p game --test venue']);
+  assert.deepEqual(out.map((s) => s.cmd), ['cargo nextest run --no-fail-fast --offline -p game -p ui --lib --test lanes --test venue', 'cargo check --workspace']);
+  assert.equal(out[0].from.length, 3);
+});
+
+test('negative: name filters, unfiltered runs, workspace-wide runs, other flags and lone targets keep their own run', () => {
   assert.deepEqual(cmds(['cargo t -p game --test a -- held_steer', 'cargo t -p game --test b -- --nocapture']), ['cargo t -p game --test a -- held_steer', 'cargo t -p game --test b -- --nocapture']);
   assert.deepEqual(cmds(['cargo test -p game', 'cargo test -p game']), ['cargo test -p game', 'cargo test -p game'], 'an unfiltered run includes doctests nextest skips');
-  assert.deepEqual(cmds(['cargo t -p game --test a', 'cargo t -p other --test b']), ['cargo t -p game --test a', 'cargo t -p other --test b']);
+  assert.deepEqual(cmds(['cargo t -p game --test a', 'cargo t --test b']), ['cargo t -p game --test a', 'cargo t --test b'], 'a workspace-wide run never takes a package list');
   assert.deepEqual(cmds(['cargo t -p game --test a', 'cargo t -p game --release --test b']), ['cargo t -p game --test a', 'cargo t -p game --release --test b']);
   assert.deepEqual(cmds(['cargo t -p game --test a', 'echo hi']), ['cargo t -p game --test a', 'echo hi']);
 });

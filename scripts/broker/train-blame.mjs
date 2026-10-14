@@ -114,7 +114,7 @@ export function blame(entry, members) {
   if (caused.length) {
     for (const t of caused) {
       const [owner, how] = ownerOfTest(t, entry, members);
-      if (owner) add(owner, `test ${t.test} failed (${how})`);
+      if (owner) add(owner, `test ${t.binary ? `${t.binary} ` : ''}${t.test} failed (${how})`);
       else ambiguous.push(`test ${how}`);
     }
     return { blamed, ambiguous };
