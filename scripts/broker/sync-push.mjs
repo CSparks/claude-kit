@@ -5,7 +5,9 @@
 //
 // `syncPush(cwd, remote, branch, { verify })` -> { ok, rebased, conflict?, verifyFailed?, error? }
 //   verify(incoming) runs the caller's tests after a rebase that pulled in non-doc files and
-//   returns { ok }; it is skipped when only documentation arrived.
+//   returns { ok }; it is skipped when only documentation arrived. beforePush() runs right before
+//   each push attempt and returns { ok, error }; a refusal ends the sync (gateRefused). env goes to
+//   git push, so the repo's pre-push hook sees it.
 
 import { dirtyPaths, git, push } from './git.mjs';
 
@@ -14,7 +16,7 @@ const DOCS_ONLY = /\.(?:md|txt)$/i;
 
 const lines = (out) => (out ? out.split('\n').map((l) => l.trim()).filter(Boolean) : []);
 
-export function syncPush(cwd, remote, branch, { verify } = {}) {
+export function syncPush(cwd, remote, branch, { verify, env, beforePush } = {}) {
   let rebased = false;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const fetched = git(['fetch', remote, branch], cwd);
@@ -36,7 +38,11 @@ export function syncPush(cwd, remote, branch, { verify } = {}) {
         return { ok: false, rebased, verifyFailed: true, error: `rebased onto ${tip}, but the job's tests fail on the rebased tree; the commit stays local` };
       }
     }
-    const pushed = push(cwd, remote, branch);
+    if (beforePush) {
+      const gate = beforePush();
+      if (!gate.ok) return { ok: false, rebased, gateRefused: true, error: gate.error };
+    }
+    const pushed = push(cwd, remote, branch, env);
     if (pushed.ok) return { ok: true, rebased };
     if (attempt === MAX_ATTEMPTS - 1) return { ok: false, rebased, error: pushed.err };
   }

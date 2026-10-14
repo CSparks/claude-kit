@@ -20,7 +20,8 @@
 //                                                    # Cargo.lock never pauses: patch.mjs journals it.
 //     repos:
 //       - { name: stiletto,   path: ., main: main, remote: origin }
-//       - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }
+//       - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: .,
+//           pre_push: true }                      # the daemon runs the repo's pre-push gate before git push (prepush.mjs)
 
 import { readFileSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
@@ -75,6 +76,7 @@ function normalizeRepo(r) {
     remote: String(o.remote || 'origin'),
     submodule: Boolean(o.submodule),
     pinIn: o.pin_in == null ? '.' : String(o.pin_in),
+    prePush: Boolean(o.pre_push),
   };
 }
 

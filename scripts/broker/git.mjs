@@ -61,9 +61,10 @@ export function revParse(cwd, ref) {
   return r.code === 0 ? r.out : '';
 }
 
-export function push(cwd, remote, branch) {
-  const r = git(['push', remote, branch], cwd);
-  return { ok: r.code === 0, err: r.err };
+// `env` (prepush.mjs buildEnv) reaches the repo's pre-push hook, so a gate it runs builds in the shared cache.
+export function push(cwd, remote, branch, env) {
+  const r = spawnSync('git', ['push', remote, branch], { cwd, encoding: 'utf8', windowsHide: true, ...(env ? { env } : {}) });
+  return { ok: r.status === 0, err: (r.stdout || '') + (r.stderr || '') };
 }
 
 // The staged pathspecs — used by the submodule re-pin to assert nothing but the pointer is staged.

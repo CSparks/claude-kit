@@ -47,7 +47,7 @@ export function runCommand(cmd, { cwd, targetDir, logPath, jobs }) {
       shell: true,
       windowsHide: true,
       stdio: ['ignore', fd, fd],
-      env: { ...process.env, CARGO_TARGET_DIR: targetDir },
+      env: { ...process.env, CARGO_TARGET_DIR: targetDir, ...(jobs ? { CARGO_BUILD_JOBS: String(jobs) } : {}) },
     });
     code = r.status == null ? 1 : r.status;
   } finally {
