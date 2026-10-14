@@ -3,9 +3,9 @@
 // restore the tree byte for byte (check-only) or, for a green `land` job, commit by paths and
 // push. Returns { result, pause }; pause leaves the job queued.
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { dryRun } from './apply.mjs';
+import { planAtHead } from './plan.mjs';
 import { derivedUntrackedBlocks } from './blocks.mjs';
 import { capture, discard, dropNewLocks, pruneEmptyDirs, restore, restoreMismatches } from './preimage.mjs';
 import { landPatch } from './land.mjs';
@@ -21,7 +21,7 @@ import { landGate } from './landgate.mjs';
 import { gateTrailer } from './trailer.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
-import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
+import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse } from './git.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand } from './run.mjs';
 
@@ -77,14 +77,14 @@ export function processPatch(cfg, job, repo) {
   };
   const done = (fields) => ({ result: writeResult(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields }) });
 
-  const touched = (job.ops || []).map((o) => String(o.path).replace(/[\\]/g, '/'));
+  const { ops, plan } = planAtHead(cwd, job.ops || []);
+  const touched = ops.map((o) => String(o.path).replace(/[\\]/g, '/'));
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   const state = checkoutState(cwd, { untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks, touched });
   if (!state.clean) {
     return { ...done({ status: STATUS.DIRTY, phase: 'apply', dirtyEntries: state.entries, message: `build checkout dirty (${cwd}) — queue paused until clean` }), pause: true };
   }
 
-  const plan = dryRun(job.ops, (p) => showFile(cwd, 'HEAD', p), { onDisk: (p) => existsSync(join(cwd, p)) });
   if (!plan.ok) return done({ status: STATUS.STALE, phase: 'apply', stale: staleEntries(cwd, job.base, plan.stale) });
 
   const gate = gatePlan(cwd, plan.files);
@@ -130,7 +130,7 @@ export function processPatch(cfg, job, repo) {
       enter: () => { restoreTree(); revertPins(explicit()); },
       leave: () => { restoreTree(); journal = captureTree(); checkoutPins(pins); writePlan(cwd, plan.files); },
     });
-    const gated = job.land && !reused ? landGate(cfg, cwd, job, [...plan.files.keys()]) : null;
+    const gated = job.land && !reused ? landGate(cfg, cwd, job, plan.files) : null;
     const runJob = gated ? { ...job, commands: gated.commands } : job;
     const selection = gated ? gated.selection : null;
     const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, runJob, cwd, { baseline });

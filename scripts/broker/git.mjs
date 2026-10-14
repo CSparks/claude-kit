@@ -72,10 +72,16 @@ export function stagedPaths(cwd) {
   return r.code === 0 && r.out ? r.out.split('\n').map((l) => l.trim()).filter(Boolean) : [];
 }
 
-// A tracked file's text at `ref` (untrimmed), or null when absent there.
+// A tracked file's text at `ref` (untrimmed), or null when absent there or not a file (a directory).
 export function showFile(cwd, ref, path) {
-  const r = spawnSync('git', ['show', `${ref}:${path}`], { cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 28 });
+  const r = spawnSync('git', ['cat-file', 'blob', `${ref}:${path}`], { cwd, encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 28 });
   return r.status === 0 ? r.stdout : null;
+}
+
+// The tracked file paths at `ref` under `path`: [path] for a file, its files for a directory, [] when absent.
+export function treeFiles(cwd, ref, path) {
+  const r = git(['ls-tree', '-r', '-z', '--name-only', ref, '--', path], cwd);
+  return r.code === 0 ? r.out.split(String.fromCharCode(0)).filter(Boolean) : [];
 }
 
 // Store a working file's exact bytes (no clean/smudge filters) in the object database.

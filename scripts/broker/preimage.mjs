@@ -3,7 +3,7 @@
 // `<broker home>/inflight.json`; afterwards (or after a crash, at the next start) every path is
 // put back byte for byte and files the patch created are removed.
 
-import { existsSync, mkdirSync, readFileSync, rmSync, rmdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { catBlob, hashObject, lockFiles } from './git.mjs';
@@ -25,19 +25,31 @@ export function pruneEmptyDirs(from, stop) {
   }
 }
 
-/** Put every journalled path back and drop the journal. */
+const isDir = (abs) => { try { return statSync(abs).isDirectory(); } catch { return false; } };
+
+function restoreEntry(cwd, { path, blob }) {
+  const abs = join(cwd, path);
+  if (blob) {
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(abs, catBlob(cwd, blob));
+  } else if (!isDir(abs)) {
+    rmSync(abs, { force: true });
+    pruneEmptyDirs(dirname(abs), cwd);
+  }
+}
+
+/**
+ * Put every journalled path back and drop the journal; returns the paths that could not be
+ * restored (each is attempted). A patch only ever creates files, so a directory at a path
+ * journalled as absent was there before and is left alone.
+ */
 export function restore(cfg, journal) {
-  for (const { path, blob } of journal.entries) {
-    const abs = join(journal.cwd, path);
-    if (blob) {
-      mkdirSync(dirname(abs), { recursive: true });
-      writeFileSync(abs, catBlob(journal.cwd, blob));
-    } else {
-      rmSync(abs, { force: true });
-      pruneEmptyDirs(dirname(abs), journal.cwd);
-    }
+  const failed = [];
+  for (const entry of journal.entries) {
+    try { restoreEntry(journal.cwd, entry); } catch (e) { failed.push(`${entry.path}: ${e.code || e.message}`); }
   }
   rmSync(journalPath(cfg), { force: true });
+  return failed;
 }
 
 /** Paths whose bytes differ from the journal's pre-image (call after `restore`). */
@@ -61,7 +73,7 @@ export function readInflight(cfg) {
 export function recoverInflight(cfg) {
   const journal = readInflight(cfg);
   if (!journal) return null;
-  restore(cfg, journal);
+  for (const f of restore(cfg, journal)) console.error(`broker: could not restore ${f} (job ${journal.id})`);
   return journal.id;
 }
 

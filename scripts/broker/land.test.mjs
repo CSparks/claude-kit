@@ -215,3 +215,15 @@ test('a landing over a dirty Cargo.lock the run leaves alone commits the maintai
     assert.equal(g(['status', '--porcelain', '--', 'Cargo.lock'], s.root), '');
   } finally { s.done(); }
 });
+
+test('a title that already cites its ticket is not cited twice; another ticket in the title still gets this one', () => {
+  const s = fixture();
+  try {
+    queued(s, { ticket: 'T-9', title: 'rename beta (implements T-9)', land: true }, envelope(['beta', 'BETA']), { commands: [PASS] });
+    processOnce(s.cfg);
+    assert.equal(g(['log', '-1', '--pretty=%s'], s.root), 'rename beta (implements T-9)');
+    queued(s, { ticket: 'T-10', title: 'gamma (implements T-9)', land: true }, envelope(['gamma', 'GAMMA']), { commands: [PASS] });
+    processOnce(s.cfg);
+    assert.equal(g(['log', '-1', '--pretty=%s'], s.root), 'gamma (implements T-9) (implements T-10)');
+  } finally { s.done(); }
+});

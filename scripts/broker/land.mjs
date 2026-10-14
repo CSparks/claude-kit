@@ -21,7 +21,8 @@ export function landPatch(cfg, repo, job, cwd, paths, { verify, trailer } = {}) 
   const preHead = revParse(cwd, 'HEAD');
   const add = git(['add', '--', ...paths], cwd);
   if (add.code !== 0) return { ok: false, committed: false, error: `git add: ${add.err}` };
-  const subject = `${job.title || `patch ${job.id}`} (implements ${job.ticket})`;
+  const title = job.title || `patch ${job.id}`;
+  const subject = title.includes(`(implements ${job.ticket})`) ? title : `${title} (implements ${job.ticket})`;
   const message = trailer ? `${subject}\n\n${trailer}` : subject;
   const commit = git(['commit', '-m', message, '--', ...paths], cwd);
   if (commit.code !== 0) {

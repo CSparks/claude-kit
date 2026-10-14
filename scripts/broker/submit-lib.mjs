@@ -2,13 +2,12 @@
 // when its dry run against current HEAD misses (KIT-T276). Pure of process state so tests call
 // it directly; submit.mjs is the CLI shell around it.
 
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { dryRun } from './apply.mjs';
 import { asList } from './cli.mjs';
 import { repoByName } from './config.mjs';
 import { parseEnvelope } from './envelope.mjs';
-import { git, revParse, showFile } from './git.mjs';
+import { git, revParse } from './git.mjs';
+import { planAtHead } from './plan.mjs';
 import { parsePins } from './pin.mjs';
 import { staleEntries } from './patch.mjs';
 import { STATUS, listQueue, newJobId, readResult } from './result.mjs';
@@ -39,7 +38,7 @@ export function buildPatchJob(cfg, flags, text) {
 
   const cwd = join(cfg.root, repo.path);
   const base = revParse(cwd, 'HEAD');
-  const plan = dryRun(ops, (p) => showFile(cwd, 'HEAD', p), { onDisk: (p) => existsSync(join(cwd, p)) });
+  const { plan } = planAtHead(cwd, ops);
   const meta = {
     id: newJobId(), revises: typeof flags.revises === 'string' ? flags.revises : null, repo: repo.name, base,
     ticket: flags.ticket ? String(flags.ticket) : null, title: flags.title ? String(flags.title) : '',
