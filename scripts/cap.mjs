@@ -70,6 +70,22 @@ function takeProjectFlag(argv) {
   return { project, rest: out };
 }
 
+// `--not-dup <id,...>` (as its own arguments or trailing inside the quoted text): ids already
+// checked, left out of the duplicate hints and recorded on a kit ticket.
+const NOT_DUP_IN_TEXT = /\s--not-dup(?:=|\s+)(\S+)/g;
+function takeNotDupFlag(argv) {
+  const ids = [];
+  const out = [];
+  const add = (v) => { for (const id of String(v || '').split(',').map((x) => x.trim()).filter(Boolean)) ids.push(id); };
+  for (let i = 0; i < argv.length; i++) {
+    const eq = /^--not-dup=(.+)$/.exec(argv[i]);
+    if (eq) { add(eq[1]); continue; }
+    if (argv[i] === '--not-dup') { add(argv[i + 1]); i++; continue; }
+    out.push(String(argv[i]).replace(NOT_DUP_IN_TEXT, (_, v) => { add(v); return ''; }));
+  }
+  return { notDup: ids, rest: out };
+}
+
 // Strip the --done flag before anything else, so it is invisible to the type/words split
 // and the existing project-routing logic. Must come BEFORE takeProjectFlag so a call like
 // `cap --done --project hod bug "..."` is handled correctly in either order.
@@ -83,13 +99,15 @@ function takeDoneFlag(argv) {
   return { done, rest: out };
 }
 
-const USAGE = `usage: cap [--project <name>] [--done] [type] <text>   (or "<name>: <text>")
+const USAGE = `usage: cap [--project <name>] [--done] [--not-dup <id,...>] [type] <text>   (or "<name>: <text>")
   cap bug login redirect loops after SSO      type = a classification key in the target's config.yml
   cap "form double-submits on slow network"   untyped — classified at triage
   cap --project hod feature graded roads      explicit target, wins over cwd
   cap "hod: roads are graded"                 leading name: prefix — same effect
   cap --done bug "fixed login crash"          resolved event -> .ai/resolved/, skips the triage queue
   cap topic [<slug>]                          show / set this session's topic (stamped on later captures)
+  cap bug --not-dup KIT-T271 "…"              ids already checked: left out of the duplicate hints
+A capture is never refused: possible duplicates are listed after it is filed.
 Routing precedence: --project, then a leading "<name>:", then the nearest .ai/ above the cwd,
 then the unbounded catch-all store (a cwd with no .ai above it).
 `;
@@ -104,7 +122,8 @@ if (argv.length === 0) {
 
 if (argv[0] === 'topic' && argv.length <= 2) process.exit(runTopic(argv, findAiDir(process.cwd())));
 
-const { done: isDone, rest: argvAfterDone } = takeDoneFlag(argv);
+const { notDup, rest: argvAfterNotDup } = takeNotDupFlag(argv);
+const { done: isDone, rest: argvAfterDone } = takeDoneFlag(argvAfterNotDup);
 const { project: flagProject, rest } = takeProjectFlag(argvAfterDone);
 if (rest.length === 0) {
   console.error('cap: nothing to capture.');
@@ -229,9 +248,9 @@ if (isDone) {
   await writeItemFile(join(resolvedDir, name), content);
   console.log(`resolved${type ? ` (${type})` : ''} -> ${projectName}/${RESOLVED_DIR}/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
 } else {
-  const dupLines = await dedupHints(aiDir, text);
+  const dupLines = await dedupHints(aiDir, text, { skip: notDup });
   // A bug or feature captured into the KIT's own store is a ticket at once, not an inbox note (KIT-T286).
-  const kitBug = type === 'bug' || type === 'feature' ? await asKitBug(aiDir, text, slug, type) : null;
+  const kitBug = type === 'bug' || type === 'feature' ? await asKitBug(aiDir, text, slug, type, notDup) : null;
   if (kitBug) {
     console.log(`filed ${kitBug.id} (kit-${type}${kitBug.created ? '' : ', already open — recorded again'}) -> ${projectName}/tickets${ambiguity ? ` [${ambiguity}]` : ''}`);
     for (const line of dupLines) console.log(line);

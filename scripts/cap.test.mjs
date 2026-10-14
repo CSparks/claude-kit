@@ -270,6 +270,13 @@ console.log('\ncap dedup hint (project + adopted framework store)');
   ok('cap: surfaces a duplicate in the adopted framework store', /FWK-T001/.test(fwHit));
   const none = cap(repo, ['feature', 'zebra crossing signage']);
   ok('cap: no duplicate lines when nothing matches', !/possible duplicate/.test(none) && /^captured/.test(none));
+  const checked = cap(repo, ['feature', '--not-dup', 'GME-T001', 'puppet camps again']);
+  ok('cap --not-dup (KIT-T497): the checked id leaves the hints and the flag leaves the text',
+    !/GME-T001/.test(checked) && /^captured/.test(checked)
+      && !readdirSync(join(repo, '.ai', 'inbox')).some((f) => readFileSync(join(repo, '.ai', 'inbox', f), 'utf8').includes('--not-dup')));
+  const inText = cap(repo, ['feature', 'puppet camps once more --not-dup GME-T001,GME-T009']);
+  ok('cap --not-dup inside the quoted text works the same', !/GME-T001/.test(inText) && /^captured/.test(inText));
+  ok('cap: the hint line says the capture was filed, not refused', /filed, not refused/.test(own));
 }
 
 // Teardown
