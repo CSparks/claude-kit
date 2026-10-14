@@ -30,3 +30,6 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 ## History
 - [2026-10-12 18:53] (created) bug — agents.jsonl keeps an agent 'in-flight' forever when it dies from a usage-limit 429 (SubagentStop never fires): dirt-empire a326e808 showed
 - [2026-10-12 18:56] (status) todo → review
+- [2026-10-12 18:56] (comment) @claude: Orchestrator review: outputFile capture reads guessed keys off tool_response (agent-roster.mjs:78) and is unverified. Ch (full comment #1 in ## Notes)
+### comment #1 [2026-10-12 18:56] @claude
+Orchestrator review: outputFile capture reads guessed keys off tool_response (agent-roster.mjs:78) and is unverified. Check the first post-518c528 dispatch row: if outputFile is missing, parse 'output_file: <path>' from the response text, or derive <tmp>/claude/<project>/<session>/tasks/<agentId>.output. Until then only rows with a transcript reconcile, and the original 34 h case still would not.

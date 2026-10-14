@@ -30,3 +30,4 @@ first seen in rapid-game. Filed automatically (KIT-T286): every kit bug is a tic
 ## History
 - [2026-10-07 01:18] (created) bug — q gap: 'code' has no -n flag
 - [2026-10-08 00:09] (comment) seen again in claude-kit: q code fts --path scripts/q-lib.mjs -n
+- [2026-10-13 19:47] (comment) seen again in claude-kit: q code sessionId --path scripts -n

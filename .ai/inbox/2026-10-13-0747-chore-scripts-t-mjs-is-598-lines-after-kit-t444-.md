@@ -1,0 +1,1 @@
+chore scripts/t.mjs is 598 lines after KIT-T444 (block at 600): split the status-transition logic (landed-commit refusal, --remaining, human_only statuses) into scripts/t/status.mjs before the next t.mjs change; behaviour-preserving, t tests are the guard.

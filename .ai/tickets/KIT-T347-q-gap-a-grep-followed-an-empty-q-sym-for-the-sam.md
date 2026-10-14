@@ -29,3 +29,4 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-10-06 14:47] (created) bug — q gap: a grep followed an empty q sym for the same terms
+- [2026-10-13 19:25] (comment) seen again in stiletto-2349: q: q sym aiPaths 2>&1 then grep: aiPaths

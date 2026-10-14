@@ -1,0 +1,1 @@
+(bug) Process failure repeat (stiletto 2026-10-02, 2nd in one session): captured 'puppet camps' as a new feature while ST-T683 (same idea, 2026-09-22) existed. The cap path does not run the KIT-T025 dedup fts before writing; cap should search both the project store and its framework store and show hits before capturing.

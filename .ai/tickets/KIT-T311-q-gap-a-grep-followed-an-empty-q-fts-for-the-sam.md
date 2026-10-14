@@ -8,7 +8,7 @@ milestone:
 labels: [kit-bug]
 links: []
 files: []
-supersedes:
+supersedes: KIT-T453
 superseded_by:
 created: 2026-10-03T18:15:09Z
 updated: 2026-10-13T19:49:59Z

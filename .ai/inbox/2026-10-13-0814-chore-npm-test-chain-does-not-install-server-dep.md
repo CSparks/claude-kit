@@ -1,0 +1,1 @@
+chore npm test chain does not install server/ deps: server/server.test.mjs fails on a fresh machine until 'npm ci' is run in server/ (found by KIT-T445, 2026-10-13). Make the chain self-contained: a pretest step that runs npm ci in server/ when server/node_modules is missing, or move express/cors into the root package.

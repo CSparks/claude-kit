@@ -1,0 +1,1 @@
+(bug) request-gate re-fires on every Stop for the same last user prompt when later turns are subagent hand-backs or hook feedback: a prior reply's [no-capture: reason] token does not clear it, and the request was already routed to tickets. Root cause likely: the gate scans the last USER prompt but checks the token only in the current reply. Seen stiletto 2026-10-02 (3 re-fires).

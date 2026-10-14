@@ -16,6 +16,7 @@ superseded when a newer one sets `supersedes:` (or it carries `superseded_by:` /
 - **KIT-T453**  →  **KIT-T311**  · 1 superseded
 - **KIT-T400**  →  **KIT-T341**  · 1 superseded
 - **KIT-T376**  →  **KIT-T377**  · 1 superseded
-- **KIT-T427**  →  **KIT-T392**  · 1 superseded
+- **KIT-T441**  →  **KIT-T392**  · 1 superseded
 - **KIT-T396**  →  **KIT-T395**  · 1 superseded
 - **KIT-T340**  →  **KIT-T451**  · 1 superseded
+- **KIT-T469**  →  **KIT-T468**  · 1 superseded

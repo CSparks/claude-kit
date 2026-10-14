@@ -1,0 +1,1 @@
+(decision) Chris 2026-10-10 (verbatim): 'weekly we need to be looking at what our stand-up context size looks like. We should never be spinning up new sessions with more than 25k of ceremonial context.' Hard ceiling 25k tokens of ceremonial (session-start) context per project; measured weekly; over = fix the injections, never raise the ceiling

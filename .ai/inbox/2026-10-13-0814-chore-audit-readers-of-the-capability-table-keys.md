@@ -1,0 +1,1 @@
+chore Audit readers of the capability table keys after KIT-T419 (f64e051) moved local-qwen from 'fallback' to 'alternate': hooks/model-tag.mjs knownFamilies missed it until KIT-T445 (b2701b6); other readers of family/fallback (dispatch-ladder, dispatch-guard, orient's models line, dispatch-report) were not audited. One accessor for the table's families, used everywhere.
