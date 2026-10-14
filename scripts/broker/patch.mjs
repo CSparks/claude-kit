@@ -15,6 +15,8 @@ import { pairedPins, suspects } from './paired.mjs';
 import { addDeferred } from './deferred.mjs';
 import { GATE_CRASH, gatePlan } from './gate.mjs';
 import { findGreen, greenKey, recordGreen } from './green.mjs';
+import { treeState } from './cache.mjs';
+import { makeBaseline } from './baseline.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
 import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
@@ -61,7 +63,6 @@ function runCommands(cfg, job, cwd, hooks) {
   return out;
 }
 
-const withState = (state, attributed) => (attributed ? { ...attributed, ...state } : attributed);
 const isGreen = (commands) => commands.every((c) => c.exit === 0 || (c.foreign && c.foreign.length));
 const foreignOf = (commands) => commands.flatMap((c) => c.foreign || []);
 
@@ -106,7 +107,8 @@ export function processPatch(cfg, job, repo) {
   pins = [...pins, ...held.pins];
   const explicit = () => pins.filter((p) => !p.implicit);
 
-  const key = greenKey(cfg, cwd, { repo: job.repo, files: plan.files, commands: jobCommands(cfg, job), pins });
+  const pre = { tree: treeState(cfg, cwd), dirty: dirtyPaths(cwd), head: revParse(cwd, 'HEAD') };
+  const key = greenKey({ repo: job.repo, pre: pre.tree, files: plan.files, commands: jobCommands(cfg, job), pins });
   const reused = job.land ? findGreen(cfg, key) : null;
   const locksBefore = lockFiles(cwd);
   const captureTree = () => capture(cfg, { id: job.id, cwd, paths: [...new Set([...plan.files.keys(), ...locksBefore])] });
@@ -121,13 +123,11 @@ export function processPatch(cfg, job, repo) {
     checkoutPins(pins);
     writePlan(cwd, plan.files);
     const diffStat = git(['diff', '--stat'], cwd).out;
-    const baseline = (fn) => {
-      restoreTree();
-      revertPins(explicit());
-      const state = { dirty: dirtyPaths(cwd), head: revParse(cwd, 'HEAD') };
-      try { return withState(state, fn((cmd, tag) => { const log = logPathFor(cfg, job.id, tag); runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs }); return log; })); }
-      finally { restoreTree(); journal = captureTree(); checkoutPins(pins); writePlan(cwd, plan.files); }
-    };
+    const baseline = makeBaseline({
+      cfg, job, cwd, pre, held: pins.filter((p) => p.implicit),
+      enter: () => { restoreTree(); revertPins(explicit()); },
+      leave: () => { restoreTree(); journal = captureTree(); checkoutPins(pins); writePlan(cwd, plan.files); },
+    });
     const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, job, cwd, { baseline });
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
