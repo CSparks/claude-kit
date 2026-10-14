@@ -15,18 +15,21 @@ export const IDLE_EXIT_MIN = 60;
 const BROKER = join(import.meta.dirname, 'broker.mjs');
 
 // Start the daemon owned by no caller, hidden, logging to target/broker/logs (launch.mjs). The lock
-// records `spawnedBy` (who and why); a replacement for a killed daemon gets no --idle-exit.
-export function spawnBroker(root, idleExit = IDLE_EXIT_MIN, spawnedBy = `${process.argv[1] ? process.argv[1].split(/[\\/]/).pop() : 'node'} pid ${process.pid}`) {
-  const r = launchDaemon(BROKER, root, [...(idleExit ? ['--idle-exit', String(idleExit)] : []), '--spawned-by', spawnedBy]);
+// records `spawnedBy` ("<caller script> pid N: <why>"); a replacement for a killed daemon gets no
+// --idle-exit. The idle exit only counts minutes with an empty queue, so it never leaves jobs waiting.
+const caller = () => `${process.argv[1] ? process.argv[1].split(/[\\/]/).pop() : 'node'} pid ${process.pid}`;
+
+export function spawnBroker(root, idleExit = IDLE_EXIT_MIN, why = 'started') {
+  const r = launchDaemon(BROKER, root, [...(idleExit ? ['--idle-exit', String(idleExit)] : []), '--spawned-by', `${caller()}: ${why}`]);
   if (!r.ok) console.error(`broker: could not start a daemon: ${r.error}`);
   return r;
 }
 
 /** Start a broker unless a live one holds the lock; a holder stalled past RESTART_MS is killed and replaced (stall.mjs). `spawner(root, idleExit)` is injectable. Returns true when it started one. */
 export function ensureBroker(cfg, root, spawner = spawnBroker) {
-  if (liveHolder(cfg)) return restartIfWedged(cfg, root, { spawner: (r, why) => spawner(r, null, `submit.mjs pid ${process.pid}: ${why}`) });
+  if (liveHolder(cfg)) return restartIfWedged(cfg, root, { spawner: (r, why) => spawner(r, null, why) });
   if (!claimSpawn(cfg)) return false;
-  spawner(root, IDLE_EXIT_MIN, `submit.mjs pid ${process.pid}: a job was queued with no daemon`);
+  spawner(root, IDLE_EXIT_MIN, `${listQueue(cfg).length} job(s) queued with no daemon`);
   return true;
 }
 

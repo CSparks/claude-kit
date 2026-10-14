@@ -99,12 +99,17 @@ export function stuckInflight(cfg, nowMs, floorMs = STUCK_FLOOR_MS) {
 
 // A gate crash is over once a later job's gate answered. The detail names the runtime and pid it
 // happened under, so a fault from a replaced daemon reads as history, not as the live state.
+const FAULT_CAUSE = {
+  'gate-crash': 'the pre-write gate hook crashed instead of answering',
+  'daemon-error': 'the broker threw while running the job; the job failed and the daemon carried on',
+};
+
 export function ownFaults(cfg, nowMs) {
   const pass = readGatePass(cfg);
   const resolved = (f) => f.kind === 'gate-crash' && pass && Date.parse(pass.at) > Date.parse(f.at);
   const under = (f) => (f.runtime || f.pid ? ` [runtime ${f.runtime || '?'}, pid ${f.pid || '?'}]` : '');
   return recentFaults(cfg, nowMs, FAULT_AGE_MS).filter((f) => !resolved(f)).map((f) => ({ kind: `own-fault:${f.kind}`, detail: `job ${f.id}: ${f.detail}${under(f)}`,
-    cause: `${f.kind === 'gate-crash' ? 'the pre-write gate hook crashed instead of answering' : 'the tree after a restore differs from its journal'}; ${ticketHint(f.kind, f.id)}` }));
+    cause: `${FAULT_CAUSE[f.kind] || 'the tree after a restore differs from its journal'}; ${ticketHint(f.kind, f.id)}` }));
 }
 
 /** Run every detector, persist health.json (keeping `since` of continuing entries), return { entries, fresh }. */

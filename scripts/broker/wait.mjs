@@ -11,10 +11,11 @@
 // (--grace-ms: how long no broker may be seen before wait says so; default 10000, a restart's gap)
 
 import { parseFlags, loadCfg } from './cli.mjs';
+import { join } from 'node:path';
 import { isCurrentResult } from './current.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
 import { printResult } from './report.mjs';
-import { IDLE_EXIT_MIN, NO_BROKER_GRACE_MS, noBrokerWarning, spawnBroker } from './ensure.mjs';
+import { IDLE_EXIT_MIN, NO_BROKER_GRACE_MS, ensureBroker, noBrokerWarning, spawnBroker } from './ensure.mjs';
 import { observedLive } from './lock.mjs';
 import { announce, selfCheck } from './health.mjs';
 import { heartbeatLine } from './heartbeat.mjs';
@@ -52,8 +53,9 @@ while (Date.now() < deadline) {
   const warning = warned ? null : noBrokerWarning(cfg, id, { missingForMs, graceMs });
   missingSince = observedLive(cfg) ? null : (missingSince ?? Date.now());
   if (warning) { console.error(warning); warned = true; }
+  if (!process.env.BROKER_NO_AUTOSTART && missingForMs >= graceMs && listQueue(cfg).some((j) => j.id === id) && ensureBroker(cfg, root)) console.error(`wait: no daemon was running with ${id} queued; started one (log under ${join(cfg.targetDir, 'broker', 'logs')})`);
   announce(selfCheck(cfg, { skipNoDaemon: missingSince === null || Date.now() - missingSince < graceMs }).entries, said);
-  if (!process.env.BROKER_NO_AUTOSTART) restartIfWedged(cfg, root, { spawner: (r, why) => spawnBroker(r, null, `wait.mjs pid ${process.pid}: ${why}`) });
+  if (!process.env.BROKER_NO_AUTOSTART) restartIfWedged(cfg, root, { spawner: (r, why) => spawnBroker(r, null, why) });
   if (beatMs > 0 && Date.now() >= nextBeat) {
     const line = heartbeatLine(cfg, id);
     if (line) console.error(line);

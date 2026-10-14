@@ -9,6 +9,8 @@ import { isPaused } from './control.mjs';
 import { deferredLines } from './deferred.mjs';
 import { readLock } from './lock.mjs';
 import { readInflight } from './preimage.mjs';
+import { listQueue } from './result.mjs';
+import { submittedAt } from './stats.mjs';
 
 const MAX_LANDS = 10;
 const MAX_DEFERRED = 4; // deferred failures listed inline; each can run to hundreds of characters
@@ -29,6 +31,26 @@ const readJson = (file) => { try { return JSON.parse(readFileSync(file, 'utf8'))
 export function brokerLive(cfg) {
   const held = readLock(brokerPaths(cfg).lock);
   return !!held && pidAlive(held.pid);
+}
+
+const posix = (p) => String(p).split('\\').join('/');
+
+/**
+ * Orient's DISPATCH NOW block when jobs wait and no daemon is alive: nothing moves the queue until
+ * someone starts one. [] otherwise, or when the operator paused the queue.
+ */
+export function noDaemonBlock(root, now = Date.now()) {
+  const cfg = readBrokerConfig(root);
+  if (!existsSync(brokerPaths(cfg).home) || brokerLive(cfg) || isPaused(cfg)) return [];
+  const queued = listQueue(cfg);
+  if (!queued.length) return [];
+  const oldest = Math.round((now - Math.min(...queued.map((j) => submittedAt(j.id)).filter(Number.isFinite))) / MS_PER_MIN);
+  const script = posix(join(import.meta.dirname, 'broker.mjs'));
+  return [
+    `--- DISPATCH NOW: ${queued.length} broker job(s) queued, no daemon running (oldest waiting ${oldest} min) ---`,
+    `  start one now: node ${script} --root ${posix(root)} --log auto   (any submit or wait also starts one)`,
+    '',
+  ];
 }
 
 export function brokerLines(root, now = Date.now()) {

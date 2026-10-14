@@ -224,6 +224,13 @@ try {
 } catch {
   /* kit-bug listing is best-effort */
 }
+// Jobs queued with no daemon alive: the queue stands still until someone starts one.
+try {
+  const { noDaemonBlock } = await import('../scripts/broker/summary.mjs');
+  out.push(...noDaemonBlock(root));
+} catch {
+  /* broker dispatch check is best-effort */
+}
 // A repeat ask is an escalation (KIT-T405): open tickets the maintainer asked for more than once.
 try {
   const { askedAgainOpen } = await import('../scripts/asked-again.mjs');
