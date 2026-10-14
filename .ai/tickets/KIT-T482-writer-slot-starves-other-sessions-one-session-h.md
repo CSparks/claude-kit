@@ -43,6 +43,8 @@ Chris ruled 2026-10-14 ~14:30 (questionnaire, session stiletto-2349-2a; captures
 Item 6 built: suite_partitions N rotates one partition per suite run (nextest --partition count:k/N; other suite commands take turns); greens and filed regressions are tracked per partition. scripts/broker/suite-shard.test.mjs 3 passed (one-partition negative control). Also: HEALTH faults name the runtime and pid they happened under, and a gate crash clears once a later job's gate answers (health.test.mjs); wait's timeout says 'run wait again, do not withdraw it' when the daemon is alive and the job queued or running (heartbeat.test.mjs); patch-worker rule: exit 2 with a live daemon = wait again. Broker 155 passed.
 ### comment #6 [2026-10-14 19:53] @claude
 Item 3 built: broker pushes and builds carry CARGO_TARGET_DIR + CARGO_BUILD_JOBS (gate-env); pre_push: true runs the repo's pre-push hook via git hook run before git push, so a stamping gate passes the push at once (no 141); a refused/failed push undoes the commit (land-gate-dirty). scripts/broker/land-gate.test.mjs 4 passed; reverting the undo or the env fails its test. Broker 159 passed. For rapid-game: repo entry pre_push: true; its pre-push.mjs alreadyGreen() stamp does the rest.
+### comment #7 [2026-10-14 20:45] @claude
+Chris ruled 2026-10-14 ~14:30 (questionnaire): the broker replaces the hand-off writer turn once ST-T904 vetting passes; a failing golden over his uncommitted .rhai edits counts as already red. Recorded as KIT-D095.
 
 ## History
 - [2026-10-14 18:35] (created) feature — Writer slot starves other sessions: one session held the stiletto writer slot ~21 h across a 5-lane queue while another waited; needs a per-landing slot lease with a visible queue, then concurrent writers in ONE checkout without copies
@@ -52,3 +54,4 @@ Item 3 built: broker pushes and builds carry CARGO_TARGET_DIR + CARGO_BUILD_JOBS
 - [2026-10-14 19:28] (comment) @claude: Chris ruled 2026-10-14 ~14:30 (questionnaire, session stiletto-2349-2a; captures inbox 2026-10-14-1911-*): (1) once the  (full comment #4 in ## Notes)
 - [2026-10-14 19:35] (comment) @claude: Item 6 built: suite_partitions N rotates one partition per suite run (nextest --partition count:k/N; other suite command (full comment #5 in ## Notes)
 - [2026-10-14 19:53] (comment) @claude: Item 3 built: broker pushes and builds carry CARGO_TARGET_DIR + CARGO_BUILD_JOBS (gate-env); pre_push: true runs the rep (full comment #6 in ## Notes)
+- [2026-10-14 20:45] (comment) @claude: Chris ruled 2026-10-14 ~14:30 (questionnaire): the broker replaces the hand-off writer turn once ST-T904 vetting passes; (full comment #7 in ## Notes)
