@@ -9,6 +9,7 @@ import { brokerPaths } from './config.mjs';
 import { liveHolder, observedLive } from './lock.mjs';
 import { ensureDirs } from './result.mjs';
 import { listQueue } from './result.mjs';
+import { restartIfWedged } from './stall.mjs';
 
 export const IDLE_EXIT_MIN = 60;
 const BROKER = join(import.meta.dirname, 'broker.mjs');
@@ -21,9 +22,9 @@ export function spawnBroker(root, idleExit = IDLE_EXIT_MIN) {
   child.unref();
 }
 
-/** Start a broker unless a live one holds the lock. `spawner(root, idleExit)` is injectable. Returns true when it started one. */
+/** Start a broker unless a live one holds the lock; a holder stalled past RESTART_MS is killed and replaced (stall.mjs). `spawner(root, idleExit)` is injectable. Returns true when it started one. */
 export function ensureBroker(cfg, root, spawner = spawnBroker) {
-  if (liveHolder(cfg)) return false;
+  if (liveHolder(cfg)) return restartIfWedged(cfg, root, { spawner: (r) => spawner(r, IDLE_EXIT_MIN) });
   if (!claimSpawn(cfg)) return false;
   spawner(root, IDLE_EXIT_MIN);
   return true;

@@ -14,10 +14,11 @@ import { parseFlags, loadCfg } from './cli.mjs';
 import { isCurrentResult } from './current.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
 import { printResult } from './report.mjs';
-import { NO_BROKER_GRACE_MS, noBrokerWarning } from './ensure.mjs';
+import { IDLE_EXIT_MIN, NO_BROKER_GRACE_MS, noBrokerWarning, spawnBroker } from './ensure.mjs';
 import { observedLive } from './lock.mjs';
 import { announce, selfCheck } from './health.mjs';
 import { heartbeatLine } from './heartbeat.mjs';
+import { restartIfWedged } from './stall.mjs';
 
 // Bash caps a foreground call at 600 s; 540 leaves room to print the queue position.
 const DEFAULT_TIMEOUT_S = 540;
@@ -28,7 +29,7 @@ if (!id) {
   console.error('wait: a job id is required');
   process.exit(2);
 }
-const { cfg } = loadCfg(flags);
+const { root, cfg } = loadCfg(flags);
 const timeoutMs = (Number(flags.timeout) || DEFAULT_TIMEOUT_S) * 1000;
 const pollMs = Number(flags.poll) || cfg.pollMs;
 const graceMs = flags['grace-ms'] === undefined ? NO_BROKER_GRACE_MS : Number(flags['grace-ms']);
@@ -52,6 +53,7 @@ while (Date.now() < deadline) {
   missingSince = observedLive(cfg) ? null : (missingSince ?? Date.now());
   if (warning) { console.error(warning); warned = true; }
   announce(selfCheck(cfg, { skipNoDaemon: missingSince === null || Date.now() - missingSince < graceMs }).entries, said);
+  if (!process.env.BROKER_NO_AUTOSTART) restartIfWedged(cfg, root, { spawner: (r) => spawnBroker(r, IDLE_EXIT_MIN) });
   if (beatMs > 0 && Date.now() >= nextBeat) {
     const line = heartbeatLine(cfg, id);
     if (line) console.error(line);

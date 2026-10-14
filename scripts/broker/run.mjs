@@ -8,6 +8,8 @@
 
 import { spawnSync } from 'node:child_process';
 import { openSync, closeSync, readFileSync, existsSync } from 'node:fs';
+import { runCancellable } from './run-cancellable.mjs';
+import { pulseActive } from './stall.mjs';
 
 const LOG_TAIL_LINES = 60;
 const CARGO_BUILD_SUBS = new Set(['test', 'build', 'check', 'clippy', 'bench', 'nextest', 'run', 't', 'b', 'r']);
@@ -36,7 +38,13 @@ export function composeCommand(cmd, { jobs = 3 } = {}) {
 // both work), redirecting stdout+stderr to `logPath`. CARGO_TARGET_DIR is injected so every
 // build shares the broker's one warm cache. Returns exit code, wall-clock duration, and the
 // last ~60 log lines.
+// Inside the daemon (a pulse is registered) the command runs through runCancellable, whose poll
+// keeps the heartbeat fresh, so a 25-minute suite never reads as a stalled daemon (KIT-T488).
 export function runCommand(cmd, { cwd, targetDir, logPath, jobs }) {
+  if (pulseActive()) {
+    const { cancelled, ...r } = runCancellable(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel: () => false });
+    return r;
+  }
   const composed = composeCommand(cmd, { jobs });
   const fd = openSync(logPath, 'w');
   const started = Date.now();

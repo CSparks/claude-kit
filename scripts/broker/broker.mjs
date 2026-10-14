@@ -25,6 +25,7 @@ import { processOnce } from './queue.mjs';
 import { STATUS, ensureDirs, listQueue } from './result.mjs';
 import { suiteLine } from './suite.mjs';
 import { pinRuntime } from '../runtime-pin.mjs';
+import { setPulse, stallLine, stallState } from './stall.mjs';
 import { withdrawJob } from './withdraw.mjs';
 
 const MS_PER_MIN = 60 * 1000;
@@ -49,7 +50,8 @@ if (command === 'cancel') {
 
 if (command === 'status') {
   const queued = listQueue(cfg).length;
-  console.error(`broker: ${isPaused(cfg) ? 'PAUSED' : 'running'}, ${queued} queued`);
+  const stall = stallState(cfg);
+  console.error(`broker: ${stall ? stallLine(stall) : `${isPaused(cfg) ? 'PAUSED' : 'running'}, ${queued} queued`}`);
   for (const line of deferredLines(cfg)) console.error(`  ${line}`);
   const suite = suiteLine(cfg);
   if (suite) console.error(`  ${suite}`);
@@ -58,7 +60,7 @@ if (command === 'status') {
 }
 
 const lock = acquireLock(cfg);
-if (lock.ok) pinRuntime();
+if (lock.ok) { pinRuntime(); setPulse(() => heartbeat(cfg)); }
 if (!lock.ok) {
   console.error(`broker: another broker holds the lock (pid ${lock.holder.pid} on ${lock.holder.host} since ${lock.holder.ts})`);
   process.exit(1);

@@ -16,6 +16,7 @@ import { liveHolder, observedLive } from './lock.mjs';
 import { readInflight } from './preimage.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
 import { readGatePass, readHealth, readRun, recentFaults, writeHealth } from './health-store.mjs';
+import { stallLine, stallState } from './stall.mjs';
 
 export const OWN_DIRT_WINDOW_MS = 10_000;
 const STUCK_FACTOR = 3;
@@ -108,7 +109,9 @@ export function ownFaults(cfg, nowMs) {
 
 /** Run every detector, persist health.json (keeping `since` of continuing entries), return { entries, fresh }. */
 export function selfCheck(cfg, { now = Date.now(), heal = false, stuckFloorMs, skipNoDaemon = false } = {}) {
-  const found = [...(skipNoDaemon ? [] : noDaemon(cfg)), ...ownDirt(cfg, readRun(cfg), heal), ...stuckInflight(cfg, now, stuckFloorMs), ...ownFaults(cfg, now)];
+  const stall = stallState(cfg, now);
+  const stalled = stall ? [{ kind: 'stalled', detail: stallLine(stall), cause: 'the daemon holds the lock but stopped beating; submit and wait kill and restart it after 10 min' }] : [];
+  const found = [...stalled, ...(skipNoDaemon ? [] : noDaemon(cfg)), ...ownDirt(cfg, readRun(cfg), heal), ...stuckInflight(cfg, now, stuckFloorMs), ...ownFaults(cfg, now)];
   const before = readHealth(cfg);
   const known = (e) => before.find((b) => b.kind === e.kind && b.detail === e.detail);
   const entries = found.map(({ kind, detail, cause }) => ({ kind, since: (known({ kind, detail }) || {}).since || new Date(now).toISOString(), detail, cause }));

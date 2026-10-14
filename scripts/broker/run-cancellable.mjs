@@ -10,6 +10,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { closeSync, existsSync, openSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { composeCommand, tail } from './run.mjs';
+import { pulse } from './stall.mjs';
 
 const CHILD = join(import.meta.dirname, 'run-child.mjs');
 const DEFAULT_POLL_MS = 500;
@@ -37,6 +38,7 @@ export function runCancellable(cmd, { cwd, targetDir, logPath, jobs }, { shouldC
   let cancelled = false;
   while (!existsSync(marker)) {
     if (shouldCancel()) { cancelled = true; killTree(child.pid); break; }
+    pulse();
     sleep(pollMs);
   }
   const exit = cancelled ? 1 : Number(readFileSync(marker, 'utf8')) || 0;
