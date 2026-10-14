@@ -26,7 +26,7 @@
 // the derived board (index-tickets, which also reconciles supersede edges) and ingests the
 // SQLite cache — both fail-open, so a missing engine never wedges a mutation.
 
-import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -378,6 +378,7 @@ function parseArgs(argv) {
     else if (a === '--session') flags.session = argv[++i];
     else if (a === '--by') flags.by = argv[++i];
     else if (a === '--root') flags.root = argv[++i];
+    else if (a === '--file') flags.file = argv[++i];
     else if (a === '--not-dup') flags.notDup = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
     else pos.push(a);
@@ -455,8 +456,8 @@ async function main() {
   }
   if (cmd === 'comment') {
     const [id, ...textWords] = rest;
-    const text = textWords.join(' ');
-    if (!id || !text.trim()) { console.error('usage: t comment <id> "<text>" [--author <who>]'); process.exit(2); }
+    const text = flags.file ? readFileSync(flags.file, 'utf8').trim() : textWords.join(' ');
+    if (!id || !text.trim()) { console.error('usage: t comment <id> "<text>" | --file <path> [--author <who>]'); process.exit(2); }
     // A human running `t comment` without --author defaults to their resolved alias (KIT-T145),
     // the same identity /api/me reports; an agent still passes --author (or KIT_AGENT-derived) explicitly.
     const author = flags.author || resolveUser();

@@ -4,7 +4,7 @@
 // shells the real t.mjs + q.mjs to prove comment append -> mention derivation -> ack ->
 // unread-clears end to end. exit 0 = all pass. Same hand-rolled harness as t.test.mjs.
 
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -170,6 +170,19 @@ try {
   ok('CLI: comment -> q mentions (unread) -> ack -> q mentions (read)', unreadOk && relisted[0].state === 'read');
 } catch (e) {
   ok('CLI: comment -> q mentions (unread) -> ack -> q mentions (read)', false);
+  console.log('     ' + (e.stderr ? e.stderr.toString().split('\n')[0] : e.message));
+}
+
+// --file reads the comment body from the file (KIT-T465)
+try {
+  const body = join(cli, 'body.txt');
+  writeFileSync(body, 'body from file @bob\n');
+  execFileSync('node', [T_CLI, 'comment', 'KIT-T001', '--file', body, '--author', 'user', '--root', cli], { stdio: 'pipe' });
+  const dir = join(cli, '.ai', 'tickets');
+  const tk = readFileSync(join(dir, readdirSync(dir).find((f) => f.startsWith('KIT-T001'))), 'utf8');
+  ok('CLI: comment --file uses the file contents as the body, not the path', tk.includes('body from file') && !tk.includes('body.txt'));
+} catch (e) {
+  ok('CLI: comment --file uses the file contents as the body, not the path', false);
   console.log('     ' + (e.stderr ? e.stderr.toString().split('\n')[0] : e.message));
 }
 
