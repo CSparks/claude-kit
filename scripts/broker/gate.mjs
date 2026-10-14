@@ -4,18 +4,22 @@
 // reused, never reimplemented; exit 2 is a block, its stderr names each failing check.
 
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // BROKER_GATE_HOOK swaps the hook script; tests drive a crashing hook through it.
 const HOOK = join(import.meta.dirname, '..', '..', 'hooks', 'pre-write.mjs');
 const BLOCK = 2;
 export const GATE_CRASH = 'gate-crash';
+export const RUNTIME_GONE = 'runtime-gone';
 const FAILURE = /-- ([\s\S]*?)\s*\n\s*To exclude from this check \(id: ([\w-]+)\)/g;
 
-/** Findings `{ path, check, msg }` for one file's content; empty when the hook allows it. A hook that crashes yields a `gate-crash` finding. */
+/** Findings `{ path, check, msg }` for one file's content; empty when the hook allows it. A hook that crashes yields a `gate-crash` finding, a hook file that vanished (its runtime was pruned) a `runtime-gone` one. */
 export function gateFile(cwd, path, content) {
+  const hook = process.env.BROKER_GATE_HOOK || HOOK;
+  if (!existsSync(hook)) return [{ path, check: RUNTIME_GONE, msg: `runtime gone: ${hook} no longer exists (a publish pruned this daemon's runtime); restart me` }];
   const payload = { tool_name: 'Write', tool_input: { file_path: join(cwd, path), content } };
-  const r = spawnSync(process.execPath, [process.env.BROKER_GATE_HOOK || HOOK], {
+  const r = spawnSync(process.execPath, [hook], {
     cwd, input: JSON.stringify(payload), encoding: 'utf8', windowsHide: true, env: { ...process.env, CLAUDE_KIT_BROKER_GATE: '1' },
   });
   if (r.status === 0) return [];

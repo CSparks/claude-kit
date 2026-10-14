@@ -7,6 +7,7 @@ import { writeFileSync, readFileSync, existsSync, rmSync, statSync } from 'node:
 import { hostname } from 'node:os';
 import { ensureDirs } from './result.mjs';
 import { brokerPaths } from './config.mjs';
+import { runtimeTag } from '../runtime-pin.mjs';
 
 // Acquire the lock. Returns { ok:true } or { ok:false, holder } when a live broker holds it.
 // The lock is created exclusively, so two daemons starting together cannot both win: the loser
@@ -14,7 +15,7 @@ import { brokerPaths } from './config.mjs';
 export function acquireLock(cfg) {
   ensureDirs(cfg);
   const path = brokerPaths(cfg).lock;
-  const record = JSON.stringify({ pid: process.pid, host: hostname(), ts: new Date().toISOString() }, null, 2);
+  const record = JSON.stringify({ pid: process.pid, host: hostname(), ts: new Date().toISOString(), runtime: runtimeTag() }, null, 2);
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       writeFileSync(path, record, { flag: 'wx' });

@@ -17,6 +17,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { runtimeRoot as defaultRuntimeRoot } from './runtime-path.mjs';
 import { isMain } from './is-main.mjs';
 import { liveUsers } from './runtime-pin.mjs';
+import { installedPlugin, pluginDrift } from './plugin-drift.mjs';
+import { heldRuntimes } from './runtime-holders.mjs';
 
 const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
@@ -47,17 +49,18 @@ function repointCurrent(runtimeRoot, sha) {
   renameSync(tmpLink, current);
 }
 
-function prune(runtimeRoot, keep, currentSha) {
+function prune(runtimeRoot, keep, currentSha, projects) {
+  const held = heldRuntimes(runtimeRoot, projects ? { projects } : {});
   const dirs = readdirSync(runtimeRoot).filter((n) => SHA_DIR.test(n))
     .map((n) => ({ n, t: statSync(join(runtimeRoot, n)).mtimeMs })).sort((a, b) => b.t - a.t);
   for (const { n } of dirs.slice(keep)) {
-    if (n === currentSha || liveUsers(join(runtimeRoot, n)).length) continue; // a running daemon still loads from it (KIT-T486)
+    if (n === currentSha || held.has(n) || liveUsers(join(runtimeRoot, n)).length) continue; // a running daemon still loads from it (KIT-T486)
     rmSync(join(runtimeRoot, n), { recursive: true, force: true });
   }
 }
 
 /** Export HEAD of `repo` and repoint `current`; throws before touching `current` if the export fails. */
-export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep = DEFAULT_KEEP }) {
+export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep = DEFAULT_KEEP, projects }) {
   const sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
   mkdirSync(runtimeRoot, { recursive: true });
   const dir = join(runtimeRoot, sha);
@@ -75,7 +78,7 @@ export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep 
     }
   }
   repointCurrent(runtimeRoot, sha);
-  prune(runtimeRoot, keep, sha);
+  prune(runtimeRoot, keep, sha, projects);
   return { sha, dir, current: join(runtimeRoot, 'current') };
 }
 
@@ -89,6 +92,8 @@ if (isMain(import.meta.url)) {
   try {
     const r = publishRuntime({ repo, runtimeRoot: arg('--runtime') || defaultRuntimeRoot(), keep: Number(arg('--keep')) || DEFAULT_KEEP });
     process.stdout.write(`runtime: ${r.sha} -> ${r.current}\nrun kit scripts from ${r.current}/scripts/ (q.mjs, t.mjs, cap.mjs)\n`);
+    const drift = pluginDrift({ repo, installed: installedPlugin() });
+    if (drift.length) process.stderr.write(`runtime-publish: ${drift.length} agent/skill/command/hook file(s) changed since the plugin cache was copied, under the same plugin.json version, so sessions do not see them. Bump .claude-plugin/plugin.json version, then restart sessions: ${drift.slice(0, 8).join(', ')}${drift.length > 8 ? ', ...' : ''}\n`);
   } catch (e) {
     process.stderr.write(`runtime-publish: ${e.message}\n`);
     process.exit(1);

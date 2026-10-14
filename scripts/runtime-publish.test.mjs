@@ -3,8 +3,8 @@
 // writer's half-edit, and `current` moves only once a complete export exists.
 // Run: node scripts/runtime-publish.test.mjs
 
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, realpathSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, realpathSync, rmSync, utimesSync } from 'node:fs';
+import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { publishRuntime, currentRuntime } from './runtime-publish.mjs';
@@ -57,6 +57,30 @@ writeFileSync(join(repo, 'scripts', 'lib.mjs'), 'export const v = 4;\n');
 git(repo, 'commit', '-aqm', 'four');
 publishRuntime({ repo, runtimeRoot, keep: 1 });
 ok('keep prunes older sha directories once nothing pins them', shaDirs().length === 1);
+
+// KIT-T486 follow-up: a daemon started before pins existed is found through its live broker lock;
+// the copy `current` pointed at when it started is kept.
+{
+  const [heldSha] = shaDirs();
+  const started = Date.now();
+  utimesSync(join(runtimeRoot, heldSha), new Date(started - 60_000), new Date(started - 60_000));
+  const proj = join(tmp, 'proj');
+  mkdirSync(join(proj, '.ai'), { recursive: true });
+  mkdirSync(join(proj, 'target', 'broker'), { recursive: true });
+  const lock = (pid) => writeFileSync(join(proj, 'target', 'broker', 'broker.lock'), JSON.stringify({ pid, host: hostname(), ts: new Date(started).toISOString() }));
+  lock(process.pid);
+  for (const v of [5, 6]) {
+    writeFileSync(join(repo, 'scripts', 'lib.mjs'), `export const v = ${v};\n`);
+    git(repo, 'commit', '-aqm', `v${v}`);
+    publishRuntime({ repo, runtimeRoot, keep: 1, projects: { proj } });
+  }
+  ok('a runtime current when a live, unpinned broker started survives the prune', existsSync(join(runtimeRoot, heldSha, 'scripts', 'lib.mjs')));
+  lock(999999);
+  writeFileSync(join(repo, 'scripts', 'lib.mjs'), 'export const v = 7;\n');
+  git(repo, 'commit', '-aqm', 'v7');
+  publishRuntime({ repo, runtimeRoot, keep: 1, projects: { proj } });
+  ok('negative control: a dead broker lock holds nothing', !existsSync(join(runtimeRoot, heldSha)));
+}
 
 const before = currentRuntime(runtimeRoot);
 let threw = false;

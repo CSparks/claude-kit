@@ -26,6 +26,10 @@ import { STATUS, ensureDirs, listQueue } from './result.mjs';
 import { suiteLine } from './suite.mjs';
 import { pinRuntime } from '../runtime-pin.mjs';
 import { setPulse, stallLine, stallState } from './stall.mjs';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { runtimeCurrent } from '../runtime-path.mjs';
 import { withdrawJob } from './withdraw.mjs';
 
 const MS_PER_MIN = 60 * 1000;
@@ -101,7 +105,19 @@ if (flags.once) {
 const pollMs = Number(flags.poll) || cfg.pollMs;
 const idleMs = (Number(flags['idle-exit']) || 0) * MS_PER_MIN;
 let lastWork = Date.now();
+// A publish that pruned this daemon's runtime copy (KIT-T486) leaves it unable to load its hooks:
+// it hands the lock to a fresh daemon started from `current` and exits.
+const runtimeGone = () => !existsSync(join(import.meta.dirname, 'gate.mjs'));
+function restartFromCurrent() {
+  const cur = runtimeCurrent();
+  releaseLock(cfg);
+  if (cur) spawn(process.execPath, [join(cur, 'scripts', 'broker', 'broker.mjs'), ...process.argv.slice(2)], { cwd: root, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  console.error(`broker: runtime gone (${import.meta.dirname}); ${cur ? `restarted from ${cur}` : 'no published runtime to restart from'}`);
+  process.exit(0);
+}
+
 const tick = () => {
+  if (runtimeGone()) restartFromCurrent();
   const { processed } = drain();
   if (processed.length || listQueue(cfg).length || isPaused(cfg)) lastWork = Date.now();
   if (idleMs && Date.now() - lastWork > idleMs) stop(`idle for ${flags['idle-exit']} min, exiting`);

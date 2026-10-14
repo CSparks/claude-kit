@@ -39,3 +39,17 @@ test('a clean patch passes the gate and runs', () => {
     assert.equal(readResult(s.cfg, job.id).status, 'passed');
   } finally { s.done(); }
 });
+
+test('a gate hook that vanished (its runtime was pruned) fails the job as runtime-gone, not a module error (KIT-T486)', () => {
+  const s = fixture();
+  try {
+    process.env.BROKER_GATE_HOOK = join(s.root, 'gone', 'hooks', 'pre-write.mjs');
+    const { job } = buildPatchJob(s.cfg, { ticket: 'T-1' }, envelope(['beta', 'BETA']));
+    writeJob(s.cfg, job);
+    processOnce(s.cfg);
+    const r = readResult(s.cfg, job.id);
+    assert.equal(r.status, 'failed');
+    assert.match(r.message, /^runtime gone: .* restart me/);
+    assert.doesNotMatch(r.message, /Cannot find module/);
+  } finally { delete process.env.BROKER_GATE_HOOK; s.done(); }
+});
