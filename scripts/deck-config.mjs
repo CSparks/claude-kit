@@ -24,10 +24,11 @@ export const TARGET_PATH = process.env.CLAUDE_KIT_STEAMDECK || join(homedir(), "
 
 export function readTarget() {
   const t = JSON.parse(readFileSync(TARGET_PATH, "utf8"));
-  const target = { host: t.host, user: t.user ?? "deck", key: (t.key ?? "~/.ssh/steamdeck").replace(/^~/, homedir()) };
+  const target = { host: t.host, user: t.user ?? "deck", port: t.port ?? 22, key: (t.key ?? "~/.ssh/steamdeck").replace(/^~/, homedir()) };
   for (const f of ["host", "user"]) {
     if (!TOKEN.test(target[f] ?? "")) throw new Error(`${TARGET_PATH}: ${f} must be a plain hostname/user token`);
   }
+  if (!Number.isInteger(target.port)) throw new Error(`${TARGET_PATH}: port must be an integer`);
   return target;
 }
 

@@ -1,10 +1,12 @@
 // devices.mjs — machine-level device / deploy-target registry, surfaced by orient so a project
 // session knows the target exists and which kit script drives it (KIT-T406). Each device
 // is { label, target(): { host, user, key }, games(): { <project>: game }, command(project),
-// tail(target, project) }; add a device by appending to DEVICES.
+// tail(target, project), alert(): pending MAINTAINER ACTION line | null }; add a device by
+// appending to DEVICES.
 
 import { homedir } from 'node:os';
 import { discoverGames, readTarget } from './deck-config.mjs';
+import { deckAlert } from './deck-reach.mjs';
 
 const slashed = (p) => p.replace(/\\/g, '/');
 const KIT_SCRIPTS = slashed(import.meta.dirname);
@@ -17,6 +19,7 @@ export const DEVICES = [
     games: discoverGames,
     command: (project) => `node ${KIT_SCRIPTS}/deck-deploy.mjs ${project}`,
     tail: ({ user, host, key }, project) => `ssh -i ${tilde(key)} ${user}@${host} 'tail -n 50 ~/Games/${project}/last-run.log'`,
+    alert: deckAlert,
   },
 ];
 
@@ -28,6 +31,8 @@ export function deviceLines(project, devices = DEVICES) {
       if (!d.games()[project]) continue;
       const t = d.target();
       lines.push(`  ${d.label} ${t.user}@${t.host}: ${d.command(project)} (build+push); log: ${d.tail(t, project)}`);
+      const alert = d.alert && d.alert();
+      if (alert) lines.push(`  ${alert} (tell the maintainer now; never wait on the device)`);
     } catch {
       /* device config absent or unreadable: nothing to announce */
     }

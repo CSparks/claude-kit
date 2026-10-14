@@ -27,4 +27,10 @@ assert.equal(block.length, 3, 'header, one line for the device that applies, tra
 const broken = { ...fake, target: () => { throw new Error('no config'); } };
 assert.deepEqual(deviceLines('game-a', [broken, fake]).length, 1, 'an unreadable device config is skipped, the rest still print');
 
-console.log('devices: 6 passed, 0 failed');
+const down = { ...fake, alert: () => 'MAINTAINER ACTION: Deck unreachable — wake it and connect Wi-Fi' };
+const alerted = deviceLines('game-a', [down]);
+assert.equal(alerted.length, 2, 'a pending device alert adds a line');
+assert.match(alerted[1], /MAINTAINER ACTION: Deck unreachable .*tell the maintainer now/);
+assert.equal(deviceLines('game-a', [{ ...fake, alert: () => null }]).length, 1, 'negative control: no alert, no extra line');
+
+console.log('devices: 9 passed, 0 failed');

@@ -3,9 +3,14 @@
 // to a Steam Deck over SSH; the first push adds each game to the Steam library.
 // Games come from each project's `deck:` block, the Deck from ~/.claude/steamdeck.json
 // (deck-config.mjs). Needs rustup + Bevy's Linux dev libraries in WSL, and sshd on the Deck.
+// Every deploy and the watcher check the Deck answers first (deck-reach.mjs, about 5 s): an
+// offline Deck exits 3 (UNREACHABLE) at once with a MAINTAINER ACTION line, never a build or a wait.
 
-import { spawnSync, execFileSync } from "node:child_process";
+import { spawn, spawnSync, execFileSync } from "node:child_process";
+import { mkdirSync, openSync } from "node:fs";
+import { join } from "node:path";
 import { TARGET_PATH, readTarget, discoverGames } from "./deck-config.mjs";
+import { UNREACHABLE, deckHome, requireDeck } from "./deck-reach.mjs";
 
 const DEFAULT_INTERVAL_SEC = 60;
 const MS_PER_SEC = 1000;
@@ -13,8 +18,12 @@ const ID_COLUMN = 16;
 
 const USAGE = `usage:
   deck-deploy [--no-build] <game-id...|all>   build + push now
-  deck-deploy watch [--interval <sec>]        redeploy a game whenever its git HEAD moves
+  deck-deploy watch [--interval <sec>]        redeploy a game whenever its git HEAD moves; runs detached,
+                                              logging to ~/.claude/deck-deploy/watch.log, and stops when the Deck drops
+  deck-deploy check                           exit 0 when the Deck answers, ${UNREACHABLE} when not
   deck-deploy list                            show configured games
+
+An unreachable Deck exits ${UNREACHABLE} at once with a MAINTAINER ACTION line (also shown by orient).
 
 A game is any registered project whose .ai/config.yml carries a deck: block:
   deck:
@@ -27,7 +36,7 @@ A game is any registered project whose .ai/config.yml carries a deck: block:
       BUILD_VAR: value
 
 ${TARGET_PATH}:
-  { "host": "192.168.1.107", "user": "deck", "key": "~/.ssh/steamdeck" }
+  { "host": "192.168.1.107", "user": "deck", "key": "~/.ssh/steamdeck", "port": 22 }
 
 On the Deck each game lands in ~/Games/<project>/: the binary, assets/, launch.sh
 (sets BEVY_ASSET_ROOT, logs to last-run.log) and <project>.desktop (the Steam shortcut).`;
@@ -42,7 +51,7 @@ const sq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 function deployScript(cfg, id, game, build) {
   const remote = `/home/${cfg.user}/Games/${id}`;
   const target = `$HOME/deck-target/${id}`;
-  const ssh = `ssh -i ~/.ssh/deck-deploy-key -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new`;
+  const ssh = `ssh -i ~/.ssh/deck-deploy-key -p ${cfg.port ?? 22} -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new`;
   const dest = `${cfg.user}@${cfg.host}`;
   const launch = [
     "#!/bin/sh",
@@ -88,6 +97,9 @@ function deploy(cfg, id, build) {
 const head = (repo) =>
   execFileSync("git", ["-C", repo, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 
+// Foreground watcher: before each redeploy the Deck must answer, else it stops (UNREACHABLE) so
+// the maintainer is told rather than the watcher retrying a build into an offline device. A
+// failed deploy is logged once per HEAD, not rebuilt every interval.
 async function watch(cfg, intervalSec) {
   const seen = Object.fromEntries(Object.entries(cfg.games).map(([id, g]) => [id, head(g.repo)]));
   console.log(`[deck-deploy] watching ${Object.keys(seen).join(", ")} every ${intervalSec}s`);
@@ -95,9 +107,25 @@ async function watch(cfg, intervalSec) {
     await new Promise((r) => setTimeout(r, intervalSec * MS_PER_SEC));
     for (const [id, g] of Object.entries(cfg.games)) {
       const now = head(g.repo);
-      if (now !== seen[id] && deploy(cfg, id, true)) seen[id] = now;
+      if (now === seen[id]) continue;
+      if (!(await requireDeck(cfg, "deck-deploy watch"))) process.exit(UNREACHABLE);
+      deploy(cfg, id, true);
+      seen[id] = now;
     }
   }
+}
+
+// `watch` never holds its caller: the watcher runs as a detached process with its output in a log
+// file, and the command returns once it has started.
+function detachWatch(args) {
+  mkdirSync(deckHome(), { recursive: true });
+  const log = join(deckHome(), "watch.log");
+  const fd = openSync(log, "a");
+  const child = spawn(process.execPath, [import.meta.filename, ...args, "--foreground"], {
+    detached: true, stdio: ["ignore", fd, fd], windowsHide: true,
+  });
+  child.unref();
+  console.log(`[deck-deploy] watching in the background (pid ${child.pid}); log: ${log}`);
 }
 
 const args = process.argv.slice(2);
@@ -106,15 +134,21 @@ if (args.includes("--help") || args.includes("-h")) {
   process.exit(0);
 }
 const cfg = loadConfig();
+const retry = `deck-deploy ${args.join(" ")}`.trim();
 if (args[0] === "list") {
   for (const [id, g] of Object.entries(cfg.games)) console.log(`${id.padEnd(ID_COLUMN)} ${g.name}  (${g.repo})`);
+} else if (args[0] === "check") {
+  process.exit((await requireDeck(cfg, retry)) ? 0 : UNREACHABLE);
 } else if (args[0] === "watch") {
+  if (!(await requireDeck(cfg, retry))) process.exit(UNREACHABLE);
   const i = args.indexOf("--interval");
-  await watch(cfg, i >= 0 ? Number(args[i + 1]) : DEFAULT_INTERVAL_SEC);
+  if (args.includes("--foreground")) await watch(cfg, i >= 0 ? Number(args[i + 1]) : DEFAULT_INTERVAL_SEC);
+  else detachWatch(args);
 } else {
   const build = !args.includes("--no-build");
   let ids = args.filter((a) => !a.startsWith("--"));
   if (ids.length === 0) { console.error(USAGE); process.exit(2); }
+  if (!(await requireDeck(cfg, retry))) process.exit(UNREACHABLE);
   if (ids.includes("all")) ids = Object.keys(cfg.games);
   const failed = ids.filter((id) => !deploy(cfg, id, build));
   process.exit(failed.length ? 1 : 0);
