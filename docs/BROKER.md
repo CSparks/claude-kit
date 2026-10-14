@@ -125,7 +125,7 @@ refuses if anything is already staged and asserts only the pointer is staged.
 broker:
   target_dir: D:/dev/stiletto-2349/target   # the shared CARGO_TARGET_DIR
   parallelism:
-    jobs: 3                                  # -j 3 (Windows pagefile, os error 1455)
+    jobs: auto                               # default: every core the RAM feeds at 4 GiB a job (os error 1455 = pagefile); a number pins it
   verify_default:
     - cargo t                                # the project's fastdev alias
   # untracked_blocks: ["crates/**/*.rs"]   # absent = derived from the cargo layout (see above)
@@ -135,7 +135,7 @@ broker:
     - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }
 ```
 
-Defaults: `target_dir` `<root>/target`; `jobs` 3; `verify_default` `["cargo test --no-fail-fast"]`;
+Defaults: `target_dir` `<root>/target`; `jobs` auto (`scripts/broker/jobs.mjs`); `verify_default` `["cargo test --no-fail-fast"]`;
 `poll_ms` 2000.
 
 ## Guards

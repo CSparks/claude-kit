@@ -7,6 +7,7 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseYaml, readBrokerConfig, normalizeBroker, repoByName, brokerPaths } from './config.mjs';
 import { composeCommand } from './run.mjs';
+import { resolveJobs } from './jobs.mjs';
 import { acquireLock, releaseLock } from './lock.mjs';
 import { writeJob, listQueue, removeJob, writeResult, readResult, STATUS } from './result.mjs';
 import { tempDir, cleanup } from './testkit.mjs';
@@ -40,7 +41,7 @@ test('readBrokerConfig: defaults + repo lookup', () => {
     - { name: app, path: ., main: trunk, remote: upstream }
 `);
     const cfg = readBrokerConfig(dir);
-    assert.equal(cfg.jobs, 3); // default
+    assert.equal(cfg.jobs, resolveJobs('auto')); // default
     assert.deepEqual(cfg.verifyDefault, ['cargo test --no-fail-fast']); // default
     assert.equal(cfg.targetDir, join(dir, 'target')); // default under root
     const app = repoByName(cfg, 'app');

@@ -8,7 +8,7 @@
 // A `broker:` section shape:
 //   broker:
 //     target_dir: <shared CARGO_TARGET_DIR>        # default <root>/target
-//     parallelism: { jobs: 3 }                     # default 3
+//     parallelism: { jobs: auto }                  # default auto (jobs.mjs: the cores RAM can feed); a number pins it
 //     verify_default: [ "cargo test --no-fail-fast" ]  # commands a job may omit
 //     poll_ms: 2000                                # daemon queue poll interval
 //     untracked_blocks: ["crates/**/*.rs"]        # untracked paths that pause the queue; absent, derived from
@@ -24,8 +24,8 @@
 
 import { readFileSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
+import { resolveJobs } from './jobs.mjs';
 
-const DEFAULT_JOBS = 3;
 const DEFAULT_POLL_MS = 2000;
 const DEFAULT_VERIFY = ['cargo test --no-fail-fast'];
 const DEFAULT_UNTRACKED_BLOCKS = ['**/*.rs', '**/Cargo.toml'];
@@ -46,7 +46,7 @@ export function readBrokerConfig(root, aiDir = join(root, '.ai')) {
 export function normalizeBroker(root, broker) {
   const targetRaw = broker.target_dir || join(root, 'target');
   const targetDir = isAbsolute(targetRaw) ? targetRaw : resolve(root, targetRaw);
-  const jobs = num(broker.parallelism && broker.parallelism.jobs, DEFAULT_JOBS);
+  const jobs = resolveJobs(broker.parallelism && broker.parallelism.jobs);
   const verifyDefault = Array.isArray(broker.verify_default) && broker.verify_default.length
     ? broker.verify_default.map(String)
     : DEFAULT_VERIFY.slice();
