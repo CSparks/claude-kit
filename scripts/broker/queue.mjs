@@ -7,6 +7,7 @@ import { repoByName } from './config.mjs';
 import { isPaused } from './control.mjs';
 import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
+import { runSuite } from './suite.mjs';
 import { STATUS, listQueue, queued, removeJob, writeResult } from './result.mjs';
 
 // Drain the queue until it is empty or the operator ran `pause`. A job whose repo holds a hand-driven
@@ -28,11 +29,12 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
   if (held.size) return { processed, paused: true, pausedOn: [...held.values()][0], pausedRepos: [...held.keys()], reason: 'dirty' };
   // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired.
   const deferred = recheckDeferred(cfg, fileBug ? { fileBug } : {});
-  if (deferred.cancelled) {
+  const suite = deferred.cancelled ? null : runSuite(cfg, fileBug ? { fileBug } : {});
+  if (deferred.cancelled || (suite && suite.cancelled)) {
     const next = processOnce(cfg, { onResult, fileBug });
     return { ...next, processed: [...processed, ...next.processed] };
   }
-  return { processed, paused: false, deferred };
+  return { processed, paused: false, deferred, suite };
 }
 
 // Run one job to a written result. Returns { result, pause } — pause:true leaves the job queued.

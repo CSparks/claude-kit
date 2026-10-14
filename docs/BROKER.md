@@ -69,8 +69,35 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
    drops the entry; a failure with none of its recorded paths dirty is a real break, filed with
    `cap bug` in the repo and dropped. `broker status` and the orient banner list them.
 
+   **Baseline cache** (`baseline.mjs`): a base run is keyed by the pre-patch tree state, the
+   held pins and the command; a repeat (a worker's next red revision on the same HEAD) reuses the
+   base log without restoring or rebuilding.
+
 5. `land` — with `--land` and green: `git add` + `git commit -- <paths>` (never `-a`/`-A`),
-   message `<title> (implements <ticket>)`, push `main`. `--land` needs `--ticket`.
+   message `<title> (implements <ticket>)` with a `Broker-Gate: <job> N/N commands green …`
+   body that the ticket evidence floor (KIT-T061) cites, push `main`. `--land` needs `--ticket`.
+
+## Fast landing (KIT-T472)
+
+- **Green cache** (`green.mjs`): a passed check-only run is keyed by HEAD, the tracked edits in
+  the tree, the patch's files, its pins and its commands. A `--land` with the same key lands on
+  that evidence (`reusedFrom` in the result) without building or testing again.
+- **Affected gate** (`land_gate: affected`; `affected.mjs`, `landgate.mjs`): a landing runs
+  `affected.check` (default `cargo check --workspace --all-targets`) plus `affected.test -p <crate>`
+  over the targets its changed paths map to (`tests/x.rs` → `--test x`; a `src` module →
+  `--lib` + the tests naming it; a shared test module or asset → the tests naming it;
+  `src/bin/b.rs` → `--bin b`), plus the worker's targeted commands. Suite-shaped commands (a
+  `suite` entry modulo `-j`/`--no-fail-fast`, or an unfiltered `cargo test`) leave the gate. A
+  `.rs`/`Cargo.toml` outside every crate falls back to the job's commands. The result carries
+  `selection: { reasons, dropped }`.
+- **Suite cadence** (`suite.mjs`): while the queue is idle and `suite_every` landings have
+  accumulated, the daemon runs `suite` (default `verify_default`) on the committed HEAD; a
+  queued job cancels it (it re-runs later), a hand-edited build path skips it. The tree is never
+  checked out or rewritten. A red run writes `suite/<sha>.json` and files one `cap regression`
+  per failing set: the range since the last green run, the failing tests with their targets,
+  and the landings whose paths map to those targets as the inferred causing_commit
+  (`suite-blame.mjs`). `broker status` prints the suite line.
+- **-j auto** (`jobs.mjs`): every core the RAM feeds at 4 GiB a job, unless a number pins it.
 
 ## Coexistence with a hand-driven writer
 
@@ -130,6 +157,10 @@ broker:
     - cargo t                                # the project's fastdev alias
   # untracked_blocks: ["crates/**/*.rs"]   # absent = derived from the cargo layout (see above)
   dirty_blocks: ["**/*.rs", "**/Cargo.toml", "**/Cargo.lock"]   # tracked edits that pause the queue
+  land_gate: affected                        # default full; affected = check + mapped tests (Fast landing)
+  affected: { check: "cargo check --offline --workspace --all-targets", test: "cargo t --offline" }
+  suite: ["cargo t --offline", "cargo run --offline --release --bin probe"]   # default verify_default
+  suite_every: 3                             # landings between suite runs; default 1
   repos:
     - { name: stiletto,   path: ., main: main, remote: origin }
     - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }

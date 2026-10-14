@@ -23,6 +23,7 @@ import { acquireLock, heartbeat, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { processOnce } from './queue.mjs';
 import { STATUS, ensureDirs, listQueue } from './result.mjs';
+import { suiteLine } from './suite.mjs';
 import { withdrawJob } from './withdraw.mjs';
 
 const MS_PER_MIN = 60 * 1000;
@@ -49,6 +50,8 @@ if (command === 'status') {
   const queued = listQueue(cfg).length;
   console.error(`broker: ${isPaused(cfg) ? 'PAUSED' : 'running'}, ${queued} queued`);
   for (const line of deferredLines(cfg)) console.error(`  ${line}`);
+  const suite = suiteLine(cfg);
+  if (suite) console.error(`  ${suite}`);
   for (const e of selfCheck(cfg).entries) console.error(`  ${healthLine(e)}`);
   process.exit(0);
 }
@@ -81,6 +84,7 @@ const drain = () => {
   const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`) });
   if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : `broker: paused — ${summary.pausedRepos.join(', ')} holds hand edits (job ${summary.pausedOn} stays queued)`);
   else lastNote = '';
+  if (summary.suite) console.error(`  suite ${summary.suite.sha.slice(0, 7)} → ${summary.suite.status}${summary.suite.filed ? ' (regression filed)' : ''}`);
   return summary;
 };
 

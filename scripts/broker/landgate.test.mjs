@@ -46,7 +46,7 @@ const crateFixture = (gate) => {
     processOnce(s.cfg);
     return readResult(s.cfg, job.id);
   };
-  return { s, ran, land, suiteCmd, done: () => { cleanup(dir); s.done(); } };
+  return { s, ran, land, rec, suiteCmd, done: () => { cleanup(dir); s.done(); } };
 };
 
 const CAMERA = '*** edit crates/app/src/camera.rs\n<<<<<<< SEARCH\nx\n=======\ny\n>>>>>>> REPLACE\n';
@@ -56,7 +56,7 @@ test('an affected landing runs the check and the mapped tests, drops the suite, 
   try {
     const r = t.land(CAMERA, [t.suiteCmd]);
     assert.equal(r.status, 'landed', JSON.stringify(r));
-    assert.deepEqual(t.ran(), ['CHECK', 'TEST -p app --lib --test alpha']);
+    assert.deepEqual(t.ran(), ['CHECK', 'TEST -p app --lib --test alpha', 'SUITE'], 'the gate, then the suite on the idle cadence');
     assert.deepEqual(r.selection.dropped, [t.suiteCmd]);
     assert.deepEqual(r.selection.reasons, [{ path: 'crates/app/src/camera.rs', crate: 'app', picks: ['--lib', '--test alpha'] }]);
     const body = g(['log', '-1', '--pretty=%B'], t.s.root);
@@ -72,9 +72,9 @@ test('negative: land_gate full runs the job commands as given, and an unmapped .
   } finally { full.done(); }
   const stray = crateFixture('affected');
   try {
-    const r = stray.land('*** write tools/stray.rs\nfn main() {}\n', [stray.suiteCmd]);
+    const r = stray.land('*** write tools/stray.rs\nfn main() {}\n', [stray.rec('JOB')]);
     assert.equal(r.status, 'landed');
-    assert.deepEqual(stray.ran(), ['SUITE']);
+    assert.deepEqual(stray.ran(), ['JOB', 'SUITE'], 'the job commands as given, then the cadence');
     assert.equal(r.selection, null);
   } finally { stray.done(); }
 });

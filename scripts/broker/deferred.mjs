@@ -37,8 +37,8 @@ export function addDeferred(cfg, entries) {
   save(cfg, [...list, ...entries.map((e) => ({ ...e, deferredAt: new Date().toISOString() }))]);
 }
 
-export function fileBugViaCap({ cwd, text }) {
-  const r = spawnSync(process.execPath, [CAP, 'bug', text], { cwd, encoding: 'utf8', windowsHide: true });
+export function fileBugViaCap({ cwd, text, type = 'bug' }) {
+  const r = spawnSync(process.execPath, [CAP, type, text], { cwd, encoding: 'utf8', windowsHide: true });
   return r.status === 0;
 }
 
