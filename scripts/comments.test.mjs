@@ -186,6 +186,19 @@ try {
   console.log('     ' + (e.stderr ? e.stderr.toString().split('\n')[0] : e.message));
 }
 
+// Unknown / unsupported flags fail loudly; the default author follows CLAUDECODE (KIT-T465)
+const runT = (args, env = {}) => {
+  const e = { ...process.env, ...env };
+  if (env.CLAUDECODE === '') delete e.CLAUDECODE;
+  try { return { code: 0, out: execFileSync('node', [T_CLI, ...args, '--root', cli], { stdio: 'pipe', env: e }).toString() }; }
+  catch (err) { return { code: err.status, out: String(err.stderr) }; }
+};
+ok('CLI: comment --agent is rejected (non-zero, named)', (() => { const r = runT(['comment', 'KIT-T001', 'x', '--agent', 'claude']); return r.code === 2 && r.out.includes('--agent'); })());
+ok('CLI: comment with a made-up flag is rejected', (() => { const r = runT(['comment', 'KIT-T001', 'x', '--bogus', 'v']); return r.code === 2 && r.out.includes('--bogus'); })());
+ok('CLI: any t subcommand rejects an unknown flag', runT(['tick', 'KIT-T001', '1', '--bogus']).code === 2);
+ok('CLI: no --author inside Claude Code (CLAUDECODE=1) -> @claude', runT(['comment', 'KIT-T001', 'who'], { CLAUDECODE: '1' }).out.includes('by @claude'));
+ok('CLI: no --author outside Claude Code keeps the resolved user', runT(['comment', 'KIT-T001', 'who2'], { CLAUDECODE: '', KIT_USER: 'zed' }).out.includes('by @zed'));
+
 for (const d of fixtures) { try { rmSync(d, { recursive: true, force: true }); } catch {} }
 console.log(`\ncomments: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

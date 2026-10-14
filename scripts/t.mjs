@@ -381,6 +381,7 @@ function parseArgs(argv) {
     else if (a === '--file') flags.file = argv[++i];
     else if (a === '--not-dup') flags.notDup = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
+    else if (a.startsWith('--') && a !== '--help') { console.error(`t: unknown flag ${a}`); process.exit(2); }
     else pos.push(a);
   }
   return { flags, pos };
@@ -456,11 +457,13 @@ async function main() {
   }
   if (cmd === 'comment') {
     const [id, ...textWords] = rest;
+    const stray = Object.keys(flags).filter((k) => !['author', 'file', 'root'].includes(k));
+    if (stray.length) { console.error(`t comment: unsupported flag --${stray[0]} (takes --author, --file, --root)`); process.exit(2); }
     const text = flags.file ? readFileSync(flags.file, 'utf8').trim() : textWords.join(' ');
     if (!id || !text.trim()) { console.error('usage: t comment <id> "<text>" | --file <path> [--author <who>]'); process.exit(2); }
-    // A human running `t comment` without --author defaults to their resolved alias (KIT-T145),
-    // the same identity /api/me reports; an agent still passes --author (or KIT_AGENT-derived) explicitly.
-    const author = flags.author || resolveUser();
+    // No --author: inside a Claude Code session (CLAUDECODE) the author is claude; a human at a shell
+    // gets their resolved alias (KIT-T145), the identity /api/me reports.
+    const author = flags.author || (process.env.CLAUDECODE ? 'claude' : resolveUser());
     const r = comment(root, id, text, { ...flags, author });
     await refresh(root);
     const mentioned = r.mentions.length ? ` — mentions ${r.mentions.map((m) => '@' + m).join(' ')}` : '';
