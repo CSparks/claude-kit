@@ -18,6 +18,7 @@ import { findGreen, greenKey, recordGreen } from './green.mjs';
 import { treeState } from './cache.mjs';
 import { makeBaseline } from './baseline.mjs';
 import { landGate } from './landgate.mjs';
+import { coalesce } from './coalesce.mjs';
 import { gateTrailer } from './trailer.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
@@ -45,12 +46,12 @@ function writePlan(cwd, files) {
 const jobCommands = (cfg, job) => (Array.isArray(job.commands) && job.commands.length ? job.commands : cfg.verifyDefault);
 
 function runCommands(cfg, job, cwd, hooks) {
-  const commands = jobCommands(cfg, job);
+  const commands = cfg.runner === 'nextest' ? coalesce(jobCommands(cfg, job)) : jobCommands(cfg, job).map((cmd) => ({ cmd, from: null }));
   const out = [];
   for (let n = 0; n < commands.length; n++) {
     const log = logPathFor(cfg, job.id, n);
-    const r = runCommand(commands[n], { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
-    const entry = { ...r, log, ...diagnose(readFileSync(log, 'utf8')) };
+    const r = runCommand(commands[n].cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
+    const entry = { ...r, log, ...(commands[n].from ? { coalesced: commands[n].from } : {}), ...diagnose(readFileSync(log, 'utf8')) };
     out.push(entry);
     if (r.exit === 0) continue;
     if (!(job.ops || []).length) continue; // a test-only job already runs on the baseline: its failures are the baseline's

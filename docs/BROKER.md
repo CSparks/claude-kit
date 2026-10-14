@@ -98,6 +98,9 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
   and the landings whose paths map to those targets as the inferred causing_commit
   (`suite-blame.mjs`). `broker status` prints the suite line.
 - **-j auto** (`jobs.mjs`): every core the RAM feeds at 4 GiB a job, unless a number pins it.
+- **Suite due** (KIT-T483): once `suite_every` landings have accumulated, the suite runs before the next queued job and is not cancelled by it, so a busy queue never starves it.
+- **runner: nextest** (`coalesce.mjs`): a job's per-target `cargo test`/`cargo t` commands for one package (no `--` filters) run as one `cargo nextest run --no-fail-fast`: one build, test binaries in parallel. The result entry lists them under `coalesced`.
+- **Heartbeat** (`heartbeat.mjs`): `wait.mjs` prints the job's queue position, or its running time and command, every `--heartbeat` seconds (default 60).
 
 ## Coexistence with a hand-driven writer
 
@@ -161,6 +164,7 @@ broker:
   affected: { check: "cargo check --offline --workspace --all-targets", test: "cargo t --offline" }
   suite: ["cargo t --offline", "cargo run --offline --release --bin probe"]   # default verify_default
   suite_every: 3                             # landings between suite runs; default 1
+  runner: nextest                            # default cargo; nextest merges a job's per-target test runs
   repos:
     - { name: stiletto,   path: ., main: main, remote: origin }
     - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }

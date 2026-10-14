@@ -5,9 +5,10 @@
 //     check: cargo check --workspace --all-targets   # compile every target of the workspace
 //     test: cargo test                               # prefix for the mapped `-p <crate> --test …` run
 //   suite: [ "cargo test", … ]   # the full suite run on the cadence; default verify_default
-//   suite_every: 1               # landings between suite runs (the suite runs when the queue is idle)
+//   suite_every: 1               # landings between suite runs; once due it runs before the next job
+//   runner: cargo                # cargo (default) | nextest: a job's per-target cargo tests run as one nextest run
 //
-// `pipelineConfig(broker, verifyDefault)` → { landGate, affected: { check, test }, suite, suiteEvery }.
+// `pipelineConfig(broker, verifyDefault)` → { landGate, affected: { check, test }, suite, suiteEvery, runner }.
 
 const DEFAULT_CHECK = 'cargo check --workspace --all-targets';
 const DEFAULT_TEST = 'cargo test';
@@ -20,5 +21,6 @@ export function pipelineConfig(broker, verifyDefault) {
     affected: { check: String(a.check || DEFAULT_CHECK), test: String(a.test || DEFAULT_TEST) },
     suite: Array.isArray(broker.suite) && broker.suite.length ? broker.suite.map(String) : verifyDefault.slice(),
     suiteEvery: Number.isFinite(every) && every >= 1 ? Math.floor(every) : 1,
+    runner: broker.runner === 'nextest' ? 'nextest' : 'cargo',
   };
 }

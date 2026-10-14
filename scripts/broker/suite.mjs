@@ -8,7 +8,10 @@
 // of failing tests, naming the range since the last green run, the failing tests, and the
 // landings whose paths map to the failing targets (suite-blame.mjs) as the inferred causing_commit.
 //
-// `runSuite(cfg, { fileBug, pollMs })` → null (not due) | { sha, status, cancelled?, filed? }.
+// With `force` (the queue calls it before each job) it runs only once suite_every landings are
+// due, ignores the queue and cannot be cancelled, so a busy queue never starves it.
+//
+// `runSuite(cfg, { fileBug, pollMs, force })` → null (not due) | { sha, status, cancelled?, filed? }.
 // `suiteState(cfg)` → { lastRun, lastGreen, filed }.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -32,10 +35,15 @@ export function suiteState(cfg) {
 }
 const save = (cfg, state) => { mkdirSync(dir(cfg), { recursive: true }); writeFileSync(stateFile(cfg), JSON.stringify(state, null, 2)); };
 
-function due(cfg, cwd, state, head) {
+const landingsSince = (cwd, base, head) => Number(git(['rev-list', '--count', `${base}..${head}`], cwd).out);
+
+// Idle: any new HEAD is worth a run. Forced: only once suite_every landings have accumulated
+// since the last run (or since the cadence first saw this checkout).
+function due(cfg, cwd, state, head, force) {
   if (!head || head === state.lastRun) return false;
-  if (!state.lastRun) return true;
-  const count = Number(git(['rev-list', '--count', `${state.lastRun}..${head}`], cwd).out);
+  const base = state.lastRun || state.since;
+  if (!base) return !force;
+  const count = landingsSince(cwd, base, head);
   return !Number.isFinite(count) || count >= cfg.suiteEvery;
 }
 
@@ -48,12 +56,13 @@ function regressionText(head, state, failing, landings, blamed, logs) {
   return `full suite red at ${short(head)}: failing ${tests}; range ${range}; ${likely}; logs ${logs.join(', ')}`;
 }
 
-export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs } = {}) {
-  if (cfg.landGate !== 'affected' || listQueue(cfg).length) return null;
+export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, force = false } = {}) {
+  if (cfg.landGate !== 'affected' || (!force && listQueue(cfg).length)) return null;
   const cwd = cfg.root;
   const state = suiteState(cfg);
   const head = revParse(cwd, 'HEAD');
-  if (!due(cfg, cwd, state, head)) return null;
+  if (!state.lastRun && !state.since && head) save(cfg, { ...state, since: head });
+  if (!due(cfg, cwd, state, head, force)) return null;
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   if (!checkoutState(cwd, { untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks }).clean) return null;
 
@@ -62,7 +71,7 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs } = {}) {
   const commands = [];
   for (let n = 0; n < cfg.suite.length; n++) {
     const logPath = logPathFor(cfg, id, n);
-    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(cfg.suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => listQueue(cfg).length > 0, pollMs }));
+    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(cfg.suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => !force && listQueue(cfg).length > 0, pollMs }));
     if (run.cancelled) return { sha: head, status: 'cancelled', cancelled: true };
     commands.push({ cmd: run.cmd, exit: run.exit, durationMs: run.durationMs, log: logPath });
   }
