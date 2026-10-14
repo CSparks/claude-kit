@@ -14,6 +14,7 @@ import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
 import { addDeferred } from './deferred.mjs';
 import { GATE_CRASH, gatePlan } from './gate.mjs';
+import { findGreen, greenKey, recordGreen } from './green.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
 import { changedLocks, checkoutState, dirtyPaths, git, lockFiles, logSince, revParse, showFile } from './git.mjs';
@@ -37,8 +38,10 @@ function writePlan(cwd, files) {
 // (attribute.mjs) against the pre-patch tree via `hooks.baseline(fn)`; all-foreign failures
 // let the job carry on, any caused failure or unattributable one stops it. A paired pin for
 // the job's ticket (paired.mjs) makes every failure suspect: no baseline, the job fails.
+const jobCommands = (cfg, job) => (Array.isArray(job.commands) && job.commands.length ? job.commands : cfg.verifyDefault);
+
 function runCommands(cfg, job, cwd, hooks) {
-  const commands = Array.isArray(job.commands) && job.commands.length ? job.commands : cfg.verifyDefault;
+  const commands = jobCommands(cfg, job);
   const out = [];
   for (let n = 0; n < commands.length; n++) {
     const log = logPathFor(cfg, job.id, n);
@@ -103,6 +106,8 @@ export function processPatch(cfg, job, repo) {
   pins = [...pins, ...held.pins];
   const explicit = () => pins.filter((p) => !p.implicit);
 
+  const key = greenKey(cfg, cwd, { repo: job.repo, files: plan.files, commands: jobCommands(cfg, job), pins });
+  const reused = job.land ? findGreen(cfg, key) : null;
   const locksBefore = lockFiles(cwd);
   const captureTree = () => capture(cfg, { id: job.id, cwd, paths: [...new Set([...plan.files.keys(), ...locksBefore])] });
   const startedAt = new Date().toISOString();
@@ -123,9 +128,10 @@ export function processPatch(cfg, job, repo) {
       try { return withState(state, fn((cmd, tag) => { const log = logPathFor(cfg, job.id, tag); runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs }); return log; })); }
       finally { restoreTree(); journal = captureTree(); checkoutPins(pins); writePlan(cwd, plan.files); }
     };
-    const commands = runCommands(cfg, job, cwd, { baseline });
+    const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, job, cwd, { baseline });
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
+    if (green && !job.land && (job.ops || []).length) recordGreen(cfg, key, { job: job.id, commands, foreign });
     if (!green || !job.land) return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat, foreign });
 
     // Every Cargo.lock was journalled as found (KIT-T306), so a lock that differs from HEAD now
@@ -139,7 +145,7 @@ export function processPatch(cfg, job, repo) {
     keep = land.committed;
     if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, message: land.error });
-    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, landed: { sha: land.sha, superSha: land.superSha } });
+    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha } });
   } finally {
     if (keep) { discard(cfg); settlePins(pins); }
     else {
