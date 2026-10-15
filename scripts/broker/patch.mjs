@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { admit } from './admit.mjs';
 import { capture, discard, dropNewLocks, markCommitted, restore, restoreMismatches } from './preimage.mjs';
-import { landPatch } from './land.mjs';
+import { landLinked } from './linked.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
@@ -128,14 +128,19 @@ export function processPatch(cfg, job, repo) {
       const known = new Set(foreign.map((f) => f.test));
       return { ok: again.every((c) => c.exit === 0 || (c.failedTests.length && !Object.keys(c.errors).length && c.failedTests.every((t) => known.has(t)))) };
     };
-    const land = landPatch(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], {
+    const land = landLinked(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], {
       verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }), onPhase: (p) => ph.enter(p),
       onCommitted: (c) => markCommitted(cfg, journal, { ...c, repo: job.repo, jobs: [landedJob(job)] }),
     });
     keep = land.committed;
+    const inLanded = (p) => (land.landedSubs || []).some((s) => p.startsWith(`${s}/`));
+    if ((land.landedSubs || []).length) {
+      journal = { ...journal, entries: journal.entries.filter((e) => !inLanded(e.path)) };
+      pins = pins.filter((p) => !land.landedSubs.includes(String(p.path).split('\\').join('/')));
+    }
     if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, selection, message: land.error });
-    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, selection, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha } });
+    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, selection, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha, ...(land.subSha ? { subSha: land.subSha } : {}) } });
   } finally {
     if (keep) { discard(cfg); settlePins(pins); }
     else {

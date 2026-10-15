@@ -156,6 +156,10 @@ land then pins the superproject with a pathspec-only commit
 (`chore: pin rapid-game <sha> — <title> (implements <ticket>) [no-log: submodule pin]`); it
 refuses if anything is already staged and asserts only the pointer is staged.
 
+## Linked jobs (a superproject patch that also edits its submodule, KIT-T482 item 4)
+
+A superproject job may edit paths inside a submodule, written from the superproject root (`*** edit rapid-game/crates/rg-ui/src/x.rs`). Those paths plan against the submodule commit the superproject records (`linked.mjs`), build and test together with the consumer change, and land as one unit: the submodule commit goes out first (with its own pre-push gate, on its `main`), then ONE superproject commit carries the consumer paths and the new gitlink. A red run lands neither half. If the superproject push fails after the submodule landed, the submodule stays at its pushed commit (its files are not restored) and the result names the sha to resubmit the consumer half with `--pin`. A linked job never rides a train.
+
 ## Config — `broker:` in `.ai/config.yml`
 
 ```yaml

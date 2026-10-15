@@ -2,7 +2,8 @@
 // The head of the queue takes along later jobs of the same repo, in submit order, up to
 // `batch` members, when each one:
 //   - carries operations (a test-only job measures the baseline, so it runs alone),
-//   - holds no explicit `--pin`, touches no Cargo.toml / Cargo.lock, and shares the head's --no-pin,
+//   - holds no explicit `--pin`, touches no Cargo.toml / Cargo.lock nor a submodule path (a linked
+//     job, linked.mjs, lands alone), and shares the head's --no-pin,
 //   - has no paired pin for its ticket (paired.mjs: its failures must stay suspect),
 //   - passes admission (admit.mjs) and touches no path another member or an earlier skipped
 //     job touches, so jobs over the same file keep their submit order.
@@ -18,13 +19,15 @@ import { findGreen, greenKey } from './green.mjs';
 import { jobCommands } from './job-commands.mjs';
 import { pairedPins } from './paired.mjs';
 import { implicitPins } from './pin.mjs';
+import { splitLinked } from './linked.mjs';
 
 const MANIFEST = /(^|\/)Cargo\.(toml|lock)$/;
 const posix = (p) => String(p).replace(/\\/g, '/');
 const rawPaths = (job) => (job.ops || []).map((o) => posix(o.path));
 
-const trainable = (job, head) => (job.ops || []).length > 0 && !(job.pins || []).length
-  && !rawPaths(job).some((p) => MANIFEST.test(p)) && !!job.noPin === !!head.noPin;
+const trainable = (cfg, job, head) => (job.ops || []).length > 0 && !(job.pins || []).length
+  && !rawPaths(job).some((p) => MANIFEST.test(p)) && !!job.noPin === !!head.noPin
+  && !splitLinked(cfg, repoByName(cfg, job.repo) || {}, rawPaths(job)).subs.size;
 
 function cachedGreen(cfg, repo, head, admitted) {
   const held = implicitPins(cfg, repo, admitted.cwd, head);
@@ -34,11 +37,11 @@ function cachedGreen(cfg, repo, head, admitted) {
 }
 
 export function formTrain(cfg, head, queue, { skip = () => false } = {}) {
-  if (!(cfg.batch > 1) || !trainable(head, head)) return null;
+  if (!(cfg.batch > 1) || !trainable(cfg, head, head)) return null;
   const repo = repoByName(cfg, head.repo);
   if (!repo) return null;
   const peers = queue.filter((j) => j.id !== head.id && j.repo === head.repo && !skip(j));
-  if (!peers.some((j) => trainable(j, head))) return null;
+  if (!peers.some((j) => trainable(cfg, j, head))) return null;
   const first = admit(cfg, head, repo);
   if (!first.ok || pairedPins(first.cwd, head.base, head.ticket).length) return null;
   if (head.land && cachedGreen(cfg, repo, head, first)) return null;
@@ -51,7 +54,7 @@ export function formTrain(cfg, head, queue, { skip = () => false } = {}) {
   for (const job of peers) {
     if (members.length >= cfg.batch) break;
     const raw = rawPaths(job);
-    if (!trainable(job, head) || clashes(raw)) { block(raw); continue; }
+    if (!trainable(cfg, job, head) || clashes(raw)) { block(raw); continue; }
     const a = admit(cfg, job, repo);
     if (!a.ok || clashes(a.touched) || pairedPins(a.cwd, job.base, job.ticket).length) { block([...raw, ...(a.touched || [])]); continue; }
     members.push({ job, ...a });

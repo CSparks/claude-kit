@@ -3,7 +3,8 @@
 // it, so the plan, the restore journal and the landing only ever hold file paths.
 //
 // `expandOps(cwd, ops)` → ops with directory deletes expanded.
-// `planAtHead(cwd, ops)` → { ops, plan } where plan is apply.mjs's dryRun result over `ops`.
+// `planAtHead(cwd, ops, { read })` → { ops, plan } where plan is apply.mjs's dryRun result over `ops`;
+//   `read(path)` replaces the HEAD reader (linked.mjs reads submodule paths at the recorded commit).
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,8 +23,8 @@ export function expandOps(cwd, ops = []) {
   });
 }
 
-export function planAtHead(cwd, ops) {
+export function planAtHead(cwd, ops, { read = (p) => showFile(cwd, 'HEAD', p) } = {}) {
   const expanded = expandOps(cwd, ops);
-  const plan = dryRun(expanded, (p) => showFile(cwd, 'HEAD', p), { onDisk: (p) => existsSync(join(cwd, p)) });
+  const plan = dryRun(expanded, read, { onDisk: (p) => existsSync(join(cwd, p)) });
   return { ops: expanded, plan };
 }

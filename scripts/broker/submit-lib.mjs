@@ -8,6 +8,7 @@ import { repoByName } from './config.mjs';
 import { parseEnvelope } from './envelope.mjs';
 import { git, revParse } from './git.mjs';
 import { planAtHead } from './plan.mjs';
+import { linkedReader } from './linked.mjs';
 import { isSuiteShaped } from './landgate.mjs';
 
 export const SUITE_REFUSAL = 'full suites run on the cadence; list the targets you touched (--test "cargo t -p <crate> --test <name>")';
@@ -47,7 +48,7 @@ export function buildPatchJob(cfg, flags, text) {
 
   const cwd = join(cfg.root, repo.path);
   const base = revParse(cwd, 'HEAD');
-  const { plan } = planAtHead(cwd, ops);
+  const { plan } = planAtHead(cwd, ops, { read: linkedReader(cfg, repo, cwd) });
   const meta = {
     id: newJobId(), revises: typeof flags.revises === 'string' ? flags.revises : null, repo: repo.name, base,
     ticket: flags.ticket ? String(flags.ticket) : null, title: flags.title ? String(flags.title) : '',
