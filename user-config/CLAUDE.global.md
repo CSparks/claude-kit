@@ -241,6 +241,10 @@ compaction summary.
   blocks a code commit that neither touches the plan-of-record nor cites a ticket
   (`[no-log: reason]` for genuine non-work).
 - **Decisions / directives** go in DECISIONS the turn they happen.
+  A standing directive the maintainer states (a rule, a "never", a repeated correction) is written
+  with `t decide --file` that same turn, verbatim words in the body, before any further work
+  (KIT-T507). Orient replays the kit's last three days of decisions into every project's session, so
+  a ruling in one session reaches the rest; a directive left in a ticket comment reaches no one.
 - **Dedup before you file (KIT-T025/T159):** an item created directly (not via `cap`
   → triage) runs `q fts` on its nouns first — duplicating a parallel session's
   ticket is a filing bug.

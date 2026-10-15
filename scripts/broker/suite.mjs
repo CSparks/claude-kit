@@ -66,7 +66,7 @@ function starved(cfg, cwd, state, head, now) {
 }
 
 export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now() } = {}) {
-  if (cfg.landGate !== 'affected') return null;
+  if (cfg.landGate !== 'affected' || cfg.lane) return null;
   const busy = listQueue(cfg).length > 0;
   const cwd = cfg.root;
   const state = suiteState(cfg);

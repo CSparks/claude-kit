@@ -19,17 +19,17 @@ const BROKER = join(import.meta.dirname, 'broker.mjs');
 // --idle-exit. The idle exit only counts minutes with an empty queue, so it never leaves jobs waiting.
 const caller = () => `${process.argv[1] ? process.argv[1].split(/[\\/]/).pop() : 'node'} pid ${process.pid}`;
 
-export function spawnBroker(root, idleExit = IDLE_EXIT_MIN, why = 'started') {
-  const r = launchDaemon(BROKER, root, [...(idleExit ? ['--idle-exit', String(idleExit)] : []), '--spawned-by', `${caller()}: ${why}`]);
+export function spawnBroker(root, idleExit = IDLE_EXIT_MIN, why = 'started', lane = null) {
+  const r = launchDaemon(BROKER, root, [...(lane ? ['--lane', lane] : []), ...(idleExit ? ['--idle-exit', String(idleExit)] : []), '--spawned-by', `${caller()}: ${why}`]);
   if (!r.ok) console.error(`broker: could not start a daemon: ${r.error}`);
   return r;
 }
 
 /** Start a broker unless a live one holds the lock; a holder stalled past RESTART_MS is killed and replaced (stall.mjs). `spawner(root, idleExit)` is injectable. Returns true when it started one. */
 export function ensureBroker(cfg, root, spawner = spawnBroker) {
-  if (liveHolder(cfg)) return restartIfWedged(cfg, root, { spawner: (r, why) => spawner(r, null, why) });
+  if (liveHolder(cfg)) return restartIfWedged(cfg, root, { spawner: (r, why) => spawner(r, null, why, cfg.lane) });
   if (!claimSpawn(cfg)) return false;
-  spawner(root, IDLE_EXIT_MIN, `${listQueue(cfg).length} job(s) queued with no daemon`);
+  spawner(root, IDLE_EXIT_MIN, `${listQueue(cfg).length} job(s) queued with no daemon`, cfg.lane);
   return true;
 }
 
@@ -54,5 +54,5 @@ export const NO_BROKER_GRACE_MS = 10_000;
  */
 export function noBrokerWarning(cfg, id, { missingForMs = NO_BROKER_GRACE_MS, graceMs = NO_BROKER_GRACE_MS } = {}) {
   if (missingForMs < graceMs || observedLive(cfg) || !listQueue(cfg).some((j) => j.id === id)) return null;
-  return `wait: no broker running — ${id} is queued but nothing will start it (start one: node ${BROKER} --root ${cfg.root})`;
+  return `wait: no broker running — ${id} is queued but nothing will start it (start one: node ${BROKER} --root ${cfg.root}${cfg.lane ? ` --lane ${cfg.lane}` : ''})`;
 }

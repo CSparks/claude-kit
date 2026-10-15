@@ -6,7 +6,7 @@
 // is boolean true; a repeated `--key` collects into an array.
 
 import { resolve } from 'node:path';
-import { readBrokerConfig } from './config.mjs';
+import { readBrokerConfig, withLane } from './config.mjs';
 
 export function parseFlags(argv) {
   const out = { _: [] };
@@ -25,10 +25,10 @@ export function parseFlags(argv) {
   return out;
 }
 
-// Resolve --root (default cwd) and read its broker config.
+// Resolve --root (default cwd) and read its broker config; `--lane <repo>` selects a submodule's queue.
 export function loadCfg(flags) {
   const root = resolve(typeof flags.root === 'string' ? flags.root : process.cwd());
-  return { root, cfg: readBrokerConfig(root) };
+  return { root, cfg: withLane(readBrokerConfig(root), typeof flags.lane === 'string' ? flags.lane : null) };
 }
 
 export function asList(v) {

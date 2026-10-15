@@ -4,7 +4,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { brokerPaths, readBrokerConfig } from './config.mjs';
+import { brokerPaths, laneConfigs, readBrokerConfig } from './config.mjs';
 import { isPaused } from './control.mjs';
 import { deferredLines } from './deferred.mjs';
 import { readLock } from './lock.mjs';
@@ -41,15 +41,18 @@ const posix = (p) => String(p).split('\\').join('/');
  * someone starts one. [] otherwise, or when the operator paused the queue.
  */
 export function noDaemonBlock(root, now = Date.now()) {
-  const cfg = readBrokerConfig(root);
+  return laneConfigs(readBrokerConfig(root)).flatMap((cfg) => laneNoDaemon(cfg, root, now));
+}
+
+function laneNoDaemon(cfg, root, now) {
   if (!existsSync(brokerPaths(cfg).home) || brokerLive(cfg) || isPaused(cfg)) return [];
   const queued = listQueue(cfg);
   if (!queued.length) return [];
   const oldest = Math.round((now - Math.min(...queued.map((j) => submittedAt(j.id)).filter(Number.isFinite))) / MS_PER_MIN);
   const script = posix(join(import.meta.dirname, 'broker.mjs'));
   return [
-    `--- DISPATCH NOW: ${queued.length} broker job(s) queued, no daemon running (oldest waiting ${oldest} min) ---`,
-    `  start one now: node ${script} --root ${posix(root)} --log auto   (any submit or wait also starts one)`,
+    `--- DISPATCH NOW: ${queued.length} broker job(s) queued${cfg.lane ? ` in the ${cfg.lane} queue` : ''}, no daemon running (oldest waiting ${oldest} min) ---`,
+    `  start one now: node ${script} --root ${posix(root)}${cfg.lane ? ` --lane ${cfg.lane}` : ''} --log auto   (any submit or wait also starts one)`,
     '',
   ];
 }

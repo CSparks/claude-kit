@@ -65,6 +65,7 @@ export function normalizeBroker(root, broker) {
     untrackedDerived: !Array.isArray(broker.untracked_blocks),
     dirtyBlocks: Array.isArray(broker.dirty_blocks) ? broker.dirty_blocks.map(String) : DEFAULT_DIRTY_BLOCKS.slice(),
     repos,
+    lane: null,
     ...pipelineConfig(broker, verifyDefault),
   };
 }
@@ -86,10 +87,23 @@ export function repoByName(cfg, name) {
   return cfg.repos.find((r) => r.name === name) || null;
 }
 
+// One queue and one daemon per repo (KIT-D096). The root lane (`lane` null) serves every repo that
+// is not a submodule; each `submodule: true` repo is its own lane, with its own queue dir, lock,
+// results and daemon, so neither waits on the other's jobs.
+export const laneOfRepo = (cfg, repoName) => {
+  const repo = repoByName(cfg, repoName);
+  return repo && repo.submodule ? repo.name : null;
+};
+export const withLane = (cfg, lane) => ({ ...cfg, lane: lane || null });
+/** [null, ...submodule repo names]: every lane of this checkout. */
+export const lanesOf = (cfg) => [null, ...cfg.repos.filter((r) => r.submodule).map((r) => r.name)];
+/** The per-lane configs of a checkout, root lane first. */
+export const laneConfigs = (cfg) => lanesOf(cfg).map((l) => withLane(cfg, l));
+
 // The broker's control directories live under `<targetDir>/broker` so the build cache and the
 // broker's own state share one gitignored home (target/ is gitignored, no store hooks fire).
 export function brokerPaths(cfg) {
-  const home = join(cfg.targetDir, 'broker');
+  const home = cfg.lane ? join(cfg.targetDir, 'broker', 'lanes', cfg.lane) : join(cfg.targetDir, 'broker');
   return {
     home,
     queue: join(home, 'queue'),

@@ -477,6 +477,14 @@ if (decisionsDir) {
   if (total > DECISIONS_GIST_LINES) out.push(`  … (${total} lines total) — full: tail -n 40 .ai/DECISIONS.md`);
 }
 
+// A kit decision binds every project: replay the kit's recent ones here (KIT-T507).
+try {
+  const { recentKitDecisions } = await import('../scripts/kit-decisions.mjs');
+  out.push(...recentKitDecisions(root));
+} catch {
+  /* kit decision replay is best-effort */
+}
+
 // Open work — queried from cache; in-flight (doing/review) for THIS project shown inline.
 try {
   const { readIdConfig } = await import('../scripts/id-utils.mjs');

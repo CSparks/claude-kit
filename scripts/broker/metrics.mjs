@@ -9,7 +9,7 @@
 // `parseSince(text, now)` → ms | null.  `statsReport(cfg, { since, now })` → { text, data }.
 // `rollupLine(cfg, now)` → string | null.
 
-import { brokerPaths } from './config.mjs';
+import { brokerPaths, laneConfigs, withLane } from './config.mjs';
 import { loadResults, submittedAt } from './stats.mjs';
 
 export const TARGET_X = 1.5;
@@ -117,7 +117,8 @@ function textOf(m, label) {
 
 export function statsReport(cfg, { since = null, now = Date.now() } = {}) {
   const from = since ? parseSince(since, now) : null;
-  const results = loadResults(brokerPaths(cfg).results).filter((r) => from == null || submittedAt(r.id) >= from);
+  const lanes = cfg.lane ? [cfg] : laneConfigs(withLane(cfg, null));
+  const results = lanes.flatMap((l) => loadResults(brokerPaths(l).results)).filter((r) => from == null || submittedAt(r.id) >= from);
   const data = metrics(results);
   return { data, text: textOf(data, `broker stats${since ? ` since ${since}` : ''} (${cfg.root})`).join('\n') };
 }

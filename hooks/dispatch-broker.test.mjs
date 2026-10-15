@@ -15,10 +15,11 @@ const HOOK = fileURLToPath(new URL('./dispatch-guard.mjs', import.meta.url));
 const DEAD_PID = 2147483646;
 let failures = 0;
 
-function repo({ lock }) {
+function repo({ lock, brokered = true }) {
   const dir = mkdtempSync(join(tmpdir(), 'dgb-'));
   execFileSync('git', ['init', '-q'], { cwd: dir });
   mkdirSync(join(dir, '.ai'), { recursive: true });
+  if (brokered) writeFileSync(join(dir, '.ai', 'config.yml'), 'broker:\n  repos:\n    - { name: app, path: . }\n');
   writeFileSync(join(dir, 'Cargo.toml'), '[workspace]\nmembers = ["game"]\n');
   if (lock) {
     mkdirSync(join(dir, 'target', 'broker'), { recursive: true });
@@ -68,6 +69,7 @@ const writer = { subagent_type: 'general-purpose', prompt: 'implement the ticket
 }
 
 expect('a stale lock (dead pid) does not block', run(repo({ lock: 'dead' }), writer).code === 0);
+expect('control: a live lock in a repo with no broker config (claude-kit, a Node repo) does not block (KIT-D096)', run(repo({ lock: 'live', brokered: false }), writer).code === 0);
 expect('no lock does not block', run(repo({ lock: null }), writer).code === 0);
 
 process.exit(failures ? 1 : 0);

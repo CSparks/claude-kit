@@ -104,7 +104,7 @@ const direct = run(join(KIT, 'scripts', 'runtime-publish.mjs'), ['--runtime', ru
 ok('publishing outside the npm script is refused', direct.status === 1 && /npm run publish:runtime/.test(direct.stderr), direct.stderr);
 ok('a refused publish leaves current where it was', realpathSync(join(runtimeRoot, 'current')) === before);
 const pkg = JSON.parse(readFileSync(join(KIT, 'package.json'), 'utf8'));
-ok('publish:runtime runs the suite before the publish script', /^npm test && node scripts\/runtime-publish\.mjs/.test(pkg.scripts['publish:runtime']));
+ok('publish:runtime is the publish script alone, which tests exported HEAD itself (KIT-T510)', pkg.scripts['publish:runtime'] === 'node scripts/runtime-publish.mjs');
 
 rmSync(tmp, { recursive: true, force: true });
 rmSync(bare, { recursive: true, force: true });

@@ -32,7 +32,9 @@ import { setPulse, stallLine, stallState } from './stall.mjs';
 import { appendFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { launchDaemon } from './launch.mjs';
-import { brokerPaths } from './config.mjs';
+import { brokerPaths, laneConfigs } from './config.mjs';
+import { laneCfgFor } from './lanes.mjs';
+import { rerouteMisplaced } from './reroute.mjs';
 import { runtimeCurrent } from '../runtime-path.mjs';
 import { usageProblem } from './usage.mjs';
 import { stopDaemon } from './stop.mjs';
@@ -43,6 +45,7 @@ const flags = parseFlags(process.argv.slice(2));
 const problem = usageProblem(flags);
 if (problem) { (problem.code ? console.error : console.log)(problem.text); process.exit(problem.code); }
 const { root, cfg } = loadCfg(flags);
+const rootCfg = { ...cfg, lane: null };
 ensureDirs(cfg);
 let logFile = null;
 if (flags.log) {
@@ -59,8 +62,9 @@ if (command === 'pause' || command === 'resume') {
 
 if (command === 'cancel') {
   const id = flags._[1];
+  const laneCfg = id ? laneCfgFor(cfg, id) : cfg;
   if (!id) { console.error('broker: cancel needs a job id'); process.exit(2); }
-  const gone = withdrawJob(cfg, id, { status: STATUS.CANCELLED, message: 'cancelled by the operator' });
+  const gone = withdrawJob(laneCfg, id, { status: STATUS.CANCELLED, message: 'cancelled by the operator' });
   console.error(gone.ok ? `broker: cancelled queued ${id}` : `broker: ${gone.error}`);
   process.exit(gone.ok ? 0 : 1);
 }
@@ -79,6 +83,8 @@ if (command === 'stats') {
 }
 
 if (command === 'status') {
+  for (const cfg of flags.lane ? [rootCfg] : laneConfigs(rootCfg)) {
+  if (cfg.lane) console.error(`lane ${cfg.lane}:`);
   const queued = listQueue(cfg).length;
   const stall = stallState(cfg);
   const holder = liveHolder(cfg);
@@ -88,6 +94,7 @@ if (command === 'status') {
   const suite = suiteLine(cfg);
   if (suite) console.error(`  ${suite}`);
   for (const e of selfCheck(cfg).entries) console.error(`  ${healthLine(e)}`);
+  }
   process.exit(0);
 }
 
@@ -120,6 +127,8 @@ const note = (text) => { if (text !== lastNote) console.error(text); lastNote = 
 const drain = () => {
   heartbeat(cfg);
   announce(selfCheck(cfg, { heal: true }).entries, said);
+  const moved = rerouteMisplaced(cfg);
+  if (moved.length) console.error(`broker: moved ${moved.length} job(s) to their repo's own queue: ${moved.join(', ')}`);
   const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`) });
   if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : `broker: paused — ${summary.pausedRepos.join(', ')} holds hand edits (job ${summary.pausedOn} stays queued)`);
   else lastNote = '';

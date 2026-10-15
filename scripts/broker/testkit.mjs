@@ -23,6 +23,7 @@ export function gTry(args, cwd) {
 
 // A test never auto-starts a daemon (submit/wait honour this, and children inherit it).
 process.env.BROKER_NO_AUTOSTART ??= '1';
+process.env.BROKER_PUSH_LOCK_DIR ??= mkdtempSync(join(tmpdir(), 'push-locks-'));
 
 const made = new Set();
 

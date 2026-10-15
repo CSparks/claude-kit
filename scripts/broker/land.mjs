@@ -6,6 +6,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { git, gitLong, revParse } from './git.mjs';
 import { syncPush } from './sync-push.mjs';
+import { withPushLock } from './pushlock.mjs';
 import { repinSuperproject } from './submodule.mjs';
 import { buildEnv, runPrePush } from './prepush.mjs';
 import { logPathFor } from './result.mjs';
@@ -88,7 +89,8 @@ export function pushLanding(cfg, repo, cwd, { jobs, paths, preHead, verify, onPh
     const gate = runPrePush(cfg, cwd, repo.remote, repo.main, logPathFor(cfg, first.id, 'pre-push'));
     return { ok: gate.ok, error: `the repo's pre-push gate refused (exit ${gate.exit}): ${gate.log.slice(-8).join(' | ')}` };
   } : null;
-  const pushed = syncPush(cwd, repo.remote, repo.main, { verify, env: buildEnv(cfg), beforePush, onPhase });
+  const sync = () => syncPush(cwd, repo.remote, repo.main, { verify, env: buildEnv(cfg), beforePush, onPhase });
+  const pushed = repo.submodule ? withPushLock(git(['remote', 'get-url', repo.remote], cwd).out, sync) : sync();
   if (pushed.conflict) {
     git(['reset', '-q', '--mixed', preHead], cwd);
     return { ok: false, committed: false, conflict: pushed.conflict, error: pushed.error };
@@ -96,7 +98,8 @@ export function pushLanding(cfg, repo, cwd, { jobs, paths, preHead, verify, onPh
   if (!pushed.ok) return undoLanding(cwd, repo, paths, preHead, pushed);
   const sha = revParse(cwd, 'HEAD');
   const shas = git(['rev-list', '--reverse', '-n', String(jobs.length), 'HEAD'], cwd).out.split(/\r?\n/).filter(Boolean);
-  if (!repo.submodule || jobs.every((j) => j.noPin)) return { ok: true, committed: true, sha, shas, superSha: null };
+  // A submodule lane lands and pushes only; the superproject pin is its own job (--pin <sub>=<sha>).
+  if (!repo.submodule || cfg.lane || jobs.every((j) => j.noPin)) return { ok: true, committed: true, sha, shas, superSha: null };
 
   onPhase('pin');
   const superRepo = cfg.repos.find((r) => !r.submodule && normalize(r.path) === normalize(repo.pinIn));

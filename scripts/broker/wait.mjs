@@ -11,6 +11,7 @@
 // (--grace-ms: how long no broker may be seen before wait says so; default 10000, a restart's gap)
 
 import { parseFlags, loadCfg } from './cli.mjs';
+import { laneCfgFor } from './lanes.mjs';
 import { join } from 'node:path';
 import { isCurrentResult } from './current.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
@@ -30,9 +31,9 @@ if (!id) {
   console.error('wait: a job id is required');
   process.exit(2);
 }
-const { root, cfg } = loadCfg(flags);
+const { root, cfg: rootCfg } = loadCfg(flags);
 const timeoutMs = (Number(flags.timeout) || DEFAULT_TIMEOUT_S) * 1000;
-const pollMs = Number(flags.poll) || cfg.pollMs;
+const pollMs = Number(flags.poll) || rootCfg.pollMs;
 const graceMs = flags['grace-ms'] === undefined ? NO_BROKER_GRACE_MS : Number(flags['grace-ms']);
 const beatMs = (flags.heartbeat === undefined ? DEFAULT_HEARTBEAT_S : Number(flags.heartbeat)) * 1000;
 
@@ -44,6 +45,7 @@ let missingSince = null;
 const said = new Set();
 let nextBeat = Date.now() + beatMs;
 while (Date.now() < deadline) {
+  const cfg = laneCfgFor(rootCfg, id);
   const result = readResult(cfg, id);
   if (result && isCurrentResult(cfg, result)) {
     printResult(result);
@@ -55,7 +57,7 @@ while (Date.now() < deadline) {
   if (warning) { console.error(warning); warned = true; }
   if (!process.env.BROKER_NO_AUTOSTART && missingForMs >= graceMs && listQueue(cfg).some((j) => j.id === id) && ensureBroker(cfg, root)) console.error(`wait: no daemon was running with ${id} queued; started one (log under ${join(cfg.targetDir, 'broker', 'logs')})`);
   announce(selfCheck(cfg, { skipNoDaemon: missingSince === null || Date.now() - missingSince < graceMs }).entries, said);
-  if (!process.env.BROKER_NO_AUTOSTART) restartIfWedged(cfg, root, { spawner: (r, why) => spawnBroker(r, null, why) });
+  if (!process.env.BROKER_NO_AUTOSTART) restartIfWedged(cfg, root, { spawner: (r, why) => spawnBroker(r, null, why, cfg.lane) });
   if (beatMs > 0 && Date.now() >= nextBeat) {
     const line = heartbeatLine(cfg, id);
     if (line) console.error(line);
@@ -63,6 +65,7 @@ while (Date.now() < deadline) {
   }
   await sleep(pollMs);
 }
+const cfg = laneCfgFor(rootCfg, id);
 const position = listQueue(cfg).findIndex((j) => j.id === id);
 const where = heartbeatLine(cfg, id);
 const alive = observedLive(cfg) && where;

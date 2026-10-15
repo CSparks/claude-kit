@@ -21,6 +21,7 @@
 
 import { readFileSync } from 'node:fs';
 import { parseFlags, loadCfg } from './cli.mjs';
+import { laneOfRepo, withLane } from './config.mjs';
 import { ensureBroker, IDLE_EXIT_MIN } from './ensure.mjs';
 import { announce, selfCheck } from './health.mjs';
 import { STATUS, writeJob, writeResult } from './result.mjs';
@@ -43,11 +44,13 @@ if (out.result) {
   console.log(JSON.stringify(writeResult(cfg, out.result), null, 2));
   process.exit(1);
 }
-const queuedJob = writeJob(cfg, out.job);
+// The job joins its repo's own queue (KIT-D096): a submodule's jobs never sit in the root lane.
+const laneCfg = withLane(cfg, laneOfRepo(cfg, out.job.repo));
+const queuedJob = writeJob(laneCfg, out.job);
 console.log(queuedJob.id);
 if (typeof flags.revises === 'string') {
-  const gone = withdrawJob(cfg, flags.revises, { status: STATUS.SUPERSEDED, message: `superseded by ${queuedJob.id}` });
+  const gone = withdrawJob(laneCfg, flags.revises, { status: STATUS.SUPERSEDED, message: `superseded by ${queuedJob.id}` });
   console.error(gone.ok ? `submit: withdrew queued ${flags.revises} (superseded by ${queuedJob.id})` : `submit: ${flags.revises} not withdrawn: ${gone.error}`);
 }
-if (!process.env.BROKER_NO_AUTOSTART && ensureBroker(cfg, root)) console.error(`submit: no broker was running; started one (idle exit ${IDLE_EXIT_MIN} min)`);
-else announce(selfCheck(cfg, { skipNoDaemon: true }).entries, new Set());
+if (!process.env.BROKER_NO_AUTOSTART && ensureBroker(laneCfg, root)) console.error(`submit: no broker was running; started one (idle exit ${IDLE_EXIT_MIN} min)`);
+else announce(selfCheck(laneCfg, { skipNoDaemon: true }).entries, new Set());

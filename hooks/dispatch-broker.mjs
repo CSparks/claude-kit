@@ -22,9 +22,21 @@ function targetDir(tree) {
   return join(tree, 'target');
 }
 
+// Only a repo whose `.ai/config.yml` declares broker repos is brokered (KIT-D096); an unbrokered repo
+// (claude-kit, a Node repo) is never broker-owned, whatever a stray lock file says.
+function brokersRepo(tree) {
+  try {
+    const lines = readFileSync(join(tree, '.ai', 'config.yml'), 'utf8').split(/\r?\n/);
+    const at = lines.findIndex((l) => /^broker:\s*$/.test(l));
+    for (let i = at + 1; at >= 0 && i < lines.length && /^(\s|$)/.test(lines[i]); i++) if (/^\s+repos:/.test(lines[i])) return true;
+  } catch { /* no config: not brokered */ }
+  return false;
+}
+
 /** The live daemon holding `tree`'s broker lock as { pid, host }, or null. */
 export function liveBroker(tree) {
   try {
+    if (!brokersRepo(tree)) return null;
     const file = join(targetDir(tree), 'broker', 'broker.lock');
     if (!existsSync(file)) return null;
     const held = JSON.parse(readFileSync(file, 'utf8'));
