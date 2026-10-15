@@ -1,17 +1,16 @@
 // suite.mjs — the full-suite cadence (KIT-T472). With `land_gate: affected` landings skip the
 // full suite; the daemon runs `suite` (default verify_default) on the committed HEAD when the queue
 // is idle and `suite_every` landings have accumulated since the last run. A queued job cancels the
-// run (it re-runs later), so the suite never delays a landing. The tree is never checked out or
-// rewritten: a hand-edited build path skips the run, and Cargo.lock is restored afterwards.
+// run (it re-runs later), so the suite never delays a landing and never runs ahead of a job.
+// Commands that finished before a cancel are kept per sha (`state.partial`) and not re-run while
+// HEAD stays put. The tree is never checked out or rewritten: a hand-edited build path skips the
+// run, and Cargo.lock is restored afterwards.
 //
 // Each run writes `<broker home>/suite/<sha>.json`. A red run files ONE `cap regression` per set
 // of failing tests, naming the range since the last green run, the failing tests, and the
 // landings whose paths map to the failing targets (suite-blame.mjs) as the inferred causing_commit.
 //
-// With `force` (the queue calls it before each job) it runs only once suite_every landings are
-// due, ignores the queue and cannot be cancelled, so a busy queue never starves it.
-//
-// `runSuite(cfg, { fileBug, pollMs, force })` → null (not due) | { sha, status, cancelled?, filed? }.
+// `runSuite(cfg, { fileBug, pollMs })` → null (not due) | { sha, status, cancelled?, filed? }.
 // `suiteState(cfg)` → { lastRun, lastGreen, filed }.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -38,12 +37,12 @@ const save = (cfg, state) => { mkdirSync(dir(cfg), { recursive: true }); writeFi
 
 const landingsSince = (cwd, base, head) => Number(git(['rev-list', '--count', `${base}..${head}`], cwd).out);
 
-// Idle: any new HEAD is worth a run. Forced: only once suite_every landings have accumulated
-// since the last run (or since the cadence first saw this checkout).
-function due(cfg, cwd, state, head, force) {
+// Any new HEAD is worth a run once suite_every landings have accumulated since the last run (or
+// since the cadence first saw this checkout).
+function due(cfg, cwd, state, head) {
   if (!head || head === state.lastRun) return false;
   const base = state.lastRun || state.since;
-  if (!base) return !force;
+  if (!base) return true;
   const count = landingsSince(cwd, base, head);
   return !Number.isFinite(count) || count >= cfg.suiteEvery;
 }
@@ -57,13 +56,13 @@ function regressionText(head, state, failing, landings, blamed, logs) {
   return `full suite red at ${short(head)}: failing ${tests}; range ${range}; ${likely}; logs ${logs.join(', ')}`;
 }
 
-export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, force = false } = {}) {
-  if (cfg.landGate !== 'affected' || (!force && listQueue(cfg).length)) return null;
+export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs } = {}) {
+  if (cfg.landGate !== 'affected' || listQueue(cfg).length) return null;
   const cwd = cfg.root;
   const state = suiteState(cfg);
   const head = revParse(cwd, 'HEAD');
   if (!state.lastRun && !state.since && head) save(cfg, { ...state, since: head });
-  if (!due(cfg, cwd, state, head, force)) return null;
+  if (!due(cfg, cwd, state, head)) return null;
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   if (!checkoutState(cwd, { untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks }).clean) return null;
 
@@ -73,11 +72,13 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, force = false }
   const suite = shardCommands(cfg.suite, k, parts);
   const id = `suite-${short(head)}${tag}`;
   const startedAt = new Date().toISOString();
+  const kept = state.partial && state.partial.id === id ? state.partial.commands : [];
   const commands = [];
   for (let n = 0; n < suite.length; n++) {
     const logPath = logPathFor(cfg, id, n);
-    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => !force && listQueue(cfg).length > 0, pollMs }));
-    if (run.cancelled) return { sha: head, status: 'cancelled', cancelled: true };
+    if (kept[n] && kept[n].cmd === suite[n].trim()) { commands.push(kept[n]); continue; }
+    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => listQueue(cfg).length > 0, pollMs }));
+    if (run.cancelled) { save(cfg, { ...state, partial: { id, commands } }); return { sha: head, status: 'cancelled', cancelled: true }; }
     commands.push({ cmd: run.cmd, exit: run.exit, durationMs: run.durationMs, log: logPath });
   }
   recordRun(cfg, { id, repo: 'suite', kind: 'suite', startedAt, entries: lockFiles(cwd).map((path) => ({ path, blob: null })) });
@@ -104,6 +105,7 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, force = false }
     state.filed = Object.fromEntries(Object.entries(state.filed).filter(([f]) => !f.startsWith(`${k}:`)));
   }
   state.lastRun = head;
+  delete state.partial;
   state.shard = nextShard(k, parts);
   mkdirSync(dir(cfg), { recursive: true });
   writeFileSync(join(dir(cfg), `${head}${tag}.json`), JSON.stringify(out, null, 2));

@@ -14,8 +14,16 @@ import { isSuiteShaped } from './landgate.mjs';
 
 export const SUITE_REFUSAL = 'full suites run on the cadence; list the targets you touched (--test "cargo t -p <crate> --test <name>")';
 import { parsePins } from './pin.mjs';
+import { readInflight } from './preimage.mjs';
 import { staleEntries } from './admit.mjs';
 import { STATUS, listQueue, newJobId, readResult } from './result.mjs';
+
+// Files the daemon's in-flight run wrote into `cwd` that did not exist before it: a check-only
+// run holds them until it restores, and a submit planned meanwhile must not read them as collisions.
+function inflightCreated(cfg, cwd) {
+  const journal = readInflight(cfg);
+  return journal && journal.cwd === cwd ? journal.entries.filter((e) => e.blob === null).map((e) => e.path) : [];
+}
 
 function revisionOf(cfg, revises) {
   if (!revises) return 1;
@@ -49,7 +57,7 @@ export function buildPatchJob(cfg, flags, text) {
 
   const cwd = join(cfg.root, repo.path);
   const base = revParse(cwd, 'HEAD');
-  const { plan } = planAtHead(cwd, ops, { read: linkedReader(cfg, repo, cwd) });
+  const { plan } = planAtHead(cwd, ops, { read: linkedReader(cfg, repo, cwd), ownFiles: inflightCreated(cfg, cwd) });
   const meta = {
     id: newJobId(), revises: typeof flags.revises === 'string' ? flags.revises : null, repo: repo.name, base,
     ticket: flags.ticket ? String(flags.ticket) : null, title: flags.title ? String(flags.title) : '',

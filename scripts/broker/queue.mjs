@@ -32,12 +32,9 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
   const processed = [];
   if (isPaused(cfg)) return { processed, paused: true, reason: 'manual' };
   const held = new Map();
-  const suites = [];
   const order = roundRobin(listQueue(cfg), lastServed(cfg));
   for (const job of order) {
     if (held.has(job.repo) || !queued(cfg, job.id)) continue; // withdrawn since the listing
-    const overdue = runSuite(cfg, { force: true, ...(fileBug ? { fileBug } : {}) });
-    if (overdue) suites.push(overdue);
     let train = null;
     let ran;
     try {
@@ -67,7 +64,7 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
     const next = processOnce(cfg, { onResult, fileBug });
     return { ...next, processed: [...processed, ...next.processed] };
   }
-  return { processed, paused: false, deferred, suite: suite || suites.at(-1) || null };
+  return { processed, paused: false, deferred, suite: suite || null };
 }
 
 // Run one job to a written result. Returns { result, pause } — pause:true leaves the job queued.

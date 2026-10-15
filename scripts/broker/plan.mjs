@@ -23,8 +23,9 @@ export function expandOps(cwd, ops = []) {
   });
 }
 
-export function planAtHead(cwd, ops, { read = (p) => showFile(cwd, 'HEAD', p) } = {}) {
+export function planAtHead(cwd, ops, { read = (p) => showFile(cwd, 'HEAD', p), ownFiles = [] } = {}) {
+  const own = new Set(ownFiles);
   const expanded = expandOps(cwd, ops);
-  const plan = dryRun(expanded, read, { onDisk: (p) => existsSync(join(cwd, p)) });
+  const plan = dryRun(expanded, read, { onDisk: (p) => !own.has(p) && existsSync(join(cwd, p)) });
   return { ops: expanded, plan };
 }
