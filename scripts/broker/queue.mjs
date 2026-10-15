@@ -14,6 +14,7 @@ import { runSuite } from './suite.mjs';
 import { STATUS, listQueue, queued, removeJob, writeResult } from './result.mjs';
 import { formTrain } from './train-form.mjs';
 import { runTrain } from './train.mjs';
+import { takeOverJournal } from './takeover.mjs';
 import { failOnError } from './contain.mjs';
 import { lastServed, markServed, roundRobin } from './rr.mjs';
 import { pruneIncremental, pruneLine } from './incremental.mjs';
@@ -38,6 +39,8 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
     let train = null;
     let ran;
     try {
+      const taken = takeOverJournal(cfg, job.id);
+      if (taken) console.error(`broker: restored ${taken.restored.length} path(s) that ${job.id} left half-applied under ${taken.home}`);
       train = formTrain(cfg, job, roundRobin(listQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) });
       markServed(cfg, job.session);
       ran = train ? runTrain(cfg, train.repo, train.members, { onResult }) : processJob(cfg, job);
