@@ -11,9 +11,8 @@
 // <runtime>/cache (the shared query cache, linked in as <sha>/.cache), node_modules linked from the
 // repo when present. `current` moves only after the export is complete.
 
-import { mkdirSync, mkdtempSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync, realpathSync, statSync } from 'node:fs';
+import { mkdirSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { runtimeRoot as defaultRuntimeRoot } from './runtime-path.mjs';
@@ -61,15 +60,15 @@ function prune(runtimeRoot, keep, currentSha, projects) {
   }
 }
 
-/** Export HEAD into a scratch dir under the OS temp dir (own empty cache), run `verify(dir)` there, then delete it; a throw aborts the publish (KIT-T510). */
+/** Export HEAD into a scratch dir beside the repo: outside the OS temp dir and any git tree, as the suite expects (own empty cache), run `verify(dir)` there, then delete it; a throw aborts the publish (KIT-T510). */
 function verifyHead(repo, runtimeRoot, sha, verify) {
-  const scratch = join(mkdtempSync(join(tmpdir(), `kit-verify-${sha}-`)), 'kit');
+  const scratch = join(dirname(resolve(repo)), `.kit-verify-${sha}-${process.pid}`);
   try {
     exportHead(repo, scratch);
     if (existsSync(join(repo, 'node_modules'))) link(join(repo, 'node_modules'), join(scratch, 'node_modules'));
     verify(scratch);
   } finally {
-    rmSync(dirname(scratch), { recursive: true, force: true });
+    rmSync(scratch, { recursive: true, force: true });
   }
 }
 
