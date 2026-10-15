@@ -26,6 +26,9 @@ t('a sealed runtime copy contributes no own store', () => {
   assert.ok(isSealedRuntime(sealed));
   assert.ok(!hydrationSources(undefined, sealed).some((s) => resolve(s.aiDir) === resolve(join(sealed, '.ai'))));
 });
+t('control: a scratch export dir inside the runtime root is not a sealed copy (the publish gate runs there)', () => {
+  assert.ok(!isSealedRuntime(join(runtime, '.verify-abc1234-1')));
+});
 t('control: a checkout outside the runtime contributes its own store', () => {
   assert.ok(!isSealedRuntime(checkout));
   assert.ok(hydrationSources(undefined, checkout).some((s) => resolve(s.aiDir) === resolve(join(checkout, '.ai'))));

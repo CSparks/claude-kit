@@ -21,8 +21,9 @@ export function runtimeCurrent(env = process.env) {
   return existsSync(join(current, PROBE)) ? current : '';
 }
 
-/** True when `dir` lies inside the runtime directory: a sealed copy whose `.ai` is a snapshot, never a live store. */
+/** True when `dir` lies in a published `<runtime>/<sha>/` copy: its `.ai` is a snapshot, never a live store. Scratch dirs (`.verify-*`) are not sealed copies. */
 export function isSealedRuntime(dir, env = process.env) {
   const base = resolve(runtimeRoot(env)).toLowerCase() + sep;
-  return resolve(dir).toLowerCase().startsWith(base);
+  const here = resolve(dir).toLowerCase();
+  return here.startsWith(base) && /^[0-9a-f]{7,40}$/.test(here.slice(base.length).split(sep)[0]);
 }
