@@ -38,14 +38,15 @@ test('reads string and array aliases from the [alias] section only', () => {
   } finally { cleanup(dir); }
 });
 
-test('cargo t -p sim --lib expands the alias without --workspace and keeps the package', () => {
+test('cargo t -p sim --lib expands a feature alias with a package filterset, a plain alias without --workspace', () => {
   const dir = project();
   try {
-    assert.equal(packageScoped('cargo t -p sim --lib', dir), 'cargo nextest run --features fastdev -p sim --lib');
+    assert.equal(packageScoped('cargo t -p sim --lib', dir), 'cargo nextest run --workspace --features fastdev --lib -E "package(sim)"');
     assert.equal(packageScoped('cargo w --package sim', dir), 'cargo test --package sim');
     const composed = composeCommand('cargo t -p sim --lib', { jobs: 3, cwd: dir });
-    assert.ok(!composed.includes('--workspace'), composed);
-    assert.match(composed, /-p sim --lib/);
+    assert.match(composed, /--workspace --features fastdev/, 'the alias feature set is unchanged');
+    assert.ok(!/ -p /.test(composed), composed);
+    assert.ok(composed.includes('-E "package(sim)"'), composed);
     assert.match(composed, /--no-fail-fast/, 'a test alias still runs every test');
   } finally { cleanup(dir); }
 });
@@ -58,6 +59,15 @@ test('controls: without -p the alias stays workspace-wide; an alias without the 
     assert.equal(packageScoped('cargo test -p sim', dir), 'cargo test -p sim');
     assert.equal(packageScoped('cargo t -p sim', tempDir('noconfig-')), 'cargo t -p sim');
     assert.match(composeCommand('cargo t --lib', { jobs: 3, cwd: dir }), /^cargo t --lib/);
-    assert.equal(packageScoped('cargo t -p sim -- --workspace', dir), 'cargo nextest run --features fastdev -p sim -- --workspace');
+    assert.equal(packageScoped('cargo t -p sim -- --workspace', dir), 'cargo nextest run --workspace --features fastdev -E "package(sim)" -- --workspace');
+  } finally { cleanup(dir); }
+});
+
+test('a package without the alias feature is filtered, never given --features alone (KIT-T527)', () => {
+  const dir = project();
+  try {
+    const out = packageScoped('cargo t -p workspace-guards -p sim', dir);
+    assert.equal(out, 'cargo nextest run --workspace --features fastdev -E "package(workspace-guards)|package(sim)"');
+    assert.ok(!/ -p /.test(out), 'no -p beside --features');
   } finally { cleanup(dir); }
 });

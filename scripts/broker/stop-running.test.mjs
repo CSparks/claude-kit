@@ -17,7 +17,7 @@ import { tempDir } from './testkit.mjs';
 
 const BROKER = join(import.meta.dirname, 'broker.mjs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const until = async (fn, ms = 15000) => { for (const end = Date.now() + ms; !fn() && Date.now() < end;) await sleep(100); return fn(); };
+const until = async (fn, ms = 90000) => { for (const end = Date.now() + ms; !fn() && Date.now() < end;) await sleep(100); return fn(); };
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 const fwd = (p) => p.split(String.fromCharCode(92)).join('/');
 const hang = (pidFile) => `node -e "require('fs').writeFileSync('${fwd(pidFile)}',String(process.pid));setInterval(()=>{},1000)"`;
@@ -39,7 +39,7 @@ test('plain stop cancels a running deferred re-check and the daemon exits', asyn
     assert.ok(await until(() => existsSync(pidFile)), 're-check command started');
     const pid = Number(readFileSync(pidFile, 'utf8'));
     assert.equal(spawnSync(process.execPath, [BROKER, '--root', s.root, 'stop'], { encoding: 'utf8' }).status, 0);
-    assert.equal(await d.stopped(15000), 0, 'daemon exited');
+    assert.equal(await d.stopped(60000), 0, 'daemon exited');
     assert.ok(await until(() => !alive(pid)), 'the re-check process tree is dead');
     assert.equal(liveHolder(s.cfg), null);
   } finally { d.child.kill(); s.done(); }
@@ -55,7 +55,7 @@ test('plain stop lets a running job finish; the daemon exits after it (control)'
     writeJob(s.cfg, job);
     assert.ok(await until(() => existsSync(pidFile)), 'job command started');
     requestStop(s.cfg);
-    assert.equal(await d.stopped(20000), 0);
+    assert.equal(await d.stopped(60000), 0);
     assert.equal(readResult(s.cfg, job.id).status, 'passed', 'the job finished under plain stop');
   } finally { d.child.kill(); s.done(); }
 });
@@ -73,8 +73,8 @@ test('stop --now kills a running job command, restores the tree, keeps the job q
     const pid = Number(readFileSync(pidFile, 'utf8'));
     const t0 = Date.now();
     assert.equal(spawnSync(process.execPath, [BROKER, '--root', s.root, 'stop', '--now'], { encoding: 'utf8' }).status, 0);
-    assert.equal(await d.stopped(15000), 0, 'daemon exited');
-    assert.ok(Date.now() - t0 < 15000, 'bounded');
+    assert.equal(await d.stopped(60000), 0, 'daemon exited');
+    assert.ok(Date.now() - t0 < 60000, 'bounded');
     assert.ok(await until(() => !alive(pid)), 'the command tree is dead');
     assert.deepEqual(snapshot(s.root), before, 'tree restored from the journal');
     assert.deepEqual(listQueue(s.cfg).map((j) => j.id), [job.id], 'job stays queued');

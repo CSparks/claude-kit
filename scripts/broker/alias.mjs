@@ -1,4 +1,4 @@
-// alias.mjs — keep a `-p <crate>` check on its crate (KIT-T516). A project alias can carry
+// alias.mjs — keep a `-p <crate>` check on its crate (KIT-T516, KIT-T527). A project alias can carry
 // `--workspace` (stiletto: `t = "nextest run --workspace ..."`) and cargo lets it override `-p`.
 // `packageScoped(cmd, cwd)` expands such an alias without the flag when the command names a package.
 // `readAliases(cwd)` → { name: [tokens] } from `<cwd>/.cargo/config.toml`.
@@ -8,6 +8,23 @@ import { join } from 'node:path';
 
 const WORKSPACE_FLAGS = new Set(['--workspace', '--all']);
 const PACKAGE_FLAGS = new Set(['-p', '--package']);
+const FEATURE_FLAGS = new Set(['--features', '-F']);
+
+// A feature alias keeps `--workspace` so the build's feature set (and its artifacts) stay the
+// alias's; `-p` becomes a nextest filterset, since cargo refuses `--features f` on a package without f (KIT-T527).
+function filtered(toks, ci, alias, rest) {
+  const pkgs = [];
+  const kept = [];
+  for (let i = 0; i < rest.length; i++) {
+    if (PACKAGE_FLAGS.has(rest[i]) && rest[i + 1] !== undefined) pkgs.push(rest[++i]);
+    else kept.push(rest[i]);
+  }
+  const sep = kept.indexOf('--');
+  const head = sep === -1 ? kept : kept.slice(0, sep);
+  const tail = sep === -1 ? [] : kept.slice(sep);
+  const filter = ['-E', `"${pkgs.map((p) => `package(${p})`).join('|')}"`];
+  return [...toks.slice(0, ci + 1), ...alias, ...head, ...filter, ...tail].join(' ');
+}
 
 const tokens = (text) => String(text).match(/"[^"]*"|\S+/g)?.map((t) => t.replace(/^"|"$/g, '')) || [];
 
@@ -41,5 +58,6 @@ export function packageScoped(cmd, cwd) {
   if (!cargoArgs.some((t) => PACKAGE_FLAGS.has(t))) return String(cmd).trim();
   const alias = readAliases(cwd)[toks[ci + 1]];
   if (!alias || !alias.some((t) => WORKSPACE_FLAGS.has(t))) return String(cmd).trim();
+  if (alias[0] === 'nextest' && alias.some((t) => FEATURE_FLAGS.has(t))) return filtered(toks, ci, alias, rest);
   return [...toks.slice(0, ci + 1), ...alias.filter((t) => !WORKSPACE_FLAGS.has(t)), ...rest].join(' ');
 }
