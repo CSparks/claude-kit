@@ -16,6 +16,8 @@ const CLI = fileURLToPath(new URL('./local-agent.mjs', import.meta.url));
 const brokerTree = () => {
   const dir = tmpDir('la-broker-');
   mkdirSync(join(dir, 'target', 'broker'), { recursive: true });
+  mkdirSync(join(dir, '.ai'), { recursive: true });
+  writeFileSync(join(dir, '.ai', 'config.yml'), 'broker:\n  repos:\n    - { name: app, path: . }\n');
   writeFileSync(join(dir, 'target', 'broker', 'broker.lock'), JSON.stringify({ pid: process.pid, host: hostname() }));
   return dir;
 };
