@@ -5,8 +5,9 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 
-const HOOK = new URL('../hooks/big-ask-nudge.mjs', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1');
+const HOOK = fileURLToPath(new URL('../hooks/big-ask-nudge.mjs', import.meta.url));
 
 let failures = 0;
 

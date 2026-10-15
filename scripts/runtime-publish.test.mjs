@@ -90,10 +90,10 @@ ok('keep prunes older sha directories once nothing pins them', shaDirs().length 
   git(repo, 'commit', '-aqm', 'v8');
   writeFileSync(join(repo, 'scripts', 'dirty.mjs'), 'half-edit ;;\n');
   writeFileSync(lib, 'export const v = ;; dirty\n');
-  const r = publishRuntime({ repo, runtimeRoot, verify: (dir) => seen.push([existsSync(join(dir, 'scripts', 'dirty.mjs')), normalized(join(dir, 'scripts', 'lib.mjs'))]) });
-  ok('verify sees committed HEAD: no dirty file, committed content', seen.length === 1 && seen[0][0] === false && seen[0][1] === 'export const v = 8;\n');
+  const r = publishRuntime({ repo, runtimeRoot, verify: (dir) => seen.push([dir, existsSync(join(dir, 'scripts', 'dirty.mjs')), normalized(join(dir, 'scripts', 'lib.mjs'))]) });
+  ok('verify sees committed HEAD: no dirty file, committed content', seen.length === 1 && seen[0][1] === false && seen[0][2] === 'export const v = 8;\n');
   ok('the published runtime holds no dirty file', !existsSync(join(r.dir, 'scripts', 'dirty.mjs')) && normalized(join(r.dir, 'scripts', 'lib.mjs')) === 'export const v = 8;\n');
-  ok('the scratch export is removed', !readdirSync(runtimeRoot).some((n) => n.startsWith('.verify-')));
+  ok('the scratch export is removed', !existsSync(seen[0][0]));
   git(repo, 'checkout', '--', 'scripts/lib.mjs');
   rmSync(join(repo, 'scripts', 'dirty.mjs'));
   const heldCurrent = currentRuntime(runtimeRoot);

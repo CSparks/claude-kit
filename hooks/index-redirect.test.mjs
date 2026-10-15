@@ -6,11 +6,12 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { stopServer } from '../scripts/q-client.mjs';
 import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 
 const { ok, done } = reporter('index-redirect');
-const Q = join(dirname(new URL(import.meta.url).pathname.replace(/^\/(\w:)/, '$1')), '..', 'scripts', 'q.mjs');
+const Q = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'q.mjs');
 
 const repo = adopted(false);
 const put = (rel, text) => { mkdirSync(dirname(join(repo, rel)), { recursive: true }); writeFileSync(join(repo, rel), text); };
