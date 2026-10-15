@@ -14,7 +14,7 @@
 //
 // USE:
 //   node submit.mjs --root <tree> --ticket ST-T123 --title "…" --test "cargo t -p x" \
-//     [--repo <name>] [--land] [--revises <id>] <<'PATCH'
+//     [--repo <name>] [--land] [--revises <id>] [--session <id>] <<'PATCH'   (session: default the harness session id; sessions are served in turn)
 //   *** edit path/file.rs
 //   <<<<<<< SEARCH … ======= … >>>>>>> REPLACE
 //   PATCH

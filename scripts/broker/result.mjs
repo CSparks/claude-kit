@@ -3,7 +3,7 @@
 //
 // JOB   (target/broker/queue/<id>.json), written by submit.mjs:
 //   { id, repo, base, ops, files: { path: blobSha }, commands: [ "cargo t -p foo", … ], land: bool,
-//     ticket, title, revises, revision, submittedAt }
+//     ticket, title, revises, revision, session, submittedAt }   (session: who submitted it; rr.mjs serves sessions in turn)
 //   empty `commands` means the broker fills `verify_default`.
 //
 // RESULT (target/broker/results/<id>.json), written by the broker or by submit on a stale dry run:

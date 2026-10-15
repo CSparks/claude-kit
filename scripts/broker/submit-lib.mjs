@@ -9,6 +9,7 @@ import { parseEnvelope } from './envelope.mjs';
 import { git, revParse } from './git.mjs';
 import { planAtHead } from './plan.mjs';
 import { linkedReader } from './linked.mjs';
+import { jobSession } from './rr.mjs';
 import { isSuiteShaped } from './landgate.mjs';
 
 export const SUITE_REFUSAL = 'full suites run on the cadence; list the targets you touched (--test "cargo t -p <crate> --test <name>")';
@@ -52,6 +53,7 @@ export function buildPatchJob(cfg, flags, text) {
   const meta = {
     id: newJobId(), revises: typeof flags.revises === 'string' ? flags.revises : null, repo: repo.name, base,
     ticket: flags.ticket ? String(flags.ticket) : null, title: flags.title ? String(flags.title) : '',
+    session: jobSession(flags, process.env, join(cfg.root, '.ai')),
   };
   meta.revision = revisionOf(cfg, meta.revises);
   if (!plan.ok) {
