@@ -13,10 +13,11 @@ import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
 import { addDeferred } from './deferred.mjs';
 import { findGreen, greenKey, recordGreen } from './green.mjs';
-import { treeState } from './cache.mjs';
+import { hashKey, treeState } from './cache.mjs';
 import { makeBaseline } from './baseline.mjs';
 import { landGate } from './landgate.mjs';
 import { coalesce } from './coalesce.mjs';
+import { testRecord } from './test-record.mjs';
 import { phaseTracker } from './phase.mjs';
 import { gateTrailer } from './trailer.mjs';
 import { stalePins } from './pin-stale.mjs';
@@ -38,8 +39,9 @@ function runCommands(cfg, job, cwd, hooks) {
   const out = [];
   for (let n = 0; n < commands.length; n++) {
     const log = logPathFor(cfg, job.id, n);
-    const r = runCommand(commands[n].cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
-    const entry = { ...r, log, ...(commands[n].from ? { coalesced: commands[n].from } : {}), ...diagnose(readFileSync(log, 'utf8')) };
+    const prep = hooks.record ? hooks.record.prepare(n, commands[n].cmd, cwd, log) : { cmd: commands[n].cmd, skipped: 0 };
+    const r = runCommand(prep.cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
+    const entry = { ...r, cmd: commands[n].cmd, log, ...(prep.skipped ? { resumedSkipped: prep.skipped } : {}), ...(commands[n].from ? { coalesced: commands[n].from } : {}), ...diagnose(readFileSync(log, 'utf8')) };
     out.push(entry);
     if (r.exit === 0) continue;
     if (!(job.ops || []).length) continue; // a test-only job already runs on the baseline: its failures are the baseline's
@@ -96,6 +98,7 @@ export function processPatch(cfg, job, repo) {
     dropNewLocks(cwd, locksBefore);
   };
   let keep = false;
+  let record = null;
   try {
     checkoutPins(pins);
     writePlan(cwd, plan.files);
@@ -116,7 +119,8 @@ export function processPatch(cfg, job, repo) {
       runBase: (cmd) => { const b = baseline((run) => ({ log: run(cmd, `${n}-red`) })); return b && b.log; },
       runAgain: (cmd) => runDiagnosed(cfg, cmd, cwd, logPathFor(cfg, job.id, `${n}-rerun`)),
     });
-    const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, runJob, cwd, { baseline, knownRed });
+    record = reused ? null : testRecord(cfg, job, hashKey([key, ...jobCommands(cfg, runJob)]));
+    const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, runJob, cwd, { baseline, knownRed, record });
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
     if (green && !job.land && (job.ops || []).length) recordGreen(cfg, key, { job: job.id, commands, foreign });
@@ -150,6 +154,7 @@ export function processPatch(cfg, job, repo) {
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, selection, message: land.error });
     return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, selection, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha, ...(land.subSha ? { subSha: land.subSha } : {}) } });
   } finally {
+    if (record) record.clear();
     if (keep) { discard(cfg); settlePins(pins); }
     else {
       restoreTree();
