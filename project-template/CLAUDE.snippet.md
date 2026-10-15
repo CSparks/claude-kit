@@ -184,3 +184,22 @@ monolith file.
   `ROADMAP.md` (in generated mode) — all rebuilt from the folders by `index-tickets.mjs`.
 - Routing a captured item = create the atomic file in the right folder (per
   `config.yml` `routes_to`), then regenerate the views.
+
+### Every store write goes through a command (KIT-T509)
+A hand Write/Edit of a store file is a defect: the command mints the id, validates, stamps
+History and regenerates the views. The pre-write hook (check-id `store-write`) refuses a hand
+**creation** of a typed-store file and any write to `SESSION.md`, the generated views and the
+hook-owned logs, and names the command. A new item type gets its own verb or joins `t`.
+| Write | Command |
+|---|---|
+| ticket | `t new <type> "<title>" [--description|--file]`, `t status`, `t tick`/`untick`/`criterion`, `t link`, `t comment` |
+| ticket/epic/request/note Notes prose | `t notes <id> "<prose>"` (an Edit of an existing item's prose also stays allowed, KIT-D037) |
+| decision | `t decide --file <draft.md>` |
+| question | `t question "<q>"`, `t ask`, `t resolve` |
+| note / epic / request | `t note` / `t epic` / `t request "<title>" [--body|--file]`; `t status`/`t tick` also address epics and requests |
+| inbox capture, resolved event | `cap [type] "<text>"`, `cap --done`; promotion by `triage.mjs --plan/--apply` |
+| reminder | `rem add`/`done`/`snooze` |
+| SESSION.md anchor | `t session "<text>" | --file <draft> [--append]` |
+| INDEX / REGRESSIONS / ROADMAP | `index-tickets.mjs` (every `t` verb runs it) |
+| agents.jsonl, progress, receipts | hooks, `t ack`; never by hand |
+Exclusions: `store-write` in `.claude-kit-ignore.yaml` or a `claude-kit-ignore-file store-write` marker.
