@@ -86,7 +86,7 @@ test('a gitlink that advances while the job runs is caught again at land time', 
       "x('git', ['update-ref', 'HEAD', c], o);",
     ].join('\n');
     writeFileSync(bump, script);
-    const r = t.run({ ticket: 'ST-T2', title: 'old pin', land: true, pin: `rapid-game=${old}` }, '*** write old.txt\no\n', [`node ${bump.replace(/\\/g, '/')}`]).r;
+    const r = t.run({ ticket: 'ST-T2', title: 'old pin', land: true, pin: `rapid-game=${old}` }, '*** write old.txt\no\n', [`node "${bump.replace(/\\/g, '/')}"`]).r;
     assert.equal(r.status, 'stale', JSON.stringify(r));
     assert.match(r.message, new RegExp(newer.slice(0, 10)));
     assert.equal(g(['rev-list', '--count', 'HEAD'], t.root), '3', 'init, add submodule, hand pin; the job committed nothing');

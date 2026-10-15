@@ -3,13 +3,35 @@
 // runs in seconds and needs no cargo. Every fixture is a real repo so the git protocol (path
 // commits, push, submodule pin) is exercised for real, never mocked.
 
-import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+// A Windows process that dies while initialising (0xC0000142) never ran: the machine is out of
+// desktop heap or pagefile under load, and the same spawn succeeds once the pressure drops.
+const PROCESS_INIT_FAILED = 3221225794;
+const SPAWN_ATTEMPTS = 4;
+
+function sleepMs(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+// Run git; a failure throws with the command, status, stderr and stdout in the message.
 export function g(args, cwd) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  for (let attempt = 1; ; attempt++) {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    if (r.status === 0) return r.stdout.trim();
+    if (r.status === PROCESS_INIT_FAILED && attempt < SPAWN_ATTEMPTS) {
+      sleepMs(500 * attempt);
+      continue;
+    }
+    const err = new Error(`git ${args.join(' ')} (cwd ${cwd}) failed, status ${r.status ?? r.error?.code}\nstderr: ${r.stderr || r.error?.message || ''}\nstdout: ${r.stdout}`);
+    err.status = r.status;
+    err.stderr = r.stderr;
+    err.stdout = r.stdout;
+    throw err;
+  }
 }
 
 // Try a git command; return '' on failure (for probes like rev-parse on an empty ref).
@@ -21,9 +43,17 @@ export function gTry(args, cwd) {
   }
 }
 
+// Fixtures live under the canonical temp path: the 8.3 short form (CHRISS~1) and the long form
+// name one directory, and git records whichever it was given.
+const TMP = realpathSync.native(tmpdir());
+
+// A hook or an outer git command exports GIT_DIR / GIT_INDEX_FILE and friends; every git the
+// fixtures (and the code under test) spawn must locate its repo from cwd alone.
+for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete process.env[key];
+
 // A test never auto-starts a daemon (submit/wait honour this, and children inherit it).
 process.env.BROKER_NO_AUTOSTART ??= '1';
-process.env.BROKER_PUSH_LOCK_DIR ??= mkdtempSync(join(tmpdir(), 'push-locks-'));
+process.env.BROKER_PUSH_LOCK_DIR ??= mkdtempSync(join(TMP, 'push-locks-'));
 
 const made = new Set();
 
@@ -51,7 +81,7 @@ export function cleanup(dir) {
 process.on('exit', () => { for (const dir of [...made]) cleanup(dir); });
 
 export function tempDir(prefix = 'broker-') {
-  const dir = mkdtempSync(join(tmpdir(), prefix));
+  const dir = mkdtempSync(join(TMP, prefix));
   made.add(dir);
   return dir;
 }

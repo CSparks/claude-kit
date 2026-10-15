@@ -28,7 +28,7 @@ function pushFromElsewhere(s, file, text) {
 const counter = (path) => {
   const script = join(tempDir('append-'), 'append.mjs');
   writeFileSync(script, ["import { appendFileSync } from 'node:fs';", "appendFileSync(process.argv[2], 'x' + String.fromCharCode(10));", ''].join(String.fromCharCode(10)));
-  return `node ${script} ${path}`;
+  return `node "${script}" "${path}"`;
 };
 
 function land(s, env, command) {
