@@ -60,6 +60,14 @@ function prune(runtimeRoot, keep, currentSha, projects) {
   }
 }
 
+// Tests expect a git checkout: the export becomes a one-commit repo (never the real history).
+function initGit(dir, sha) {
+  const git = (...args) => execFileSync('git', ['-c', 'user.email=publish@kit', '-c', 'user.name=publish', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], { cwd: dir, stdio: 'ignore' });
+  git('init', '-q', '-b', 'main');
+  git('add', '-A');
+  git('commit', '-q', '-m', `export of ${sha}`);
+}
+
 // The repo's installed dependencies (root and each first-level package such as server/), linked into an export.
 function linkModules(repo, dest) {
   for (const sub of ['', ...readdirSync(repo, { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join(repo, d.name, 'package.json'))).map((d) => d.name)]) {
@@ -72,6 +80,7 @@ function verifyHead(repo, runtimeRoot, sha, verify) {
   const scratch = join(dirname(resolve(repo)), `.kit-verify-${sha}-${process.pid}`);
   try {
     exportHead(repo, scratch);
+    initGit(scratch, sha);
     linkModules(repo, scratch);
     verify(scratch);
   } finally {
