@@ -16,7 +16,7 @@ const USAGE = {
   request: 't request "<title>" [--body "<text>" | --file <path>] [--priority <p>] [--links A,B]',
   question: 't question "<question>" [--body "<detail>" | --file <path>] [--answerable-by chris|claude]',
   notes: 't notes <id> "<prose>" | --file <path>',
-  session: 't session "<text>" | --file <path> [--append]',
+  session: 't session "<text>" | --file <path> [--append] | --replace --file <path>',
 };
 
 export const VERBS = Object.keys(USAGE);
@@ -31,9 +31,11 @@ function fail(cmd) {
 export async function runVerb(cmd, rest, flags, root, refresh) {
   if (!VERBS.includes(cmd)) return false;
   if (cmd === 'session') {
-    const r = writeSession(root, fileOr(flags, rest.join(' ')), { append: flags.append });
+    if (flags.replace && !flags.file) fail(cmd);
+    const r = writeSession(root, fileOr(flags, rest.join(' ')), { append: flags.append, replace: flags.replace, fromFile: !!flags.file });
     await refresh(root);
-    process.stdout.write(`session: ${relative(root, r.path)} ${flags.append ? 'appended' : 'written'} (${r.lines} lines)\n`);
+    const how = flags.replace ? 'replaced' : flags.append ? 'appended' : 'noted';
+    process.stdout.write(`session: ${relative(root, r.path)} ${how} (${r.lines} lines)${r.backup ? `; previous kept at ${relative(root, r.backup)}` : ''}\n`);
     return true;
   }
   if (cmd === 'notes') {

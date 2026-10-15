@@ -83,6 +83,8 @@ ok('unadopted repo: exits 0', rNone.code === 0);
 // --- the PreCompact reminder itself --------------------------------------------------
 const reminder = run(makeRepo({ session: '# SESSION\n' }));
 ok('adopted repo emits the flush reminder', /COMPACTION|flush/i.test(reminder.out + reminder.err));
+ok('the reminder names the append-safe form and never offers a bare replace (KIT-T521)',
+  /deletes nothing/.test(reminder.out) && /--replace --file/.test(reminder.out) && !/t session --file <draft\.md> \(writes/.test(reminder.out));
 
 // --- Stop: the unresolved-question nag (KIT-T448) -------------------------------------
 const TODAY = new Date().toISOString().slice(0, 10);

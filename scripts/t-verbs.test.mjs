@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // t-verbs.test.mjs — the store-writing verbs (KIT-T509): t note | epic | request | question
 // create their item from the store template with a minted id; t notes appends to ## Notes;
-// t session writes the anchor; t status/tick address epics and requests; t new takes a description.
+// t session adds to the anchor without deleting (KIT-T521); t status/tick address epics and requests; t new takes a description.
 // Bad args are refused before an id is minted.
 // Run: node scripts/t-verbs.test.mjs
 
@@ -73,14 +73,83 @@ try {
     assert.throws(() => appendNotes(s.root, t.id, '  '), /non-empty/);
   });
 
-  ok('t session replaces the anchor, --append adds a block, empty text is refused', () => {
+  const ANCHOR = '# SESSION\n\n## Current state\n\nold state line\n\n## FRAMEWORK PROGRAMME\n\n- [2026-10-01] kept entry\n';
+  const sessionFile = (root) => join(root, '.ai', 'SESSION.md');
+  const backupDir = (root) => join(root, '.ai', '.session-backups');
+  const backups = (root) => readdirSync(backupDir(root)).filter((f) => f.endsWith('.md')).sort();
+
+  ok('t session adds a dated line under the top section and keeps every prior line (KIT-T521)', () => {
     const s = store();
-    writeSession(s.root, '# one\nstate');
-    writeSession(s.root, '# two');
-    assert.equal(text(join(s.root, '.ai', 'SESSION.md')), '# two\n');
-    writeSession(s.root, 'next 3 steps', { append: true });
-    assert.equal(text(join(s.root, '.ai', 'SESSION.md')), '# two\n\nnext 3 steps\n');
+    writeFileSync(sessionFile(s.root), ANCHOR);
+    writeSession(s.root, 'state now\nnext: ship', { now: new Date('2026-10-15T12:00:00Z') });
+    const out = text(sessionFile(s.root));
+    for (const line of ANCHOR.split('\n')) assert.ok(out.includes(line), `kept: ${line}`);
+    assert.match(out, /## Current state\n\n- \[2026-10-15 12:00\] state now\n {2}next: ship\n\nold state line/);
+    writeSession(s.root, 'second', { now: new Date('2026-10-15T12:01:00Z') });
+    assert.match(text(sessionFile(s.root)), /- \[2026-10-15 12:01\] second\n- \[2026-10-15 12:00\] state now/);
+    assert.match(text(sessionFile(s.root)), /kept entry/);
+  });
+
+  ok('negative control: the old overwrite is gone, plain text never shrinks the file', () => {
+    const s = store();
+    writeFileSync(sessionFile(s.root), ANCHOR);
+    writeSession(s.root, '# one line only');
+    assert.ok(text(sessionFile(s.root)).length > ANCHOR.length);
+    assert.ok(text(sessionFile(s.root)).includes('old state line'));
+  });
+
+  ok('t session on a missing file creates a titled anchor; a file with no headings gets the line on top', () => {
+    const s = store();
+    writeSession(s.root, 'first', { now: new Date('2026-10-15T12:00:00Z') });
+    assert.equal(text(sessionFile(s.root)), '# SESSION\n\n- [2026-10-15 12:00] first\n');
+    writeFileSync(sessionFile(s.root), 'loose notes\n');
+    writeSession(s.root, 'top', { now: new Date('2026-10-15T12:00:00Z') });
+    assert.equal(text(sessionFile(s.root)), '- [2026-10-15 12:00] top\n\nloose notes\n');
+  });
+
+  ok('--replace needs --file, and replaces only then', () => {
+    const s = store();
+    writeFileSync(sessionFile(s.root), ANCHOR);
+    assert.throws(() => writeSession(s.root, 'x', { replace: true }), /needs a complete draft/);
+    assert.equal(text(sessionFile(s.root)), ANCHOR, 'a refused replace changes nothing');
+    assert.equal(existsSync(backupDir(s.root)), false, 'and backs nothing up');
+    writeSession(s.root, '# fresh', { replace: true, fromFile: true });
+    assert.equal(text(sessionFile(s.root)), '# fresh\n');
+    assert.equal(text(join(backupDir(s.root), backups(s.root)[0])), ANCHOR, 'the replaced anchor is recoverable');
+  });
+
+  ok('--append adds a block at the end; empty text is refused', () => {
+    const s = store();
+    writeFileSync(sessionFile(s.root), ANCHOR);
+    writeSession(s.root, 'tail block', { append: true });
+    assert.equal(text(sessionFile(s.root)), `${ANCHOR}\ntail block\n`);
     assert.throws(() => writeSession(s.root, ' '), /non-empty/);
+  });
+
+  ok('every write leaves a backup of the previous file; only the last 20 stay', () => {
+    const s = store();
+    writeFileSync(sessionFile(s.root), ANCHOR);
+    for (let i = 0; i < 25; i++) writeSession(s.root, `n${i}`, { now: new Date(Date.UTC(2026, 9, 15, 12, i)) });
+    const kept = backups(s.root);
+    assert.equal(kept.length, 20);
+    assert.ok(text(join(backupDir(s.root), kept[kept.length - 1])).includes('n23'), 'the newest backup is the file before the last write');
+    assert.equal(text(join(backupDir(s.root), '.gitignore')), '*\n');
+  });
+
+  ok('the CLI: --replace without --file exits 2 and leaves the anchor; plain text keeps it', () => {
+    const s = store();
+    writeFileSync(sessionFile(s.root), ANCHOR);
+    const cli = join(HERE, 't.mjs');
+    const reg = join(s.root, 'registry.json');
+    writeFileSync(reg, '{}\n');
+    const env = { ...process.env, CLAUDE_KIT_REGISTRY: reg };
+    const bad = spawnSync(process.execPath, [cli, 'session', 'x', '--replace', '--root', s.root], { encoding: 'utf8', env });
+    assert.equal(bad.status, 2);
+    assert.equal(text(sessionFile(s.root)), ANCHOR);
+    const good = spawnSync(process.execPath, [cli, 'session', 'flushed state', '--root', s.root], { encoding: 'utf8', env });
+    assert.equal(good.status, 0, good.stderr);
+    assert.match(good.stdout, /noted .*previous kept at/);
+    assert.match(text(sessionFile(s.root)), /flushed state[\s\S]*old state line[\s\S]*kept entry/);
   });
 
   ok('t status and t tick address epics and requests; done leaves them in place', () => {
@@ -107,7 +176,7 @@ try {
     writeFileSync(reg, '{}\n');
     const t = (...args) => spawnSync(process.execPath, [join(HERE, 't.mjs'), '--root', s.root, ...args], { encoding: 'utf8', env: { ...process.env, CLAUDE_KIT_REGISTRY: reg } });
     assert.match(t('note', 'cli note', '--body', 'b').stdout, /note: .*-N001/);
-    assert.match(t('session', 'anchor text').stdout, /session: .*SESSION\.md written/);
+    assert.match(t('session', 'anchor text').stdout, /session: .*SESSION\.md noted/);
     assert.match(t('notes', `${s.key}-N001`, 'appended').stdout, /notes: /);
     assert.equal(t('epic').status, 2, 'missing title is a usage error');
   });

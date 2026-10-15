@@ -385,6 +385,7 @@ function parseArgs(argv) {
     else if (a === '--links') flags.links = String(argv[++i] || '').split(',').map((x) => x.trim()).filter(Boolean);
     else if (a === '--answerable-by') flags.answerableBy = argv[++i];
     else if (a === '--append') flags.append = true;
+    else if (a === '--replace') flags.replace = true;
     else if (a === '--not-dup') flags.notDup = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
     else if (a.startsWith('--') && a !== '--help') { console.error(`t: unknown flag ${a}`); process.exit(2); }
@@ -401,7 +402,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|note|notes|epic|request|question|session|decide|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | t decide --file <draft.md> | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|note|notes|epic|request|question|session|decide|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t decide --file <draft.md> | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
