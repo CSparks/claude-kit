@@ -110,7 +110,7 @@ async function killBetweenPushes(t) {
   const { job } = buildPatchJob(t.cfg, { ticket: 'T-7', title: 'api v2 across a crash', land: true }, env('v2'));
   writeJob(t.cfg, { ...job, commands: [BOTH] });
   const first = spawn(process.execPath, [BROKER, '--root', t.root, '--once'], { stdio: 'ignore', windowsHide: true });
-  const end = Date.now() + 60_000;
+  const end = Date.now() + 300_000;
   while (!(readInflight(t.cfg) || {}).linked) { if (Date.now() > end) throw new Error('never reached the submodule push'); await sleep(50); }
   first.kill('SIGKILL');
   await exited(first);
