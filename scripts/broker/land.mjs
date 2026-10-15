@@ -4,7 +4,7 @@
 
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { git, gitLong, revParse } from './git.mjs';
+import { attachBranch, git, gitLong, revParse } from './git.mjs';
 import { syncPush } from './sync-push.mjs';
 import { withPushLock } from './pushlock.mjs';
 import { repinSuperproject } from './submodule.mjs';
@@ -65,6 +65,8 @@ const unique = (list) => [...new Set(list.filter(Boolean))];
  */
 export function landCommits(cfg, repo, cwd, commits, { verify, onPhase = () => {}, onCommitted = () => {} } = {}) {
   onPhase('commit');
+  const attached = attachBranch(cwd, repo.main);
+  if (!attached.ok) return { ok: false, committed: false, error: attached.error };
   const preHead = revParse(cwd, 'HEAD');
   for (const c of commits) {
     const error = commitOne(cwd, c);

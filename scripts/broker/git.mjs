@@ -81,9 +81,25 @@ export function revParse(cwd, ref) {
 }
 
 // `env` (prepush.mjs buildEnv) reaches the repo's pre-push hook, so a gate it runs builds in the shared cache.
+// It pushes HEAD (never the local branch, which a detached HEAD leaves behind) and confirms the
+// remote's branch now holds HEAD's sha (KIT-T520).
 export function push(cwd, remote, branch, env) {
-  const r = gitLong(['push', remote, branch], cwd, env);
-  return { ok: r.code === 0, err: r.err };
+  const r = gitLong(['push', remote, `HEAD:refs/heads/${branch}`], cwd, env);
+  if (r.code !== 0) return { ok: false, err: r.err };
+  const head = revParse(cwd, 'HEAD');
+  const remoteSha = git(['ls-remote', remote, `refs/heads/${branch}`], cwd).out.split(/\s+/)[0];
+  return remoteSha === head ? { ok: true, err: r.err } : { ok: false, err: `push said ok but ${remote}/${branch} is ${remoteSha || 'missing'}, not ${head}` };
+}
+
+// Put `branch` on HEAD so a landing commits on it: already on it is a no-op; a detached HEAD
+// that descends from the branch moves the branch up to HEAD; anything else is refused (KIT-T520).
+export function attachBranch(cwd, branch) {
+  const on = git(['symbolic-ref', '-q', '--short', 'HEAD'], cwd);
+  if (on.code === 0 && on.out === branch) return { ok: true };
+  if (on.code === 0) return { ok: false, error: `checkout is on branch ${on.out}, not ${branch}` };
+  if (git(['merge-base', '--is-ancestor', branch, 'HEAD'], cwd).code !== 0) return { ok: false, error: `HEAD is detached and does not descend from ${branch}; settle it by hand` };
+  const moved = git(['checkout', '-q', '-B', branch, 'HEAD'], cwd);
+  return moved.code === 0 ? { ok: true, reattached: true } : { ok: false, error: `could not reattach ${branch}: ${moved.err.trim().slice(0, 200)}` };
 }
 
 // The staged pathspecs — used by the submodule re-pin to assert nothing but the pointer is staged.

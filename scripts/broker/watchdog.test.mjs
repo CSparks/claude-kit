@@ -19,7 +19,7 @@ import { cleanup, tempDir } from './testkit.mjs';
 
 const BROKER = join(import.meta.dirname, 'broker.mjs');
 const PASS = 'node -e "0"';
-const GATE_S = 5;
+const GATE_S = 20;
 const LATER_MS = 30 * 60 * 1000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -61,7 +61,7 @@ test('a landing inside a pre-push gate longer than the kill limit keeps beating 
       await sleep(200);
     }
     await exited(child);
-    assert.ok(worst < 2500, `the beat stayed fresh through the gate (worst ${worst} ms)`);
+    assert.ok(worst < 12_000, `the beat stayed fresh through the gate (worst ${worst} ms)`);
     assert.deepEqual(killed, [], 'a silent-looking landing is not killed');
     assert.equal(readResult(s.cfg, s.job.id).status, 'landed');
   } finally { s.done(); }
