@@ -45,6 +45,11 @@ try {
   ok('git worktree add blocks', blocks('git worktree add ../wt -b feature-y'));
   ok('git -C <dir> worktree add blocks', blocks(`git -C "${bg}" worktree add ../wt2`, parent));
   ok('chained segment (… && git worktree add) blocks', blocks('git status && git worktree add ../wt3'));
+  ok('git inside a quoted argument of another program is not a git command (after ; or &&)',
+    !blocks('t session --append "tried this; git branch side-quest && git worktree add ../wt4"')
+    && !blocks("t session --append 'ran git branch -f main HEAD | git switch feature-x'"));
+  ok('control: a real git branch after a quoted argument still blocks', blocks('echo "a; b" && git branch side-quest'));
+  ok('control: a real git branch -f is still a branch op', blocks('git branch -f side-quest HEAD'));
 
   ok(`git switch ${trunk} (the way back) is allowed`, !blocks(`git switch ${trunk}`));
   ok(`git checkout ${trunk} is allowed`, !blocks(`git checkout ${trunk}`));

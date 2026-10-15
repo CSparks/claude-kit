@@ -14,7 +14,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { payload, git, gitRoot, adopted } from './lib.mjs';
 import { classifyGitSegment, tokenize } from './lib/branch-ops.mjs';
-import { cdTarget, toPath } from './lib/shell-segments.mjs';
+import { cdTarget, segments, toPath } from './lib/shell-segments.mjs';
 
 const ESCAPE = /\[maintainer-asked-branch:\s*[^\]\s][^\]]*\]/i;
 
@@ -98,7 +98,7 @@ try {
   };
 
   let cwd = process.cwd();
-  for (const seg of command.split(/&&|\|\||[;&|]/).map((s) => s.trim()).filter(Boolean)) {
+  for (const seg of segments(command).map((s) => s.text.trim()).filter(Boolean)) {
     const cdTo = cdTarget(seg);
     if (cdTo) { cwd = resolve(cwd, cdTo); continue; }
     const m = seg.match(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git(?:\.exe)?\s+(.+)/s); // a git INVOCATION, not git quoted inside another command
