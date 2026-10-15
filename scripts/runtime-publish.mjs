@@ -3,7 +3,8 @@
 // (KIT-T450). Writers edit the repo; every other session loads scripts and hooks from
 // `<runtime>/current`, so a half-edited file is never loaded.
 //
-//   npm run publish:runtime        # npm test first, then publish: the ONLY way `current` moves
+//   npm run publish:runtime        # exports HEAD, runs npm test there, then publishes: the ONLY way `current` moves.
+//                                  # The working tree is never tested or published (KIT-T510).
 //   node scripts/runtime-publish.mjs [--runtime <dir>] [--keep N]   # refuses outside that npm script
 //
 // Layout: <runtime>/<sha>/ (immutable `git archive HEAD`), <runtime>/current -> <sha> (junction),
@@ -59,11 +60,24 @@ function prune(runtimeRoot, keep, currentSha, projects) {
   }
 }
 
-/** Export HEAD of `repo` and repoint `current`; throws before touching `current` if the export fails. */
-export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep = DEFAULT_KEEP, projects }) {
+/** Export HEAD into a scratch dir (own empty cache), run `verify(dir)` there, then delete it; a throw aborts the publish (KIT-T510). */
+function verifyHead(repo, runtimeRoot, sha, verify) {
+  const scratch = join(runtimeRoot, `.verify-${sha}-${process.pid}`);
+  try {
+    exportHead(repo, scratch);
+    if (existsSync(join(repo, 'node_modules'))) link(join(repo, 'node_modules'), join(scratch, 'node_modules'));
+    verify(scratch);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
+/** Export HEAD of `repo` and repoint `current`; `verify(dir)` tests the exported HEAD first, never the working tree. Throws before touching `current` if either fails. */
+export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep = DEFAULT_KEEP, projects, verify }) {
   const sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
   mkdirSync(runtimeRoot, { recursive: true });
   const dir = join(runtimeRoot, sha);
+  if (verify) verifyHead(repo, runtimeRoot, sha, verify);
   if (!existsSync(dir)) {
     const staging = join(runtimeRoot, `.staging-${sha}-${process.pid}`);
     try {
@@ -82,15 +96,22 @@ export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep 
   return { sha, dir, current: join(runtimeRoot, 'current') };
 }
 
+// The kit suite on the exported HEAD; the same npm script a writer runs, so the gate is the suite.
+function suiteOnExport(dir) {
+  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const r = spawnSync(npm, ['test'], { cwd: dir, stdio: 'inherit', shell: process.platform === 'win32' });
+  if (r.status !== 0) throw new Error(`the suite is red on exported HEAD (exit ${r.status}); current did not move`);
+}
+
 if (isMain(import.meta.url)) {
   const arg = (flag) => { const i = process.argv.indexOf(flag); return i === -1 ? undefined : process.argv[i + 1]; };
   const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   if (process.env.npm_lifecycle_event !== PUBLISH_SCRIPT) {
-    process.stderr.write('runtime-publish: refusing - run `npm run ' + PUBLISH_SCRIPT + '` so the suite is green before `current` moves.\n');
+    process.stderr.write('runtime-publish: refusing - run `npm run ' + PUBLISH_SCRIPT + '`, which tests the committed HEAD before `current` moves.\n');
     process.exit(1);
   }
   try {
-    const r = publishRuntime({ repo, runtimeRoot: arg('--runtime') || defaultRuntimeRoot(), keep: Number(arg('--keep')) || DEFAULT_KEEP });
+    const r = publishRuntime({ repo, runtimeRoot: arg('--runtime') || defaultRuntimeRoot(), keep: Number(arg('--keep')) || DEFAULT_KEEP, verify: suiteOnExport });
     process.stdout.write(`runtime: ${r.sha} -> ${r.current}\nrun kit scripts from ${r.current}/scripts/ (q.mjs, t.mjs, cap.mjs)\n`);
     const drift = pluginDrift({ repo, installed: installedPlugin() });
     if (drift.length) process.stderr.write(`runtime-publish: ${drift.length} agent/skill/command/hook file(s) changed since the plugin cache was copied, under the same plugin.json version, so sessions do not see them. Bump .claude-plugin/plugin.json version, then restart sessions: ${drift.slice(0, 8).join(', ')}${drift.length > 8 ? ', ...' : ''}\n`);

@@ -82,6 +82,28 @@ ok('keep prunes older sha directories once nothing pins them', shaDirs().length 
   ok('negative control: a dead broker lock holds nothing', !existsSync(join(runtimeRoot, heldSha)));
 }
 
+// KIT-T510: verify runs on an export of HEAD, so a dirty file outside HEAD neither fails nor leaks into the publish.
+{
+  const lib = join(repo, 'scripts', 'lib.mjs');
+  const seen = [];
+  writeFileSync(lib, 'export const v = 8;\n');
+  git(repo, 'commit', '-aqm', 'v8');
+  writeFileSync(join(repo, 'scripts', 'dirty.mjs'), 'half-edit ;;\n');
+  writeFileSync(lib, 'export const v = ;; dirty\n');
+  const r = publishRuntime({ repo, runtimeRoot, verify: (dir) => seen.push([existsSync(join(dir, 'scripts', 'dirty.mjs')), normalized(join(dir, 'scripts', 'lib.mjs'))]) });
+  ok('verify sees committed HEAD: no dirty file, committed content', seen.length === 1 && seen[0][0] === false && seen[0][1] === 'export const v = 8;\n');
+  ok('the published runtime holds no dirty file', !existsSync(join(r.dir, 'scripts', 'dirty.mjs')) && normalized(join(r.dir, 'scripts', 'lib.mjs')) === 'export const v = 8;\n');
+  ok('the scratch export is removed', !readdirSync(runtimeRoot).some((n) => n.startsWith('.verify-')));
+  git(repo, 'checkout', '--', 'scripts/lib.mjs');
+  rmSync(join(repo, 'scripts', 'dirty.mjs'));
+  const heldCurrent = currentRuntime(runtimeRoot);
+  writeFileSync(lib, 'export const v = 9;\n');
+  git(repo, 'commit', '-aqm', 'v9');
+  let red = false;
+  try { publishRuntime({ repo, runtimeRoot, verify: () => { throw new Error('red'); } }); } catch { red = true; }
+  ok('negative control: a red verify throws and current does not move', red && currentRuntime(runtimeRoot) === heldCurrent);
+}
+
 const before = currentRuntime(runtimeRoot);
 let threw = false;
 try { publishRuntime({ repo: join(tmp, 'not-a-repo'), runtimeRoot }); } catch { threw = true; }
