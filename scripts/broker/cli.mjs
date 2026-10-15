@@ -7,6 +7,7 @@
 
 import { resolve } from 'node:path';
 import { readBrokerConfig, withLane } from './config.mjs';
+import { mapSubmoduleRoot } from './root-map.mjs';
 
 export function parseFlags(argv) {
   const out = { _: [] };
@@ -26,9 +27,14 @@ export function parseFlags(argv) {
 }
 
 // Resolve --root (default cwd) and read its broker config; `--lane <repo>` selects a submodule's queue.
+// A --root naming a submodule maps to the parent checkout and that submodule's lane (root-map.mjs);
+// a submit without --repo then targets the submodule.
 export function loadCfg(flags) {
-  const root = resolve(typeof flags.root === 'string' ? flags.root : process.cwd());
-  return { root, cfg: withLane(readBrokerConfig(root), typeof flags.lane === 'string' ? flags.lane : null) };
+  const given = resolve(typeof flags.root === 'string' ? flags.root : process.cwd());
+  const mapped = mapSubmoduleRoot(given);
+  const lane = typeof flags.lane === 'string' ? flags.lane : mapped.lane;
+  if (mapped.lane && typeof flags.repo !== 'string') flags.repo = mapped.lane;
+  return { root: mapped.root, cfg: withLane(readBrokerConfig(mapped.root), lane) };
 }
 
 export function asList(v) {

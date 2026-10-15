@@ -8,13 +8,16 @@
 // every --heartbeat seconds (default 60; 0 = off).
 //
 // USE: node wait.mjs <id> --root <build-checkout> [--timeout <s>] [--poll <ms>] [--grace-ms <ms>] [--heartbeat <s>]
+// exit 3 = the id is unknown (not queued, running or resulted). A --root naming a submodule maps to its lane (root-map.mjs).
 // (--grace-ms: how long no broker may be seen before wait says so; default 10000, a restart's gap)
 
 import { parseFlags, loadCfg } from './cli.mjs';
 import { laneCfgFor } from './lanes.mjs';
 import { join } from 'node:path';
 import { isCurrentResult } from './current.mjs';
+import { brokerPaths } from './config.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
+import { inflightHas, readInflight } from './preimage.mjs';
 import { printResult } from './report.mjs';
 import { IDLE_EXIT_MIN, NO_BROKER_GRACE_MS, ensureBroker, noBrokerWarning, spawnBroker } from './ensure.mjs';
 import { observedLive } from './lock.mjs';
@@ -38,6 +41,13 @@ const graceMs = flags['grace-ms'] === undefined ? NO_BROKER_GRACE_MS : Number(fl
 const beatMs = (flags.heartbeat === undefined ? DEFAULT_HEARTBEAT_S : Number(flags.heartbeat)) * 1000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const resultPath = (c) => join(brokerPaths(c).results, `${id}.json`);
+const known = (c) => listQueue(c).some((j) => j.id === id) || readResult(c, id) || inflightHas(readInflight(c), id);
+if (!known(laneCfgFor(rootCfg, id))) {
+  console.error(`wait: unknown job ${id}: not queued, running or resulted under ${brokerPaths(laneCfgFor(rootCfg, id)).home} (root ${root}); check the id and --root`);
+  process.exit(3);
+}
 
 const deadline = Date.now() + timeoutMs;
 let warned = false;
@@ -69,5 +79,5 @@ const cfg = laneCfgFor(rootCfg, id);
 const position = listQueue(cfg).findIndex((j) => j.id === id);
 const where = heartbeatLine(cfg, id);
 const alive = observedLive(cfg) && where;
-console.error(`wait: timed out after ${timeoutMs / 1000}s waiting for ${id}${position >= 0 ? ` (queue position ${position + 1})` : ''}${alive ? `; the daemon is alive and the job is ${where.replace(/^wait: \S+ /, '')}: run wait again, do not withdraw it` : ''}`);
+console.error(`wait: timed out after ${timeoutMs / 1000}s waiting for ${id} (result expected at ${resultPath(cfg)})${position >= 0 ? ` (queue position ${position + 1})` : ''}${alive ? `; the daemon is alive and the job is ${where.replace(/^wait: \S+ /, '')}: run wait again, do not withdraw it` : ''}`);
 process.exit(2);
