@@ -9,7 +9,7 @@
 // USE: node incremental.mjs --root <checkout> [--keep-hours 24] [--dry-run]
 // `pruneIncremental(targetDir, { keepHours, now, dryRun })` → { before, after, removed } (bytes, dir count).
 
-import { existsSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readBrokerConfig } from './config.mjs';
@@ -45,24 +45,42 @@ export function clearIncremental(targetDir, crates = []) {
   return removed;
 }
 
+const TRASH = '.trash-';
+const GRACE_MS = 15 * 60 * 1000;
+
+// Rename to a trash name, then delete: a delete that fails (locked file) leaves only the trash
+// name, which the next prune sweeps, never a half-removed unit rustc could reuse.
+function trash(p) {
+  const t = `${p}${TRASH}${process.pid}-${Date.now()}`;
+  renameSync(p, t);
+  rmSync(t, { recursive: true, force: true });
+}
+
+// Newest write under a unit: the unit dir or any of its sessions.
+const lastWrite = (p) => readdirSync(p, { withFileTypes: true })
+  .reduce((m, e) => (e.isDirectory() ? Math.max(m, statSync(join(p, e.name)).mtimeMs) : m), statSync(p).mtimeMs);
+
 export function pruneIncremental(targetDir, { keepHours = KEEP_HOURS, now = Date.now(), dryRun = false } = {}) {
   let before = 0;
   let freed = 0;
   let removed = 0;
   let dirs = 0;
-  const drop = (p, size) => { freed += size; removed++; if (!dryRun) rmSync(p, { recursive: true, force: true }); };
+  const drop = (p, size) => { freed += size; removed++; if (!dryRun) trash(p); };
   for (const inc of incrementalDirs(targetDir)) {
-    const units = readdirSync(inc, { withFileTypes: true }).filter((e) => e.isDirectory())
-      .map((e) => { const p = join(inc, e.name); return { p, crate: e.name.replace(/-[^-]+$/, ''), m: statSync(p).mtimeMs, size: sizeOf(p) }; });
-    dirs += units.length;
-    const newest = new Map();
-    for (const u of units) if (!newest.has(u.crate) || newest.get(u.crate).m < u.m) newest.set(u.crate, u);
-    for (const u of units) {
-      before += u.size;
-      if (newest.get(u.crate) !== u && now - u.m > keepHours * MS_PER_HOUR) { drop(u.p, u.size); continue; }
-      for (const s of readdirSync(u.p).filter((n) => n.endsWith('-working'))) {
-        const p = join(u.p, s);
-        if (now - statSync(p).mtimeMs > WORKING_STALE_MS) drop(p, sizeOf(p));
+    const entries = readdirSync(inc, { withFileTypes: true }).filter((e) => e.isDirectory());
+    for (const e of entries.filter((x) => x.name.includes(TRASH))) {
+      if (!dryRun) rmSync(join(inc, e.name), { recursive: true, force: true });
+    }
+    for (const e of entries.filter((x) => !x.name.includes(TRASH))) {
+      const p = join(inc, e.name);
+      const size = sizeOf(p);
+      const age = now - lastWrite(p);
+      dirs++;
+      before += size;
+      if (age > keepHours * MS_PER_HOUR && age > GRACE_MS) { drop(p, size); continue; }
+      for (const sess of readdirSync(p).filter((n) => n.endsWith('-working'))) {
+        const sp = join(p, sess);
+        if (now - statSync(sp).mtimeMs > WORKING_STALE_MS) drop(sp, sizeOf(sp));
       }
     }
   }

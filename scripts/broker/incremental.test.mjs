@@ -1,6 +1,5 @@
 // incremental.test.mjs — rustc's incremental caches stay bounded (KIT-T483): after a suite run the
-// daemon drops each crate's units unused for `incremental_keep_hours`, always keeping a crate's
-// newest unit, and drops sessions a killed build left `-working`.
+// daemon drops each unit unused for `incremental_keep_hours` (never one written within 15 minutes), and drops sessions a killed build left `-working`.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,16 +25,40 @@ function unit(target, name, hours, { working = false, now = NOW } = {}) {
   return dir;
 }
 
-test('units unused past the window go, each crate keeps its newest, recent alternates stay warm', () => {
+test('a crate lib and test-harness units both survive while recent; an old unit of either kind goes', () => {
   const target = tempDir('incr-');
   try {
-    const libOld = unit(target, 'game-aaaa', 100);
-    const libNew = unit(target, 'game-bbbb', 50);
-    const testHarness = unit(target, 'game-cccc', 2);
+    const lib = unit(target, 'game-aaaa', 2);
+    const harness = unit(target, 'game-cccc', 3);
+    const oldDuplicate = unit(target, 'game-bbbb', 100);
     const lone = unit(target, 'rg_input-dddd', 500);
-    const r = pruneIncremental(target, { keepHours: 24, now: NOW });
-    assert.deepEqual([existsSync(libOld), existsSync(libNew), existsSync(testHarness), existsSync(lone)], [false, false, true, true]);
-    assert.deepEqual([r.before, r.after, r.removed, r.dirs], [4000, 2000, 2, 4]);
+    const justWritten = unit(target, 'game-eeee', 0.1);
+    const r = pruneIncremental(target, { keepHours: 0, now: NOW });
+    assert.deepEqual([lib, harness, oldDuplicate, lone, justWritten].map(existsSync), [false, false, false, false, true], 'keepHours 0: only the grace window protects');
+    const kept = pruneIncremental(target, { keepHours: 24, now: NOW });
+    assert.equal(kept.removed, 0);
+    assert.equal(r.removed, 4);
+  } finally { cleanup(target); }
+});
+
+test('same-crate units of two build kinds survive the window; only the stale one is pruned (negative control)', () => {
+  const target = tempDir('incr-');
+  try {
+    const lib = unit(target, 'game-aaaa', 2);
+    const harness = unit(target, 'game-cccc', 3);
+    const stale = unit(target, 'game-bbbb', 100);
+    pruneIncremental(target, { keepHours: 24, now: NOW });
+    assert.deepEqual([lib, harness, stale].map(existsSync), [true, true, false]);
+  } finally { cleanup(target); }
+});
+
+test('a leftover trash name is swept by the next prune', () => {
+  const target = tempDir('incr-');
+  try {
+    const junk = unit(target, 'game-aaaa.trash-1-2', 0);
+    unit(target, 'game-bbbb', 0);
+    pruneIncremental(target, { keepHours: 24, now: Date.now() });
+    assert.equal(existsSync(junk), false);
   } finally { cleanup(target); }
 });
 
