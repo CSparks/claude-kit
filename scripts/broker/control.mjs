@@ -2,7 +2,7 @@
 // stop starting jobs (the job in flight finishes) so a hand edit can use the tree; `resume`
 // lifts it. State is one marker file in the broker home, so it survives a daemon restart.
 
-import { existsSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ensureDirs } from './result.mjs';
 
@@ -21,5 +21,6 @@ export function resume(cfg) {
 const stopMarker = (cfg) => join(ensureDirs(cfg).home, 'stop');
 
 export const stopRequested = (cfg) => existsSync(stopMarker(cfg));
-export const requestStop = (cfg) => writeFileSync(stopMarker(cfg), new Date().toISOString());
+export const requestStop = (cfg, { now = false } = {}) => writeFileSync(stopMarker(cfg), now ? 'now' : new Date().toISOString());
+export const stopNowRequested = (cfg) => { try { return readFileSync(stopMarker(cfg), 'utf8') === 'now'; } catch { return false; } };
 export const clearStop = (cfg) => rmSync(stopMarker(cfg), { force: true });

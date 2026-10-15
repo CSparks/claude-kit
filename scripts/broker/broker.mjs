@@ -17,7 +17,7 @@
 // Start it with background Bash; a second start while one is live exits 1 (restart is idempotent).
 
 import { parseFlags, loadCfg } from './cli.mjs';
-import { clearStop, isPaused, pause, resume, stopRequested } from './control.mjs';
+import { clearStop, isPaused, pause, resume, stopNowRequested, stopRequested } from './control.mjs';
 import { deferredLines } from './deferred.mjs';
 import { announce, healthLine, selfCheck } from './health.mjs';
 import { acquireLock, heartbeat, liveHolder, releaseLock } from './lock.mjs';
@@ -38,6 +38,7 @@ import { rerouteMisplaced } from './reroute.mjs';
 import { runtimeCurrent } from '../runtime-path.mjs';
 import { usageProblem } from './usage.mjs';
 import { stopDaemon } from './stop.mjs';
+import { setStopNow } from './stop-now.mjs';
 import { withdrawJob } from './withdraw.mjs';
 
 const MS_PER_MIN = 60 * 1000;
@@ -110,6 +111,10 @@ const stop = (why = 'stopped') => {
   console.error(`broker: ${why}`);
   process.exit(0);
 };
+setStopNow({
+  check: () => stopNowRequested(cfg),
+  exit: () => { clearStop(cfg); recoverInflight(cfg); stop('stop --now: command killed, tree restored from the journal'); },
+});
 process.on('SIGINT', () => stop());
 process.on('SIGTERM', () => stop());
 

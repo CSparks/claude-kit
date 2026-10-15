@@ -12,6 +12,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { stopRequested } from './control.mjs';
 import { baselineCommand } from './attribute.mjs';
 import { repoByName } from './config.mjs';
 import { diagnose, testKey } from './diagnose.mjs';
@@ -48,7 +49,7 @@ const bugText = (e, cwd) => `test ${e.test} fails on a clean committed tree (${c
 export function recheckDeferred(cfg, { fileBug = fileBugViaCap, pollMs } = {}) {
   const out = { dropped: [], filed: [], kept: [] };
   let list = listDeferred(cfg);
-  if (listQueue(cfg).length) return out;
+  if (listQueue(cfg).length || stopRequested(cfg)) return out;
   const groups = new Map();
   for (const e of list) {
     const repo = repoByName(cfg, e.repo);
@@ -66,7 +67,7 @@ export function recheckDeferred(cfg, { fileBug = fileBugViaCap, pollMs } = {}) {
     const failures = members.map((m) => ({ binary: m.e.binary || null, test: m.e.test }));
     const logPath = logPathFor(cfg, 'deferred', n++);
     const startedAt = new Date().toISOString();
-    const run = guardLocks(cfg, { id: 'deferred', cwd }, () => runCancellable(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => listQueue(cfg).length > 0, pollMs }));
+    const run = guardLocks(cfg, { id: 'deferred', cwd }, () => runCancellable(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => listQueue(cfg).length > 0 || stopRequested(cfg), pollMs }));
     if (run.cancelled) { out.cancelled = true; break; }
     recordRun(cfg, { id: 'deferred', repo: first.repo, kind: 'recheck', startedAt, entries: lockFiles(cwd).map((path) => ({ path, blob: null })) });
     const seen = diagnose(readFileSync(logPath, 'utf8'));

@@ -17,6 +17,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { stopRequested } from './control.mjs';
 import { derivedUntrackedBlocks } from './blocks.mjs';
 import { brokerPaths } from './config.mjs';
 import { fileBugViaCap } from './deferred.mjs';
@@ -66,7 +67,7 @@ function starved(cfg, cwd, state, head, now) {
 }
 
 export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now() } = {}) {
-  if (cfg.landGate !== 'affected' || cfg.lane) return null;
+  if (cfg.landGate !== 'affected' || cfg.lane || stopRequested(cfg)) return null;
   const busy = listQueue(cfg).length > 0;
   const cwd = cfg.root;
   const state = suiteState(cfg);
@@ -91,7 +92,7 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
     if (kept[n] && kept[n].cmd === suite[n].trim()) { commands.push(kept[n]); continue; }
     if (busy && ran) { save(cfg, { ...state, partial: { id, commands } }); return { sha: head, status: 'partial', starved: true }; }
     ran = true;
-    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => !busy && listQueue(cfg).length > 0, pollMs }));
+    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => (!busy && listQueue(cfg).length > 0) || stopRequested(cfg), pollMs }));
     if (run.cancelled) { save(cfg, { ...state, putOff: state.putOff || { sha: head, at: new Date(now).toISOString() }, partial: { id, commands } }); return { sha: head, status: 'cancelled', cancelled: true }; }
     commands.push({ cmd: run.cmd, exit: run.exit, durationMs: run.durationMs, log: logPath });
   }

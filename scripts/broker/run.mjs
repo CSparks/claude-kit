@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { openSync, closeSync, readFileSync, existsSync } from 'node:fs';
 import { runCancellable } from './run-cancellable.mjs';
 import { pulseActive } from './stall.mjs';
+import { stopNowCheck, stopNowExit } from './stop-now.mjs';
 import { diagnose } from './diagnose.mjs';
 import { packageScoped } from './alias.mjs';
 
@@ -46,7 +47,8 @@ export function composeCommand(cmd, { jobs = 3, cwd } = {}) {
 // keeps the heartbeat fresh, so a 25-minute suite never reads as a stalled daemon (KIT-T488).
 export function runCommand(cmd, { cwd, targetDir, logPath, jobs }) {
   if (pulseActive()) {
-    const { cancelled, ...r } = runCancellable(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel: () => false });
+    const { cancelled, ...r } = runCancellable(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel: stopNowCheck });
+    if (cancelled) stopNowExit();
     return r;
   }
   const composed = composeCommand(cmd, { jobs, cwd });
