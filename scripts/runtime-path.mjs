@@ -8,7 +8,7 @@
 
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 
 const PROBE = join('scripts', 'q.mjs');
 
@@ -19,4 +19,10 @@ export function runtimeRoot(env = process.env) {
 export function runtimeCurrent(env = process.env) {
   const current = join(runtimeRoot(env), 'current');
   return existsSync(join(current, PROBE)) ? current : '';
+}
+
+/** True when `dir` lies inside the runtime directory: a sealed copy whose `.ai` is a snapshot, never a live store. */
+export function isSealedRuntime(dir, env = process.env) {
+  const base = resolve(runtimeRoot(env)).toLowerCase() + sep;
+  return resolve(dir).toLowerCase().startsWith(base);
 }

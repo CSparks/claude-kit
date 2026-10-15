@@ -29,3 +29,4 @@ Checked as possible duplicates and judged different work (--not-dup): KIT-T483, 
 
 ## History
 - [2026-10-15 13:32] (created) bug — broker: forced suite run holds the queue ~35 min (suite_every force ignores the queue and cannot be cancelled); landings must not wait on the suite
+- [2026-10-15 15:04] (comment) @claude: starvation bound added: suite_max_landings (10) / suite_max_hours (2), scripts/broker/suite-starve.test.mjs, npm test exit 0

@@ -16,6 +16,7 @@ const store = tmpDir('asked-store-');
 mkdirSync(join(store, '.ai', 'tickets'), { recursive: true });
 copyFileSync(join(KIT, '.ai', 'config.yml'), join(store, '.ai', 'config.yml'));
 process.env.CLAUDE_KIT_BUG_STORE = store;
+process.env.CLAUDE_KIT_DB = join(store, 'workflow.db');
 const { fileKitBug } = await import('./kit-bug.mjs');
 const { bumpAsked, askedAgainOpen } = await import('./asked-again.mjs');
 

@@ -59,7 +59,7 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
   // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired.
   const deferred = recheckDeferred(cfg, fileBug ? { fileBug } : {});
   const suite = deferred.cancelled ? null : runSuite(cfg, fileBug ? { fileBug } : {});
-  if (suite && !suite.cancelled) suite.pruned = pruneAfterSuite(cfg);
+  if (suite && !suite.cancelled && suite.status !== 'partial') suite.pruned = pruneAfterSuite(cfg);
   if (deferred.cancelled || (suite && suite.cancelled)) {
     const next = processOnce(cfg, { onResult, fileBug });
     return { ...next, processed: [...processed, ...next.processed] };

@@ -299,6 +299,8 @@ Never a silent grep or workaround, never a mention in prose.
   publish. The orchestrator does NO inline kit diagnosis: no hunting a launcher, reading
   kit source or poking at a hook itself. It relays the agent's runtime sha and goes back to
   its own work.
+- Follow-up work after a hand-back (KIT-T505) gets a fresh dispatch with the prior context in the brief,
+  or the agent reports through SendMessage; a handed-back agent never reports again unprompted.
 - The kit files many of these itself (q gaps, hook crashes, a grep after an empty q, `cap bug` /
   `cap feature` into the kit store); orient lists the open ones under DISPATCH NOW — dispatch them.
 - Filing by hand: `cap bug …` / `cap feature …` with `--project claude-kit`, or `t new` in the kit

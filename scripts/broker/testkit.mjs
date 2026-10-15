@@ -3,8 +3,8 @@
 // runs in seconds and needs no cargo. Every fixture is a real repo so the git protocol (path
 // commits, push, submodule pin) is exercised for real, never mocked.
 
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -21,16 +21,38 @@ export function gTry(args, cwd) {
   }
 }
 
-export function tempDir(prefix = 'broker-') {
-  return mkdtempSync(join(tmpdir(), prefix));
+// A test never auto-starts a daemon (submit/wait honour this, and children inherit it).
+process.env.BROKER_NO_AUTOSTART ??= '1';
+
+const made = new Set();
+
+// Stop a daemon holding `dir`'s broker lock; `dir` is always a fixture this process created.
+function killDaemonOf(dir) {
+  try {
+    const pid = JSON.parse(readFileSync(join(dir, 'target', 'broker', 'broker.lock'), 'utf8')).pid;
+    if (!pid || pid === process.pid) return;
+    if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
+    else process.kill(pid);
+  } catch { /* no lock, or already gone */ }
 }
 
 export function cleanup(dir) {
+  killDaemonOf(dir);
+  made.delete(dir);
   try {
-    rmSync(dir, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true, maxRetries: 15, retryDelay: 200 });
   } catch {
     /* best effort on Windows file locks */
   }
+}
+
+// Fixtures a test forgot (or failed before) to clean are removed, daemon included, at exit.
+process.on('exit', () => { for (const dir of [...made]) cleanup(dir); });
+
+export function tempDir(prefix = 'broker-') {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  made.add(dir);
+  return dir;
 }
 
 // A repo on `main` with target/ gitignored (so the broker's own control files never dirty it)

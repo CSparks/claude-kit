@@ -4,7 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { acquireLock, liveHolder, releaseLock } from './lock.mjs';
 import { stopRequested } from './control.mjs';
@@ -63,5 +64,19 @@ test('a running daemon exits on its own after `stop`', async () => {
     assert.equal(run(s.root, 'stop').status, 0);
     assert.equal(await Promise.race([exited, new Promise((r) => setTimeout(() => r('timeout'), 15000))]), 0);
     assert.equal(liveHolder(s.cfg), null);
+  } finally { s.done(); }
+});
+
+test('stop clears the stale lock of a dead pid; a live holder keeps its lock (control)', () => {
+  const s = fixture();
+  try {
+    const lock = join(s.root, 'target', 'broker', 'broker.lock');
+    assert.ok(acquireLock(s.cfg).ok);
+    assert.doesNotMatch(stopDaemon(s.cfg).text, /stale/);
+    assert.ok(existsSync(lock), 'live holder keeps its lock');
+    releaseLock(s.cfg);
+    writeFileSync(lock, JSON.stringify({ pid: 2147483646, host: hostname(), ts: '' }));
+    assert.match(stopDaemon(s.cfg).text, /cleared the stale lock of dead pid 2147483646/);
+    assert.ok(!existsSync(lock));
   } finally { s.done(); }
 });

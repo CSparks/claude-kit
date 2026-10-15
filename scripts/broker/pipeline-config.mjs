@@ -6,6 +6,8 @@
 //     test: cargo test                               # prefix for the mapped `-p <crate> --test …` run
 //   suite: [ "cargo test", … ]   # the full suite run on the cadence; default verify_default
 //   suite_every: 1               # landings between suite runs; once due it runs before the next job
+//   suite_max_landings: 10       # a suite put off this many landings runs its next unfinished command between jobs (suite.mjs)
+//   suite_max_hours: 2           # ... or this many hours
 //   suite_partitions: 1          # >1: each suite run covers one rotating partition (suite-shard.mjs)
 //   runner: cargo                # cargo (default) | nextest: a job's per-target cargo tests run as one nextest run
 //   batch: 8                     # most queued disjoint jobs one build carries (train.mjs); 1 runs every job alone
@@ -17,6 +19,7 @@ const DEFAULT_CHECK = 'cargo check --workspace --all-targets';
 const DEFAULT_TEST = 'cargo test';
 const DEFAULT_BATCH = 8;
 const KEEP_HOURS = 24;
+const positive = (v, dflt) => (Number.isFinite(Number(v)) && v !== '' && v != null && Number(v) > 0 ? Number(v) : dflt);
 
 export function pipelineConfig(broker, verifyDefault) {
   const a = broker.affected && typeof broker.affected === 'object' ? broker.affected : {};
@@ -26,6 +29,8 @@ export function pipelineConfig(broker, verifyDefault) {
     affected: { check: String(a.check || DEFAULT_CHECK), test: String(a.test || DEFAULT_TEST) },
     suite: Array.isArray(broker.suite) && broker.suite.length ? broker.suite.map(String) : verifyDefault.slice(),
     suiteEvery: Number.isFinite(every) && every >= 1 ? Math.floor(every) : 1,
+    suiteMaxLandings: Math.floor(positive(broker.suite_max_landings, 10)),
+    suiteMaxHours: positive(broker.suite_max_hours, 2),
     suitePartitions: Number.isInteger(Number(broker.suite_partitions)) && Number(broker.suite_partitions) > 1 ? Number(broker.suite_partitions) : 1,
     runner: broker.runner === 'nextest' ? 'nextest' : 'cargo',
     incrementalKeepHours: broker.incremental_keep_hours === 'off' || broker.incremental_keep_hours === false ? null

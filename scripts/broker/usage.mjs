@@ -3,13 +3,14 @@
 //
 // `usageProblem(flags)` → null | { text, code }: code 0 for help, 2 for a bad argument.
 
-const COMMANDS = new Set(['pause', 'resume', 'cancel', 'status', 'stop']);
-const FLAGS = new Set(['_', 'root', 'log', 'once', 'poll', 'idle-exit', 'spawned-by', 'now', 'help']);
+const COMMANDS = new Set(['pause', 'resume', 'cancel', 'status', 'stop', 'stats']);
+const FLAGS = new Set(['_', 'root', 'log', 'once', 'poll', 'idle-exit', 'spawned-by', 'now', 'help', 'since', 'json']);
 
 export const USAGE = [
   'usage: broker.mjs [--root <checkout>] [command] [options]',
   '  (no command)   run the daemon; options: --once --poll <ms> --idle-exit <min> --log <file|auto>',
   '  status         show the daemon, queue and suite state',
+  '  stats [--since 24h|7d|<ISO>] [--json]   queue wait, phase minutes, failure rates, batches, fairness, stall kills, ST-T904 share',
   '  pause|resume   stop or resume starting jobs',
   '  cancel <id>    withdraw a queued job',
   '  stop [--now]   stop the daemon after its current job; refuses while a job is queued or running unless --now',

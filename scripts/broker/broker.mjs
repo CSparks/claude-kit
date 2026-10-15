@@ -71,6 +71,13 @@ if (command === 'stop') {
   process.exit(r.code);
 }
 
+if (command === 'stats') {
+  const { statsReport } = await import('./metrics.mjs');
+  const r = statsReport(cfg, { since: typeof flags.since === 'string' ? flags.since : null });
+  console.log(flags.json ? JSON.stringify(r.data, null, 2) : r.text);
+  process.exit(0);
+}
+
 if (command === 'status') {
   const queued = listQueue(cfg).length;
   const stall = stallState(cfg);

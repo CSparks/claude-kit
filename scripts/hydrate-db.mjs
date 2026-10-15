@@ -40,12 +40,14 @@ import { statStoreFiles, readIdConfig } from './id-utils.mjs';
 import { resolveEngine } from './db-engine.mjs';
 import { projectAiDirs } from '../hooks/lib.mjs';
 import { isMain } from './is-main.mjs';
+import { isSealedRuntime } from './runtime-path.mjs';
 
 const KIT_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 
 // DB lives relative to the install (KIT-T004): <kit-root>/.cache/workflow.db. Honor
 // $CLAUDE_PLUGIN_ROOT when the plugin runs from a different install dir.
 export function defaultDbPath() {
+  if (process.env.CLAUDE_KIT_DB) return process.env.CLAUDE_KIT_DB;
   const base = process.env.CLAUDE_PLUGIN_ROOT || KIT_ROOT;
   return join(base, '.cache', 'workflow.db');
 }
@@ -166,9 +168,10 @@ function newestMtime(aiDir) {
 // cross-scope (KIT-T031). De-duped by aiDir so the kit appearing in both the registry and
 // as KIT_ROOT is counted once. Each source: { root, aiDir } — root seeds the scope-key
 // fallback, aiDir is where the markdown lives.
-export function hydrationSources(root) {
+export function hydrationSources(root, kitRoot = KIT_ROOT) {
   if (root) return [{ root, aiDir: join(root, '.ai') }];
-  const sources = [{ root: KIT_ROOT, aiDir: join(KIT_ROOT, '.ai') }];
+  // A sealed runtime copy carries a snapshot .ai; the registry's `claude-kit` project is the live store.
+  const sources = isSealedRuntime(kitRoot) ? [] : [{ root: kitRoot, aiDir: join(kitRoot, '.ai') }];
   for (const { aiDir } of projectAiDirs()) {
     // root = aiDir's parent for an in-repo store, else aiDir itself (central data has no
     // nested .ai); collectItems uses aiDir for the markdown and root only for the key.
@@ -208,7 +211,7 @@ export function isSharedDb(dbPath) {
 
 export function isRegisteredStore(root) {
   if (!root) return false;
-  const known = new Set([canonPath(join(KIT_ROOT, '.ai'))]);
+  const known = new Set(isSealedRuntime(KIT_ROOT) ? [] : [canonPath(join(KIT_ROOT, '.ai'))]);
   for (const { aiDir } of projectAiDirs()) known.add(canonPath(aiDir));
   // <root>/.ai for an in-repo store; root itself for a central-data store (which IS the .ai dir).
   return known.has(canonPath(join(root, '.ai'))) || known.has(canonPath(root));

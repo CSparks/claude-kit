@@ -14,7 +14,7 @@
 //     diffStat, landed: { sha, superSha }|null, dirtyEntries, message, startedAt, finishedAt,
 //     killed?: { pid, at, beatAgeS, phase }  (the watchdog killed the daemon running this job; stall.mjs),
 //     resumed?: { journal, sha }  (a restarted daemon finished a landing past its commit; resume.mjs),
-//     train?: { id, members, size, builds }, blame?: [reason] }
+//     train?: { id, members, size, builds }, blame?: [reason], session?: the submitting session }
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -83,10 +83,16 @@ function takeKill(cfg, id) {
   return rest;
 }
 
+// The submitting session of a job still in the queue dir, so its result can name it for stats.
+function queuedSession(queueDir, id) {
+  try { return JSON.parse(readFileSync(join(queueDir, `${id}.json`), 'utf8')).session || null; } catch { return null; }
+}
+
 export function writeResult(cfg, result) {
   const p = ensureDirs(cfg);
   const killed = result.killed || takeKill(cfg, result.id);
-  const full = { finishedAt: new Date().toISOString(), ...result, ...(killed ? { killed } : {}) };
+  const session = result.session || queuedSession(p.queue, result.id);
+  const full = { finishedAt: new Date().toISOString(), ...result, ...(session ? { session } : {}), ...(killed ? { killed } : {}) };
   writeFileSync(join(p.results, `${result.id}.json`), JSON.stringify(full, null, 2));
   return full;
 }

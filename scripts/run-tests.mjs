@@ -13,7 +13,7 @@ const registry = join(dir, 'registry.json');
 writeFileSync(registry, '{}\n');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const r = spawnSync(npm, ['run', 'test:chain', '--silent'], {
-  stdio: 'inherit', shell: process.platform === 'win32', env: { ...process.env, CLAUDE_KIT_REGISTRY: registry },
+  stdio: 'inherit', shell: process.platform === 'win32', env: { ...process.env, CLAUDE_KIT_REGISTRY: registry, BROKER_NO_AUTOSTART: '1' },
 });
 rmSync(dir, { recursive: true, force: true });
 process.exit(r.status ?? 1);
