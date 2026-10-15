@@ -26,7 +26,8 @@ import { resumeLanding } from './resume.mjs';
 import { processOnce } from './queue.mjs';
 import { STATUS, ensureDirs, listQueue } from './result.mjs';
 import { suiteLine } from './suite.mjs';
-import { pinRuntime } from '../runtime-pin.mjs';
+import { pinRuntime, runtimeTag } from '../runtime-pin.mjs';
+import { publishedSwap } from './runtime-swap.mjs';
 import { setPulse, stallLine, stallState } from './stall.mjs';
 import { appendFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -119,20 +120,23 @@ const pollMs = Number(flags.poll) || cfg.pollMs;
 const idleMs = (Number(flags['idle-exit']) || 0) * MS_PER_MIN;
 let lastWork = Date.now();
 // A publish that pruned this daemon's runtime copy (KIT-T486) leaves it unable to load its hooks:
-// it hands the lock to a fresh daemon started from `current` and exits.
+// it hands the lock to a fresh daemon started from `current` and exits. A newly published runtime
+// triggers the same hand-over after a drain, so a job in progress finishes on its own runtime.
 const runtimeGone = () => !existsSync(join(import.meta.dirname, 'gate.mjs'));
-function restartFromCurrent() {
+function restartFromCurrent(why = `runtime gone (${import.meta.dirname})`) {
   const cur = runtimeCurrent();
   releaseLock(cfg);
   const args = process.argv.slice(2).filter((a, i, all) => a !== '--root' && all[i - 1] !== '--root' && a !== '--log' && all[i - 1] !== '--log');
   if (cur) launchDaemon(join(cur, 'scripts', 'broker', 'broker.mjs'), root, args);
-  console.error(`broker: runtime gone (${import.meta.dirname}); ${cur ? `restarted from ${cur}` : 'no published runtime to restart from'}`);
+  console.error(`broker: ${why}; ${cur ? `restarted from ${cur}` : 'no published runtime to restart from'}`);
   process.exit(0);
 }
 
 const tick = () => {
   if (runtimeGone()) restartFromCurrent();
   const { processed } = drain();
+  const swap = publishedSwap();
+  if (swap) restartFromCurrent(`runtime ${runtimeTag()} superseded by published ${swap}`);
   if (processed.length || listQueue(cfg).length || isPaused(cfg)) lastWork = Date.now();
   if (idleMs && Date.now() - lastWork > idleMs) stop(`idle for ${flags['idle-exit']} min, exiting`);
   setTimeout(tick, pollMs);
