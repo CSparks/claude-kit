@@ -60,12 +60,19 @@ function prune(runtimeRoot, keep, currentSha, projects) {
   }
 }
 
+// The repo's installed dependencies (root and each first-level package such as server/), linked into an export.
+function linkModules(repo, dest) {
+  for (const sub of ['', ...readdirSync(repo, { withFileTypes: true }).filter((d) => d.isDirectory() && existsSync(join(repo, d.name, 'package.json'))).map((d) => d.name)]) {
+    if (existsSync(join(repo, sub, 'node_modules')) && existsSync(join(dest, sub))) link(join(repo, sub, 'node_modules'), join(dest, sub, 'node_modules'));
+  }
+}
+
 /** Export HEAD into a scratch dir beside the repo: outside the OS temp dir and any git tree, as the suite expects (own empty cache), run `verify(dir)` there, then delete it; a throw aborts the publish (KIT-T510). */
 function verifyHead(repo, runtimeRoot, sha, verify) {
   const scratch = join(dirname(resolve(repo)), `.kit-verify-${sha}-${process.pid}`);
   try {
     exportHead(repo, scratch);
-    if (existsSync(join(repo, 'node_modules'))) link(join(repo, 'node_modules'), join(scratch, 'node_modules'));
+    linkModules(repo, scratch);
     verify(scratch);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
