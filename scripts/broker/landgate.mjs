@@ -13,6 +13,7 @@ import { selectAffected } from './affected.mjs';
 const SELECTORS = new Set(['--test', '--tests', '--lib', '--bin', '--bins', '--example', '--examples', '--doc', '--bench']);
 const TAKES_VALUE = new Set(['-p', '--package', '--features', '-F', '--profile', '-j', '--jobs', '--target', '--manifest-path', '--config', '-Z', '--exclude']);
 const TEST_SUBS = new Set(['test', 't']);
+const SUITE_TEST_TARGETS = 8; // a command naming this many `--test` targets is a hand-built full suite
 
 const normalize = (cmd) => {
   const toks = String(cmd).trim().split(/\s+/);
@@ -38,9 +39,17 @@ function unfilteredTest(cmd) {
   return true;
 }
 
+function enumeratedSuite(cmd) {
+  const toks = String(cmd).trim().split(/\s+/);
+  const ci = toks.indexOf('cargo');
+  if (ci === -1 || !TEST_SUBS.has(toks[ci + 1])) return false;
+  const sep = toks.indexOf('--');
+  return toks.slice(ci, sep === -1 ? undefined : sep).filter((t) => t === '--test').length >= SUITE_TEST_TARGETS;
+}
+
 export function isSuiteShaped(cmd, suite) {
   const n = normalize(cmd);
-  return suite.some((s) => normalize(s) === n) || unfilteredTest(cmd);
+  return suite.some((s) => normalize(s) === n) || unfilteredTest(cmd) || enumeratedSuite(cmd);
 }
 
 export function landGate(cfg, cwd, job, files) {

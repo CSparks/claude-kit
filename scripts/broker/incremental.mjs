@@ -31,6 +31,20 @@ const incrementalDirs = (targetDir) => (existsSync(targetDir) ? readdirSync(targ
   .filter((e) => e.isDirectory() && existsSync(join(targetDir, e.name, 'incremental')))
   .map((e) => join(targetDir, e.name, 'incremental'));
 
+// Delete incremental state: the units of `crates` (cargo names; `-`/`_` alike), or every unit when none given.
+export function clearIncremental(targetDir, crates = []) {
+  const want = crates.map((c) => c.replace(/-/g, '_'));
+  let removed = 0;
+  for (const inc of incrementalDirs(targetDir)) {
+    for (const e of readdirSync(inc, { withFileTypes: true })) {
+      if (!e.isDirectory() || (want.length && !want.includes(e.name.replace(/-[^-]+$/, '').replace(/-/g, '_')))) continue;
+      rmSync(join(inc, e.name), { recursive: true, force: true });
+      removed++;
+    }
+  }
+  return removed;
+}
+
 export function pruneIncremental(targetDir, { keepHours = KEEP_HOURS, now = Date.now(), dryRun = false } = {}) {
   let before = 0;
   let freed = 0;

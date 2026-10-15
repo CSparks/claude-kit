@@ -13,6 +13,12 @@ import { buildPatchJob } from './submit-lib.mjs';
 import { fixture, g } from './patchkit.mjs';
 import { cleanup, tempDir } from './testkit.mjs';
 
+test('a hand-enumerated full suite is suite-shaped; a short targeted list is not', () => {
+  const many = `cargo test --offline -p app ${Array.from({ length: 64 }, (_, i) => `--test t${i}`).join(' ')}`;
+  assert.ok(isSuiteShaped(many, ['cargo test -p app']));
+  assert.ok(!isSuiteShaped('cargo test --offline -p app --test a --test b --test c', ['cargo test -p app']), 'negative control');
+});
+
 test('suite-shaped: suite commands modulo -j/--no-fail-fast and unfiltered cargo test; targeted runs are not', () => {
   const suite = ['cargo test --offline -p game', 'cargo run --release --bin probe'];
   assert.ok(isSuiteShaped('cargo test --offline -p game --no-fail-fast -j 3', suite));
