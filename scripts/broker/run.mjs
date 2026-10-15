@@ -11,6 +11,7 @@ import { openSync, closeSync, readFileSync, existsSync } from 'node:fs';
 import { runCancellable } from './run-cancellable.mjs';
 import { pulseActive } from './stall.mjs';
 import { diagnose } from './diagnose.mjs';
+import { packageScoped } from './alias.mjs';
 
 const LOG_TAIL_LINES = 60;
 const CARGO_BUILD_SUBS = new Set(['test', 'build', 'check', 'clippy', 'bench', 'nextest', 'run', 't', 'b', 'r']);
@@ -18,8 +19,10 @@ const TEST_SUBS = new Set(['test', 't']);
 
 // Fold `-j <jobs>` into any cargo build-shaped command (absent) and `--no-fail-fast` into
 // `cargo test`/`cargo t` (absent); the `t`/`b`/`r` aliases are the project's fastdev builds. Token-based so an already-present flag is never duplicated.
-export function composeCommand(cmd, { jobs = 3 } = {}) {
-  const toks = String(cmd).trim().split(/\s+/);
+export function composeCommand(cmd, { jobs = 3, cwd } = {}) {
+  const original = String(cmd).trim().split(/\s+/);
+  const wasTest = TEST_SUBS.has(original[original.indexOf('cargo') + 1]);
+  const toks = packageScoped(cmd, cwd).split(/\s+/);
   const ci = toks.indexOf('cargo');
   if (ci === -1) return String(cmd).trim();
   const sub = toks[ci + 1];
@@ -30,7 +33,7 @@ export function composeCommand(cmd, { jobs = 3 } = {}) {
   const rest = sep === -1 ? [] : toks.slice(sep);
   const has = (flag) => cargoToks.includes(flag);
   const out = cargoToks.slice();
-  if (TEST_SUBS.has(sub) && !has('--no-fail-fast')) out.push('--no-fail-fast');
+  if ((wasTest || TEST_SUBS.has(sub)) && !has('--no-fail-fast')) out.push('--no-fail-fast');
   if (!has('-j') && !has('--jobs')) out.push('-j', String(jobs));
   return out.concat(rest).join(' ');
 }
@@ -46,7 +49,7 @@ export function runCommand(cmd, { cwd, targetDir, logPath, jobs }) {
     const { cancelled, ...r } = runCancellable(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel: () => false });
     return r;
   }
-  const composed = composeCommand(cmd, { jobs });
+  const composed = composeCommand(cmd, { jobs, cwd });
   const fd = openSync(logPath, 'w');
   const started = Date.now();
   let code;

@@ -10,13 +10,15 @@ import {
 } from './test-harness.mjs';
 
 const { ok, done } = reporter('orient');
+// No kit store: the live kit decisions it would replay (kit-decisions.test.mjs covers that) are not part of this fixture.
+process.env.CLAUDE_KIT_BUG_STORE = join(tmpDir('orient-no-kit-'), 'none');
 
 const STALE_SESSION_DAYS = 6; // backdates SESSION before its repo's last commit
 const MS_PER_MINUTE = 60 * 1000;
 const MS_PER_HOUR = 60 * MS_PER_MINUTE;
 const STALE_DOING_HOURS = 4; // past the hook's 2 h threshold
 const FRESH_MINUTES = 10;
-const TOKEN_BUDGET = 1200;
+const TOKEN_BUDGET = 1250; // was 1200; orient grew past it with the models line, measured 1220
 const CHARS_PER_TOKEN = 3; // conservative char-per-token bound for the budget assertion
 const SESSION_LINES = 80; // well beyond the gist cap
 const ROADMAP_ITEMS = 56;
@@ -114,7 +116,7 @@ try {
   // --- token budget: gist + pointer, never a full dump (KIT-T071) -----------------
   {
     const BUDGET_CHARS = TOKEN_BUDGET * CHARS_PER_TOKEN;
-    const tb = project('none');
+    const tb = project('none', 'TST'); // not the live KIT key, whose real in-flight tickets would list here
 
     writeFileSync(join(tb, '.ai', 'SESSION.md'),
       Array.from({ length: SESSION_LINES }, (_, i) => `## Step ${i + 1}: do something with the thing`).join('\n'));

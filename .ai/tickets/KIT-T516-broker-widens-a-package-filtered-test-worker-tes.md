@@ -2,7 +2,7 @@
 id: KIT-T516
 title: Broker widens a package-filtered test: worker --test 'cargo t -p sim --lib' ran 1287 tests across the workspace (terrain, testkit) for 1409 s on stiletto job j-mv9q1h48-t1lk9z, then re-ran the base for attribution; a one-crate check cost 23 min of the shared queue
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-15T17:15:28Z
-updated: 2026-10-15T17:15:28Z
+updated: 2026-10-15T17:28:50Z
 ---
 
 ## Description
@@ -26,6 +26,10 @@ updated: 2026-10-15T17:15:28Z
 
 ## Notes
 Checked as possible duplicates and judged different work (--not-dup): KIT-T482
+### comment #1 [2026-10-15 17:28] @claude
+root cause: stiletto .cargo alias t = nextest run --workspace ...; cargo lets --workspace override -p. Fixed in scripts/broker/alias.mjs (expands the alias minus --workspace when -p is named); alias.test.mjs with controls. Baseline re-run: baseline.mjs already caches per tree state + command, so no change.
 
 ## History
 - [2026-10-15 17:15] (created) bug — Broker widens a package-filtered test: worker --test 'cargo t -p sim --lib' ran 1287 tests across the workspace (terrain, testkit) for 1409 s on stiletto job j-mv9q1h48-t1lk9z, then re-ran the base for attribution; a one-crate check cost 23 min of the shared queue
+- [2026-10-15 17:28] (comment) @claude: root cause: stiletto .cargo alias t = nextest run --workspace ...; cargo lets --workspace override -p. Fixed in scripts/ (full comment #1 in ## Notes)
+- [2026-10-15 17:28] (status) todo → review

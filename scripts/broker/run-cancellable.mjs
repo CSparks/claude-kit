@@ -38,7 +38,7 @@ export function runCancellable(cmd, opts, hooks) {
 }
 
 function runOnce(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel, pollMs = DEFAULT_POLL_MS }) {
-  const composed = composeCommand(cmd, { jobs });
+  const composed = composeCommand(cmd, { jobs, cwd });
   const marker = `${logPath}.exit`;
   rmSync(marker, { force: true });
   const fd = openSync(logPath, 'w');
