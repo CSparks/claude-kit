@@ -28,6 +28,7 @@ try {
 
     writeFileSync(join(b, 'g.txt'), 'B\n');
     git(['add', '-A'], b); git(['commit', '-q', '-m', 'B1'], b); git(['push', '-q'], b);
+    git(['fetch', '-q'], a);
     let ab = aheadBehind(a, { fetch: true });
     ok('aheadBehind: behind-only after the other machine pushes', !!ab && ab.ahead === 0 && ab.behind === 1 && !ab.diverged);
 
