@@ -192,8 +192,9 @@ export function hydrationSources(root, kitRoot = KIT_ROOT) {
 // A throwaway store (a test fixture copying a live config) can claim a live scope key; where two
 // stores share a key the non-temp one wins, so a fixture never replaces a real project's rows.
 function withoutTempScopeClaims(sources) {
-  const temp = canonPath(tmpdir());
-  const isTemp = (s) => canonPath(s.aiDir).startsWith(temp);
+  const long = (p) => { try { return realpathSync.native(resolve(p)).toLowerCase(); } catch { return resolve(p).toLowerCase(); } };
+  const temp = long(tmpdir());
+  const isTemp = (s) => long(s.aiDir).startsWith(temp);
   const keyOf = (s) => { try { return readIdConfig(s.root, s.aiDir).key || ''; } catch { return ''; } };
   const keys = sources.map(keyOf);
   return sources.filter((s, i) => !(keys[i] && isTemp(s) && sources.some((o, j) => j !== i && keys[j] === keys[i] && !isTemp(o))));
