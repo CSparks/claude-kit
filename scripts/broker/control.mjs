@@ -17,3 +17,9 @@ export function pause(cfg) {
 export function resume(cfg) {
   rmSync(marker(cfg), { force: true });
 }
+
+const stopMarker = (cfg) => join(ensureDirs(cfg).home, 'stop');
+
+export const stopRequested = (cfg) => existsSync(stopMarker(cfg));
+export const requestStop = (cfg) => writeFileSync(stopMarker(cfg), new Date().toISOString());
+export const clearStop = (cfg) => rmSync(stopMarker(cfg), { force: true });

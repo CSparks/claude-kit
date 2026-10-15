@@ -17,7 +17,7 @@
 // Start it with background Bash; a second start while one is live exits 1 (restart is idempotent).
 
 import { parseFlags, loadCfg } from './cli.mjs';
-import { isPaused, pause, resume } from './control.mjs';
+import { clearStop, isPaused, pause, resume, stopRequested } from './control.mjs';
 import { deferredLines } from './deferred.mjs';
 import { announce, healthLine, selfCheck } from './health.mjs';
 import { acquireLock, heartbeat, liveHolder, releaseLock } from './lock.mjs';
@@ -34,10 +34,14 @@ import { join } from 'node:path';
 import { launchDaemon } from './launch.mjs';
 import { brokerPaths } from './config.mjs';
 import { runtimeCurrent } from '../runtime-path.mjs';
+import { usageProblem } from './usage.mjs';
+import { stopDaemon } from './stop.mjs';
 import { withdrawJob } from './withdraw.mjs';
 
 const MS_PER_MIN = 60 * 1000;
 const flags = parseFlags(process.argv.slice(2));
+const problem = usageProblem(flags);
+if (problem) { (problem.code ? console.error : console.log)(problem.text); process.exit(problem.code); }
 const { root, cfg } = loadCfg(flags);
 ensureDirs(cfg);
 let logFile = null;
@@ -61,6 +65,12 @@ if (command === 'cancel') {
   process.exit(gone.ok ? 0 : 1);
 }
 
+if (command === 'stop') {
+  const r = stopDaemon(cfg, { now: !!flags.now });
+  console.error(r.text);
+  process.exit(r.code);
+}
+
 if (command === 'status') {
   const queued = listQueue(cfg).length;
   const stall = stallState(cfg);
@@ -75,7 +85,7 @@ if (command === 'status') {
 }
 
 const lock = acquireLock(cfg, { spawnedBy: typeof flags['spawned-by'] === 'string' ? flags['spawned-by'] : null, log: logFile });
-if (lock.ok) { pinRuntime(); setPulse(() => heartbeat(cfg)); }
+if (lock.ok) { clearStop(cfg); pinRuntime(); setPulse(() => heartbeat(cfg)); }
 if (!lock.ok) {
   console.error(`broker: another broker holds the lock (pid ${lock.holder.pid} on ${lock.holder.host} since ${lock.holder.ts})`);
   process.exit(1);
@@ -133,6 +143,7 @@ function restartFromCurrent(why = `runtime gone (${import.meta.dirname})`) {
 }
 
 const tick = () => {
+  if (stopRequested(cfg)) { clearStop(cfg); stop('stop requested'); }
   if (runtimeGone()) restartFromCurrent();
   const { processed } = drain();
   const swap = publishedSwap();
