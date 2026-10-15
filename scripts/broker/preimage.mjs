@@ -6,7 +6,8 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
-import { catBlob, git, hashObject, lockFiles } from './git.mjs';
+import { catBlob, git, hashObject } from './git.mjs';
+import { lockFilesDeep } from './locks.mjs';
 
 const journalPath = (cfg) => join(brokerPaths(cfg).home, 'inflight.json');
 
@@ -122,9 +123,9 @@ export function recoverInflight(cfg) {
   return { id: journal.id, resume: null };
 }
 
-/** Remove every Cargo.lock that was not in `before`: a run created it. */
+/** Remove every Cargo.lock (submodules' included) that was not in `before`: a run created it. */
 export function dropNewLocks(cwd, before) {
-  for (const p of lockFiles(cwd)) if (!before.includes(p)) rmSync(join(cwd, p), { force: true });
+  for (const p of lockFilesDeep(cwd)) if (!before.includes(p)) rmSync(join(cwd, p), { force: true });
 }
 
 /**
@@ -132,7 +133,7 @@ export function dropNewLocks(cwd, before) {
  * side effect of any build or test. For runs outside a job's own journal (idle re-checks).
  */
 export function guardLocks(cfg, { id, cwd }, fn) {
-  const before = lockFiles(cwd);
+  const before = lockFilesDeep(cwd);
   const journal = capture(cfg, { id, cwd, paths: before });
   try { return fn(); } finally { restore(cfg, journal); dropNewLocks(cwd, before); }
 }

@@ -23,7 +23,8 @@ import { gateTrailer } from './trailer.mjs';
 import { stalePins } from './pin-stale.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
-import { changedLocks, dirtyPaths, git, lockFiles, revParse } from './git.mjs';
+import { changedLocks, dirtyPaths, git, revParse } from './git.mjs';
+import { lockFilesDeep } from './locks.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand, runDiagnosed } from './run.mjs';
 import { writePlan } from './write-plan.mjs';
@@ -89,7 +90,7 @@ export function processPatch(cfg, job, repo) {
   const pre = { tree: treeState(cfg, cwd), dirty: dirtyPaths(cwd), head: revParse(cwd, 'HEAD') };
   const key = greenKey({ repo: job.repo, pre: pre.tree, files: plan.files, commands: jobCommands(cfg, job), pins });
   const reused = job.land ? findGreen(cfg, key) : null;
-  const locksBefore = lockFiles(cwd);
+  const locksBefore = lockFilesDeep(cwd);
   const captureTree = () => capture(cfg, { id: job.id, cwd, paths: [...new Set([...plan.files.keys(), ...locksBefore])] });
   const startedAt = new Date().toISOString();
   let journal = captureTree();

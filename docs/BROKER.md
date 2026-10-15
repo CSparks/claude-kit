@@ -123,8 +123,8 @@ the job's patch edits, writes or deletes; or an untracked file matching `broker.
 new files like `tests/*.rs` pause it and an untracked standalone crate outside the workspace does not;
 `**/*.rs`, `**/Cargo.toml` when no Cargo.toml is tracked). Any other dirty tracked
 file (a hot-edited asset script) and other untracked files (assets, images) never pause it.
-Every Cargo.lock in the repo is journalled with the patched paths, so a check-only run restores
-what cargo rewrote. Check-only runs touch the live tree for the length of the run;
+Every Cargo.lock in the repo and in each checked-out submodule (`locks.mjs`, KIT-T519: `rapid-game/rust/Cargo.lock` under a superproject job) is journalled with the patched paths, so a check-only run restores
+what cargo rewrote, and a lock the run created is removed; a daemon killed mid-run gets the same restore at its next start. Check-only runs touch the live tree for the length of the run;
 `broker pause` before a long hand edit, `resume` after. The daemon never commits the writer's
 changes: landing is by explicit paths.
 

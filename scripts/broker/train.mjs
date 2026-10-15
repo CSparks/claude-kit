@@ -16,7 +16,8 @@
 
 import { makeBaseline } from './baseline.mjs';
 import { treeState } from './cache.mjs';
-import { dirtyPaths, git, lockFiles, revParse } from './git.mjs';
+import { dirtyPaths, git, revParse } from './git.mjs';
+import { lockFilesDeep } from './locks.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
 import { foreignOf } from './job-commands.mjs';
 import { phaseTracker } from './phase.mjs';
@@ -73,7 +74,7 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
     while (groups.length) {
       const pool = groups.shift();
       const waiting = [pool, ...groups].flat();
-      locksBefore = lockFiles(cwd);
+      locksBefore = lockFilesDeep(cwd);
       const paths = [...new Set([...waiting.flatMap(filesOf), ...locksBefore])];
       const snap = () => capture(cfg, { id, cwd, paths, members: waiting.map((m) => m.job.id), startedAt });
       const pre = { tree: treeState(cfg, cwd), dirty: dirtyPaths(cwd), head: revParse(cwd, 'HEAD') };
