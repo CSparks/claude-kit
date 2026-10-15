@@ -46,6 +46,7 @@ import { SHA_RE, findTicket, setField } from './t/ticket-file.mjs';
 import { setStatus } from './t/status.mjs';
 import { askQuestion, resolveQuestionFile } from './t/ask.mjs';
 import { isMain } from './is-main.mjs';
+import { runVerb } from './t-verbs.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
@@ -379,6 +380,11 @@ function parseArgs(argv) {
     else if (a === '--by') flags.by = argv[++i];
     else if (a === '--root') flags.root = argv[++i];
     else if (a === '--file') flags.file = argv[++i];
+    else if (a === '--description') flags.description = argv[++i];
+    else if (a === '--body') flags.body = argv[++i];
+    else if (a === '--links') flags.links = String(argv[++i] || '').split(',').map((x) => x.trim()).filter(Boolean);
+    else if (a === '--answerable-by') flags.answerableBy = argv[++i];
+    else if (a === '--append') flags.append = true;
     else if (a === '--not-dup') flags.notDup = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
     else if (a.startsWith('--') && a !== '--help') { console.error(`t: unknown flag ${a}`); process.exit(2); }
@@ -395,14 +401,16 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|decide|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" | t decide --file <draft.md> | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|note|notes|epic|request|question|session|decide|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | t decide --file <draft.md> | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
 
+  if (await runVerb(cmd, rest, flags, root, refresh)) return;
   if (cmd === 'new') {
     const [type, ...titleWords] = rest;
     const title = titleWords.join(' ');
+    if (flags.file) flags.description = readFileSync(flags.file, 'utf8');
     if (!flags.notDup?.length && title.trim()) {
       const hits = await findDuplicates(root, title);
       if (hits.length) { console.error(refusal(title, hits)); process.exit(1); }

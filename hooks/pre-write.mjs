@@ -13,6 +13,7 @@ import { recordTurnWrite, recordSubmoduleActivity } from './turn-writes.mjs';
 import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 import { FILE_HARD, FILE_SOFT } from './lib/limits.mjs';
 import { commentFindings } from './lib/comment-gate.mjs';
+import { storeWriteViolation } from './lib/store-write-gate.mjs';
 
 // Fail-open guard (KIT-T055): an unexpected throw anywhere below must never wedge a
 // write. The HOOK CONTRACT requires EXPLICIT fail-open; before this, an uncaught throw
@@ -259,6 +260,18 @@ const excludedAt = (id, lineNo) => {
   const { text, offset } = postEdit();
   return offset !== null && markersIn(text, id).lines.has(offset + lineNo);
 };
+
+// Convention (KIT-T509): store writes go through the t/cap/rem commands, not a hand Write/Edit.
+if (!excludedFile('store-write')) {
+  const v = storeWriteViolation(file);
+  if (v) {
+    process.stderr.write(`
+BLOCKED: hand write into the .ai store (${v.rel}): ${v.why}.
+  Use: ${v.command}
+` + excludeFooter('store-write'));
+    process.exit(2);
+  }
+}
 
 // A new crate/concern folder must carry its header doc (repos that adopted the doc tree, KIT-T284).
 if (!excludedFile('doc-tree')) {

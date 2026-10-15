@@ -140,8 +140,8 @@ function precompactReminder(root) {
 
   console.log(`=== COMPACTION IMMINENT — flush before detail is lost ===
 The on-disk record survives this, not the conversation. Before continuing:
-- Decisions/directives from this session -> ${join(root, '.ai', 'decisions')}/ (one file per decision)
-- Working state + next steps (verbatim commands/paths) -> ${join(root, '.ai', 'SESSION.md')}
+- Decisions/directives from this session -> t decide --file <draft.md> (one decision each)
+- Working state + next steps (verbatim commands/paths) -> t session --file <draft.md> (writes ${join(root, '.ai', 'SESSION.md')})
 - In-flight delegated agents -> recorded in ${join(root, '.ai', 'agents.jsonl')} (orient replays them)
 - Work in flight -> the plan-of-record / its ticket${inboxNote}
 After compaction, trust .ai/ + git (${branch}@${head}) over the summary.
@@ -168,7 +168,7 @@ function stopAnchorNudge(root, p) {
 
   process.stderr.write(
     `⚠ SESSION.md is the resume anchor and wasn't updated this turn, but ${work} landed.\n` +
-    `Flush .ai/SESSION.md (current state + next steps) so a /clear here loses nothing, then stop.\n`,
+    `Flush the anchor with t session "<state + next steps>" (or --file <draft>) so a /clear here loses nothing, then stop.\n`,
   );
   process.exit(2);                                 // block-once (rigid) — same ratchet as request-gate
 }

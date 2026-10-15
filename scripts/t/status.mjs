@@ -63,7 +63,7 @@ export function setStatus(root, id, state, opts = {}) {
 
   // done tail: archive the file so the active board stays small (config.history.archive_done_to).
   let movedTo = null;
-  if (state === 'done' && !t.archived) {
+  if (state === 'done' && !t.archived && t.store === 'tickets') {
     const archDir = join(root, '.ai', cfg.archiveDir);
     mkdirSync(archDir, { recursive: true });
     const dest = join(archDir, t.file);
