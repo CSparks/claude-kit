@@ -42,6 +42,7 @@ const KNOWN_STORE_ORDER = ['tickets', 'decisions', 'notes', 'questions', 'inbox'
 // NOT a `<KEY>-<TYPE><NUM>` work store, so the keyed-id machinery (scanStores → nextId / the
 // id-collision scan / the board / the cache) must never treat REM files as keyed items. The
 // reminders CLI (rem.mjs) scans `.ai/reminders/` directly; nothing keyed needs to see it.
+// Dot-directories (`.session-backups`, `.cache`) hold machine-local files, never items (KIT-T526).
 const NON_STORE_DIRS = new Set(['archive', 'resolved', 'reminders']);
 
 function storeDirs(ai) {
@@ -53,7 +54,7 @@ function storeDirs(ai) {
     return [];
   }
   const have = new Set(
-    entries.filter((e) => e.isDirectory() && !NON_STORE_DIRS.has(e.name)).map((e) => e.name),
+    entries.filter((e) => e.isDirectory() && !e.name.startsWith('.') && !NON_STORE_DIRS.has(e.name)).map((e) => e.name),
   );
   for (const s of KNOWN_STORE_ORDER) if (have.has(s)) present.push(s);
   for (const s of have) if (!present.includes(s)) present.push(s); // any extra store dir

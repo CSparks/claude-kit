@@ -103,7 +103,7 @@ function collectMd(dir, acc) {
   }
   for (const e of ents) {
     if (e.isDirectory()) {
-      if (e.name !== '.git' && e.name !== 'node_modules') collectMd(join(dir, e.name), acc);
+      if (e.name !== '.git' && e.name !== 'node_modules' && e.name !== '.session-backups') collectMd(join(dir, e.name), acc);
     } else if (extname(e.name) === '.md') {
       acc.push(join(dir, e.name));
     }

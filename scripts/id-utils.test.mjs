@@ -59,6 +59,17 @@ ok('checkIds lists both colliding files', c.duplicates[0].files.length === 2);
 ok('reported paths are POSIX-style on every OS (no backslashes)',
   c.duplicates[0].files.every((f) => f.includes('/') && !f.includes('\\')));
 
+// Dot-directories hold machine-local files (t session backups), never items (KIT-T526).
+const withBackups = project({ 'HOD-T001-a.md': 'HOD-T001' });
+mkdirSync(join(withBackups, '.ai', '.session-backups'), { recursive: true });
+for (const t of ['2026-10-15T18-43-44-389Z', '2026-10-15T19-40-03-730Z']) writeFileSync(join(withBackups, '.ai', '.session-backups', `SESSION-${t}.md`), '# anchor');
+const bk = checkIds(withBackups);
+ok('two session backups are no duplicate, mismatch or item (KIT-T526)', bk.duplicates.length === 0 && bk.mismatches.length === 0 && scanStores(withBackups).length === 1);
+const bkCollide = project({ 'HOD-T045-a.md': 'HOD-T045', 'HOD-T045-b.md': 'HOD-T045' });
+mkdirSync(join(bkCollide, '.ai', '.session-backups'), { recursive: true });
+writeFileSync(join(bkCollide, '.ai', '.session-backups', 'SESSION-2026-10-15T18-43-44-389Z.md'), '# anchor');
+ok('control: a real duplicate id still blocks beside the backups', checkIds(bkCollide).duplicates.length === 1);
+
 // Mismatch: frontmatter id disagrees with filename.
 const mism = project({ 'HOD-T050-a.md': 'HOD-T099' });
 const m = checkIds(mism);

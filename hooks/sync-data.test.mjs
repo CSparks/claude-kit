@@ -76,6 +76,22 @@ try {
     ok('happy path actually advanced the remote', remoteHead(w.bare) !== before);
   }
 
+  // 2b. two t-session backups in the store are not items: the data commit goes through (KIT-T526)
+  {
+    mkdirSync(join(base, 'w2b'));
+    const w = world(join(base, 'w2b'));
+    const store = join(w.a, 'projects', 'projX');
+    mkdirSync(join(store, '.session-backups'));
+    for (const t of ['2026-10-15T18-43-44-389Z', '2026-10-15T19-40-03-730Z']) writeFileSync(join(store, '.session-backups', 'SESSION-' + t + '.md'), '# anchor');
+    writeFileSync(join(store, 'tickets', 'X-T001-seed.md'), '---\nid: X-T001\ntitle: seed\nstatus: doing\n---\n');
+    const r = runHook(w.proj);
+    ok('two session backups do not block the data commit', r.code === 0 && r.out.includes('committed + pushed'), r.out.trim());
+    // control: a real duplicate id beside the backups still blocks
+    writeFileSync(join(store, 'tickets', 'X-T001-copy.md'), '---\nid: X-T001\ntitle: copy\nstatus: todo\n---\n');
+    const dup = runHook(w.proj);
+    ok('control: a real duplicate id still blocks', dup.code === 2 && dup.out.includes('DUPLICATE X-T001'), dup.out.trim());
+  }
+
   // 3. rejected push (remote moved, DIFFERENT file) -> rebase + retry succeeds
   {
     mkdirSync(join(base, 'w3'));
