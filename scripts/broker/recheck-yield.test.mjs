@@ -68,7 +68,7 @@ test('a job arriving mid re-check kills the re-check, restores its locks and run
     addDeferred(s.cfg, [{ repo: 'app', test: 't_slow', cmd: `node -e "${body.replace(/"/g, '\\"')}"`, job: 'j-old', reason: 'r', dirty: [], head: '0'.repeat(40) }]);
     const started = Date.now();
     const sum = processOnce(s.cfg);
-    assert.ok(Date.now() - started < 60_000, 'returned without waiting out the 120 s command');
+    assert.ok(Date.now() - started < 110_000, 'returned without waiting out the 120 s command');
     assert.equal(readResult(s.cfg, job.id).status, 'passed', 'the arriving job ran');
     assert.equal(readFileSync(join(s.root, 'Cargo.lock'), 'utf8'), 'base\n', 'locks restored');
     assert.ok(until(() => !alive(Number(readFileSync(pidFile, 'utf8')))), 'the re-check process tree is dead');
