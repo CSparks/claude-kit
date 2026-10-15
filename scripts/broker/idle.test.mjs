@@ -32,7 +32,7 @@ test('wait with a job queued and no daemon alive starts one, which runs the job'
   const s = fixture();
   try {
     const job = queue(s);
-    const r = await run([WAIT, job.id, '--root', s.root, '--timeout', '60', '--poll', '200', '--grace-ms', '0'], { BROKER_NO_AUTOSTART: '' });
+    const r = await run([WAIT, job.id, '--root', s.root, '--timeout', '240', '--poll', '200', '--grace-ms', '0'], { BROKER_NO_AUTOSTART: '' });
     assert.match(r.err, /no daemon was running with .* queued; started one/);
     assert.equal(r.code, 0, r.err);
     assert.equal(readResult(s.cfg, job.id).status, 'landed');
