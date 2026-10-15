@@ -16,6 +16,13 @@ import { formTrain } from './train-form.mjs';
 import { runTrain } from './train.mjs';
 import { failOnError } from './contain.mjs';
 import { lastServed, markServed, roundRobin } from './rr.mjs';
+import { pruneIncremental, pruneLine } from './incremental.mjs';
+
+// After a suite run nothing is building: drop incremental caches past `incremental_keep_hours`.
+function pruneAfterSuite(cfg) {
+  if (cfg.incrementalKeepHours === null) return null;
+  try { return pruneLine(pruneIncremental(cfg.targetDir, { keepHours: cfg.incrementalKeepHours })); } catch (e) { return `incremental prune failed: ${e.message}`; }
+}
 
 // Drain the queue until it is empty or the operator ran `pause`. A job whose repo holds a hand-driven
 // writer's changes stays queued and pauses THAT repo only: its later jobs wait behind it (order within a
@@ -55,6 +62,7 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
   // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired.
   const deferred = recheckDeferred(cfg, fileBug ? { fileBug } : {});
   const suite = deferred.cancelled ? null : runSuite(cfg, fileBug ? { fileBug } : {});
+  if (suite && !suite.cancelled) suite.pruned = pruneAfterSuite(cfg);
   if (deferred.cancelled || (suite && suite.cancelled)) {
     const next = processOnce(cfg, { onResult, fileBug });
     return { ...next, processed: [...processed, ...next.processed] };

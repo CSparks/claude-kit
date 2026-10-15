@@ -80,4 +80,4 @@ function main(argv) {
   else for (const [k, s] of Object.entries(out)) console.log(line(k, s));
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
