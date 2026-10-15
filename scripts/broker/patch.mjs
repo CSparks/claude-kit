@@ -19,6 +19,7 @@ import { landGate } from './landgate.mjs';
 import { coalesce } from './coalesce.mjs';
 import { phaseTracker } from './phase.mjs';
 import { gateTrailer } from './trailer.mjs';
+import { stalePins } from './pin-stale.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
 import { changedLocks, dirtyPaths, git, lockFiles, revParse } from './git.mjs';
@@ -75,7 +76,7 @@ export function processPatch(cfg, job, repo) {
   let pins = [];
   if ((job.pins || []).length) {
     const prep = preparePins(cfg, cwd, job);
-    if (prep.error) return done({ status: STATUS.FAILED, phase: 'pin', message: prep.error });
+    if (prep.error) return done({ status: prep.stale ? STATUS.STALE : STATUS.FAILED, phase: 'pin', message: prep.error });
     pins = prep.pins;
   }
   const held = implicitPins(cfg, repo, cwd, job);
@@ -128,6 +129,8 @@ export function processPatch(cfg, job, repo) {
       const known = new Set(foreign.map((f) => f.test));
       return { ok: again.every((c) => c.exit === 0 || (c.failedTests.length && !Object.keys(c.errors).length && c.failedTests.every((t) => known.has(t)))) };
     };
+    const stalePin = stalePins(cfg, cwd, explicit());
+    if (stalePin) return done({ status: STATUS.STALE, phase: 'pin', commands, diffStat, foreign, selection, message: stalePin });
     const land = landLinked(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], {
       verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }), onPhase: (p) => ph.enter(p),
       onCommitted: (c) => markCommitted(cfg, journal, { ...c, repo: job.repo, jobs: [landedJob(job)] }),

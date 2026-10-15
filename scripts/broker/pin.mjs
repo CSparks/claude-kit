@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { asList } from './cli.mjs';
 import { repoByName } from './config.mjs';
 import { dirtyPaths, git, revParse } from './git.mjs';
+import { stalePins } from './pin-stale.mjs';
 
 const SHA = /^[0-9a-f]{7,40}$/i;
 
@@ -45,8 +46,13 @@ export function parsePins(cfg, superRepo, flags) {
   return { pins };
 }
 
-/** Run-time sessions for `job.pins`: the submodule must be clean; a landing re-checks the remote. */
+/**
+ * Run-time sessions for `job.pins`: the submodule must be clean; a landing re-checks the remote and
+ * refuses (`stale`) a pin that would move the recorded gitlink backwards.
+ */
 export function preparePins(cfg, cwd, job) {
+  const stale = job.land ? stalePins(cfg, cwd, job.pins || []) : null;
+  if (stale) return { error: stale, stale: true };
   const sessions = [];
   for (const pin of job.pins || []) {
     const sub = repoByName(cfg, pin.repo);
