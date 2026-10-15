@@ -87,10 +87,26 @@ export function markCommitted(cfg, journal, committed) {
   writeFileSync(journalPath(cfg), JSON.stringify({ ...journal, committed }, null, 2));
 }
 
+/**
+ * Re-base the journal once a linked job's submodule half is pushed (linked.mjs): `linked` = { repo,
+ * job, trailer, own, gitlinks, preHead, subs: [{ name, cwd, sha }], blobs: { path: patched blob } }.
+ * A restart then never restores files under those submodules; it lands the superproject half.
+ */
+export function markLinked(cfg, journal, linked) {
+  const blobs = Object.fromEntries(linked.own.map((p) => [p, existsSync(join(journal.cwd, p)) ? hashObject(journal.cwd, p) : null]));
+  writeFileSync(journalPath(cfg), JSON.stringify({ ...journal, linked: { ...linked, blobs } }, null, 2));
+}
+
 /** True when the journal's landing commit is HEAD or under it in its checkout. */
 export function commitStands(journal) {
   const c = journal && journal.committed;
   return !!c && git(['merge-base', '--is-ancestor', c.sha, 'HEAD'], journal.cwd).code === 0;
+}
+
+/** True when every pushed submodule half of a linked journal is still in its checkout. */
+export function linkedStands(journal) {
+  const l = journal && journal.linked;
+  return !!l && l.subs.every((s) => git(['merge-base', '--is-ancestor', s.sha, 'HEAD'], s.cwd).code === 0);
 }
 
 /**
@@ -101,7 +117,7 @@ export function commitStands(journal) {
 export function recoverInflight(cfg) {
   const journal = readInflight(cfg);
   if (!journal) return null;
-  if (commitStands(journal)) return { id: journal.id, resume: journal };
+  if (commitStands(journal) || (!journal.committed && linkedStands(journal))) return { id: journal.id, resume: journal };
   for (const f of restore(cfg, journal)) console.error(`broker: could not restore ${f} (job ${journal.id})`);
   return { id: journal.id, resume: null };
 }

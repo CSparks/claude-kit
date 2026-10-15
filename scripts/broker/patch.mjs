@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { admit } from './admit.mjs';
-import { capture, discard, dropNewLocks, markCommitted, restore, restoreMismatches } from './preimage.mjs';
+import { capture, discard, dropNewLocks, markCommitted, markLinked, restore, restoreMismatches } from './preimage.mjs';
 import { landLinked } from './linked.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
@@ -131,6 +131,11 @@ export function processPatch(cfg, job, repo) {
     const land = landLinked(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], {
       verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }), onPhase: (p) => ph.enter(p),
       onCommitted: (c) => markCommitted(cfg, journal, { ...c, repo: job.repo, jobs: [landedJob(job)] }),
+      onSubLanded: (l) => {
+        const under = (p) => l.gitlinks.some((s) => p.startsWith(`${s}/`));
+        journal = { ...journal, entries: journal.entries.filter((e) => !under(e.path)) };
+        markLinked(cfg, journal, { ...l, repo: job.repo, job: landedJob(job), trailer: gateTrailer(job, commands, { reused, selection }) });
+      },
     });
     keep = land.committed;
     const inLanded = (p) => (land.landedSubs || []).some((s) => p.startsWith(`${s}/`));

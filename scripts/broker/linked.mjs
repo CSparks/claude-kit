@@ -9,7 +9,9 @@
 // `submodulesOf(cfg, repo)` → the submodule repos pinned in `repo`.
 // `splitLinked(cfg, repo, paths)` → { own: [path], subs: Map<subRepo, [path relative to it]> }.
 // `linkedReader(cfg, repo, cwd)` → read(path) for plan.mjs: a submodule path reads the recorded commit.
-// `landLinked(cfg, repo, job, cwd, paths, opts)` → landPatch's result, plus `subSha` and `landedSubs`
+// `landLinked(cfg, repo, job, cwd, paths, opts)` → landPatch's result, plus `subSha` and `landedSubs`;
+//   `onSubLanded({ own, gitlinks, preHead, subs })` runs once the submodule halves are pushed, before
+//   the superproject commit, so the caller re-bases its journal (resume.mjs finishes a crash there).
 //   (the submodule paths whose commit is pushed: the caller must not restore files under them).
 
 import { join } from 'node:path';
@@ -63,7 +65,7 @@ function onMain(subCwd, sub) {
   return r.code === 0 ? null : `${sub.path}: cannot put ${sub.main} at ${head.slice(0, 10)}: ${r.err.trim()}`;
 }
 
-export function landLinked(cfg, repo, job, cwd, paths, { verify, trailer, onPhase = () => {}, onCommitted } = {}) {
+export function landLinked(cfg, repo, job, cwd, paths, { verify, trailer, onPhase = () => {}, onCommitted, onSubLanded = () => {} } = {}) {
   const { own, subs } = splitLinked(cfg, repo, paths);
   const landed = [];
   for (const [sub, rels] of subs) {
@@ -76,6 +78,7 @@ export function landLinked(cfg, repo, job, cwd, paths, { verify, trailer, onPhas
     landed.push({ sub, sha: r.sha });
   }
   const gitlinks = landed.map((l) => norm(l.sub.path));
+  if (landed.length) onSubLanded({ own, gitlinks, preHead: revParse(cwd, 'HEAD'), subs: landed.map((l) => ({ name: l.sub.name, path: norm(l.sub.path), cwd: join(cfg.root, l.sub.path), sha: l.sha })) });
   const r = landCommits(cfg, repo, cwd, [{ job, paths: [...own, ...gitlinks], trailer }], { verify, onPhase, onCommitted });
   const subSha = landed.length ? landed[landed.length - 1].sha : null;
   if (!r.ok) {
