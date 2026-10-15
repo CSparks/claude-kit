@@ -6,6 +6,7 @@
 
 import { gitRoot, git, gitTry, centralDataRoot } from './lib.mjs';
 import { dataProjectPathspec } from './data-repo.mjs';
+import { clearSighting, firstSighting } from './block-once.mjs';
 
 const proj = gitRoot();
 if (!proj) process.exit(0);
@@ -33,7 +34,8 @@ if (!git(['-C', dataRoot, 'status', '--porcelain', ...pathspec]).trim()) process
 // guard for centralized projects (the path that let two HOD-T045 files persist):
 // the dup lands here, not through commit-gate. checkIds scans this project's .ai
 // (resolved through the junction). Block the stop so it's fixed now; fail open on
-// a scan error so a parse glitch never wedges the session.
+// a scan error so a parse glitch never wedges the session. A finding blocks once; the same finding
+// on a later Stop warns instead (block-once.mjs, KIT-T530).
 try {
   // dynamic so a broken scripts/ tree degrades to fail-open instead of an import-time crash (KIT-T055)
   const { checkIds } = await import('../scripts/id-utils.mjs');
@@ -49,10 +51,15 @@ try {
     if (duplicates.length) lines.push('  DUPLICATE -> re-key one of the files: node <kit>/scripts/next-id.mjs <store>');
     if (mismatches.length) lines.push("  MISMATCH  -> make the id and the filename agree: rename the file to <id>-<slug>.md, or set frontmatter `id:` to the filename's id. Canon is <KEY>-D###-slug.md (KIT-D011).");
     if (regressionGaps.length) lines.push('  REGRESSION INCOMPLETE -> t link <id> regressed_from|causing_commit <ref>');
-    lines.push('', 'Fix the flagged item(s) then retry.', '');
-    process.stderr.write(lines.join('\n'));
-    process.exit(2);
+    const finding = lines.join('\n');
+    if (firstSighting(proj, finding)) {
+      process.stderr.write(`${finding}\n\nFix the flagged item(s) then retry.\n\n`);
+      process.exit(2);
+    }
+    process.stderr.write('[sync-data] WARNING: the same id integrity finding as the last block is still unresolved — NOT committing (no re-block until it changes).\n');
+    process.exit(0);
   }
+  clearSighting(proj);
 } catch {
   /* integrity scan is best-effort — never wedge a stop on a scan error */
 }

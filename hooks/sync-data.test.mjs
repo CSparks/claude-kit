@@ -90,6 +90,11 @@ try {
     writeFileSync(join(store, 'tickets', 'X-T001-copy.md'), '---\nid: X-T001\ntitle: copy\nstatus: todo\n---\n');
     const dup = runHook(w.proj);
     ok('control: a real duplicate id still blocks', dup.code === 2 && dup.out.includes('DUPLICATE X-T001'), dup.out.trim());
+    const again = runHook(w.proj);
+    ok('the same finding on the next Stop warns instead of blocking', again.code === 0 && again.out.includes('WARNING') && !again.out.includes('committed'), again.out.trim());
+    writeFileSync(join(store, 'tickets', 'X-T002-seed.md'), '---\nid: X-T003\ntitle: m\nstatus: todo\n---\n');
+    const changed = runHook(w.proj);
+    ok('a changed finding blocks again', changed.code === 2 && changed.out.includes('MISMATCH'), changed.out.trim());
   }
 
   // 3. rejected push (remote moved, DIFFERENT file) -> rebase + retry succeeds
