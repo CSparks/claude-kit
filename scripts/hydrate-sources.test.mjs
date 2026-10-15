@@ -4,8 +4,8 @@
 // to a runtime copy. A kit checkout outside the runtime keeps its own store (control).
 // Run: node scripts/hydrate-sources.test.mjs
 
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
 
@@ -32,6 +32,20 @@ t('control: a scratch export dir inside the runtime root is not a sealed copy (t
 t('control: a checkout outside the runtime contributes its own store', () => {
   assert.ok(!isSealedRuntime(checkout));
   assert.ok(hydrationSources(undefined, checkout).some((s) => resolve(s.aiDir) === resolve(join(checkout, '.ai'))));
+});
+t('a temp store claiming a live scope key never replaces the real store (fixtures copy a live config)', () => {
+  const store = (dir) => { mkdirSync(join(dir, '.ai'), { recursive: true }); writeFileSync(join(dir, '.ai', 'config.yml'), 'ids:\n  key: ZZ\n'); return dir; };
+  const real = store(join(homedir(), `.hs-real-${process.pid}`));
+  const fixture = store(mkdtempSync(join(tmpdir(), 'hs-fixture-')));
+  const other = store(mkdtempSync(join(tmpdir(), 'hs-other-')));
+  writeFileSync(join(other, '.ai', 'config.yml'), 'ids:\n  key: YY\n');
+  try {
+    writeFileSync(registry, JSON.stringify({ projects: { fixture, real, other } }));
+    const dirs = hydrationSources(undefined, join(runtime, 'abc1234')).map((s) => resolve(s.aiDir));
+    assert.ok(dirs.includes(resolve(join(real, '.ai'))), 'the real store stays');
+    assert.ok(!dirs.includes(resolve(join(fixture, '.ai'))), 'the temp store with the same key is dropped');
+    assert.ok(dirs.includes(resolve(join(other, '.ai'))), 'control: a temp store with its own key stays');
+  } finally { for (const d of [real, fixture, other]) rmSync(d, { recursive: true, force: true }); }
 });
 t('CLAUDE_KIT_DB redirects the cache; unset falls back to the install', () => {
   process.env.CLAUDE_KIT_DB = join(checkout, 'x.db');

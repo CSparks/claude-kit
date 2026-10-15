@@ -34,6 +34,7 @@
 
 import { mkdirSync, statSync, existsSync, rmSync, readdirSync, realpathSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { rowFromScan } from './db-parse.mjs';
 import { statStoreFiles, readIdConfig } from './id-utils.mjs';
@@ -179,12 +180,23 @@ export function hydrationSources(root, kitRoot = KIT_ROOT) {
     sources.push({ root, aiDir });
   }
   const seen = new Set();
-  return sources.filter((s) => {
+  const unique = sources.filter((s) => {
     const k = resolve(s.aiDir);
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
   });
+  return withoutTempScopeClaims(unique);
+}
+
+// A throwaway store (a test fixture copying a live config) can claim a live scope key; where two
+// stores share a key the non-temp one wins, so a fixture never replaces a real project's rows.
+function withoutTempScopeClaims(sources) {
+  const temp = canonPath(tmpdir());
+  const isTemp = (s) => canonPath(s.aiDir).startsWith(temp);
+  const keyOf = (s) => { try { return readIdConfig(s.root, s.aiDir).key || ''; } catch { return ''; } };
+  const keys = sources.map(keyOf);
+  return sources.filter((s, i) => !(keys[i] && isTemp(s) && sources.some((o, j) => j !== i && keys[j] === keys[i] && !isTemp(o))));
 }
 
 // One comparable form for a path: resolved, de-linked (a repo's .ai is usually a junction into
