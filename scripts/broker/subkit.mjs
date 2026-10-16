@@ -24,10 +24,11 @@ export function setup(extra = {}) {
   const sub = join(root, 'rapid-game');
   g(['checkout', 'main'], sub);
   for (const [k, v] of [['user.email', 'broker@test'], ['user.name', 'Broker Test'], ['commit.gpgsign', 'false']]) g(['config', k, v], sub);
-  const cfg = normalizeBroker(root, {
+  const broker = {
     repos: [{ name: 'super', path: '.', main: 'main', remote: 'origin' }, { name: 'rapid-game', path: 'rapid-game', main: 'main', remote: 'origin', submodule: true, pin_in: '.' }],
     verify_default: [PASS], ...extra,
-  });
+  };
+  const cfg = normalizeBroker(root, broker);
   const run = (flags, env, commands = [PASS]) => {
     const out = buildPatchJob(cfg, flags, env);
     if (!out.job) return { out };
@@ -35,5 +36,5 @@ export function setup(extra = {}) {
     processOnce(cfg);
     return { out, r: readResult(cfg, out.job.id) };
   };
-  return { root, sub, cfg, subBare, superBare, run, done: () => [root, subSrc, subOriginDir, superBareDir].forEach(cleanup) };
+  return { root, sub, cfg, broker, subBare, superBare, run, done: () => [root, subSrc, subOriginDir, superBareDir].forEach(cleanup) };
 }

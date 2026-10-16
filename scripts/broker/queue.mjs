@@ -18,6 +18,7 @@ import { takeOverJournal } from './takeover.mjs';
 import { failOnError } from './contain.mjs';
 import { lastServed, markServed, roundRobin } from './rr.mjs';
 import { pruneIncremental, pruneLine } from './incremental.mjs';
+import { idleSubtrees, subtreesFor, takeSubtrees } from './subtree.mjs';
 
 // After a suite run nothing is building: drop incremental caches past `incremental_keep_hours`.
 function pruneAfterSuite(cfg) {
@@ -27,26 +28,33 @@ function pruneAfterSuite(cfg) {
 
 // Drain the queue until it is empty or the operator ran `pause`. A job whose repo holds a hand-driven
 // writer's changes stays queued and pauses THAT repo only: its later jobs wait behind it (order within a
-// repo is kept), jobs for clean repos run. Returns a summary the daemon (or a test) can log;
+// repo is kept), jobs for clean repos run. A job that needs a submodule's tree while the other lane holds it
+// (subtree.mjs) waits the same way and is reported in `waiting`. Returns a summary the daemon (or a test) can log;
 // `paused` is true while any repo is held. `onResult` is an optional per-job callback.
 export function processOnce(cfg, { onResult, fileBug } = {}) {
   const processed = [];
   if (isPaused(cfg)) return { processed, paused: true, reason: 'manual' };
   const held = new Map();
+  const waiting = new Map();
   const order = roundRobin(listQueue(cfg), lastServed(cfg));
   for (const job of order) {
-    if (held.has(job.repo) || !queued(cfg, job.id)) continue; // withdrawn since the listing
+    if (held.has(job.repo) || waiting.has(job.repo) || !queued(cfg, job.id)) continue; // withdrawn since the listing
     let train = null;
     let ran;
+    let tree = null;
     try {
       const taken = takeOverJournal(cfg, job.id);
       if (taken) console.error(`broker: restored ${taken.restored.length} path(s) that ${job.id} left half-applied under ${taken.home}`);
       train = formTrain(cfg, job, roundRobin(listQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) });
+      tree = takeSubtrees(cfg, subtreesFor(cfg, repoByName(cfg, job.repo) || {}, train ? train.members.map((m) => m.job) : [job]), job.id);
+      if (!tree.ok) { waiting.set(job.repo, tree.reason); continue; }
       markServed(cfg, job.session);
       ran = train ? runTrain(cfg, train.repo, train.members, { onResult }) : processJob(cfg, job);
     } catch (error) {
       processed.push(...failOnError(cfg, train ? train.members.map((m) => m.job.id) : [job.id], error, { onResult }));
       continue;
+    } finally {
+      if (tree && tree.ok) tree.release();
     }
     if (train) {
       processed.push(...ran.results);
@@ -59,9 +67,16 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
     processed.push(result);
   }
   if (held.size) return { processed, paused: true, pausedOn: [...held.values()][0], pausedRepos: [...held.keys()], reason: 'dirty' };
+  if (waiting.size) return { processed, paused: false, waiting: [...waiting.values()] };
   // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired.
-  const deferred = recheckDeferred(cfg, fileBug ? { fileBug } : {});
-  const suite = deferred.cancelled ? null : runSuite(cfg, fileBug ? { fileBug } : {});
+  const idle = takeSubtrees(cfg, idleSubtrees(cfg), 'idle', { idle: true });
+  if (!idle.ok) return { processed, paused: false, deferred: null, suite: null, waiting: [idle.reason] };
+  let deferred;
+  let suite;
+  try {
+    deferred = recheckDeferred(cfg, fileBug ? { fileBug } : {});
+    suite = deferred.cancelled ? null : runSuite(cfg, fileBug ? { fileBug } : {});
+  } finally { idle.release(); }
   if (suite && !suite.cancelled && suite.status !== 'partial') suite.pruned = pruneAfterSuite(cfg);
   if (deferred.cancelled || (suite && suite.cancelled)) {
     const next = processOnce(cfg, { onResult, fileBug });

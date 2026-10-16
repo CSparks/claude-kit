@@ -37,6 +37,7 @@ import { laneCfgFor } from './lanes.mjs';
 import { rerouteMisplaced } from './reroute.mjs';
 import { runtimeCurrent } from '../runtime-path.mjs';
 import { usageProblem } from './usage.mjs';
+import { reconcileSubtrees } from './subtree.mjs';
 import { stopDaemon } from './stop.mjs';
 import { setStopNow } from './stop-now.mjs';
 import { withdrawJob } from './withdraw.mjs';
@@ -123,6 +124,7 @@ if (recovered && recovered.resume) {
   console.error(`broker: ${recovered.id} stopped after its commit; finishing the landing (the tree stays at the commit)`);
   for (const r of resumeLanding(cfg, recovered.resume)) console.error(`  ${r.id} → ${r.status}`);
 } else if (recovered) console.error(`broker: restored the tree after interrupted job ${recovered.id}; it re-runs`);
+for (const dead of reconcileSubtrees(cfg)) console.error(`broker: reclaimed the submodule tree ${dead.id} (pid ${dead.pid}, lane ${dead.lane}) held when its daemon died${dead.restore ? '; the checkout is back on its branch' : ''}`);
 console.error(`broker: watching ${root} (target ${cfg.targetDir}, jobs -j ${cfg.jobs})`);
 
 const said = new Set();
@@ -136,6 +138,7 @@ const drain = () => {
   if (moved.length) console.error(`broker: moved ${moved.length} job(s) to their repo's own queue: ${moved.join(', ')}`);
   const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`) });
   if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : `broker: paused — ${summary.pausedRepos.join(', ')} holds hand edits (job ${summary.pausedOn} stays queued)`);
+  else if (summary.waiting && summary.waiting.length) note(`broker: waiting — ${summary.waiting.join('; ')}`);
   else lastNote = '';
   if (summary.suite) console.error(`  suite ${summary.suite.sha.slice(0, 7)} → ${summary.suite.status}${summary.suite.filed ? ' (regression filed)' : ''}${summary.suite.pruned ? `; ${summary.suite.pruned}` : ''}`);
   return summary;
