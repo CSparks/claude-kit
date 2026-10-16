@@ -179,13 +179,28 @@ tick(un, 'KIT-T042', 'first');
 const u1 = untick(un, 'KIT-T042', 'first');
 ok('untick: reopens the box', /- \[ \] first criterion/.test(readFileSync(u1.path, 'utf8')));
 ok('untick: stamps its own History line', /\(comment\) unticked: first criterion/.test(readFileSync(u1.path, 'utf8')));
-ok('untick: ordinal counts CHECKED criteria only', threw(() => untick(un, 'KIT-T042', 1)));
+ok('untick: an ordinal naming an open criterion is refused', threw(() => untick(un, 'KIT-T042', 1)));
 ok('untick: ambiguous substring throws', threw(() => {
   const amb = project({}, { 'KIT-T043': {} });
   tick(amb, 'KIT-T043', 1);
-  tick(amb, 'KIT-T043', 1);
+  tick(amb, 'KIT-T043', 2);
   untick(amb, 'KIT-T043', 'criterion');
 }));
+
+// --- KIT-T551: an ordinal is the criterion's printed position, ticked or not ---
+{
+  const six = project({ uatDefault: 'none' }, { 'KIT-T046': {} });
+  for (const text of ['third', 'fourth', 'fifth', 'sixth']) addCriterionTo(six, 'KIT-T046', `${text} criterion`);
+  const boxes = () => readFileSync(findTicket(six, 'KIT-T046').path, 'utf8').split('\n').filter((l) => /^- \[[ x]\] /.test(l)).map((l) => l[3]).join('');
+  tick(six, 'KIT-T046', 4);
+  tick(six, 'KIT-T046', 5);
+  tick(six, 'KIT-T046', 6);
+  ok('tick 4, tick 5, tick 6 check criteria 4, 5 and 6 (criterion 4 stayed counted once ticked)', boxes() === '   xxx');
+  ok('control: an ordinal naming an already ticked criterion is refused, not shifted onto the next', threw(() => tick(six, 'KIT-T046', 4)) && boxes() === '   xxx');
+  untick(six, 'KIT-T046', 5);
+  ok('untick uses the same position: 5 reopens the fifth', boxes() === '   x x');
+  ok('an ordinal past the last criterion is refused', threw(() => tick(six, 'KIT-T046', 7)));
+}
 
 // --- setCriterion: index-addressed toggle (the API path — indexes ALL criteria, not open ones) ---
 const ix = project({ uatDefault: 'none' }, { 'KIT-T044': {} });
@@ -199,7 +214,7 @@ ok('setCriterion: an out-of-range index is refused', threw(() => setCriterion(ix
 const sc = project({ uatDefault: 'none' }, { 'KIT-T045': { extra: '## Plan\n- [ ] not a criterion' } });
 ok('scope: listCriteria sees only the AC section', listCriteria(readFileSync(findTicket(sc, 'KIT-T045').path, 'utf8')).length === 2);
 tick(sc, 'KIT-T045', 1);
-tick(sc, 'KIT-T045', 1);
+tick(sc, 'KIT-T045', 2);
 ok('scope: a Plan checkbox is never ticked', /- \[ \] not a criterion/.test(readFileSync(findTicket(sc, 'KIT-T045').path, 'utf8')));
 
 // --- addCriterionTo: append, fill the scaffold placeholder, reject junk ---

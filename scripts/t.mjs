@@ -14,8 +14,8 @@
 //                                                   same work (t-dedup.mjs) unless --not-dup names the items checked
 //   t status <id> <state> [--human] [--note "…"] [--fixed-commit <sha>] [--no-trail-check "<reason>"] [--remaining "…"]
 //                                                   (todo on a ticket with landed commits needs --remaining)
-//   t tick <id> <ordinal|substring> [--note "…"]   check an acceptance box
-//   t untick <id> <ordinal|substring>               uncheck one (ordinal counts CHECKED boxes)
+//   t tick <id> <ordinal|substring> [--note "…"]   check an acceptance box (ordinal = printed position, ticked or not)
+//   t untick <id> <ordinal|substring>               uncheck one (same ordinal)
 //   t criterion <id> "<text>"                       append an acceptance criterion
 //   t link <id> <rel> <target>                      supersedes|superseded_by|regressed_from|
 //                                                   causing_commit|fixed_commit|parent|link
@@ -173,8 +173,8 @@ function mutateCriteria(root, id, transform) {
   return { id, criterion, path: t.path };
 }
 
-// `selector` is a 1-based ordinal among the criteria eligible for the act (open ones for a tick,
-// checked ones for an untick), or a substring that must match exactly one of them.
+// `selector` is a 1-based ordinal among ALL the criteria as printed (KIT-T551), or a substring that
+// must match exactly one criterion eligible for the act (open for a tick, checked for an untick).
 export const tick = (root, id, selector, opts = {}) =>
   mutateCriteria(root, id, (body) => tickCriterion(body, selector, { ...opts, id }));
 

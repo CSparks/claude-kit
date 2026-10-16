@@ -2,8 +2,8 @@
 // body→body transforms — no fs, no id lookup — so the invariants (which line a selector means,
 // that EVERY mutation stamps History) live in one place and both callers inherit them: the `t`
 // CLI and the web API's write layer (KIT-T153). A client addresses a criterion by its INDEX
-// among the section's criterion lines — the order it renders — while the CLI keeps its
-// ordinal-among-matching / substring selector.
+// among the section's criterion lines — the order it renders — and the CLI by that same position,
+// 1-based and counting checked and open boxes alike (KIT-T551), or by a substring.
 //
 // Scoped to the `## Acceptance Criteria` section on purpose: a `- [ ]` under Plan or Notes is not
 // a criterion, and the pre-KIT-T153 whole-body scan would happily tick one.
@@ -57,17 +57,19 @@ function apply(lines, item, checked, note) {
   };
 }
 
-// Resolve the CLI's selector among the criteria eligible for the act: a 1-based ordinal scoped to
-// that subset (what `t tick 2` has always meant), or a substring that must hit exactly one.
+// Resolve the CLI's selector: a 1-based ordinal is the criterion's position among ALL the section's
+// criteria, as printed, and must be in the state the act changes; a substring must hit exactly one
+// of the criteria eligible for the act.
 function resolveSelector(items, selector, wantChecked, id) {
-  const pool = items.filter((c) => c.checked === wantChecked);
   const what = wantChecked ? 'checked' : 'open';
-  if (!pool.length) throw new Error(`${id}: no ${what} acceptance criteria`);
   if (/^\d+$/.test(String(selector))) {
     const n = parseInt(selector, 10);
-    if (n < 1 || n > pool.length) throw new Error(`${id}: ordinal ${n} out of range (1..${pool.length} ${what} criteria)`);
-    return pool[n - 1];
+    if (n < 1 || n > items.length) throw new Error(`${id}: ordinal ${n} out of range (1..${items.length} criteria)`);
+    if (items[n - 1].checked !== wantChecked) throw new Error(`${id}: criterion ${n} "${items[n - 1].text}" is already ${wantChecked ? 'open' : 'checked'}; ordinals count every criterion, checked or not`);
+    return items[n - 1];
   }
+  const pool = items.filter((c) => c.checked === wantChecked);
+  if (!pool.length) throw new Error(`${id}: no ${what} acceptance criteria`);
   const needle = String(selector).toLowerCase();
   const hits = pool.filter((c) => c.text.toLowerCase().includes(needle));
   if (!hits.length) throw new Error(`${id}: no ${what} criterion matches "${selector}"`);
