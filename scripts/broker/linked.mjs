@@ -81,6 +81,7 @@ export function landLinked(cfg, repo, job, cwd, paths, { verify, trailer, onPhas
   if (landed.length) onSubLanded({ own, gitlinks, preHead: revParse(cwd, 'HEAD'), subs: landed.map((l) => ({ name: l.sub.name, path: norm(l.sub.path), cwd: join(cfg.root, l.sub.path), sha: l.sha })) });
   const r = landCommits(cfg, repo, cwd, [{ job, paths: [...own, ...gitlinks], trailer }], { verify, onPhase, onCommitted });
   const subSha = landed.length ? landed[landed.length - 1].sha : null;
+  if (!r.ok && !landed.length) return { ...r, subSha, landedSubs: gitlinks };
   if (!r.ok) {
     const pushed = landed.map((l) => `${l.sub.name} ${l.sha.slice(0, 10)}`).join(', ');
     return { ...r, subSha, landedSubs: gitlinks, error: `${pushed} landed and pushed; the ${repo.name} half (consumer change + pin) did not: ${r.error}. Resubmit the ${repo.name} half with --pin ${landed.map((l) => `${l.sub.name}=${l.sha}`).join(' --pin ')}` };

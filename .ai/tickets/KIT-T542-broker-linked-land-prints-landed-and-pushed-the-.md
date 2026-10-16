@@ -2,7 +2,7 @@
 id: KIT-T542
 title: broker linked land prints 'landed and pushed; the rapid-game half ... did not' when nothing landed
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-16T14:57:51Z
-updated: 2026-10-16T14:57:51Z
+updated: 2026-10-16T16:18:27Z
 ---
 
 ## Description
@@ -26,6 +26,10 @@ linked.mjs:84-86 writes '<blank> landed and pushed; the rapid-game half ... did 
 
 ## Notes
 Checked as possible duplicates and judged different work (--not-dup): KIT-T319, KIT-T488, KIT-T515
+### comment #1 [2026-10-16 16:18] @claude
+Fixed (see commit below): landLinked returns the landCommits error unchanged when no submodule half was pushed. Tests: linked-nothing-landed.test.mjs 2 passed (the refused-push case red before; the control with a pushed half still names it), linked.test.mjs unchanged; broker glob 301 passed.
 
 ## History
 - [2026-10-16 14:57] (created) bug — broker linked land prints 'landed and pushed; the rapid-game half ... did not' when nothing landed
+- [2026-10-16 16:18] (comment) @claude: Fixed (see commit below): landLinked returns the landCommits error unchanged when no submodule half was pushed. Tests: l (full comment #1 in ## Notes)
+- [2026-10-16 16:18] (status) todo → review
