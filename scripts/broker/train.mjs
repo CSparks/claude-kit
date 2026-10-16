@@ -97,9 +97,11 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
       const ranFor = (m) => ({ commands: run.entries, foreign, diffStat: git(['diff', '--stat', '--', ...filesOf(m)], cwd).out, selection: own(m).selection });
 
       if (!run.failing) {
-        kept = landGroup(cfg, repo, { id, cwd, pool, journal, entries: run.entries, foreign, own, ranFor, nextLog, finish, onPhase: (p) => ph.enter(p) });
+        const landed = landGroup(cfg, repo, { id, cwd, pool, journal, entries: run.entries, foreign, own, ranFor, nextLog, finish, onPhase: (p) => ph.enter(p) });
+        kept = landed.kept;
         if (kept) discard(cfg);
         else putBack();
+        groups.unshift(...landed.regroup);
         continue;
       }
       const verdict = blame(run.failing, pool.map((m) => ({ id: m.job.id, touched: m.touched, commands: own(m).commands })));

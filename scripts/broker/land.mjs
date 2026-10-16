@@ -17,7 +17,7 @@ const normalize = (p) => String(p).replace(/\\/g, '/').replace(/\/$/, '') || '.'
  * Commit `paths` in `cwd`, push `repo.main`, re-pin a submodule's superproject.
  * A remote that moved is fetched and the commit rebased onto it first (sync-push.mjs); `verify`
  * re-runs the job's tests after such a rebase. `trailer` becomes the commit body.
- * Returns { ok, committed, sha, superSha, conflict, error }; `committed` is true while the commit exists locally, so the caller knows the tree
+ * Returns { ok, committed, sha, superSha, conflict, error, gateRefused?, gateLog? } (gateLog: the refused pre-push gate's log path); `committed` is true while the commit exists locally, so the caller knows the tree
  * already matches HEAD even when the push failed. A conflicting rebase drops the local commit
  * (`committed` false, `conflict` names the files) and leaves the working files for the caller to restore.
  */
@@ -87,8 +87,9 @@ export function landCommits(cfg, repo, cwd, commits, { verify, onPhase = () => {
  */
 export function pushLanding(cfg, repo, cwd, { jobs, paths, preHead, verify, onPhase = () => {} }) {
   const first = jobs[0];
+  const gateLog = logPathFor(cfg, first.id, 'pre-push');
   const beforePush = repo.prePush ? () => {
-    const gate = runPrePush(cfg, cwd, repo.remote, repo.main, logPathFor(cfg, first.id, 'pre-push'));
+    const gate = runPrePush(cfg, cwd, repo.remote, repo.main, gateLog);
     return { ok: gate.ok, error: `the repo's pre-push gate refused (exit ${gate.exit}): ${gate.log.slice(-8).join(' | ')}` };
   } : null;
   const sync = () => syncPush(cwd, repo.remote, repo.main, { verify, env: buildEnv(cfg), beforePush, onPhase });
@@ -97,7 +98,7 @@ export function pushLanding(cfg, repo, cwd, { jobs, paths, preHead, verify, onPh
     git(['reset', '-q', '--mixed', preHead], cwd);
     return { ok: false, committed: false, conflict: pushed.conflict, error: pushed.error };
   }
-  if (!pushed.ok) return undoLanding(cwd, repo, paths, preHead, pushed);
+  if (!pushed.ok) return { ...undoLanding(cwd, repo, paths, preHead, pushed), ...(pushed.gateRefused ? { gateRefused: true, gateLog } : {}) };
   const sha = revParse(cwd, 'HEAD');
   const shas = git(['rev-list', '--reverse', '-n', String(jobs.length), 'HEAD'], cwd).out.split(/\r?\n/).filter(Boolean);
   // A submodule lane lands and pushes only; the superproject pin is its own job (--pin <sub>=<sha>).
