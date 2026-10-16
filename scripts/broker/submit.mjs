@@ -27,8 +27,11 @@ import { announce, selfCheck } from './health.mjs';
 import { STATUS, writeJob, writeResult } from './result.mjs';
 import { withdrawJob } from './withdraw.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
+import { submitUsageProblem } from './submit-usage.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
+const usage = submitUsageProblem(process.argv.slice(2), flags, { isTTY: !!process.stdin.isTTY });
+if (usage) { (usage.code ? console.error : console.log)(usage.text); process.exit(usage.code); }
 const { root, cfg } = loadCfg(flags);
 
 if (flags.land && typeof flags.ticket !== 'string') {
