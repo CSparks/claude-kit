@@ -1,14 +1,16 @@
 // metrics.mjs — how well the broker is running, aggregated from a checkout's result files (KIT-T506).
 // `broker stats [--since 24h|7d|<ISO>] [--json]` prints the report; orient prints `rollupLine`.
 //
-// Measured against the ST-T904 target: each green job waits at most TARGET_X times the single-job
-// wall time (the median run time of jobs that ran alone, else of all jobs).
+// Measured against the ST-T904 target: each green job waits at most TARGET_X times its own
+// single-job time (its warm command time, compile excluded, plus its land phases). A train's shared
+// commands and gate count once; compile time is the sum of cargo's `Finished ... in Xs` log lines.
 //
 // `metrics(results, { target })` → { jobs, greens, wait, phases, rates, batches, sessions, stallKills,
 //   recovered, resumed, retries, target: { x, singleS, meeting, of, share } }.
 // `parseSince(text, now)` → ms | null.  `statsReport(cfg, { since, now })` → { text, data }.
 // `rollupLine(cfg, now)` → string | null.
 
+import { readFileSync } from 'node:fs';
 import { brokerPaths, laneConfigs, withLane } from './config.mjs';
 import { loadResults, submittedAt } from './stats.mjs';
 
@@ -39,17 +41,47 @@ export function parseSince(text, now = Date.now()) {
 const spans = (results) => results.map((r) => ({ r, wait: Date.parse(r.startedAt) - submittedAt(r.id), run: Date.parse(r.finishedAt) - Date.parse(r.startedAt) }))
   .filter((j) => j.wait >= 0 && j.run >= 0);
 
-function commandMinutes(jobs, re) {
-  let ms = 0;
-  for (const { r } of jobs) for (const c of r.commands || []) if (!c.reusedFrom && re.test(c.cmd || '') && Number.isFinite(c.durationMs)) ms += c.durationMs;
-  return r1(ms / MS_PER_MIN);
+// Members of one train carry the same commands and phase timings; their work happened once.
+function distinctWork(jobs) {
+  const seen = new Set();
+  return jobs.filter(({ r }) => {
+    if (!r.train) return true;
+    if (seen.has(r.train.id)) return false;
+    seen.add(r.train.id);
+    return true;
+  });
 }
 
-function gateMinutes(jobs) {
+const FINISHED = /Finished .* in (?:(\d+)m )?(\d+(?:\.\d+)?)s/g;
+const SECONDS_PER_MIN = 60;
+
+// Compile time inside one command: the sum of cargo's `Finished ... in Xs` lines in its log.
+function compileMs(c) {
+  if (!c.log) return 0;
+  let text;
+  try { text = readFileSync(c.log, 'utf8'); } catch { return 0; }
   let ms = 0;
-  for (const { r } of jobs) for (const t of r.timings || []) if (/gate/.test(t.phase)) ms += t.ms;
-  return r1(ms / MS_PER_MIN);
+  for (const m of text.matchAll(FINISHED)) ms += (Number(m[1] || 0) * SECONDS_PER_MIN + Number(m[2])) * MS_PER_S;
+  return Math.min(ms, c.durationMs);
 }
+
+// A command's compile share and its warm (test) share; a pure build command is all compile.
+function split(c) {
+  if (c.reusedFrom || !Number.isFinite(c.durationMs)) return { build: 0, warm: 0, test: 0 };
+  const build = BUILD.test(c.cmd || '') ? c.durationMs : compileMs(c);
+  const warm = c.durationMs - build;
+  return { build, warm, test: TEST.test(c.cmd || '') ? warm : 0 };
+}
+
+const sumBy = (list, f) => list.reduce((a, x) => a + f(x), 0);
+const commandMs = (r, key) => sumBy(r.commands || [], (c) => split(c)[key]);
+const phaseMs = (r, re) => sumBy((r.timings || []).filter((t) => re.test(t.phase)), (t) => t.ms);
+
+const minutes = (jobs, f) => r1(sumBy(distinctWork(jobs), ({ r }) => f(r)) / MS_PER_MIN);
+const LAND_PHASE = /^(commit|rebase|reverify|push|pin|pre-push gate)$|\scommit$/;
+
+// What the job would take alone: warm commands plus its land phases (a job that reports neither falls back to its run).
+const ownMs = (j) => commandMs(j.r, 'warm') + phaseMs(j.r, LAND_PHASE) || j.run;
 
 function batches(jobs) {
   const trains = new Map();
@@ -76,14 +108,14 @@ export function metrics(results, { target = TARGET_X } = {}) {
   const jobs = spans(results);
   const greens = jobs.filter(({ r }) => GREEN.has(r.status));
   const settled = jobs.filter(({ r }) => r.status !== 'cancelled' && r.status !== 'superseded');
-  const solo = jobs.filter(({ r }) => !r.train && (r.commands || []).some((c) => !c.reusedFrom));
-  const singleMs = quantile((solo.length ? solo : jobs).map((j) => j.run), 0.5);
-  const meeting = singleMs == null ? 0 : greens.filter((j) => j.wait <= target * singleMs).length;
+  const own = new Map(greens.map((j) => [j, ownMs(j)]));
+  const singleMs = quantile([...own.values()], 0.5);
+  const meeting = greens.filter((j) => j.wait <= target * own.get(j)).length;
   const waits = jobs.map((j) => j.wait);
   return {
     jobs: jobs.length, greens: greens.length,
     wait: { medianS: r1(quantile(waits, 0.5) / MS_PER_S), p90S: r1(quantile(waits, 0.9) / MS_PER_S), totalMin: r1(waits.reduce((a, b) => a + b, 0) / MS_PER_MIN) },
-    phases: { buildMin: commandMinutes(jobs, BUILD), testMin: commandMinutes(jobs, TEST), gateMin: gateMinutes(jobs) },
+    phases: { buildMin: minutes(jobs, (r) => commandMs(r, 'build')), testMin: minutes(jobs, (r) => commandMs(r, 'test')), gateMin: minutes(jobs, (r) => phaseMs(r, /gate/)) },
     rates: {
       failurePct: share(settled.filter(({ r }) => FAILED.has(r.status)).length, settled.length),
       redPct: share(settled.filter(({ r }) => (r.commands || []).some((c) => c.exit !== 0 && !c.foreign)).length, settled.length),
@@ -111,7 +143,7 @@ function textOf(m, label) {
     `  rates: failed ${pct(m.rates.failurePct)}, red ${pct(m.rates.redPct)}; stall kills ${m.stallKills}, recovered ${m.recovered}, resumed ${m.resumed}, retried revisions ${m.retries}`,
     `  batches: ${m.batches.trains} trains (mean ${m.batches.meanSize ?? '-'}, max ${m.batches.maxSize ?? '-'}), ${m.batches.solo} solo`,
     `  sessions: ${who}${m.sessions.spread ? `; slowest/fastest median wait ${m.sessions.spread}x` : ''}`,
-    `  ST-T904: ${pct(t.share)} of ${t.of} greens waited within ${t.x}x the single-job wall time (${sec(t.singleS)})`,
+    `  ST-T904: ${pct(t.share)} of ${t.of} greens waited within ${t.x}x their own single-job time (median ${sec(t.singleS)})`,
   ];
 }
 

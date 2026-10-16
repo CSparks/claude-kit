@@ -21,6 +21,8 @@ const job = (sub, start, end, extra = {}) => ({
   commands: [{ cmd: 'cargo check --workspace', exit: 0, durationMs: 60 * S }, { cmd: 'cargo test -p app', exit: 0, durationMs: 120 * S }], ...extra,
 });
 
+const OWN = { cmd: 'cargo test -p app', exit: 0, durationMs: 100 * S };
+
 test('waits, phase minutes, rates, batches, sessions, stall kills and retries aggregate from results', () => {
   const m = metrics([
     job(T0, T0 + 10 * S, T0 + 190 * S, { session: 'a', timings: [{ phase: 'gate', ms: 30 * S }, { phase: 'run', ms: 150 * S }] }),
@@ -30,7 +32,7 @@ test('waits, phase minutes, rates, batches, sessions, stall kills and retries ag
   ]);
   assert.equal(m.jobs, 4);
   assert.equal(m.greens, 3);
-  assert.deepEqual([m.phases.buildMin, m.phases.testMin, m.phases.gateMin], [3, 7, 0.5]);
+  assert.deepEqual([m.phases.buildMin, m.phases.testMin, m.phases.gateMin], [2, 5, 0.5], 'the train t1 counts its commands once');
   assert.equal(m.rates.failurePct, 25);
   assert.equal(m.rates.redPct, 25);
   assert.deepEqual([m.batches.trains, m.batches.meanSize, m.batches.maxSize], [1, 3, 3]);
@@ -42,9 +44,9 @@ test('waits, phase minutes, rates, batches, sessions, stall kills and retries ag
 });
 
 test('ST-T904: a queue whose greens wait within 1.5x the single-job time meets it; a slow queue does not (control)', () => {
-  const fast = metrics([job(T0, T0 + 10 * S, T0 + 100 * S), job(T0 + 100 * S, T0 + 110 * S, T0 + 200 * S)]);
+  const fast = metrics([job(T0, T0 + 10 * S, T0 + 100 * S, { commands: [OWN] }), job(T0 + 100 * S, T0 + 110 * S, T0 + 200 * S, { commands: [OWN] })]);
   assert.equal(fast.target.share, 100);
-  const slow = metrics([job(T0, T0, T0 + 100 * S), job(T0, T0 + 100 * S, T0 + 200 * S), job(T0, T0 + 200 * S, T0 + 300 * S), job(T0, T0 + 300 * S, T0 + 400 * S, { tag: 'z' })]);
+  const slow = metrics([job(T0, T0, T0 + 100 * S, { commands: [OWN] }), job(T0, T0 + 100 * S, T0 + 200 * S, { commands: [OWN] }), job(T0, T0 + 200 * S, T0 + 300 * S, { commands: [OWN] }), job(T0, T0 + 300 * S, T0 + 400 * S, { tag: 'z', commands: [OWN] })]);
   assert.equal(slow.target.singleS, 100);
   assert.equal(slow.target.meeting, 2, 'waits of 0 and 100 s are within 150 s; 200 and 300 s are not');
   assert.equal(slow.target.share, 50);

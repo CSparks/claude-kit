@@ -15,6 +15,8 @@ export function withdrawJob(cfg, id, { status = STATUS.CANCELLED, message = 'can
     const done = readResult(cfg, id);
     return { ok: false, error: done ? `${id} already finished (${done.status})` : `${id} is not queued` };
   }
+  const ran = readResult(cfg, id);
+  if (ran && (ran.status === STATUS.PASSED || ran.status === STATUS.LANDED)) return { ok: false, error: `${id} already finished (${ran.status}); its result stands` };
   writeResult(cfg, { id, revises: job.revises || null, revision: job.revision || 1, repo: job.repo, ticket: job.ticket || null, base: job.base || null, land: !!job.land, status, phase: 'queue', commands: [], gate: [], stale: [], foreign: [], landed: null, message });
   removeJob(cfg, id);
   return { ok: true };
