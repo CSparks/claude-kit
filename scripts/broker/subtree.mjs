@@ -76,6 +76,21 @@ export function restoreHead(cwd, prev) {
   return now.sha === prev.sha || git(['checkout', '-q', '--detach', prev.sha], cwd).code === 0;
 }
 
+/**
+ * The submodule lane's own tree before a job: clean and detached at an ancestor of `sub.main`
+ * (a superproject pin checkout a crash or an older broker left behind) goes back on the branch,
+ * fast-forward only. A dirty tree, a HEAD ahead of or diverged from the branch, or a tree on any
+ * branch is left as found. Returns { moved: sha } | { skipped: reason }.
+ */
+export function reattachBranch(cwd, sub) {
+  const now = headState(cwd);
+  if (now.branch) return { skipped: 'on a branch' };
+  if (dirtyPaths(cwd).length) return { skipped: 'uncommitted changes' };
+  if (git(['merge-base', '--is-ancestor', 'HEAD', sub.main], cwd).code !== 0) return { skipped: `HEAD is not an ancestor of ${sub.main}` };
+  if (git(['checkout', '-q', sub.main], cwd).code !== 0) return { skipped: `checkout ${sub.main} failed` };
+  return { moved: now.sha };
+}
+
 /** Remove a dead holder's lock, putting a superproject holder's checkout back first. */
 export function reclaimStale(cfg, sub) {
   const file = lockPath(cfg, sub);
@@ -146,6 +161,10 @@ export function takeSubtrees(cfg, subs, id, { idle = false, now = Date.now } = {
     const got = takeOne(cfg, sub, { id, want: !idle, now });
     if (!got.ok) { release(); return { ok: false, reason: got.reason }; }
     taken.push({ sub, token: got.token });
+    if (!idle && cfg.lane === sub.name) {
+      const back = reattachBranch(subCwd(cfg, sub), sub);
+      if (back.moved) console.error(`broker: ${sub.name} was detached at ${back.moved.slice(0, 10)}; back on ${sub.main} before ${id}`);
+    }
   }
   return { ok: true, release };
 }
