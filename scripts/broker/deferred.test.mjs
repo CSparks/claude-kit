@@ -34,7 +34,7 @@ test('a foreign failure is deferred with its command, job, reason and dirty path
     const [e] = listDeferred(s.cfg);
     assert.deepEqual([e.test, e.job, e.dirty, e.repo], ['t_flag', id, ['flag.txt'], 'app']);
     assert.match(e.reason, /flag is bad/);
-    assert.match(deferredLines(s.cfg)[0], /t_flag.*flag\.txt/);
+    assert.match(deferredLines(s.cfg)[1], /t_flag.*1 dirty path/);
     assert.equal(processOnce(s.cfg).deferred.dropped.length, 0, 'nothing changed: not re-run');
   } finally { s.done(); }
 });

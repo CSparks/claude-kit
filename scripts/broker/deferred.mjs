@@ -27,12 +27,22 @@ import { runCancellable } from './run-cancellable.mjs';
 
 const file = (cfg) => join(ensureDirs(cfg).home, 'deferred.json');
 const CAP = join(import.meta.dirname, '..', 'cap.mjs');
-const same = (a, b) => a.repo === b.repo && testKey(a) === testKey(b) && a.cmd === b.cmd;
+const same = (a, b) => a.repo === b.repo && testKey(a) === testKey(b);
 
+/** One entry per test: a test stored twice (older brokers keyed on the command too) keeps its newest. */
 export function listDeferred(cfg) {
-  try { return JSON.parse(readFileSync(file(cfg), 'utf8')); } catch { return []; }
+  let list;
+  try { list = JSON.parse(readFileSync(file(cfg), 'utf8')); } catch { return []; }
+  return list.filter((e, i) => !list.slice(i + 1).some((later) => same(e, later)));
 }
 const save = (cfg, list) => writeFileSync(file(cfg), JSON.stringify(list, null, 2));
+
+/** Forget every deferred test of `repo` that a run just saw pass: [{ binary, test }]. */
+export function forgetPassed(cfg, repo, passed) {
+  const list = listDeferred(cfg);
+  const kept = list.filter((e) => !(e.repo === repo && passed.some((t) => testKey(t) === testKey(e))));
+  if (kept.length !== list.length) save(cfg, kept);
+}
 
 /** Record foreign failures: [{ test, reason, cmd, repo, job, dirty, head }]; a repeat refreshes its entry. */
 export function addDeferred(cfg, entries) {
@@ -93,4 +103,16 @@ export function recheckDeferred(cfg, { fileBug = fileBugViaCap, pollMs } = {}) {
   return out;
 }
 
-export const deferredLines = (cfg) => listDeferred(cfg).map((e) => `deferred: ${e.test} [${e.repo}] ${e.reason} (job ${e.job}; waits on ${e.dirty.length ? e.dirty.join(', ') : 'HEAD move'})`);
+const REASON_MAX = 80;
+const oneLine = (text) => { const t = String(text).replace(/\s+/g, ' ').trim(); return t.length > REASON_MAX ? `${t.slice(0, REASON_MAX - 1)}…` : t; };
+
+/** `broker status` lines: a count, then one short line per deferred test. */
+export function deferredLines(cfg) {
+  const list = listDeferred(cfg);
+  if (!list.length) return [];
+  const waits = (e) => (e.dirty.length ? `${e.dirty.length} dirty path(s) to clean or a HEAD move` : 'a HEAD move');
+  return [
+    `deferred: ${list.length} foreign test(s) waiting; detail in deferred.json`,
+    ...list.map((e) => `  ${e.test} [${e.repo}] ${oneLine(e.reason)} (job ${e.job}; waits on ${waits(e)})`),
+  ];
+}

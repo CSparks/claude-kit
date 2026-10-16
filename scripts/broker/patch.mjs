@@ -11,7 +11,7 @@ import { landLinked } from './linked.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
-import { addDeferred } from './deferred.mjs';
+import { addDeferred, forgetPassed } from './deferred.mjs';
 import { findGreen, greenKey, recordGreen } from './green.mjs';
 import { hashKey, treeState } from './cache.mjs';
 import { makeBaseline } from './baseline.mjs';
@@ -44,6 +44,7 @@ function runCommands(cfg, job, cwd, hooks) {
     const r = runCommand(prep.cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
     const entry = { ...r, cmd: commands[n].cmd, log, ...(prep.skipped ? { resumedSkipped: prep.skipped } : {}), ...(commands[n].from ? { coalesced: commands[n].from } : {}), ...diagnose(readFileSync(log, 'utf8')) };
     out.push(entry);
+    forgetPassed(cfg, job.repo, entry.passed);
     if (r.exit === 0) continue;
     if (!(job.ops || []).length) continue; // a test-only job already runs on the baseline: its failures are the baseline's
     if (Object.keys(entry.errors).length) {

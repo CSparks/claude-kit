@@ -15,7 +15,7 @@
 
 import { readFileSync } from 'node:fs';
 import { attribute } from './attribute.mjs';
-import { addDeferred } from './deferred.mjs';
+import { addDeferred, forgetPassed } from './deferred.mjs';
 import { diagnose } from './diagnose.mjs';
 import { logPathFor } from './result.mjs';
 import { runCommand } from './run.mjs';
@@ -27,6 +27,7 @@ export function runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseli
     const r = runCommand(c.cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
     const entry = { ...r, log, owners: c.owners, ...(c.from ? { coalesced: c.from } : {}), ...diagnose(readFileSync(log, 'utf8')) };
     entries.push(entry);
+    forgetPassed(cfg, repo, entry.passed);
     if (r.exit === 0) continue;
     if (Object.keys(entry.errors).length) {
       const red = knownRed ? knownRed(entry) : null;
