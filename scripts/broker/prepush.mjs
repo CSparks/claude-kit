@@ -8,9 +8,12 @@
 //   CARGO_BUILD_JOBS, and no inherited GIT_* variables.
 // `runPrePush(cfg, cwd, remote, branch, logPath)` → { ok, exit, log }. The gate runs beside a beating
 //   daemon (run-pulsing.mjs), so a 17-minute gate never reads as a stall (KIT-T493).
+//   Every Cargo.lock is put back as found afterwards: the gate's cargo may rewrite one, and the
+//   repo's own hook refuses a push from a dirty lock (KIT-T519).
 
 import { writeFileSync, rmSync } from 'node:fs';
 import { git, revParse } from './git.mjs';
+import { holdLocks } from './locks.mjs';
 import { runPulsing } from './run-pulsing.mjs';
 import { tail } from './run.mjs';
 
@@ -29,7 +32,7 @@ export function runPrePush(cfg, cwd, remote, branch, logPath) {
   writeFileSync(stdin, `refs/heads/${branch} ${local} refs/heads/${branch} ${remoteSha}\n`);
   let exit;
   try {
-    exit = runPulsing(['git', 'hook', 'run', '--ignore-missing', `--to-stdin=${stdin}`, 'pre-push', '--', remote, url], { cwd, env: buildEnv(cfg), logPath }).status;
+    exit = holdLocks(cwd, () => runPulsing(['git', 'hook', 'run', '--ignore-missing', `--to-stdin=${stdin}`, 'pre-push', '--', remote, url], { cwd, env: buildEnv(cfg), logPath }).status);
   } finally {
     rmSync(stdin, { force: true });
   }

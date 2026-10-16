@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { changedLocks } from './git.mjs';
 import { landCommits } from './land.mjs';
 import { landedJob } from './job-commands.mjs';
+import { resolveLocks } from './locks.mjs';
 import { markCommitted, restorePaths } from './preimage.mjs';
 import { STATUS } from './result.mjs';
 import { gateBlame } from './train-gate-blame.mjs';
@@ -31,6 +32,7 @@ export function landGroup(cfg, repo, { id, cwd, pool, journal, entries, foreign,
   for (const m of checkers) finish(m, { status: STATUS.PASSED, phase: 'run', ...ran.get(m.job.id) });
   if (!landers.length) return { kept: false, regroup: [] };
 
+  resolveLocks(cwd, landers.flatMap(filesOf));
   const locks = changedLocks(cwd);
   const train = pool.length > 1 ? { id, size: pool.length } : null;
   const commits = landers.map((m, i) => ({

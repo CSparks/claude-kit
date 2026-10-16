@@ -24,7 +24,7 @@ import { stalePins } from './pin-stale.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordFault, recordRun } from './health-store.mjs';
 import { changedLocks, dirtyPaths, git, revParse } from './git.mjs';
-import { lockFilesDeep } from './locks.mjs';
+import { lockFilesDeep, resolveLocks } from './locks.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand, runDiagnosed } from './run.mjs';
 import { writePlan } from './write-plan.mjs';
@@ -136,6 +136,7 @@ export function processPatch(cfg, job, repo) {
     };
     const stalePin = stalePins(cfg, cwd, explicit());
     if (stalePin) return done({ status: STATUS.STALE, phase: 'pin', commands, diffStat, foreign, selection, message: stalePin });
+    resolveLocks(cwd, [...plan.files.keys()]);
     const land = landLinked(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], {
       verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }), onPhase: (p) => ph.enter(p),
       onCommitted: (c) => markCommitted(cfg, journal, { ...c, repo: job.repo, jobs: [landedJob(job)] }),
