@@ -38,6 +38,8 @@ import { rerouteMisplaced } from './reroute.mjs';
 import { runtimeCurrent } from '../runtime-path.mjs';
 import { usageProblem } from './usage.mjs';
 import { reconcileSubtrees } from './subtree.mjs';
+import { reapOrphans, setChildRegistry } from './children.mjs';
+import { ensureQueuedLanes } from './ensure.mjs';
 import { stopDaemon } from './stop.mjs';
 import { setStopNow } from './stop-now.mjs';
 import { withdrawJob } from './withdraw.mjs';
@@ -85,6 +87,7 @@ if (command === 'stats') {
 }
 
 if (command === 'status') {
+  for (const lane of process.env.BROKER_NO_AUTOSTART ? [] : ensureQueuedLanes(rootCfg, root)) console.error(`broker: no daemon was behind the ${lane} queue; started one`);
   for (const cfg of flags.lane ? [rootCfg] : laneConfigs(rootCfg)) {
   if (cfg.lane) console.error(`lane ${cfg.lane}:`);
   const queued = listQueue(cfg).length;
@@ -101,7 +104,8 @@ if (command === 'status') {
 }
 
 const lock = acquireLock(cfg, { spawnedBy: typeof flags['spawned-by'] === 'string' ? flags['spawned-by'] : null, log: logFile });
-if (lock.ok) { clearStop(cfg); pinRuntime(); setPulse(() => heartbeat(cfg)); }
+const childRegistry = join(brokerPaths(cfg).home, 'children.json');
+if (lock.ok) { clearStop(cfg); pinRuntime(); setPulse(() => heartbeat(cfg)); setChildRegistry(childRegistry); }
 if (!lock.ok) {
   console.error(`broker: another broker holds the lock (pid ${lock.holder.pid} on ${lock.holder.host} since ${lock.holder.ts})`);
   process.exit(1);
@@ -119,6 +123,7 @@ setStopNow({
 process.on('SIGINT', () => stop());
 process.on('SIGTERM', () => stop());
 
+for (const r of reapOrphans(childRegistry)) console.error(`broker: ended ${r.cmd} (pid ${r.pid}), left running by the daemon that died${r.interrupted ? `; its log is kept as ${r.interrupted}` : ''}`);
 const recovered = recoverInflight(cfg);
 if (recovered && recovered.resume) {
   console.error(`broker: ${recovered.id} stopped after its commit; finishing the landing (the tree stays at the commit)`);

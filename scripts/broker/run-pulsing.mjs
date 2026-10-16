@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { closeSync, existsSync, openSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { pulse } from './stall.mjs';
+import { trackChild, untrackChild } from './children.mjs';
 
 const CHILD = join(import.meta.dirname, 'run-child.mjs');
 const DEFAULT_POLL_MS = 50;
@@ -20,13 +21,17 @@ export function runPulsing(argv, { cwd, env = process.env, logPath, stdinPath = 
   rmSync(marker, { force: true });
   const out = openSync(logPath, 'w');
   const input = stdinPath ? openSync(stdinPath, 'r') : 'ignore';
+  let child;
   try {
-    spawn(process.execPath, [CHILD, marker, '--argv', JSON.stringify(argv)], { cwd, env, windowsHide: true, stdio: [input, out, out] }).unref();
+    child = spawn(process.execPath, [CHILD, marker, '--argv', JSON.stringify(argv)], { cwd, env, windowsHide: true, stdio: [input, out, out] });
+    child.unref();
   } finally {
     closeSync(out);
     if (stdinPath) closeSync(input);
   }
+  trackChild({ pid: child.pid, marker, logPath, cmd: argv.join(' ') });
   while (!existsSync(marker)) { pulse(); sleep(pollMs); }
+  untrackChild(child.pid);
   const status = Number(readFileSync(marker, 'utf8'));
   rmSync(marker, { force: true });
   return { status, out: existsSync(logPath) ? readFileSync(logPath, 'utf8') : '' };

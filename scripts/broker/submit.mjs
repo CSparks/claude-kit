@@ -22,7 +22,7 @@
 import { readFileSync } from 'node:fs';
 import { parseFlags, loadCfg } from './cli.mjs';
 import { laneOfRepo, withLane } from './config.mjs';
-import { ensureBroker, IDLE_EXIT_MIN } from './ensure.mjs';
+import { ensureQueuedLanes, IDLE_EXIT_MIN } from './ensure.mjs';
 import { announce, selfCheck } from './health.mjs';
 import { STATUS, writeJob, writeResult } from './result.mjs';
 import { withdrawJob } from './withdraw.mjs';
@@ -52,5 +52,6 @@ if (typeof flags.revises === 'string') {
   const gone = withdrawJob(laneCfg, flags.revises, { status: STATUS.SUPERSEDED, message: `superseded by ${queuedJob.id}` });
   console.error(gone.ok ? `submit: withdrew queued ${flags.revises} (superseded by ${queuedJob.id})` : `submit: ${flags.revises} not withdrawn: ${gone.error}`);
 }
-if (!process.env.BROKER_NO_AUTOSTART && ensureBroker(laneCfg, root)) console.error(`submit: no broker was running; started one (idle exit ${IDLE_EXIT_MIN} min)`);
+const started = process.env.BROKER_NO_AUTOSTART ? [] : ensureQueuedLanes(cfg, root);
+if (started.length) console.error(`submit: no broker was running for lane ${started.join(', ')}; started one (idle exit ${IDLE_EXIT_MIN} min)`);
 else announce(selfCheck(laneCfg, { skipNoDaemon: true }).entries, new Set());

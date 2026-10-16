@@ -6,21 +6,17 @@
 // `runCancellable(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel, pollMs })`
 //   -> the runCommand result plus `cancelled: boolean`.
 
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, openSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { composeCommand, tail } from './run.mjs';
 import { pulse } from './stall.mjs';
 import { linkFailure, recoverLink } from './link-recover.mjs';
+import { killTree, trackChild, untrackChild } from './children.mjs';
 
 const CHILD = join(import.meta.dirname, 'run-child.mjs');
 const DEFAULT_POLL_MS = 500;
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-
-function killTree(pid) {
-  if (process.platform === 'win32') spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
-  else { try { process.kill(-pid, 'SIGKILL'); } catch { /* already gone */ } }
-}
 
 // A link failure (link-recover.mjs) cleans the failing crate's incremental state and re-runs once;
 // the log gets a trailing note and the result `recovered`.
@@ -51,12 +47,14 @@ function runOnce(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel, pollMs 
     });
     child.unref();
   } finally { closeSync(fd); }
+  trackChild({ pid: child.pid, marker, logPath, cmd });
   let cancelled = false;
   while (!existsSync(marker)) {
     if (shouldCancel()) { cancelled = true; killTree(child.pid); break; }
     pulse();
     sleep(pollMs);
   }
+  untrackChild(child.pid);
   const exit = cancelled ? 1 : Number(readFileSync(marker, 'utf8')) || 0;
   rmSync(marker, { force: true });
   return { cmd: String(cmd).trim(), composed, exit, durationMs: Date.now() - started, logTail: tail(logPath), cancelled };

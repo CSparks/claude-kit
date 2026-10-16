@@ -4,7 +4,7 @@
 
 import { join } from 'node:path';
 import { rmSync, statSync, writeFileSync } from 'node:fs';
-import { brokerPaths } from './config.mjs';
+import { brokerPaths, laneConfigs, withLane } from './config.mjs';
 import { liveHolder, observedLive } from './lock.mjs';
 import { ensureDirs } from './result.mjs';
 import { listQueue } from './result.mjs';
@@ -31,6 +31,15 @@ export function ensureBroker(cfg, root, spawner = spawnBroker) {
   if (!claimSpawn(cfg)) return false;
   spawner(root, IDLE_EXIT_MIN, `${listQueue(cfg).length} job(s) queued with no daemon`, cfg.lane);
   return true;
+}
+
+/**
+ * Start a daemon behind every lane of the checkout that holds queued jobs and has none, so a queue
+ * never waits for a wait.mjs to notice (KIT-T549 c). submit and `status` run it. Returns the lane
+ * names it started ('root' for the superproject's).
+ */
+export function ensureQueuedLanes(cfg, root, spawner = spawnBroker) {
+  return laneConfigs(withLane(cfg, null)).filter((lane) => listQueue(lane).length && ensureBroker(lane, root, spawner)).map((lane) => lane.lane || 'root');
 }
 
 const SPAWN_CLAIM_MS = 30_000;
