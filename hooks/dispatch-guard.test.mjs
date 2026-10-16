@@ -422,6 +422,31 @@ body
   expect('the ignore file lifts the escalation gate', run(ignored, { jobless: true, subagent_type: 'Explore', model: 'opus', prompt: 'x [job: forensic]' }, opus).code, 0);
 }
 
+// --- dispatch-escalation: the job follows the tickets the brief works, not one it cites (KIT-T547) ---
+{
+  const repo = makeRepo();
+  const ticket = (dir, id, type) => {
+    mkdirSync(join(dir, '.ai', 'tickets'), { recursive: true });
+    writeFileSync(join(dir, '.ai', 'tickets', `${id}-x.md`), `---
+id: ${id}
+title: x
+type: ${type}
+---
+body
+`);
+  };
+  ticket(repo, 'ST-T904', 'tech-debt');
+  const call = (input) => run(repo, { jobless: true, subagent_type: 'general-purpose', ...input }, opus);
+  const brief = 'fix RG-T213 and RG-T215, both bugs; the vetting ticket is ST-T904 [job: fix]';
+  expect('control: a fix job on a brief that names only a tech-debt ticket blocks (fix outranks chore)', call({ model: 'sonnet', prompt: 'fix the vetting ticket ST-T904 [job: fix]' }).code, 2);
+  expect('bug ids in no store, tech-debt ST-T904 cited: the untyped ids hold the job at the catch-all, so fix passes', call({ model: 'sonnet', prompt: brief }).code, 0);
+  writeFileSync(join(repo, '.gitmodules'), '[submodule "rapid-game"]\n\tpath = rapid-game\n');
+  ticket(join(repo, 'rapid-game'), 'RG-T213', 'bug');
+  ticket(join(repo, 'rapid-game'), 'RG-T215', 'bug');
+  expect('bug tickets in the submodule store, tech-debt ST-T904 cited: fix passes', call({ model: 'sonnet', prompt: brief }).code, 0);
+  expect('control: an opus build on that brief still blocks', call({ model: 'opus', prompt: 'fix RG-T213 and RG-T215, context ST-T904 [job: build]' }).code, 2);
+}
+
 // --- agent-registry-stale (KIT-T431) -------------------------------------------------
 {
   const kit = fixtureKit(isoDaysAgo(0));

@@ -4,7 +4,9 @@
 // (an opus build on a bug ticket escalates), else the job row's family. A row marked
 // `self_escalating: true` (plan) is itself the escalation and passes.
 //
-//   ticketTypes(roots, text)   -> ticket types of every ticket id the text names, found under roots
+//   ticketTypes(roots, text)   -> ticket types of every ticket id the text names, found under roots and
+//                                 the stores of their submodules; an id found nowhere counts as the catch-all
+//                                 type when other ids in the text were typed (it may be a dearer ticket)
 //   expectedJob(ladder, types, readOnly) -> { job, why } | null   the cheapest-defensible job to hold the dispatch to
 //   escalationBlock({ root, input, prompt, readOnly, footer }) -> block message | null (check `dispatch-escalation`)
 //
@@ -45,12 +47,29 @@ function ticketType(roots, id) {
   return null;
 }
 
-export function ticketTypes(roots, text) {
-  const types = [];
-  for (const id of new Set(String(text || '').match(TICKET_ID) || [])) {
-    const type = ticketType(roots, id);
-    if (type) types.push(type);
+// A checkout's own store plus each submodule's (`rapid-game/.ai` holds the framework's tickets).
+function storeRoots(roots) {
+  const all = [];
+  for (const root of roots) {
+    all.push(root);
+    try {
+      const modules = readFileSync(join(root, '.gitmodules'), 'utf8');
+      for (const m of modules.matchAll(/^s*paths*=s*(.+?)s*$/gm)) all.push(join(root, m[1]));
+    } catch { /* no submodules */ }
   }
+  return all;
+}
+
+export function ticketTypes(roots, text) {
+  const stores = storeRoots(roots);
+  const types = [];
+  let untyped = 0;
+  for (const id of new Set(String(text || '').match(TICKET_ID) || [])) {
+    const type = ticketType(stores, id);
+    if (type) types.push(type);
+    else untyped++;
+  }
+  if (types.length && untyped) types.push('*');
   return types;
 }
 
