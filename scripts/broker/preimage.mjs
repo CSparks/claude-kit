@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
-import { catBlob, git, hashObject } from './git.mjs';
+import { catBlob, git, hashObject, writeAsCheckout } from './git.mjs';
 import { lockFilesDeep } from './locks.mjs';
 
 const journalPath = (cfg) => join(brokerPaths(cfg).home, 'inflight.json');
@@ -32,7 +32,7 @@ function restoreEntry(cwd, { path, blob }) {
   const abs = join(cwd, path);
   if (blob) {
     mkdirSync(dirname(abs), { recursive: true });
-    writeFileSync(abs, catBlob(cwd, blob));
+    writeAsCheckout(cwd, path, catBlob(cwd, blob), (bytes) => writeFileSync(abs, bytes));
   } else if (!isDir(abs)) {
     rmSync(abs, { force: true });
     pruneEmptyDirs(dirname(abs), cwd);
@@ -58,6 +58,7 @@ export function restorePaths(journal, paths) {
   const want = new Set(paths);
   for (const entry of journal.entries.filter((e) => want.has(e.path))) restoreEntry(journal.cwd, entry);
 }
+
 
 /** True when the in-flight journal is job `id`'s own run or a train carrying it. */
 export const inflightHas = (inflight, id) => !!inflight && (inflight.id === id || (inflight.members || []).includes(id));

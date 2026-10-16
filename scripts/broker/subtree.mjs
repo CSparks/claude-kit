@@ -17,7 +17,9 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
+import { brokerPaths, withLane } from './config.mjs';
+import { reapOrphans } from './children.mjs';
 import { dirtyPaths, git, revParse } from './git.mjs';
 import { jobCommands } from './job-commands.mjs';
 
@@ -91,11 +93,20 @@ export function reattachBranch(cwd, sub) {
   return { moved: now.sha };
 }
 
-/** Remove a dead holder's lock, putting a superproject holder's checkout back first. */
+/** End the command trees a dead holder's daemon left running (children.json of its lane): its lock is not free while they live. */
+function reapHolderTrees(cfg, holder) {
+  const lane = withLane(cfg, holder.lane === 'root' ? null : holder.lane);
+  for (const r of reapOrphans(join(brokerPaths(lane).home, 'children.json'))) {
+    console.error(`broker: ended ${r.cmd} (pid ${r.pid}), left running in the tree by the ${holder.lane} daemon that died${r.interrupted ? `; its log is kept as ${r.interrupted}` : ''}`);
+  }
+}
+
+/** Remove a dead holder's lock, ending its command trees and putting a superproject holder's checkout back first. */
 export function reclaimStale(cfg, sub) {
   const file = lockPath(cfg, sub);
   const held = read(file);
   if (!held || liveRecord(held)) return held ? { held } : {};
+  reapHolderTrees(cfg, held);
   if (held.restore && held.prev) restoreHead(subCwd(cfg, sub), held.prev);
   rmSync(file, { force: true });
   return { reclaimed: held };
@@ -115,6 +126,13 @@ const otherWant = (cfg, sub, now) => {
 function touchWant(cfg, sub) {
   const file = wantPath(cfg, sub, laneName(cfg));
   try { writeFileSync(file, ''); utimesSync(file, new Date(), new Date()); } catch { /* best effort */ }
+}
+
+/** The submodules whose working tree a restore of `journal` writes into. */
+export function journalSubtrees(cfg, journal) {
+  if (!journal) return [];
+  const same = (a, b) => resolve(a).toLowerCase() === resolve(b).toLowerCase();
+  return cfg.repos.filter((r) => r.submodule && (same(journal.cwd, subCwd(cfg, r)) || (journal.entries || []).some((e) => posix(e.path).startsWith(`${posix(r.path)}/`))));
 }
 
 function takeOne(cfg, sub, { id, want, now }) {
@@ -154,14 +172,14 @@ function releaseOne(cfg, sub, token) {
  * Take the tree of every submodule in `subs` (name order), all or none. `idle: true` claims no
  * priority. `release()` is idempotent and restores a superproject holder's checkout.
  */
-export function takeSubtrees(cfg, subs, id, { idle = false, now = Date.now } = {}) {
+export function takeSubtrees(cfg, subs, id, { idle = false, reattach = !idle, now = Date.now } = {}) {
   const taken = [];
   const release = () => { while (taken.length) { const t = taken.pop(); releaseOne(cfg, t.sub, t.token); } };
   for (const sub of [...subs].sort((a, b) => a.name.localeCompare(b.name))) {
     const got = takeOne(cfg, sub, { id, want: !idle, now });
     if (!got.ok) { release(); return { ok: false, reason: got.reason }; }
     taken.push({ sub, token: got.token });
-    if (!idle && cfg.lane === sub.name) {
+    if (reattach && cfg.lane === sub.name) {
       const back = reattachBranch(subCwd(cfg, sub), sub);
       if (back.moved) console.error(`broker: ${sub.name} was detached at ${back.moved.slice(0, 10)}; back on ${sub.main} before ${id}`);
     }

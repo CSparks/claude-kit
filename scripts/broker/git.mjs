@@ -126,6 +126,19 @@ export function hashObject(cwd, path) {
   return r.code === 0 ? r.out : null;
 }
 
+// Put `bytes` back at `path` the way a checkout writes it: when they are the tracked file's content
+// (the clean filter maps them to the index blob) `git checkout-index` writes the working form
+// (CRLF under autocrlf) and records its stat, so the file reads as unmodified; any other content,
+// or an untracked path, is written exactly as found.
+export function writeAsCheckout(cwd, path, bytes, write) {
+  const staged = git(['ls-files', '-s', '--', path], cwd).out.match(/^\d+ ([0-9a-f]+) 0\t/);
+  if (staged) {
+    const clean = spawnSync('git', ['hash-object', '--stdin', '--path', path], { cwd, input: bytes, windowsHide: true, encoding: 'utf8' });
+    if (clean.status === 0 && clean.stdout.trim() === staged[1] && git(['checkout-index', '-f', '-u', '-q', '--', path], cwd).code === 0) return;
+  }
+  write(bytes);
+}
+
 // A blob's exact bytes.
 export function catBlob(cwd, sha) {
   const r = spawnSync('git', ['cat-file', 'blob', sha], { cwd, windowsHide: true, maxBuffer: 1 << 28 });

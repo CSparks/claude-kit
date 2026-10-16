@@ -60,6 +60,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
     let tree = null;
     try {
       const taken = takeOverJournal(cfg, job.id);
+      if (taken && taken.busy) { waiting.set(job.repo, taken.busy); continue; }
       if (taken) console.error(`broker: restored ${taken.restored.length} path(s) that ${job.id} left half-applied under ${taken.home}`);
       train = formTrain(cfg, job, roundRobin(listQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) });
       tree = takeSubtrees(cfg, subtreesFor(cfg, repoByName(cfg, job.repo) || {}, train ? train.members.map((m) => m.job) : [job]), job.id);

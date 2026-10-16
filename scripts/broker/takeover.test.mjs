@@ -41,7 +41,8 @@ test('a lane daemon restores the job\'s own half-applied files from another home
     const r = readResult(lane, job.id);
     assert.equal(r.status, 'passed', JSON.stringify(r));
     assert.equal(summary.paused, false);
-    assert.equal(api(t), 'original\n');
+    assert.equal(api(t).replace(/\r\n/g, '\n'), 'original\n', 'the content is back, in the checkout\'s line endings (KIT-T552)');
+    assert.equal(g(['status', '--porcelain'], t.sub), '', 'and git sees no change');
     assert.equal(readInflight(t.cfg), null, 'the journal is spent');
   } finally { t.done(); }
 });

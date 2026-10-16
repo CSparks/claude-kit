@@ -22,7 +22,7 @@ import { deferredLines } from './deferred.mjs';
 import { announce, healthLine, selfCheck } from './health.mjs';
 import { acquireLock, heartbeat, liveHolder, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
-import { resumeLanding } from './resume.mjs';
+import { recoverUnderLock } from './recover.mjs';
 import { processOnce } from './queue.mjs';
 import { STATUS, ensureDirs, listQueue } from './result.mjs';
 import { suiteLine } from './suite.mjs';
@@ -124,12 +124,14 @@ process.on('SIGINT', () => stop());
 process.on('SIGTERM', () => stop());
 
 for (const r of reapOrphans(childRegistry)) console.error(`broker: ended ${r.cmd} (pid ${r.pid}), left running by the daemon that died${r.interrupted ? `; its log is kept as ${r.interrupted}` : ''}`);
-const recovered = recoverInflight(cfg);
-if (recovered && recovered.resume) {
-  console.error(`broker: ${recovered.id} stopped after its commit; finishing the landing (the tree stays at the commit)`);
-  for (const r of resumeLanding(cfg, recovered.resume)) console.error(`  ${r.id} → ${r.status}`);
-} else if (recovered) console.error(`broker: restored the tree after interrupted job ${recovered.id}; it re-runs`);
 for (const dead of reconcileSubtrees(cfg)) console.error(`broker: reclaimed the submodule tree ${dead.id} (pid ${dead.pid}, lane ${dead.lane}) held when its daemon died${dead.restore ? '; the checkout is back on its branch' : ''}`);
+let recoveryReason = null;
+const recoverPending = () => {
+  const r = recoverUnderLock(cfg, (line) => console.error(line));
+  recoveryReason = r.done ? null : r.reason;
+  return !r.done;
+};
+recoverPending();
 console.error(`broker: watching ${root} (target ${cfg.targetDir}, jobs -j ${cfg.jobs})`);
 
 const said = new Set();
@@ -138,6 +140,10 @@ const note = (text) => { if (text !== lastNote) console.error(text); lastNote = 
 
 const drain = () => {
   heartbeat(cfg);
+  if (recoveryReason) {
+    recoverPending();
+    if (recoveryReason) { note(`broker: ${recoveryReason}`); return { processed: [], paused: false }; }
+  }
   announce(selfCheck(cfg, { heal: true }).entries, said);
   const moved = rerouteMisplaced(cfg);
   if (moved.length) console.error(`broker: moved ${moved.length} job(s) to their repo's own queue: ${moved.join(', ')}`);
