@@ -6,7 +6,8 @@
 // only after its result is written, so a crash mid-job re-queues it on the next start; a thrown
 // broker error fails the job it hit (contain.mjs) and the daemon carries on.
 
-import { repoByName } from './config.mjs';
+import { repoByName, withLane } from './config.mjs';
+import { dirtyHold, holdDirty, pausedOnDirt } from './dirty.mjs';
 import { isPaused } from './control.mjs';
 import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
@@ -62,6 +63,8 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
       const taken = takeOverJournal(cfg, job.id);
       if (taken && taken.busy) { waiting.set(job.repo, taken.busy); continue; }
       if (taken) console.error(`broker: restored ${taken.restored.length} path(s) that ${job.id} left half-applied under ${taken.home}`);
+      const own = repoByName(cfg, job.repo);
+      if (own && dirtyHold(cfg, own)) { held.set(job.repo, job.id); continue; }
       train = formTrain(cfg, job, roundRobin(listQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) });
       tree = takeSubtrees(cfg, subtreesFor(cfg, repoByName(cfg, job.repo) || {}, train ? train.members.map((m) => m.job) : [job]), job.id);
       if (!tree.ok) { waiting.set(job.repo, tree.reason); continue; }
@@ -79,13 +82,15 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
     }
     const { result, pause } = ran;
     if (onResult) onResult(result);
-    if (pause) { held.set(job.repo, job.id); continue; }
+    if (pause) { held.set(job.repo, job.id); holdDirty(cfg, job, repoByName(cfg, job.repo)); continue; }
     removeJob(cfg, job.id);
     processed.push(result);
   }
   if (held.size) return { processed, paused: true, pausedOn: [...held.values()][0], pausedRepos: [...held.keys()], reason: 'dirty' };
   if (waiting.size) return { processed, paused: false, waiting: [...waiting.values()] };
   // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired.
+  const dirtyLane = idleSubtrees(cfg).find((sub) => pausedOnDirt(withLane(cfg, sub.name), sub));
+  if (dirtyLane) return { processed, paused: false, deferred: null, suite: null, waiting: [`${dirtyLane.name} is paused on uncommitted changes; idle work stays off its tree`] };
   const idle = takeSubtrees(cfg, idleSubtrees(cfg), 'idle', { idle: true });
   if (!idle.ok) return { processed, paused: false, deferred: null, suite: null, waiting: [idle.reason] };
   let deferred;

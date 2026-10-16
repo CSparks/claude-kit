@@ -24,6 +24,9 @@ import { dirtyPaths, git, revParse } from './git.mjs';
 import { jobCommands } from './job-commands.mjs';
 
 const WANT_FRESH_MS = 30_000;
+let taken = 0;
+/** Successful lock takes in this process (tests count them to see a lane stop re-asking). */
+export const takesSoFar = () => taken;
 const CARGO = /(^|[\s;&|])cargo(\s|$)/;
 const laneName = (cfg) => cfg.lane || 'root';
 const homeOf = (cfg) => join(cfg.targetDir, 'broker', 'subtree');
@@ -152,6 +155,7 @@ function takeOne(cfg, sub, { id, want, now }) {
     try {
       writeFileSync(file, JSON.stringify(record, null, 2), { flag: 'wx' });
       rmSync(wantPath(cfg, sub, laneName(cfg)), { force: true });
+      taken += 1;
       return { ok: true, token, record };
     } catch (e) {
       if (e.code !== 'EEXIST') throw e;

@@ -7,12 +7,12 @@
 //   { ok: false, fields, pause? }                            result fields to write; pause leaves it queued
 
 import { join } from 'node:path';
-import { derivedUntrackedBlocks } from './blocks.mjs';
+import { dirtState } from './dirty.mjs';
 import { GATE_CRASH, RUNTIME_GONE, gatePlan } from './gate.mjs';
 import { recordFault, recordGatePass } from './health-store.mjs';
-import { checkoutState, logSince } from './git.mjs';
+import { logSince } from './git.mjs';
 import { planAtHead } from './plan.mjs';
-import { linkedReader, splitLinked } from './linked.mjs';
+import { linkedReader } from './linked.mjs';
 import { STATUS } from './result.mjs';
 
 export function staleEntries(cwd, base, stale) {
@@ -27,13 +27,7 @@ export function admit(cfg, job, repo, { onPhase = () => {} } = {}) {
   onPhase('apply');
   const { ops, plan } = planAtHead(cwd, job.ops || [], { read: linkedReader(cfg, repo, cwd) });
   const touched = ops.map((o) => posix(o.path));
-  const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
-  const { own, subs } = splitLinked(cfg, repo, touched);
-  const state = checkoutState(cwd, { untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks, touched: own });
-  for (const [sub, rels] of subs) {
-    const sideState = checkoutState(join(cfg.root, sub.path), { untrackedBlocks: [], dirtyBlocks: cfg.dirtyBlocks, touched: rels });
-    if (!sideState.clean) { state.clean = false; state.entries = [...(state.entries || []), ...sideState.entries.map((e) => `${sub.path}: ${e}`)]; }
-  }
+  const state = dirtState(cfg, repo, cwd, touched);
   if (!state.clean) {
     return refuse({ status: STATUS.DIRTY, phase: 'apply', dirtyEntries: state.entries, message: `build checkout dirty (${cwd}) — queue paused until clean` }, true);
   }
