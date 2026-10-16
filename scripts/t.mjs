@@ -352,10 +352,13 @@ export async function startTrail(root, id, escape = '') {
   return trailGate({ id, trail, gate: readProvenanceGate(root), escape });
 }
 
+// The board regen never holds a mutation open: a wedged indexer is killed after this long (KIT-T536).
+const REFRESH_TIMEOUT_MS = Number(process.env.CLAUDE_KIT_REFRESH_TIMEOUT_MS) || 60_000;
+
 async function refresh(root) {
   try {
-    execFileSync('node', [join(SCRIPT_DIR, 'index-tickets.mjs'), root], { stdio: 'ignore', windowsHide: true });
-  } catch { /* board regen is best-effort; the markdown is already the truth */ }
+    execFileSync('node', [process.env.CLAUDE_KIT_INDEXER || join(SCRIPT_DIR, 'index-tickets.mjs'), root], { stdio: 'ignore', windowsHide: true, timeout: REFRESH_TIMEOUT_MS });
+  } catch { /* board regen is best-effort (a hung or slow indexer is killed at the timeout); the markdown is already the truth */ }
   try {
     const { hydrate, defaultDbPath } = await import('./hydrate-db.mjs');
     await hydrate({ root, dbPath: defaultDbPath() });
