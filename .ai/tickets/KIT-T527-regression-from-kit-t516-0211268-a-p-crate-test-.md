@@ -32,3 +32,4 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 - [2026-10-16 14:58] (comment) @claude: Vetting 2026-10-16: fix 45d4937 has had NO root job since, so it is unproven on a root job. Also the T516 narrowing chan (full comment #1 in ## Notes)
 ### comment #1 [2026-10-16 14:58] @claude
 Vetting 2026-10-16: fix 45d4937 has had NO root job since, so it is unproven on a root job. Also the T516 narrowing changed recorded deferred commands: deferred entry 16 (-p sim --lib) now selects 0 tests forever (see the deferred hot-loop ticket KIT-T539). Leave open until a root '-p <crate>' job with a feature alias passes.
+- [2026-10-16 15:54] (comment) @claude: Vetting 2026-10-16: -p narrowing did not work in the rapid-game lane for 'cd rust && cargo t -p X' (alias read from the wrong dir); tracked and fixed as KIT-T546.

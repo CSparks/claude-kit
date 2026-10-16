@@ -33,3 +33,4 @@ root cause: stiletto .cargo alias t = nextest run --workspace ...; cargo lets --
 - [2026-10-15 17:15] (created) bug — Broker widens a package-filtered test: worker --test 'cargo t -p sim --lib' ran 1287 tests across the workspace (terrain, testkit) for 1409 s on stiletto job j-mv9q1h48-t1lk9z, then re-ran the base for attribution; a one-crate check cost 23 min of the shared queue
 - [2026-10-15 17:28] (comment) @claude: root cause: stiletto .cargo alias t = nextest run --workspace ...; cargo lets --workspace override -p. Fixed in scripts/ (full comment #1 in ## Notes)
 - [2026-10-15 17:28] (status) todo → review
+- [2026-10-16 15:54] (comment) @claude: Vetting 2026-10-16: -p narrowing did not work in the rapid-game lane for 'cd rust && cargo t -p X' (alias read from the wrong dir); tracked and fixed as KIT-T546.

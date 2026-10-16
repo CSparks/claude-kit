@@ -4,7 +4,7 @@
 // `readAliases(cwd)` → { name: [tokens] } from `<cwd>/.cargo/config.toml`.
 
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const WORKSPACE_FLAGS = new Set(['--workspace', '--all']);
 const PACKAGE_FLAGS = new Set(['-p', '--package']);
@@ -48,6 +48,22 @@ export function readAliases(cwd) {
   return {};
 }
 
+// The directory cargo runs in: `cwd` after every `cd <dir>` ahead of the cargo token.
+function cargoDir(toks, ci, cwd) {
+  let dir = cwd;
+  for (let i = 0; i < ci; i++) if (toks[i] === 'cd' && toks[i + 1]) dir = resolve(dir, toks[i + 1].replace(/^["']|["']$/g, ''));
+  return dir;
+}
+
+// Cargo merges `.cargo/config.toml` from the working directory up; the nearest alias wins.
+function aliasesAt(dir) {
+  const found = {};
+  for (let d = dir; ; d = dirname(d)) {
+    for (const [name, value] of Object.entries(readAliases(d))) if (!(name in found)) found[name] = value;
+    if (dirname(d) === d) return found;
+  }
+}
+
 export function packageScoped(cmd, cwd) {
   const toks = String(cmd).trim().split(/\s+/);
   const ci = toks.indexOf('cargo');
@@ -56,7 +72,7 @@ export function packageScoped(cmd, cwd) {
   const sep = rest.indexOf('--');
   const cargoArgs = sep === -1 ? rest : rest.slice(0, sep);
   if (!cargoArgs.some((t) => PACKAGE_FLAGS.has(t))) return String(cmd).trim();
-  const alias = readAliases(cwd)[toks[ci + 1]];
+  const alias = aliasesAt(cargoDir(toks, ci, cwd))[toks[ci + 1]];
   if (!alias || !alias.some((t) => WORKSPACE_FLAGS.has(t))) return String(cmd).trim();
   if (alias[0] === 'nextest' && alias.some((t) => FEATURE_FLAGS.has(t))) return filtered(toks, ci, alias, rest);
   return [...toks.slice(0, ci + 1), ...alias.filter((t) => !WORKSPACE_FLAGS.has(t)), ...rest].join(' ');

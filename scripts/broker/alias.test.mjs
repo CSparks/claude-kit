@@ -71,3 +71,17 @@ test('a package without the alias feature is filtered, never given --features al
     assert.ok(!/ -p /.test(out), 'no -p beside --features');
   } finally { cleanup(dir); }
 });
+
+test('a command that cds into the cargo workspace reads that directory\'s alias (rapid-game lane: cd rust && cargo t -p X)', () => {
+  const root = tempDir('alias-lane-');
+  try {
+    mkdirSync(join(root, 'rust', '.cargo'), { recursive: true });
+    writeFileSync(join(root, 'rust', '.cargo', 'config.toml'), '[alias]\nt = "nextest run --workspace --features rg-engine/dynamic_linking"\n');
+    const composed = composeCommand('cd rust && cargo t -p rg-tunables', { jobs: 3, cwd: root });
+    assert.match(composed, /^cd rust && cargo nextest run --workspace --features rg-engine\/dynamic_linking/);
+    assert.ok(composed.includes('-E "package(rg-tunables)"'), composed);
+    assert.ok(!/ -p /.test(composed), composed);
+    assert.equal(packageScoped('cd rust && cargo t --lib', root), 'cd rust && cargo t --lib', 'control: no -p keeps the alias');
+    assert.equal(packageScoped('cargo t -p rg-tunables', root), 'cargo t -p rg-tunables', 'control: without the cd the root has no alias');
+  } finally { cleanup(root); }
+});
