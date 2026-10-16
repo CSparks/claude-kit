@@ -11,6 +11,7 @@ import { planAtHead } from './plan.mjs';
 import { linkedReader } from './linked.mjs';
 import { jobSession } from './rr.mjs';
 import { isSuiteShaped } from './landgate.mjs';
+import { parentWorkspaceCommand } from './lane-cargo.mjs';
 
 export const SUITE_REFUSAL = 'full suites run on the cadence; list the targets you touched (--test "cargo t -p <crate> --test <name>")';
 import { parsePins } from './pin.mjs';
@@ -56,6 +57,8 @@ export function buildPatchJob(cfg, flags, text) {
   if (pinned.error) return { error: pinned.error };
 
   const cwd = join(cfg.root, repo.path);
+  const outside = tests.map((c) => parentWorkspaceCommand(repo, cwd, c)).find(Boolean);
+  if (outside) return { error: outside };
   const base = revParse(cwd, 'HEAD');
   const { plan } = planAtHead(cwd, ops, { read: linkedReader(cfg, repo, cwd), ownFiles: inflightCreated(cfg, cwd) });
   const meta = {
