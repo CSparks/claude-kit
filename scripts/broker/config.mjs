@@ -11,6 +11,8 @@
 //     parallelism: { jobs: auto }                  # default auto (jobs.mjs: the cores RAM can feed); a number pins it
 //     verify_default: [ "cargo test --no-fail-fast" ]  # commands a job may omit
 //     poll_ms: 2000                                # daemon queue poll interval
+//     coalesce_ms: 2000                            # a drain waits until the queue has been quiet this long (0 starts at once), so
+//                                                    # back-to-back submits form one train; capped at 5x this from the oldest job
 //     stall_kill_s: 600                            # wait/submit kill a daemon silent this long (default 600; 0 never kills)
 //     untracked_blocks: ["crates/**/*.rs"]        # untracked paths that pause the queue; absent, derived from
 //                                                    # the checkout's tracked crates and workspace members (blocks.mjs),
@@ -30,6 +32,7 @@ import { resolveJobs } from './jobs.mjs';
 import { pipelineConfig } from './pipeline-config.mjs';
 
 const DEFAULT_POLL_MS = 2000;
+const DEFAULT_COALESCE_MS = 2000;
 const DEFAULT_VERIFY = ['cargo test --no-fail-fast'];
 const DEFAULT_UNTRACKED_BLOCKS = ['**/*.rs', '**/Cargo.toml'];
 const DEFAULT_DIRTY_BLOCKS = DEFAULT_UNTRACKED_BLOCKS;
@@ -60,6 +63,7 @@ export function normalizeBroker(root, broker) {
     jobs,
     verifyDefault,
     pollMs: num(broker.poll_ms, DEFAULT_POLL_MS),
+    coalesceMs: Math.max(0, num(broker.coalesce_ms, DEFAULT_COALESCE_MS)),
     stallKillS: broker.stall_kill_s == null || broker.stall_kill_s === '' ? null : num(broker.stall_kill_s, null),
     untrackedBlocks: Array.isArray(broker.untracked_blocks) ? broker.untracked_blocks.map(String) : DEFAULT_UNTRACKED_BLOCKS.slice(),
     untrackedDerived: !Array.isArray(broker.untracked_blocks),

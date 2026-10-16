@@ -141,7 +141,7 @@ const drain = () => {
   announce(selfCheck(cfg, { heal: true }).entries, said);
   const moved = rerouteMisplaced(cfg);
   if (moved.length) console.error(`broker: moved ${moved.length} job(s) to their repo's own queue: ${moved.join(', ')}`);
-  const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`) });
+  const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`), coalesceMs: flags.once ? 0 : cfg.coalesceMs });
   if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : `broker: paused — ${summary.pausedRepos.join(', ')} holds hand edits (job ${summary.pausedOn} stays queued)`);
   else if (summary.waiting && summary.waiting.length) note(`broker: waiting — ${summary.waiting.join('; ')}`);
   else lastNote = '';
@@ -174,11 +174,11 @@ function restartFromCurrent(why = `runtime gone (${import.meta.dirname})`) {
 const tick = () => {
   if (stopRequested(cfg)) { clearStop(cfg); stop('stop requested'); }
   if (runtimeGone()) restartFromCurrent();
-  const { processed } = drain();
+  const { processed, coalescing } = drain();
   const swap = publishedSwap();
   if (swap) restartFromCurrent(`runtime ${runtimeTag()} superseded by published ${swap}`);
   if (processed.length || listQueue(cfg).length || isPaused(cfg)) lastWork = Date.now();
   if (idleMs && Date.now() - lastWork > idleMs) stop(`idle for ${flags['idle-exit']} min, exiting`);
-  setTimeout(tick, pollMs);
+  setTimeout(tick, coalescing ? Math.min(pollMs, coalescing) : pollMs);
 };
 tick();

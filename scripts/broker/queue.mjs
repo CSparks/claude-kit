@@ -26,14 +26,30 @@ function pruneAfterSuite(cfg) {
   try { return pruneLine(pruneIncremental(cfg.targetDir, { keepHours: cfg.incrementalKeepHours })); } catch (e) { return `incremental prune failed: ${e.message}`; }
 }
 
+const COALESCE_CAP = 5;
+
+// A queue still being written to is not drained yet: `coalesceMs` (the daemon passes broker.coalesce_ms) is
+// the quiet the newest submit must have had, so submits seconds apart reach formTrain together. The oldest
+// job never waits more than COALESCE_CAP windows. Returns the wait in ms, or 0 to start.
+export function coalesceWait(queue, coalesceMs, now = Date.now()) {
+  if (!(coalesceMs > 0) || !queue.length) return 0;
+  const times = queue.map((j) => Date.parse(j.submittedAt)).filter(Number.isFinite);
+  if (!times.length) return 0;
+  const quietFor = now - Math.max(...times);
+  const waited = now - Math.min(...times);
+  return quietFor >= coalesceMs || waited >= coalesceMs * COALESCE_CAP ? 0 : coalesceMs - quietFor;
+}
+
 // Drain the queue until it is empty or the operator ran `pause`. A job whose repo holds a hand-driven
 // writer's changes stays queued and pauses THAT repo only: its later jobs wait behind it (order within a
 // repo is kept), jobs for clean repos run. A job that needs a submodule's tree while the other lane holds it
 // (subtree.mjs) waits the same way and is reported in `waiting`. Returns a summary the daemon (or a test) can log;
 // `paused` is true while any repo is held. `onResult` is an optional per-job callback.
-export function processOnce(cfg, { onResult, fileBug } = {}) {
+export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
   const processed = [];
   if (isPaused(cfg)) return { processed, paused: true, reason: 'manual' };
+  const coalesce = coalesceWait(listQueue(cfg), coalesceMs);
+  if (coalesce) return { processed, paused: false, coalescing: coalesce };
   const held = new Map();
   const waiting = new Map();
   const order = roundRobin(listQueue(cfg), lastServed(cfg));
@@ -79,7 +95,7 @@ export function processOnce(cfg, { onResult, fileBug } = {}) {
   } finally { idle.release(); }
   if (suite && !suite.cancelled && suite.status !== 'partial') suite.pruned = pruneAfterSuite(cfg);
   if (deferred.cancelled || (suite && suite.cancelled)) {
-    const next = processOnce(cfg, { onResult, fileBug });
+    const next = processOnce(cfg, { onResult, fileBug, coalesceMs });
     return { ...next, processed: [...processed, ...next.processed] };
   }
   return { processed, paused: false, deferred, suite: suite || null };
