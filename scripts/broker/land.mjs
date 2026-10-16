@@ -5,6 +5,7 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { attachBranch, git, gitLong, revParse } from './git.mjs';
+import { retryOnIndexLock } from './index-lock.mjs';
 import { syncPush } from './sync-push.mjs';
 import { withPushLock } from './pushlock.mjs';
 import { repinSuperproject } from './submodule.mjs';
@@ -40,12 +41,12 @@ function undoLanding(cwd, repo, paths, preHead, pushed) {
 }
 
 function commitOne(cwd, { job, paths, trailer }) {
-  const add = git(['add', '--', ...paths], cwd);
+  const add = retryOnIndexLock(() => git(['add', '--', ...paths], cwd));
   if (add.code !== 0) return `git add: ${add.err}`;
   const title = job.title || `patch ${job.id}`;
   const subject = title.includes(`(implements ${job.ticket})`) ? title : `${title} (implements ${job.ticket})`;
   const message = trailer ? `${subject}\n\n${trailer}` : subject;
-  const commit = gitLong(['commit', '-m', message, '--', ...paths], cwd);
+  const commit = retryOnIndexLock(() => gitLong(['commit', '-m', message, '--', ...paths], cwd));
   if (commit.code !== 0) {
     git(['reset', '-q', '--', ...paths], cwd);
     return `git commit: ${commit.err}`;
