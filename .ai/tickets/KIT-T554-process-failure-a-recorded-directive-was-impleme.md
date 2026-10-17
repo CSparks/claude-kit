@@ -31,6 +31,7 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 
 ## Notes
 Gate built: hooks/lib/directive.mjs (directive: true needs enforced_by with existing paths), commit-gate.mjs check id directive-enforced, orient.mjs lists DIRECTIVES WITHOUT A TEST. Backfilled KIT-D097 (enforced_by: scope-invariants, push-race, build-scope, dispatch-broker tests). Tests: hooks/commit-gate.test.mjs 42 passed (4 new: no enforced_by blocks, missing test blocks, existing test commits, non-directive control), hooks/orient.test.mjs 31 passed (3 new). Not covered: KIT-D096 and older directives stay unmarked.
+(fixed) 644e64d
 
 ## History
 - [2026-10-17 17:56] (created) bug — Process failure: a recorded directive was implemented against itself and nothing caught it. Chris 2026-10-15 (KIT-T482#14/#15): the broker b
