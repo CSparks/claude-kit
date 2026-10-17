@@ -16,6 +16,7 @@ import { brokerPaths } from './config.mjs';
 import { dirtyBlocksOf } from './build-inputs.mjs';
 import { checkoutState, git, revParse } from './git.mjs';
 import { splitLinked } from './linked.mjs';
+import { healOwnDirt } from './written.mjs';
 
 const posix = (p) => String(p).replace(/\\/g, '/');
 const markerOf = (cfg) => join(brokerPaths(cfg).home, 'dirty-hold.json');
@@ -31,6 +32,7 @@ function detachedWork(cfg, repo, cwd) {
 }
 
 export function dirtState(cfg, repo, cwd, touched) {
+  for (const p of healOwnDirt(cfg, cwd)) console.error(`broker: put ${p} back from HEAD: only its line endings differed after a broker job wrote it`);
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   const { own, subs } = splitLinked(cfg, repo, touched);
   const state = checkoutState(cwd, { untrackedBlocks, dirtyBlocks: dirtyBlocksOf(cfg, cwd), touched: own });

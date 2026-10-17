@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { catBlob, git, hashObject, writeAsCheckout } from './git.mjs';
 import { lockFilesDeep } from './locks.mjs';
+import { recordWritten } from './written.mjs';
 
 const journalPath = (cfg) => join(brokerPaths(cfg).home, 'inflight.json');
 
@@ -16,6 +17,7 @@ export function capture(cfg, { id, cwd, paths, members, startedAt }) {
   const entries = paths.map((path) => ({ path, blob: existsSync(join(cwd, path)) ? hashObject(cwd, path) : null }));
   const journal = { id, cwd, startedAt: startedAt || new Date().toISOString(), entries, ...(members ? { members } : {}) };
   writeFileSync(journalPath(cfg), JSON.stringify(journal, null, 2));
+  recordWritten(cfg, cwd, paths, id);
   return journal;
 }
 
