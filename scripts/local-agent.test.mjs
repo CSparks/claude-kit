@@ -5,7 +5,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { reporter, tmpDir, cleanup } from '../hooks/test-harness.mjs';
 import { LOCAL_MODEL, PATCH_BEGIN, PATCH_END, modeFor, buildPrompt, buildInvocation, extractPatch, submitArgs, acquireSlot } from './local-agent-lib.mjs';
@@ -18,6 +18,9 @@ const brokerTree = () => {
   mkdirSync(join(dir, 'target', 'broker'), { recursive: true });
   mkdirSync(join(dir, '.ai'), { recursive: true });
   writeFileSync(join(dir, '.ai', 'config.yml'), 'broker:\n  repos:\n    - { name: app, path: . }\n');
+  writeFileSync(join(dir, 'Cargo.toml'), '[workspace]\nmembers = []\n');
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  execFileSync('git', ['add', 'Cargo.toml'], { cwd: dir });
   writeFileSync(join(dir, 'target', 'broker', 'broker.lock'), JSON.stringify({ pid: process.pid, host: hostname() }));
   return dir;
 };
