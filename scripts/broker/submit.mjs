@@ -28,11 +28,14 @@ import { STATUS, writeJob, writeResult } from './result.mjs';
 import { withdrawJob } from './withdraw.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
 import { submitUsageProblem } from './submit-usage.mjs';
+import { cargoScopeRefusal } from './cargo-scope.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 const usage = submitUsageProblem(process.argv.slice(2), flags, { isTTY: !!process.stdin.isTTY });
 if (usage) { (usage.code ? console.error : console.log)(usage.text); process.exit(usage.code); }
 const { root, cfg } = loadCfg(flags);
+const notCargo = cargoScopeRefusal(root);
+if (notCargo) { console.error(`submit: ${notCargo}`); process.exit(2); }
 
 if (flags.land && typeof flags.ticket !== 'string') {
   console.error('submit: --land needs --ticket (the commit message cites it)');

@@ -1,6 +1,7 @@
 // pause.test.mjs — the coexistence rule (KIT-T276 L1): only modified tracked files and untracked
 // files matching broker.untracked_blocks pause the queue; other untracked files (glb, png) do not.
 
+import { PAUSE_GLOBS } from './build-globs.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -49,7 +50,7 @@ test('a modified tracked file pauses; --untracked-files=no keeps the state cheap
 });
 
 test('untracked_blocks is configurable and defaults to Rust sources', () => {
-  assert.deepEqual(normalizeBroker('/r', {}).untrackedBlocks, ['**/*.rs', '**/Cargo.toml']);
+  assert.deepEqual(normalizeBroker('/r', {}).untrackedBlocks, PAUSE_GLOBS);
   assert.deepEqual(normalizeBroker('/r', { untracked_blocks: ['**/*.py'] }).untrackedBlocks, ['**/*.py']);
   const root = makeRepo(tempDir('pause-g-'));
   try {
@@ -97,7 +98,7 @@ test('a dirty tracked file the patch touches pauses', () => {
 test('a dirty tracked file matching dirty_blocks pauses', () => {
   const r = runDirty('crates/a/src/lib.rs');
   try { assert.equal(r.sum.paused, true); assert.equal(r.result.status, 'dirty'); } finally { r.done(); }
-  assert.deepEqual(normalizeBroker('/r', {}).dirtyBlocks, ['**/*.rs', '**/Cargo.toml']);
+  assert.deepEqual(normalizeBroker('/r', {}).dirtyBlocks, PAUSE_GLOBS);
   assert.deepEqual(normalizeBroker('/r', { dirty_blocks: ['**/*.py'] }).dirtyBlocks, ['**/*.py']);
 });
 

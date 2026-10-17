@@ -15,12 +15,17 @@ const HOOK = fileURLToPath(new URL('./dispatch-guard.mjs', import.meta.url));
 const DEAD_PID = 2147483646;
 let failures = 0;
 
-function repo({ lock, brokered = true }) {
+function repo({ lock, brokered = true, cargo = true }) {
   const dir = mkdtempSync(join(tmpdir(), 'dgb-'));
   execFileSync('git', ['init', '-q'], { cwd: dir });
   mkdirSync(join(dir, '.ai'), { recursive: true });
   if (brokered) writeFileSync(join(dir, '.ai', 'config.yml'), 'broker:\n  repos:\n    - { name: app, path: . }\n');
-  writeFileSync(join(dir, 'Cargo.toml'), '[workspace]\nmembers = ["game"]\n');
+  if (cargo) {
+    writeFileSync(join(dir, 'Cargo.toml'), '[workspace]\nmembers = ["game"]\n');
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'lib.rs'), 'include!("gen.inc");\nconst S: &str = include_str!("data.rhai");\n');
+    execFileSync('git', ['add', 'Cargo.toml', 'src/lib.rs'], { cwd: dir });
+  }
   if (lock) {
     mkdirSync(join(dir, 'target', 'broker'), { recursive: true });
     writeFileSync(join(dir, 'target', 'broker', 'broker.lock'), JSON.stringify({ pid: lock === 'live' ? process.pid : DEAD_PID, host: hostname() }));
@@ -63,6 +68,18 @@ const writer = { subagent_type: 'general-purpose', prompt: 'implement the ticket
 }
 
 {
+  const live = repo({ lock: 'live' });
+  const at = (paths) => run(live, { ...writer, prompt: `${writer.prompt} [paths: ${paths}]` });
+  expect('a writer declaring only docs, .ai and script paths is admitted while the daemon runs (KIT-D097)', at('docs/BROKER.md, .ai/notes.md, tools/helper.mjs').code === 0);
+  expect('a writer declaring an include_str! data file is admitted', at('src/data.rhai').code === 0);
+  expect('control: one build input among the paths blocks', at('docs/a.md, src/other.rs').code === 2);
+  expect('control: Cargo.lock blocks', at('Cargo.lock').code === 2);
+  expect('control: an include!() target blocks', at('src/gen.inc').code === 2);
+  const undeclared = run(live, writer);
+  expect('control: a brief with no declared paths stays blocked and the message says how to declare them', undeclared.code === 2 && /\[paths: /.test(undeclared.err));
+}
+
+{
   const ignored = repo({ lock: 'live' });
   writeFileSync(join(ignored, '.claude-kit-ignore.yaml'), 'broker-owned-tree:\n  - "**"\n');
   expect('the ignore file lifts the check', run(ignored, writer).code === 0);
@@ -70,6 +87,7 @@ const writer = { subagent_type: 'general-purpose', prompt: 'implement the ticket
 
 expect('a stale lock (dead pid) does not block', run(repo({ lock: 'dead' }), writer).code === 0);
 expect('control: a live lock in a repo with no broker config (claude-kit, a Node repo) does not block (KIT-D096)', run(repo({ lock: 'live', brokered: false }), writer).code === 0);
+expect('control: a live lock in a broker: repo with no tracked Cargo.toml does not block (KIT-D097)', run(repo({ lock: 'live', cargo: false }), writer).code === 0);
 expect('no lock does not block', run(repo({ lock: null }), writer).code === 0);
 
 process.exit(failures ? 1 : 0);

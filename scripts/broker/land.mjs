@@ -7,7 +7,6 @@ import { join } from 'node:path';
 import { attachBranch, git, gitLong, revParse } from './git.mjs';
 import { retryOnIndexLock } from './index-lock.mjs';
 import { syncPush } from './sync-push.mjs';
-import { withPushLock } from './pushlock.mjs';
 import { repinSuperproject } from './submodule.mjs';
 import { buildEnv, runPrePush } from './prepush.mjs';
 import { logPathFor } from './result.mjs';
@@ -93,8 +92,7 @@ export function pushLanding(cfg, repo, cwd, { jobs, paths, preHead, verify, onPh
     const gate = runPrePush(cfg, cwd, repo.remote, repo.main, gateLog);
     return { ok: gate.ok, error: `the repo's pre-push gate refused (exit ${gate.exit}): ${gate.log.slice(-8).join(' | ')}` };
   } : null;
-  const sync = () => syncPush(cwd, repo.remote, repo.main, { verify, env: buildEnv(cfg), beforePush, onPhase });
-  const pushed = repo.submodule ? withPushLock(git(['remote', 'get-url', repo.remote], cwd).out, sync) : sync();
+  const pushed = syncPush(cwd, repo.remote, repo.main, { verify, env: buildEnv(cfg), beforePush, onPhase });
   if (pushed.conflict) {
     git(['reset', '-q', '--mixed', preHead], cwd);
     return { ok: false, committed: false, conflict: pushed.conflict, error: pushed.error };

@@ -42,6 +42,7 @@ import { reapOrphans, setChildRegistry } from './children.mjs';
 import { ensureQueuedLanes } from './ensure.mjs';
 import { stopDaemon } from './stop.mjs';
 import { setStopNow } from './stop-now.mjs';
+import { cargoScopeRefusal } from './cargo-scope.mjs';
 import { withdrawJob } from './withdraw.mjs';
 
 const MS_PER_MIN = 60 * 1000;
@@ -103,6 +104,8 @@ if (command === 'status') {
   process.exit(0);
 }
 
+const notCargo = cargoScopeRefusal(root);
+if (notCargo) { console.error(`broker: ${notCargo}`); process.exit(2); }
 const lock = acquireLock(cfg, { spawnedBy: typeof flags['spawned-by'] === 'string' ? flags['spawned-by'] : null, log: logFile });
 const childRegistry = join(brokerPaths(cfg).home, 'children.json');
 if (lock.ok) { clearStop(cfg); pinRuntime(); setPulse(() => heartbeat(cfg)); setChildRegistry(childRegistry); }

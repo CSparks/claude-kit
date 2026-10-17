@@ -15,7 +15,7 @@ import { ensureQueuedLanes } from './ensure.mjs';
 import { acquireLock } from './lock.mjs';
 import { ensureDirs, readResult, writeJob } from './result.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
-import { envelope, fixture } from './patchkit.mjs';
+import { envelope, fixture, trackCargo } from './patchkit.mjs';
 import { setup, PASS } from './subkit.mjs';
 import { tempDir } from './testkit.mjs';
 
@@ -108,7 +108,7 @@ test('a queue with no daemon gets one in every lane that holds jobs; a lane with
 });
 
 test('`broker status` starts a daemon behind a queued job that nothing waits on; BROKER_NO_AUTOSTART opts out', async () => {
-  const s = fixture();
+  const s = trackCargo(fixture());
   try {
     const { job } = buildPatchJob(s.cfg, { ticket: 'T-1', title: 'beta' }, envelope(['beta', 'BETA']));
     writeJob(s.cfg, { ...job, commands: ['node -e "0"'] });

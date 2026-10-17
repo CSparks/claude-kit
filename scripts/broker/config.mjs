@@ -30,11 +30,12 @@ import { readFileSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
 import { resolveJobs } from './jobs.mjs';
 import { pipelineConfig } from './pipeline-config.mjs';
+import { PAUSE_GLOBS } from './build-globs.mjs';
 
 const DEFAULT_POLL_MS = 2000;
 const DEFAULT_COALESCE_MS = 2000;
 const DEFAULT_VERIFY = ['cargo test --no-fail-fast'];
-const DEFAULT_UNTRACKED_BLOCKS = ['**/*.rs', '**/Cargo.toml'];
+const DEFAULT_UNTRACKED_BLOCKS = PAUSE_GLOBS;
 const DEFAULT_DIRTY_BLOCKS = DEFAULT_UNTRACKED_BLOCKS;
 
 export function readBrokerConfig(root, aiDir = join(root, '.ai')) {

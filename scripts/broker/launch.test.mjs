@@ -8,7 +8,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { launchDaemon, wmiCommand } from './launch.mjs';
-import { fixture } from './patchkit.mjs';
+import { fixture, trackCargo } from './patchkit.mjs';
 
 const BROKER = join(import.meta.dirname, 'broker.mjs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -32,7 +32,7 @@ test('negative: a failed Create is reported, never silent', () => {
 });
 
 test('live: the launched daemon is not our child and writes its own log', { skip: process.platform !== 'win32' }, async () => {
-  const s = fixture();
+  const s = trackCargo(fixture());
   try {
     const r = launchDaemon(BROKER, s.root, ['--idle-exit', '0.05', '--poll', '200', '--spawned-by', 'launch.test: live']);
     assert.ok(r.ok, r.error);

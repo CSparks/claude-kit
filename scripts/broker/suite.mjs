@@ -19,6 +19,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { stopRequested } from './control.mjs';
 import { derivedUntrackedBlocks } from './blocks.mjs';
+import { dirtyBlocksOf } from './build-inputs.mjs';
 import { brokerPaths } from './config.mjs';
 import { fileBugViaCap } from './deferred.mjs';
 import { checkoutState, git, lockFiles, revParse } from './git.mjs';
@@ -76,7 +77,7 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
   if (!due(cfg, cwd, state, head)) return null;
   if (busy && !starved(cfg, cwd, state, head, now)) return null;
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
-  if (!checkoutState(cwd, { untrackedBlocks, dirtyBlocks: cfg.dirtyBlocks }).clean) return null;
+  if (!checkoutState(cwd, { untrackedBlocks, dirtyBlocks: dirtyBlocksOf(cfg, cwd) }).clean) return null;
 
   const parts = cfg.suitePartitions;
   const k = Math.min(state.shard || 1, parts);

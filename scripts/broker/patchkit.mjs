@@ -35,3 +35,10 @@ export { commitOnMain, g };
 
 /** origin's main sha. */
 export const originSha = (bare, cwd) => g(['--git-dir', bare, 'rev-parse', 'main'], cwd);
+
+/** Track a Cargo.toml in the fixture: a daemon started outside the test's environment (WMI launch) refuses a checkout without one. */
+export function trackCargo(s) {
+  commitOnMain(s.root, 'Cargo.toml', '[workspace]\nmembers = []\n', 'add workspace');
+  g(['push', 'origin', 'main'], s.root);
+  return s;
+}

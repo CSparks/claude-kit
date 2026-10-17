@@ -13,7 +13,7 @@ import { processOnce } from './queue.mjs';
 import { listQueue, readResult, writeJob } from './result.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
 import { noDaemonBlock } from './summary.mjs';
-import { envelope, fixture, g } from './patchkit.mjs';
+import { envelope, fixture, g, trackCargo } from './patchkit.mjs';
 
 const WAIT = join(import.meta.dirname, 'wait.mjs');
 const PASS = 'node -e "0"';
@@ -29,7 +29,7 @@ const run = (args, env) => new Promise((resolve) => {
 });
 
 test('wait with a job queued and no daemon alive starts one, which runs the job', async () => {
-  const s = fixture();
+  const s = trackCargo(fixture());
   try {
     const job = queue(s);
     const r = await run([WAIT, job.id, '--root', s.root, '--timeout', '240', '--poll', '200', '--grace-ms', '0'], { BROKER_NO_AUTOSTART: '' });

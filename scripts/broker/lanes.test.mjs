@@ -1,7 +1,7 @@
 // lanes.test.mjs — one queue per repo (KIT-D096): a submodule's jobs live in their own lane, neither
 // lane's daemon touches the other's jobs, a submodule lane lands without repinning the
-// superproject, a job written into the wrong lane is handed over, and two checkouts landing the
-// same remote serialize through one push lock. Controls: the root lane still lands its own jobs.
+// superproject, and a job written into the wrong lane is handed over. Controls: the root lane still
+// lands its own jobs.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,10 +13,8 @@ import { processOnce } from './queue.mjs';
 import { listQueue, readResult, writeJob } from './result.mjs';
 import { rerouteMisplaced } from './reroute.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
-import { withPushLock } from './pushlock.mjs';
 import { g } from './patchkit.mjs';
 import { PASS, setup } from './subkit.mjs';
-import { cleanup, tempDir } from './testkit.mjs';
 
 const queueIn = (cfg, flags, envelope) => {
   const { job } = buildPatchJob(cfg, flags, envelope);
@@ -79,19 +77,4 @@ test('a job in the wrong lane is handed to its repo lane; one already in place s
     assert.deepEqual(listQueue(rootLane).map((j) => j.id), [home.id]);
     assert.ok(!existsSync(join(brokerPaths(rootLane).queue, `${job.id}.json`)));
   } finally { t.done(); }
-});
-
-test('two landings on one remote serialize through the push lock; another remote and a later landing are free (control)', () => {
-  const dir = tempDir('pushlock-');
-  try {
-    const order = [];
-    withPushLock('git://x/rapid-game', () => {
-      order.push('outer');
-      assert.throws(() => withPushLock('git://x/rapid-game', () => order.push('inner'), { dir, timeoutMs: 300, pollMs: 50 }), /push lock .* held by pid/);
-    }, { dir });
-    assert.deepEqual(order, ['outer'], 'the second landing could not enter while the first held the lock');
-    withPushLock('git://x/other', () => order.push('other remote'), { dir });
-    withPushLock('git://x/rapid-game', () => order.push('after'), { dir });
-    assert.deepEqual(order, ['outer', 'other remote', 'after']);
-  } finally { cleanup(dir); }
 });

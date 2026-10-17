@@ -25,7 +25,7 @@ import { FOREIGN_TREE_CHECK, FOREIGN_TREE_OK, foreignEdits, foreignTreeMessage }
 import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
 import { ESCALATION_CHECK, escalationBlock } from './dispatch-escalation.mjs';
 import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loaded.mjs';
-import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker } from './dispatch-broker.mjs';
+import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker, writesNoBuildInput } from './dispatch-broker.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
 import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';
@@ -258,6 +258,7 @@ function brokerOwnedBlock(root, input, prompt) {
   if (pathExcluded(root, BROKER_OWNED_CHECK, root)) return null;
   const tree = dispatchTargetRoot(root, input);
   const held = liveBroker(tree);
+  if (held && writesNoBuildInput(prompt, tree)) return null;
   return held ? brokerOwnedMessage({ agent: label(input), tree, held, footer: excludeFooter(BROKER_OWNED_CHECK) }) : null;
 }
 
