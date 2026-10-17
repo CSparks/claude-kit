@@ -17,6 +17,7 @@
 import { join } from 'node:path';
 import { git, revParse, showFile } from './git.mjs';
 import { landCommits } from './land.mjs';
+import { unpushedGitlink } from './pin.mjs';
 
 const posix = (p) => String(p).replace(/\\/g, '/');
 const norm = (p) => posix(p).replace(/^\.\//, '').replace(/\/$/, '');
@@ -77,6 +78,8 @@ export function landLinked(cfg, repo, job, cwd, paths, { verify, trailer, onPhas
     if (!r.ok) return { ...r, committed: false, error: `${sub.name} half did not land, nothing landed: ${r.error}` };
     landed.push({ sub, sha: r.sha });
   }
+  const unpushed = unpushedGitlink(landed.map((l) => ({ ...l.sub, cwd: join(cfg.root, l.sub.path), sha: l.sha })));
+  if (unpushed) return { ok: false, committed: false, error: unpushed, subSha: landed.length ? landed[landed.length - 1].sha : null, landedSubs: [] };
   const gitlinks = landed.map((l) => norm(l.sub.path));
   if (landed.length) onSubLanded({ own, gitlinks, preHead: revParse(cwd, 'HEAD'), subs: landed.map((l) => ({ name: l.sub.name, path: norm(l.sub.path), cwd: join(cfg.root, l.sub.path), sha: l.sha })) });
   const r = landCommits(cfg, repo, cwd, [{ job, paths: [...own, ...gitlinks], trailer }], { verify, onPhase, onCommitted });

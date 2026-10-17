@@ -21,14 +21,25 @@ const normalize = (p) => String(p).replace(/\\/g, '/').replace(/\/$/, '') || '.'
  * already matches HEAD even when the push failed. A conflicting rebase drops the local commit
  * (`committed` false, `conflict` names the files) and leaves the working files for the caller to restore.
  */
+// Park the commits above `preHead` on a ref before a reset drops them, so no landing's work is ever
+// unreachable (KIT-D097). Returns a clause naming the ref and sha for the result message, or ''.
+export function keepCommits(cwd, preHead, label) {
+  const head = revParse(cwd, 'HEAD');
+  if (!head || head === revParse(cwd, preHead)) return '';
+  const ref = `refs/broker/undone/${String(label).replace(/[^\w.-]/g, '_')}-${head.slice(0, 10)}`;
+  return git(['update-ref', ref, head], cwd).code === 0 ? ` (the work is kept at ${ref}, ${head.slice(0, 10)})` : '';
+}
+
 // A landing that did not reach the remote leaves no local commit (KIT-T482 item 3): before a rebase
 // the commit is undone and the caller restores the files; after one, HEAD goes to the remote tip
-// and the patch paths are checked out from it, so the tree already matches HEAD.
-function undoLanding(cwd, repo, paths, preHead, pushed) {
+// and the patch paths are checked out from it, so the tree already matches HEAD. The undone
+// commits stay reachable from refs/broker/undone/.
+function undoLanding(cwd, repo, paths, preHead, pushed, label) {
   const why = pushed.error;
+  const kept = keepCommits(cwd, pushed.rebased ? `${repo.remote}/${repo.main}` : preHead, label);
   if (!pushed.rebased) {
     git(['reset', '-q', '--mixed', preHead], cwd);
-    return { ok: false, committed: false, error: `push ${repo.remote} ${repo.main} did not land, commit undone: ${why}` };
+    return { ok: false, committed: false, error: `push ${repo.remote} ${repo.main} did not land, commit undone${kept}: ${why}` };
   }
   const tip = `${repo.remote}/${repo.main}`;
   git(['reset', '-q', '--mixed', tip], cwd);
@@ -36,7 +47,7 @@ function undoLanding(cwd, repo, paths, preHead, pushed) {
   const back = paths.filter((p) => tracked.has(p));
   if (back.length) git(['checkout', tip, '--', ...back], cwd);
   for (const p of paths.filter((x) => !tracked.has(x))) rmSync(join(cwd, p), { force: true });
-  return { ok: false, committed: true, sha: revParse(cwd, 'HEAD'), error: `rebased onto ${tip} but did not land, commit undone: ${why}` };
+  return { ok: false, committed: true, sha: revParse(cwd, 'HEAD'), error: `rebased onto ${tip} but did not land, commit undone${kept}: ${why}` };
 }
 
 function commitOne(cwd, { job, paths, trailer }) {
@@ -71,8 +82,9 @@ export function landCommits(cfg, repo, cwd, commits, { verify, onPhase = () => {
   for (const c of commits) {
     const error = commitOne(cwd, c);
     if (error) {
+      const kept = keepCommits(cwd, preHead, commits[0].job.id);
       git(['reset', '-q', '--mixed', preHead], cwd);
-      return { ok: false, committed: false, error };
+      return { ok: false, committed: false, error: `${error}${kept}` };
     }
   }
   const paths = unique(commits.flatMap((c) => c.paths));
@@ -94,10 +106,11 @@ export function pushLanding(cfg, repo, cwd, { jobs, paths, preHead, verify, onPh
   } : null;
   const pushed = syncPush(cwd, repo.remote, repo.main, { verify, env: buildEnv(cfg), beforePush, onPhase });
   if (pushed.conflict) {
+    const kept = keepCommits(cwd, preHead, first.id);
     git(['reset', '-q', '--mixed', preHead], cwd);
-    return { ok: false, committed: false, conflict: pushed.conflict, error: pushed.error };
+    return { ok: false, committed: false, conflict: pushed.conflict, error: `${pushed.error}${kept}` };
   }
-  if (!pushed.ok) return { ...undoLanding(cwd, repo, paths, preHead, pushed), ...(pushed.gateRefused ? { gateRefused: true, gateLog } : {}) };
+  if (!pushed.ok) return { ...undoLanding(cwd, repo, paths, preHead, pushed, first.id), ...(pushed.gateRefused ? { gateRefused: true, gateLog } : {}) };
   const sha = revParse(cwd, 'HEAD');
   const shas = git(['rev-list', '--reverse', '-n', String(jobs.length), 'HEAD'], cwd).out.split(/\r?\n/).filter(Boolean);
   // A submodule lane lands and pushes only; the superproject pin is its own job (--pin <sub>=<sha>).

@@ -79,6 +79,38 @@ const writer = { subagent_type: 'general-purpose', prompt: 'implement the ticket
   expect('control: a brief with no declared paths stays blocked and the message says how to declare them', undeclared.code === 2 && /\[paths: /.test(undeclared.err));
 }
 
+// Per-lane ownership (KIT-D097): a live rapid-game lane blocks rapid-game build files only, the root lane the rest.
+function laneRepo({ root = false, rapid = false }) {
+  const dir = repo({ lock: root ? 'live' : null });
+  writeFileSync(join(dir, '.ai', 'config.yml'), 'broker:\n  repos:\n    - { name: stiletto, path: ., main: main, remote: origin }\n    - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }\n');
+  if (rapid) {
+    const home = join(dir, 'target', 'broker', 'lanes', 'rapid-game');
+    mkdirSync(home, { recursive: true });
+    writeFileSync(join(home, 'broker.lock'), JSON.stringify({ pid: process.pid, host: hostname() }));
+  }
+  return dir;
+}
+{
+  const at = (dir, paths) => run(dir, { ...writer, prompt: `${writer.prompt} [paths: ${paths}]` });
+  const RG = 'rapid-game/crates/a/src/lib.rs';
+  const ST = 'crates/b/src/lib.rs';
+  const rootOnly = laneRepo({ root: true });
+  expect('rapid-game .rs paths are admitted while only the root daemon is live', at(rootOnly, RG).code === 0);
+  expect('control: stiletto .rs paths are blocked while the root daemon is live', at(rootOnly, ST).code === 2);
+  const rapidOnly = laneRepo({ rapid: true });
+  const blocked = at(rapidOnly, RG);
+  expect('rapid-game .rs paths are blocked while the rapid-game lane is live, and the message names the lane', blocked.code === 2 && /lane rapid-game/.test(blocked.err));
+  expect('stiletto .rs paths are admitted while only the rapid-game lane is live', at(rapidOnly, ST).code === 0);
+  expect('control: a rapid-game doc is admitted while the rapid-game lane is live', at(rapidOnly, 'rapid-game/docs/a.md').code === 0);
+  const undeclaredLane = run(rapidOnly, writer);
+  expect('a brief with no paths is blocked by the live rapid-game lane, which the message names', undeclaredLane.code === 2 && /lane rapid-game/.test(undeclaredLane.err));
+  const a = laneRepo({ rapid: true });
+  const b = laneRepo({ rapid: true });
+  const idle = laneRepo({});
+  expect('two checkouts each with a live rapid-game lane: a dispatch into A is blocked only by A\'s own lane', at(a, RG).code === 2 && at(b, ST).code === 0);
+  expect('control: a checkout whose rapid-game lane is idle is unaffected by the other checkout\'s live lane', at(idle, RG).code === 0 && at(a, RG).code === 2);
+}
+
 {
   const ignored = repo({ lock: 'live' });
   writeFileSync(join(ignored, '.claude-kit-ignore.yaml'), 'broker-owned-tree:\n  - "**"\n');

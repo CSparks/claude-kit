@@ -41,6 +41,26 @@ test('negative control: the scan flags a machine-wide lock directory', () => {
   assert.ok(!OUTSIDE_CHECKOUT.some((re) => re.test("const p = join(cfg.targetDir, 'broker', 'broker.lock');")));
 });
 
+// A broker never rewrites the remote: no force, mirror or delete push, and no +refspec, so no checkout's commit is orphaned.
+const REWRITES_REMOTE = [/--force/, /--mirror/, /--delete/, /['"]-f['"]/, /['"`]\+[\w/.{}$:-]*:/, /['"`]\+HEAD/, /['"`]\+refs\//];
+
+test('no broker module pushes with force, mirror, delete or a +refspec', () => {
+  const hits = [];
+  for (const f of brokerModules()) {
+    readFileSync(join(DIR, f), 'utf8').split('\n').forEach((line, i) => {
+      if (/^\s*\/\//.test(line) || !/['"`]push['"`]/.test(line)) return;
+      for (const re of REWRITES_REMOTE) if (re.test(line)) hits.push(`${f}:${i + 1}: ${line.trim().slice(0, 100)}`);
+    });
+  }
+  assert.deepEqual(hits, []);
+});
+
+test('negative control: the push scan flags force, force-with-lease, -f and +refspec pushes', () => {
+  const samples = ["git(['push', '--force', remote, branch], cwd)", "git(['push', '--force-with-lease', remote], cwd)", "git(['push', '-f', remote], cwd)", "git(['push', remote, `+HEAD:refs/heads/${branch}`], cwd)", "git(['push', remote, '+main:main'], cwd)"];
+  for (const line of samples) assert.ok(REWRITES_REMOTE.some((re) => re.test(line)), line);
+  assert.ok(!REWRITES_REMOTE.some((re) => re.test("gitLong(['push', remote, `HEAD:refs/heads/${branch}`], cwd, env)")));
+});
+
 const BROKER = join(DIR, 'broker.mjs');
 const SUBMIT = join(DIR, 'submit.mjs');
 const strictEnv = () => {

@@ -22,6 +22,12 @@ export function shaOnRemote(cwd, remote, main, sha) {
   return git(['merge-base', '--is-ancestor', sha, `${remote}/${main}`], cwd).code === 0;
 }
 
+/** The refusal for the first of `subs` ({ name, path, cwd, remote, main, sha }) whose sha is not reachable from its remote main, else null: a gitlink is never committed for a commit that exists only locally. */
+export function unpushedGitlink(subs) {
+  const bad = subs.find((s) => !shaOnRemote(s.cwd, s.remote, s.main, s.sha));
+  return bad ? `${bad.path} ${bad.sha.slice(0, 10)} is not on ${bad.remote}/${bad.main}; the gitlink is not committed for a commit that exists only locally` : null;
+}
+
 const subRepo = (cfg, name, superRepo) => {
   const sub = repoByName(cfg, name);
   return sub && sub.submodule && String(sub.pinIn || '.') === String(superRepo.path) ? sub : null;

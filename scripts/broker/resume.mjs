@@ -17,6 +17,7 @@ import { repoByName } from './config.mjs';
 import { catBlob, git, revParse } from './git.mjs';
 import { landCommits, pushLanding } from './land.mjs';
 import { phaseTracker } from './phase.mjs';
+import { unpushedGitlink } from './pin.mjs';
 import { discard, restore } from './preimage.mjs';
 import { STATUS, removeJob, writeResult } from './result.mjs';
 
@@ -29,6 +30,8 @@ function finishLinked(cfg, repo, journal, onPhase) {
     const abs = join(journal.cwd, path);
     if (blob) { mkdirSync(dirname(abs), { recursive: true }); writeFileSync(abs, catBlob(journal.cwd, blob)); } else rmSync(abs, { force: true });
   }
+  const unpushed = unpushedGitlink(l.subs.map((s) => ({ ...s, remote: repoByName(cfg, s.name).remote, main: repoByName(cfg, s.name).main })));
+  if (unpushed) return { ok: false, committed: false, error: unpushed };
   const paths = [...l.own, ...l.gitlinks];
   const head = revParse(journal.cwd, 'HEAD');
   const made = head !== l.preHead && l.subs.every((s) => git(['rev-parse', `HEAD:${s.path}`], journal.cwd).out === s.sha);

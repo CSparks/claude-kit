@@ -25,7 +25,7 @@ import { FOREIGN_TREE_CHECK, FOREIGN_TREE_OK, foreignEdits, foreignTreeMessage }
 import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
 import { ESCALATION_CHECK, escalationBlock } from './dispatch-escalation.mjs';
 import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loaded.mjs';
-import { BROKER_OWNED_CHECK, brokerOwnedMessage, liveBroker, writesNoBuildInput } from './dispatch-broker.mjs';
+import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage } from './dispatch-broker.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
 import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';
@@ -250,16 +250,15 @@ function sharedTreeBlock(root, input, prompt) {
 }
 
 // --- broker-owned-tree (KIT-T276) ---------------------------------------------
-// While a broker daemon holds the target tree's lock it is the only writer: writer-capable
-// dispatches are blocked, read-only ones (patch-worker included) pass.
+// While a lane's broker daemon holds its lock it is the only writer of that lane's build files:
+// writer-capable dispatches to them are blocked, read-only ones (patch-worker included) pass.
 function brokerOwnedBlock(root, input, prompt) {
   if (isWorktreeIsolation(input.isolation) || MAINTAINER_PARALLEL.test(prompt)) return null;
   if (readOnlyDispatch(root, label(input), prompt)) return null;
   if (pathExcluded(root, BROKER_OWNED_CHECK, root)) return null;
   const tree = dispatchTargetRoot(root, input);
-  const held = liveBroker(tree);
-  if (held && writesNoBuildInput(prompt, tree)) return null;
-  return held ? brokerOwnedMessage({ agent: label(input), tree, held, footer: excludeFooter(BROKER_OWNED_CHECK) }) : null;
+  const live = blockingLane(prompt, tree);
+  return live ? brokerOwnedMessage({ agent: label(input), tree, ...live, footer: excludeFooter(BROKER_OWNED_CHECK) }) : null;
 }
 
 // --- foreign-tree-edits (KIT-T407) ---------------------------------------------

@@ -68,6 +68,9 @@ test('two checkouts of one remote land at the same time and neither waits on the
       assert.equal(rB.status, 'landed', `B landed inside A's gate: ${JSON.stringify(rB)}`);
       assert.equal(rA.status, 'landed', JSON.stringify(rA));
       assert.equal(originSha(a.bare, a.root), rA.landed.sha);
+      for (const [who, sha] of [['A', rA.landed.sha], ['B', rB.landed.sha]]) {
+        assert.doesNotThrow(() => g(['merge-base', '--is-ancestor', sha, 'origin/main'], a.root), `${who}'s landed commit is reachable from origin/main`);
+      }
       assert.equal(g(['rev-list', '--count', `${rB.landed.sha}..${rA.landed.sha}`], a.root), '1', 'A sits on B: one commit after it');
       assert.equal(readFileSync(join(a.root, 'src.txt'), 'utf8'), 'alpha\nBETA\ngamma\n');
       assert.equal(readFileSync(join(a.root, 'b.txt'), 'utf8'), 'from b\n', 'both checkouts work is on main');

@@ -14,16 +14,28 @@ import { join } from 'node:path';
 import { derivedUntrackedBlocks } from './blocks.mjs';
 import { brokerPaths } from './config.mjs';
 import { dirtyBlocksOf } from './build-inputs.mjs';
-import { checkoutState } from './git.mjs';
+import { checkoutState, git, revParse } from './git.mjs';
 import { splitLinked } from './linked.mjs';
 
 const posix = (p) => String(p).replace(/\\/g, '/');
 const markerOf = (cfg) => join(brokerPaths(cfg).home, 'dirty-hold.json');
 
+// A submodule lane's own tree detached at commits on neither its branch nor the remote's: moving it
+// onto the branch would orphan them, so the lane pauses naming the sha (KIT-D097).
+function detachedWork(cfg, repo, cwd) {
+  if (!repo.submodule || cfg.lane !== repo.name) return null;
+  if (git(['symbolic-ref', '-q', 'HEAD'], cwd).code === 0) return null;
+  const head = revParse(cwd, 'HEAD');
+  const reachable = [repo.main, `${repo.remote}/${repo.main}`].some((ref) => git(['merge-base', '--is-ancestor', 'HEAD', ref], cwd).code === 0);
+  return head && !reachable ? `${repo.path} is detached at ${head}, which is on neither ${repo.main} nor ${repo.remote}/${repo.main}; the lane waits so those commits are not orphaned` : null;
+}
+
 export function dirtState(cfg, repo, cwd, touched) {
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   const { own, subs } = splitLinked(cfg, repo, touched);
   const state = checkoutState(cwd, { untrackedBlocks, dirtyBlocks: dirtyBlocksOf(cfg, cwd), touched: own });
+  const detached = detachedWork(cfg, repo, cwd);
+  if (detached) { state.clean = false; state.entries = [...(state.entries || []), detached]; }
   for (const [sub, rels] of subs) {
     const side = checkoutState(join(cfg.root, sub.path), { untrackedBlocks: [], dirtyBlocks: dirtyBlocksOf(cfg, join(cfg.root, sub.path)), touched: rels });
     if (!side.clean) { state.clean = false; state.entries = [...(state.entries || []), ...side.entries.map((e) => `${sub.path}: ${e}`)]; }
