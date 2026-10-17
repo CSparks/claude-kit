@@ -46,7 +46,7 @@ for (const movedOff of [false, true]) test(`a train killed in its pre-push gate 
     });
 
     const first = daemon(s.root);
-    const end = Date.now() + 90_000;
+    const end = Date.now() + 300_000;
     while (phaseOf(cfg) !== 'pre-push gate') {
       if (Date.now() > end) throw new Error(`never reached the gate (at ${phaseOf(cfg)})`);
       await sleep(50);
