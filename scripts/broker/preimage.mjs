@@ -88,7 +88,8 @@ export function readInflight(cfg) {
  * HEAD still holds the commit; it finishes the landing instead (resume.mjs).
  */
 export function markCommitted(cfg, journal, committed) {
-  writeFileSync(journalPath(cfg), JSON.stringify({ ...journal, committed }, null, 2));
+  const branch = git(['symbolic-ref', '-q', '--short', 'HEAD'], journal.cwd).out || null;
+  writeFileSync(journalPath(cfg), JSON.stringify({ ...journal, committed: { ...committed, branch } }, null, 2));
 }
 
 /**
@@ -101,10 +102,16 @@ export function markLinked(cfg, journal, linked) {
   writeFileSync(journalPath(cfg), JSON.stringify({ ...journal, linked: { ...linked, blobs } }, null, 2));
 }
 
-/** True when the journal's landing commit is HEAD or under it in its checkout. */
+/**
+ * True when the journal's landing commit is HEAD or under it in its checkout, or under the branch it
+ * was made on (another job's checkout moved HEAD off it): restoring pre-images over such a commit
+ * would undo it, so the landing is finished instead (resume.mjs puts the branch back first).
+ */
 export function commitStands(journal) {
   const c = journal && journal.committed;
-  return !!c && git(['merge-base', '--is-ancestor', c.sha, 'HEAD'], journal.cwd).code === 0;
+  if (!c) return false;
+  const under = (ref) => git(['merge-base', '--is-ancestor', c.sha, ref], journal.cwd).code === 0;
+  return under('HEAD') || (!!c.branch && under(c.branch));
 }
 
 /** True when every pushed submodule half of a linked journal is still in its checkout. */

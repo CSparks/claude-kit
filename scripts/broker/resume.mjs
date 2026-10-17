@@ -39,6 +39,14 @@ function finishLinked(cfg, repo, journal, onPhase) {
   return landCommits(cfg, repo, journal.cwd, [{ job: l.job, paths, trailer: l.trailer }], { verify: NO_VERIFY, onPhase });
 }
 
+// The checkout back on the branch that holds the landing commit, when something moved HEAD off it.
+function backOnBranch(journal) {
+  const c = journal.committed;
+  if (git(['merge-base', '--is-ancestor', c.sha, 'HEAD'], journal.cwd).code === 0) return null;
+  const r = git(['checkout', '-q', c.branch], journal.cwd);
+  return r.code === 0 ? null : { ok: false, committed: true, error: `could not put ${c.branch} back on commit ${String(c.sha).slice(0, 10)}: ${r.err.trim().slice(0, 200)}` };
+}
+
 export function resumeLanding(cfg, journal, { onResult = () => {} } = {}) {
   const c = journal.committed;
   const l = !c && journal.linked;
@@ -51,7 +59,7 @@ export function resumeLanding(cfg, journal, { onResult = () => {} } = {}) {
   const onPhase = (p) => ph.enter(p);
   let land;
   if (!repo) land = { ok: false, committed: true, error: `unknown repo '${repoName}'; the local state stays as it is` };
-  else if (c) land = pushLanding(cfg, repo, journal.cwd, { jobs: c.jobs, paths: c.paths, preHead: c.preHead, verify: NO_VERIFY, onPhase });
+  else if (c) land = backOnBranch(journal) || pushLanding(cfg, repo, journal.cwd, { jobs: c.jobs, paths: c.paths, preHead: c.preHead, verify: NO_VERIFY, onPhase });
   else land = finishLinked(cfg, repo, journal, onPhase);
   if (land.committed) discard(cfg);
   else restore(cfg, journal);

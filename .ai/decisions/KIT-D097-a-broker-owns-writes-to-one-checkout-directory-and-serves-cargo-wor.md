@@ -12,6 +12,7 @@ enforced_by:
   - scripts/broker/no-orphan.test.mjs
   - scripts/broker/train-one-gate.test.mjs
   - scripts/broker/self-dirt.test.mjs
+  - scripts/broker/train-resume.test.mjs
   - hooks/dispatch-broker.test.mjs
 source: Chris 2026-10-17 (capture 2026-10-17-1752); KIT-T553
 ---
@@ -25,6 +26,7 @@ source: Chris 2026-10-17 (capture 2026-10-17-1752); KIT-T553
 - **No commit is ever orphaned.** Checkouts need no coordination; the remote's refusal, the rebase and the git pin settle a race. The rule is that neither checkout loses the other's work: no broker module pushes with force, mirror, delete or a +refspec; a landing whose push cannot complete parks its commit on `refs/broker/undone/` and names the ref and sha in the result; a gitlink is never committed (a `--pin`, a linked job, a resumed landing) for a submodule commit that is not on the remote's main; a lane whose submodule tree is detached at commits on no branch pauses naming the sha instead of moving the tree.
 - **One pre-push gate per push.** A train's landing members are one push of N commits and share one gate run on the tip commit; a member never pays its own (KIT-T557).
 - **The broker restores dirt it provably caused.** A tracked file a broker job wrote (the `written.json` ledger of journalled paths) whose content differs from HEAD only in line endings (`git diff --ignore-cr-at-eol` empty) is put back from HEAD instead of pausing the queue. A hand edit, a file no broker job wrote, and every `.rhai` or other file the broker did not journal still pause, untouched (KIT-T558).
+- **An interrupted landing resumes, never re-applies.** A journal whose landing commit is on the branch but not under HEAD (another job's checkout moved HEAD off it) is finished: the branch is put back, the gate runs, one push (KIT-T560).
 - Open from the same questionnaire: the submodule gate covering only changed crates plus reverse dependencies, with the full run moved to the idle suite cadence (KIT-T559).
 - Everything else in KIT-D096 stands: one lane per submodule inside a checkout, no repo waits on another repo's jobs except a pin job on the exact sha it pins, claude-kit and Node repos are never brokered.
 
