@@ -259,6 +259,25 @@ if (changed.some((f) => /(^|\/)(?:\.ai\/)?(?:tickets|decisions|notes|questions)\
   }
 }
 
+// DIRECTIVE ENFORCEMENT (KIT-T554): a decision marked `directive: true` names the tests that keep it
+// true (`enforced_by:`), and those files must exist. Fail-open on any read/parse error.
+try {
+  const { decisionPaths, directiveProblem } = await import('./lib/directive.mjs');
+  const offenders = decisionPaths(changed)
+    .filter((f) => !pathExcluded(root, 'directive-enforced', f) && existsSync(join(root, f)))
+    .map((f) => ({ f, why: directiveProblem(root, readFileSync(join(root, f), 'utf8')) }))
+    .filter((o) => o.why);
+  if (offenders.length) {
+    const lines = ['', 'BLOCKED: a directive decision is not enforced by a test (KIT-T554).', ''];
+    for (const o of offenders) lines.push(`  ${o.f}: ${o.why}`);
+    lines.push('', 'A rule the maintainer states stays true only while a test fails when it is broken.', 'Add `enforced_by:` (a list of existing test paths) to the decision, or drop `directive: true`.', '');
+    process.stderr.write(lines.join('\n') + excludeFooter('directive-enforced'));
+    process.exit(2);
+  }
+} catch {
+  /* the directive scan is best-effort — never wedge a commit on a read/parse error */
+}
+
 // EVIDENCE FLOOR (KIT-T061): a ticket reaching its CLOSING transition must cite test evidence
 // (a test path / suite-run reference / commit sha) OR carry an explicit [no-test: reason]. The
 // closing transition follows config.uat (KIT-D034): doing→done where uat resolves `none`,

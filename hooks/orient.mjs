@@ -251,6 +251,18 @@ try {
 } catch {
   /* concern check is best-effort */
 }
+// A directive decision with no enforcing test is a record, not a rule (KIT-T554).
+try {
+  const { unenforcedDirectives } = await import('./lib/directive.mjs');
+  const open = unenforcedDirectives(root);
+  if (open.length) {
+    out.push('--- DIRECTIVES WITHOUT A TEST (a directive stays true only while a test enforces it) ---');
+    for (const d of open.slice(0, 5)) out.push(`  ${d.id} — ${clip(d.title, 80)} — ${d.problem}`);
+    out.push('');
+  }
+} catch {
+  /* directive listing is best-effort */
+}
 const foundational = foundationalDecisions();
 if (foundational.length) {
   out.push('--- PROJECT IDENTITY (foundational — ALWAYS true; this is what the project IS; cite, never contradict) ---');

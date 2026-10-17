@@ -47,6 +47,23 @@ try {
     ok('orient: standing section itself omits the out-of-scope decision', !standingSection.includes('D-001'));
   }
 
+  // --- directives without a test are listed (KIT-T554) ---------------------------
+  {
+    const o = adopted(false);
+    mkdirSync(join(o, '.ai', 'decisions'), { recursive: true });
+    writeFileSync(join(o, '.ai', 'decisions', 'D-010-bare.md'), '---\nid: D-010\ntitle: bare directive rule\ndirective: true\n---\n');
+    writeFileSync(join(o, '.ai', 'decisions', 'D-011-gone.md'), '---\nid: D-011\ntitle: directive naming a missing test\ndirective: true\nenforced_by:\n  - tests/gone.test.mjs\n---\n');
+    mkdirSync(join(o, 'tests'), { recursive: true });
+    writeFileSync(join(o, 'tests', 'rule.test.mjs'), '// test\n');
+    writeFileSync(join(o, '.ai', 'decisions', 'D-012-held.md'), '---\nid: D-012\ntitle: enforced directive rule\ndirective: true\nenforced_by: [tests/rule.test.mjs]\n---\n');
+    git(['add', '-A'], o);
+    const r = hook('orient.mjs', {}, o);
+    ok('orient: a directive with no enforced_by is listed', r.out.includes('DIRECTIVES WITHOUT A TEST') && r.out.includes('D-010'));
+    ok('orient: a directive naming a missing test is listed with the path', r.out.includes('D-011') && r.out.includes('tests/gone.test.mjs'));
+    const listed = r.out.split('--- DIRECTIVES WITHOUT A TEST')[1].split('\n---')[0];
+    ok('orient: control, an enforced directive is not in that list', !listed.includes('D-012'));
+  }
+
   const clean = adopted(false);
   ok('orient: adopted repo emits orientation', /ORIENTATION/.test(hook('orient.mjs', { hook_event_name: 'SessionStart' }, clean).out));
   {

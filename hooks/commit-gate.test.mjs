@@ -317,6 +317,39 @@ try {
     ok('pin moved with no activity by this session in the submodule -> blocked and named',
       r.code === 2 && r.out.includes('sub'), r.out.trim());
   }
+
+  // --- KIT-T554: a directive decision names tests that exist --------------------------
+  {
+    const decision = (d, name, extra) => {
+      mkdirSync(join(d, '.ai', 'decisions'), { recursive: true });
+      writeFileSync(join(d, '.ai', 'decisions', `${name}.md`), `---\nid: ${name.split('-').slice(0, 2).join('-')}\ntitle: t\ndirective: true\n${extra}---\n\n**Decision:** x\n`);
+      g(['add', '-A'], d);
+    };
+    const withTest = (d) => { mkdirSync(join(d, 'tests')); writeFileSync(join(d, 'tests', 'rule.test.mjs'), '// test\n'); };
+
+    let d = adopted();
+    decision(d, 'T-D001-rule', '');
+    let r = hook('commit-gate.mjs', `git -C ${d} commit -m x`, cwd);
+    ok('a directive decision with no enforced_by blocks the commit (KIT-T554)', r.code === 2 && r.out.includes('enforced_by') && r.out.includes('directive-enforced'), r.out.trim());
+
+    d = adopted();
+    decision(d, 'T-D002-rule', 'enforced_by:\n  - tests/gone.test.mjs\n');
+    r = hook('commit-gate.mjs', `git -C ${d} commit -m x`, cwd);
+    ok('a directive decision naming a missing test blocks and names it', r.code === 2 && r.out.includes('tests/gone.test.mjs'), r.out.trim());
+
+    d = adopted();
+    withTest(d);
+    decision(d, 'T-D003-rule', 'enforced_by:\n  - tests/rule.test.mjs\n');
+    r = hook('commit-gate.mjs', `git -C ${d} commit -m x`, cwd);
+    ok('control: a directive decision naming an existing test commits', r.code === 0, r.out.trim());
+
+    d = adopted();
+    mkdirSync(join(d, '.ai', 'decisions'), { recursive: true });
+    writeFileSync(join(d, '.ai', 'decisions', 'T-D004-plain.md'), '---\nid: T-D004\ntitle: t\n---\n\n**Decision:** x\n');
+    g(['add', '-A'], d);
+    r = hook('commit-gate.mjs', `git -C ${d} commit -m x`, cwd);
+    ok('control: a decision that is not a directive needs no test', r.code === 0, r.out.trim());
+  }
 } finally {
   for (const f of fixtures) { try { rmSync(f, { recursive: true, force: true }); } catch { /* best-effort */ } }
   harness.cleanup();
