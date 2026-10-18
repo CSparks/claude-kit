@@ -10,6 +10,7 @@ import { syncPush } from './sync-push.mjs';
 import { repinSuperproject } from './submodule.mjs';
 import { buildEnv, runPrePush } from './prepush.mjs';
 import { logPathFor } from './result.mjs';
+import { queueAutoPins, remoteOf } from './autopin.mjs';
 
 const normalize = (p) => String(p).replace(/\\/g, '/').replace(/\/$/, '') || '.';
 
@@ -113,6 +114,7 @@ export function pushLanding(cfg, repo, cwd, { jobs, paths, preHead, verify, onPh
   if (!pushed.ok) return { ...undoLanding(cwd, repo, paths, preHead, pushed, first.id), ...(pushed.gateRefused ? { gateRefused: true, gateLog } : {}) };
   const sha = revParse(cwd, 'HEAD');
   const shas = git(['rev-list', '--reverse', '-n', String(jobs.length), 'HEAD'], cwd).out.split(/\r?\n/).filter(Boolean);
+  if (repo.submodule) queueAutoPins(repo, sha, jobs, { from: remoteOf(cwd, repo.remote) });
   // A submodule lane lands and pushes only; the superproject pin is its own job (--pin <sub>=<sha>).
   if (!repo.submodule || cfg.lane || jobs.every((j) => j.noPin)) return { ok: true, committed: true, sha, shas, superSha: null };
 

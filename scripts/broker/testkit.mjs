@@ -56,6 +56,7 @@ for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete p
 // A test never auto-starts a daemon (submit/wait honour this, and children inherit it).
 process.env.BROKER_NO_AUTOSTART ??= '1';
 process.env.BROKER_ALLOW_NON_CARGO ??= '1';
+process.env.BROKER_NO_AUTOPIN ??= '1';
 
 const made = new Set();
 

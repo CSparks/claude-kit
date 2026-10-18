@@ -13,6 +13,10 @@ enforced_by:
   - scripts/broker/train-one-gate.test.mjs
   - scripts/broker/self-dirt.test.mjs
   - scripts/broker/train-resume.test.mjs
+  - scripts/broker/prebuild.test.mjs
+  - scripts/broker/gate-exclusive.test.mjs
+  - scripts/broker/lane-suite.test.mjs
+  - scripts/broker/autopin.test.mjs
   - hooks/dispatch-broker.test.mjs
 source: Chris 2026-10-17 (capture 2026-10-17-1752); KIT-T553
 ---
@@ -27,7 +31,8 @@ source: Chris 2026-10-17 (capture 2026-10-17-1752); KIT-T553
 - **One pre-push gate per push.** A train's landing members are one push of N commits and share one gate run on the tip commit; a member never pays its own (KIT-T557).
 - **The broker restores dirt it provably caused.** A tracked file a broker job wrote (the `written.json` ledger of journalled paths) whose content differs from HEAD only in line endings (`git diff --ignore-cr-at-eol` empty) is put back from HEAD instead of pausing the queue. A hand edit, a file no broker job wrote, and every `.rhai` or other file the broker did not journal still pause, untouched (KIT-T558).
 - **An interrupted landing resumes, never re-applies.** A journal whose landing commit is on the branch but not under HEAD (another job's checkout moved HEAD off it) is finished: the branch is put back, the gate runs, one push (KIT-T560).
-- Open from the same questionnaire: the submodule gate covering only changed crates plus reverse dependencies, with the full run moved to the idle suite cadence (KIT-T559).
+- **The submodule gate runs warm and scoped.** The landing check builds the gate's test binaries (`gate_prebuild`), no other lane's cargo shares the target dir during a gate (the gate runs under the lane's tree lock), and the full workspace run is a per-lane idle suite that files a regression on red (KIT-T559, KIT-T561). The changed-crates-plus-reverse-dependencies narrowing is rapid-game's own gate script (rapid-game 756ca466).
+- **Every consumer is pinned on each submodule landing,** each through its own broker with no waiting across checkouts; a red pin keeps the old gitlink and files a bug in that repo (KIT-T563, KIT-T562).
 - Everything else in KIT-D096 stands: one lane per submodule inside a checkout, no repo waits on another repo's jobs except a pin job on the exact sha it pins, claude-kit and Node repos are never brokered.
 
 **Chris, verbatim (2026-10-17):**

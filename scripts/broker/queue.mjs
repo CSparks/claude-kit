@@ -11,6 +11,7 @@ import { dirtyHold, holdDirty, pausedOnDirt } from './dirty.mjs';
 import { isPaused } from './control.mjs';
 import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
+import { reportRedPin } from './autopin.mjs';
 import { runSuite } from './suite.mjs';
 import { STATUS, listQueue, queued, removeJob, writeResult } from './result.mjs';
 import { formTrain } from './train-form.mjs';
@@ -84,6 +85,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
     if (onResult) onResult(result);
     if (pause) { held.set(job.repo, job.id); holdDirty(cfg, job, repoByName(cfg, job.repo)); continue; }
     removeJob(cfg, job.id);
+    try { reportRedPin(cfg, job, result, fileBug ? { fileBug } : {}); } catch { /* the report is best effort */ }
     processed.push(result);
   }
   if (held.size) return { processed, paused: true, pausedOn: [...held.values()][0], pausedRepos: [...held.keys()], reason: 'dirty' };
@@ -100,7 +102,8 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
     suite = deferred.cancelled ? null : runSuite(cfg, fileBug ? { fileBug } : {});
   } finally { idle.release(); }
   if (suite && !suite.cancelled && suite.status !== 'partial') suite.pruned = pruneAfterSuite(cfg);
-  if (deferred.cancelled || (suite && suite.cancelled)) {
+  // Another lane's queued job also cancels idle work, but only this lane's own queue can be drained here.
+  if ((deferred.cancelled || (suite && suite.cancelled)) && listQueue(cfg).length) {
     const next = processOnce(cfg, { onResult, fileBug, coalesceMs });
     return { ...next, processed: [...processed, ...next.processed] };
   }

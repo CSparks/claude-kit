@@ -9,13 +9,16 @@
 
 import { coalesce } from './coalesce.mjs';
 import { jobCommands } from './job-commands.mjs';
+import { repoByName } from './config.mjs';
 import { landGate } from './landgate.mjs';
+import { prebuildCommand, withPrebuild } from './prebuild.mjs';
 
 function memberCommands(cfg, cwd, m) {
   const job = m.job;
   const wantsGate = job.land || ((job.ops || []).length && !(job.commands || []).length);
   const gated = wantsGate ? landGate(cfg, cwd, job, m.plan.files) : null;
-  return gated ? { commands: gated.commands, selection: gated.selection } : { commands: jobCommands(cfg, job), selection: null };
+  const prebuild = job.land ? prebuildCommand(repoByName(cfg, job.repo), cwd, m.plan.files) : null;
+  return { commands: withPrebuild(gated ? gated.commands : jobCommands(cfg, job), prebuild), selection: gated ? gated.selection : null };
 }
 
 export function trainCommands(cfg, cwd, members) {

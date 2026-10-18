@@ -29,6 +29,7 @@ import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand, runDiagnosed } from './run.mjs';
 import { writePlan } from './write-plan.mjs';
 import { foreignOf, isGreen, jobCommands, landedJob } from './job-commands.mjs';
+import { prebuildCommand, withPrebuild } from './prebuild.mjs';
 import { foreignBuild } from './known-red.mjs';
 
 // Run the job's commands in order. A failed command with named failed tests is attributed
@@ -113,7 +114,8 @@ export function processPatch(cfg, job, repo) {
     // A patch job with no commands takes the affected gate too, never the full verify_default.
     const wantsGate = job.land || ((job.ops || []).length && !(job.commands || []).length);
     const gated = wantsGate && !reused ? landGate(cfg, cwd, job, plan.files) : null;
-    const runJob = gated ? { ...job, commands: gated.commands } : job;
+    const prebuild = job.land && !reused ? prebuildCommand(repo, cwd, plan.files) : null;
+    const runJob = gated || prebuild ? { ...job, commands: withPrebuild(gated ? gated.commands : jobCommands(cfg, job), prebuild) } : job;
     const selection = gated ? gated.selection : null;
     ph.enter('run');
     const knownRed = (entry, n) => foreignBuild({

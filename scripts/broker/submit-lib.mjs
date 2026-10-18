@@ -69,6 +69,7 @@ export function buildPatchJob(cfg, flags, text) {
     id: newJobId(), revises: typeof flags.revises === 'string' ? flags.revises : null, repo: repo.name, base,
     ticket: flags.ticket ? String(flags.ticket) : null, title: flags.title ? String(flags.title) : '',
     session: jobSession(flags, process.env, join(cfg.root, '.ai')),
+    ...(flags['auto-pin'] ? { autoPin: String(flags['auto-pin']) } : {}),
   };
   meta.revision = revisionOf(cfg, meta.revises);
   if (!plan.ok) {

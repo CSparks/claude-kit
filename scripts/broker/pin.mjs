@@ -42,7 +42,11 @@ export function parsePins(cfg, superRepo, flags) {
     if (!sub) return { error: `--pin ${raw}: ${name || '(no name)'} is not a submodule of ${superRepo.name}` };
     if (!SHA.test(sha || '')) return { error: `--pin ${raw}: expected <submodule>=<sha>` };
     const cwd = join(cfg.root, sub.path);
-    const full = git(['rev-parse', '--verify', `${sha}^{commit}`], cwd);
+    let full = git(['rev-parse', '--verify', `${sha}^{commit}`], cwd);
+    if (full.code !== 0 && flags.land) {
+      git(['fetch', sub.remote, sub.main], cwd);
+      full = git(['rev-parse', '--verify', `${sha}^{commit}`], cwd);
+    }
     if (full.code !== 0) return { error: `--pin ${raw}: ${sha} is not a commit in ${sub.path}` };
     if (flags.land && !shaOnRemote(cwd, sub.remote, sub.main, full.out)) {
       return { error: `--pin ${raw}: ${full.out.slice(0, 10)} is not on ${sub.remote}/${sub.main}; push the submodule commit first (a landing never pins an unpushed sha)` };

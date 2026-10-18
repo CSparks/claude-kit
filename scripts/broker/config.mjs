@@ -24,7 +24,10 @@
 //     repos:
 //       - { name: stiletto,   path: ., main: main, remote: origin }
 //       - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: .,
-//           pre_push: true }                      # the daemon runs the repo's pre-push gate before git push (prepush.mjs)
+//           pre_push: true,                       # the daemon runs the repo's pre-push gate before git push (prepush.mjs)
+//           gate_prebuild: "cd rust && cargo t --no-run",  # a landing's check also builds what that gate runs (prebuild.mjs)
+//           auto_pin: true,                       # on a consumer's submodule entry: every submodule landing queues a pin job here (autopin.mjs)
+//           suite: "npm run check:all" }          # this lane's idle full run, filing a regression on red (suite.mjs); a scalar, a flow map cannot hold a list
 
 import { readFileSync } from 'node:fs';
 import { join, resolve, isAbsolute } from 'node:path';
@@ -85,6 +88,9 @@ function normalizeRepo(r) {
     submodule: Boolean(o.submodule),
     pinIn: o.pin_in == null ? '.' : String(o.pin_in),
     prePush: Boolean(o.pre_push),
+    autoPin: Boolean(o.auto_pin),
+    gatePrebuild: o.gate_prebuild ? String(o.gate_prebuild) : null,
+    suite: o.suite == null ? [] : [].concat(o.suite).map(String).filter(Boolean),
   };
 }
 

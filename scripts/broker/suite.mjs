@@ -8,6 +8,10 @@
 // HEAD stays put. The tree is never checked out or rewritten: a hand-edited build path skips the
 // run, and Cargo.lock is restored afterwards.
 //
+// A submodule lane with a `suite:` of its own (rapid-game `npm run check:all`) runs that on the
+// submodule's HEAD under the same cadence, state and regression filing, in the lane's own broker home.
+// Idle means every lane of the checkout: a queued job in any lane cancels the run (lane-busy.mjs).
+//
 // Each run writes `<broker home>/suite/<sha>.json`. A red run files ONE `cap regression` per set
 // of failing tests, naming the range since the last green run, the failing tests, and the
 // landings whose paths map to the failing targets (suite-blame.mjs) as the inferred causing_commit.
@@ -24,6 +28,7 @@ import { brokerPaths } from './config.mjs';
 import { fileBugViaCap } from './deferred.mjs';
 import { checkoutState, git, lockFiles, revParse } from './git.mjs';
 import { recordRun } from './health-store.mjs';
+import { laneBusy } from './lane-busy.mjs';
 import { guardLocks } from './preimage.mjs';
 import { listQueue, logPathFor } from './result.mjs';
 import { runCancellable } from './run-cancellable.mjs';
@@ -56,7 +61,9 @@ function regressionText(head, state, failing, landings, blamed, logs) {
   const range = state.lastGreen ? `${short(state.lastGreen)}..${short(head)} (${landings.length} landing(s))` : `up to ${short(head)} (no green suite run recorded yet)`;
   const likely = blamed.length
     ? `likely causing_commit ${short(blamed[0].sha)} "${blamed[0].subject}" (provenance: inferred, ${blamed[0].why})${blamed.length > 1 ? `; other suspects ${blamed.slice(1).map((b) => short(b.sha)).join(', ')}` : ''}`
-    : 'no landing in the range maps to the failing targets';
+    : landings.length
+      ? `no landing in the range maps to the failing targets; landings in the range: ${landings.slice(-5).map((l) => `${short(l.sha)} "${l.subject}"`).join(', ')}`
+      : 'no landing in the range maps to the failing targets';
   return `full suite red at ${short(head)}: failing ${tests}; range ${range}; ${likely}; logs ${logs.join(', ')}`;
 }
 
@@ -67,10 +74,19 @@ function starved(cfg, cwd, state, head, now) {
   return landings >= cfg.suiteMaxLandings || now - Date.parse(state.putOff.at) >= cfg.suiteMaxHours * 3600_000;
 }
 
+// What this daemon's suite covers: the root lane's `suite` over the checkout (under land_gate: affected), or a
+// submodule lane's own `suite:` over that submodule; null when the cadence is off here.
+function suiteScope(cfg) {
+  if (!cfg.lane) return cfg.landGate === 'affected' ? { cwd: cfg.root, suite: cfg.suite, parts: cfg.suitePartitions } : null;
+  const own = cfg.repos.find((r) => r.submodule && r.name === cfg.lane);
+  return own && own.suite.length ? { cwd: join(cfg.root, own.path), suite: own.suite, parts: 1 } : null;
+}
+
 export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now() } = {}) {
-  if (cfg.landGate !== 'affected' || cfg.lane || stopRequested(cfg)) return null;
+  const scope = suiteScope(cfg);
+  if (!scope || stopRequested(cfg)) return null;
   const busy = listQueue(cfg).length > 0;
-  const cwd = cfg.root;
+  const cwd = scope.cwd;
   const state = suiteState(cfg);
   const head = revParse(cwd, 'HEAD');
   if (!state.lastRun && !state.since && head) save(cfg, { ...state, since: head });
@@ -79,10 +95,10 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   if (!checkoutState(cwd, { untrackedBlocks, dirtyBlocks: dirtyBlocksOf(cfg, cwd) }).clean) return null;
 
-  const parts = cfg.suitePartitions;
+  const parts = scope.parts;
   const k = Math.min(state.shard || 1, parts);
   const tag = parts > 1 ? `-p${k}` : '';
-  const suite = shardCommands(cfg.suite, k, parts);
+  const suite = shardCommands(scope.suite, k, parts);
   const id = `suite-${short(head)}${tag}`;
   const startedAt = new Date().toISOString();
   const kept = state.partial && state.partial.id === id ? state.partial.commands : [];
@@ -93,7 +109,7 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
     if (kept[n] && kept[n].cmd === suite[n].trim()) { commands.push(kept[n]); continue; }
     if (busy && ran) { save(cfg, { ...state, partial: { id, commands } }); return { sha: head, status: 'partial', starved: true }; }
     ran = true;
-    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => (!busy && listQueue(cfg).length > 0) || stopRequested(cfg), pollMs }));
+    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => (!busy && !!laneBusy(cfg)) || stopRequested(cfg), pollMs }));
     if (run.cancelled) { save(cfg, { ...state, putOff: state.putOff || { sha: head, at: new Date(now).toISOString() }, partial: { id, commands } }); return { sha: head, status: 'cancelled', cancelled: true }; }
     commands.push({ cmd: run.cmd, exit: run.exit, durationMs: run.durationMs, log: logPath });
   }
@@ -132,8 +148,9 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
 
 /** One status line for `broker status` / orient; null when the cadence is off. */
 export function suiteLine(cfg) {
-  if (cfg.landGate !== 'affected') return null;
+  const scope = suiteScope(cfg);
+  if (!scope) return null;
   const s = suiteState(cfg);
   const red = Object.keys(s.filed || {}).length;
-  return `suite: last run ${short(s.lastRun)}, last green ${short(s.lastGreen)}${red ? `, RED (${red} regression filed)` : ''}; every ${cfg.suiteEvery} landing(s)${cfg.suitePartitions > 1 ? `, partition ${s.shard || 1}/${cfg.suitePartitions} next` : ''}`;
+  return `suite: last run ${short(s.lastRun)}, last green ${short(s.lastGreen)}${red ? `, RED (${red} regression filed)` : ''}; every ${cfg.suiteEvery} landing(s)${scope.parts > 1 ? `, partition ${s.shard || 1}/${scope.parts} next` : ''}`;
 }
