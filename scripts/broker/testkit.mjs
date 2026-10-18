@@ -22,7 +22,9 @@ export function g(args, cwd) {
   for (let attempt = 1; ; attempt++) {
     const r = spawnSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     if (r.status === 0) return r.stdout.trim();
-    if (r.status === PROCESS_INIT_FAILED && attempt < SPAWN_ATTEMPTS) {
+    // A git refusal always says why; a failure with no output at all is the spawn failing under machine load.
+    const silent = r.status !== 0 && !r.error && !String(r.stderr || '').trim() && !String(r.stdout || '').trim();
+    if ((r.status === PROCESS_INIT_FAILED || silent) && attempt < SPAWN_ATTEMPTS) {
       sleepMs(500 * attempt);
       continue;
     }

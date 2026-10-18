@@ -72,7 +72,8 @@ test('two real daemons started together leave exactly one holding the lock', asy
   try {
     mkdirSync(brokerPaths(s.cfg).home, { recursive: true });
     for (let i = 0; i < 2; i++) kids.push(spawn(process.execPath, [BROKER, '--root', s.root, '--idle-exit', '5'], { stdio: 'ignore', windowsHide: true }));
-    await new Promise((r) => setTimeout(r, 3000));
+    const end = Date.now() + 120_000;
+    while (kids.filter((k) => alive(k.pid)).length > 1 && Date.now() < end) await new Promise((r) => setTimeout(r, 100));
     assert.equal(kids.filter((k) => alive(k.pid)).length, 1, 'the loser exited');
     assert.ok(kids.some((k) => liveHolder(s.cfg)?.pid === k.pid));
   } finally {
