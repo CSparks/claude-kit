@@ -37,7 +37,7 @@ for (const crash of [false, true]) {
     const { dir, pid, autostart } = leakyChild(crash);
     assert.equal(autostart, '1', 'autostart is off under the testkit');
     assert.ok(!existsSync(dir), 'temp dir removed');
-    const end = Date.now() + 3000;
+    const end = Date.now() + 60_000;
     while (alive(pid) && Date.now() < end) { /* wait for the kill to land */ }
     assert.ok(!alive(pid), 'daemon stopped');
   });

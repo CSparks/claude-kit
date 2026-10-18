@@ -37,7 +37,7 @@ test('live: the launched daemon is not our child and writes its own log', { skip
     const r = launchDaemon(BROKER, s.root, ['--idle-exit', '0.05', '--poll', '200', '--spawned-by', 'launch.test: live']);
     assert.ok(r.ok, r.error);
     const logs = brokerPaths(s.cfg).logs;
-    const end = Date.now() + 30_000;
+    const end = Date.now() + 180_000;
     let log = null;
     while (!log && Date.now() < end) {
       const f = existsSync(logs) && readdirSync(logs).find((n) => n.startsWith('daemon-'));

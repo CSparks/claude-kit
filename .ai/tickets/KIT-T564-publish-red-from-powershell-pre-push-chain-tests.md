@@ -27,6 +27,7 @@ Publish of 625f68f from PowerShell: pre-push-chain 4 passed, 15 failed, every fa
 ## Notes
 Checked as possible duplicates and judged different work (--not-dup): KIT-T553
 pre-push-chain.test.mjs resolves git's own sh, puts PATH in Git Bash's order with the fake git-lfs first, sets MSYSTEM, and every assertion carries status, signal and error; 19 passed under the bash tool and under the PowerShell tool
+The gate run from the PowerShell environment (the coordinator's publish shape): pre-push-chain 19 passed. The same run flagged watchdog.test 'never reached pre-push gate' (a 60 s wall-clock wait under suite load): untilPhase now waits on the daemon exiting, not a clock; train-resume the same; the 30-60 s waits in crash-recovery, launch, train-window and testkit-leak widened to the event bound.
 
 ## History
 - [2026-10-18 03:35] (created) bug — publish red from PowerShell: pre-push-chain tests spawned sh from PATH (absent outside Git Bash, so status null), then used PATH/Path spelling and git's cmd wrapper that put the real git-lfs ahead of the fake; run git's own sh with Git Bash's PATH order and MSYSTEM, and name error/signal in every assertion

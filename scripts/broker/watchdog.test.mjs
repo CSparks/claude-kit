@@ -42,16 +42,19 @@ const exited = (child) => new Promise((r) => (child.exitCode !== null ? r(child.
 const phaseOf = (cfg) => { try { return JSON.parse(readFileSync(join(brokerPaths(cfg).home, 'phase.json'), 'utf8')).phase; } catch { return null; } };
 const beatAge = (cfg) => { try { return Date.now() - statSync(brokerPaths(cfg).beat).mtimeMs; } catch { return Infinity; } };
 
-async function untilPhase(cfg, phase, limitMs = 60_000) {
-  const end = Date.now() + limitMs;
-  while (phaseOf(cfg) !== phase) { if (Date.now() > end) throw new Error(`never reached ${phase} (at ${phaseOf(cfg)})`); await sleep(50); }
+// Waits for the daemon to enter `phase`; fails only when the daemon exits first, so machine load never decides it.
+async function untilPhase(cfg, phase, child) {
+  while (phaseOf(cfg) !== phase) {
+    if (child.exitCode !== null) throw new Error(`the daemon exited (${child.exitCode}) before ${phase} (at ${phaseOf(cfg)})`);
+    await sleep(50);
+  }
 }
 
 test('a landing inside a pre-push gate longer than the kill limit keeps beating and is never killed', async () => {
   const s = gated('  stall_kill_s: 1\n');
   try {
     const child = daemon(s.root);
-    await untilPhase(s.cfg, 'pre-push gate');
+    await untilPhase(s.cfg, 'pre-push gate', child);
     let worst = 0;
     const killed = [];
     const cfg = { ...s.cfg, stallKillS: 1 };
@@ -92,7 +95,7 @@ test('a daemon that dies after its commit leaves the tree at the commit; the res
   try {
     const head = g(['rev-parse', 'HEAD'], s.root);
     const first = daemon(s.root);
-    await untilPhase(s.cfg, 'pre-push gate');
+    await untilPhase(s.cfg, 'pre-push gate', first);
     first.kill('SIGKILL');
     await exited(first);
     const journal = readInflight(s.cfg);
@@ -115,7 +118,7 @@ test('negative control: a journal without the commit marker restores pre-images 
   const s = gated();
   try {
     const first = daemon(s.root);
-    await untilPhase(s.cfg, 'pre-push gate');
+    await untilPhase(s.cfg, 'pre-push gate', first);
     first.kill('SIGKILL');
     await exited(first);
     const { committed, ...old } = readInflight(s.cfg);

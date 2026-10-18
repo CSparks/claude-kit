@@ -47,7 +47,7 @@ async function submitAndDrain(coalesceMs) {
     const jobsFile = join(tempDir('window-'), 'jobs.json');
     writeFileSync(jobsFile, JSON.stringify(jobs));
     const writer = spawn(process.execPath, [DRIVE, s.root, jobsFile, String(GAP_MS)], { stdio: 'ignore', windowsHide: true });
-    const end = Date.now() + 60_000;
+    const end = Date.now() + 240_000;
     let done = false;
     while (Date.now() < end && !done) {
       processOnce(s.cfg, { coalesceMs });

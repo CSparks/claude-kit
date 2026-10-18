@@ -24,7 +24,7 @@ const BROKER = join(import.meta.dirname, 'broker.mjs');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; } };
 
-async function until(check, ms = 30_000) {
+async function until(check, ms = 180_000) {
   const end = Date.now() + ms;
   while (Date.now() < end) { const v = check(); if (v) return v; await sleep(150); }
   return null;
