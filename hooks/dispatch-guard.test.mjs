@@ -401,6 +401,8 @@ body
   expect('build on sonnet (an exhaustive brief) passes on a bug ticket', call({ model: 'sonnet', prompt: 'apply KIT-T901 [job: build]' }).code, 0);
   expect('an opus model on a build job needs [escalate] on a bug ticket', call({ model: 'opus', prompt: 'apply KIT-T901 [job: build]' }).code, 2);
   expect('the plan job (fable) passes on a bug ticket with no escalate', call({ model: 'fable', prompt: 'plan the KIT-T901 terrain integration [job: plan]' }).code, 0);
+  expect('the plan job on opus (its default family, KIT-D098) passes on a bug ticket with no escalate', call({ model: 'opus', prompt: 'plan the KIT-T901 terrain integration [job: plan]' }).code, 0);
+  expect('the plan job on sonnet is outside its row', call({ model: 'sonnet', prompt: 'plan the KIT-T901 terrain integration [job: plan]' }).code, 2);
   expect('read-only planning with no ticket passes on the plan job', call({ subagent_type: 'Explore', model: 'fable', prompt: 'plan the mine entrances [job: plan]' }).code, 0);
   expect('a fable model on a fix job still needs [escalate]', call({ model: 'fable', prompt: 'KIT-T901 [job: fix] [model-override: x]' }).code, 2);
   expect('a bug ticket as fix passes', call({ model: 'sonnet', prompt: 'fix KIT-T901 [job: fix]' }).code, 0);

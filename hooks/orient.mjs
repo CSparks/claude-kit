@@ -6,7 +6,7 @@
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, basename, resolve } from 'node:path';
-import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, readLineage, recordProject, aheadBehind, fetchRepos, centralDataRoot, globToRegExp, sessionStale, readAgents, partitionAgents, AGENT_STALE_MS, scanStaleDoingTickets, readRegistry, projectAiDirs } from './lib.mjs';
+import { git, gitRoot, adopted, projectName, formatWip, wipSummary, watchRepos, readLineage, recordProject, aheadBehind, fetchRepos, centralDataRoot, globToRegExp, sessionStale, readAgents, partitionAgents, AGENT_STALE_MS, scanStaleDoingTickets, readRegistry, projectAiDirs, pathExcluded, payload } from './lib.mjs';
 import { unifyMemory, memoryLinkCommand } from './memory-link.mjs';
 import { readProgress, progressFor, formatProgress } from './progress-store.mjs';
 import { formatAgentLine, unlabelledAgents, statusOnlyAgents } from './lib/agent-format.mjs';
@@ -203,6 +203,13 @@ try {
   if (drift) out.push(`!! ${drift}`);
   const { capabilityStatus, modelsLine } = await import('../scripts/model-lineup.mjs');
   out.push(modelsLine(capabilityStatus()));
+  // The main thread coordinates on the family the table's `coordination` row names (KIT-D098).
+  if (!pathExcluded(root, 'coordination-model', root)) {
+    const { mainThreadNotice } = await import('../scripts/coordination-model.mjs');
+    const hookInput = await Promise.race([payload(), new Promise((r) => setTimeout(() => r({}), 500))]);
+    const notice = mainThreadNotice(hookInput.model);
+    if (notice) out.push(notice);
+  }
   const { dispatchLine } = await import('../scripts/dispatch-report.mjs');
   const { KIT_ROOT } = await import('../scripts/dispatch-ladder.mjs');
   const proposal = dispatchLine([root, KIT_ROOT]);

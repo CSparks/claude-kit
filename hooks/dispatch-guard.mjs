@@ -109,12 +109,12 @@ function ladderBlock(root, input, prompt, p) {
   if (!/fable/i.test(String(parent || ''))) return null; // cannot prove a fable inherit — fail open
 
   return [
-    'BLOCKED: this delegation would run on fable — the orchestration tier.',
+    'BLOCKED: this delegation would run on fable — the plan fallback, explicit-only otherwise.',
     `  agent: ${label(input)}   cause: no model on the call — inherits the fable session (${parent})`,
     '',
     'The kit capability table (.ai/config.yml dispatch.jobs, KIT-D080) picks a family per job:',
-    'fixes and refactors -> sonnet; big builds, design, assets -> opus; trivial chores -> haiku;',
-    'fable is for orchestration + explicit-only work — and must be CHOSEN, never inherited.',
+    'coordination, fixes and refactors -> sonnet; plans, big builds, design, assets -> opus; trivial chores -> haiku;',
+    'fable is the plan fallback + explicit-only work — and must be CHOSEN, never inherited.',
     'Kit agents carry no model; the call must name one.',
     '',
     "Fix: pass an explicit model on the Agent call — model:'sonnet', 'opus' or 'haiku' (resolve",

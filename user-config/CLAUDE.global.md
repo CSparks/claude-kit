@@ -120,12 +120,15 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
 - Straightforward targeted change → **local Qwen first** (`scripts/local-agent.mjs`; the
   brief supplies files, line ranges, acceptance); after 2 failures on one ticket → sonnet.
   Straightforward fixes and multi-file refactors → sonnet; big or spatially heavy builds,
-  design, asset authoring → opus; trivial chores → haiku. **Opus and fable are the
-  orchestrator models** (KIT-D076); fable is orchestration and explicit-only work, never
-  asset authoring. On a fable usage-limit error, relaunch on opus immediately.
-- On a fable main thread every dispatch carries an explicit `model` — the
-  `dispatch-ladder` hook blocks the silent inherit. A deliberate model-less inherit needs
-  an inline `[allow-fable: <reason>]` token in the prompt.
+  design, asset authoring → opus; trivial chores → haiku. **Planning is separate from
+  coordination** (KIT-D098; Chris: "Opus for planning, Sonnet for coordination."): the main
+  thread coordinates on sonnet (`/model sonnet`) and every plan is a dispatch to the `plan`
+  job, which runs on opus with fable as its fallback (fable costs 2.5x opus; explicit-only
+  otherwise, never asset authoring). On an opus usage-limit error on a plan, relaunch on fable.
+- Whatever the main thread's model, every dispatch carries an explicit `model`; the
+  `dispatch-ladder` hook blocks a silent inherit of fable. A deliberate model-less fable inherit
+  needs an inline `[allow-fable: <reason>]` token in the prompt. SessionStart orient flags a
+  main thread that is not on the coordination family and names the `/model` switch.
 - **Every dispatch names its model in the agent LABEL**: the Agent tool's `description`
   starts with a `[<model>]` prefix — `"[opus] Diagnose POI rate"`; the hook rewrites it to
   the resolved family's current model. No unprefixed dispatches.

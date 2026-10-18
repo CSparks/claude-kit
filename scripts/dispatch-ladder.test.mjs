@@ -36,7 +36,7 @@ try {
   ok('the targeted-change row routes to haiku, escalates to sonnet, with local-qwen as the free lane',
     resolveJob({ job: 'targeted-change' }).family === 'haiku' && resolveJob({ job: 'targeted-change' }).fallback === 'sonnet' && readLadder().jobs['targeted-change'].alternate === 'local-qwen');
   ok('asset authoring is opus, never fable', resolveJob({ job: 'asset' }).family === 'opus');
-  ok('fable rows are explicit-only, except the plan job, which is itself the escalation', Object.entries(readLadder().jobs).filter(([, j]) => j.family === 'fable').every(([id, j]) => (id === 'plan' ? j.self_escalating === true && j.explicit_only !== true : j.explicit_only === true)));
+  ok('plan is opus with fable as its fallback (KIT-D098); every fable-family row is explicit-only', resolveJob({ job: 'plan' }).family === 'opus' && resolveJob({ job: 'plan' }).fallback === 'fable' && readLadder().jobs.plan.self_escalating === true && Object.values(readLadder().jobs).filter((j) => j.family === 'fable').every((j) => j.explicit_only === true));
   ok('build runs on sonnet with an opus fallback; design and forensic stay opus', resolveJob({ job: 'build' }).family === 'sonnet' && resolveJob({ job: 'build' }).fallback === 'opus' && resolveJob({ job: 'design' }).family === 'opus' && resolveJob({ job: 'forensic' }).family === 'opus');
   ok('an unknown job throws', (() => { try { resolveJob({ job: 'nope' }); return false; } catch { return true; } })());
   ok('the table has the core job set', ['chore', 'targeted-change', 'fix', 'refactor', 'build', 'asset', 'deep'].every((t) => t in readLadder().jobs));
