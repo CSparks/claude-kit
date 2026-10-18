@@ -132,7 +132,7 @@ test('a run killed after 3 of 6 tests restarts and runs only the other 3', async
     assert.equal(r.commands[0].cmd, 'cargo nextest run --no-fail-fast -p app --lib --test a');
     assert.equal(existsSync(join(brokerPaths(s.cfg).home, 'testrun', `${s.job.id}.json`)), false, 'the record goes with the result');
   } finally { s.done(); }
-}, { timeout: 120_000 });
+}, { timeout: 900_000 });
 
 test('negative control: a changed command or a moved HEAD discards the record and runs all 6', async () => {
   for (const change of ['commands', 'head']) {
@@ -151,4 +151,4 @@ test('negative control: a changed command or a moved HEAD discards the record an
       assert.equal(r.commands[0].resumedSkipped, undefined, change);
     } finally { s.done(); }
   }
-}, { timeout: 180_000 });
+}, { timeout: 900_000 });

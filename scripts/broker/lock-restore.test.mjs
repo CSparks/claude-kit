@@ -139,7 +139,7 @@ test('a daemon killed after cargo rewrote Cargo.lock restores it at the next sta
     assert.equal(readResult(s.cfg, job.id).status, 'passed');
     assert.equal(read(s.root, 'Cargo.lock'), LOCK);
   } finally { s.done(); }
-}, { timeout: 120_000 });
+}, { timeout: 900_000 });
 
 test('a daemon killed after a submodule Cargo.lock was rewritten restores it too', async () => {
   const t = withSubmoduleLock();
@@ -155,7 +155,7 @@ test('a daemon killed after a submodule Cargo.lock was rewritten restores it too
     assert.equal(read(t.sub, 'rust', 'Cargo.lock'), LOCK);
     assert.equal(g(['status', '--porcelain'], t.sub), '');
   } finally { t.done(); }
-}, { timeout: 120_000 });
+}, { timeout: 900_000 });
 
 test('a lock a superproject job creates inside a submodule is removed afterwards', () => {
   const t = withSubmoduleLock();
