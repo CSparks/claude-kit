@@ -45,7 +45,7 @@ export function admit(cfg, job, repo, { onPhase = () => {} } = {}) {
   recordGatePass(cfg);
   if (gate.length) return refuse({ status: STATUS.GATE, phase: 'gate', gate });
 
-  if (job.land && !(job.ops || []).length) return refuse({ status: STATUS.FAILED, phase: 'land', message: 'a landing needs operations; a test-only job cannot --land' });
+  if (job.land && !(job.ops || []).length && !(job.pins || []).length) return refuse({ status: STATUS.FAILED, phase: 'land', message: 'a landing needs operations or a --pin; a test-only job cannot --land' });
   if (job.land && !job.ticket) return refuse({ status: STATUS.FAILED, phase: 'land', message: 'a landing patch needs --ticket (the commit cites it)' });
   return { ok: true, cwd, ops, plan, touched };
 }

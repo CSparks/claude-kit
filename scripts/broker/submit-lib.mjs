@@ -39,7 +39,11 @@ export function buildPatchJob(cfg, flags, text) {
   const repo = typeof flags.repo === 'string' ? repoByName(cfg, flags.repo) : cfg.repos.find((r) => !r.submodule) || cfg.repos[0];
   if (!repo) return { error: 'no such repo in .ai/config.yml broker.repos' };
   let ops = [];
-  if (flags['no-patch']) {
+  // A job that only moves a submodule pin carries no operations: an empty envelope or --no-patch with --pin.
+  const pinOnly = !!flags.pin && (flags['no-patch'] || !String(text || '').trim());
+  if (pinOnly) {
+    // no operations; the gitlink is the whole change
+  } else if (flags['no-patch']) {
     if (flags.land) return { error: '--no-patch cannot --land: a landing needs operations' };
   } else {
     try { ops = parseEnvelope(text); } catch (e) { return { error: e.message }; }

@@ -10,7 +10,8 @@
 // `--repo <submodule> --no-pin --land` pushes the submodule commit and leaves the superproject alone.
 // `--pin <submodule>=<sha>` (superproject job, repeatable) builds and tests with the submodule at <sha>;
 // with `--land` the gitlink and the patch paths land in ONE commit, and <sha> must already be on the
-// submodule's remote.
+// submodule's remote. `--pin` with `--no-patch --land` (or an empty envelope) is a pin-only job: it
+// lands the gitlink alone.
 //
 // USE:
 //   node submit.mjs --root <tree> --ticket ST-T123 --title "…" --test "cargo t -p x" \

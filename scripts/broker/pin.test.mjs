@@ -49,6 +49,27 @@ test('--pin lands the gitlink and the patch paths in ONE commit, tested with the
   } finally { t.done(); }
 });
 
+test('a --pin job with no operations is valid: an empty envelope or --no-patch lands the gitlink alone; without --pin it is still refused', () => {
+  for (const shape of ['empty envelope', 'no-patch']) {
+    const t = setup();
+    try {
+      const fw = t.run({ repo: 'rapid-game', ticket: 'ST-T1', title: 'framework half', land: true, 'no-pin': true }, '*** write api.txt\nnew api\n').r.landed.sha;
+      const flags = { ticket: 'ST-T2', title: 'pin only', land: true, pin: `rapid-game=${fw}`, ...(shape === 'no-patch' ? { 'no-patch': true } : {}) };
+      const { out, r } = t.run(flags, shape === 'no-patch' ? '' : '\n', [SUB_HEAD]);
+      assert.ok(out.job, JSON.stringify(out));
+      assert.equal(r.status, 'landed', `${shape}: ${JSON.stringify(r)}`);
+      assert.deepEqual(names(t.root), ['rapid-game'], 'the commit holds the gitlink alone');
+      assert.equal(g(['rev-parse', 'HEAD:rapid-game'], t.root), fw);
+      assert.equal(g(['--git-dir', t.superBare, 'rev-parse', 'main'], t.root), r.landed.sha);
+    } finally { t.done(); }
+  }
+  const t = setup();
+  try {
+    assert.match(buildPatchJob(t.cfg, { ticket: 'ST-T2', title: 'x', land: true }, '\n').error, /no operations/);
+    assert.match(buildPatchJob(t.cfg, { ticket: 'ST-T2', title: 'x', land: true, 'no-patch': true }, '').error, /cannot --land/);
+  } finally { t.done(); }
+});
+
 test('--pin with a sha the submodule origin lacks is refused for a landing, at submit and again at run time', () => {
   const t = setup();
   try {

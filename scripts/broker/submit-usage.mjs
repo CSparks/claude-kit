@@ -11,7 +11,7 @@ export const SUBMIT_USAGE = [
   '  the patch envelope comes on stdin; --no-patch queues a test-only job instead (no envelope)',
   '  --land (needs --ticket)      commit and push a green patch',
   '  --revises <id>               withdraw a still-queued <id> this job replaces',
-  '  --pin <submodule>=<sha>      build and test with the submodule at <sha> (superproject job, repeatable)',
+  '  --pin <submodule>=<sha>      build and test with the submodule at <sha> (superproject job, repeatable); with --no-patch --land it lands the gitlink alone',
   '  --repo <submodule> --no-pin  push the submodule commit and leave the superproject alone',
   '  --session <id>               sessions are served in turn (default the harness session id)',
   '  wait.mjs <id> blocks on the outcome',
