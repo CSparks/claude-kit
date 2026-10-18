@@ -199,7 +199,11 @@ function judge(c, piped = false) {
   if (isSearch) {
     const args = (gitGrep ? tok.slice(2) : tok.slice(1)).filter((a) => !a.startsWith('-'));
     const targetsOneFile = args.some((a) => FILEISH.test(a)) || targetsOnlyScratch(args); // a concrete file or a scratch dir = "not source discovery"
-    const recursive = RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep;
+    // PowerShell parameters are whole -Names (`-Path`, `-Pattern`), not bundled short flags, so RECURSIVE_FLAG would
+    // read `-Pattern` as `-r`. Select-String is tree-wide only with -Recurse, a wildcard or a directory path.
+    const psSearch = tool === 'select-string' || tool === 'sls';
+    const psTreeWide = /s-recurse/i.test(c) || args.some((a) => /[*?]|[\/]$/.test(a));
+    const recursive = psSearch ? psTreeWide : RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep;
     const dependency = recursive && registryTarget(c); // a crate dir looks like a file (`rapier3d-0.25.1`), so judge it first
     if (dependency) return { id: 'registry-grep', msg: registryMsg(c, dependency) };
     if (recursive && !targetsOneFile) {

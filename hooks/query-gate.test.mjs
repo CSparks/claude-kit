@@ -189,6 +189,11 @@ expect('allows Select-String of a QUOTED scratchpad log', run(d, `Select-String 
 expect('allows grep -r over the scratchpad dir', run(d, `grep -rn foo ${SP}`).code, 0);
 expect('allows Select-String over the scratchpad dir', run(d, `Select-String -Path ${SP}\\* -Pattern foo`).code, 0);
 expect('still blocks recursive grep of source', run(d, 'grep -rn foo src/').code, 2);
+// A single named file, even through a variable, is not discovery (the scratchpad-log false positive).
+expect('allows Select-String -Path $l (one named log through a variable)', run(d, 'Select-String -Path $l -Pattern "foo"').code, 0);
+expect('allows sls of a variable path with an alternation pattern', run(d, "sls -Path $log -Pattern 'ERROR|FAIL'").code, 0);
+expect('negative control: Select-String over a source wildcard still blocks', run(d, 'Select-String -Path src\* -Pattern foo').code, 2);
+expect('negative control: grep -rn over the source tree still blocks', run(d, 'grep -rn "PhysicsSim" src/').code, 2);
 expect('still blocks Select-String -Recurse of source', run(d, 'Select-String -Path src\\* -Pattern foo -Recurse').code, 2);
 
 console.log(failures ? `\n${failures} FAIL` : '\nall pass');
