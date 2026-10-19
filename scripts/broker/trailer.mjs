@@ -10,6 +10,6 @@ export function gateTrailer(job, commands, { reused = null, selection = null, tr
   const ran = `${commands.filter(PASSED).length}/${commands.length} commands green`;
   const from = reused ? `, reused check ${reused.job}` : '';
   const built = train ? `, one build with ${train.size - 1} other patch(es) in ${train.id}` : '';
-  const scope = selection ? '; affected gate, full suite on the cadence' : '';
+  const scope = selection ? `; ${selection.explicit ? "the job's own commands" : 'affected gate'}, full suite on the cadence` : '';
   return `Broker-Gate: ${job.id} ${ran}${from}${built}${scope} (target/broker/results/${job.id}.json)`;
 }

@@ -3,6 +3,10 @@
 // the worker's own targeted commands; suite-shaped commands leave the gate and run on the suite
 // cadence (suite.mjs). A path the map cannot place falls back to the job's full commands.
 //
+// A job that carries its own targeted commands (--test) runs exactly those: the affected set only
+// replaces a job with none, or a suite-shaped one, unless `affected.mandatory` is set. A crate in a
+// nested workspace (a submodule's `rust/`) is tested with `cd <workspace> &&` in front.
+//
 // `landGate(cfg, cwd, job, files)` (the plan's Map path → { text }, text null = deleted) → null (run the job's commands as given) or
 //   { commands, selection: { reasons, dropped } }.
 // `isSuiteShaped(cmd, suite)` → true for a suite command (modulo -j / --no-fail-fast) or an
@@ -52,14 +56,18 @@ export function isSuiteShaped(cmd, suite) {
   return suite.some((s) => normalize(s) === n) || unfilteredTest(cmd) || enumeratedSuite(cmd);
 }
 
+const inWorkspace = (dir) => (dir ? `cd ${dir} && ` : '');
+
 export function landGate(cfg, cwd, job, files) {
   if (cfg.landGate !== 'affected') return null;
   const deleted = [...files].filter(([, f]) => f.text === null).map(([p]) => p);
-  const sel = selectAffected(cwd, [...files.keys()], { deleted });
+  const sel = selectAffected(cwd, [...files.keys()], { deleted, match: cfg.affected.match });
   if (sel.unmapped.length) return null;
   const given = Array.isArray(job.commands) && job.commands.length ? job.commands : [];
   const dropped = given.filter((c) => isSuiteShaped(c, cfg.suite));
-  const tests = [...sel.crates].filter(([, specs]) => specs.size).map(([name, specs]) => `${cfg.affected.test} -p ${name} ${[...specs].join(' ')}`);
-  const commands = [...new Set([cfg.affected.check, ...tests, ...given.filter((c) => !dropped.includes(c))])];
+  const kept = given.filter((c) => !dropped.includes(c));
+  if (kept.length && !cfg.affected.mandatory) return { commands: kept, selection: { reasons: [], dropped, explicit: true } };
+  const tests = [...sel.crates].filter(([, specs]) => specs.size).map(([name, specs]) => `${inWorkspace(sel.workspaces.get(name))}${cfg.affected.test} -p ${name} ${[...specs].join(' ')}`);
+  const commands = [...new Set([cfg.affected.check, ...tests, ...kept])];
   return { commands, selection: { reasons: sel.reasons, dropped } };
 }

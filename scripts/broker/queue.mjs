@@ -14,7 +14,7 @@ import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
 import { reportRedPin } from './autopin.mjs';
 import { runSuite } from './suite.mjs';
-import { STATUS, listQueue, queued, removeJob, writeResult } from './result.mjs';
+import { STATUS, hasFinalResult, listQueue, queued, removeJob, writeResult } from './result.mjs';
 import { formTrain } from './train-form.mjs';
 import { runTrain } from './train.mjs';
 import { takeOverJournal } from './takeover.mjs';
@@ -43,6 +43,17 @@ export function coalesceWait(queue, coalesceMs, now = Date.now()) {
   return quietFor >= coalesceMs || waited >= coalesceMs * COALESCE_CAP ? 0 : coalesceMs - quietFor;
 }
 
+// The queue without leftovers: a job file whose result is already final (cancelled, or finished before a
+// daemon stopped) is dropped, never run again and never taken into a train.
+function pendingQueue(cfg) {
+  return listQueue(cfg).filter((job) => {
+    if (!hasFinalResult(cfg, job.id)) return true;
+    removeJob(cfg, job.id);
+    console.error(`broker: dropped ${job.id} from the queue, its result is final`);
+    return false;
+  });
+}
+
 // Drain the queue until it is empty or the operator ran `pause`. A job whose repo holds a hand-driven
 // writer's changes stays queued and pauses THAT repo only: its later jobs wait behind it (order within a
 // repo is kept), jobs for clean repos run. A job that needs a submodule's tree while the other lane holds it
@@ -55,7 +66,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
   if (coalesce) return { processed, paused: false, coalescing: coalesce };
   const held = new Map();
   const waiting = new Map();
-  const order = roundRobin(listQueue(cfg), lastServed(cfg));
+  const order = roundRobin(pendingQueue(cfg), lastServed(cfg));
   for (const job of order) {
     if (held.has(job.repo) || waiting.has(job.repo) || !queued(cfg, job.id)) continue; // withdrawn since the listing
     let train = null;
@@ -67,7 +78,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
       if (taken) console.error(`broker: restored ${taken.restored.length} path(s) that ${job.id} left half-applied under ${taken.home}`);
       const own = repoByName(cfg, job.repo);
       if (own && dirtyHold(cfg, own)) { held.set(job.repo, job.id); rekeyHold(cfg, job, own); continue; }
-      train = formTrain(cfg, job, roundRobin(listQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) });
+      train = formTrain(cfg, job, roundRobin(pendingQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) });
       tree = takeSubtrees(cfg, subtreesFor(cfg, repoByName(cfg, job.repo) || {}, train ? train.members.map((m) => m.job) : [job]), job.id);
       if (!tree.ok) { waiting.set(job.repo, tree.reason); continue; }
       markServed(cfg, job.session);

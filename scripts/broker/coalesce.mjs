@@ -9,7 +9,8 @@
 //
 // A command merges only when it is `cargo test|t` with at least one target selector and nothing
 // after `--` (a test-name filter or harness flag keeps its own run). Commands naming packages
-// never merge with a workspace-wide one. A group of one is left as written. The merged command
+// never merge with a workspace-wide one. A `cd <dir> &&` prefix leads the merged command and keeps its
+// own group: commands for different workspaces never merge. A group of one is left as written. The merged command
 // takes the place of its group's first member.
 //
 // `coalesce(commands)` → [{ cmd, from: [original commands] | null }].
@@ -21,9 +22,12 @@ const DROPPED_WITH_VALUE = new Set(['-j', '--jobs']);
 const PACKAGE = new Set(['-p', '--package']);
 const TEST_SUBS = new Set(['test', 't']);
 
-// { key, shared, packages, selectors } for a mergeable command, or null.
-function parse(cmd) {
-  const toks = String(cmd).trim().split(/\s+/);
+const ENTER = /^(cd\s+\S+\s*&&\s*)/;
+
+// { key, enter, shared, packages, selectors } for a mergeable command, or null.
+function parse(text) {
+  const enter = (ENTER.exec(String(text).trim()) || ['', ''])[1];
+  const toks = String(text).trim().slice(enter.length).split(/\s+/);
   if (toks[0] !== 'cargo' || !TEST_SUBS.has(toks[1]) || toks.includes('--')) return null;
   const shared = [];
   const packages = [];
@@ -36,7 +40,7 @@ function parse(cmd) {
     else if (DROPPED_WITH_VALUE.has(t)) i++;
     else if (!DROPPED_FLAG.has(t)) shared.push(t);
   }
-  return selectors.length ? { key: `${shared.join(' ')}|${packages.length ? 'packages' : 'workspace'}`, shared, packages, selectors } : null;
+  return selectors.length ? { enter, key: `${enter}|${shared.join(' ')}|${packages.length ? 'packages' : 'workspace'}`, shared, packages, selectors } : null;
 }
 
 const addAll = (into, list) => { for (const x of list) if (!into.includes(x)) into.push(x); };
@@ -48,7 +52,7 @@ export function coalesce(commands) {
     const p = parse(cmd);
     if (!p) { slots.push({ cmd, from: null }); continue; }
     if (!groups.has(p.key)) {
-      const slot = { cmd, from: [], shared: p.shared, packages: [], selectors: [] };
+      const slot = { cmd, from: [], enter: p.enter, shared: p.shared, packages: [], selectors: [] };
       groups.set(p.key, slot);
       slots.push(slot);
     }
@@ -59,7 +63,8 @@ export function coalesce(commands) {
   }
   for (const g of groups.values()) {
     if (g.from.length < 2) { g.cmd = g.from[0]; g.from = null; }
-    else g.cmd = ['cargo nextest run --no-fail-fast', ...g.shared, ...g.packages.flatMap((p) => ['-p', p]), ...g.selectors].join(' ');
+    else g.cmd = `${g.enter}${['cargo nextest run --no-fail-fast', ...g.shared, ...g.packages.flatMap((p) => ['-p', p]), ...g.selectors].join(' ')}`;
+    delete g.enter;
     delete g.shared;
     delete g.packages;
     delete g.selectors;

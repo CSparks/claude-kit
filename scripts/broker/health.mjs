@@ -14,9 +14,10 @@ import { join } from 'node:path';
 import { brokerPaths, repoByName } from './config.mjs';
 import { catBlob, dirtyPaths, revParse } from './git.mjs';
 import { liveHolder, observedLive } from './lock.mjs';
-import { readInflight } from './preimage.mjs';
+import { readInflight, restoreMismatches } from './preimage.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
 import { readGatePass, readHealth, readRestoreClean, readRun, recentFaults, writeHealth } from './health-store.mjs';
+import { IDLE_WORK } from './lane-busy.mjs';
 import { stallLine, stallState } from './stall.mjs';
 import { handHoldEntries } from './hand-hold.mjs';
 
@@ -89,9 +90,17 @@ function longestRecentCommandMs(cfg) {
   return longest;
 }
 
+// The journal of a run that is already over: every job it carries has its final result, or it is idle
+// work (a deferred re-check or a suite run), which polls for a queued job and has its own cancel.
+function runIsOver(cfg, inflight) {
+  if (IDLE_WORK.test(String(inflight.id))) return true;
+  const ids = (inflight.members || []).length ? inflight.members : [inflight.id];
+  return ids.every((id) => !!readResult(cfg, id));
+}
+
 export function stuckInflight(cfg, nowMs, floorMs = STUCK_FLOOR_MS) {
   const inflight = readInflight(cfg);
-  if (!inflight || !liveHolder(cfg)) return [];
+  if (!inflight || !liveHolder(cfg) || runIsOver(cfg, inflight)) return [];
   const limit = Math.max(STUCK_FACTOR * longestRecentCommandMs(cfg), floorMs);
   const age = nowMs - Date.parse(inflight.startedAt);
   if (age <= limit) return [];
@@ -99,7 +108,8 @@ export function stuckInflight(cfg, nowMs, floorMs = STUCK_FLOOR_MS) {
     cause: `a command hung or the daemon is wedged mid-run; ${ticketHint('stuck-inflight', inflight.id)}` }];
 }
 
-// A gate crash is over once a later job's gate answered. The detail names the runtime and pid it
+// A gate crash is over once a later job's gate answered; a restore mismatch is over once a later restore verified clean
+// or the paths it named match their pre-image again (the fault carries them as `recheck`). The detail names the runtime and pid it
 // happened under, so a fault from a replaced daemon reads as history, not as the live state.
 const FAULT_CAUSE = {
   'gate-crash': 'the pre-write gate hook crashed instead of answering',
@@ -108,7 +118,8 @@ const FAULT_CAUSE = {
 
 export function ownFaults(cfg, nowMs) {
   const resolvedBy = { 'gate-crash': readGatePass(cfg), 'restore-mismatch': readRestoreClean(cfg) };
-  const resolved = (f) => resolvedBy[f.kind] && Date.parse(resolvedBy[f.kind].at) > Date.parse(f.at);
+  const cleared = (f) => f.kind === 'restore-mismatch' && f.recheck && restoreMismatches(f.recheck).length === 0;
+  const resolved = (f) => cleared(f) || (resolvedBy[f.kind] && Date.parse(resolvedBy[f.kind].at) > Date.parse(f.at));
   const under = (f) => (f.runtime || f.pid ? ` [runtime ${f.runtime || '?'}, pid ${f.pid || '?'}]` : '');
   return recentFaults(cfg, nowMs, FAULT_AGE_MS).filter((f) => !resolved(f)).map((f) => ({ kind: `own-fault:${f.kind}`, detail: `job ${f.id}: ${f.detail}${under(f)}`,
     cause: `${FAULT_CAUSE[f.kind] || 'the tree after a restore differs from its journal'}; ${ticketHint(f.kind, f.id)}` }));

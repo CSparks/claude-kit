@@ -24,7 +24,7 @@ import { phaseTracker } from './phase.mjs';
 import { checkoutPins, implicitPins, revertPins } from './pin.mjs';
 import { capture, discard, dropNewLocks, restore } from './preimage.mjs';
 import { checkRestore } from './restore-check.mjs';
-import { STATUS, logPathFor, removeJob, writeResult } from './result.mjs';
+import { STATUS, hasFinalResult, logPathFor, removeJob, writeResult } from './result.mjs';
 import { blame } from './train-blame.mjs';
 import { trainCommands } from './train-commands.mjs';
 import { landGroup } from './train-land.mjs';
@@ -73,7 +73,8 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
   try {
     checkoutPins(pins);
     while (groups.length) {
-      const pool = groups.shift();
+      const pool = groups.shift().filter((m) => !hasFinalResult(cfg, m.job.id));
+      if (!pool.length) continue;
       const waiting = [pool, ...groups].flat();
       locksBefore = lockFilesDeep(cwd);
       const paths = [...new Set([...waiting.flatMap(filesOf), ...locksBefore])];

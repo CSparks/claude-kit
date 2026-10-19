@@ -1,9 +1,9 @@
 // suite.mjs — the full-suite cadence (KIT-T472). With `land_gate: affected` landings skip the
 // full suite; the daemon runs `suite` (default verify_default) on the committed HEAD when the queue
-// is idle and `suite_every` landings have accumulated since the last run. A queued job cancels the
-// run (it re-runs later), so a light-load suite never delays a landing and never runs ahead of a job.
-// Under constant load that would starve it: once a due suite has been put off `suite_max_landings`
-// landings or `suite_max_hours`, each tick runs its next unfinished command between jobs, uncancelled.
+// is idle and `suite_every` landings have accumulated since the last run. A queued job in any lane
+// cancels the run within one poll (it re-runs later), so a suite never delays a landing and never runs
+// ahead of a job (KIT-T504). A suite put off `suite_max_landings` landings or `suite_max_hours` is
+// reported OVERDUE by `suiteLine` and still waits for an empty queue.
 // Commands that finished before a cancel are kept per sha (`state.partial`) and not re-run while
 // HEAD stays put. The tree is never checked out or rewritten: a hand-edited build path skips the
 // run, and Cargo.lock is restored afterwards.
@@ -67,9 +67,16 @@ function regressionText(head, state, failing, landings, blamed, logs) {
   return `full suite red at ${short(head)}: failing ${tests}; range ${range}; ${likely}; logs ${logs.join(', ')}`;
 }
 
-// Record when a due suite was first put off; true once it has waited past the landing or hour bound.
-function starved(cfg, cwd, state, head, now) {
-  if (!state.putOff) { state.putOff = { sha: head, at: new Date(now).toISOString() }; save(cfg, state); return false; }
+// Record when a due suite was first put off.
+function notePutOff(cfg, state, head, now) {
+  if (state.putOff) return;
+  state.putOff = { sha: head, at: new Date(now).toISOString() };
+  save(cfg, state);
+}
+
+// True once a put-off suite has waited past the landing or hour bound.
+function overdue(cfg, cwd, state, head, now) {
+  if (!state.putOff) return false;
   const landings = landingsSince(cwd, state.putOff.sha, head);
   return landings >= cfg.suiteMaxLandings || now - Date.parse(state.putOff.at) >= cfg.suiteMaxHours * 3600_000;
 }
@@ -85,13 +92,12 @@ function suiteScope(cfg) {
 export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now() } = {}) {
   const scope = suiteScope(cfg);
   if (!scope || stopRequested(cfg)) return null;
-  const busy = listQueue(cfg).length > 0;
   const cwd = scope.cwd;
   const state = suiteState(cfg);
   const head = revParse(cwd, 'HEAD');
   if (!state.lastRun && !state.since && head) save(cfg, { ...state, since: head });
   if (!due(cfg, cwd, state, head)) return null;
-  if (busy && !starved(cfg, cwd, state, head, now)) return null;
+  if (listQueue(cfg).length > 0) { notePutOff(cfg, state, head, now); return null; }
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   if (!checkoutState(cwd, { untrackedBlocks, dirtyBlocks: dirtyBlocksOf(cfg, cwd) }).clean) return null;
 
@@ -103,13 +109,10 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
   const startedAt = new Date().toISOString();
   const kept = state.partial && state.partial.id === id ? state.partial.commands : [];
   const commands = [];
-  let ran = false;
   for (let n = 0; n < suite.length; n++) {
     const logPath = logPathFor(cfg, id, n);
     if (kept[n] && kept[n].cmd === suite[n].trim()) { commands.push(kept[n]); continue; }
-    if (busy && ran) { save(cfg, { ...state, partial: { id, commands } }); return { sha: head, status: 'partial', starved: true }; }
-    ran = true;
-    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => (!busy && !!laneBusy(cfg)) || stopRequested(cfg), pollMs }));
+    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => !!laneBusy(cfg) || stopRequested(cfg), pollMs }));
     if (run.cancelled) { save(cfg, { ...state, putOff: state.putOff || { sha: head, at: new Date(now).toISOString() }, partial: { id, commands } }); return { sha: head, status: 'cancelled', cancelled: true }; }
     commands.push({ cmd: run.cmd, exit: run.exit, durationMs: run.durationMs, log: logPath });
   }
@@ -147,10 +150,11 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
 }
 
 /** One status line for `broker status` / orient; null when the cadence is off. */
-export function suiteLine(cfg) {
+export function suiteLine(cfg, now = Date.now()) {
   const scope = suiteScope(cfg);
   if (!scope) return null;
   const s = suiteState(cfg);
   const red = Object.keys(s.filed || {}).length;
-  return `suite: last run ${short(s.lastRun)}, last green ${short(s.lastGreen)}${red ? `, RED (${red} regression filed)` : ''}; every ${cfg.suiteEvery} landing(s)${scope.parts > 1 ? `, partition ${s.shard || 1}/${scope.parts} next` : ''}`;
+  const late = overdue(cfg, scope.cwd, s, revParse(scope.cwd, 'HEAD'), now) ? `, OVERDUE (put off since ${s.putOff.at.slice(0, 16)}Z; runs when the queue is empty)` : '';
+  return `suite: last run ${short(s.lastRun)}, last green ${short(s.lastGreen)}${red ? `, RED (${red} regression filed)` : ''}${late}; every ${cfg.suiteEvery} landing(s)${scope.parts > 1 ? `, partition ${s.shard || 1}/${scope.parts} next` : ''}`;
 }

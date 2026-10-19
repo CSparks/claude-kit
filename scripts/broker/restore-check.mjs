@@ -35,5 +35,6 @@ export function describeMismatches(journal) {
 export function checkRestore(cfg, journal, id) {
   const lines = describeMismatches(journal);
   if (!lines.length) { recordRestoreClean(cfg); return; }
-  recordFault(cfg, { kind: 'restore-mismatch', id, detail: `after the restore: ${lines.join('; ')}` });
+  const off = new Set(restoreMismatches(journal));
+  recordFault(cfg, { kind: 'restore-mismatch', id, detail: `after the restore: ${lines.join('; ')}`, recheck: { cwd: journal.cwd, entries: journal.entries.filter((e) => off.has(e.path)) } });
 }

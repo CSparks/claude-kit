@@ -9,7 +9,7 @@ import { brokerPaths, laneConfigs } from './config.mjs';
 import { readInflight } from './preimage.mjs';
 import { listQueue } from './result.mjs';
 
-const IDLE_WORK = /^(deferred|suite-)/;
+export const IDLE_WORK = /^(deferred|suite-)/;
 
 export function laneBusy(cfg) {
   for (const lane of laneConfigs(cfg)) {

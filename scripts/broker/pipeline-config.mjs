@@ -4,6 +4,8 @@
 //   affected:
 //     check: cargo check --workspace --all-targets   # compile every target of the workspace
 //     test: cargo test                               # prefix for the mapped `-p <crate> --test …` run
+//     match: word                                    # word (default) | module: how a src module finds the tests naming it (affected-match.mjs)
+//     mandatory: false                               # true: the affected set runs even when the job gave its own --test commands
 //   suite: [ "cargo test", … ]   # the full suite run on the cadence; default verify_default
 //   suite_every: 1               # landings between suite runs; once due it runs before the next job
 //   suite_max_landings: 10       # a suite put off this many landings runs its next unfinished command between jobs (suite.mjs)
@@ -13,7 +15,7 @@
 //   batch: 8                     # most queued disjoint jobs one build carries (train.mjs); 1 runs every job alone
 //   incremental_keep_hours: 24   # after a suite run, drop incremental caches unused this long (incremental.mjs); off disables
 //
-// `pipelineConfig(broker, verifyDefault)` → { landGate, affected: { check, test }, suite, suiteEvery, suitePartitions, runner, batch }.
+// `pipelineConfig(broker, verifyDefault)` → { landGate, affected: { check, test, match, mandatory }, suite, suiteEvery, suitePartitions, runner, batch }.
 
 const DEFAULT_CHECK = 'cargo check --workspace --all-targets';
 const DEFAULT_TEST = 'cargo test';
@@ -26,7 +28,7 @@ export function pipelineConfig(broker, verifyDefault) {
   const every = Number(broker.suite_every);
   return {
     landGate: broker.land_gate === 'affected' ? 'affected' : 'full',
-    affected: { check: String(a.check || DEFAULT_CHECK), test: String(a.test || DEFAULT_TEST) },
+    affected: { check: String(a.check || DEFAULT_CHECK), test: String(a.test || DEFAULT_TEST), match: a.match === 'module' ? 'module' : 'word', mandatory: a.mandatory === true },
     suite: Array.isArray(broker.suite) && broker.suite.length ? broker.suite.map(String) : verifyDefault.slice(),
     suiteEvery: Number.isFinite(every) && every >= 1 ? Math.floor(every) : 1,
     suiteMaxLandings: Math.floor(positive(broker.suite_max_landings, 10)),

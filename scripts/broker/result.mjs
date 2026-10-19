@@ -57,6 +57,12 @@ export function listQueue(cfg) {
     .filter(Boolean);
 }
 
+/** True when `id` already has a final result (anything but a dirty hold): a queue file still there is a leftover. */
+export const hasFinalResult = (cfg, id) => {
+  const r = readResult(cfg, id);
+  return !!r && r.status !== STATUS.DIRTY;
+};
+
 /** True while the job's file is still in the queue. */
 export const queued = (cfg, id) => existsSync(join(brokerPaths(cfg).queue, `${id}.json`));
 

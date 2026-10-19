@@ -73,3 +73,8 @@ for (const runner of ['nextest', 'cargo']) {
     } finally { process.env.PATH = path; cargo.done(); s.done(); }
   });
 }
+
+test('a cd prefix leads the merged command and never merges across workspaces', () => {
+  const out = coalesce(['cd rust && cargo t -p a --lib', 'cd rust && cargo t -p b --test x', 'cargo t -p c --lib', 'cargo t -p d --lib']);
+  assert.deepEqual(out.map((s) => s.cmd), ['cd rust && cargo nextest run --no-fail-fast -p a -p b --lib --test x', 'cargo nextest run --no-fail-fast -p c -p d --lib']);
+});
