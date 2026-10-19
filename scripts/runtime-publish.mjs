@@ -115,7 +115,8 @@ export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep 
 // The kit suite on the exported HEAD; the same npm script a writer runs, so the gate is the suite.
 function suiteOnExport(dir) {
   const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const r = spawnSync(npm, ['test'], { cwd: dir, stdio: 'inherit', shell: process.platform === 'win32' });
+  const timesFile = join(dirname(fileURLToPath(import.meta.url)), '..', '.cache', 'test-times.json');
+  const r = spawnSync(npm, ['test'], { cwd: dir, stdio: 'inherit', shell: process.platform === 'win32', env: { ...process.env, KIT_TEST_TIMES: timesFile } });
   if (r.status !== 0) throw new Error(`the suite is red on exported HEAD (exit ${r.status}); current did not move`);
 }
 
