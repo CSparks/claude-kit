@@ -10,6 +10,7 @@ import {
   loadWritePolicy, forbiddenBy, globToRegExp, relForGlob,
 } from './lib.mjs';
 import { recordTurnWrite, recordSubmoduleActivity } from './turn-writes.mjs';
+import { handEditWarning } from './lib/broker-hand-edit.mjs';
 import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 import { FILE_HARD, FILE_SOFT } from './lib/limits.mjs';
 import { commentFindings } from './lib/comment-gate.mjs';
@@ -181,6 +182,8 @@ const ROOT = _gitRoot || projectRoot(dirname(file));
 if (_gitRoot && !process.env.CLAUDE_KIT_BROKER_GATE) {
   recordTurnWrite(_gitRoot, file, p.session_id);
   recordSubmoduleActivity(_gitRoot, p.session_id);
+  const handEdit = handEditWarning(file, p.session_id);
+  if (handEdit) process.stderr.write(handEdit);
 }
 
 // write_policy (KIT: forbidden-path). A project can declare files an agent must never write —

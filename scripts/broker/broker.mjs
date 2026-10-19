@@ -20,6 +20,7 @@ import { parseFlags, loadCfg } from './cli.mjs';
 import { clearStop, isPaused, pause, resume, stopNowRequested, stopRequested } from './control.mjs';
 import { deferredLines } from './deferred.mjs';
 import { announce, healthLine, selfCheck } from './health.mjs';
+import { dirtNotice, holdAge, holdLine, holdReport } from './hand-hold.mjs';
 import { acquireLock, heartbeat, liveHolder, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { recoverUnderLock } from './recover.mjs';
@@ -99,6 +100,8 @@ if (command === 'status') {
   for (const line of deferredLines(cfg)) console.error(`  ${line}`);
   const suite = suiteLine(cfg);
   if (suite) console.error(`  ${suite}`);
+  const hold = holdReport(cfg);
+  if (hold) console.error(`  ${holdLine(hold)} (${holdAge(hold)})`);
   for (const e of selfCheck(cfg).entries) console.error(`  ${healthLine(e)}`);
   }
   process.exit(0);
@@ -136,10 +139,16 @@ const recoverPending = () => {
 };
 recoverPending();
 console.error(`broker: watching ${root} (target ${cfg.targetDir}, jobs -j ${cfg.jobs})`);
+for (const line of dirtNotice(cfg)) console.error(line);
 
 const said = new Set();
 let lastNote = '';
 const note = (text) => { if (text !== lastNote) console.error(text); lastNote = text; };
+
+const pausedNote = (summary) => {
+  const hold = holdReport(cfg);
+  return hold ? `broker: paused — ${holdLine(hold)}` : `broker: paused — ${summary.pausedRepos.join(', ')} holds hand edits (job ${summary.pausedOn} stays queued)`;
+};
 
 const drain = () => {
   heartbeat(cfg);
@@ -151,7 +160,7 @@ const drain = () => {
   const moved = rerouteMisplaced(cfg);
   if (moved.length) console.error(`broker: moved ${moved.length} job(s) to their repo's own queue: ${moved.join(', ')}`);
   const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`), coalesceMs: flags.once ? 0 : cfg.coalesceMs });
-  if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : `broker: paused — ${summary.pausedRepos.join(', ')} holds hand edits (job ${summary.pausedOn} stays queued)`);
+  if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : pausedNote(summary));
   else if (summary.waiting && summary.waiting.length) note(`broker: waiting — ${summary.waiting.join('; ')}`);
   else lastNote = '';
   if (summary.suite) console.error(`  suite ${summary.suite.sha.slice(0, 7)} → ${summary.suite.status}${summary.suite.filed ? ' (regression filed)' : ''}${summary.suite.pruned ? `; ${summary.suite.pruned}` : ''}`);

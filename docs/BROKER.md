@@ -129,6 +129,15 @@ what cargo rewrote, and a lock the run created is removed; a daemon killed mid-r
 `broker pause` before a long hand edit, `resume` after. The daemon never commits the writer's
 changes: landing is by explicit paths.
 
+Who holds a paused tree (KIT-T568, `hand-hold.mjs`): the dirty result and its message list the dirty
+paths; `wait` prints them with the hold's age and the session whose write ledger holds those paths
+(`session <id>`, a probable holder, not proof); `broker status` shows the same line; the daemon log
+carries it on every pause; after 5 minutes the self-check raises `hand-edit-hold` into
+`health.json`, which orient prints as a `!!` line. A daemon started over a dirty tree (submit, wait
+or by hand) names the paths and session at once. A hand edit to a build input of a lane whose daemon is
+live gets a one-time warning from pre-write (`hooks/lib/broker-hand-edit.mjs`) naming the daemon, the
+queue depth and `broker pause`. The edit is allowed: the pause is the design, the silence was the bug.
+
 ## Patch envelope
 
 ```

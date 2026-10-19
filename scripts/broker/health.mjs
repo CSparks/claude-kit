@@ -2,6 +2,7 @@
 // faults, writes them to health.json (health-store.mjs), and returns { entries, fresh }:
 //   no-daemon        jobs are queued and no live daemon holds the lock
 //   dirt-from-own-run the queue is paused on a path the last job or re-check wrote or journalled
+//   hand-edit-hold   the queue has been paused on a hand-driven writer's changes for 5 min (hand-hold.mjs)
 //   stuck-inflight   an inflight job is older than 3x the longest recent command
 //   own-fault        a fault recorded by recordFault (gate crash, journal/restore mismatch)
 // Every entry is { kind, since, detail, cause }; `cause` names the likely cause and the kit ticket
@@ -17,6 +18,7 @@ import { readInflight } from './preimage.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
 import { readGatePass, readHealth, readRun, recentFaults, writeHealth } from './health-store.mjs';
 import { stallLine, stallState } from './stall.mjs';
+import { handHoldEntries } from './hand-hold.mjs';
 
 export const OWN_DIRT_WINDOW_MS = 10_000;
 const STUCK_FACTOR = 3;
@@ -116,7 +118,7 @@ export function ownFaults(cfg, nowMs) {
 export function selfCheck(cfg, { now = Date.now(), heal = false, stuckFloorMs, skipNoDaemon = false } = {}) {
   const stall = stallState(cfg, now);
   const stalled = stall ? [{ kind: 'stalled', detail: stallLine(stall), cause: 'the daemon holds the lock but stopped beating; submit and wait kill and restart it after 10 min' }] : [];
-  const found = [...stalled, ...(skipNoDaemon ? [] : noDaemon(cfg)), ...ownDirt(cfg, readRun(cfg), heal), ...stuckInflight(cfg, now, stuckFloorMs), ...ownFaults(cfg, now)];
+  const found = [...stalled, ...(skipNoDaemon ? [] : noDaemon(cfg)), ...ownDirt(cfg, readRun(cfg), heal), ...handHoldEntries(cfg, now), ...stuckInflight(cfg, now, stuckFloorMs), ...ownFaults(cfg, now)];
   const before = readHealth(cfg);
   const known = (e) => before.find((b) => b.kind === e.kind && b.detail === e.detail);
   const entries = found.map(({ kind, detail, cause }) => ({ kind, since: (known({ kind, detail }) || {}).since || new Date(now).toISOString(), detail, cause }));

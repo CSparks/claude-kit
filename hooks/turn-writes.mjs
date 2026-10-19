@@ -8,6 +8,7 @@
 
 import { basename, dirname } from 'node:path';
 import { git, readTurnState, writeTurnState } from './lib.mjs';
+import { readTurnSlots } from './lib/turn-state.mjs';
 
 export const TURN_WRITES_SLOT = 'writes';
 const TURN_WRITES_MAX = 300;
@@ -95,4 +96,21 @@ export function foreignPaths(root, paths, sessionId) {
 // Record a path a non-Write tool changed (a Bash/PowerShell/node script) as this session's own.
 export function recordSessionPath(root, rel, sessionId) {
   if (sessionId && rel) recordSessionWrite(root, rel, sessionId);
+}
+
+const SESSION_SLOT_PREFIX = 'swrites-';
+
+/**
+ * Sessions whose write ledger holds any of `paths` (repo-relative, POSIX), most paths first:
+ * [{ session, count }]. Names who probably edited the files now sitting dirty in `root`.
+ */
+export function sessionsWriting(root, paths) {
+  const wanted = new Set(paths);
+  const found = [];
+  for (const [slot, state] of readTurnSlots(root, SESSION_SLOT_PREFIX)) {
+    const files = Array.isArray(state.files) ? state.files : [];
+    const count = files.filter((f) => wanted.has(f)).length;
+    if (count) found.push({ session: slot.slice(SESSION_SLOT_PREFIX.length), count });
+  }
+  return found.sort((a, b) => b.count - a.count);
 }

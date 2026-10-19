@@ -10,6 +10,7 @@ import { ensureDirs } from './result.mjs';
 import { listQueue } from './result.mjs';
 import { restartIfWedged } from './stall.mjs';
 import { launchDaemon } from './launch.mjs';
+import { dirtNotice } from './hand-hold.mjs';
 
 export const IDLE_EXIT_MIN = 60;
 const BROKER = join(import.meta.dirname, 'broker.mjs');
@@ -30,6 +31,7 @@ export function ensureBroker(cfg, root, spawner = spawnBroker) {
   if (liveHolder(cfg)) return restartIfWedged(cfg, root, { spawner: (r, why) => spawner(r, null, why, cfg.lane) });
   if (!claimSpawn(cfg)) return false;
   spawner(root, IDLE_EXIT_MIN, `${listQueue(cfg).length} job(s) queued with no daemon`, cfg.lane);
+  for (const line of dirtNotice(cfg)) console.error(line);
   return true;
 }
 

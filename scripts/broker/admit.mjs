@@ -8,6 +8,7 @@
 
 import { join } from 'node:path';
 import { dirtState } from './dirty.mjs';
+import { entriesText } from './hand-hold.mjs';
 import { GATE_CRASH, RUNTIME_GONE, gatePlan } from './gate.mjs';
 import { recordFault, recordGatePass } from './health-store.mjs';
 import { logSince } from './git.mjs';
@@ -29,7 +30,7 @@ export function admit(cfg, job, repo, { onPhase = () => {} } = {}) {
   const touched = ops.map((o) => posix(o.path));
   const state = dirtState(cfg, repo, cwd, touched);
   if (!state.clean) {
-    return refuse({ status: STATUS.DIRTY, phase: 'apply', dirtyEntries: state.entries, message: `build checkout dirty (${cwd}) — queue paused until clean` }, true);
+    return refuse({ status: STATUS.DIRTY, phase: 'apply', dirtyEntries: state.entries, message: `build checkout dirty (${cwd}): ${entriesText(state.entries)} — queue paused until these are committed, reverted or stashed` }, true);
   }
   if (!plan.ok) return refuse({ status: STATUS.STALE, phase: 'apply', stale: staleEntries(cwd, job.base, plan.stale) });
 

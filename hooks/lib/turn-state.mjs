@@ -10,14 +10,31 @@
 // two never race. The default slot keeps the original `<repo>.json` filename (back-compat for the
 // existing review-count snapshot).
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 
+const stateDir = () => process.env.CLAUDE_KIT_TURN_STATE || join(tmpdir(), 'claude-kit-turnstate');
+const repoKey = (root) => String(root).replace(/[:\\/ ]/g, '-').replace(/^-+/, '') || 'root';
+
 function turnStatePath(root, slot = '') {
-  const base = process.env.CLAUDE_KIT_TURN_STATE || join(tmpdir(), 'claude-kit-turnstate');
-  const key = String(root).replace(/[:\\/ ]/g, '-').replace(/^-+/, '') || 'root';
-  return join(base, slot ? `${key}.${slot}.json` : `${key}.json`);
+  const key = repoKey(root);
+  return join(stateDir(), slot ? `${key}.${slot}.json` : `${key}.json`);
+}
+
+/** Every slot of `root` whose name starts with `prefix`, as Map(slot -> state). Empty when none. */
+export function readTurnSlots(root, prefix) {
+  const head = `${repoKey(root)}.${prefix}`;
+  const slots = new Map();
+  try {
+    for (const f of readdirSync(stateDir())) {
+      if (!f.startsWith(head) || !f.endsWith('.json')) continue;
+      const slot = f.slice(repoKey(root).length + 1, -'.json'.length);
+      const state = readTurnState(root, slot);
+      if (state) slots.set(slot, state);
+    }
+  } catch { /* no state dir yet */ }
+  return slots;
 }
 
 export function readTurnState(root, slot = '') {

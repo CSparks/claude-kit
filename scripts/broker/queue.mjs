@@ -83,7 +83,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
     }
     const { result, pause } = ran;
     if (onResult) onResult(result);
-    if (pause) { held.set(job.repo, job.id); holdDirty(cfg, job, repoByName(cfg, job.repo)); continue; }
+    if (pause) { held.set(job.repo, job.id); holdDirty(cfg, job, repoByName(cfg, job.repo), result.dirtyEntries || []); continue; }
     removeJob(cfg, job.id);
     try { reportRedPin(cfg, job, result, fileBug ? { fileBug } : {}); } catch { /* the report is best effort */ }
     processed.push(result);

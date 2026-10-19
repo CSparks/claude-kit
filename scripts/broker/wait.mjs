@@ -24,6 +24,7 @@ import { observedLive } from './lock.mjs';
 import { announce, selfCheck } from './health.mjs';
 import { heartbeatLine } from './heartbeat.mjs';
 import { restartIfWedged } from './stall.mjs';
+import { holdAge, holdLine, holdReport } from './hand-hold.mjs';
 
 // Bash caps a foreground call at 600 s; 540 leaves room to print the queue position.
 const DEFAULT_TIMEOUT_S = 540;
@@ -59,6 +60,8 @@ while (Date.now() < deadline) {
   const result = readResult(cfg, id);
   if (result && isCurrentResult(cfg, result)) {
     printResult(result);
+    const hold = result.status === STATUS.DIRTY ? holdReport(cfg) : null;
+    if (hold) console.log(`  ${holdLine(hold)} (${holdAge(hold)})`);
     process.exit(result.status === STATUS.PASSED || result.status === STATUS.LANDED ? 0 : 1);
   }
   const missingForMs = missingSince === null ? 0 : Date.now() - missingSince;

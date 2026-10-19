@@ -88,6 +88,22 @@ export function blockingLane(prompt, tree) {
   return null;
 }
 
+/**
+ * The live lane owning `rel` (a repo-relative path of `tree`) as { lane, held, home }, or null when no daemon
+ * holds that lane or the path is no build input. Cheap checks first: a hand edit asks this on every write.
+ */
+export function liveLaneOfFile(tree, rel) {
+  let cfg;
+  try { cfg = readBrokerConfig(tree); } catch { return null; }
+  if (!cfg.repos.length) return null;
+  const { lane, base, inside } = laneOfPath(cfg, slash(rel));
+  const laneCfg = withLane(cfg, lane);
+  const held = liveLock(laneCfg);
+  if (!held || !hasTrackedCargo(tree)) return null;
+  if (!isBuildInput(inside) && !new Set(includeTargets(base)).has(inside)) return null;
+  return { lane, held, home: brokerPaths(laneCfg).home };
+}
+
 export function brokerOwnedMessage({ agent, tree, held, lane = null, home, footer }) {
   return [
     `BLOCKED: a broker daemon owns this working tree (pid ${held.pid}, ${lane ? `lane ${lane}` : 'root lane'}, ${home || join(tree, 'target', 'broker')}).`,

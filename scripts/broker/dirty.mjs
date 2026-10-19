@@ -5,7 +5,8 @@
 // without the lock until it is clean.
 //
 //   dirtState(cfg, repo, cwd, touched) -> checkoutState of the repo and of the submodules `touched` paths reach into
-//   holdDirty(cfg, job, repo)          record the refusal (touched = the job's paths)
+//   holdDirty(cfg, job, repo, entries) record the refusal (touched = the job's paths, entries = what is dirty); `since` keeps the first refusal's time
+//   readHold(cfg)                      -> the marker { id, repo, touched, entries, since } or null (hand-hold.mjs reports it)
 //   dirtyHold(cfg, repo)               -> true while the marked tree is still dirty; a clean one drops the marker
 //   pausedOnDirt(laneCfg, repo)        -> same, for another lane's marker (idle work asks before it takes the tree)
 
@@ -31,8 +32,8 @@ function detachedWork(cfg, repo, cwd) {
   return head && !reachable ? `${repo.path} is detached at ${head}, which is on neither ${repo.main} nor ${repo.remote}/${repo.main}; the lane waits so those commits are not orphaned` : null;
 }
 
-export function dirtState(cfg, repo, cwd, touched) {
-  for (const p of healOwnDirt(cfg, cwd)) console.error(`broker: put ${p} back from HEAD: only its line endings differed after a broker job wrote it`);
+export function dirtState(cfg, repo, cwd, touched, { heal = true } = {}) {
+  for (const p of heal ? healOwnDirt(cfg, cwd) : []) console.error(`broker: put ${p} back from HEAD: only its line endings differed after a broker job wrote it`);
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   const { own, subs } = splitLinked(cfg, repo, touched);
   const state = checkoutState(cwd, { untrackedBlocks, dirtyBlocks: dirtyBlocksOf(cfg, cwd), touched: own });
@@ -45,8 +46,14 @@ export function dirtState(cfg, repo, cwd, touched) {
   return state;
 }
 
-export function holdDirty(cfg, job, repo) {
-  try { writeFileSync(markerOf(cfg), JSON.stringify({ id: job.id, repo: repo.name, touched: (job.ops || []).map((o) => posix(o.path)) })); } catch { /* best effort: without it the lane just re-asks */ }
+export function readHold(cfg) {
+  try { return JSON.parse(readFileSync(markerOf(cfg), 'utf8')); } catch { return null; }
+}
+
+export function holdDirty(cfg, job, repo, entries = [], now = Date.now()) {
+  const before = readHold(cfg);
+  const since = before && before.id === job.id && before.repo === repo.name && before.since ? before.since : new Date(now).toISOString();
+  try { writeFileSync(markerOf(cfg), JSON.stringify({ id: job.id, repo: repo.name, touched: (job.ops || []).map((o) => posix(o.path)), entries, since })); } catch { /* best effort: without it the lane just re-asks */ }
 }
 
 /** True while `repo`'s tree is still dirty for the job the marker names. */

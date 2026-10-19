@@ -3,6 +3,8 @@
 export function printResult(r, log = console.log) {
   log(`${r.id}${r.revision > 1 ? ` (revision ${r.revision})` : ''} [${r.repo || ''}] → ${r.status}${r.phase ? ` at ${r.phase}` : ''}${r.landed ? ` landed ${r.landed.sha}` : ''}`);
   if (r.message) log(`  ${r.message}`);
+  for (const e of r.dirtyEntries || []) log(`  dirty: ${e}`);
+  if (r.status === 'dirty') log('  the job stays queued: the broker runs it once the tree is clean (`node broker.mjs status --root <checkout>` names the holder); wait again then');
   for (const f of r.conflict || []) log(`  conflict: ${f}`);
   if (r.head) log(`  HEAD ${r.head}${r.base && r.base !== r.head ? ` (submitted on ${r.base})` : ''}`);
   for (const s of r.stale || []) {
@@ -13,7 +15,7 @@ export function printResult(r, log = console.log) {
   for (const g of r.gate || []) log(`  gate ${g.path} [${g.check}]: ${g.msg}`);
   for (const c of r.commands || []) {
     log(`  $ ${c.composed}  → exit ${c.exit} (${c.durationMs}ms)`);
-    for (const f of c.foreign || []) log(`    foreign (also fails without the patch): ${f.test} � ${f.reason}`);
+    for (const f of c.foreign || []) log(`    foreign (also fails without the patch): ${f.test} � ${f.reason}`);
     for (const f of c.suspect || []) log(`    ${f.reason}: ${f.test}`);
     if (c.exit === 0 || (c.foreign || []).length) continue;
     for (const t of c.failedTests || []) log(`    failed test: ${t}`);
