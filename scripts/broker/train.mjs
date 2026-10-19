@@ -18,11 +18,12 @@ import { makeBaseline } from './baseline.mjs';
 import { treeState } from './cache.mjs';
 import { dirtyPaths, git, revParse } from './git.mjs';
 import { lockFilesDeep } from './locks.mjs';
-import { recordFault, recordRun } from './health-store.mjs';
+import { recordRun } from './health-store.mjs';
 import { foreignOf } from './job-commands.mjs';
 import { phaseTracker } from './phase.mjs';
 import { checkoutPins, implicitPins, revertPins } from './pin.mjs';
-import { capture, discard, dropNewLocks, restore, restoreMismatches } from './preimage.mjs';
+import { capture, discard, dropNewLocks, restore } from './preimage.mjs';
+import { checkRestore } from './restore-check.mjs';
 import { STATUS, logPathFor, removeJob, writeResult } from './result.mjs';
 import { blame } from './train-blame.mjs';
 import { trainCommands } from './train-commands.mjs';
@@ -121,8 +122,7 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
   } finally {
     if (journal && !kept) {
       putBack();
-      const off = restoreMismatches(journal);
-      if (off.length) recordFault(cfg, { kind: 'restore-mismatch', id, detail: `after the restore ${off.join(', ')} differ(s) from the journal` });
+      checkRestore(cfg, journal, id);
     }
     revertPins(pins);
     if (journal) recordRun(cfg, { id, repo: repo.name, kind: 'train', startedAt, entries: journal.entries });

@@ -6,7 +6,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { admit } from './admit.mjs';
-import { capture, discard, dropNewLocks, markCommitted, markLinked, restore, restoreMismatches } from './preimage.mjs';
+import { capture, discard, dropNewLocks, markCommitted, markLinked, restore } from './preimage.mjs';
+import { checkRestore } from './restore-check.mjs';
 import { landLinked } from './linked.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
@@ -22,7 +23,7 @@ import { phaseTracker } from './phase.mjs';
 import { gateTrailer } from './trailer.mjs';
 import { stalePins } from './pin-stale.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
-import { recordFault, recordRun } from './health-store.mjs';
+import { recordRun } from './health-store.mjs';
 import { changedLocks, dirtyPaths, git, revParse } from './git.mjs';
 import { lockFilesDeep, resolveLocks } from './locks.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
@@ -164,8 +165,7 @@ export function processPatch(cfg, job, repo) {
     else {
       restoreTree();
       revertPins(pins);
-      const off = restoreMismatches(journal);
-      if (off.length) recordFault(cfg, { kind: 'restore-mismatch', id: job.id, detail: `after the restore ${off.join(', ')} differ(s) from the journal` });
+      checkRestore(cfg, journal, job.id);
     }
     recordRun(cfg, { id: job.id, repo: job.repo, kind: 'job', startedAt, entries: journal.entries });
   }

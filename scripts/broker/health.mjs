@@ -16,7 +16,7 @@ import { catBlob, dirtyPaths, revParse } from './git.mjs';
 import { liveHolder, observedLive } from './lock.mjs';
 import { readInflight } from './preimage.mjs';
 import { listQueue, readResult, STATUS } from './result.mjs';
-import { readGatePass, readHealth, readRun, recentFaults, writeHealth } from './health-store.mjs';
+import { readGatePass, readHealth, readRestoreClean, readRun, recentFaults, writeHealth } from './health-store.mjs';
 import { stallLine, stallState } from './stall.mjs';
 import { handHoldEntries } from './hand-hold.mjs';
 
@@ -107,8 +107,8 @@ const FAULT_CAUSE = {
 };
 
 export function ownFaults(cfg, nowMs) {
-  const pass = readGatePass(cfg);
-  const resolved = (f) => f.kind === 'gate-crash' && pass && Date.parse(pass.at) > Date.parse(f.at);
+  const resolvedBy = { 'gate-crash': readGatePass(cfg), 'restore-mismatch': readRestoreClean(cfg) };
+  const resolved = (f) => resolvedBy[f.kind] && Date.parse(resolvedBy[f.kind].at) > Date.parse(f.at);
   const under = (f) => (f.runtime || f.pid ? ` [runtime ${f.runtime || '?'}, pid ${f.pid || '?'}]` : '');
   return recentFaults(cfg, nowMs, FAULT_AGE_MS).filter((f) => !resolved(f)).map((f) => ({ kind: `own-fault:${f.kind}`, detail: `job ${f.id}: ${f.detail}${under(f)}`,
     cause: `${FAULT_CAUSE[f.kind] || 'the tree after a restore differs from its journal'}; ${ticketHint(f.kind, f.id)}` }));

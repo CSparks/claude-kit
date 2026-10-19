@@ -41,6 +41,13 @@ export function recordGatePass(cfg) {
   writeFileSync(file(cfg, 'gatepass.json'), JSON.stringify({ at: new Date().toISOString(), pid: process.pid, runtime: runtimeTag() }));
 }
 
+/** Note that a restore verified clean: a restore-mismatch before this is resolved. */
+export function recordRestoreClean(cfg, at = new Date()) {
+  writeFileSync(file(cfg, 'restoreclean.json'), JSON.stringify({ at: at.toISOString() }));
+}
+
+export const readRestoreClean = (cfg) => readJson(file(cfg, 'restoreclean.json'), null);
+
 export const readGatePass = (cfg) => readJson(file(cfg, 'gatepass.json'), null);
 
 export function recentFaults(cfg, nowMs, maxAgeMs) {

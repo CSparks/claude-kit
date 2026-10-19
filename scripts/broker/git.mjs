@@ -126,6 +126,12 @@ export function hashObject(cwd, path) {
   return r.code === 0 ? r.out : null;
 }
 
+// The blob a working file becomes when git adds it (clean filters applied), or null.
+export function hashObjectFiltered(cwd, path) {
+  const r = git(['hash-object', '--', path], cwd);
+  return r.code === 0 ? r.out : null;
+}
+
 // Put `bytes` back at `path` the way a checkout writes it: when they are the tracked file's content
 // (the clean filter maps them to the index blob) `git checkout-index` writes the working form
 // (CRLF under autocrlf) and records its stat, so the file reads as unmodified; any other content,

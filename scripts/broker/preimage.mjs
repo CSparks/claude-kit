@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, rmdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
-import { catBlob, git, hashObject, writeAsCheckout } from './git.mjs';
+import { catBlob, git, hashObject, hashObjectFiltered, writeAsCheckout } from './git.mjs';
 import { lockFilesDeep } from './locks.mjs';
 import { recordWritten } from './written.mjs';
 
@@ -65,11 +65,16 @@ export function restorePaths(journal, paths) {
 /** True when the in-flight journal is job `id`'s own run or a train carrying it. */
 export const inflightHas = (inflight, id) => !!inflight && (inflight.id === id || (inflight.members || []).includes(id));
 
-/** Paths whose bytes differ from the journal's pre-image (call after `restore`). */
+// A restored file is the pre-image when its exact bytes match, or when git adds it as the pre-image blob
+// (a checkout writes the working form, CRLF under autocrlf, of an LF blob).
+const matchesPreImage = (cwd, path, blob) => {
+  if (!existsSync(join(cwd, path))) return blob === null;
+  return blob !== null && (hashObject(cwd, path) === blob || hashObjectFiltered(cwd, path) === blob);
+};
+
+/** Paths that differ from the journal's pre-image (call after `restore`). */
 export function restoreMismatches(journal) {
-  return journal.entries
-    .filter(({ path, blob }) => (existsSync(join(journal.cwd, path)) ? hashObject(journal.cwd, path) : null) !== blob)
-    .map(({ path }) => path);
+  return journal.entries.filter(({ path, blob }) => !matchesPreImage(journal.cwd, path, blob)).map(({ path }) => path);
 }
 
 /** Drop the journal without restoring: the tree now matches a commit. */
