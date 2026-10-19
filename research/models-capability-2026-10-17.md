@@ -38,6 +38,7 @@ Cost per landing = per-token price x the tokens a job type burns x the retry rat
 | 11 | forensic | opus | Confirmed. CodeRabbit hard cases: Opus 8 vs Sonnet 6; Opus at max 10. Fable 5.1 is the escalation, not the first pass. | B (CodeRabbit) |
 | 12 | plan | fable | NOT confirmed by sources: every source says Opus 5.5 by default and Fable only when Opus at max fails; Fable 5.1 costs 2.5x Opus per token and an orchestrated build cost 2.4x its predecessor. Row rests on Chris's 2026-10-12 decision (rolling terrain edges, mine entrances). Proposal: plan family fable to opus with fable as `fallback`. Not applied; not re-dated. | C (opus-default advice), M (2026-10-12 approval) |
 | 13 | deep | fable (explicit only) | Confirmed. Explicit-only keeps the highest-cost family off routine work; Anthropic positions Fable for multi-hour ambitious work and rare edge cases. | A |
+| 14 | coordination | sonnet | Maintainer decision, no source test: planning and coordination are separate jobs, so the main thread coordinates on Sonnet while `plan` stays Opus. | M (Chris 2026-10-17, KIT-D098) |
 
 ## Caveats
 - The Fable-vs-Opus advice comes from aggregators plus one hands-on build; no source tests planning of the kind Chris named (spatial, terrain). That gap is why the `plan` row is a proposal, not a change.

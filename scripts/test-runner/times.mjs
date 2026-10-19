@@ -4,6 +4,7 @@
 //   readTimes(file)            -> { 'scripts/x.test.mjs': ms }  ({} when absent or unreadable)
 //   writeTimes(file, results)  merge `results` [{ file, ms }] over the stored times
 //   slowest(results, n)        -> the n slowest results, longest first
+//   slowFiles(results, limitMs)  -> the results over limitMs
 //   longestFirst(files, times) -> files ordered by stored time, longest first; unknown files lead (they may be long)
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -23,6 +24,8 @@ export function writeTimes(file, results) {
     writeFileSync(file, `${JSON.stringify({ updatedAt: new Date().toISOString(), files }, null, 2)}\n`);
   } catch { /* timings are an optimisation; a read-only checkout still runs */ }
 }
+
+export const slowFiles = (results, limitMs) => results.filter((r) => r.ms > limitMs);
 
 export const slowest = (results, n) => [...results].sort((a, b) => b.ms - a.ms).slice(0, n);
 

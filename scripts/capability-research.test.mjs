@@ -1,7 +1,7 @@
 // capability-research.test.mjs — KIT-T433: the graded per-job capability note that gates a refresh and a row re-date.
 // Run: node scripts/capability-research.test.mjs
 
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseCapabilityNote, isGraded, capabilityCoverage, capabilityNotePath } from './capability-research.mjs';
 import { KIT_ROOT } from './dispatch-ladder.mjs';
@@ -23,8 +23,9 @@ try {
   ok('coverage can be narrowed to named jobs', capabilityCoverage(kit, '2026-10-12', ['fix']).missing.length === 0);
   ok('the note path is dated under research/', capabilityNotePath(kit, '2026-10-12') === join(kit, 'research', 'models-capability-2026-10-12.md'));
 
-  const live = capabilityCoverage(KIT_ROOT, '2026-10-12');
-  ok('the live 2026-10-12 note grades every dispatch.jobs row (research plus the maintainer approval table)', existsSync(live.file) && live.missing.length === 0);
+  const newest = readdirSync(join(KIT_ROOT, 'research')).map((f) => /^models-capability-(\d{4}-\d{2}-\d{2})\.md$/.exec(f)).filter(Boolean).map((m) => m[1]).sort().pop();
+  const live = capabilityCoverage(KIT_ROOT, newest);
+  ok(`the live ${newest} note grades every dispatch.jobs row (research plus the maintainer approval table)`, existsSync(live.file) && live.missing.length === 0);
 } finally {
   cleanup();
 }
