@@ -76,6 +76,7 @@ export function processPatch(cfg, job, repo) {
   const cwd = join(cfg.root, repo.path);
   const done = (fields) => ({ result: writeResult(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields, timings: ph.timings() }) });
   const admitted = admit(cfg, job, repo, { onPhase: (p) => ph.enter(p) });
+  if (admitted.pause) ph.enter('held');
   if (!admitted.ok) return { ...done(admitted.fields), pause: admitted.pause };
   const { plan } = admitted;
 

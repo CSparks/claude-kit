@@ -8,6 +8,7 @@
 
 import { repoByName, withLane } from './config.mjs';
 import { dirtyHold, holdDirty, pausedOnDirt } from './dirty.mjs';
+import { rekeyHold } from './hand-hold.mjs';
 import { isPaused } from './control.mjs';
 import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
@@ -65,7 +66,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
       if (taken && taken.busy) { waiting.set(job.repo, taken.busy); continue; }
       if (taken) console.error(`broker: restored ${taken.restored.length} path(s) that ${job.id} left half-applied under ${taken.home}`);
       const own = repoByName(cfg, job.repo);
-      if (own && dirtyHold(cfg, own)) { held.set(job.repo, job.id); continue; }
+      if (own && dirtyHold(cfg, own)) { held.set(job.repo, job.id); rekeyHold(cfg, job, own); continue; }
       train = formTrain(cfg, job, roundRobin(listQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) });
       tree = takeSubtrees(cfg, subtreesFor(cfg, repoByName(cfg, job.repo) || {}, train ? train.members.map((m) => m.job) : [job]), job.id);
       if (!tree.ok) { waiting.set(job.repo, tree.reason); continue; }

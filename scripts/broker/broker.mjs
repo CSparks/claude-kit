@@ -62,7 +62,8 @@ if (flags.log) {
 const command = flags._[0];
 if (command === 'pause' || command === 'resume') {
   (command === 'pause' ? pause : resume)(cfg);
-  console.error(`broker: ${command === 'pause' ? 'paused' : 'resumed'} (${root})`);
+  const hold = command === 'resume' ? holdReport(cfg) : null;
+  console.error(hold ? `broker: operator pause cleared; dirty hold remains: ${hold.entries.join(', ')} (${root}); ${holdLine(hold)}` : `broker: ${command === 'pause' ? 'paused' : 'resumed'} (${root})`);
   process.exit(0);
 }
 

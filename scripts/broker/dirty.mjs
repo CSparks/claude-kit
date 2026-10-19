@@ -52,7 +52,7 @@ export function readHold(cfg) {
 
 export function holdDirty(cfg, job, repo, entries = [], now = Date.now()) {
   const before = readHold(cfg);
-  const since = before && before.id === job.id && before.repo === repo.name && before.since ? before.since : new Date(now).toISOString();
+  const since = before && before.repo === repo.name && before.since ? before.since : new Date(now).toISOString();
   try { writeFileSync(markerOf(cfg), JSON.stringify({ id: job.id, repo: repo.name, touched: (job.ops || []).map((o) => posix(o.path)), entries, since })); } catch { /* best effort: without it the lane just re-asks */ }
 }
 
