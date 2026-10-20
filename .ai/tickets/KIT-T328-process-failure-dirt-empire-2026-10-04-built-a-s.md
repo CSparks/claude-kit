@@ -2,7 +2,7 @@
 id: KIT-T328
 title: Process failure (dirt-empire 2026-10-04): built a scratch silhouette scorer and proposed silhouette/lint/reference tooling as new, while rap
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-04T23:05:49Z
-updated: 2026-10-04T23:05:49Z
+updated: 2026-10-20T00:53:28Z
+fixed_commit: b6dd07f
 ---
 
 ## Description
@@ -29,3 +30,5 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-10-04 23:05] (created) bug — Process failure (dirt-empire 2026-10-04): built a scratch silhouette scorer and proposed silhouette/lint/reference tooling as new, while rap
+- [2026-10-20 00:53] (status) todo → review
+- [2026-10-20 00:53] (comment) q now prints 'NOT searched: framework submodule ... is not checked out' on an empty answer when a declared framework submodule is absent; test scripts/q-gaps.test.mjs

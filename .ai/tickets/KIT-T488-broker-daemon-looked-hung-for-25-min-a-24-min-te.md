@@ -44,3 +44,6 @@ Add-on: (a) the stall limit has no config key in the published runtime (no 'stal
 - [2026-10-14 22:01] (comment) @claude: Comment #3/#4 addressed under KIT-T493 (beat in every landing phase, no kill inside a landing or past a commit, journal  (full comment #5 in ## Notes)
 ### comment #5 [2026-10-14 22:01] @claude
 Comment #3/#4 addressed under KIT-T493 (beat in every landing phase, no kill inside a landing or past a commit, journal re-based at commit + resume, kill recorded in the result, stall_kill_s key) and KIT-T496 (detached, logging replacement daemon). The cap --not-dup refusal is KIT-T497.
+- [2026-10-15 00:03] (comment) @claude: Correction to #4(b): cap did not refuse; the 'possible duplicate' hint read like a refusal and the capture landed as KIT (full comment #6 in ## Notes)
+### comment #6 [2026-10-15 00:03] @claude
+Correction to #4(b): cap did not refuse; the 'possible duplicate' hint read like a refusal and the capture landed as KIT-T495 (fixed in 613f5a9). KIT-T497 made --not-dup real and the hint now says 'filed'. My repeated cap runs for the same text may have produced duplicate captures; dirt-empire's writer deduped on its side.

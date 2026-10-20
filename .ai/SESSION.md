@@ -1,6 +1,9 @@
 # SESSION
 
 ## Current state (2026-08-25)
+
+- [2026-10-20 00:41] Standing kit agent (KIT-D094) working KIT-T592 and the order of tickets: q/t/broker gaps closed (q code --dir, t session --fix/--drop, t revise, t triage, broker clean, patch-worker Write confined to temp), enforcement hooks written (store-shell-gate, tree-delete-gate, python-stdin-gate, Grep tool in query-gate); hooks.json entries for the three new hooks are added only AFTER publish:runtime (sealed runtime must carry the files first, KIT-T594). Next: test run, commit, publish, then re-add the hooks.json entries and update the tickets.
+
 KIT-T189 is in `review`: the UNBOUNDED catch-all store shipped (decision KIT-D068).
 
 A session with no `.ai/` above its cwd now resolves to one configured catch-all store instead

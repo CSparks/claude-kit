@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-15T17:28:30Z
-updated: 2026-10-16T15:39:43Z
+updated: 2026-10-20T03:10:06Z
+fixed_commit: 84821fa
 ---
 
 ## Description
@@ -44,3 +45,5 @@ Fixed in 7a3a9dc (pushed). Root cause of the gate-run -> push window: the repo's
 - [2026-10-16 14:58] (status) review → todo
 - [2026-10-16 15:39] (comment) @claude: Fixed in 7a3a9dc (pushed). Root cause of the gate-run -> push window: the repo's pre-push hook refuses a dirty lock BEFO (full comment #4 in ## Notes)
 - [2026-10-16 15:39] (status) todo → review
+- [2026-10-20 03:10] (status) review → review
+- [2026-10-20 03:10] (comment) evidence for the kill-mid-run Cargo.lock path: pin-step restore and restore --debris (scripts/broker/restore.test.mjs 5 passed); the journal already covers nested submodule locks (locks.mjs lockFilesDeep)

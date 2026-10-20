@@ -42,6 +42,7 @@ TaskStop leaves a stale in-flight row in .ai/agents.jsonl: killing an agent with
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+2026-10-20 kit agent: readAgents reconciles an in-flight row whose agent died without SubagentStop (reconcileAgents, KIT-T428), so the phantom-conflict cause is addressed on read; I did not re-run the TaskStop reproduction. No hand surgery of agents.jsonl is needed or allowed (store-shell-gate).
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per

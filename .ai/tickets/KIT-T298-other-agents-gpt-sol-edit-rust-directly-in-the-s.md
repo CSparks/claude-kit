@@ -2,7 +2,7 @@
 id: KIT-T298
 title: Other agents (GPT Sol) edit Rust directly in the shared stiletto/rapid-game checkout outside the broker; every save pauses the broker queue
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:
 labels: [kit-feature]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-03T03:02:35Z
-updated: 2026-10-03T03:02:35Z
+updated: 2026-10-20T00:53:30Z
+fixed_commit: b6dd07f
 ---
 
 ## Description
@@ -32,3 +33,5 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 - [2026-10-13 19:49] (comment) @sonnet55: Proposed fix (not built; cross-agent policy, needs the maintainer): two parts. (A) Give non-Claude agents a documented b (full comment #1 in ## Notes)
 ### comment #1 [2026-10-13 19:49] @sonnet55
 Proposed fix (not built; cross-agent policy, needs the maintainer): two parts. (A) Give non-Claude agents a documented broker path: scripts/broker/submit.mjs already takes a stdin envelope and --no-patch (KIT-T317), so it is agent-neutral; add a short AGENTS.md section for Codex/GPT with the submit/wait/land commands and the rule 'never edit .rs/Cargo.toml in the live tree'. The maintainer controls those agents' instructions, so this is the only lever that stops the writes. (B) Soften the symptom: dirty_blocks pauses on any modified *.rs, but only paths a queued job touches can actually collide; a mode 'dirty_blocks: touched-only' (pause only when a dirty path is in the job's patch) would stop saves from stalling unrelated landings, at the cost of letting a job build over someone's half-edited file. Recommend A, with B off by default. Decision needed: A only, or A+B.
+- [2026-10-20 00:53] (status) todo → review
+- [2026-10-20 00:53] (comment) [no-test: documentation] docs/BROKER.md says any agent (Claude or not) uses submit.mjs and wait.mjs, and what a hand edit costs

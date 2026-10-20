@@ -2,7 +2,7 @@
 id: KIT-T471
 title: q gap: 'open' has no --scope flag
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-14T07:12:16Z
-updated: 2026-10-14T07:12:16Z
+updated: 2026-10-20T00:53:17Z
+fixed_commit: b6dd07f
 ---
 
 ## Description
@@ -29,3 +30,7 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-10-14 07:12] (created) bug — q gap: 'open' has no --scope flag
+- [2026-10-16 22:27] (comment) seen again in rapid-game: q open --scope RG
+- [2026-10-19 23:18] (comment) seen again in claude-kit: q open --scope KIT
+- [2026-10-20 00:53] (status) todo → review
+- [2026-10-20 00:53] (comment) q open/inbox/rundown/... take --scope <key> and --project <name>; test scripts/q-gaps.test.mjs

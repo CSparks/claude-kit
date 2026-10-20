@@ -1,0 +1,1 @@
+(decision) Priority (Chris 2026-10-17, verbatim: 'I think you just figured out what needs to be next after the broker. I'm tired of having to repeat myself.'): the next kit programme after the broker vetting (ST-T904) is DIRECTIVES STAY TRUE: a rule Chris states is open work until a test enforces it, not a record. KIT-T554 is its first slice.

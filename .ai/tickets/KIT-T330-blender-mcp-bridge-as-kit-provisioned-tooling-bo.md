@@ -27,5 +27,8 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 ## Plan
 1.
 
+## Notes
+2026-10-20 kit agent: not started. Provisioning the Blender MCP server and a pinned addon copy touches bootstrap and machine-level config and has no test I can run headless here; needs a maintainer decision on the addon source and pin. Left todo.
+
 ## History
 - [2026-10-05 15:35] (created) feature — Blender MCP bridge as kit-provisioned tooling: bootstrap registers the user-scope 'blender' MCP server (uvx blender-mcp, DISABLE_TELEMETRY=t

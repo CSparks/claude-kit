@@ -27,6 +27,9 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 ## Plan
 1.
 
+## Notes
+2026-10-20 kit agent: not a kit defect. The editor preview was built over a generator the game does not run (stiletto ST-T758); the kit-side prevention is the framework-first grounding check (dispatch ui-framework-first, KIT-T583), which covers UI only. Left todo for the stiletto owner; no kit change made.
+
 ## History
 - [2026-10-02 19:31] (created) bug — Editor preview built over a generator the game does not run: ST-T758 Structures tool previews rg_landform::recipes::shaft, which no worldgen
 - [2026-10-13 19:49] (comment) @sonnet55: Proposed fix (not built; for the maintainer): the failure is building an editor preview over a generator the game never  (full comment #1 in ## Notes)

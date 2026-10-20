@@ -1,0 +1,1 @@
+chore capability table is stale: row asset evidence 2026-10-12 is past dispatch.refresh_days 7, and dispatch-guard capability-table-stale then blocks every Agent dispatch in every adopted repo; model-refresh.mjs refuses without a graded research/models-capability-<date>.md including the asset row
