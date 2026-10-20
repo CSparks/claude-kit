@@ -14,6 +14,7 @@ import { installedPluginRoot, isDevLinked, checkInstalledDrift } from '../script
 import { docReviewAge, repoHasSource } from './lib/doc-review.mjs';
 import { cacheDir, pathKey } from './lib/stat-cache.mjs';
 import { autoReviewDirective } from './lib/auto-review.mjs';
+import { activeInboxNotes } from './lib/active-inbox.mjs';
 import { payload, MAINT_LOG, git, gitRoot, adopted, wipSummary, scanInbox, scanReviewQueue, scanStaleDoingTickets, scanReminders, readTurnState, writeTurnState } from './lib.mjs';
 
 const REVIEW_DAYS = 7;
@@ -347,6 +348,13 @@ try {
       reminders.push(
         `INBOX UN-TRIAGED: ${inbox.stale} item(s) ≥ ${INBOX_STALE_DAYS}d (oldest ${inbox.oldestDays}d) sitting in .ai/inbox/. ` +
           `Drain it (\`${command('triage')}\`) — un-triaged capture rots silently.`,
+      );
+    }
+    const active = activeInboxNotes(root);
+    if (active.total) {
+      reminders.push(
+        `ACTIVE WORK THE ANCHOR DOES NOT DESCRIBE: ${active.total} untriaged capture(s) newer than SESSION.md. Read them before trusting it ` +
+          `(\`q inbox\`): ${active.lines.join(' | ')}`,
       );
     }
     // The review/UAT queue waits on the HUMAN (KIT-D033: review IS the UAT stage). Surface it

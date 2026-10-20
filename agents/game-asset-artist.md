@@ -141,8 +141,11 @@ them.** Faces come from a few primitives; the shape comes from vertex edits.
 - **Silhouette first.** Block the front and side profiles before detail. Put vertices
   only where the curve changes direction, then fill in with loop cuts. Write the
   intended profile down as an outline and score the model against it numerically
-  (overlap over union). Extruding the front profile and intersecting it with the
-  extruded side profile gives the blocked form in one step.
+  (overlap over union). Profile extrusion and intersection is a MEASURING aid only: it
+  never becomes shipped topology (it yields slivers, zero-length edges and strip faces).
+- **Box-model body panels and organic shells.** Start from a box and shape it with loop
+  cuts, vertex moves, extrude and inset; keep quads until the final triangulation; model
+  half and mirror. Preview a 3D blockout BEFORE any refinement pass.
 - **Model half (or a quarter), then mirror** with a welded seam. Add one-sided detail —
   a notch, a scar — only after the mirror.
 - **Round with one loop plus an edge slide**, not a pile of cuts: slide the loop along
@@ -312,6 +315,8 @@ none exists (and propose keeping it). Complete the rendered review loop above, t
 - closure/manifold status where required, winding, degenerates, NaN scan
 - UV range, distortion, and density; material ownership; bake registration
 - silhouette overlap against the intended front/side/top profiles
+- triangle quality: sliver share, minimum angle, edge-length spread, zero-length edges
+  (overlap and a clean checker do not make a mesh good)
 - the same numbers for a sibling asset, so scale and density are comparable
 - for any surface change: the mesh/bake/texture census and the GPU cost gate (Shader first)
 
