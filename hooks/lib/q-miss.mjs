@@ -21,7 +21,14 @@ export function responseText(resp) {
   return [resp.stdout, resp.stderr, resp.output, resp.text].filter((x) => typeof x === 'string').join('\n');
 }
 
-const emptyOrFailed = (text) => /\(no results\)/.test(text) || /^q: /m.test(text) || !text.trim();
+/** Does a search text carry at least half of the smaller term set, counted against the empty q's terms? */
+export function sameTerms(qTerms, text) {
+  const terms = [...words(text)];
+  const shared = terms.filter((w) => qTerms.includes(w)).length;
+  return shared > 0 && shared / Math.min(terms.length, qTerms.length) >= MIN_OVERLAP_SHARE;
+}
+
+const emptyOrFailed =(text) => /\(no results\)/.test(text) || /^q: /m.test(text) || !text.trim();
 
 export async function noteSearch(root, row, response, project) {
   const state = readTurnState(root, SLOT);
@@ -35,10 +42,7 @@ export async function noteSearch(root, row, response, project) {
   if (!state || !state.terms || !state.terms.length) return null;
   const calls = (state.calls || 0) + 1;
   if (calls > WINDOW_CALLS) { writeTurnState(root, {}, SLOT); return null; }
-  const grepTerms = [...words(`${row.pattern} ${row.queryText || ''}`)];
-  const shared = grepTerms.filter((w) => state.terms.includes(w)).length;
-  const overlap = shared > 0 && shared / Math.min(grepTerms.length, state.terms.length) >= MIN_OVERLAP_SHARE;
-  if (!overlap) { writeTurnState(root, { ...state, calls }, SLOT); return null; }
+  if (!sameTerms(state.terms, `${row.pattern} ${row.queryText || ''}`)) { writeTurnState(root, { ...state, calls }, SLOT); return null; }
   writeTurnState(root, {}, SLOT);
   const { fileKitBug } = await import('../../scripts/kit-bug.mjs');
   const verb = state.cmd.split(' ')[1] || 'query';
