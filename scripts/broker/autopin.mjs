@@ -10,7 +10,7 @@
 //   reportRedPin(cfg, job, result, { fileBug })      -> true when a bug was filed
 
 import { spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { readRegistry } from '../../hooks/lib/registry.mjs';
 import { readBrokerConfig } from './config.mjs';
@@ -38,7 +38,30 @@ export function consumersOf(repo, { projects = readRegistry().projects, from = n
   return found;
 }
 
-const detached = (file, args) => spawn(process.execPath, [file, ...args], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+// Under land_gate: affected a pin-only job must name its check: submit refuses a --no-patch job with no --test.
+function checkArgs(root) {
+  try {
+    const cfg = readBrokerConfig(root);
+    return cfg.landGate === 'affected' && cfg.affected && cfg.affected.check ? ['--test', cfg.affected.check] : [];
+  } catch { return []; }
+}
+
+/** The submit.mjs argv that queues the pin job in the consumer at `root`. */
+export function pinSubmitArgs(root, repo, sha, { ticket, origin }) {
+  return ['--root', root, '--ticket', ticket, '--title', `pin ${repo.name} ${sha.slice(0, 10)}`, '--pin', `${repo.name}=${sha}`, '--no-patch', ...checkArgs(root), '--land', '--auto-pin', origin || 'landing'];
+}
+
+// The submit's output goes to the consumer's auto-pin log: a refused pin is read there, not lost.
+function detached(file, args) {
+  const root = args[args.indexOf('--root') + 1];
+  let out = 'ignore';
+  try {
+    const dir = join(root, 'target', 'broker', 'logs');
+    mkdirSync(dir, { recursive: true });
+    out = openSync(join(dir, 'auto-pin.log'), 'a');
+  } catch { /* no log: the pin is still tried */ }
+  spawn(process.execPath, [file, ...args], { detached: true, stdio: ['ignore', out, out], windowsHide: true }).unref();
+}
 
 export function queueAutoPins(repo, sha, jobs, { consumers, run = detached, from } = {}) {
   const queued = [];
@@ -50,7 +73,7 @@ export function queueAutoPins(repo, sha, jobs, { consumers, run = detached, from
     if (!ticket || !sha) return queued;
     for (const root of roots) {
       try {
-        run(SUBMIT, ['--root', root, '--ticket', ticket, '--title', `pin ${repo.name} ${sha.slice(0, 10)}`, '--pin', `${repo.name}=${sha}`, '--no-patch', '--land', '--auto-pin', origin || 'landing']);
+        run(SUBMIT, pinSubmitArgs(root, repo, sha, { ticket, origin }));
         queued.push(root);
       } catch { /* one consumer's failure never holds another */ }
     }

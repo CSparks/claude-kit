@@ -9,6 +9,7 @@ import { parseEnvelope } from './envelope.mjs';
 import { git, revParse } from './git.mjs';
 import { planAtHead } from './plan.mjs';
 import { linkedReader } from './linked.mjs';
+import { laneRef } from './lane-ref.mjs';
 import { jobSession } from './rr.mjs';
 import { isSuiteShaped } from './landgate.mjs';
 import { parentWorkspaceCommand } from './lane-cargo.mjs';
@@ -63,8 +64,9 @@ export function buildPatchJob(cfg, flags, text) {
   const cwd = join(cfg.root, repo.path);
   const outside = tests.map((c) => parentWorkspaceCommand(repo, cwd, c)).find(Boolean);
   if (outside) return { error: outside };
-  const base = revParse(cwd, 'HEAD');
-  const { plan } = planAtHead(cwd, ops, { read: linkedReader(cfg, repo, cwd), ownFiles: inflightCreated(cfg, cwd) });
+  const ref = laneRef(repo, cwd);
+  const base = revParse(cwd, ref);
+  const { plan } = planAtHead(cwd, ops, { ref, read: linkedReader(cfg, repo, cwd, ref), ownFiles: inflightCreated(cfg, cwd) });
   const meta = {
     id: newJobId(), revises: typeof flags.revises === 'string' ? flags.revises : null, repo: repo.name, base,
     ticket: flags.ticket ? String(flags.ticket) : null, title: flags.title ? String(flags.title) : '',
@@ -76,6 +78,6 @@ export function buildPatchJob(cfg, flags, text) {
     const stale = staleEntries(cwd, base, plan.stale);
     return { result: { ...meta, head: base, status: STATUS.STALE, phase: 'submit-dryrun', stale, gate: [], commands: [], landed: null } };
   }
-  const files = Object.fromEntries([...plan.files.keys()].map((p) => [p, git(['rev-parse', `HEAD:${p}`], cwd).out || null]));
+  const files = Object.fromEntries([...plan.files.keys()].map((p) => [p, git(['rev-parse', `${ref}:${p}`], cwd).out || null]));
   return { job: { ...meta, ops, files, commands: tests, land: !!flags.land, pins: pinned.pins, noPin: !!flags['no-pin'] } };
 }

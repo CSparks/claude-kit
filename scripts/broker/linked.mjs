@@ -45,11 +45,11 @@ export function splitLinked(cfg, repo, paths) {
   return { own, subs };
 }
 
-export function linkedReader(cfg, repo, cwd) {
+export function linkedReader(cfg, repo, cwd, ref = 'HEAD') {
   return (path) => {
     const hit = subOf(cfg, repo, path);
-    if (!hit) return showFile(cwd, 'HEAD', path);
-    const recorded = git(['rev-parse', `HEAD:${norm(hit.sub.path)}`], cwd).out;
+    if (!hit) return showFile(cwd, ref, path);
+    const recorded = git(['rev-parse', `${ref}:${norm(hit.sub.path)}`], cwd).out;
     return recorded ? showFile(join(cfg.root, hit.sub.path), recorded, hit.rel) : null;
   };
 }
