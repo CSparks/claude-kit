@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 
 import {
-  adopted, ageFile, cleanup, git, hook, project, reporter, repo, tmpDir, TMP_REG,
+  adopted, ageFile, cleanup, fixtureKit, git, hook, isoDaysAgo, project, reporter, repo, tmpDir, TMP_REG,
 } from './test-harness.mjs';
 
 const { ok, done } = reporter('orient');
@@ -155,7 +155,8 @@ try {
       '  - name: rapid-rust\n    role: dead\n    note: retired\n' +
       '  - name: wordslide-codex\n    role: parent\n    note: org root\n');
 
-    const r = hook('orient.mjs', {}, tb);
+    // A fresh capability table: the STALE-models line is clock-driven and must not decide the budget.
+    const r = hook('orient.mjs', {}, tb, { CLAUDE_KIT_LADDER_ROOT: fixtureKit(isoDaysAgo(0)) });
 
     ok('orient KIT-T071: output is within the token budget (≤1200 tokens)', r.out.length <= BUDGET_CHARS);
     ok('orient KIT-T071: ORIENTATION header is present', /ORIENTATION/.test(r.out));
