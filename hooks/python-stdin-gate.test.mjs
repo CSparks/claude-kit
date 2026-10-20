@@ -5,7 +5,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { isStoreStub, pythonStdinCommand } from './lib/python-stdin.mjs';
+import { isBrokenStdinPython, pythonStdinCommand } from './lib/python-stdin.mjs';
 
 const HOOK = fileURLToPath(new URL('./python-stdin-gate.mjs', import.meta.url));
 let fails = 0;
@@ -23,14 +23,14 @@ for (const cmd of ['python3 script.py', 'python3 -c "print(1)"', 'python3 -m htt
   check(`allows on the stub: ${cmd}`, pythonStdinCommand(cmd, stub) === null);
 }
 check('allows stdin python when the interpreter is real', pythonStdinCommand('python3 -', real) === null);
-check('a non-Windows machine has no stub', process.platform === 'win32' || isStoreStub('python3') === false);
+check('a non-Windows machine has no broken python', process.platform === 'win32' || isBrokenStdinPython('python3') === false);
 
 const hook = (command) => spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }), encoding: 'utf8' });
 check('the hook allows a plain command (exit 0)', hook('ls').status === 0);
 check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { input: 'nope', encoding: 'utf8' }).status === 0);
-if (process.platform === 'win32' && isStoreStub('python3')) {
+if (process.platform === 'win32' && isBrokenStdinPython('python3')) {
   const r = hook('python3 -');
-  check('on this machine python3 is the stub: the hook blocks and names node', r.status === 2 && /node -e/.test(r.stderr), r.stderr);
+  check('on this machine python3 hangs on stdin: the hook blocks and names node', r.status === 2 && /node -e/.test(r.stderr), r.stderr);
 }
 
 console.log(`\n${passes} passed, ${fails} failed`);
