@@ -41,7 +41,8 @@
 // FALLBACK: with no DB (or no SQLite engine), every canned query degrades to an in-memory
 // markdown scan via db-parse, so an agent/hook still gets answers — the cache is optional.
 
-import { existsSync, statSync, readdirSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
+import { readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { resolveEngine } from './db-engine.mjs';
 import { hydrate, defaultDbPath, hydrationSources, isRegisteredStore, isSharedDb } from './hydrate-db.mjs';
@@ -58,6 +59,7 @@ import { resolveStoreRoot } from '../hooks/lib.mjs';
 import { searchScopes } from './q-framework.mjs';
 import { showRows, withAsked } from './q-show.mjs';
 import { unsupportedFlags, reportGap } from './q-gap.mjs';
+import { scopeFlagToPositional } from './q-scope-flag.mjs';
 import { basename } from 'node:path';
 import { printRows } from './q-print.mjs';
 import { codeVerbRows } from './code-index-query.mjs';
@@ -68,19 +70,23 @@ import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
 const SNIPPET_COL = 2;       // items_fts column index of `body` for snippet()
 const SNIPPET_TOKENS = 8;    // words of context around an FTS match
 
-function newestAcross(sources) {
-  let newest = 0;
-  const walk = (dir) => {
+// Newest .md mtime across the sources, walked with every directory and stat in flight at
+// once: the serial walk was the bulk of a workflow query's latency.
+const latest = (times) => times.reduce((a, b) => Math.max(a, b), 0);
+
+async function newestAcross(sources) {
+  const walk = async (dir) => {
     let entries;
-    try { entries = readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const e of entries) {
+    try { entries = await readdir(dir, { withFileTypes: true }); } catch { return 0; }
+    const times = await Promise.all(entries.map(async (e) => {
       const p = join(dir, e.name);
-      if (e.isDirectory()) walk(p);
-      else if (e.name.endsWith('.md')) newest = Math.max(newest, statSync(p).mtimeMs);
-    }
+      if (e.isDirectory()) return walk(p);
+      if (!e.name.endsWith('.md')) return 0;
+      try { return (await stat(p)).mtimeMs; } catch { return 0; }
+    }));
+    return latest(times);
   };
-  for (const s of sources) walk(s.aiDir);
-  return newest;
+  return latest(await Promise.all(sources.map((s) => walk(s.aiDir))));
 }
 
 // Open the cache, auto-(re)hydrating when it is missing or stale. `root` is undefined for a
@@ -107,7 +113,7 @@ export async function dbOpen(root, dbPath, { assumeFresh = false } = {}) {
   // In-process writes hydrate at the mutation site via writeItemFile — KIT-T096.
   // `assumeFresh`: a caller that just ran a verified query moments ago (orient's follow-up
   // trails) skips the store walk, which statistics every .md under every registered project.
-  const wasStale = !existsSync(dbPath) || (!assumeFresh && statSync(dbPath).mtimeMs < newestAcross(hydrationSources(root)));
+  const wasStale = !existsSync(dbPath) || (!assumeFresh && statSync(dbPath).mtimeMs < await newestAcross(hydrationSources(root)));
   if (wasStale) await hydrate({ root, dbPath });
   return { handle: open(dbPath), wasStale };
 }
@@ -404,11 +410,6 @@ async function queryOnce(cmd, args, { root, cwdRoot = root || process.cwd(), noD
   if (!handle) {
     return { rows: fallback(cmd, args, cwdRoot), cached: false };
   }
-  // Surface a one-line stale notice so consumers know the DB was rehydrated mid-session
-  // (the KIT-T035 incident: stale counts were silently served until a manual re-hydrate).
-  if (wasStale) {
-    process.stderr.write('q: cache was stale — rehydrated before answering.\n');
-  }
   try {
     const Q = cannedQueries(cwdRoot);
     const fn = Q[cmd];
@@ -498,7 +499,7 @@ async function main() {
   // `--topic <slug>` is the flag spelling of the `topic <slug>` verb — the form that reads
   // naturally beside the other retrieval flags (KIT-T189).
   const ti = rest.indexOf('--topic');
-  const [cmd, ...args] = ti >= 0 ? ['topic', rest[ti + 1]] : rest;
+  const [cmd, ...rawArgs] = ti >= 0 ? ['topic', rest[ti + 1]] : rest;
   if (!cmd) { process.stderr.write(QUERY_SURFACE); process.exit(2); }
   if (cmd === '--help' || cmd === '-h' || cmd === 'help') { process.stdout.write(QUERY_SURFACE); process.exit(0); }
 
@@ -508,6 +509,8 @@ async function main() {
     const { runSessions } = await import('./q-sessions.mjs');
     process.exit(await runSessions(cmd, args, { json }));
   }
+
+  const args = scopeFlagToPositional(cmd, rawArgs);
 
   // A flag the verb does not take is a gap in q — file it instead of letting an agent grep (KIT-T286).
   const badFlags = unsupportedFlags(cmd, args);

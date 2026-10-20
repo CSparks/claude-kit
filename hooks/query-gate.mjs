@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// PreToolUse (Bash|PowerShell) — the RETRIEVAL gate. The failure it fixes (lived,
-// 2026-06-06): an agent hand-greps the .ai/ work store for decisions/tickets/history,
+// PreToolUse (Bash|PowerShell|Grep) — the RETRIEVAL gate; the Grep tool is judged as the `rg` it is.
+// The failure it fixes: an agent hand-greps the .ai/ work store for decisions/tickets/history,
 // or greps the source tree to DISCOVER code — instead of querying the layers built
 // for exactly that. `q` (the KIT-T004 cache) and `code-graph` (KIT-T012) are faster
 // and see the links/graph a raw grep is blind to. Instructions are advisory and a
@@ -23,6 +23,7 @@ import { indexEquivalent } from './lib/index-answerable.mjs';
 import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
 import { registryLine, registryTarget } from './lib/registry-target.mjs';
+import { grepToolCommand } from './lib/grep-tool-command.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { FAMILIES } from '../scripts/code-graph-families.mjs';
 
@@ -103,7 +104,8 @@ main().catch(() => process.exit(0)); // fail-open — never wedge a tool call on
 
 async function main() {
   const p = await payload();
-  const cmd = ((p.tool_input && p.tool_input.command) || '').trim();
+  const input = p.tool_input || {};
+  const cmd = (p.tool_name === 'Grep' ? grepToolCommand(input) : input.command || '').trim();
   if (!cmd) process.exit(0);
   const root = gitRoot();
   if (!adopted(root)) process.exit(0); // opt-in: only KIT-adopted repos
@@ -293,6 +295,7 @@ function indexMsg(c, eq) {
     `  node "${Q}" code <text> --kind ticket|doc|config         tickets, docs and configs, same surface`,
     '',
     'A targeted look at ONE file stays a plain `grep <pattern> <file>` or the Read tool.',
+    `Logs, build output, gitignored or sibling-checkout files: node "${Q}" code <text> --dir <path> [-c|-l] (any directory or file).`,
     'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it (KIT-T236).',
     '',
   ].join('\n');

@@ -42,7 +42,7 @@ const emit = (out, n) => {
 };
 
 function missingTool(tool, hint) {
-  logGap('missing-tool', file, `${tool} not available for project=${root} (${hint})`);
+  logGap('missing-tool', root, `${tool} not available (${hint})`);
   if (!toolingOk) {
     warn(`${tool} not available. ${hint}`);
     warn(`(silence for this project: create ${join(root, '.claude-tooling-ok')})`);

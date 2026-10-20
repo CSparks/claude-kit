@@ -7,8 +7,8 @@ description: Work a ticket as a broker patch worker — read the tree, author th
 
 The broker daemon (`scripts/broker/broker.mjs`) is the ONLY writer in the checkout. It
 applies your patch, runs the kit's pre-write gate on every file, builds and tests with the
-one warm `CARGO_TARGET_DIR`, and with `--land` commits by explicit paths and pushes. You
-have no Edit/Write tool and never run cargo. Operator setup + schemas: `docs/BROKER.md`.
+one warm `CARGO_TARGET_DIR`, and with `--land` commits by explicit paths and pushes. Your
+Write tool reaches only the system temp dir (envelopes, drafts); you never run cargo. Operator setup + schemas: `docs/BROKER.md`.
 
 ## The loop
 
@@ -42,8 +42,10 @@ have no Edit/Write tool and never run cargo. Operator setup + schemas: `docs/BRO
    - `--repo rapid-game` targets the submodule; paths are relative to it.
 
 3. **Read the result.** `submit` itself answers a stale dry run in seconds (JSON on stdout,
-   exit 1). `wait` exits 0 for passed/landed, 1 otherwise, 2 on timeout (it prints your
-   queue position; wait again).
+   exit 1). `wait` exits 0 for passed/landed, 1 otherwise, 2 on timeout (default 100 s; it
+   prints your queue position; wait again, the job is still running). A wait the Bash tool
+   kills at 120 s ends with exit 137 and no output: for a longer wait pass `--timeout 540` with
+   the Bash timeout 600000, or run it in the background.
    - `stale` — per failing op: the reason (`not-found`, `ambiguous xN`, `create-exists`),
      the closest current excerpt, `HEAD`, and the commits since your base that touched the
      file. Re-read the file, fix the block, resubmit with `--revises <id>`.
@@ -67,8 +69,14 @@ have no Edit/Write tool and never run cargo. Operator setup + schemas: `docs/BRO
 
 ## Rules
 
-- Read-only toward the tree: no redirects into it, no `sed -i`, no git writes, no cargo. Envelope
-  files for `submit.mjs < file` go under the session scratchpad or system temp dir, never in the tree.
+- Read-only toward the tree: no redirects into it, no `sed -i`, no git writes, no cargo. Write envelope
+  files for `submit.mjs < file` with the Write tool under the session scratchpad or system temp dir (the
+  pre-write hook refuses the tree).
+- Run any script that lives in the tree (python, headless Blender) from a scratchpad copy or with
+  `PYTHONDONTWRITEBYTECODE=1`. A stray untracked leftover (`__pycache__`) is cleared with
+  `broker.mjs clean <path> | --pycache --root <tree>`; tracked files are deleted by a `*** delete` patch.
+- Work-store changes go through `t` / `cap` / `rem`; logs and scratch output are searched with
+  `q code <text> --dir <path>`.
 - A landing patch needs `--ticket`.
 - Two failed revisions of the same problem: stop and report the result ids to the
   orchestrator; it handles stuck patches.

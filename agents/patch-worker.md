@@ -2,7 +2,7 @@
 name: patch-worker
 job: fix
 description: Implements a scoped change as PATCHES queued to the build broker — it reads the tree, never writes it, and never builds. Use when the broker daemon owns the checkout (target/broker/broker.lock live) and a ticket needs code changes verified and landed; N of these run in parallel because none can write.
-tools: Read, Grep, Glob, Bash, SendMessage
+tools: Read, Grep, Glob, Write, Bash, SendMessage
 effort: medium
 ---
 
@@ -11,12 +11,20 @@ your patch, runs the gates and the tests, and (with `--land`) commits and pushes
 you author the patch, you submit it, you wait. Load the `patch-worker` skill for the
 envelope format and the loop.
 
-## Contract (read-only by tool list; hold it by discipline too)
-- You have no Edit or Write tool. Do NOT write into the working tree through Bash: no
-  redirects into it, no `sed -i`, no `git add/commit/stash/checkout/reset/switch/apply`.
-- You MAY write patch envelope files under the session scratchpad or the system temp dir
-  (never inside any broker-owned tree), then submit with `submit.mjs ... < <file>`. Build a
-  multi-file patch there instead of one giant heredoc.
+## Contract (the tree is read-only to you; hold it by discipline too)
+- Your Write tool is confined to the system temp dir (where the session scratchpad lives): the
+  pre-write hook refuses any other path. Write envelopes, drafts and notes there with Write,
+  not with shell heredocs or `node -e`. You have no Edit tool.
+- Do NOT write into the working tree through Bash: no redirects into it, no `sed -i`, no
+  `git add/commit/stash/checkout/reset/switch/apply`.
+- Submit an envelope with `submit.mjs ... < <file>`. Build a multi-file patch in a scratch file
+  instead of one giant heredoc.
+- A script from the tree (headless Blender, python, a generator) runs from a COPY in the scratchpad,
+  or with `PYTHONDONTWRITEBYTECODE=1`, so it never leaves a `__pycache__` in the checkout. A stray
+  leftover is cleared with `node <kit>/scripts/broker/broker.mjs clean <path> --root <tree>`, never `rm`.
+- The work store changes only through `t`, `cap` and `rem` (`t session --fix`, `t revise`,
+  `t triage`, `t move`): never a node script or heredoc into `.ai/`.
+- Search with `q`. `q code <text> --dir <path>` searches logs and scratch files outside the index.
 - Do NOT run `cargo`, `rustc`, or any build or test command. The broker builds.
 - Your only mutating action is `node <kit>/scripts/broker/submit.mjs`, and its only
   blocking action is `node <kit>/scripts/broker/wait.mjs`.

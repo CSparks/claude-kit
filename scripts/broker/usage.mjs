@@ -3,8 +3,8 @@
 //
 // `usageProblem(flags)` → null | { text, code }: code 0 for help, 2 for a bad argument.
 
-const COMMANDS = new Set(['pause', 'resume', 'cancel', 'status', 'stop', 'stats']);
-const FLAGS = new Set(['_', 'root', 'log', 'once', 'poll', 'idle-exit', 'spawned-by', 'now', 'help', 'since', 'json', 'lane']);
+const COMMANDS = new Set(['pause', 'resume', 'cancel', 'status', 'stop', 'stats', 'clean']);
+const FLAGS = new Set(['_', 'root', 'log', 'once', 'poll', 'idle-exit', 'spawned-by', 'now', 'help', 'since', 'json', 'lane', 'pycache']);
 
 export const USAGE = [
   'usage: broker.mjs [--root <checkout>] [command] [options]',
@@ -13,6 +13,7 @@ export const USAGE = [
   '  stats [--since 24h|7d|<ISO>] [--json]   queue wait, phase minutes, failure rates, batches, fairness, stall kills, ST-T904 share',
   '  pause|resume   stop or resume starting jobs',
   '  cancel <id>    withdraw a queued job',
+  '  clean <path...>|--pycache   remove untracked leftovers from the checkout (a stray __pycache__); tracked files are refused',
   '  stop [--now]   stop the daemon after its current job; refuses while a job is queued or running unless --now',
 ].join('\n');
 

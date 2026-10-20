@@ -47,6 +47,7 @@ import { setStatus } from './t/status.mjs';
 import { askQuestion, resolveQuestionFile } from './t/ask.mjs';
 import { isMain } from './is-main.mjs';
 import { runVerb } from './t-verbs.mjs';
+import { splitDraft } from './t-draft.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
@@ -86,8 +87,9 @@ export { readConfig, findTicket, setStatus };
 // Edit — this kills the T039-T043 class where a hand-copied template shipped with KIT-T000 and
 // `<short imperative title>` still in the fields.
 // The Notes section recording which near-matches `t new --not-dup` was told are different work.
-function notDupNotes(ids) {
-  return ids && ids.length ? `\n## Notes\nChecked as possible duplicates and judged different work (--not-dup): ${ids.join(', ')}\n` : '';
+function notDupNotes(ids, draftNotes = '') {
+  const lines = [ids && ids.length ? `Checked as possible duplicates and judged different work (--not-dup): ${ids.join(', ')}` : '', draftNotes].filter(Boolean);
+  return lines.length ? `\n## Notes\n${lines.join('\n')}\n` : '';
 }
 
 export function scaffoldNew(root, type, title, opts = {}) {
@@ -114,7 +116,10 @@ export function scaffoldNew(root, type, title, opts = {}) {
   if (!priorities.includes(priority)) {
     throw new Error(`t new: unknown priority '${priority}' (config.priorities: ${priorities.join(', ')})`);
   }
-  const description = String(opts.description ?? '').trim() || '<!-- what and why — fill in via Edit -->';
+  const draft = splitDraft(opts.description);
+  const description = draft.description || '<!-- what and why — fill in via Edit -->';
+  const criteria = draft.criteria || '- [ ]';
+  const plan = draft.plan || '1.';
   const id = reserveNextId(root, 'tickets');
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'ticket';
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
@@ -147,11 +152,11 @@ ${description}
 
 ## Acceptance Criteria
 <!-- each a checkable observation; t tick checks these as they pass -->
-- [ ]
+${criteria}
 
 ## Plan
-1.
-${notDupNotes(opts.notDup)}
+${plan}
+${notDupNotes(opts.notDup, draft.notes)}
 ## History
 - [${stamp()}] (created) ${type} — ${title.trim()}
 `;
@@ -388,6 +393,12 @@ function parseArgs(argv) {
     else if (a === '--links') flags.links = String(argv[++i] || '').split(',').map((x) => x.trim()).filter(Boolean);
     else if (a === '--answerable-by') flags.answerableBy = argv[++i];
     else if (a === '--append') flags.append = true;
+    else if (a === '--fix') { flags.fix = [argv[++i], argv[++i]]; if (flags.fix.some((x) => x === undefined)) { console.error('t: --fix takes <old> <new>'); process.exit(2); } }
+    else if (a === '--drop') flags.drop = argv[++i];
+    else if (a === '--status-to') flags.statusTo = argv[++i];
+    else if (a === '--summary') flags.summary = argv[++i];
+    else if (a === '--title') flags.title = argv[++i];
+    else if (a === '--type') flags.type = argv[++i];
     else if (a === '--replace') flags.replace = true;
     else if (a === '--not-dup') flags.notDup = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
@@ -405,7 +416,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|note|notes|epic|request|question|session|decide|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t decide --file <draft.md> | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|note|notes|epic|request|question|session|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t decide --file <draft.md> | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
@@ -509,6 +520,22 @@ async function main() {
     const r = recordDecision(root, readFileSync(flags.file, 'utf8'));
     await refresh(root);
     process.stdout.write(`decide: ${r.id} -> ${relative(root, r.path)}\n`);
+    return;
+  }
+  if (cmd === 'revise') {
+    const [id] = rest;
+    if (!id) { console.error('usage: t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--file <draft.md>]'); process.exit(2); }
+    const { reviseDecision } = await import('./t-revise.mjs');
+    const r = reviseDecision(root, id, { status: flags.statusTo, summary: flags.summary, draftText: flags.file ? readFileSync(flags.file, 'utf8') : '' });
+    await refresh(root);
+    process.stdout.write(`revise: ${r.id} changed ${r.changed.join(', ')} -> ${relative(root, r.path)}\n`);
+    return;
+  }
+  if (cmd === 'triage') {
+    const { triageCapture } = await import('./t-triage.mjs');
+    const r = triageCapture(root, rest[0], flags, scaffoldNew);
+    await refresh(root);
+    process.stdout.write(`triage: ${r.id} -> ${relative(root, r.path)} (capture moved to ${r.moved})\n`);
     return;
   }
   if (cmd === 'move') {

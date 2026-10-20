@@ -32,7 +32,7 @@
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/worktree-guard.mjs\"" }]
       },
       {
-        "matcher": "Bash|PowerShell",
+        "matcher": "Bash|PowerShell|Grep",
         "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/query-gate.mjs\"" }]
       },
       {

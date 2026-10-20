@@ -3,6 +3,7 @@
 // the ticket id to print.
 
 import { fileKitBug } from './kit-bug.mjs';
+import { SCOPED_VERBS } from './q-scope-flag.mjs';
 
 const GLOBAL_FLAGS = new Set(['--json', '--no-db', '--root', '--topic', '--help']);
 const VERB_FLAGS = {
@@ -14,8 +15,9 @@ const VERB_FLAGS = {
 
 /** Flags on `args` that `cmd` does not take ([] for verbs that parse their own flags). */
 export function unsupportedFlags(cmd, args) {
-  const known = VERB_FLAGS[cmd];
-  if (!known) return [];
+  const base = VERB_FLAGS[cmd];
+  if (!base) return [];
+  const known = SCOPED_VERBS.has(cmd) ? [...base, '--scope', '--project'] : base;
   return args.filter((a) => /^--[a-z][a-z-]*$/.test(String(a)) && !GLOBAL_FLAGS.has(a) && !known.includes(a));
 }
 

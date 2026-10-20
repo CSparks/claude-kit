@@ -15,6 +15,8 @@ import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 import { FILE_HARD, FILE_SOFT } from './lib/limits.mjs';
 import { commentFindings } from './lib/comment-gate.mjs';
 import { storeWriteViolation } from './lib/store-write-gate.mjs';
+import { scratchOnlyViolation } from './lib/scratch-only.mjs';
+import { uiPixelViolation } from './lib/ui-pixel-gate.mjs';
 
 // Fail-open guard (KIT-T055): an unexpected throw anywhere below must never wedge a
 // write. The HOOK CONTRACT requires EXPLICIT fail-open; before this, an uncaught throw
@@ -136,6 +138,16 @@ const p = await payload();
 const file = (p.tool_input && p.tool_input.file_path) || '';
 const content = (p.tool_input && (p.tool_input.content ?? p.tool_input.new_string)) || '';
 if (!file) process.exit(0);
+
+const scratchOnly = scratchOnlyViolation(p.agent_type, file);
+if (scratchOnly) {
+  process.stderr.write(`
+  BLOCKED: ${scratchOnly.agent} may only Write scratch files (envelopes, drafts), and ${file} is not under ${scratchOnly.tmp}.
+    Write the envelope to the session scratchpad, then: node <kit>/scripts/broker/submit.mjs ... < <envelope>
+    The broker daemon applies patches to the tree; this agent never does.
+  `);
+  process.exit(2);
+}
 
 const norm = file.replace(/\\/g, '/');
 if (VENDORED.test(norm)) process.exit(0);
@@ -272,6 +284,19 @@ if (!excludedFile('store-write')) {
 BLOCKED: hand write into the .ai store (${v.rel}): ${v.why}.
   Use: ${v.command}
 ` + excludeFooter('store-write'));
+    process.exit(2);
+  }
+}
+
+// Game UI is sized by the framework's proportional frame, never by a pixel literal.
+if (!excludedFile('ui-pixel-literal')) {
+  const px = uiPixelViolation(file, content, ROOT);
+  if (px && !excludedAt('ui-pixel-literal', px.line)) {
+    process.stderr.write(`
+BLOCKED: pixel UI size in game code (line ${px.line}: ${px.text}).
+  Game UI sizes are fractions of the rg-ui frame; a game states intent and the framework scales it
+  (rapid-game/docs/UI_MANIFESTO.md). Use the rg-ui token or frame fraction, or add the mechanism to rg-ui.
+` + excludeFooter('ui-pixel-literal'));
     process.exit(2);
   }
 }

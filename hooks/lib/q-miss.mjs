@@ -9,6 +9,7 @@ import { readTurnState, writeTurnState } from './turn-state.mjs';
 const SLOT = 'q-miss';
 const WINDOW_CALLS = 5;
 const MIN_TERM = 3;
+const MIN_OVERLAP_SHARE = 0.5;
 
 const words = (s) => new Set(String(s || '').toLowerCase().split(/[^a-z0-9_]+/).filter((w) => w.length >= MIN_TERM));
 
@@ -34,7 +35,9 @@ export async function noteSearch(root, row, response, project) {
   if (!state || !state.terms || !state.terms.length) return null;
   const calls = (state.calls || 0) + 1;
   if (calls > WINDOW_CALLS) { writeTurnState(root, {}, SLOT); return null; }
-  const overlap = [...words(`${row.pattern} ${row.queryText || ''}`)].some((w) => state.terms.includes(w));
+  const grepTerms = [...words(`${row.pattern} ${row.queryText || ''}`)];
+  const shared = grepTerms.filter((w) => state.terms.includes(w)).length;
+  const overlap = shared > 0 && shared / Math.min(grepTerms.length, state.terms.length) >= MIN_OVERLAP_SHARE;
   if (!overlap) { writeTurnState(root, { ...state, calls }, SLOT); return null; }
   writeTurnState(root, {}, SLOT);
   const { fileKitBug } = await import('../../scripts/kit-bug.mjs');

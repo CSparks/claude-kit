@@ -8,6 +8,8 @@ import { extractSymbols, langOfToken } from './code-index-extract.mjs';
 import { basename, isAbsolute, relative } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
 import { projectRepo } from './q-project.mjs';
+import { dirIndex } from './q-scan-dir.mjs';
+import { uncheckedFrameworks } from './q-framework.mjs';
 import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 
 export const DEFAULT_LIMIT = 40;
@@ -19,10 +21,13 @@ const GAP = '\u0000';
 const DEFAULT_KINDS = ['code', 'doc', 'config'];
 const ALL_KINDS = [...DEFAULT_KINDS, 'ticket'];
 const TYPE_RANK = { fn: 0, struct: 1, enum: 1, trait: 1, class: 1, type: 1, const: 2, var: 2, macro: 2, mod: 3, impl: 4, use: 5, heading: 6, section: 6 };
-const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--not-path', '--type', '--limit', '--project', '-C', '-A', '-B']);
+const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--not-path', '--type', '--limit', '--project', '--dir', '-C', '-A', '-B']);
+
+// grep habits whose behaviour q has always: line numbers are shown, the walk is recursive, paths are printed.
+const GREP_NOOP_FLAGS = new Set(['-n', '--line-number', '-r', '-R', '--recursive', '-H', '--with-filename', '--no-heading', '--color=never', '-s']);
 
 const ATTACHED_COUNT = /^-([ABC])(\d+)$/;
-const ATTACHED_VALUE = /^(--(?:kind|lang|path|not-path|type|limit|project))=(.*)$/;
+const ATTACHED_VALUE = /^(--(?:kind|lang|path|not-path|type|limit|project|dir))=(.*)$/;
 
 // `-B2` and `--lang=rust` mean `-B 2` and `--lang rust`, as in grep.
 const splitAttached = (args) => args.flatMap((a) => {
@@ -56,6 +61,7 @@ export function parseCodeArgs(rawArgs) {
       else if (a === '--path') flags.path = String(v).replace(/\\/g, '/').replace(/^\.\//, '');
       else if (a === '--not-path') flags.notPaths.push(String(v).replace(/\\/g, '/').replace(/^\.\//, ''));
       else if (a === '--project') flags.project = String(v);
+      else if (a === '--dir') flags.dir = String(v);
       else if (a === '--limit') flags.limit = Number(v);
       else if (a === '-C') { flags.before = Number(v) || 0; flags.after = Number(v) || 0; }
       else if (a === '-A') flags.after = Number(v) || 0;
@@ -68,6 +74,7 @@ export function parseCodeArgs(rawArgs) {
     else if (a === '-l') flags.filesOnly = true;
     else if (a === '-o') flags.only = true;
     else if (a === '-c') flags.count = true;
+    else if (GREP_NOOP_FLAGS.has(a)) continue;
     else if (a.startsWith('-') && a.length > 1 && !/^-\d/.test(a)) flags.unknown.push(a);
     else words.push(a);
   }
@@ -348,12 +355,18 @@ async function symVerb(root, text, flags, refresh) {
   return out;
 }
 
+// `**/` also matches no directory at all (`**/hooks/*.mjs` finds `hooks/a.mjs`); a lone `*` still crosses `/`.
+function globPathRegExp(glob) {
+  const body = glob.split('**/').map((part) => [...part].map((c) => (c === '*' ? '.*' : c === '?' ? '.' : escapeRe(c))).join('')).join('(?:.*/)?');
+  return new RegExp(`^${body}$`, 'i');
+}
+
 async function fileVerb(root, text, flags, refresh) {
   const idx = await refresh(root);
   idx.handle?.close();
   const isGlob = /[*?]/.test(text);
   const re = isGlob
-    ? new RegExp(`^${[...text].map((c) => (c === '*' ? '.*' : c === '?' ? '.' : escapeRe(c))).join('')}$`, 'i')
+    ? globPathRegExp(text)
     : new RegExp(escapeRe(text), 'i');
   const rows = memFilter(idx.files, flags, flags.kinds || ALL_KINDS).filter((f) => re.test(f.rel) || re.test(f.rel.slice(f.rel.lastIndexOf("/") + 1)))
     .sort((a, b) => a.rel.length - b.rel.length || a.rel.localeCompare(b.rel));
@@ -413,11 +426,25 @@ async function unknownFlagRows(cmd, args, unknown, root) {
  * to answer from (default refreshIndex; the resident server passes its own).
  */
 export async function codeVerbRows(cmd, args, root, refresh = refreshIndex) {
+  const rows = await answerRows(cmd, args, root, refresh);
+  if (rows.some((r) => r.loc)) return rows;
+  const missing = uncheckedFrameworks(root);
+  if (!missing.length) return rows;
+  const names = missing.map((m) => `${m.name} (${m.path})`).join(', ');
+  return [...rows, { loc: '', text: `NOT searched: framework submodule ${names} is not checked out here, so "no results" proves nothing about it (git submodule update --init)` }];
+}
+
+async function answerRows(cmd, args, root, refresh) {
   const { text, flags } = parseCodeArgs(args);
   if (flags.unknown.length) return unknownFlagRows(cmd, args, flags.unknown, root);
   if (flags.project !== undefined) {
     root = projectRepo(flags.project);
     refresh = refreshIndex;
+  }
+  if (flags.dir !== undefined) {
+    const scanned = dirIndex(flags.dir);
+    refresh = async () => scanned;
+    root = flags.dir;
   }
   if (flags.path) flags.path = repoRelative(root, flags.path);
   if (cmd === 'code') return text ? codeVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q code <text> [--regex] [-i] [-w] [--lang L] [--path P] [--not-path G] [-C n]' }];

@@ -14,6 +14,7 @@
 //   node broker.mjs resume --root <checkout>
 //   node broker.mjs cancel <job-id> --root <checkout>  # withdraw a QUEUED job; a running one is refused
 //   node broker.mjs status --root <checkout>           # queue, pause, deferred foreign failures
+//   node broker.mjs clean <path...> | --pycache --root <checkout>   # remove untracked leftovers (never tracked files)
 // Start it with background Bash; a second start while one is live exits 1 (restart is idempotent).
 
 import { parseFlags, loadCfg } from './cli.mjs';
@@ -74,6 +75,16 @@ if (command === 'cancel') {
   const gone = withdrawJob(laneCfg, id, { status: STATUS.CANCELLED, message: 'cancelled by the operator' });
   console.error(gone.ok ? `broker: cancelled queued ${id}` : `broker: ${gone.error}`);
   process.exit(gone.ok ? 0 : 1);
+}
+
+if (command === 'clean') {
+  const { cleanUntracked, pycacheDirs } = await import('./clean.mjs');
+  const targets = [...flags._.slice(1), ...(flags.pycache ? pycacheDirs(cfg.root) : [])];
+  if (!targets.length) { console.error('broker: clean needs <path...> or --pycache (nothing to clean is fine too)'); process.exit(flags.pycache ? 0 : 2); }
+  const r = cleanUntracked(cfg, targets);
+  for (const rel of r.removed) console.error(`broker: removed ${rel}`);
+  for (const x of r.refused) console.error(`broker: refused ${x.path}: ${x.reason}`);
+  process.exit(r.refused.length ? 1 : 0);
 }
 
 if (command === 'stop') {

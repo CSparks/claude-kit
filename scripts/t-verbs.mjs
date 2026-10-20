@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { createItem, KINDS } from './t-create.mjs';
 import { appendNotes } from './t-notes.mjs';
-import { writeSession } from './t-session.mjs';
+import { editSession, writeSession } from './t-session.mjs';
 
 const USAGE = {
   note: 't note "<title>" [--body "<text>" | --file <path>] [--links A,B]',
@@ -16,7 +16,7 @@ const USAGE = {
   request: 't request "<title>" [--body "<text>" | --file <path>] [--priority <p>] [--links A,B]',
   question: 't question "<question>" [--body "<detail>" | --file <path>] [--answerable-by chris|claude]',
   notes: 't notes <id> "<prose>" | --file <path>',
-  session: 't session "<text>" | --file <path> [--append] | --replace --file <path>',
+  session: 't session "<text>" | --file <path> [--append] | --replace --file <path> | --fix "<old>" "<new>" | --drop "<text>"',
 };
 
 export const VERBS = Object.keys(USAGE);
@@ -31,6 +31,13 @@ function fail(cmd) {
 export async function runVerb(cmd, rest, flags, root, refresh) {
   if (!VERBS.includes(cmd)) return false;
   if (cmd === 'session') {
+    if (flags.fix || flags.drop) {
+      const r = editSession(root, { fix: flags.fix, drop: flags.drop });
+      await refresh(root);
+      const what = flags.fix ? 'fixed' : `dropped ${r.changed} ${r.changed === 1 ? 'entry' : 'entries'}`;
+      process.stdout.write(`session: ${relative(root, r.path)} ${what}${r.backup ? `; previous kept at ${relative(root, r.backup)}` : ''}\n`);
+      return true;
+    }
     if (flags.replace && !flags.file) fail(cmd);
     const r = writeSession(root, fileOr(flags, rest.join(' ')), { append: flags.append, replace: flags.replace, fromFile: !!flags.file });
     await refresh(root);

@@ -9,12 +9,20 @@ tokens; stuck patches escalate to the orchestrator.
 
 Worker workflow: the `patch-worker` skill. This page is for the OPERATOR.
 
+Any agent can be a worker, Claude or not (Codex, GPT): the whole interface is two shell commands,
+`submit.mjs` (the envelope on stdin) and `wait.mjs`, with the envelope format in the skill. An agent
+that edits the tree by hand instead pauses the lane's queue until its edits are committed or reverted
+(pre-write names the daemon and the queue length at the first edit); point such an agent at the skill
+rather than giving it a second write path.
+
 ## The pieces (`scripts/broker/`)
 
-- `broker.mjs` — the daemon; also `pause` / `resume`.
+- `broker.mjs` — the daemon; also `pause` / `resume`, and `clean <path...> | --pycache` (removes untracked
+  leftovers such as a stray `__pycache__`; tracked files are refused, a patch deletes those).
 - `submit.mjs` — a worker pipes a patch envelope on stdin; prints the job id.
-- `wait.mjs` — blocks on a result (default 540 s), exits with the status, prints the queue
-  position on timeout.
+- `wait.mjs` — blocks on a result (default 100 s, under the 120 s a foreground Bash call survives; `--timeout`
+  up to 540 with the Bash timeout at 600000), exits with the status, prints the queue position on timeout (exit 2:
+  the job is still running, wait again).
 - by concern: `envelope` (parse) · `apply` (in-memory dry run) · `admit` (dirty/plan/gate checks) · `patch` (one job) · `train*` (several jobs, one build) · `gate`
   (pre-write hook) · `land` (path commit, push, pin) · `preimage` (restore journal) ·
   `diagnose` (rustc / test extraction) · `report` · `summary` (orient lines) · `control` ·

@@ -51,13 +51,17 @@ export function projectTable() {
 }
 
 // Resolve a target NAME (from --project or a `name:` prefix) to a project, forgiving of case and
-// accepting either the registry name or the id key. Returns the project record or null (caller
+// accepting the registry name, the id key, or a name prefix that picks exactly one project (`stiletto` -> `stiletto-2349`). Returns the project record or null (caller
 // then errors out — an explicit target that names nothing real must not silently fall through to
 // cwd, or the misroute the explicit form exists to prevent would recur).
+const MIN_PREFIX = 3;
 export function matchProject(table, name) {
   const n = String(name || '').trim().toLowerCase();
   if (!n) return null;
-  return table.find((p) => p.aliases.has(n)) || null;
+  const exact = table.find((p) => p.aliases.has(n));
+  if (exact) return exact;
+  const byPrefix = table.filter((p) => p.name.toLowerCase().startsWith(n));
+  return byPrefix.length === 1 && n.length >= MIN_PREFIX ? byPrefix[0] : null;
 }
 
 // Does the capture text OBVIOUSLY name a project OTHER than the cwd one? Two honest signals, no

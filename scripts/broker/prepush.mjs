@@ -21,7 +21,7 @@ const ZERO = '0'.repeat(40);
 
 export function buildEnv(cfg) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
-  return { ...env, CARGO_TARGET_DIR: cfg.targetDir, CARGO_BUILD_JOBS: String(cfg.jobs) };
+  return { ...env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: cfg.targetDir, CARGO_BUILD_JOBS: String(cfg.jobs) };
 }
 
 export function runPrePush(cfg, cwd, remote, branch, logPath) {

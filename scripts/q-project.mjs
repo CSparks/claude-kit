@@ -11,7 +11,7 @@ const KNOWN_SHOWN = 12;
 function unknownMessage(name, table) {
   const names = table.map((p) => p.name).sort();
   const known = names.length ? `${names.slice(0, KNOWN_SHOWN).join(', ')}${names.length > KNOWN_SHOWN ? `, +${names.length - KNOWN_SHOWN} more` : ''}` : 'none registered';
-  return `unknown project '${name}' — registered: ${known}.`;
+  return `unknown project '${name}' â€” registered: ${known}.`;
 }
 
 /** The upper-cased id key (scope) of the registered project `name` names. Throws on a miss. */

@@ -9,9 +9,9 @@
 // Resolved at CALL TIME (not frozen at import) so an in-process test can set the override
 // after this module loads — same reason the hooks read stdin per-invocation.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { homedir } from 'node:os';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, realpathSync } from 'node:fs';
+import { join, dirname, relative } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
 
 export function registryPath() {
   return process.env.CLAUDE_KIT_REGISTRY || join(homedir(), '.claude', 'claude-kit-projects.json');
@@ -61,8 +61,18 @@ export function projectAiDirs() {
   return out;
 }
 
+// A checkout under the OS temp dir is a test fixture; the real registry never learns it. A test names its own
+// registry with CLAUDE_KIT_REGISTRY, which lifts the refusal.
+function isTempCheckout(repoRoot) {
+  try {
+    const rel = relative(realpathSync.native(tmpdir()), realpathSync.native(String(repoRoot)));
+    return rel !== '' && !rel.startsWith('..') && !/^[A-Za-z]:/.test(rel);
+  } catch { return false; }
+}
+
 export function recordProject(name, repoRoot, dataRoot) {
   if (!name || !repoRoot) return;
+  if (!process.env.CLAUDE_KIT_REGISTRY && isTempCheckout(repoRoot)) return;
   try {
     const reg = readRegistry();
     let changed = false;

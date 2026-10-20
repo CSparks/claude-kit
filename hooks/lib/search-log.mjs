@@ -6,8 +6,8 @@
 //   readSearchLog(root, days)     rows from the last `days` days (oldest first)
 
 import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { dirname, join, relative } from 'node:path';
 
 const MS_PER_DAY = 86400000;
 
@@ -21,7 +21,16 @@ function keyOf(root) {
 export const searchLogPath = (root) =>
   join(process.env.CLAUDE_KIT_SEARCH_LOG_DIR || join(homedir(), '.claude', 'search-log'), `${keyOf(root)}.jsonl`);
 
+// A checkout under the temp dir is a test fixture: it leaves no log unless a directory is named.
+const isTempFixture = (root) => {
+  try {
+    const rel = relative(realpathSync.native(tmpdir()), realpathSync.native(String(root)));
+    return !rel.startsWith('..') && rel !== '' && !/^[A-Za-z]:/.test(rel);
+  } catch { return false; }
+};
+
 export function logSearch(root, row) {
+  if (!process.env.CLAUDE_KIT_SEARCH_LOG_DIR && isTempFixture(root)) return;
   try {
     const p = searchLogPath(root);
     mkdirSync(dirname(p), { recursive: true });

@@ -2,7 +2,8 @@
 // rule (KIT-D077) prices the edit->build->measure loop; an agent that cannot write has none.
 //
 // Read-only when any of:
-//   - a built-in analytical type (Explore, Plan, claude-code-guide);
+//   - a built-in analytical type (Explore, Plan, claude-code-guide), or patch-worker, whose Write
+//     tool pre-write confines to the system temp dir (scratch-only.mjs);
 //   - its definition's `tools:` frontmatter grants no Edit/Write/NotebookEdit/MultiEdit and no `*`
 //     (plugin, project `.claude/agents/`, superproject and user definitions — model-tag.mjs);
 //   - the dispatcher declared it: `[read-only: <reason>]` in the prompt, recorded on the roster row.
@@ -11,7 +12,7 @@
 import { definitionTools } from './model-tag.mjs';
 
 const WRITE_TOOLS = /^(Edit|Write|NotebookEdit|MultiEdit)$/i;
-const BUILTIN_READ_ONLY = new Set(['explore', 'plan', 'claude-code-guide']);
+const BUILTIN_READ_ONLY = new Set(['explore', 'plan', 'claude-code-guide', 'patch-worker']);
 const READ_ONLY_TOKEN = /\[read-only:\s*([^\]\s][^\]]*)\]/i;
 
 // The reason a dispatcher gave for treating a writer-capable type as read-only, or ''.

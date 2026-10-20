@@ -43,7 +43,7 @@ function runOnce(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel, pollMs 
   try {
     child = spawn(process.execPath, [CHILD, marker, composed], {
       cwd, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', fd, fd],
-      env: { ...process.env, CARGO_TARGET_DIR: targetDir },
+      env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: targetDir },
     });
     child.unref();
   } finally { closeSync(fd); }

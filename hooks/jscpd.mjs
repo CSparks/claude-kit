@@ -29,7 +29,7 @@ const dir = dirname(file);
 if (pathExcluded(projectRoot(dir), 'duplication', file)) process.exit(0);
 const bin = nodeCli('jscpd', dir);
 if (!bin) {
-  logGap('missing-tool', file, 'jscpd not installed (install: npm install -g jscpd)');
+  logGap('missing-tool', projectRoot(dir), 'jscpd not installed (install: npm install -g jscpd)');
   process.exit(0);
 }
 

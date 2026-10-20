@@ -56,6 +56,10 @@ try {
     encoding: 'utf8', input: '{}', env: { ...process.env, CLAUDE_KIT_RUNTIME: realRuntime, CLAUDE_KIT_LIVE: '' },
   });
   ok('the real core still validates the hook name', realRun.status === 1 && /invalid hook script/.test(realRun.stderr), realRun.stderr);
+  const unpublished = spawnSync(process.execPath, [join(HOOKS, 'compat-run.mjs'), 'not-published-yet.mjs'], {
+    encoding: 'utf8', input: '{}', env: { ...process.env, CLAUDE_KIT_RUNTIME: realRuntime, CLAUDE_KIT_LIVE: '' },
+  });
+  ok('a hook the runtime does not carry yet is a silent no-op, never a crash report', unpublished.status === 0 && !unpublished.stderr && !unpublished.stdout, `${unpublished.status} ${unpublished.stderr}`);
 } finally {
   cleanup();
 }

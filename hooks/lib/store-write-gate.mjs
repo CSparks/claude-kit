@@ -22,7 +22,7 @@ const CREATE = {
 };
 
 const FIXED = {
-  'SESSION.md': ['t session "<text>" | --file <path> [--append]', 'the resume anchor'],
+  'SESSION.md': ['t session "<text>" | --file <path> [--append] | --fix "<old>" "<new>" | --drop "<text>"', 'the resume anchor'],
   'agents.jsonl': ['(written by the Task hooks; no hand edit)', 'the agent roster'],
   'agents-progress.jsonl': ['(written by the progress hook; no hand edit)', 'the agent progress log'],
   'read-receipts.json': ['t ack <id>#<n> --agent <name>', 'the read receipts'],

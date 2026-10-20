@@ -6,7 +6,7 @@
 //   frameworkStores(root) -> [{ name, scope, aiDir }]   framework store key + dir; [] if none
 //   searchScopes(scopeTok, root) -> string[]            scopes a default retrieval covers
 
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { frameworksFor } from '../hooks/lib/frameworks.mjs';
 import { readIdConfig } from './id-utils.mjs';
@@ -41,6 +41,23 @@ export function frameworkRoots(root) {
     }
   } catch {
     /* framework layer unavailable — the project tree alone is indexed */
+  }
+  return out;
+}
+
+/** Framework submodules `root` declares that are absent or empty here, so no query has searched them: [{ name, path }]. */
+export function uncheckedFrameworks(root) {
+  const out = [];
+  try {
+    for (const fw of frameworksFor(root)) {
+      if (!fw.submodule) continue;
+      const dir = join(root, fw.submodule);
+      let entries = [];
+      try { entries = readdirSync(dir); } catch { /* absent */ }
+      if (!entries.length) out.push({ name: fw.name || fw.submodule, path: fw.submodule });
+    }
+  } catch {
+    /* framework layer unavailable */
   }
   return out;
 }

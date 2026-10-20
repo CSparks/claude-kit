@@ -11,6 +11,7 @@
 // unchanged. Codex is detected by PLUGIN_ROOT, which Codex sets in addition to the
 // compatibility CLAUDE_PLUGIN_ROOT variable.
 
+import { existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -183,6 +184,10 @@ export async function main() {
     process.stderr.write(`hook script escapes hooks directory: ${scriptName}\n`);
     process.exit(1);
   }
+
+  // hooks.json can name a hook the sealed runtime does not carry yet (wiring edited ahead of the
+  // publish): that hook is simply not live yet, so nothing runs and nothing is reported.
+  if (!existsSync(scriptPath)) process.exit(0);
 
   const raw = await readStdin();
   const payload = safeJson(raw);

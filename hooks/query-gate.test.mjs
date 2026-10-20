@@ -196,5 +196,19 @@ expect('negative control: Select-String over a source wildcard still blocks', ru
 expect('negative control: grep -rn over the source tree still blocks', run(d, 'grep -rn "PhysicsSim" src/').code, 2);
 expect('still blocks Select-String -Recurse of source', run(d, 'Select-String -Path src\\* -Pattern foo -Recurse').code, 2);
 
+// The Grep tool is `rg`: the gate judges it with the same rules, so it is no way around a block.
+function runGrepTool(dir, tool_input) {
+  const r = spawnSync(process.execPath, [HOOK], { cwd: dir, input: JSON.stringify({ tool_name: 'Grep', tool_input }), encoding: 'utf8' });
+  return { code: r.status, err: r.stderr || '' };
+}
+expect('Grep tool: blocks a tree-wide search with no path', runGrepTool(d, { pattern: 'PhysicsSim' }).code, 2);
+expect('Grep tool: blocks a directory search', runGrepTool(d, { pattern: 'PhysicsSim', path: 'src' }).code, 2);
+expect('Grep tool: blocks a store directory search', runGrepTool(d, { pattern: 'physics', path: '.ai/decisions' }).code, 2);
+expect('Grep tool: the block names the q equivalent', /Exact equivalent|q\.mjs/.test(runGrepTool(d, { pattern: 'PhysicsSim' }).err), true);
+expect('Grep tool: allows one named file', runGrepTool(d, { pattern: 'foo', path: 'src/main.ts' }).code, 0);
+expect('Grep tool: allows one named store file', runGrepTool(d, { pattern: 'foo', path: '.ai/SESSION.md' }).code, 0);
+expect('Grep tool: allows a scratchpad directory', runGrepTool(d, { pattern: 'foo', path: SP }).code, 0);
+expect('Grep tool: allows an unadopted repo', runGrepTool(un, { pattern: 'PhysicsSim' }).code, 0);
+
 console.log(failures ? `\n${failures} FAIL` : '\nall pass');
 process.exit(failures ? 1 : 0);
