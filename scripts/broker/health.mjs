@@ -3,7 +3,7 @@
 //   no-daemon        jobs are queued and no live daemon holds the lock
 //   dirt-from-own-run the queue is paused on a path the last job or re-check wrote or journalled
 //   hand-edit-hold   the queue has been paused on a hand-driven writer's changes for 5 min (hand-hold.mjs)
-//   stuck-inflight   an inflight job is older than 3x the longest recent command
+//   stuck-inflight   an inflight job's commands have written no output for 3x the longest recent command
 //   own-fault        a fault recorded by recordFault (gate crash, journal/restore mismatch)
 // Every entry is { kind, since, detail, cause }; `cause` names the likely cause and the kit ticket
 // to file. With `heal`, a dirt-from-own-run path that was clean before the run is put back from
@@ -98,13 +98,29 @@ function runIsOver(cfg, inflight) {
   return ids.every((id) => !!readResult(cfg, id));
 }
 
+// The newest write to any command log of the run (the train and each member), else the run's start: a
+// healthy long train keeps writing, a hung command goes quiet.
+function lastActivityMs(cfg, inflight) {
+  const started = Date.parse(inflight.startedAt);
+  const ids = [inflight.id, ...(inflight.members || [])];
+  let dir;
+  try { dir = readdirSync(brokerPaths(cfg).logs); } catch { return started; }
+  let newest = started;
+  for (const f of dir) {
+    if (!ids.some((id) => f.startsWith(`${id}-`))) continue;
+    const m = mtimeMs(join(brokerPaths(cfg).logs, f));
+    if (m !== null && m > newest) newest = m;
+  }
+  return newest;
+}
+
 export function stuckInflight(cfg, nowMs, floorMs = STUCK_FLOOR_MS) {
   const inflight = readInflight(cfg);
   if (!inflight || !liveHolder(cfg) || runIsOver(cfg, inflight)) return [];
   const limit = Math.max(STUCK_FACTOR * longestRecentCommandMs(cfg), floorMs);
-  const age = nowMs - Date.parse(inflight.startedAt);
-  if (age <= limit) return [];
-  return [{ kind: 'stuck-inflight', detail: `job ${inflight.id} inflight ${Math.round(age / 1000)}s, over ${STUCK_FACTOR}x the longest recent command (${Math.round(limit / 1000)}s limit)`,
+  const quiet = nowMs - lastActivityMs(cfg, inflight);
+  if (quiet <= limit) return [];
+  return [{ kind: 'stuck-inflight', detail: `job ${inflight.id} inflight ${Math.round((nowMs - Date.parse(inflight.startedAt)) / 1000)}s, no output for ${Math.round(quiet / 1000)}s (over ${STUCK_FACTOR}x the longest recent command, ${Math.round(limit / 1000)}s limit)`,
     cause: `a command hung or the daemon is wedged mid-run; ${ticketHint('stuck-inflight', inflight.id)}` }];
 }
 

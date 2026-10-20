@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // wait.mjs — block on a job's result with a bounded poll, print it, and exit with the job's
 // status so a worker's turn is never left stopped on a background task. exit 0 = passed or landed;
-// 1 = failed/stale/gate/conflict/dirty; 2 = timed out. A result older than the job's current
+// 1 = failed/stale/gate/conflict/dirty; 2 = timed out (the job is still queued or running: wait again). A result older than the job's current
 // inflight run is a previous attempt's and is not final.
 //
 // A heartbeat line (heartbeat.mjs: queue position, or running time and command) goes to stderr
@@ -26,8 +26,10 @@ import { heartbeatLine } from './heartbeat.mjs';
 import { restartIfWedged } from './stall.mjs';
 import { holdAge, holdLine, holdReport } from './hand-hold.mjs';
 
-// Bash caps a foreground call at 600 s; 540 leaves room to print the queue position.
-const DEFAULT_TIMEOUT_S = 540;
+// A foreground Bash call with no timeout argument is killed at 120 s (exit 137, no output): the default
+// ends the wait first, with exit 2 and the queue position. A longer wait names --timeout (up to 540) and
+// runs with the Bash tool's timeout raised to 600000, or in the background.
+const DEFAULT_TIMEOUT_S = 100;
 const DEFAULT_HEARTBEAT_S = 60;
 const flags = parseFlags(process.argv.slice(2));
 const id = flags._[0];
