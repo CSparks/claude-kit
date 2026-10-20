@@ -9,7 +9,7 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { brokerPaths } from './config.mjs';
+import { brokerPaths, laneConfigs } from './config.mjs';
 import { git, trackedModifications } from './git.mjs';
 
 const MAX_ENTRIES = 5000;
@@ -40,4 +40,9 @@ export function healOwnDirt(cfg, cwd) {
     if (git(['checkout', '-q', 'HEAD', '--', path], cwd).code === 0) healed.push(path);
   }
   return healed;
+}
+
+/** Did any lane's broker job write `path` (relative to `cwd`)? Entries are recorded per lane. */
+export function wasWrittenByBroker(cfg, cwd, path) {
+  return laneConfigs(cfg).some((lane) => !!readLedger(lane)[keyOf(cwd, path)]);
 }

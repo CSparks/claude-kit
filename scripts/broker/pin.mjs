@@ -13,6 +13,7 @@ import { asList } from './cli.mjs';
 import { repoByName } from './config.mjs';
 import { dirtyPaths, git, revParse } from './git.mjs';
 import { stalePins } from './pin-stale.mjs';
+import { restoreLockDebris } from './restore.mjs';
 
 const SHA = /^[0-9a-f]{7,40}$/i;
 
@@ -68,6 +69,7 @@ export function preparePins(cfg, cwd, job) {
     const sub = repoByName(cfg, pin.repo);
     if (!sub) return { error: `pin: unknown repo '${pin.repo}'` };
     const subCwd = join(cfg.root, sub.path);
+    restoreLockDebris(subCwd);
     if (dirtyPaths(subCwd).length) return { error: `pin: ${sub.path} has uncommitted changes` };
     if (git(['cat-file', '-e', `${pin.sha}^{commit}`], subCwd).code !== 0) return { error: `pin: ${pin.sha} is not a commit in ${sub.path}` };
     if (job.land && !shaOnRemote(subCwd, sub.remote, sub.main, pin.sha)) return { error: `pin: ${pin.sha.slice(0, 10)} is not on ${sub.remote}/${sub.main}; a landing never pins an unpushed sha` };
@@ -92,6 +94,7 @@ export function implicitPins(cfg, superRepo, cwd, job) {
     const recorded = git(['rev-parse', `HEAD:${sub.path}`], cwd).out;
     const current = revParse(subCwd, 'HEAD');
     if (!recorded || !current || recorded === current) continue;
+    restoreLockDebris(subCwd);
     if (dirtyPaths(subCwd).length) return { error: `${sub.path} sits at ${current.slice(0, 10)} but ${superRepo.name} pins ${recorded.slice(0, 10)}, and ${sub.path} has uncommitted changes; the broker will not check it out under them` };
     if (git(['cat-file', '-e', `${recorded}^{commit}`], subCwd).code !== 0) return { error: `pin: ${recorded.slice(0, 10)} (recorded by ${superRepo.name}) is not a commit in ${sub.path}` };
     const branch = git(['symbolic-ref', '-q', '--short', 'HEAD'], subCwd).out;

@@ -20,6 +20,7 @@ export function acquireLock(cfg, { spawnedBy = null, log = null } = {}) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       writeFileSync(path, record, { flag: 'wx' });
+      heartbeat(cfg);
       rmSync(brokerPaths(cfg).spawning, { force: true });
       return { ok: true };
     } catch (e) {

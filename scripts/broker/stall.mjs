@@ -9,11 +9,13 @@
 //   the kill limit (`stall_kill_s`, default RESTART_MS; 0 never kills) and started a new daemon (the
 //   new one restores the journal and re-runs the job). It never kills a daemon inside a landing
 //   phase (phase.json) or past its commit (inflight.json `committed`): a push or a repo gate that
-//   long is the gate's time, and a restart there would strand the commit. The kill is written to
-//   killed.json, and the job's next result carries it (result.mjs).
+//   long is the gate's time, and a restart there would strand the commit. It never kills a daemon whose
+//   command child is alive and still writing its log (busy, not wedged), and the kill resets the beat
+//   (a replacement's first beat comes after its start-up, which a poller must not read as a stall). The kill is written to killed.json, and the
+//   job's next result carries it (result.mjs).
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { liveHolder } from './lock.mjs';
@@ -50,6 +52,20 @@ export function pulse() {
   beat();
 }
 
+const alive = (pid) => {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try { process.kill(pid, 0); return true; } catch (e) { return !!e && e.code === 'EPERM'; }
+};
+
+/** A command child of the holder that is alive and wrote its log within STALL_MS: the daemon is busy, not wedged. */
+export function activeChild(cfg, now = Date.now()) {
+  const rows = readJson(join(brokerPaths(cfg).home, 'children.json')) || [];
+  return rows.find((r) => {
+    if (!alive(r.pid) || !r.logPath || !existsSync(r.logPath)) return false;
+    try { return now - statSync(r.logPath).mtimeMs < STALL_MS; } catch { return false; }
+  }) || null;
+}
+
 export function stallState(cfg, now = Date.now()) {
   const held = liveHolder(cfg);
   if (!held) return null;
@@ -71,7 +87,7 @@ function killTree(pid) {
 export function restartIfWedged(cfg, root, { now = Date.now(), kill = killTree, spawner } = {}) {
   const s = stallState(cfg, now);
   const limit = killLimitMs(cfg);
-  if (!s || !limit || s.beatAgeMs < limit || landingHold(cfg)) return false;
+  if (!s || !limit || s.beatAgeMs < limit || landingHold(cfg) || activeChild(cfg, now)) return false;
   const home = brokerPaths(cfg).home;
   const inflight = readJson(join(home, 'inflight.json'));
   const phase = readJson(join(home, 'phase.json'));
@@ -82,6 +98,7 @@ export function restartIfWedged(cfg, root, { now = Date.now(), kill = killTree, 
   }
   kill(s.pid);
   rmSync(brokerPaths(cfg).lock, { force: true });
+  try { writeFileSync(brokerPaths(cfg).beat, new Date(now).toISOString()); } catch { /* best effort */ }
   console.error(`broker: ${stallLine(s)}; killed it and started a new daemon (it restores the tree and re-runs the job)`);
   if (spawner) spawner(root, `replaced pid ${s.pid}, silent ${Math.round(s.beatAgeMs / MS_PER_S)} s${inflight ? ` on ${inflight.id}${phase ? ` (${phase.phase})` : ''}` : ''}`);
   return true;

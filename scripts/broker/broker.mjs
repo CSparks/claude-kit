@@ -15,6 +15,7 @@
 //   node broker.mjs cancel <job-id> --root <checkout>  # withdraw a QUEUED job; a running one is refused
 //   node broker.mjs status --root <checkout>           # queue, pause, deferred foreign failures
 //   node broker.mjs clean <path...> | --pycache --root <checkout>   # remove untracked leftovers (never tracked files)
+//   node broker.mjs restore <path...> | --debris --root <checkout> # put Cargo.lock debris and broker-written files back from HEAD
 // Start it with background Bash; a second start while one is live exits 1 (restart is idempotent).
 
 import { parseFlags, loadCfg } from './cli.mjs';
@@ -84,6 +85,21 @@ if (command === 'clean') {
   const r = cleanUntracked(cfg, targets);
   for (const rel of r.removed) console.error(`broker: removed ${rel}`);
   for (const x of r.refused) console.error(`broker: refused ${x.path}: ${x.reason}`);
+  process.exit(r.refused.length ? 1 : 0);
+}
+
+if (command === 'restore') {
+  const { restoreAllDebris, restorePaths, runningJob } = await import('./restore.mjs');
+  const running = laneConfigs(rootCfg).map((lane) => runningJob(lane)).find(Boolean);
+  if (running) { console.error(`broker: job ${running} is running in this lane; restore once it ends (broker.mjs status)`); process.exit(1); }
+  const asked = flags._.slice(1);
+  if (!asked.length && !flags.debris) { console.error('broker: restore needs <path...> or --debris'); process.exit(2); }
+  const swept = flags.debris ? restoreAllDebris(cfg) : [];
+  const r = restorePaths(cfg, asked);
+  for (const x of swept) console.error(`broker: restored ${x.repo}/${x.path} (a lockfile left by a killed job)`);
+  for (const p of r.restored) console.error(`broker: restored ${p}`);
+  for (const x of r.refused) console.error(`broker: refused ${x.path}: ${x.reason}`);
+  if (flags.debris && !swept.length) console.error('broker: no Cargo.lock debris to restore');
   process.exit(r.refused.length ? 1 : 0);
 }
 
