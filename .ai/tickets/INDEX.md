@@ -475,7 +475,7 @@
 | KIT-T602 | bug | todo | high | capability table lives in the sealed runtime's copy of .ai/config.yml, so a re-date (data) needs a full publish:runtime (20+ min) before dis |
 | KIT-T603 | bug | todo | high | job-capability redate refused an M (maintainer decision) row: error said A/B/C only and no verb recorded the decision; fixed by job-capabili |
 | KIT-T604 | bug | review | high | Capability row resting on a maintainer decision could never be re-dated, so it went stale every 7 days and blocked every dispatch (asset row, 2026-10-20) |
-| KIT-T605 | bug | todo | high | The capability table is read from the sealed runtime's copy of .ai/config.yml, so a re-date (data) needs a full publish:runtime before dispatch-guard sees it |
+| KIT-T605 | bug | review | high | The capability table is read from the sealed runtime's copy of .ai/config.yml, so a re-date (data) needs a full publish:runtime before dispatch-guard sees it |
 | KIT-T606 | bug | todo | high | dispatch-guard capability-table-stale blocks EVERY dispatch (all jobs) when one row is stale; the 'asset' row's basis is maintainer decision |
 
 ## Superseded (29)
