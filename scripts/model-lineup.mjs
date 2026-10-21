@@ -7,9 +7,9 @@
 // the refresh period, or a known model newer than the alias for its family. A refresh does not
 // re-date rows; only capability evidence does (job-capability.mjs redate).
 
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readLadder, capabilityFreshness, ladderRoot } from './dispatch-ladder.mjs';
+import { kitDataText } from './kit-data.mjs';
 
 export const LINEUP_REL = ['.ai', 'model-lineup.json'];
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -27,7 +27,7 @@ const pretty = (id) => {
 
 export function readLineup(kitRoot = ladderRoot()) {
   try {
-    const data = JSON.parse(readFileSync(join(kitRoot, ...LINEUP_REL), 'utf8'));
+    const data = JSON.parse(kitDataText(kitRoot, ...LINEUP_REL));
     return Array.isArray(data.models) ? data : null;
   } catch {
     return null;

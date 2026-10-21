@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMain } from './is-main.mjs';
+import { kitDataText } from './kit-data.mjs';
 
 export const KIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const FRESHNESS_DAYS = 14;
@@ -56,7 +57,7 @@ function parseJobs(block) {
 }
 
 export function readLadder(kitRoot = ladderRoot()) {
-  const body = dispatchBlock(readFileSync(join(kitRoot, '.ai', 'config.yml'), 'utf8'));
+  const body = dispatchBlock(kitDataText(kitRoot, '.ai', 'config.yml'));
   const jobs = parseJobs(subBlock(body, 'jobs'));
   const defaultJob = {};
   for (const m of subBlock(body, 'default_job').matchAll(/^ {4}("[^"]+"|'[^']+'|[\w*-]+):\s*([\w-]+)/gm)) {

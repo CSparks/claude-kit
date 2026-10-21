@@ -1,0 +1,1 @@
+chore context budget 2026-10-21: global CLAUDE.md is 5,464 tokens in every session of all 18 projects (soft limit 3,000): move the detail sections (delegation cost, DB rules, hook contract, memory hygiene) to kit docs/<topic>.md files and leave a one-line pointer each in the base CLAUDE.md source
