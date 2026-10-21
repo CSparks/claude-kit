@@ -69,6 +69,23 @@ test('composeCommand: cargo test gets --no-fail-fast + -j, idempotently', () => 
   );
 });
 
+test('composeCommand: a build-only --no-run command never gets a run-only flag (KIT-T616)', () => {
+  assert.equal(composeCommand('cd rust && cargo t --no-run', { jobs: 3 }), 'cd rust && cargo t --no-run -j 3');
+  assert.equal(composeCommand('cargo test --no-run -p foo', { jobs: 3 }), 'cargo test --no-run -p foo -j 3');
+  assert.equal(composeCommand('cargo test --no-run -j 2', { jobs: 3 }), 'cargo test --no-run -j 2');
+  assert.equal(composeCommand('cargo test --fail-fast -p foo', { jobs: 3 }), 'cargo test --fail-fast -p foo -j 3'); // an explicit choice stands
+});
+
+test('composeCommand: an attached or joined jobs flag counts as present (KIT-T343)', () => {
+  assert.equal(composeCommand('cargo t -p x -j2', { jobs: 3 }), 'cargo t -p x -j2 --no-fail-fast');
+  assert.equal(composeCommand('cargo t -p x --jobs=2', { jobs: 3 }), 'cargo t -p x --jobs=2 --no-fail-fast');
+  assert.equal(composeCommand('cargo t -p x --jobs 2', { jobs: 3 }), 'cargo t -p x --jobs 2 --no-fail-fast');
+});
+
+test('composeCommand: control, a plain test command keeps both flags', () => {
+  assert.equal(composeCommand('cargo t -p x', { jobs: 3 }), 'cargo t -p x --no-fail-fast -j 3');
+});
+
 test('lock: one holder, reclaim on release', () => {
   const dir = tempDir();
   try {

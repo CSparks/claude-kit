@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { admit } from './admit.mjs';
 import { capture, discard, dropNewLocks, markCommitted, markLinked, restore } from './preimage.mjs';
 import { checkRestore } from './restore-check.mjs';
+import { sweepOwnWrites } from './own-writes.mjs';
 import { landLinked } from './linked.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
@@ -168,6 +169,7 @@ export function processPatch(cfg, job, repo) {
       revertPins(pins);
       checkRestore(cfg, journal, job.id);
     }
+    sweepOwnWrites(cfg, { id: job.id, cwd, before: pre.dirty });
     recordRun(cfg, { id: job.id, repo: job.repo, kind: 'job', startedAt, entries: journal.entries });
   }
 }

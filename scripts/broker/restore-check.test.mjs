@@ -60,6 +60,22 @@ test('a genuine line-ending-only difference is described as such', () => {
   } finally { s.done(); }
 });
 
+test('a tracked file git sees unmodified is no mismatch when only its line endings differ from the journal', () => {
+  const s = fixture();
+  try {
+    commitOnMain(s.root, 'lib.rs', 'a\r\nb\r\n', 'add crlf');
+    writeFileSync(join(s.root, 'lib.rs'), 'a\nb\n');
+    const journal = journalOf(s, 'j-4');
+    restore(s.cfg, journal);
+    g(['checkout', 'HEAD', '--', 'lib.rs'], s.root);
+    assert.equal(readFileSync(join(s.root, 'lib.rs'), 'utf8'), 'a\r\nb\r\n');
+    assert.equal(g(['status', '--porcelain'], s.root), '');
+    assert.deepEqual(restoreMismatches(journal), []);
+    writeFileSync(join(s.root, 'lib.rs'), 'a\r\nc\r\n');
+    assert.deepEqual(restoreMismatches(journal), ['lib.rs'], 'control: a content difference stays a mismatch');
+  } finally { s.done(); }
+});
+
 test('a restore-mismatch fault stands until a later restore verifies clean, then the self-check drops it', () => {
   const s = fixture();
   try {

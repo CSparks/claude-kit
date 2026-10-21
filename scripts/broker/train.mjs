@@ -24,6 +24,7 @@ import { phaseTracker } from './phase.mjs';
 import { checkoutPins, implicitPins, revertPins } from './pin.mjs';
 import { capture, discard, dropNewLocks, restore } from './preimage.mjs';
 import { checkRestore } from './restore-check.mjs';
+import { sweepOwnWrites } from './own-writes.mjs';
 import { STATUS, hasFinalResult, logPathFor, removeJob, writeResult } from './result.mjs';
 import { blame } from './train-blame.mjs';
 import { trainCommands } from './train-commands.mjs';
@@ -67,6 +68,7 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
   let logN = 0;
   const nextLog = () => logN++;
   let journal = null;
+  const dirtyBefore = dirtyPaths(cwd);
   let locksBefore = [];
   let kept = false;
   const putBack = () => { restore(cfg, journal); dropNewLocks(cwd, locksBefore); };
@@ -126,6 +128,7 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
       checkRestore(cfg, journal, id);
     }
     revertPins(pins);
+    sweepOwnWrites(cfg, { id, cwd, before: dirtyBefore });
     if (journal) recordRun(cfg, { id, repo: repo.name, kind: 'train', startedAt, entries: journal.entries });
   }
   return { results, builds };

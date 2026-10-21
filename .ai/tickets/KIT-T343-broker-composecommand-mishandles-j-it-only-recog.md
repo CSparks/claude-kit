@@ -2,7 +2,7 @@
 id: KIT-T343
 title: broker composeCommand mishandles -j: it only recognises '-j'/'--jobs' as separate tokens, so a '-j2' in --test or verify_default gets a seco
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-06T06:30:06Z
-updated: 2026-10-06T06:30:06Z
+updated: 2026-10-21T18:46:08Z
 ---
 
 ## Description
@@ -27,5 +27,9 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 ## Plan
 1.
 
+## Notes
+fixed with KIT-T616: JOBS_FLAG recognises -j2, -j=2, --jobs=2, --jobs 2 (units.test.mjs 'attached or joined jobs flag'); the -- separator half was KIT-T373.
+
 ## History
 - [2026-10-06 06:30] (created) bug — broker composeCommand mishandles -j: it only recognises '-j'/'--jobs' as separate tokens, so a '-j2' in --test or verify_default gets a seco
+- [2026-10-21 18:46] (status) todo → review

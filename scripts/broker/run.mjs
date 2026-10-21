@@ -18,8 +18,15 @@ const LOG_TAIL_LINES = 60;
 const CARGO_BUILD_SUBS = new Set(['test', 'build', 'check', 'clippy', 'bench', 'nextest', 'run', 't', 'b', 'r']);
 const TEST_SUBS = new Set(['test', 't']);
 
+const BUILD_ONLY_FLAGS = new Set(['--no-run']);
+const FAIL_FAST_FLAGS = new Set(['--fail-fast', '--no-fail-fast']);
+const JOBS_FLAG = /^(-j\d*|-j=\d+|--jobs(=.*)?)$/;
+
 // Fold `-j <jobs>` into any cargo build-shaped command (absent) and `--no-fail-fast` into
-// `cargo test`/`cargo t` (absent); the `t`/`b`/`r` aliases are the project's fastdev builds. Token-based so an already-present flag is never duplicated.
+// `cargo test`/`cargo t` that runs tests (absent); the `t`/`b`/`r` aliases are the project's fastdev
+// builds. Token-based so a present flag, attached forms included (`-j2`, `--jobs=2`), is never
+// duplicated. `--no-fail-fast` is a run-only flag: a build-only command (`--no-run`) or one that
+// already chose `--fail-fast` never receives it (KIT-T616, KIT-T343).
 export function composeCommand(cmd, { jobs = 3, cwd } = {}) {
   const original = String(cmd).trim().split(/\s+/);
   const wasTest = TEST_SUBS.has(original[original.indexOf('cargo') + 1]);
@@ -32,10 +39,10 @@ export function composeCommand(cmd, { jobs = 3, cwd } = {}) {
   const sep = toks.indexOf('--');
   const cargoToks = sep === -1 ? toks : toks.slice(0, sep);
   const rest = sep === -1 ? [] : toks.slice(sep);
-  const has = (flag) => cargoToks.includes(flag);
   const out = cargoToks.slice();
-  if ((wasTest || TEST_SUBS.has(sub)) && !has('--no-fail-fast')) out.push('--no-fail-fast');
-  if (!has('-j') && !has('--jobs')) out.push('-j', String(jobs));
+  const runsTests = (wasTest || TEST_SUBS.has(sub)) && !cargoToks.some((t) => BUILD_ONLY_FLAGS.has(t));
+  if (runsTests && !cargoToks.some((t) => FAIL_FAST_FLAGS.has(t))) out.push('--no-fail-fast');
+  if (!cargoToks.some((t) => JOBS_FLAG.test(t))) out.push('-j', String(jobs));
   return out.concat(rest).join(' ');
 }
 

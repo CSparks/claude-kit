@@ -65,11 +65,20 @@ export function restorePaths(journal, paths) {
 /** True when the in-flight journal is job `id`'s own run or a train carrying it. */
 export const inflightHas = (inflight, id) => !!inflight && (inflight.id === id || (inflight.members || []).includes(id));
 
-// A restored file is the pre-image when its exact bytes match, or when git adds it as the pre-image blob
-// (a checkout writes the working form, CRLF under autocrlf, of an LF blob).
+const CR = String.fromCharCode(13);
+const stripCr = (bytes) => bytes.toString('latin1').split(CR).join('');
+
+// A restored file is the pre-image when its exact bytes match, when git adds it as the pre-image blob
+// (a checkout writes the working form, CRLF under autocrlf, of an LF blob), or when git sees it
+// unmodified and only its line endings differ from the journalled bytes (a later `git checkout` of the
+// tracked form, or a heal, rewrote its endings). A file git sees modified keeps its endings difference.
 const matchesPreImage = (cwd, path, blob) => {
   if (!existsSync(join(cwd, path))) return blob === null;
-  return blob !== null && (hashObject(cwd, path) === blob || hashObjectFiltered(cwd, path) === blob);
+  if (blob === null) return false;
+  if (hashObject(cwd, path) === blob || hashObjectFiltered(cwd, path) === blob) return true;
+  const want = catBlob(cwd, blob);
+  const tracked = git(['ls-files', '--error-unmatch', '--', path], cwd).code === 0;
+  return !!want && tracked && git(['diff', '--quiet', '--', path], cwd).code === 0 && stripCr(want) === stripCr(readFileSync(join(cwd, path)));
 };
 
 /** Paths that differ from the journal's pre-image (call after `restore`). */
