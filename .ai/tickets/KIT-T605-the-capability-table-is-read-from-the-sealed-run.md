@@ -26,6 +26,7 @@ ladderRoot() resolves to the directory of the running script, so hooks run from 
 
 ## Notes
 Checked as possible duplicates and judged different work (--not-dup): KIT-T433, KIT-T419, KIT-T339
+2026-10-21: still open. The re-date only reached dispatch-guard after a full publish:runtime (about 1.5 h on a loaded machine).
 
 ## History
 - [2026-10-21 05:08] (created) bug — The capability table is read from the sealed runtime's copy of .ai/config.yml, so a re-date (data) needs a full publish:runtime before dispatch-guard sees it

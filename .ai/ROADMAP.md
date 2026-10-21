@@ -361,6 +361,7 @@
 - KIT-T603 — job-capability redate refused an M (maintainer decision) row: error said A/B/C only and no verb recorded the decision; fixed by job-capabili (high)
 - KIT-T604 — Capability row resting on a maintainer decision could never be re-dated, so it went stale every 7 days and blocked every dispatch (asset row, 2026-10-20) (high)
 - KIT-T605 — The capability table is read from the sealed runtime's copy of .ai/config.yml, so a re-date (data) needs a full publish:runtime before dispatch-guard sees it (high)
+- KIT-T606 — dispatch-guard capability-table-stale blocks EVERY dispatch (all jobs) when one row is stale; the 'asset' row's basis is maintainer decision (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)
