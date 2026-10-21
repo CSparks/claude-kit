@@ -8,13 +8,15 @@
 //                                                    in the kit config; returns the ids it touched. Throws unless
 //                                                    research/models-capability-<date>.md grades each named row (KIT-T433).
 //   CLI: node job-capability.mjs redate <date> <job,job|all>
+//        node job-capability.mjs decide <date> <job> --by <who> --on <YYYY-MM-DD> --quote "<his words>"
+//          writes the job's M row (a maintainer decision with its date) into the note, then re-dates the row
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ladderRoot, readLadder } from './dispatch-ladder.mjs';
 import { jobStats, proposals } from './dispatch-report.mjs';
-import { capabilityCoverage } from './capability-research.mjs';
+import { capabilityCoverage, recordDecisionRow } from './capability-research.mjs';
 import { isMain } from './is-main.mjs';
 
 export function jobCapabilityTable({ jobs, costs = {}, outcomes = [] }) {
@@ -37,7 +39,7 @@ export function redateRows(kitRoot, date, ids) {
   const unknown = named.filter((id) => !known.has(id));
   if (unknown.length) throw new Error(`unknown dispatch job(s): ${unknown.join(', ')}`);
   const { file: note, missing } = capabilityCoverage(kitRoot, date, named);
-  if (missing.length) throw new Error(`cannot re-date without capability evidence: ${note} has no graded (A/B/C) Basis for ${missing.join(', ')}`);
+  if (missing.length) throw new Error(`cannot re-date without capability evidence: ${note} has no graded (A/B/C source or dated M decision) Basis for ${missing.join(', ')}; record a maintainer decision with: node job-capability.mjs decide <date> <job> --by <who> --on <date> --quote "<his words>"`);
   const touched = [];
   let current = '';
   const lines = readFileSync(file, 'utf8').split('\n').map((line) => {
@@ -59,6 +61,19 @@ if (isMain(import.meta.url) && process.argv[2] === 'redate') {
     console.log(`re-dated: ${redateRows(ladderRoot(), process.argv[3], String(process.argv[4] || '').split(',')).join(', ') || 'none'}`);
   } catch (e) {
     console.error(`redate refused: ${e.message}`);
+    process.exit(1);
+  }
+}
+
+if (isMain(import.meta.url) && process.argv[2] === 'decide') {
+  try {
+    const [date, job] = [process.argv[3], process.argv[4]];
+    const flag = (name) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
+    if (!date || !job) throw new Error('usage: decide <date> <job> --by <who> --on <YYYY-MM-DD> --quote "<his words>"');
+    const note = recordDecisionRow(ladderRoot(), date, { job, by: flag('by'), on: flag('on'), quote: flag('quote') });
+    console.log(`decision recorded in ${note}; re-dated: ${redateRows(ladderRoot(), date, [job]).join(', ') || 'none'}`);
+  } catch (e) {
+    console.error(`decide refused: ${e.message}`);
     process.exit(1);
   }
 }

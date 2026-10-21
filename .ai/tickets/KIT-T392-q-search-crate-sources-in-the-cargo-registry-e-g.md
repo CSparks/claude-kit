@@ -8,7 +8,7 @@ milestone:
 labels: [kit-feature]
 links: []
 files: []
-supersedes: KIT-T441
+supersedes: KIT-T427
 superseded_by:
 created: 2026-10-08T03:50:35Z
 updated: 2026-10-13T07:21:52Z

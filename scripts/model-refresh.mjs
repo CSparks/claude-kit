@@ -95,8 +95,8 @@ function proposal(kitRoot, date, status, ladder) {
 export async function refresh({ kitRoot = ladderRoot(), now = new Date(), fetchImpl = fetch, env = process.env, outcomeRoots = [] } = {}) {
   const date = now.toISOString().slice(0, 10);
   const coverage = capabilityCoverage(kitRoot, date);
-  if (!coverage.exists) throw new Error(`no capability research at ${coverage.file}; write the per-job table (Job | ... | Basis with an A/B/C source) first. The gate stays shut`);
-  if (coverage.missing.length) throw new Error(`${coverage.file} has no graded (A/B/C) Basis for: ${coverage.missing.join(', ')}. The gate stays shut`);
+  if (!coverage.exists) throw new Error(`no capability research at ${coverage.file}; write the per-job table (Job | ... | Basis with an A/B/C source or a dated M decision) first. The gate stays shut`);
+  if (coverage.missing.length) throw new Error(`${coverage.file} has no graded (A/B/C source or dated M decision) Basis for: ${coverage.missing.join(', ')}. The gate stays shut`);
   const lineup = await fetchLineup({ fetchImpl, env });
   if (!lineup.models.length) throw new Error(`no model ids found at ${lineup.source}; the gate stays blocked`);
   const costs = await fetchCosts({ fetchImpl });

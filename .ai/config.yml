@@ -180,7 +180,7 @@ dispatch:
       family: opus
       effort: medium
       cost: "high"
-      evidence: 2026-10-12
+      evidence: 2026-10-21
       source: "Chris 2026-10-06: 'I doubt the game asset artist really fucking needs fable.'; KIT-D091; research/models-capability-2026-10-12.md (none: spatial work unresearched, kept on opus); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
       use: "3D modeling and game-asset authoring; never fable; spatial work is unresearched, so it stays on opus"
     forensic:
@@ -203,7 +203,7 @@ dispatch:
       effort: high
       self_escalating: true
       cost: "high on opus; fable costs 2.5x opus (research/models-capability-2026-10-17.md), so it is the fallback, not the default; a dispatch to this job is itself the escalation, so it needs no [escalate]"
-      evidence: 2026-10-17
+      evidence: 2026-10-21
       source: "KIT-D098; Chris 2026-10-17: 'Planning is separate from coordination. Opus for planning, Sonnet for coordination.'; Chris 2026-10-17 picked 'Opus, Fable as backup' after the weekly reassessment (e22f4af); KIT-D091; Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
       use: "complicated planning: multi-system or spatial plans (rolling terrain edges, integrating mine entrances into the surrounding terrain); the plan ends in an apply brief that sonnet implements"
     deep:

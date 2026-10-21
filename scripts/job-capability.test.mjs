@@ -2,7 +2,10 @@
 // Run: node scripts/job-capability.test.mjs
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { isGraded } from './capability-research.mjs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { jobCapabilityTable, redateRows } from './job-capability.mjs';
 import { readLadder } from './dispatch-ladder.mjs';
 import { refresh } from './model-refresh.mjs';
@@ -63,6 +66,22 @@ try {
   const rowsOld = hook('housekeeping.mjs', { hook_event_name: 'SessionStart' }, lineupFresh, { CLAUDE_KIT_LADDER_ROOT: lineupFresh, ...homeEnv(quietHome()) });
   ok('housekeeping fires on a stale ROW even when the lineup refresh is fresh', /WEEKLY MODEL REASSESSMENT DUE \(9d/.test(rowsOld.out));
   ok('the live research notes exist', existsSync(new URL('../research/models-2026-10-10.md', import.meta.url)));
+
+  // A row that rests on the maintainer's quoted decision re-dates through the same path (grade M).
+  const decided = fixtureKit('2026-09-01');
+  const script = fileURLToPath(new URL('./job-capability.mjs', import.meta.url));
+  const cli = (args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', env: { ...process.env, CLAUDE_KIT_LADDER_ROOT: decided } });
+  const bare = cli(['redate', '2026-10-21', 'asset']);
+  ok('without a note, redate refuses and names the decide verb', bare.status === 1 && /dated M decision/.test(bare.stderr) && /job-capability\.mjs decide/.test(bare.stderr));
+  const noQuote = cli(['decide', '2026-10-21', 'asset', '--by', 'Chris', '--on', '2026-10-21']);
+  ok('a decision without his quoted words is refused and writes nothing', noQuote.status === 1 && /--quote/.test(noQuote.stderr) && readLadder(decided).jobs.asset.evidence === '2026-09-01');
+  const noDate = cli(['decide', '2026-10-21', 'asset', '--by', 'Chris', '--quote', 'keep opus']);
+  ok('a decision without its date is refused', noDate.status === 1 && /--on/.test(noDate.stderr));
+  const accepted = cli(['decide', '2026-10-21', 'asset', '--by', 'Chris', '--on', '2026-10-21', '--quote', '(Recommended) Re-date asset, keep opus']);
+  const note = readFileSync(join(decided, 'research', 'models-capability-2026-10-21.md'), 'utf8');
+  ok('decide writes the M row with the quote and date, and re-dates only that row', accepted.status === 0 && /\| asset \| M \(Chris 2026-10-21: "\(Recommended\) Re-date asset, keep opus"\) \|/.test(note)
+    && readLadder(decided).jobs.asset.evidence === '2026-10-21' && readLadder(decided).jobs.plan.evidence === '2026-09-01');
+  ok('a bare M with no date is not a graded basis', !isGraded('M') && !isGraded('M (approved)') && isGraded('M (Chris 2026-10-21: "x")') && isGraded('A') && !isGraded('inference'));
 } finally {
   cleanup();
 }
