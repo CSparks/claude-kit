@@ -23,9 +23,12 @@ try {
   ok('coverage can be narrowed to named jobs', capabilityCoverage(kit, '2026-10-12', ['fix']).missing.length === 0);
   ok('the note path is dated under research/', capabilityNotePath(kit, '2026-10-12') === join(kit, 'research', 'models-capability-2026-10-12.md'));
 
-  const newest = readdirSync(join(KIT_ROOT, 'research')).map((f) => /^models-capability-(\d{4}-\d{2}-\d{2})\.md$/.exec(f)).filter(Boolean).map((m) => m[1]).sort().pop();
-  const live = capabilityCoverage(KIT_ROOT, newest);
-  ok(`the live ${newest} note grades every dispatch.jobs row (research plus the maintainer approval table)`, existsSync(live.file) && live.missing.length === 0);
+  // A weekly note grades every row; a later note may carry only maintainer-decision rows (grade M) for a few jobs.
+  const dates = readdirSync(join(KIT_ROOT, 'research')).map((f) => /^models-capability-(\d{4}-\d{2}-\d{2})\.md$/.exec(f)).filter(Boolean).map((m) => m[1]).sort();
+  const weekly = dates.filter((d) => capabilityCoverage(KIT_ROOT, d).missing.length === 0);
+  ok(`a live weekly note (${weekly.at(-1)}) grades every dispatch.jobs row (research plus the maintainer approval table)`, weekly.length > 0);
+  const newest = capabilityCoverage(KIT_ROOT, dates.at(-1));
+  ok(`the newest note (${dates.at(-1)}) grades at least one row`, newest.exists && newest.covered.length > 0);
 } finally {
   cleanup();
 }

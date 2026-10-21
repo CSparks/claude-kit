@@ -16,7 +16,7 @@ try {
   ok('the table has a coordination row on sonnet', ladder.jobs.coordination && ladder.jobs.coordination.family === 'sonnet');
   const plan = resolveJob({ job: 'plan' });
   ok('the plan job runs on opus with fable as its fallback and is self-escalating', plan.family === 'opus' && plan.fallback === 'fable' && ladder.jobs.plan.self_escalating === true);
-  ok('the plan row carries today\'s evidence date and the decision', /^2026-10-1[7-9]|^2026-1[1-2]|^2027/.test(ladder.jobs.plan.evidence) && /KIT-D098/.test(ladder.jobs.plan.source));
+  ok('the plan row carries today\'s evidence date and the decision', /^2026-10-(1[7-9]|[23]\d)|^2026-1[1-2]|^2027/.test(ladder.jobs.plan.evidence) && /KIT-D098/.test(ladder.jobs.plan.source));
   ok('no row other than deep and the plan fallback puts fable on a job', Object.entries(ladder.jobs).every(([id, j]) => j.family !== 'fable' || id === 'deep'));
 
   ok('familyOf reads ids and aliases', familyOf('claude-opus-5-5') === 'opus' && familyOf('sonnet') === 'sonnet' && familyOf('claude-fable-5-1') === 'fable' && familyOf('gpt') === null);
