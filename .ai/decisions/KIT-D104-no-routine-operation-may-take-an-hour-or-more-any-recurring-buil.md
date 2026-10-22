@@ -1,10 +1,11 @@
 ---
 id: KIT-D104
 title: No routine operation may take an hour or more — any recurring build, test, gate, pin or suite run stays under 60 minutes wall clock
-summary: 
+summary: Ceiling is 5 minutes, not 60. Chris 2026-10-21, verbatim: 'THERE SHOULDN'T FUCKING BE ANYTHING THAT ROUTINELY TAKES MORE THAN 5 FUCKING MINUTES.' Every recurring build, test, gate, pin, verify or suite run finishes in under 5 minutes wall clock; over it is a bug to split, scope or speed up.
 date: 2026-10-21
 supersedes: 
 source: 
+revised: 2026-10-22
 ---
 
 
