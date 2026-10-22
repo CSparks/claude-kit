@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-22T16:03:06Z
-updated: 2026-10-22T21:47:30Z
+updated: 2026-10-22T21:48:39Z
+fixed_commit: 3159c9f
 ---
 
 ## Description
@@ -48,3 +49,4 @@ RULED 2026-10-22 (Chris, all three options): decision KIT-D105 narrows KIT-D097 
 - [2026-10-22 21:47] (comment) ticked: Command results carry slotWaitMs and the over-ceiling report names queued minutes
 - [2026-10-22 21:47] (comment) ticked: Broker test suite passes
 - [2026-10-22 21:47] (status) todo → done
+- [2026-10-22 21:48] (status) done → done

@@ -2,7 +2,7 @@
 id: KIT-T631
 title: publish:runtime pruned runtime 0495191 that a session still called by path (t.mjs MODULE_NOT_FOUND); a pin covers only brokers and the q-server (follow-up to KIT-T486)
 type: bug
-status: todo
+status: done
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-22T19:44:54Z
-updated: 2026-10-22T19:44:54Z
+updated: 2026-10-22T21:48:41Z
+fixed_commit: 3159c9f
 ---
 
 ## Description
@@ -35,3 +36,4 @@ Tests: scripts/runtime-publish.test.mjs 19 pass (4 new incl. negative control). 
 - [2026-10-22 21:47] (comment) criterion added: Negative control: an old copy no process names is still pruned
 - [2026-10-22 21:47] (comment) ticked: Prune keeps a copy younger than 72 h and a copy a live process names on its command line (Windows backslash, forward-slash and msys forms)
 - [2026-10-22 21:47] (comment) ticked: Negative control: an old copy no process names is still pruned
+- [2026-10-22 21:48] (status) todo → done
