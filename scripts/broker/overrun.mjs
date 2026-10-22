@@ -17,7 +17,8 @@ export function overrun(result) {
   const totalMs = timings.reduce((sum, t) => sum + (t.ms || 0), 0);
   if (totalMs <= CEILING_MS) return null;
   const top = timings.reduce((best, t) => ((t.ms || 0) > (best.ms || 0) ? t : best), timings[0]);
-  return { totalMs, phase: top.phase, phaseMs: top.ms };
+  const queuedMs = ((result && result.commands) || []).reduce((sum, c) => sum + (c.slotWaitMs || 0), 0);
+  return { totalMs, phase: top.phase, phaseMs: top.ms, queuedMs };
 }
 
 export function fileKitBug({ text }) {
@@ -29,7 +30,8 @@ export function reportOverrun(job, result, { fileBug = fileKitBug } = {}) {
   try {
     const o = overrun(result);
     if (!o) return false;
-    const text = `broker job over the 5-minute ceiling (KIT-D104): ${job.repo} ${o.phase} phase took ${minutes(o.phaseMs)} min of ${minutes(o.totalMs)} min total; job ${job.id}${job.ticket ? ` (${job.ticket})` : ''}, status ${result.status}; split, scope or speed up that phase`;
+    const queued = o.queuedMs ? `, ${minutes(o.queuedMs)} min of it queued for the machine build slot` : '';
+    const text = `broker job over the 5-minute ceiling (KIT-D104): ${job.repo} ${o.phase} phase took ${minutes(o.phaseMs)} min of ${minutes(o.totalMs)} min total${queued}; job ${job.id}${job.ticket ? ` (${job.ticket})` : ''}, status ${result.status}; split, scope or speed up that phase`;
     return fileBug({ text });
   } catch { return false; }
 }

@@ -16,6 +16,13 @@ test('a job over the ceiling names its dominant phase, total and minutes', () =>
   assert.match(bugs[0].text, /rapid-game pre-push gate phase took 25\.0 min of 25\.2 min total; job j-1 \(RG-T1\)/);
 });
 
+test('minutes a job spent queued for the machine build slot are named in the report', () => {
+  const queued = { ...SLOW, commands: [{ slotWaitMs: 4 * 60_000 }, { slotWaitMs: 0 }, {}] };
+  const bugs = [];
+  reportOverrun(JOB, queued, { fileBug: (b) => { bugs.push(b); return true; } });
+  assert.match(bugs[0].text, /25\.2 min total, 4\.0 min of it queued for the machine build slot; job j-1/);
+});
+
 test('control: a job at or under the ceiling, or one with no timings, files nothing', () => {
   const bugs = [];
   const fileBug = (b) => { bugs.push(b); return true; };

@@ -13,6 +13,7 @@ import { composeCommand, tail } from './run.mjs';
 import { pulse } from './stall.mjs';
 import { linkFailure, recoverLink } from './link-recover.mjs';
 import { killTree, trackChild, untrackChild } from './children.mjs';
+import { acquireBuildSlot } from './build-slot.mjs';
 
 const CHILD = join(import.meta.dirname, 'run-child.mjs');
 const DEFAULT_POLL_MS = 500;
@@ -33,8 +34,18 @@ export function runCancellable(cmd, opts, hooks) {
   return { ...again, durationMs: first.durationMs + again.durationMs, recovered: note };
 }
 
-function runOnce(cmd, { cwd, targetDir, logPath, jobs, testThreads }, { shouldCancel, pollMs = DEFAULT_POLL_MS }) {
-  const composed = composeCommand(cmd, { jobs, testThreads, cwd });
+// The command waits for its machine-wide build slot (build-slot.mjs) before it starts; the queue
+// time is reported as `slotWaitMs`, and a cancel during the wait runs nothing.
+function runOnce(cmd, opts, hooks) {
+  const composed = composeCommand(cmd, { jobs: opts.jobs, testThreads: opts.testThreads, cwd: opts.cwd });
+  const slot = acquireBuildSlot(composed, { jobs: opts.jobs, label: String(cmd).trim(), shouldCancel: hooks.shouldCancel });
+  if (slot.cancelled) return { cmd: String(cmd).trim(), composed, exit: 1, durationMs: 0, slotWaitMs: slot.waitedMs, logTail: [], cancelled: true };
+  try {
+    return { ...runInSlot(cmd, composed, opts, hooks), slotWaitMs: slot.waitedMs };
+  } finally { slot.release(); }
+}
+
+function runInSlot(cmd, composed, { cwd, targetDir, logPath }, { shouldCancel, pollMs = DEFAULT_POLL_MS }) {
   const marker = `${logPath}.exit`;
   rmSync(marker, { force: true });
   const fd = openSync(logPath, 'w');

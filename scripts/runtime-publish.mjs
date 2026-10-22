@@ -20,9 +20,12 @@ import { isMain } from './is-main.mjs';
 import { liveUsers } from './runtime-pin.mjs';
 import { installedPlugin, pluginDrift } from './plugin-drift.mjs';
 import { heldRuntimes } from './runtime-holders.mjs';
+import { referencedRuntimes } from './runtime-refs.mjs';
 
 const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
+const DEFAULT_GRACE_HOURS = 72;
+const MS_PER_HOUR = 3600 * 1000;
 const SHA_DIR = /^[0-9a-f]{7,40}$/;
 const LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
 const ARCHIVE_MAX_BYTES = 1 << 30;
@@ -50,12 +53,17 @@ function repointCurrent(runtimeRoot, sha) {
   renameSync(tmpLink, current);
 }
 
-function prune(runtimeRoot, keep, currentSha, projects) {
+// A copy survives when it is current, one of the newest `keep`, younger than `graceHours` (a session
+// started inside it keeps calling its scripts by path), pinned or lock-held by a daemon (KIT-T486),
+// or named on a live process's command line.
+function prune(runtimeRoot, { keep, currentSha, projects, graceHours, lines }) {
   const held = heldRuntimes(runtimeRoot, projects ? { projects } : {});
+  const named = referencedRuntimes(runtimeRoot, lines);
   const dirs = readdirSync(runtimeRoot).filter((n) => SHA_DIR.test(n))
     .map((n) => ({ n, t: statSync(join(runtimeRoot, n)).mtimeMs })).sort((a, b) => b.t - a.t);
-  for (const { n } of dirs.slice(keep)) {
-    if (n === currentSha || held.has(n) || liveUsers(join(runtimeRoot, n)).length) continue; // a running daemon still loads from it (KIT-T486)
+  const graceStart = Date.now() - graceHours * MS_PER_HOUR;
+  for (const { n, t } of dirs.slice(keep)) {
+    if (n === currentSha || t > graceStart || held.has(n) || named.has(n) || liveUsers(join(runtimeRoot, n)).length) continue;
     rmSync(join(runtimeRoot, n), { recursive: true, force: true });
   }
 }
@@ -89,7 +97,7 @@ function verifyHead(repo, runtimeRoot, sha, verify) {
 }
 
 /** Export HEAD of `repo` and repoint `current`; `verify(dir)` tests the exported HEAD first, never the working tree. Throws before touching `current` if either fails. */
-export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep = DEFAULT_KEEP, projects, verify }) {
+export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep = DEFAULT_KEEP, graceHours = DEFAULT_GRACE_HOURS, projects, verify, lines }) {
   const sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
   mkdirSync(runtimeRoot, { recursive: true });
   const dir = join(runtimeRoot, sha);
@@ -108,7 +116,7 @@ export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep 
     }
   }
   repointCurrent(runtimeRoot, sha);
-  prune(runtimeRoot, keep, sha, projects);
+  prune(runtimeRoot, { keep, currentSha: sha, projects, graceHours, lines });
   return { sha, dir, current: join(runtimeRoot, 'current') };
 }
 

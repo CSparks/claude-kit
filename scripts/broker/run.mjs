@@ -5,6 +5,8 @@
 // USE: `composeCommand(cmd, { jobs })` → the command string a cargo command gets `-j <jobs>`
 // and (for `cargo test`) `--no-fail-fast` folded in; `runCommand(cmd, opts)` → one command's
 // result. Non-cargo commands (the fixture's echoes) pass through composeCommand untouched.
+// A cargo build-shaped command first takes a machine-wide build slot (build-slot.mjs) and reports
+// the time it queued as `slotWaitMs`.
 
 import { spawnSync } from 'node:child_process';
 import { openSync, closeSync, readFileSync, existsSync } from 'node:fs';
@@ -13,9 +15,10 @@ import { pulseActive } from './stall.mjs';
 import { stopNowCheck, stopNowExit } from './stop-now.mjs';
 import { diagnose } from './diagnose.mjs';
 import { packageScoped, runsNextest } from './alias.mjs';
+import { CARGO_BUILD_SUBS } from './cargo-subs.mjs';
+import { acquireBuildSlot } from './build-slot.mjs';
 
 const LOG_TAIL_LINES = 60;
-const CARGO_BUILD_SUBS = new Set(['test', 'build', 'check', 'clippy', 'bench', 'nextest', 'run', 't', 'b', 'r']);
 const TEST_SUBS = new Set(['test', 't']);
 
 const BUILD_ONLY_FLAGS = new Set(['--no-run']);
@@ -60,6 +63,7 @@ export function runCommand(cmd, { cwd, targetDir, logPath, jobs, testThreads }) 
     return r;
   }
   const composed = composeCommand(cmd, { jobs, testThreads, cwd });
+  const slot = acquireBuildSlot(composed, { jobs, label: String(cmd).trim() });
   const fd = openSync(logPath, 'w');
   const started = Date.now();
   let code;
@@ -74,8 +78,9 @@ export function runCommand(cmd, { cwd, targetDir, logPath, jobs, testThreads }) 
     code = r.status == null ? 1 : r.status;
   } finally {
     closeSync(fd);
+    slot.release();
   }
-  return { cmd: String(cmd).trim(), composed, exit: code, durationMs: Date.now() - started, logTail: tail(logPath) };
+  return { cmd: String(cmd).trim(), composed, exit: code, durationMs: Date.now() - started, slotWaitMs: slot.waitedMs, logTail: tail(logPath) };
 }
 
 /** One command run to a result entry with its log diagnosis (rustc errors, failed tests). */
