@@ -22,6 +22,7 @@ import { coalesce } from './coalesce.mjs';
 import { testRecord } from './test-record.mjs';
 import { phaseTracker } from './phase.mjs';
 import { gateTrailer } from './trailer.mjs';
+import { scopePin } from './pin-scope.mjs';
 import { stalePins } from './pin-stale.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordRun } from './health-store.mjs';
@@ -118,7 +119,9 @@ export function processPatch(cfg, job, repo) {
     const wantsGate = job.land || ((job.ops || []).length && !(job.commands || []).length);
     const gated = wantsGate && !reused ? landGate(cfg, cwd, job, plan.files) : null;
     const prebuild = job.land && !reused ? prebuildCommand(repo, cwd, plan.files) : null;
-    const runJob = gated || prebuild ? { ...job, commands: withPrebuild(gated ? gated.commands : jobCommands(cfg, job), prebuild) } : job;
+    const scoped = job.autoPin && !gated && !reused ? scopePin(cwd, jobCommands(cfg, job), pins.filter((p) => !p.implicit)) : null;
+    const runJob = gated || scoped || prebuild ? { ...job, commands: withPrebuild(gated ? gated.commands : scoped ? scoped.commands : jobCommands(cfg, job), prebuild) } : job;
+    const note = scoped ? scoped.note : null;
     const selection = gated ? gated.selection : null;
     ph.enter('run');
     const knownRed = (entry, n) => foreignBuild({
@@ -131,7 +134,7 @@ export function processPatch(cfg, job, repo) {
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
     if (green && !job.land && (job.ops || []).length) recordGreen(cfg, key, { job: job.id, commands, foreign });
-    if (!green || !job.land) return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat, foreign, selection });
+    if (!green || !job.land) return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat, foreign, selection, pinScope: note });
 
     // Every Cargo.lock was journalled as found (KIT-T306), so a lock that differs from HEAD now
     // is either the maintainer's cargo-resolved lock or the run's; both belong in the landing.
@@ -144,12 +147,12 @@ export function processPatch(cfg, job, repo) {
     if (stalePin) return done({ status: STATUS.STALE, phase: 'pin', commands, diffStat, foreign, selection, message: stalePin });
     resolveLocks(cwd, [...plan.files.keys()]);
     const land = landLinked(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], {
-      verify: reverify, trailer: gateTrailer(job, commands, { reused, selection }), onPhase: (p) => ph.enter(p),
+      verify: reverify, trailer: gateTrailer(job, commands, { reused, selection, note }), onPhase: (p) => ph.enter(p),
       onCommitted: (c) => markCommitted(cfg, journal, { ...c, repo: job.repo, jobs: [landedJob(job)] }),
       onSubLanded: (l) => {
         const under = (p) => l.gitlinks.some((s) => p.startsWith(`${s}/`));
         journal = { ...journal, entries: journal.entries.filter((e) => !under(e.path)) };
-        markLinked(cfg, journal, { ...l, repo: job.repo, job: landedJob(job), trailer: gateTrailer(job, commands, { reused, selection }) });
+        markLinked(cfg, journal, { ...l, repo: job.repo, job: landedJob(job), trailer: gateTrailer(job, commands, { reused, selection, note }) });
       },
     });
     keep = land.committed;
@@ -160,7 +163,7 @@ export function processPatch(cfg, job, repo) {
     }
     if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
     if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, selection, message: land.error });
-    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, selection, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha, ...(land.subSha ? { subSha: land.subSha } : {}) } });
+    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, selection, pinScope: note, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha, ...(land.subSha ? { subSha: land.subSha } : {}) } });
   } finally {
     if (record) record.clear();
     if (keep) { discard(cfg); settlePins(pins); }

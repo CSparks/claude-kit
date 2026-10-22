@@ -13,6 +13,7 @@ import { isPaused } from './control.mjs';
 import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
 import { reportRedPin } from './autopin.mjs';
+import { dropSuperseded } from './autopin-supersede.mjs';
 import { runSuite } from './suite.mjs';
 import { STATUS, hasFinalResult, listQueue, queued, removeJob, writeResult } from './result.mjs';
 import { formTrain } from './train-form.mjs';
@@ -64,6 +65,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
   if (isPaused(cfg)) return { processed, paused: true, reason: 'manual' };
   const coalesce = coalesceWait(listQueue(cfg), coalesceMs);
   if (coalesce) return { processed, paused: false, coalescing: coalesce };
+  for (const d of dropSuperseded(cfg)) console.error(`broker: dropped auto-pin ${d.id}, superseded by ${d.by}`);
   const held = new Map();
   const waiting = new Map();
   const order = roundRobin(pendingQueue(cfg), lastServed(cfg));
