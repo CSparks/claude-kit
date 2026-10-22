@@ -85,6 +85,10 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   landing IS a reason to hand back. A genuine decision goes in an AskUserQuestion,
   never a pause. Blocked on something only the maintainer can clear (credential,
   external approval, judgement call): say so plainly and stop.
+- **No routine operation takes more than 5 minutes wall clock (KIT-D104).** Every gate, pin,
+  verify, suite, prebuild, publish and scheduled run finishes inside it. Over the ceiling is a
+  bug: scope it to what the change reaches, split it, or speed it up — never accept the cost,
+  never background it, never call it nightly. The broker files a kit bug for any job past it.
 - **An unreachable device is a maintainer action, announced at once (KIT-D094).** A Deck,
   phone or host that does not answer gets one line to the maintainer ("Deck unreachable —
   wake it and connect Wi-Fi") the moment it is seen. Never a background wait, poll loop or

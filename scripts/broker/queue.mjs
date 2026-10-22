@@ -14,6 +14,7 @@ import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
 import { reportRedPin } from './autopin.mjs';
 import { dropSuperseded } from './autopin-supersede.mjs';
+import { reportOverrun } from './overrun.mjs';
 import { runSuite } from './suite.mjs';
 import { STATUS, hasFinalResult, listQueue, queued, removeJob, writeResult } from './result.mjs';
 import { formTrain } from './train-form.mjs';
@@ -31,6 +32,7 @@ function pruneAfterSuite(cfg) {
 }
 
 const COALESCE_CAP = 5;
+const overrunOpts = (fileBug) => (fileBug ? { fileBug } : {});
 
 // A queue still being written to is not drained yet: `coalesceMs` (the daemon passes broker.coalesce_ms) is
 // the quiet the newest submit must have had, so submits seconds apart reach formTrain together. The oldest
@@ -92,6 +94,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
       if (tree && tree.ok) tree.release();
     }
     if (train) {
+      for (const r of ran.results) reportOverrun({ id: r.id, repo: r.repo, ticket: r.ticket }, r, overrunOpts(fileBug));
       processed.push(...ran.results);
       continue;
     }
@@ -100,6 +103,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
     if (pause) { held.set(job.repo, job.id); holdDirty(cfg, job, repoByName(cfg, job.repo), result.dirtyEntries || []); continue; }
     removeJob(cfg, job.id);
     try { reportRedPin(cfg, job, result, fileBug ? { fileBug } : {}); } catch { /* the report is best effort */ }
+    reportOverrun(job, result, overrunOpts(fileBug));
     processed.push(result);
   }
   if (held.size) return { processed, paused: true, pausedOn: [...held.values()][0], pausedRepos: [...held.keys()], reason: 'dirty' };
