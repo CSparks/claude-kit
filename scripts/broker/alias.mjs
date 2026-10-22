@@ -77,3 +77,13 @@ export function packageScoped(cmd, cwd) {
   if (alias[0] === 'nextest' && alias.some((t) => FEATURE_FLAGS.has(t))) return filtered(toks, ci, alias, rest);
   return [...toks.slice(0, ci + 1), ...alias.filter((t) => !WORKSPACE_FLAGS.has(t)), ...rest].join(' ');
 }
+
+/** True when `cmd` is a cargo-nextest run: `cargo nextest …`, or an alias of the checkout that expands to `nextest` (stiletto's `cargo t`). */
+export function runsNextest(cmd, cwd) {
+  const toks = String(cmd).trim().split(/\s+/);
+  const ci = toks.indexOf('cargo');
+  if (ci === -1) return false;
+  if (toks[ci + 1] === 'nextest') return true;
+  const alias = cwd ? aliasesAt(cargoDir(toks, ci, cwd))[toks[ci + 1]] : null;
+  return !!alias && alias[0] === 'nextest';
+}

@@ -57,6 +57,8 @@ export function normalizeBroker(root, broker) {
   const targetRaw = broker.target_dir || join(root, 'target');
   const targetDir = isAbsolute(targetRaw) ? targetRaw : resolve(root, targetRaw);
   const jobs = resolveJobs(broker.parallelism && broker.parallelism.jobs);
+  const threads = Number(broker.parallelism && broker.parallelism.test_threads);
+  const testThreads = Number.isInteger(threads) && threads >= 1 ? threads : null;
   const verifyDefault = Array.isArray(broker.verify_default) && broker.verify_default.length
     ? broker.verify_default.map(String)
     : DEFAULT_VERIFY.slice();
@@ -65,6 +67,7 @@ export function normalizeBroker(root, broker) {
     root,
     targetDir,
     jobs,
+    testThreads,
     verifyDefault,
     pollMs: num(broker.poll_ms, DEFAULT_POLL_MS),
     coalesceMs: Math.max(0, num(broker.coalesce_ms, DEFAULT_COALESCE_MS)),

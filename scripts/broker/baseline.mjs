@@ -27,7 +27,7 @@ export function makeBaseline({ cfg, job, cwd, pre, held, enter, leave }) {
       if (hit && existsSync(hit.log)) return hit.log;
       if (!entered) { enter(); entered = true; }
       const log = logPathFor(cfg, job.id, tag);
-      runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
+      runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs, testThreads: cfg.testThreads });
       cachePut(cfg, NAME, key, { job: job.id, log });
       return log;
     };

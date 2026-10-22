@@ -33,8 +33,8 @@ export function runCancellable(cmd, opts, hooks) {
   return { ...again, durationMs: first.durationMs + again.durationMs, recovered: note };
 }
 
-function runOnce(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel, pollMs = DEFAULT_POLL_MS }) {
-  const composed = composeCommand(cmd, { jobs, cwd });
+function runOnce(cmd, { cwd, targetDir, logPath, jobs, testThreads }, { shouldCancel, pollMs = DEFAULT_POLL_MS }) {
+  const composed = composeCommand(cmd, { jobs, testThreads, cwd });
   const marker = `${logPath}.exit`;
   rmSync(marker, { force: true });
   const fd = openSync(logPath, 'w');

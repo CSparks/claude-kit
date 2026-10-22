@@ -12,7 +12,7 @@ import { runCancellable } from './run-cancellable.mjs';
 import { pulseActive } from './stall.mjs';
 import { stopNowCheck, stopNowExit } from './stop-now.mjs';
 import { diagnose } from './diagnose.mjs';
-import { packageScoped } from './alias.mjs';
+import { packageScoped, runsNextest } from './alias.mjs';
 
 const LOG_TAIL_LINES = 60;
 const CARGO_BUILD_SUBS = new Set(['test', 'build', 'check', 'clippy', 'bench', 'nextest', 'run', 't', 'b', 'r']);
@@ -27,7 +27,7 @@ const JOBS_FLAG = /^(-j\d*|-j=\d+|--jobs(=.*)?)$/;
 // builds. Token-based so a present flag, attached forms included (`-j2`, `--jobs=2`), is never
 // duplicated. `--no-fail-fast` is a run-only flag: a build-only command (`--no-run`) or one that
 // already chose `--fail-fast` never receives it (KIT-T616, KIT-T343).
-export function composeCommand(cmd, { jobs = 3, cwd } = {}) {
+export function composeCommand(cmd, { jobs = 3, testThreads, cwd } = {}) {
   const original = String(cmd).trim().split(/\s+/);
   const wasTest = TEST_SUBS.has(original[original.indexOf('cargo') + 1]);
   const toks = packageScoped(cmd, cwd).split(/\s+/);
@@ -42,7 +42,8 @@ export function composeCommand(cmd, { jobs = 3, cwd } = {}) {
   const out = cargoToks.slice();
   const runsTests = (wasTest || TEST_SUBS.has(sub)) && !cargoToks.some((t) => BUILD_ONLY_FLAGS.has(t));
   if (runsTests && !cargoToks.some((t) => FAIL_FAST_FLAGS.has(t))) out.push('--no-fail-fast');
-  if (!cargoToks.some((t) => JOBS_FLAG.test(t))) out.push('-j', String(jobs));
+  const width = testThreads && runsNextest(cmd, cwd) ? testThreads : jobs;
+  if (!cargoToks.some((t) => JOBS_FLAG.test(t))) out.push('-j', String(width));
   return out.concat(rest).join(' ');
 }
 
@@ -52,13 +53,13 @@ export function composeCommand(cmd, { jobs = 3, cwd } = {}) {
 // last ~60 log lines.
 // Inside the daemon (a pulse is registered) the command runs through runCancellable, whose poll
 // keeps the heartbeat fresh, so a 25-minute suite never reads as a stalled daemon (KIT-T488).
-export function runCommand(cmd, { cwd, targetDir, logPath, jobs }) {
+export function runCommand(cmd, { cwd, targetDir, logPath, jobs, testThreads }) {
   if (pulseActive()) {
-    const { cancelled, ...r } = runCancellable(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel: stopNowCheck });
+    const { cancelled, ...r } = runCancellable(cmd, { cwd, targetDir, logPath, jobs, testThreads }, { shouldCancel: stopNowCheck });
     if (cancelled) stopNowExit();
     return r;
   }
-  const composed = composeCommand(cmd, { jobs, cwd });
+  const composed = composeCommand(cmd, { jobs, testThreads, cwd });
   const fd = openSync(logPath, 'w');
   const started = Date.now();
   let code;
@@ -79,7 +80,7 @@ export function runCommand(cmd, { cwd, targetDir, logPath, jobs }) {
 
 /** One command run to a result entry with its log diagnosis (rustc errors, failed tests). */
 export function runDiagnosed(cfg, cmd, cwd, log) {
-  const r = runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
+  const r = runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs, testThreads: cfg.testThreads });
   return { ...r, log, ...diagnose(readFileSync(log, 'utf8')) };
 }
 

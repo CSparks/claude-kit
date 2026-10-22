@@ -112,7 +112,7 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
   for (let n = 0; n < suite.length; n++) {
     const logPath = logPathFor(cfg, id, n);
     if (kept[n] && kept[n].cmd === suite[n].trim()) { commands.push(kept[n]); continue; }
-    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => !!laneBusy(cfg) || stopRequested(cfg), pollMs }));
+    const run = guardLocks(cfg, { id, cwd }, () => runCancellable(suite[n], { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs, testThreads: cfg.testThreads }, { shouldCancel: () => !!laneBusy(cfg) || stopRequested(cfg), pollMs }));
     if (run.cancelled) { save(cfg, { ...state, putOff: state.putOff || { sha: head, at: new Date(now).toISOString() }, partial: { id, commands } }); return { sha: head, status: 'cancelled', cancelled: true }; }
     commands.push({ cmd: run.cmd, exit: run.exit, durationMs: run.durationMs, log: logPath });
   }

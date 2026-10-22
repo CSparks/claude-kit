@@ -24,7 +24,7 @@ export function runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseli
   const entries = [];
   for (const c of commands) {
     const log = logPathFor(cfg, id, nextLog());
-    const r = runCommand(c.cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
+    const r = runCommand(c.cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs, testThreads: cfg.testThreads });
     const entry = { ...r, log, owners: c.owners, ...(c.from ? { coalesced: c.from } : {}), ...diagnose(readFileSync(log, 'utf8')) };
     entries.push(entry);
     forgetPassed(cfg, repo, entry.passed);

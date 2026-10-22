@@ -5,7 +5,7 @@
 // (rapid-game's rg-gate-green.json) then lets the real push through at once.
 //
 // `buildEnv(cfg)` → the environment for every broker build or hook: the shared CARGO_TARGET_DIR,
-//   CARGO_BUILD_JOBS, and no inherited GIT_* variables.
+//   CARGO_BUILD_JOBS, NEXTEST_TEST_THREADS when `parallelism.test_threads` is set, and no inherited GIT_* variables.
 // `runPrePush(cfg, cwd, remote, branch, logPath)` → { ok, exit, log }. The gate runs beside a beating
 //   daemon (run-pulsing.mjs), so a 17-minute gate never reads as a stall (KIT-T493).
 //   Every Cargo.lock is put back as found afterwards: the gate's cargo may rewrite one, and the
@@ -21,7 +21,7 @@ const ZERO = '0'.repeat(40);
 
 export function buildEnv(cfg) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
-  return { ...env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: cfg.targetDir, CARGO_BUILD_JOBS: String(cfg.jobs) };
+  return { ...env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: cfg.targetDir, CARGO_BUILD_JOBS: String(cfg.jobs), ...(cfg.testThreads ? { NEXTEST_TEST_THREADS: String(cfg.testThreads) } : {}) };
 }
 
 export function runPrePush(cfg, cwd, remote, branch, logPath) {

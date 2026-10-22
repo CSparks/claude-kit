@@ -45,7 +45,7 @@ function runCommands(cfg, job, cwd, hooks) {
   for (let n = 0; n < commands.length; n++) {
     const log = logPathFor(cfg, job.id, n);
     const prep = hooks.record ? hooks.record.prepare(n, commands[n].cmd, cwd, log) : { cmd: commands[n].cmd, skipped: 0 };
-    const r = runCommand(prep.cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs });
+    const r = runCommand(prep.cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs, testThreads: cfg.testThreads });
     const entry = { ...r, cmd: commands[n].cmd, log, ...(prep.skipped ? { resumedSkipped: prep.skipped } : {}), ...(commands[n].from ? { coalesced: commands[n].from } : {}), ...diagnose(readFileSync(log, 'utf8')) };
     out.push(entry);
     forgetPassed(cfg, job.repo, entry.passed);

@@ -80,7 +80,7 @@ export function recheckDeferred(cfg, { fileBug = fileBugViaCap, pollMs } = {}) {
     const failures = members.map((m) => ({ binary: m.e.binary || null, test: m.e.test }));
     const logPath = logPathFor(cfg, 'deferred', n++);
     const startedAt = new Date().toISOString();
-    const run = guardLocks(cfg, { id: 'deferred', cwd }, () => runCancellable(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs }, { shouldCancel: () => !!laneBusy(cfg) || stopRequested(cfg), pollMs }));
+    const run = guardLocks(cfg, { id: 'deferred', cwd }, () => runCancellable(baselineCommand(first.cmd, failures), { cwd, targetDir: cfg.targetDir, logPath, jobs: cfg.jobs, testThreads: cfg.testThreads }, { shouldCancel: () => !!laneBusy(cfg) || stopRequested(cfg), pollMs }));
     if (run.cancelled) { out.cancelled = true; break; }
     recordRun(cfg, { id: 'deferred', repo: first.repo, kind: 'recheck', startedAt, entries: lockFiles(cwd).map((path) => ({ path, blob: null })) });
     const seen = diagnose(readFileSync(logPath, 'utf8'));
