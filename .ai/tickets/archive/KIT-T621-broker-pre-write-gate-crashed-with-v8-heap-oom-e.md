@@ -11,7 +11,8 @@ files: []
 supersedes: KIT-T623
 superseded_by:
 created: 2026-10-22T15:13:34Z
-updated: 2026-10-22T18:44:24Z
+updated: 2026-10-22T18:45:12Z
+fixed_commit: 2a812ff
 ---
 
 ## Description
@@ -44,3 +45,4 @@ CORRECTION 2: the machine-wide build slot named above was built and backed out -
 - [2026-10-22 18:44] (comment) ticked: A hook that aborts on every attempt is a gate-crash naming the attempts and the fatal line (message tail, not head)
 - [2026-10-22 18:44] (comment) ticked: Negative control: a hook that blocks (exit 2) is never rerun
 - [2026-10-22 18:44] (status) doing → done
+- [2026-10-22 18:45] (status) done → done
