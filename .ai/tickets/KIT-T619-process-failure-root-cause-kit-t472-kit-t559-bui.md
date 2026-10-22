@@ -2,7 +2,7 @@
 id: KIT-T619
 title: Process failure (root cause): KIT-T472/KIT-T559 built scoped gates (affected tests, changed crates + reverse deps) but KIT-T563 auto-pin run
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-22T04:55:23Z
-updated: 2026-10-22T04:55:23Z
+updated: 2026-10-22T05:39:22Z
 ---
 
 ## Description
@@ -34,3 +34,4 @@ KIT-D104 items: broker overrun report (overrun.mjs, 3 tests); 5-min ceiling in u
 
 ## History
 - [2026-10-22 04:55] (created) bug — Process failure (root cause): KIT-T472/KIT-T559 built scoped gates (affected tests, changed crates + reverse deps) but KIT-T563 auto-pin run
+- [2026-10-22 05:39] (status) todo → review
