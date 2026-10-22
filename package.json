@@ -12,7 +12,8 @@
     "ui": "npm run dev --prefix ui",
     "ui:build": "npm run build --prefix ui",
     "test:compat": "node scripts/plugin-compat.test.mjs && node hooks/compat-run.test.mjs && node hooks/compat-launcher.test.mjs",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs",
+    "test:full": "node scripts/run-tests.mjs --full"
   },
   "optionalDependencies": {
     "web-tree-sitter": "0.22.6"
