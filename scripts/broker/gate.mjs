@@ -8,22 +8,40 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // BROKER_GATE_HOOK swaps the hook script; tests drive a crashing hook through it.
+// BROKER_GATE_RETRY_MS overrides the pause between crash retries.
 const HOOK = join(import.meta.dirname, '..', '..', 'hooks', 'pre-write.mjs');
 const BLOCK = 2;
+const GATE_ATTEMPTS = 3;
+const GATE_RETRY_MS = 1500;
+const MSG_TAIL = 300;
 export const GATE_CRASH = 'gate-crash';
 export const RUNTIME_GONE = 'runtime-gone';
 const FAILURE = /-- ([\s\S]*?)\s*\n\s*To exclude from this check \(id: ([\w-]+)\)/g;
 
-/** Findings `{ path, check, msg }` for one file's content; empty when the hook allows it. A hook that crashes yields a `gate-crash` finding, a hook file that vanished (its runtime was pruned) a `runtime-gone` one. */
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// A crashing hook is rerun: a V8 abort (exit 134) at a ~7 MB heap is the host refusing memory
+// while a build runs, not a defect in the patch, and an identical rerun passes (KIT-T621).
+function runHook(hook, cwd, payload) {
+  let r;
+  for (let attempt = 1; attempt <= GATE_ATTEMPTS; attempt++) {
+    r = spawnSync(process.execPath, [hook], {
+      cwd, input: JSON.stringify(payload), encoding: 'utf8', windowsHide: true, env: { ...process.env, CLAUDE_KIT_BROKER_GATE: '1' },
+    });
+    if (r.status === 0 || r.status === BLOCK) return r;
+    if (attempt < GATE_ATTEMPTS) pause(Number(process.env.BROKER_GATE_RETRY_MS ?? GATE_RETRY_MS));
+  }
+  return r;
+}
+
+/** Findings `{ path, check, msg }` for one file's content; empty when the hook allows it. A hook that crashes (on every attempt) yields a `gate-crash` finding, a hook file that vanished (its runtime was pruned) a `runtime-gone` one. */
 export function gateFile(cwd, path, content) {
   const hook = process.env.BROKER_GATE_HOOK || HOOK;
   if (!existsSync(hook)) return [{ path, check: RUNTIME_GONE, msg: `runtime gone: ${hook} no longer exists (a publish pruned this daemon's runtime); restart me` }];
   const payload = { tool_name: 'Write', tool_input: { file_path: join(cwd, path), content } };
-  const r = spawnSync(process.execPath, [hook], {
-    cwd, input: JSON.stringify(payload), encoding: 'utf8', windowsHide: true, env: { ...process.env, CLAUDE_KIT_BROKER_GATE: '1' },
-  });
+  const r = runHook(hook, cwd, payload);
   if (r.status === 0) return [];
-  if (r.status !== BLOCK) return [{ path, check: GATE_CRASH, msg: `pre-write hook exited ${r.status}: ${(r.error ? String(r.error) : r.stderr || '').trim().slice(0, 300)}` }];
+  if (r.status !== BLOCK) return [{ path, check: GATE_CRASH, msg: `pre-write hook exited ${r.status} on ${GATE_ATTEMPTS} attempts: ${(r.error ? String(r.error) : r.stderr || '').trim().slice(-MSG_TAIL)}` }];
   const found = [...r.stderr.matchAll(FAILURE)].map((m) => ({ path, check: m[2], msg: m[1].trim() }));
   return found.length ? found : [{ path, check: 'pre-write', msg: r.stderr.trim() }];
 }
