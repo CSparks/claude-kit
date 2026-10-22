@@ -12,7 +12,7 @@
 // repo when present. `current` moves only after the export is complete.
 
 import { mkdirSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync, realpathSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { runtimeRoot as defaultRuntimeRoot } from './runtime-path.mjs';
@@ -112,11 +112,20 @@ export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep 
   return { sha, dir, current: join(runtimeRoot, 'current') };
 }
 
-// The kit suite on the exported HEAD; the same npm script a writer runs, so the gate is the suite.
-function suiteOnExport(dir) {
+// Paths changed since the published runtime (`current`); undefined when nothing is published or git cannot say.
+function changedSincePublished(repo, runtimeRoot) {
+  const published = basename(currentRuntime(runtimeRoot));
+  if (!SHA_DIR.test(published)) return undefined;
+  try { return execFileSync('git', ['-C', repo, 'diff', '--name-only', published, 'HEAD'], { encoding: 'utf8' }).trim(); } catch { return undefined; }
+}
+
+// The kit suite on the exported HEAD under the 5-minute budget (KIT-D104): the files the publish's change reaches,
+// then the files run longest ago; the rest rotate in on later runs. Same npm script a writer runs.
+function suiteOnExport(dir, changed) {
   const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
   const timesFile = join(dirname(fileURLToPath(import.meta.url)), '..', '.cache', 'test-times.json');
-  const r = spawnSync(npm, ['test'], { cwd: dir, stdio: 'inherit', shell: process.platform === 'win32', env: { ...process.env, KIT_TEST_TIMES: timesFile } });
+  const env = { ...process.env, KIT_TEST_TIMES: timesFile, ...(changed === undefined ? {} : { KIT_TEST_CHANGED: changed }) };
+  const r = spawnSync(npm, ['test'], { cwd: dir, stdio: 'inherit', shell: process.platform === 'win32', env });
   if (r.status !== 0) throw new Error(`the suite is red on exported HEAD (exit ${r.status}); current did not move`);
 }
 
@@ -128,7 +137,7 @@ if (isMain(import.meta.url)) {
     process.exit(1);
   }
   try {
-    const r = publishRuntime({ repo, runtimeRoot: arg('--runtime') || defaultRuntimeRoot(), keep: Number(arg('--keep')) || DEFAULT_KEEP, verify: suiteOnExport });
+    const r = publishRuntime({ repo, runtimeRoot: arg('--runtime') || defaultRuntimeRoot(), keep: Number(arg('--keep')) || DEFAULT_KEEP, verify: (dir) => suiteOnExport(dir, changedSincePublished(repo, arg('--runtime') || defaultRuntimeRoot())) });
     process.stdout.write(`runtime: ${r.sha} -> ${r.current}\nrun kit scripts from ${r.current}/scripts/ (q.mjs, t.mjs, cap.mjs)\n`);
     const drift = pluginDrift({ repo, installed: installedPlugin() });
     if (drift.length) process.stderr.write(`runtime-publish: ${drift.length} agent/skill/command/hook file(s) changed since the plugin cache was copied, under the same plugin.json version, so sessions do not see them. Bump .claude-plugin/plugin.json version, then restart sessions: ${drift.slice(0, 8).join(', ')}${drift.length > 8 ? ', ...' : ''}\n`);

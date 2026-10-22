@@ -34,3 +34,16 @@ export function longestFirst(files, times) {
   const known = files.filter((f) => times[f] !== undefined).sort((a, b) => times[b] - times[a]);
   return [...unknown, ...known];
 }
+
+// When each file last passed (KIT-D104 rotation): { 'scripts/x.test.mjs': epochMs }, beside the times file.
+export function readRan(file) {
+  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return {}; }
+}
+
+export function writeRan(file, passed, now = Date.now()) {
+  const ran = { ...readRan(file), ...Object.fromEntries(passed.map((f) => [f, now])) };
+  try {
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify(ran, null, 2));
+  } catch { /* rotation is an optimisation; a read-only checkout still runs */ }
+}

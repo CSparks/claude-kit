@@ -5,7 +5,11 @@
 // is reported as FLAKE and does not fail the run. Files in default-state.mjs run alone afterwards. A file over KIT_TEST_MAX_FILE_S (default 0 = off; the target is 60)
 // fails the run as SLOW. Wall times go to .cache/test-times.json; the slowest ten are printed.
 //
-//   node scripts/run-tests.mjs [--root <dir>] [--only <substring>]
+// Budget (KIT-D104: no routine operation over 5 minutes): the run takes the files the change reaches (select.mjs),
+// then those run longest ago, until the estimate fills KIT_TEST_BUDGET_S (default 270); the rest are listed as
+// deferred and rotate in on later runs. --full, KIT_TEST_FULL=1 or --only runs the whole selection.
+//
+//   node scripts/run-tests.mjs [--root <dir>] [--only <substring>] [--full] [--budget <seconds>] [--since <sha>]
 
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,7 +20,8 @@ import { discoverTests } from './test-runner/discover.mjs';
 import { isolatedEnv } from './test-runner/isolate.mjs';
 import { runPool } from './test-runner/pool.mjs';
 import { runFile } from './test-runner/run-file.mjs';
-import { longestFirst, readTimes, slowFiles, slowest, writeTimes } from './test-runner/times.mjs';
+import { reach, changedFiles, planRun } from './test-runner/select.mjs';
+import { longestFirst, readRan, readTimes, slowFiles, slowest, writeRan, writeTimes } from './test-runner/times.mjs';
 
 const SLOWEST_SHOWN = 10;
 const DEFAULT_WORKERS = 8;
@@ -26,6 +31,10 @@ const flag = (name) => { const i = process.argv.indexOf(name); return i === -1 ?
 const root = resolve(flag('--root') || join(dirname(fileURLToPath(import.meta.url)), '..'));
 const timesFile = process.env.KIT_TEST_TIMES || join(root, '.cache', 'test-times.json');
 const only = flag('--only');
+const full = process.argv.includes('--full') || process.env.KIT_TEST_FULL === '1' || !!only;
+const DEFAULT_BUDGET_S = 270;
+const budgetMs = (Number(flag('--budget') || process.env.KIT_TEST_BUDGET_S) || DEFAULT_BUDGET_S) * 1000;
+const ranFile = join(dirname(process.env.KIT_TEST_TIMES || join(root, '.cache', 'x')), 'test-rotation.json');
 const workers = Number(process.env.KIT_TEST_WORKERS) || DEFAULT_WORKERS;
 const maxFileMs = (process.env.KIT_TEST_MAX_FILE_S === undefined ? DEFAULT_MAX_FILE_S : Number(process.env.KIT_TEST_MAX_FILE_S)) * MS_PER_S;
 
@@ -35,7 +44,18 @@ const keepDefaults = (file) => DEFAULT_STATE_TESTS.includes(file);
 const attempt = (file, n) => runFile(root, file, isolatedEnv(process.env, scratch, file, n, { keepDefaults: keepDefaults(file) }));
 const announce = (r) => console.log(`${r.ok ? 'ok  ' : 'FAIL'} ${secs(r.ms)}s  ${r.file}`);
 
-const files = longestFirst(discoverTests(root).filter((f) => !only || f.includes(only)), readTimes(timesFile));
+const times = readTimes(timesFile);
+const all = discoverTests(root).filter((f) => !only || f.includes(only));
+let chosen = all;
+if (!full) {
+  const changed = changedFiles(root, { since: flag('--since') });
+  const reached = reach(root, all, changed);
+  const plan = planRun({ tests: all, reached, times, ranAt: readRan(ranFile), budgetMs, workers });
+  chosen = plan.run;
+  const owed = plan.deferred.filter((f) => reached.has(f));
+  console.log(`budget ${budgetMs / MS_PER_S}s: running ${plan.run.length} of ${all.length} files (estimate ${(plan.estimateMs / MS_PER_S).toFixed(0)}s; ${changed.length} changed paths reach ${reached.size} tests); ${plan.deferred.length} deferred, ${owed.length} of them reached by the change${owed.length ? `: ${owed.slice(0, 12).join(', ')}${owed.length > 12 ? ', ...' : ''}` : ''}`);
+}
+const files = longestFirst(chosen, times);
 const started = Date.now();
 const pooled = files.filter((f) => !keepDefaults(f));
 const first = await runPool(pooled, workers, async (file) => {
@@ -64,6 +84,7 @@ ${r.output}`);
 }
 try { rmSync(scratch, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 }); } catch { /* a test's daemon may still hold a file; the OS temp sweep takes it */ }
 writeTimes(timesFile, results.filter((r) => r.ok));
+writeRan(ranFile, results.filter((r) => r.ok).map((r) => r.file));
 
 console.log(`
 slowest ${SLOWEST_SHOWN} (of ${results.length} files, ${workers} workers, ${((Date.now() - started) / MS_PER_S).toFixed(0)}s wall):`);
