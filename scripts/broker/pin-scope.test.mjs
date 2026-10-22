@@ -1,7 +1,7 @@
-// pin-scope.test.mjs — an auto-pin's consumer run follows its delta (KIT-T618): a pin whose changed
-// crates are all absent from the consumer's Cargo.lock runs the build check only and says so in the
-// landing commit; a delta that reaches the lock (or any file no crate owns) keeps the full verify; a
-// queued auto-pin that a newer one covers is dropped.
+// pin-scope.test.mjs — an auto-pin's gate follows its delta (KIT-T618, KIT-D104): a pin whose changed crates
+// are absent from the consumer's Cargo.lock runs the build check only and says so in the landing commit; a
+// changed crate in the lock adds the tests of the consumer crates that depend on it, never the full verify;
+// a workspace-level file runs the build check; a queued auto-pin that a newer one covers is dropped.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,6 +9,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { dirname, join } from 'node:path';
 import { dropSuperseded } from './autopin-supersede.mjs';
 import { readBrokerConfig } from './config.mjs';
+import { dependentsOf, readLock } from './cargo-lock.mjs';
 import { buildOnly } from './pin-scope.mjs';
 import { processOnce } from './queue.mjs';
 import { listQueue, readResult, writeJob } from './result.mjs';
@@ -17,16 +18,23 @@ import { commitOnMain, g } from './patchkit.mjs';
 import { addOrigin, cleanup, makeRepo, tempDir } from './testkit.mjs';
 
 const manifest = (name) => `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2021"\n`;
-const CONFIG = [
+const config = (extra = []) => [
   'broker:',
   '  verify_default:',
   '    - cargo t',
+  ...extra,
   '  repos:',
   '    - { name: stiletto, path: ., main: main, remote: origin }',
   '    - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: ., auto_pin: true }',
   '',
 ].join('\n');
-const LOCK = 'version = 3\n\n[[package]]\nname = "rg-used"\nversion = "0.1.0"\n\n[[package]]\nname = "app"\nversion = "0.1.0"\n';
+const REGISTRY = 'registry+https://github.com/rust-lang/crates.io-index';
+const LOCK = [
+  'version = 3', '',
+  '[[package]]', 'name = "rg-used"', 'version = "0.1.0"', '',
+  '[[package]]', 'name = "app"', 'version = "0.1.0"', 'dependencies = [', ' "rg-used",', ']', '',
+  '[[package]]', 'name = "serde"', 'version = "1.0.0"', `source = "${REGISTRY}"`, '',
+].join('\n');
 
 // A cargo stand-in first on PATH: it appends its arguments to $SHIM_LOG and exits 0.
 function cargoShim() {
@@ -39,7 +47,7 @@ function cargoShim() {
 }
 
 // A consumer whose Cargo.lock holds rg-used only, over a rapid-game origin with crates rg-used and rg-other.
-function world() {
+function world(extra = []) {
   const subDir = tempDir('ps-sub-bare-');
   const subSrc = makeRepo(tempDir('ps-sub-src-'));
   const subBare = addOrigin(subSrc, join(subDir, 'sub.git')).split(String.fromCharCode(92)).join('/');
@@ -65,7 +73,7 @@ function world() {
   g(['checkout', 'main'], sub);
   for (const [k, v] of [['user.email', 'b@test'], ['user.name', 'B'], ['commit.gpgsign', 'false']]) g(['config', k, v], sub);
   mkdirSync(join(root, '.ai'), { recursive: true });
-  writeFileSync(join(root, '.ai', 'config.yml'), CONFIG);
+  writeFileSync(join(root, '.ai', 'config.yml'), config(extra));
   const shim = cargoShim();
   const was = { PATH: process.env.PATH, SHIM_LOG: process.env.SHIM_LOG };
   process.env.PATH = `${shim.dir}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}`;
@@ -108,7 +116,7 @@ test('a pin whose delta is outside the consumer lock runs the build check only a
   } finally { w.done(); }
 });
 
-test('control: a delta in a crate the consumer lock names runs the full verify', () => {
+test('a delta in a crate the consumer lock names runs the build check and the tests of the crates that depend on it, not the full verify', () => {
   const w = world();
   try {
     const sha = land(w, 'rust/rg-used/src/lib.rs', 'pub fn g() {}\n');
@@ -116,24 +124,46 @@ test('control: a delta in a crate the consumer lock names runs the full verify',
     processOnce(w.cfg);
     const r = readResult(w.cfg, job.id);
     assert.equal(r.status, 'landed', JSON.stringify(r));
-    assert.deepEqual(w.shim.seen(), ['t --no-fail-fast -j N']);
-    assert.equal(r.pinScope, null);
+    assert.deepEqual(w.shim.seen(), ['t --no-run -j N', 't -p app --no-fail-fast -j N']);
+    assert.match(r.pinScope, /pin delta touches rg-used; build check plus tests of app/);
   } finally { w.done(); }
 });
 
-test('control: a file no crate owns keeps the full verify; docs alone stay build-only', () => {
+test('a workspace-level file or a docs-only delta runs the build check alone', () => {
   const w = world();
   try {
     const sha = land(w, 'rust/Cargo.lock', 'version = 3\n');
-    queuePin(w, sha);
+    const wide = queuePin(w, sha);
     processOnce(w.cfg);
-    assert.deepEqual(w.shim.seen(), ['t --no-fail-fast -j N']);
+    assert.deepEqual(w.shim.seen(), ['t --no-run -j N']);
+    assert.match(readResult(w.cfg, wide.id).pinScope, /a workspace-level file changed; build check only/);
     const docs = land(w, 'docs/notes.md', 'notes\n');
     const job = queuePin(w, docs);
     processOnce(w.cfg);
     assert.match(readResult(w.cfg, job.id).pinScope, /pin delta touches no crate/);
     assert.deepEqual(w.shim.seen().slice(1), ['t --no-run -j N']);
   } finally { w.done(); }
+});
+
+test('pin_test_args from the config is appended to the dependents test run', () => {
+  const w = world(['  pin_test_args: ["-P", "pin"]']);
+  try {
+    const sha = land(w, 'rust/rg-used/src/lib.rs', 'pub fn g() {}\n');
+    queuePin(w, sha);
+    processOnce(w.cfg);
+    assert.deepEqual(w.shim.seen(), ['t --no-run -j N', 't -p app -P pin --no-fail-fast -j N']);
+  } finally { w.done(); }
+});
+
+test('readLock and dependentsOf: local packages are those without a source, dependents come through the graph', () => {
+  const dir = tempDir('ps-lock-');
+  const top = ['[[package]]', 'name = "top"', 'version = "0.1.0"', 'dependencies = [', ' "app",', ' "serde 1.0.0",', ']', ''].join('\n');
+  writeFileSync(join(dir, 'Cargo.lock'), `${LOCK}\n${top}`);
+  const lock = readLock(join(dir, 'Cargo.lock'));
+  assert.deepEqual([...lock].filter(([, v]) => v.local).map(([k]) => k), ['rg-used', 'app', 'top']);
+  assert.deepEqual([...dependentsOf(lock, ['rg-used'])].sort(), ['app', 'rg-used', 'top']);
+  assert.deepEqual([...dependentsOf(lock, ['serde'])].sort(), ['serde', 'top']);
+  assert.equal(readLock(join(dir, 'missing.lock')), null);
 });
 
 test('buildOnly keeps build commands, adds --no-run to test commands before the separator, drops the rest', () => {

@@ -119,7 +119,7 @@ export function processPatch(cfg, job, repo) {
     const wantsGate = job.land || ((job.ops || []).length && !(job.commands || []).length);
     const gated = wantsGate && !reused ? landGate(cfg, cwd, job, plan.files) : null;
     const prebuild = job.land && !reused ? prebuildCommand(repo, cwd, plan.files) : null;
-    const scoped = job.autoPin && !gated && !reused ? scopePin(cwd, jobCommands(cfg, job), pins.filter((p) => !p.implicit)) : null;
+    const scoped = job.autoPin && !gated && !reused ? scopePin(cfg, cwd, jobCommands(cfg, job), pins.filter((p) => !p.implicit)) : null;
     const runJob = gated || scoped || prebuild ? { ...job, commands: withPrebuild(gated ? gated.commands : scoped ? scoped.commands : jobCommands(cfg, job), prebuild) } : job;
     const note = scoped ? scoped.note : null;
     const selection = gated ? gated.selection : null;

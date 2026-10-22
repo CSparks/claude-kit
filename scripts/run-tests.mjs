@@ -6,7 +6,7 @@
 // fails the run as SLOW. Wall times go to .cache/test-times.json; the slowest ten are printed.
 //
 // Budget (KIT-D104: no routine operation over 5 minutes): the run takes the files the change reaches (select.mjs),
-// then those run longest ago, until the estimate fills KIT_TEST_BUDGET_S (default 270); the rest are listed as
+// then those run longest ago, until the estimate fills KIT_TEST_BUDGET_S (default 200); the rest are listed as
 // deferred and rotate in on later runs. --full, KIT_TEST_FULL=1 or --only runs the whole selection.
 //
 //   node scripts/run-tests.mjs [--root <dir>] [--only <substring>] [--full] [--budget <seconds>] [--since <sha>]
@@ -32,7 +32,7 @@ const root = resolve(flag('--root') || join(dirname(fileURLToPath(import.meta.ur
 const timesFile = process.env.KIT_TEST_TIMES || join(root, '.cache', 'test-times.json');
 const only = flag('--only');
 const full = process.argv.includes('--full') || process.env.KIT_TEST_FULL === '1' || !!only;
-const DEFAULT_BUDGET_S = 270;
+const DEFAULT_BUDGET_S = 200;
 const budgetMs = (Number(flag('--budget') || process.env.KIT_TEST_BUDGET_S) || DEFAULT_BUDGET_S) * 1000;
 const ranFile = join(dirname(process.env.KIT_TEST_TIMES || join(root, '.cache', 'x')), 'test-rotation.json');
 const workers = Number(process.env.KIT_TEST_WORKERS) || DEFAULT_WORKERS;

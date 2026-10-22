@@ -6,6 +6,7 @@
 //     test: cargo test                               # prefix for the mapped `-p <crate> --test …` run
 //     match: word                                    # word (default) | module: how a src module finds the tests naming it (affected-match.mjs)
 //     mandatory: false                               # true: the affected set runs even when the job gave its own --test commands
+//   pin_test_args: ["-P", "pin"]   # appended to an auto-pin's test run (pin-scope.mjs): e.g. a nextest profile without the GPU group
 //   suite: [ "cargo test", … ]   # the full suite run on the cadence; default verify_default
 //   suite_every: 1               # landings between suite runs; once due it runs before the next job
 //   suite_max_landings: 10       # a suite put off this many landings runs its next unfinished command between jobs (suite.mjs)
@@ -29,6 +30,7 @@ export function pipelineConfig(broker, verifyDefault) {
   return {
     landGate: broker.land_gate === 'affected' ? 'affected' : 'full',
     affected: { check: String(a.check || DEFAULT_CHECK), test: String(a.test || DEFAULT_TEST), match: a.match === 'module' ? 'module' : 'word', mandatory: a.mandatory === true },
+    pinTestArgs: [].concat(broker.pin_test_args == null ? [] : broker.pin_test_args).map(String).filter(Boolean),
     suite: Array.isArray(broker.suite) && broker.suite.length ? broker.suite.map(String) : verifyDefault.slice(),
     suiteEvery: Number.isFinite(every) && every >= 1 ? Math.floor(every) : 1,
     suiteMaxLandings: Math.floor(positive(broker.suite_max_landings, 10)),

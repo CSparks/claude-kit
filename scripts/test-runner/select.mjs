@@ -84,7 +84,7 @@ export function planRun({ tests, reached, times, ranAt = {}, budgetMs, workers }
   const run = [];
   for (const t of order) {
     const lane = lanes.indexOf(Math.min(...lanes));
-    if (lanes[lane] + cost(t) > budgetMs && run.length) continue;
+    if (reached.get(t) !== 0 && lanes[lane] + cost(t) > budgetMs && run.length) continue;
     lanes[lane] += cost(t);
     run.push(t);
   }

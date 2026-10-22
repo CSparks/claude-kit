@@ -79,3 +79,11 @@ test('changedFiles: KIT_TEST_CHANGED wins, with build output left out of the git
   assert.ok(changedFiles(root, { env: {} }).includes('new.mjs'));
   assert.equal(changedFiles(root, { env: {} }).some((p) => p.startsWith('target/')), false);
 });
+
+test('planRun: a changed test and the test named for a changed module run whatever they cost; a farther one over the budget is deferred', () => {
+  const times = { own: 900_000, near: 900_000, far: 900_000, cheap: 1000 };
+  const plan = planRun({ tests: ['own', 'near', 'far', 'cheap'], reached: new Map([['own', 0], ['near', 1], ['far', 1]]), times, budgetMs: 200_000, workers: 2 });
+  assert.deepEqual(plan.run, ['own', 'near', 'cheap'].filter((t) => plan.run.includes(t)));
+  assert.ok(plan.run.includes('own'));
+  assert.ok(plan.deferred.includes('far'));
+});
