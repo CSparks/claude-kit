@@ -83,7 +83,7 @@ ok('env unset: exits 0', unset.code === 0);
   const sessions = runTree();
   ok('build tree: orphaned incremental sessions nag', /BUILD TREE RUNAWAY/.test(sessions.out));
   ok('build tree: names the session count', /500 orphaned incremental sessions/.test(sessions.out));
-  ok('build tree: carries its own drain command', /cargo clean --profile dev/.test(sessions.out));
+  ok('build tree: carries its own drain command', /build-sweep[.]mjs/.test(sessions.out));
   ok('build tree: never blocks', sessions.code === 0);
 
   // deps trips independently, and reports real bytes once a count has tripped.
