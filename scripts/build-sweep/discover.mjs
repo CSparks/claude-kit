@@ -4,20 +4,23 @@
 //   BuildDir = { dir, primary, cargo, profiles: [profileDir], lanes: [BuildDir] }
 //
 // The walk is unbounded: it prunes node_modules/.git/.venv and never descends into a build dir it
-// found. A dir is a build dir when it carries cargo's CACHEDIR.TAG or a profile dir (debug,
+// found. A dir is a build dir when it holds a profile dir (debug,
 // release, <triple>/<profile>); a child of a build dir that is itself a build dir is a broker
-// lane. A profile dir holds .fingerprint, deps or incremental. `cargo` is true only on hard
-// cargo evidence (the tag, .rustc_info.json or a .fingerprint) — the bar for whole-dir deletion.
+// lane. A profile dir holds .fingerprint, deps or incremental.
+//
+// `cargo` is the verified flag: the CACHEDIR.TAG's first line is cargo's exact signature AND a
+// profile dir holds a .fingerprint. Only a verified build dir may be pruned or deleted, because a
+// marker file can be planted in source; the unverified ones are still listed for read-only nags.
 // `primary` is <crate-root>/target outside a worktree: pruned, never deleted whole.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, sep } from 'node:path';
 
+export const CACHE_TAG_SIGNATURE = 'Signature: 8a477f597d28d172789f06886806bc55';
 const PRUNED = new Set(['node_modules', '.git', '.venv']);
 const PROFILE_NAMES = new Set(['debug', 'release']);
 const PROFILE_MARKERS = ['.fingerprint', 'deps', 'incremental'];
 const CACHE_TAG = 'CACHEDIR.TAG';
-const RUSTC_INFO = '.rustc_info.json';
 const TRIPLE_ARCH = /^(x86_64|aarch64|i[3-6]86|arm\w*|thumb\w+|wasm(32|64)|riscv\w+|powerpc\w*|s390x|mips\w*|loongarch\w+)-/;
 const MAX_LANE_DEPTH = 3;
 
@@ -31,11 +34,12 @@ const readEntries = (dir) => {
 const subdirs = (dir) => readEntries(dir).filter((e) => e.isDirectory() && !e.isSymbolicLink());
 
 export const isProfileDir = (dir) => PROFILE_MARKERS.some((m) => existsSync(join(dir, m)));
+const hasFingerprint = (dir) => existsSync(join(dir, '.fingerprint'));
 const isTriple = (name) => TRIPLE_ARCH.test(name);
 
-function hasCacheTag(dir) {
+function hasCargoSignature(dir) {
   try {
-    return readFileSync(join(dir, CACHE_TAG), 'utf8').toLowerCase().includes('cargo');
+    return readFileSync(join(dir, CACHE_TAG), 'utf8').split(/\r?\n/, 1)[0].trim() === CACHE_TAG_SIGNATURE;
   } catch {
     return false;
   }
@@ -59,8 +63,7 @@ const isPrimary = (dir) =>
 
 function describe(dir, primary, depth) {
   const profiles = profileDirsOf(dir);
-  const tagged = hasCacheTag(dir);
-  if (!tagged && !profiles.length) return null;
+  if (!profiles.length) return null;
   const lanes = [];
   if (depth < MAX_LANE_DEPTH) {
     for (const e of subdirs(dir)) {
@@ -69,7 +72,7 @@ function describe(dir, primary, depth) {
       if (lane) lanes.push(lane);
     }
   }
-  const cargo = tagged || existsSync(join(dir, RUSTC_INFO)) || profiles.some((p) => existsSync(join(p, '.fingerprint')));
+  const cargo = hasCargoSignature(dir) && profiles.some(hasFingerprint);
   return { dir, primary, cargo, profiles, lanes };
 }
 
@@ -89,6 +92,9 @@ export function findBuildDirs(root) {
 
 /** Every profile dir of a build dir and its lanes. */
 export const allProfiles = (b) => [...b.profiles, ...b.lanes.flatMap(allProfiles)];
+
+/** The verified profile dirs a sweep may prune: those holding a .fingerprint. */
+export const sweepableProfiles = (b) => (b.cargo ? b.profiles.filter(hasFingerprint) : []);
 
 /** The BuildDir rooted at `dir`, or null when it is not one. */
 export const buildDirAt = (dir) => describe(dir, isPrimary(dir), 0);

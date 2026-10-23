@@ -1,15 +1,13 @@
 // prune.mjs — plan and apply the removal of dead cargo generations (KIT-T636).
 //
 //   planProfile(profileDir) -> [{ path, bytes }]  older generations in deps/, .fingerprint/, build/, incremental/
-//   newestMtime(buildDir)   -> ms of the newest file the build dir (and its lanes) holds
+//   touchedSince(path, ms)  -> true when anything anywhere under path was modified at or after ms
 //   removeAll(items, dryRun) -> { count, bytes, failed }   fs.rm recursive; a locked path is counted, not fatal
 
 import { lstatSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { allProfiles } from './discover.mjs';
 import { ARTIFACT_HASH, INCREMENTAL_HASH, parseName, staleItems } from './generations.mjs';
 
-const SHALLOW_NEWEST_DEPTH = 3;
 const RM_RETRIES = 2;
 const SUBDIRS = [
   { name: 'deps', hash: ARTIFACT_HASH },
@@ -44,9 +42,12 @@ function newestWithin(path, depth) {
   return newest;
 }
 
-export function newestMtime(build) {
-  const own = [build.dir, ...allProfiles(build)].map((p) => newestWithin(p, p === build.dir ? 0 : SHALLOW_NEWEST_DEPTH));
-  return Math.max(...own);
+/** True when `path` or anything beneath it (the whole tree, symlinks unfollowed) has an mtime at or after `cutoffMs`. */
+export function touchedSince(path, cutoffMs) {
+  const st = stat(path);
+  if (!st) return false;
+  if (st.mtimeMs >= cutoffMs) return true;
+  return st.isDirectory() && entryNames(path).some((name) => touchedSince(join(path, name), cutoffMs));
 }
 
 export function treeSize(path) {

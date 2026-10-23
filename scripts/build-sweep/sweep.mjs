@@ -2,16 +2,18 @@
 //
 //   sweep(root, { dryRun, now, snapshot }) -> receipt
 //
-// Per profile dir: drop the older generations in deps/, .fingerprint/, build/, incremental/
-// (the newest generation of each crate always survives). A build dir that is not its repo's
-// primary target and has been idle IDLE_DAYS goes whole. A repo with cargo running against it
-// or a live broker lock is skipped.
+// Only verified cargo build dirs (discover.mjs) are touched. Per profile dir: drop the older
+// generations in deps/, .fingerprint/, build/, incremental/ (the newest generation of each crate
+// always survives). A build dir that may be deleted whole (safety.mjs) and has had nothing
+// modified anywhere inside it for IDLE_DAYS goes whole. A repo with cargo running against it or a
+// live broker lock is skipped.
 
-import { relative, sep, join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { allProfiles, findBuildDirs } from './discover.mjs';
-import { skipReason, processSnapshot } from './guard.mjs';
-import { newestMtime, planProfile, removeAll, treeSize } from './prune.mjs';
+import { join, relative, sep } from 'node:path';
+import { allProfiles, findBuildDirs, sweepableProfiles } from './discover.mjs';
+import { processSnapshot, skipReason } from './guard.mjs';
+import { planProfile, removeAll, touchedSince, treeSize } from './prune.mjs';
+import { wholeDirBlocker } from './safety.mjs';
 
 export const IDLE_DAYS = 14;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -23,14 +25,18 @@ export function repoOf(dir, root) {
 
 const flatten = (b) => [b, ...b.lanes.flatMap(flatten)];
 
-function sweepBuild(b, ctx, tally) {
-  for (const lane of b.lanes) sweepBuild(lane, ctx, tally);
-  const idle = ctx.now - newestMtime(b) >= IDLE_DAYS * MS_PER_DAY;
-  if (!b.primary && b.cargo && idle) {
+function sweepBuild(b, ctx, tally, parent = null) {
+  for (const lane of b.lanes) sweepBuild(lane, ctx, tally, b);
+  if (!b.cargo) {
+    ctx.receipt.unverified += 1;
+    return;
+  }
+  const deletable = !wholeDirBlocker(b, ctx.root, parent) && !touchedSince(b.dir, ctx.now - IDLE_DAYS * MS_PER_DAY);
+  if (deletable) {
     tally(removeAll([{ path: b.dir, bytes: treeSize(b.dir) }], ctx.dryRun), true);
     return;
   }
-  for (const profile of b.profiles) tally(removeAll(planProfile(profile), ctx.dryRun), false);
+  for (const profile of sweepableProfiles(b)) tally(removeAll(planProfile(profile), ctx.dryRun), false);
 }
 
 export function sweep(root, { dryRun = false, now = Date.now(), snapshot = processSnapshot() } = {}) {
@@ -43,7 +49,7 @@ export function sweep(root, { dryRun = false, now = Date.now(), snapshot = proce
   const receipt = {
     at: new Date(now).toISOString(), root, dryRun, buildDirs: builds.flatMap(flatten).length,
     profiles: builds.reduce((n, b) => n + allProfiles(b).length, 0),
-    removed: 0, wholeDirs: 0, bytes: 0, failed: 0, repos: {}, skipped: [],
+    removed: 0, wholeDirs: 0, bytes: 0, failed: 0, unverified: 0, repos: {}, skipped: [],
   };
   for (const [repo, list] of byRepo) {
     const reason = skipReason(repo, list, snapshot, root);
@@ -61,7 +67,7 @@ export function sweep(root, { dryRun = false, now = Date.now(), snapshot = proce
       receipt.failed += r.failed;
       if (whole) receipt.wholeDirs += r.count;
     };
-    for (const b of list) sweepBuild(b, { now, dryRun }, tally);
+    for (const b of list) sweepBuild(b, { now, dryRun, root, receipt }, tally);
   }
   return receipt;
 }

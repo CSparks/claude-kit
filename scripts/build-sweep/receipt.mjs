@@ -49,6 +49,7 @@ export function formatReceipt(r, top = TOP_REPOS) {
   ];
   const repos = Object.entries(r.repos).sort((a, b) => b[1].bytes - a[1].bytes).slice(0, top);
   for (const [name, s] of repos) lines.push(`  ${name}: ${s.removed} item(s), ${gb(s.bytes)} GB`);
+  if (r.unverified) lines.push(`  ${r.unverified} build dir(s) left alone: no cargo signature plus .fingerprint`);
   for (const s of r.skipped) lines.push(`  skipped ${s.repo}: ${s.reason}`);
   return lines;
 }

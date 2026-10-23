@@ -3,7 +3,7 @@
 // Run: node scripts/build-sweep.test.mjs
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
@@ -44,7 +44,7 @@ const settleDirs = (dir) => {
 
 const tag = (path, ageDays) => {
   put(path, ageDays);
-  writeFileSync(path, 'Signature: 8a477f597d28d172789f06886806bc55 created by cargo');
+  writeFileSync(path, ['Signature: 8a477f597d28d172789f06886806bc55', '# This file is a cache directory tag created by cargo.', ''].join(String.fromCharCode(10)));
   const t = new Date(NOW - ageDays * DAY);
   utimesSync(path, t, t);
 };
@@ -71,6 +71,7 @@ const root = mkdtempSync(join(tmpdir(), 'sweep-'));
 const R = (...p) => join(root, ...p);
 
 const a = R('repoA', 'target', 'debug');
+tag(R('repoA', 'target', 'CACHEDIR.TAG'), 40);
 put(R('repoA', 'Cargo.toml'), 0);
 dep(a, 'serde', H.a, 30);
 dep(a, 'serde', H.b, 20);
@@ -91,11 +92,18 @@ const deep = R('repoA', 'rapid-game', 'rust', 'sub', 'lib', 'target');
 put(R('repoA', 'rapid-game', 'rust', 'sub', 'lib', 'Cargo.toml'), 0);
 dep(join(deep, 'debug'), 'bevy', H.a, 9);
 dep(join(deep, 'debug'), 'bevy', H.b, 3);
+fingerprint(join(deep, 'debug'), 'bevy', H.b, 3);
 tag(join(deep, 'CACHEDIR.TAG'), 9);
 
 put(R('repoB', 'Cargo.toml'), 0);
+tag(R('repoB', 'target', 'CACHEDIR.TAG'), 60);
+tag(R('repoB', 'target-lanes', 'lane-idle', 'CACHEDIR.TAG'), 20);
+tag(R('repoB', 'target-lanes', 'lane-fresh', 'CACHEDIR.TAG'), 0);
+tag(R('repoB', 'target-fresh', 'CACHEDIR.TAG'), 5);
+tag(R('repoB', 'build-target', 'CACHEDIR.TAG'), 20);
 dep(R('repoB', 'target', 'debug'), 'old', H.a, 60);
 dep(R('repoB', 'target', 'debug'), 'old', H.b, 59);
+fingerprint(R('repoB', 'target', 'debug'), 'old', H.b, 59);
 const idle = R('repoB', 'target-lanes', 'lane-idle', 'debug');
 const fresh = R('repoB', 'target-lanes', 'lane-fresh', 'debug');
 dep(idle, 'x', H.a, 20);
@@ -112,6 +120,7 @@ dep(R('repoB', 'build-target', 'release'), 'x', H.a, 20);
 fingerprint(R('repoB', 'build-target', 'release'), 'x', H.a, 20);
 
 put(R('repoC', 'Cargo.toml'), 0);
+tag(R('repoC', 'target', 'CACHEDIR.TAG'), 30);
 dep(R('repoC', 'target', 'debug'), 'serde', H.a, 30);
 dep(R('repoC', 'target', 'debug'), 'serde', H.b, 1);
 put(R('repoC', 'target', 'broker', 'broker.lock'), 0);
@@ -122,18 +131,49 @@ dep(R('repoD', 'node_modules', 'pkg', 'target', 'debug'), 'serde', H.a, 30);
 dep(R('repoD', 'node_modules', 'pkg', 'target', 'debug'), 'serde', H.b, 1);
 
 put(R('repoE', 'Cargo.toml'), 0);
+tag(R('repoE', '.claude', 'worktrees', 'w1', 'target', 'CACHEDIR.TAG'), 20);
 const wt = R('repoE', '.claude', 'worktrees', 'w1', 'target', 'debug');
 put(R('repoE', '.claude', 'worktrees', 'w1', 'Cargo.toml'), 20);
 dep(wt, 'x', H.a, 20);
 fingerprint(wt, 'x', H.a, 20);
 
 put(R('repoF', 'Cargo.toml'), 0);
+tag(R('repoF', 'target', 'CACHEDIR.TAG'), 30);
 dep(R('repoF', 'target', 'debug'), 'serde', H.a, 30);
 dep(R('repoF', 'target', 'debug'), 'serde', H.b, 1);
 
 put(R('repoG', 'notes', 'release', 'readme.txt'), 90);
 put(R('repoG', 'notes', 'debug', 'readme.txt'), 90);
-for (const t of ['repoA', 'repoB', 'repoC', 'repoD', 'repoE', 'repoF', 'repoG']) settleDirs(R(t));
+
+// repoH: dirs that look idle and target-shaped but must survive
+put(R('repoH', 'Cargo.toml'), 0);
+const planted = R('repoH', 'target-planted');
+dep(join(planted, 'debug'), 'serde', H.a, 30);
+dep(join(planted, 'debug'), 'serde', H.b, 20);
+fingerprint(join(planted, 'debug'), 'serde', H.a, 30);
+put(join(planted, 'CACHEDIR.TAG'), 30);
+writeFileSync(join(planted, 'CACHEDIR.TAG'), '# created by cargo, honest');
+const manifest = R('repoH', 'target-manifest');
+dep(join(manifest, 'debug'), 'x', H.a, 30);
+fingerprint(join(manifest, 'debug'), 'x', H.a, 30);
+tag(join(manifest, 'CACHEDIR.TAG'), 30);
+put(join(manifest, 'Cargo.toml'), 30);
+const tracked = R('repoH', 'target-tracked');
+dep(join(tracked, 'debug'), 'x', H.a, 30);
+fingerprint(join(tracked, 'debug'), 'x', H.a, 30);
+tag(join(tracked, 'CACHEDIR.TAG'), 30);
+const deepFresh = R('repoH', 'target-deepfresh');
+dep(join(deepFresh, 'debug'), 'x', H.a, 30);
+fingerprint(join(deepFresh, 'debug'), 'x', H.a, 30);
+tag(join(deepFresh, 'CACHEDIR.TAG'), 30);
+put(join(deepFresh, 'doc', 'a', 'b', 'c', 'fresh.html'), 1);
+
+const repos = ['repoA', 'repoB', 'repoC', 'repoD', 'repoE', 'repoF', 'repoG', 'repoH'];
+for (const r of repos) execFileSync('git', ['init', '-q'], { cwd: R(r) });
+execFileSync('git', ['add', '-f', 'target-tracked/CACHEDIR.TAG'], { cwd: R('repoH') });
+for (const t of repos) settleDirs(R(t));
+const old = new Date(NOW - 30 * DAY);
+for (const d of [deepFresh, join(deepFresh, 'doc'), join(deepFresh, 'doc', 'a'), join(deepFresh, 'doc', 'a', 'b'), join(deepFresh, 'doc', 'a', 'b', 'c')]) utimesSync(d, old, old);
 
 const listAll = (dir, out = new Set()) => {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -154,6 +194,8 @@ ok('depth-6 submodule target found', found.includes('repoA/rapid-game/rust/sub/l
 ok('node_modules is pruned', !found.some((p) => p.includes('node_modules')));
 ok('worktree target found', found.includes('repoE/.claude/worktrees/w1/target'));
 ok('a notes/release dir without cargo markers is not a build dir', !found.some((p) => p.startsWith('repoG')));
+ok('an unsigned planted tag is found but not verified', findBuildDirs(R('repoH')).find((b) => b.dir === planted).cargo === false);
+ok('a signed tag with a fingerprint is verified', findBuildDirs(R('repoH')).find((b) => b.dir === manifest).cargo === true);
 ok('lane dirs found beneath a plain parent', found.includes('repoB/target-lanes/lane-idle') && found.includes('repoB/target-lanes/lane-fresh'));
 
 // sweep
@@ -186,6 +228,20 @@ same('exact removals', topRemoved(before, listAll(root)), [
 ].sort());
 ok('real run matches the dry run totals', real.removed === dry.removed && real.bytes === dry.bytes);
 same('whole idle dirs counted', real.wholeDirs, 4);
+ok('planted cargo-text tag without the signature: kept and not pruned', existsSync(join(planted, 'debug', 'deps', `libserde-${H.a}.rlib`)) && real.unverified === 1);
+ok('signature-tagged dir containing Cargo.toml is kept', existsSync(manifest) && existsSync(join(manifest, 'debug', 'deps', `libx-${H.a}.rlib`)));
+ok('git-tracked target-shaped dir is kept', existsSync(join(tracked, 'CACHEDIR.TAG')) && existsSync(join(tracked, 'debug', 'deps', `libx-${H.a}.rlib`)));
+ok('idle dir with one fresh deeply nested file is kept', existsSync(join(deepFresh, 'doc', 'a', 'b', 'c', 'fresh.html')) && existsSync(join(deepFresh, 'debug', 'deps', `libx-${H.a}.rlib`)));
+
+const solo = mkdtempSync(join(tmpdir(), 'sweep-root-'));
+const soloRoot = join(solo, 'target-root');
+dep(join(soloRoot, 'debug'), 'x', H.a, 30);
+fingerprint(join(soloRoot, 'debug'), 'x', H.a, 30);
+tag(join(soloRoot, 'CACHEDIR.TAG'), 30);
+settleDirs(soloRoot);
+sweep(soloRoot, { now: NOW, snapshot: { commands: [] } });
+ok('the scan root is never deleted', existsSync(join(soloRoot, 'debug', 'deps', `libx-${H.a}.rlib`)));
+rmSync(solo, { recursive: true, force: true });
 same('repos with a live lock or running cargo are skipped', real.skipped.map((s) => s.repo).sort(), ['repoC', 'repoF']);
 ok('the live broker lock names itself', real.skipped.some((s) => s.repo === 'repoC' && /broker lock/.test(s.reason)));
 ok('a running cargo names its repo', real.skipped.some((s) => s.repo === 'repoF' && /running/.test(s.reason)));
