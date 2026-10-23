@@ -77,7 +77,7 @@ export function readLock(path) {
 
 // `process.kill(pid, 0)` sends no signal — it only probes existence. ESRCH ⇒ gone (reclaimable);
 // EPERM ⇒ exists but not ours (still alive). A cross-host lock is treated as live (fail safe).
-function pidAlive(pid) {
+export function pidAlive(pid) {
   if (!Number.isInteger(pid)) return false;
   try {
     process.kill(pid, 0);
