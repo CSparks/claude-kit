@@ -52,7 +52,7 @@ function insertFile(db, f, text) {
   db.run('INSERT INTO files (path, kind, lang, mtime, size, lines) VALUES (?, ?, ?, ?, ?, ?)', [f.rel, f.kind, f.lang, f.mtimeMs, f.size, text.split('\n').length]);
   const id = db.all('SELECT id FROM files WHERE path = ?', [f.rel])[0].id;
   db.run('INSERT INTO content (rowid, body) VALUES (?, ?)', [id, text]);
-  for (const s of extractSymbols(f.lang, text)) db.run('INSERT INTO symbols VALUES (?, ?, ?, ?, ?)', [id, s.name, s.type, s.line, s.scope]);
+  for (const s of extractSymbols(f.lang, text, f.rel)) db.run('INSERT INTO symbols VALUES (?, ?, ?, ?, ?)', [id, s.name, s.type, s.line, s.scope]);
 }
 
 // Apply `stale` [{ f, old }] and `gone` [row] in one transaction; returns the counts.

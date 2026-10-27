@@ -8,7 +8,7 @@ milestone:
 labels: [kit-bug]
 links: []
 files: []
-supersedes:
+supersedes: KIT-T654
 superseded_by:
 created: 2026-10-06T08:01:11Z
 updated: 2026-10-20T00:53:21Z

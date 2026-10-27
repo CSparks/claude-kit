@@ -3,7 +3,7 @@
 // extraction by default; a tree-sitter cascade may refine accuracy later, never required).
 //
 //   classify(path)               -> { kind: code|doc|config, lang } | null (not indexed)
-//   extractSymbols(lang, text)   -> [{ name, type, line, scope }]
+//   extractSymbols(lang, text, path) -> [{ name, type, line, scope }]
 //
 // Symbol types: fn struct enum trait type mod const macro impl use class var section heading.
 
@@ -15,13 +15,15 @@ const LANG = {
 };
 const DOC = new Set(['md', 'txt', 'rst']);
 const CONFIG = new Set(['toml', 'json', 'yaml', 'yml', 'ron', 'ini', 'cfg']);
-const SKIP_NAMES = /(?:^|\/)(?:Cargo\.lock|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/;
+const SKIP_NAMES = /(?:^|\/)(?:package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/;
+const CARGO_LOCK = /(?:^|\/)Cargo\.lock$/;
 
 /** The indexed language a `--lang` token names: a language (`rust`) or a file extension (`rs`, `mjs`). */
 export const langOfToken = (token) => (Object.values(LANG).includes(token) ? token : LANG[token.toLowerCase()] || token);
 
 export function classify(path) {
   if (SKIP_NAMES.test(path)) return null;
+  if (CARGO_LOCK.test(path)) return { kind: 'config', lang: 'toml' };
   const ext = path.includes('.') ? path.split('.').pop().toLowerCase() : '';
   const lang = LANG[ext];
   if (!lang) return null;
@@ -78,7 +80,27 @@ function useLeaves(spec) {
   return out;
 }
 
-export function extractSymbols(lang, text) {
+const LOCK_PACKAGE = '[[package]]';
+const LOCK_NAME = /^name = "([^"]+)"$/;
+const LOCK_VERSION = /^version = "([^"]+)"$/;
+
+// Cargo.lock: one 'package' symbol per locked crate, its version as the scope.
+function lockPackages(lines) {
+  const out = [];
+  let name = '';
+  let nameLine = 0;
+  lines.forEach((line, i) => {
+    if (line.trim() === LOCK_PACKAGE) { name = ''; return; }
+    const n = LOCK_NAME.exec(line);
+    if (n) { name = n[1]; nameLine = i + 1; return; }
+    const v = LOCK_VERSION.exec(line);
+    if (v && name) { out.push({ name, type: 'package', line: nameLine, scope: v[1] }); name = ''; }
+  });
+  return out;
+}
+
+export function extractSymbols(lang, text, path = '') {
+  if (CARGO_LOCK.test(path)) return lockPackages(text.split('\n'));
   const out = [];
   const lines = text.split('\n');
   const rules = BY_LANG[lang] || [];

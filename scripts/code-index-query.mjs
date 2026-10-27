@@ -324,7 +324,7 @@ function scanSymbols(files, text, flags, kinds) {
   for (const f of memFilter(files, flags, kinds)) {
     let body;
     try { body = readFileSync(f.abs, 'utf8'); } catch { continue; }
-    for (const s of extractSymbols(f.lang, body)) {
+    for (const s of extractSymbols(f.lang, body, f.rel)) {
       if (text && (wanted ? !s.name.toLowerCase().includes(wanted) : s.name !== text)) continue;
       if (flags.types && !flags.types.includes(s.type)) continue;
       out.push({ path: f.rel, line: s.line, type: s.type, name: s.name, scope: s.scope });

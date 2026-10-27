@@ -512,7 +512,7 @@
 | KIT-T644 | bug | todo | critical | tree-delete-gate: blocks rm -rf "$S/out" where S is a shell variable pointing at the session scratchpad outside the checkout; the gate resol |
 | KIT-T645 | bug | todo | critical | broker job over the 5-minute ceiling (KIT-D104): dirt-empire run phase took 9.5 min of 9.9 min total, 0.0 min of it queued for the machine b |
 | KIT-T646 | bug | todo | high | Blender-session 'stays in Blender' hold parks Chris's decisions in .blend text blocks outside .ai: front geometry/rake/fork-travel decisions |
-| KIT-T647 | feature | todo | medium | q: index Cargo.lock so dependency pins are searchable (design agent had to grep Cargo.lock for bevy_gltf/gltf presence, 2026-10-26) |
+| KIT-T647 | feature | review | medium | q: index Cargo.lock so dependency pins are searchable (design agent had to grep Cargo.lock for bevy_gltf/gltf presence, 2026-10-26) |
 | KIT-T648 | bug | todo | high | pre-write file-length gate is bypassed by in-place edits made with node/shell (an implementer edited rapid-game shader_kit.wgsl, 617 lines, |
 | KIT-T649 | bug | todo | critical | broker job over the 5-minute ceiling (KIT-D104): rapid-game run phase took 6.2 min of 6.2 min total, 0.0 min of it queued for the machine bu |
 | KIT-T650 | feature | todo | high | broker: land binary files (a glb, a png) in a patch envelope — envelope write/edit are text-only, so a game asset binary has to be hand-comm |
@@ -520,7 +520,7 @@
 | KIT-T652 | bug | review | high | q gap: 'sym' has no --help flag |
 | KIT-T653 | bug | review | high | q gap: unknown query 'importers-of |
 
-## Superseded (30)
+## Superseded (31)
 | id | status | title | superseded by |
 | --- | --- | --- | --- |
 | KIT-T037 | superseded | Programmatic resume omits in-flight background agents — make live work visible AND durable | KIT-T014 |
@@ -553,6 +553,7 @@
 | KIT-T573 | superseded | broker self-check restore-mismatch: j-mvenv4o8-s6sdvw (check-only, after the restore ui/mod.rs, race/step.rs, tests/replay_flow.rs differ fr | — |
 | KIT-T599 | superseded | broker: land fails at pin step 'rapid-game has uncommitted changes' - rust/Cargo.lock carries a 7-line rg-vehicle entry left by killed daemo | KIT-T598 |
 | KIT-T623 | superseded | pre-write gate crashed with V8 out-of-memory (exit 134) in broker job j-mvjo3p1h-5551ij (dirt-empire, 2026-10-22); identical resubmit passed | KIT-T621 |
+| KIT-T654 | superseded | q gap: a grep followed an empty q file for the same terms | KIT-T344 |
 
 ## Archived (106)
 | id | type | status | priority | title |

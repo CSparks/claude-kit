@@ -37,18 +37,22 @@ put('src/sim.rs', 'use std::collections::{HashMap, HashSet as Set};\npub use cra
 put('shaders/terrain.wgsl', 'struct Light { dir: vec3<f32> }\n@group(0) @binding(0) var<uniform> light: Light;\nconst PI: f32 = 3.14;\nfn shade(p: vec3<f32>) -> f32 { return 1.0; }\n');
 put('web/app.ts', 'export class Widget {}\nexport function render() {}\nexport const load = async () => 1;\nconst plain = 5;\nexport interface Props {}\n');
 put('docs/guide.md', '# Guide\ntext about camps\n## Setup\n');
+put('Cargo.lock', 'version = 4\n\n[[package]]\nname = "bevy_gltf"\nversion = "0.18.1"\n');
+put('package-lock.json', '{"name":"locked_noise_pkg"}');
 put('config/tuning.toml', '[camp]\nradius = 12\n[[wave]]\nsize = 3\n');
 
 const readSrc = (rel) => readFileSync(join(root, rel), 'utf8');
 const rows = (cmd, args) => codeVerbRows(cmd, args, root);
 const locs = (r) => r.map((x) => x.loc).filter(Boolean);
 
-await test('classify: kinds and languages; lockfiles and unknown types are not indexed', () => {
+await test('classify: kinds and languages; npm/yarn lockfiles and unknown types are not indexed, Cargo.lock is config', () => {
   assert.deepEqual(classify('a/b.rs'), { kind: 'code', lang: 'rust' });
   assert.deepEqual(classify('a/b.wgsl'), { kind: 'code', lang: 'wgsl' });
   assert.deepEqual(classify('d/x.md'), { kind: 'doc', lang: 'md' });
   assert.deepEqual(classify('c/x.toml'), { kind: 'config', lang: 'toml' });
-  assert.equal(classify('Cargo.lock'), null);
+  assert.deepEqual(classify('Cargo.lock'), { kind: 'config', lang: 'toml' });
+  assert.deepEqual(classify('rapid-game/Cargo.lock'), { kind: 'config', lang: 'toml' });
+  assert.equal(classify('package-lock.json'), null);
   assert.equal(classify('a/b.glb'), null);
 });
 
@@ -58,6 +62,18 @@ await test('rust symbols: fn struct enum trait impl const static macro type mod 
   for (const [t, n] of [['fn', 'spawn'], ['fn', 'limit'], ['struct', 'Camp'], ['enum', 'Mood'], ['trait', 'Raid'], ['const', 'MAX_CAMPS'], ['const', 'COUNT'], ['macro', 'boom'], ['type', 'Alias'], ['mod', 'camp'], ['mod', 'private'], ['use', 'HashMap'], ['use', 'Set'], ['use', 'Wake']]) assert.ok(has(t, n), `${t} ${n}`);
   const impls = syms.filter((s) => s.type === 'impl');
   assert.deepEqual(impls.map((s) => [s.name, s.scope]), [['Camp', 'Raid'], ['Camp', '']]);
+});
+
+await test('Cargo.lock: one package symbol per locked crate with its version; Cargo.toml [package] is a plain section', () => {
+  const lock = [
+    '# generated', 'version = 4', '', '[[package]]', 'name = "bevy_gltf"', 'version = "0.18.1"', 'source = "registry+x"',
+    'dependencies = [', ' "gltf",', ']', '', '[[package]]', 'name = "gltf"', 'version = "1.4.1"', '',
+  ].join('\n');
+  assert.deepEqual(extractSymbols('toml', lock, 'Cargo.lock'), [
+    { name: 'bevy_gltf', type: 'package', line: 5, scope: '0.18.1' },
+    { name: 'gltf', type: 'package', line: 13, scope: '1.4.1' },
+  ]);
+  assert.deepEqual(extractSymbols('toml', '[package]\nname = "x"\nversion = "1"\n', 'crates/x/Cargo.toml').map((s) => s.type), ['section']);
 });
 
 await test('wgsl, js/ts, md and toml symbols', () => {
@@ -78,6 +94,12 @@ await test('refresh indexes the repo and its framework submodule; second refresh
   b.handle?.close();
   assert.ok(a.files.some((f) => f.rel.startsWith('rapid-game/rust/')), 'framework source is indexed');
   assert.ok(a.files.some((f) => f.rel === 'rapid-game/.ai/tickets/RGT-T1-sleep.md' && f.kind === 'ticket'), 'framework tickets are indexed');
+});
+
+await test('q code and q sym answer a dependency pin from Cargo.lock; npm lockfiles stay out', async () => {
+  assert.deepEqual(locs(await rows('code', ['name = "bevy_gltf"'])), ['Cargo.lock:4']);
+  assert.deepEqual((await rows('sym', ['bevy_gltf', '--type', 'package'])).filter((r) => r.loc).map((r) => [r.loc, r.scope]), [['Cargo.lock:4', '0.18.1']]);
+  assert.deepEqual(locs(await rows('code', ['locked_noise_pkg'])), [], 'package-lock.json is not indexed');
 });
 
 await test('refresh is incremental: a changed file, a new file and a removed file', async () => {

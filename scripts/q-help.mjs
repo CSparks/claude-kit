@@ -42,7 +42,7 @@ export const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <qu
                               --registry <crate-version|crate>  search one dependency crate's source (cargo registry or a vendor dir), paths absolute;
                               a bare crate resolves to the one version Cargo.lock pins, e.g. q code force --registry rapier3d-0.25.1 --lang rust
   sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P] [--not-path G] [--registry <crate>]
-                              definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)
+                              definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml; Cargo.lock pins as type package, version in the scope column)
   file <substring|glob> [--not-path G]
                               find files by path across the repo and its framework submodule
   fts [--scope <s>|--project <p>] [--limit N] [--any] <q...>
