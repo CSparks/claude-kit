@@ -91,6 +91,23 @@ await test('q on an unsupported flag files a gap and exits 1', () => {
   assert.ok(tickets().some((n) => /flag:open:--bogus-flag/.test(read(n))));
 });
 
+await test('q <verb> --help prints that verb\'s usage, exits 0 and files nothing (KIT-T338)', () => {
+  const n = tickets().length;
+  for (const [verb, first] of [['code', /^ {2}code <text> \[filters\]/], ['sym', /^ {2}sym \[<name>\]/], ['file', /^ {2}file <substring\|glob>/], ['open', /^ {2}open \[scope\]/]]) {
+    const r = script('q.mjs', [verb, '--help'], store, { ...env, CLAUDE_KIT_Q_SERVER: 'off' });
+    assert.equal(r.code, 0, verb);
+    assert.match(r.out, first, verb);
+    assert.doesNotMatch(r.out, /^usage:/m, `${verb} prints its own entry, not the whole surface`);
+  }
+  assert.equal(tickets().length, n);
+});
+
+await test('q <unknown verb> --help prints the whole surface', () => {
+  const r = script('q.mjs', ['frobnicate', '--help'], store, { ...env, CLAUDE_KIT_Q_SERVER: 'off' });
+  assert.equal(r.code, 0);
+  assert.match(r.out, /^usage: q\.mjs/);
+});
+
 await test('q with supported flags files nothing', () => {
   const n = tickets().length;
   script('q.mjs', ['fts', '--scope', 'all', 'zzzz'], store, env);

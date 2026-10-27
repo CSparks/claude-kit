@@ -47,7 +47,7 @@ export async function serverReply(argv, cwd) {
   const env = process.env;
   if (env.CLAUDE_KIT_Q_SERVER === 'off' || env.CLAUDE_KIT_CODE_INDEX_FORCE_SCAN) return null;
   const rest = argv.filter((a, i) => a !== '--json' && !FLAG_VALUES.has(a) && !FLAG_VALUES.has(argv[i - 1]));
-  if (!SERVED_VERBS.has(rest[0]) || argv.includes('--no-db') || rest.some((a) => String(a).startsWith('--registry'))) return null;
+  if (!SERVED_VERBS.has(rest[0]) || argv.includes('--help') || argv.includes('--no-db') || rest.some((a) => String(a).startsWith('--registry'))) return null;
   const ri = argv.indexOf('--root');
   return ask({ argv: rest, root: ri >= 0 ? argv[ri + 1] : null, cwd, env: kitEnv(), stamp: stamp() }, endpoint());
 }

@@ -62,6 +62,7 @@ import { unsupportedFlags, reportGap } from './q-gap.mjs';
 import { scopeFlagToPositional } from './q-scope-flag.mjs';
 import { basename } from 'node:path';
 import { printRows } from './q-print.mjs';
+import { QUERY_SURFACE, verbHelp } from './q-help.mjs';
 import { codeVerbRows } from './code-index-query.mjs';
 import { printFtsExtras } from './q-fts-extras.mjs';
 import { registryRows, takeRegistry } from './q-registry.mjs';
@@ -421,66 +422,6 @@ async function queryOnce(cmd, args, { root, cwdRoot = root || process.cwd(), noD
   }
 }
 
-// The full query surface, printed by --help/-h/help. The query-gate block message sends
-// agents here ("q.mjs --help — the full query surface"), so this MUST be a working exit-0
-// path — it erroring as an unknown query left gate-blocked agents with no discovery route
-// (capped 2026-07-05).
-const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <query> [args]
-
-  SCOPE: every [scope] argument defaults to the CWD project — a query answers about the
-  repo you are standing in. Pass \`all\` (case-insensitive) for every project, or a project
-  key (KIT, ST, …) for that one. Outside an adopted repo there is no key, so the default
-  is every project. Applies to: open, inbox, confirmations, orphans, rundown, recent,
-  regressions, supersedes, verify, and fts's --scope.
-
-  open [scope] [--status todo|doing|review[,…]]
-                              open items (todo|doing|review); --status narrows them
-  inbox [scope] [--older-than Nd]
-                              untriaged captures — id, age, scope, type, file path
-  confirmations [scope]       captures aged past the confirmation threshold
-                              (>= ${CONFIRMATION_DAYS}d — they need a human)
-  children <id>               items whose parent is <id>
-  backlinks <id>              items that link TO <id> (any rel) — walk DOWN
-  trail <id>                  walk UP <id>'s ancestry — governing decisions/docs/origin
-  orphans [scope]             open tickets/decisions with NO outbound antecedent link
-  governing <path...>         OPEN tickets/decisions that GOVERN the given file path(s)
-  mentions <agent>            comments @mentioning <agent> across the project, with read state
-  drift                       OPEN items naming a structural target path ABSENT from the tree
-  by-commit <sha>             tickets caused-by / fixed-by <sha>
-  doc-trail <id>              history events for <id>, newest first
-  recent [Nd] [scope]         time-windowed digest (default ${RECENT_DAYS}d): decisions,
-                              fixed, status moves, created — counts exact, lists capped
-  topics                      the generated topic index — slug, first/last date, count, gist
-  topic <slug>                one topic's items, oldest first (also: q --topic <slug>)
-  show <id>                   print one item in full (ticket, decision, note, question) from any store
-  code <text> [filters]       SEARCH CODE/DOCS/CONFIG/TICKETS (the grep replacement): ranked, compact, verified
-                              filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
-                              --path crates/sim  --not-path <glob|dir> (repeatable; drops matches)  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
-                              --project <name>  search that registered project's checkout (name or id key), e.g. the kit's scripts
-                              --registry <crate-version|crate>  search one dependency crate's source (cargo registry or a vendor dir), paths absolute;
-                              a bare crate resolves to the one version Cargo.lock pins, e.g. q code force --registry rapier3d-0.25.1 --lang rust
-  sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P] [--not-path G] [--registry <crate>]
-                              definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml)
-  file <substring|glob> [--not-path G]
-                              find files by path across the repo and its framework submodule
-  fts [--scope <s>|--project <p>] [--limit N] [--any] <q...>
-                              full-text search title+body (default: this project + its adopted framework stores;
-                              --project takes a registered project's name or id key, as cap does; --limit N caps hits, 0 = all;
-                              --any = items holding any term; used automatically when none holds them all, plus doc/config lines);
-                              then "also in code": the few code definitions the terms name
-  similar [--store <s>] <t>   likely-duplicate items (dedup, suggest-only) — cross-scope
-  next-id <scope> <type>      O(1) next free id (max(num)+1)
-  rundown [scope]             per-scope open-item counts (\`rundown all\` = every project)
-  regressions [scope]         regression chain data (index-tickets)
-  supersedes [scope]          supersede chain data (index-tickets)
-  integrity                   orphan parents / dangling links / gaps — cross-scope
-  sql "SELECT ..."            ad-hoc read-only SQL
-  verify [scope]              cache staleness self-check (exit 1 = stale)
-  sessions [--project <s>]    list Claude Code terminal sessions, newest first (KIT-T100)
-  session <id-prefix>         timestamped conversation dump of one session
-  said <words...>             full-text search what was SAID across all sessions
-`;
-
 async function main() {
   const argv = process.argv.slice(2);
   const json = argv.includes('--json');
@@ -502,6 +443,7 @@ async function main() {
   const [cmd, ...rawArgs] = ti >= 0 ? ['topic', rest[ti + 1]] : rest;
   if (!cmd) { process.stderr.write(QUERY_SURFACE); process.exit(2); }
   if (cmd === '--help' || cmd === '-h' || cmd === 'help') { process.stdout.write(QUERY_SURFACE); process.exit(0); }
+  if (rawArgs.includes('--help')) { process.stdout.write(verbHelp(cmd) || QUERY_SURFACE); process.exit(0); }
 
   // Session-transcript queries (KIT-T100) delegate whole: conversation history lives in its
   // own module + its own sessions.db (machine-local, transcript-derived), NOT the work cache.
