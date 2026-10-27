@@ -230,7 +230,7 @@
 | KIT-T342 | feature | review | high | Model routing: no pinned agents, orchestrator picks the family from one capability table, local Qwen lane |
 | KIT-T343 | bug | review | high | broker composeCommand mishandles -j: it only recognises '-j'/'--jobs' as separate tokens, so a '-j2' in --test or verify_default gets a seco |
 | KIT-T344 | bug | review | high | q gap: a grep followed an empty q file for the same terms |
-| KIT-T345 | bug | todo | high | broker land commits only the patch's paths and leaves cargo's Cargo.lock change uncommitted (dirty tree after a landing that added a depende |
+| KIT-T345 | bug | review | high | broker land commits only the patch's paths and leaves cargo's Cargo.lock change uncommitted (dirty tree after a landing that added a depende |
 | KIT-T346 | bug | todo | high | q gap: 'recent' has no --limit flag |
 | KIT-T347 | bug | review | high | q gap: a grep followed an empty q sym for the same terms |
 | KIT-T348 | bug | todo | high | Onset brief named an existing capability ('this new hot load feedback loop') and the session never queried the record for it — proceeded… |
