@@ -394,6 +394,7 @@
 - KIT-T652 — q gap: 'sym' has no --help flag (high)
 - KIT-T653 — q gap: unknown query 'importers-of (high)
 - KIT-T655 — request-gate false positive: a request filed with 't request' (.ai/requests/MAR-R001-*.md, marblequest 2026-10-27) is not counted as a captu (high)
+- KIT-T656 — Process failure: weekly model reassessment flagged Fable 5.1 as 'unverified' because web search missed it, though the dispatching session's (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)

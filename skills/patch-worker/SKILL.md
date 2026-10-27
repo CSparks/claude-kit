@@ -29,6 +29,8 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
    *** write crates/sim/tests/x.rs
    full content of a NEW file
    *** delete path/y.rs
+   *** write-binary assets/x.glb
+   base64 lines of a binary file (or pass --binary assets/x.glb=<file> and no stdin); replaces the file whole
    PATCH
    )
    node <kit>/scripts/broker/wait.mjs $id --root <tree>
