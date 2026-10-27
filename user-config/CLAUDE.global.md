@@ -255,6 +255,7 @@ compaction summary.
 - **Dedup before you file (KIT-T025/T159):** an item created directly (not via `cap`
   → triage) runs `q fts` on its nouns first — duplicating a parallel session's
   ticket is a filing bug.
+- **Lapsed tickets reopen (KIT-D107):** a ticket idle in review 14+ days with no maintainer feedback closes labelled `lapsed`. When the maintainer describes something in conversation that collides with one (`q fts`, label `lapsed`), reopen it with `t status <id> todo` (add `--remaining "…"` if it has landed commits) and a `t comment` quoting his words instead of filing new.
 
 ## Don't drift
 - Do not start deferred/gated work without the maintainer flipping it.

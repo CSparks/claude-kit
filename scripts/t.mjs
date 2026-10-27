@@ -14,6 +14,8 @@
 //                                                   same work (t-dedup.mjs) unless --not-dup names the items checked
 //   t status <id> <state> [--human] [--note "…"] [--fixed-commit <sha>] [--no-trail-check "<reason>"] [--remaining "…"]
 //                                                   (todo on a ticket with landed commits needs --remaining)
+//   t status <id> done --lapsed                    review → done once 14d idle with no maintainer feedback (KIT-D107);
+//                                                   the only door past human_only / uat for that move
 //   t tick <id> <ordinal|substring> [--note "…"]   check an acceptance box (ordinal = printed position, ticked or not)
 //   t untick <id> <ordinal|substring>               uncheck one (same ordinal)
 //   t criterion <id> "<text>"                       append an acceptance criterion
@@ -360,7 +362,7 @@ export async function startTrail(root, id, escape = '') {
 // The board regen never holds a mutation open: a wedged indexer is killed after this long (KIT-T536).
 const REFRESH_TIMEOUT_MS = Number(process.env.CLAUDE_KIT_REFRESH_TIMEOUT_MS) || 60_000;
 
-async function refresh(root) {
+export async function refresh(root) {
   try {
     execFileSync('node', [process.env.CLAUDE_KIT_INDEXER || join(SCRIPT_DIR, 'index-tickets.mjs'), root], { stdio: 'ignore', windowsHide: true, timeout: REFRESH_TIMEOUT_MS });
   } catch { /* board regen is best-effort (a hung or slow indexer is killed at the timeout); the markdown is already the truth */ }
@@ -378,6 +380,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--human') flags.human = true;
+    else if (a === '--lapsed') flags.lapsed = true;
     else if (a === '--note') flags.note = argv[++i];
     else if (a === '--fixed-commit') flags.fixedCommit = argv[++i];
     else if (a === '--remaining') flags.remaining = argv[++i];
@@ -416,7 +419,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|note|notes|epic|request|question|session|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t decide --file <draft.md> | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] | t status <id> <state> [--human] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|note|notes|epic|request|question|session|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t decide --file <draft.md> | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }

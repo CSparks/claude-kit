@@ -8,6 +8,7 @@ import { openHandle } from './handle.mjs';
 import { loadScope, scopeIndex, ROUTE_STORE } from './config.mjs';
 import { leadingType, capText, ftsOrQuery, truncate } from './cap-text.mjs';
 import { inferProvenance, PROVENANCE_TYPES } from './provenance.mjs';
+import { reopenOnCollision } from '../lapsed-reopen.mjs';
 
 const DEDUP_LIMIT = 8;          // candidate dedup hits per cap — a hint list, not a dump
 const PROBE_STORE = 'tickets';  // store an ambiguous cap dedup-probes before its route is known
@@ -59,6 +60,7 @@ async function planForCap(db, cap, configs) {
   const route = known ? known.route : null;
   const priority = known ? known.priority : null;
   const store = route ? ROUTE_STORE[route] : null;
+  const reopened = sc && sc.root && (!store || store === PROBE_STORE) ? await reopenOnCollision(sc.root, text) : [];
   return {
     capId: cap.id,
     scope: cap.scope,
@@ -71,6 +73,7 @@ async function planForCap(db, cap, configs) {
     // A deterministic cap dedups against its resolved store; an ambiguous one has no single
     // target yet, so it probes the broadest store (tickets) to surface candidates for the LLM.
     dedupCandidates: dedupCandidates(db, store || PROBE_STORE, text),
+    reopened,
     allowedClassifications: Object.keys(classifications),
     // Proposed backward-provenance for a bug/regression cap (KIT-T065) — null otherwise.
     provenance: await provenanceFor(type, text, sc),
@@ -145,6 +148,7 @@ function printPlan(out) {
       const dup = i.dedupCandidates.length ? `  dup? ${i.dedupCandidates.map((c) => c.id).join(', ')}` : '';
       const allow = i.needsClassification ? `  pick: ${i.allowedClassifications.join('|')}` : '';
       process.stdout.write(`  ${tag}  ${truncate(i.text, TEXT_COL)}${dup}${allow}\n`);
+      for (const line of i.reopened) process.stdout.write(`    ${line}\n`);
       printProvenance(i.provenance);
     }
     process.stdout.write('\n');

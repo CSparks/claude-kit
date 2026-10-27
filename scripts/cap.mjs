@@ -39,7 +39,7 @@ import {
 } from '../hooks/lib.mjs';
 import { wantsHelpFirst } from './cli-help.mjs';
 import { runTopic } from './cap-topic.mjs';
-import { dedupHints, asKitBug } from './cap-dedup.mjs';
+import { dedupHints, asKitBug, reopenedLines } from './cap-dedup.mjs';
 import { classificationKeys, projectTable, matchProject, namedInText } from './cap-routing.mjs';
 
 const DATE_END = 10; // slice [0,DATE_END) of an ISO string = YYYY-MM-DD
@@ -248,7 +248,7 @@ if (isDone) {
   await writeItemFile(join(resolvedDir, name), content);
   console.log(`resolved${type ? ` (${type})` : ''} -> ${projectName}/${RESOLVED_DIR}/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
 } else {
-  const dupLines = await dedupHints(aiDir, text, { skip: notDup });
+  const dupLines = [...await reopenedLines(aiDir, text, notDup), ...await dedupHints(aiDir, text, { skip: notDup })];
   // A bug or feature captured into the KIT's own store is a ticket at once, not an inbox note (KIT-T286).
   const kitBug = type === 'bug' || type === 'feature' ? await asKitBug(aiDir, text, slug, type, notDup) : null;
   if (kitBug) {

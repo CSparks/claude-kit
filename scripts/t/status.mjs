@@ -9,11 +9,21 @@ import { appendUnderSection, stamp } from '../md-body.mjs';
 import { readConfig } from '../t-config.mjs';
 import { remainingNote } from '../landed.mjs';
 import { SHA_RE, findTicket, setField } from './ticket-file.mjs';
+import { lapseVerdict, lapseNote, LAPSE_LABEL, HUMAN_MARK } from './lapse-rule.mjs';
+import { addLabel, removeLabel } from './labels.mjs';
 
 // --- t status ------------------------------------------------------------------------------
 
 function resolveUat(parts, cfg) {
   return field(parts.fm, 'uat') || cfg.uatDefault;
+}
+
+// `--lapsed` is the one door past the human_only / uat gate (KIT-D107): review → done only, and
+// only once the ticket has idled past the lapse window with no maintainer feedback.
+function assertLapsable(id, state, from, text, opts) {
+  if (state !== 'done' || from !== 'review') throw new Error(`${id}: --lapsed only moves a ticket review → done (this is ${from} → ${state})`);
+  const verdict = lapseVerdict(text, { now: opts.now });
+  if (!verdict.eligible) throw new Error(`${id}: not lapsable — ${verdict.reason}`);
 }
 
 // Transition a ticket's status. Enforces config.statuses (target must be a known state),
@@ -31,8 +41,9 @@ export function setStatus(root, id, state, opts = {}) {
   const from = field(t.parts.fm, 'status') || '—';
   const remaining = remainingNote(id, state, t.text, opts.remaining);
 
+  if (opts.lapsed) assertLapsable(id, state, from, t.text, opts);
   const uatRequiredClose = state === 'done' && resolveUat(t.parts, cfg) === 'required';
-  const humanGated = cfg.humanOnly.includes(state) || uatRequiredClose;
+  const humanGated = !opts.lapsed && (cfg.humanOnly.includes(state) || uatRequiredClose);
   if (humanGated && !opts.human) {
     const why = uatRequiredClose ? `uat=required for ${id}` : `'${state}' is human_only`;
     throw new Error(`${id}: ${why} — re-run with --human (this transition is the maintainer's call)`);
@@ -40,6 +51,10 @@ export function setStatus(root, id, state, opts = {}) {
 
   let fm = setField(t.parts.fm, 'status', state);
   fm = setField(fm, 'updated', new Date().toISOString().replace(/\.\d+Z$/, 'Z'));
+
+  const reopening = from === 'done' && state !== 'done';
+  if (opts.lapsed) fm = addLabel(fm, LAPSE_LABEL);
+  if (reopening) fm = removeLabel(fm, LAPSE_LABEL);
 
   const type = field(t.parts.fm, 'type');
   const tailNotes = [];
@@ -54,7 +69,8 @@ export function setStatus(root, id, state, opts = {}) {
     tailNotes.push(`set fixed_commit on this ${type} (pass --fixed-commit <sha>) — regression tracking needs the fixing commit`);
   }
 
-  let body = appendUnderSection(t.parts.rest, 'History', `- [${stamp()}] (status) ${from} → ${state}`);
+  const suffix = opts.lapsed ? ` — ${lapseNote}` : opts.human ? ` ${HUMAN_MARK}` : '';
+  let body = appendUnderSection(t.parts.rest, 'History', `- [${stamp()}] (status) ${from} → ${state}${suffix}`);
   if (opts.note) body = appendUnderSection(body, 'History', `- [${stamp()}] (comment) ${opts.note}`);
   if (remaining) body = appendUnderSection(body, 'History', `- [${stamp()}] (comment) ${remaining}`);
 
@@ -70,5 +86,10 @@ export function setStatus(root, id, state, opts = {}) {
     renameSync(t.path, dest);
     movedTo = dest;
   }
-  return { id, from, to: state, path: movedTo || t.path, archived: !!movedTo, warnings: tailNotes };
+  let restored = null;
+  if (reopening && t.archived && t.store === 'tickets') {
+    restored = join(root, '.ai', 'tickets', t.file);
+    renameSync(t.path, restored);
+  }
+  return { id, from, to: state, path: movedTo || restored || t.path, archived: !!movedTo, warnings: tailNotes };
 }

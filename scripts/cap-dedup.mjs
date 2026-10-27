@@ -34,6 +34,17 @@ export async function dedupHints(aiDir, text, { skip = [] } = {}) {
   }
 }
 
+/** Receipt lines for lapsed tickets this capture reopened (KIT-D107); [] for a central store or any failure. */
+export async function reopenedLines(aiDir, text, skip = []) {
+  try {
+    if (basename(aiDir) !== '.ai') return [];
+    const { reopenOnCollision } = await import('./lapsed-reopen.mjs');
+    return await reopenOnCollision(dirname(aiDir), text, { skip });
+  } catch {
+    return [];
+  }
+}
+
 /**
  * A `bug` or `feature` capture aimed at the kit's own store becomes a kit-bug / kit-feature ticket: { id, created }, or
  * null when the destination is any other store (then it lands in the inbox as usual).
