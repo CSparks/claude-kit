@@ -1,3 +1,4 @@
+| `PreToolUse` (Bash|PowerShell) | source-shell-gate | **`source-shell-write`** — BLOCK a shell write of a source file (redirect, tee, mv/rm/cp, `sed -i`, `perl -i`, PowerShell cmdlet, `node -e`, a heredoc or scratch script that writes a source path) because only Edit and Write run pre-write's length, comment and literal checks (KIT-T648). Temp files, build output (`target/`, `node_modules/`), data files and tool-generated output pass. The shell twin of pre-write's code checks. |
 # Hooks library
 
 Portable **Node** enforcement hooks — the layer that makes the workflow
@@ -197,6 +198,7 @@ the source lines it changes, so it is not authored source (KIT-T231).
 | `pre-write` | `todo-markers` · `dead-code` · `magic-numbers` · `select-star` · `sql-injection` · `file-length` · `broken-doc-links` | path glob **and** in-source markers (line/block for `magic-numbers`; whole-file for `file-length`) |
 | `query-gate` | `store-grep` · `source-discovery` | path glob (on a path-ish command arg) |
 | `store-shell-gate` | `store-shell-write` | path glob matched against the store path written |
+| `source-shell-gate` | `source-shell-write` | path glob matched against the source path written |
 | `tree-delete-gate` | `tree-delete` | path glob matched against the deleted path |
 | `pre-write` (patch worker) | — (no exclusion: a patch worker's Write is confined to the temp dir) | none |
 | `jscpd` | `duplication` | path glob |

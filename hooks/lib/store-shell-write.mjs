@@ -4,21 +4,11 @@
 //
 //   shellStoreWrite(command, { readScript }) -> null | { path, hint }
 
-import { readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { isAbsolute, relative, resolve } from 'node:path';
-import { segments } from './shell-segments.mjs';
+import { FS_WRITE, readTempScript, scanShellWrites } from './shell-write-scan.mjs';
 
 const ITEM_DIRS = 'tickets|decisions|questions|notes|epics|requests|inbox|resolved|reminders';
 const STORE_PATH = new RegExp(`(?:\\.ai|projects[\\\\/][^\\\\/\\s"']+)[\\\\/](?:(${ITEM_DIRS})[\\\\/]|SESSION\\.md|agents\\.jsonl|read-receipts\\.json|REGRESSIONS\\.md|SUPERSEDED\\.md)`, 'i');
 const BUILT_PATH = new RegExp(`['"]\\.ai['"][\\s\\S]*['"](?:${ITEM_DIRS}|SESSION\\.md)['"]`, 'i');
-const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
-const WRITING_CMD = /^(?:mv|rm|del|erase|ren|rename|rmdir|tee|touch|truncate|remove-item|move-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
-const COPY_CMD = /^(?:cp|copy|copy-item)$/i;
-const FS_WRITE = /\b(?:writeFile(?:Sync)?|appendFile(?:Sync)?|renameSync|rename|rmSync|rmdirSync|unlinkSync|copyFileSync|cpSync|createWriteStream|WriteAllText|WriteAllLines|WriteAllBytes)\b|\bopen\([^)]*['"][wax]b?['"]/;
-const REDIRECT = /(?<![-=])>>?\s*(["']?)([^\s"'|;&<>]+)/g;
-const HEREDOC_CODE = /\b(?:node|python3?)(?:\.exe)?\s+-?\s*<<-?/i;
-const UNQUOTE = /^["']|["']$/g;
 
 const HINTS = {
   tickets: 't new | t status | t tick | t criterion | t link | t comment | t notes <id> "<prose>"  (prose sections: the Edit tool)',
@@ -43,15 +33,6 @@ function hintFor(path) {
 
 const hit = (path) => (STORE_PATH.test(path) ? { path, hint: hintFor(path) } : null);
 
-function readTempScript(path) {
-  try {
-    const abs = resolve(path);
-    const rel = relative(resolve(tmpdir()), abs);
-    if (rel.startsWith('..') || isAbsolute(rel)) return '';
-    return readFileSync(abs, 'utf8');
-  } catch { return ''; }
-}
-
 function codeWrites(code) {
   if (!FS_WRITE.test(code)) return null;
   const named = STORE_PATH.exec(code);
@@ -59,33 +40,6 @@ function codeWrites(code) {
   return { path: named ? named[0] : '.ai/…', hint: named ? hintFor(named[0]) : HINTS.other };
 }
 
-function judgeSegment(text, readScript) {
-  const tok = text.trim().match(/"[^"]*"|'[^']*'|\S+/g) || [];
-  if (!tok.length) return null;
-  const leader = tok[0].replace(/.*[\\/]/, '').replace(UNQUOTE, '');
-  const args = tok.slice(1).map((a) => a.replace(UNQUOTE, ''));
-  const isNode = /^node(?:\.exe)?$/i.test(leader);
-  if (isNode && args.some((a) => KIT_TOOL.test(a.replace(/.*[\\/]/, '')))) return null;
-  if (KIT_TOOL.test(leader) || /^git$/i.test(leader)) return null;
-
-  for (const m of text.matchAll(REDIRECT)) { const h = hit(m[2]); if (h) return h; }
-  if (WRITING_CMD.test(leader)) return args.map(hit).find(Boolean) || null;
-  if (COPY_CMD.test(leader)) return hit(args.filter((a) => !a.startsWith('-')).at(-1) || '');
-  if (/^sed$/i.test(leader) && args.some((a) => /^-[A-Za-z]*i/.test(a))) return args.map(hit).find(Boolean) || null;
-  if (isNode || /^(?:python3?|py|powershell|pwsh)(?:\.exe)?$/i.test(leader)) {
-    const inline = args.findIndex((a) => /^(?:-e|--eval|-p|--print|-c|-command)$/i.test(a));
-    if (inline >= 0) return codeWrites(args.slice(inline + 1).join(' '));
-    const script = args.find((a) => /\.(?:m?js|cjs|py|ps1)$/i.test(a));
-    return script ? codeWrites(readScript(script)) : null;
-  }
-  return null;
-}
-
 export function shellStoreWrite(command, { readScript = readTempScript } = {}) {
-  if (HEREDOC_CODE.test(String(command || ''))) return codeWrites(String(command));
-  for (const { text } of segments(String(command || ''))) {
-    const found = judgeSegment(text, readScript);
-    if (found) return found;
-  }
-  return null;
+  return scanShellWrites(command, { hit, codeHit: codeWrites, readScript });
 }

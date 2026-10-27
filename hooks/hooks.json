@@ -32,6 +32,10 @@
       },
       {
         "matcher": "Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" source-shell-gate.mjs" }]
+      },
+      {
+        "matcher": "Bash|PowerShell",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" tree-delete-gate.mjs" }]
       },
       {

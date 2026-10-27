@@ -513,7 +513,7 @@
 | KIT-T645 | bug | todo | critical | broker job over the 5-minute ceiling (KIT-D104): dirt-empire run phase took 9.5 min of 9.9 min total, 0.0 min of it queued for the machine b |
 | KIT-T646 | bug | todo | high | Blender-session 'stays in Blender' hold parks Chris's decisions in .blend text blocks outside .ai: front geometry/rake/fork-travel decisions |
 | KIT-T647 | feature | review | medium | q: index Cargo.lock so dependency pins are searchable (design agent had to grep Cargo.lock for bevy_gltf/gltf presence, 2026-10-26) |
-| KIT-T648 | bug | todo | high | pre-write file-length gate is bypassed by in-place edits made with node/shell (an implementer edited rapid-game shader_kit.wgsl, 617 lines, |
+| KIT-T648 | bug | review | high | pre-write file-length gate is bypassed by in-place edits made with node/shell (an implementer edited rapid-game shader_kit.wgsl, 617 lines, |
 | KIT-T649 | bug | todo | critical | broker job over the 5-minute ceiling (KIT-D104): rapid-game run phase took 6.2 min of 6.2 min total, 0.0 min of it queued for the machine bu |
 | KIT-T650 | feature | todo | high | broker: land binary files (a glb, a png) in a patch envelope — envelope write/edit are text-only, so a game asset binary has to be hand-comm |
 | KIT-T651 | bug | todo | critical | weekly model-reassessment SessionStart brief names claude-kit-runtime/<sha> as the work dir, but it is not a git repo, so the 'commit and pu |
