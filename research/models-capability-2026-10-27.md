@@ -1,6 +1,6 @@
 # Models capability: weekly reassessment (2026-10-27)
 
-Extends `models-capability-2026-10-26.md`. Grades: A = Anthropic, B = named hands-on, C = aggregator, M = maintainer's quoted decision. Web content came through a summarizing search tool; spot-check numbers before citing in a decision. No model released after Haiku 5.5 (2026-10-07) was found. Search could not confirm Fable 5.1 by name (aggregators cover Opus/Sonnet/Haiku 5.5 only); alias kept from prior runs.
+Extends `models-capability-2026-10-26.md`. Grades: A = Anthropic, B = named hands-on, C = aggregator, M = maintainer's quoted decision. Web content came through a summarizing search tool; spot-check numbers before citing in a decision. No model released after Haiku 5.5 (2026-10-07) was found. Current Anthropic lineup (A, Anthropic model list): Fable 5.1, Opus 5.5, Sonnet 5.5, Haiku 5.5.
 
 ## Lineup (unchanged)
 - fable `claude-fable-5-1` $10/$50; opus `claude-opus-5-5` $4/$20; sonnet `claude-sonnet-5-5` $2/$10; haiku `claude-haiku-5-5` $0.10/$0.50.
@@ -27,10 +27,9 @@ Extends `models-capability-2026-10-26.md`. Grades: A = Anthropic, B = named hand
 | 11 | forensic | opus | Confirmed: CodeRabbit hard cases Opus 10/13 vs Sonnet 6/13. | B |
 | 12 | coordination | sonnet | Maintainer decision; opusplan pattern is consistent (C). | M (Chris 2026-10-17) |
 | 13 | plan | opus (fallback fable) | Confirmed: Opus for planning; Fable 2.5x Opus per token. | C, M |
-| 14 | deep | fable (explicit only) | Confirmed: Anthropic positions Fable for frontier work; alias unverified this run. | A |
+| 14 | deep | fable (explicit only) | Confirmed: Anthropic positions Fable for frontier work; `claude-fable-5-1` is current. | A |
 
 ## Exceptions
 - asset: no source evidence; not re-dated.
 - coordination: maintainer decision only; not re-dated.
-- Fable 5.1 not confirmed by this run's search; alias unchanged.
 - No proposed family changes.
