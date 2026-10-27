@@ -12,6 +12,9 @@
 // with `--land` the gitlink and the patch paths land in ONE commit, and <sha> must already be on the
 // submodule's remote. `--pin` with `--no-patch --land` (or an empty envelope) is a pin-only job: it
 // lands the gitlink alone.
+// A binary file (a glb, a png) rides the envelope as `*** write-binary <path>` plus base64 lines, or
+// `--binary <repo path>=<file>` (repeatable) reads the file and adds the section; it creates or
+// replaces the file whole.
 //
 // USE:
 //   node submit.mjs --root <tree> --ticket ST-T123 --title "…" --test "cargo t -p x" \
@@ -21,7 +24,8 @@
 //   PATCH
 
 import { readFileSync } from 'node:fs';
-import { parseFlags, loadCfg } from './cli.mjs';
+import { asList, parseFlags, loadCfg } from './cli.mjs';
+import { binaryEnvelope } from './binary-flag.mjs';
 import { laneOfRepo, withLane } from './config.mjs';
 import { ensureQueuedLanes, IDLE_EXIT_MIN } from './ensure.mjs';
 import { announce, selfCheck } from './health.mjs';
@@ -42,7 +46,13 @@ if (flags.land && typeof flags.ticket !== 'string') {
   console.error('submit: --land needs --ticket (the commit message cites it)');
   process.exit(2);
 }
-const out = buildPatchJob(cfg, flags, flags['no-patch'] ? '' : readFileSync(0, 'utf8'));
+const binary = binaryEnvelope(asList(flags.binary), { cwd: process.cwd() });
+if (binary.error) {
+  console.error(`submit: ${binary.error}`);
+  process.exit(2);
+}
+const piped = flags['no-patch'] || (flags.binary && process.stdin.isTTY) ? '' : readFileSync(0, 'utf8');
+const out = buildPatchJob(cfg, flags, `${piped}\n${binary.text}`);
 if (out.error) {
   console.error(`submit: ${out.error}`);
   process.exit(2);

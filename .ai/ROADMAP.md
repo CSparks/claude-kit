@@ -393,6 +393,7 @@
 - KIT-T650 — broker: land binary files (a glb, a png) in a patch envelope — envelope write/edit are text-only, so a game asset binary has to be hand-comm (high)
 - KIT-T652 — q gap: 'sym' has no --help flag (high)
 - KIT-T653 — q gap: unknown query 'importers-of (high)
+- KIT-T655 — request-gate false positive: a request filed with 't request' (.ai/requests/MAR-R001-*.md, marblequest 2026-10-27) is not counted as a captu (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)

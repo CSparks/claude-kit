@@ -4,8 +4,9 @@
 // `onDisk(path)` says whether an untracked file already sits at a path `read` reports absent.
 // An edit applies while its SEARCH text matches exactly once, wherever the file has moved to.
 // Returns { ok, files: Map(path → { existed, text }), stale: [{ index, path, reason, excerpt }] }
-// where `text` null means the file is gone. Reasons: not-found · ambiguous xN · create-exists ·
-// bad-path.
+// where `text` null means the file is gone and a Buffer is a binary file's bytes (`write-binary`,
+// which also replaces a tracked file; an edit of those bytes is `binary-file`). Reasons: not-found ·
+// ambiguous xN · create-exists · bad-path · binary-file.
 
 const EXCERPT_BEFORE = 3;
 const EXCERPT_AFTER = 4;
@@ -45,10 +46,15 @@ export function dryRun(ops, read, { onDisk = () => false } = {}) {
     if (op.kind === 'write') {
       if (f.text !== null || onDisk(op.path)) return miss('create-exists', f.text);
       f.text = op.content;
+    } else if (op.kind === 'write-binary') {
+      if (f.text === null && onDisk(op.path)) return miss('create-exists', null);
+      f.text = Buffer.from(op.base64, 'base64');
     } else if (f.text === null) {
       miss('not-found', null);
     } else if (op.kind === 'delete') {
       f.text = null;
+    } else if (Buffer.isBuffer(f.text)) {
+      miss('binary-file', null);
     } else {
       const n = occurrences(f.text, op.search);
       if (n !== 1) return miss(n ? `ambiguous x${n}` : 'not-found', f.text);

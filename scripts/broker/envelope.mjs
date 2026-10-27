@@ -8,12 +8,15 @@
 //   >>>>>>> REPLACE
 //   *** write <path>           new file: every following line up to the next header
 //   *** delete <path>
+//   *** write-binary <path>    a binary file (a glb, a png): the base64 of its bytes, one or more lines,
+//                             up to the next header; replaces a tracked file of that path or creates it
 //
 // `parseEnvelope(text)` → ops `{ kind: 'edit', path, search, replace } | { kind: 'write', path,
-// content } | { kind: 'delete', path }`, in order. Malformed input throws EnvelopeError naming
+// content } | { kind: 'write-binary', path, base64 } | { kind: 'delete', path }`, in order. Malformed input throws EnvelopeError naming
 // the line, so a worker fixes the envelope instead of getting a silent partial patch.
 
-const HEADER = /^\*\*\* (edit|write|delete) (.+?)\s*$/;
+const HEADER = /^\*\*\* (edit|write-binary|write|delete) (.+?)\s*$/;
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 const SEARCH = '<<<<<<< SEARCH';
 const DIVIDER = '=======';
 const REPLACE = '>>>>>>> REPLACE';
@@ -30,16 +33,29 @@ export function parseEnvelope(text) {
   skipBlank();
   while (i < lines.length) {
     const m = HEADER.exec(lines[i]);
-    if (!m) fail(`expected "*** edit|write|delete <path>", got "${lines[i]}"`);
+    if (!m) fail(`expected "*** edit|write|write-binary|delete <path>", got "${lines[i]}"`);
     const [, kind, path] = m;
     i++;
     if (kind === 'delete') ops.push({ kind, path });
     else if (kind === 'write') ops.push({ kind, path, content: readWrite() });
+    else if (kind === 'write-binary') ops.push({ kind, path, base64: readBase64(path) });
     else readEdits(path);
     skipBlank();
   }
   if (!ops.length) fail('no operations');
   return ops;
+
+  function readBase64(path) {
+    const rows = [];
+    for (skipBlank(); i < lines.length && !HEADER.test(lines[i]); i++) {
+      const row = lines[i].trim();
+      if (row === '') continue;
+      if (!BASE64.test(row)) fail(`"*** write-binary ${path}" holds a line that is not base64`);
+      rows.push(row);
+    }
+    if (!rows.length) fail(`"*** write-binary ${path}" has no base64 lines`);
+    return rows.join('');
+  }
 
   function readWrite() {
     const body = [];

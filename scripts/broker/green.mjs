@@ -6,16 +6,18 @@
 // `greenKey({ repo, pre, files, commands, pins })` → hex key.
 // `recordGreen(cfg, key, entry)` stores { job, commands, foreign }; `findGreen(cfg, key)` reads it or null.
 
+import { createHash } from 'node:crypto';
 import { cacheGet, cachePut, hashKey } from './cache.mjs';
 
 const NAME = 'green';
 const DELETED = '\u0001deleted';
+const bodyOf = (f) => (f.text === null ? DELETED : Buffer.isBuffer(f.text) ? `binary ${createHash('sha256').update(f.text).digest('hex')}` : f.text);
 
 export function greenKey({ repo, pre, files, commands, pins = [] }) {
   const sorted = [...files].sort(([a], [b]) => (a < b ? -1 : 1));
   return hashKey([
     `repo ${repo}`, pre,
-    ...sorted.map(([path, f]) => `file ${path}\0${f.text === null ? DELETED : f.text}`),
+    ...sorted.map(([path, f]) => `file ${path}\0${bodyOf(f)}`),
     `pins ${JSON.stringify(pins.map((p) => [p.path, p.sha]))}`,
     ...commands.map((c) => `cmd ${String(c).trim()}`),
   ]);

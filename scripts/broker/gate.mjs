@@ -46,9 +46,9 @@ export function gateFile(cwd, path, content) {
   return found.length ? found : [{ path, check: 'pre-write', msg: r.stderr.trim() }];
 }
 
-/** Gate every surviving file of a dry-run plan (a Map path → { text }). */
+/** Gate every surviving text file of a dry-run plan (a Map path → { text }); binary files carry no source to gate. */
 export function gatePlan(cwd, files) {
   const out = [];
-  for (const [path, f] of files) if (f.text !== null) out.push(...gateFile(cwd, path, f.text));
+  for (const [path, f] of files) if (typeof f.text === 'string') out.push(...gateFile(cwd, path, f.text));
   return out;
 }

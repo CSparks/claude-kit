@@ -13,12 +13,14 @@ export const SUBMIT_USAGE = [
   '  --revises <id>               withdraw a still-queued <id> this job replaces',
   '  --pin <submodule>=<sha>      build and test with the submodule at <sha> (superproject job, repeatable); with --no-patch --land it lands the gitlink alone',
   '  --repo <submodule> --no-pin  push the submodule commit and leave the superproject alone',
+  '  *** write-binary art/x.png   a binary file: base64 lines follow; creates or replaces the file whole',
+  '  --binary <repo path>=<file>  add a binary file from disk as a write-binary section (repeatable; no stdin envelope needed)',
   '  --session <id>               sessions are served in turn (default the harness session id)',
   '  wait.mjs <id> blocks on the outcome',
 ].join('\n');
 
 export function submitUsageProblem(argv, flags, { isTTY = false } = {}) {
   if (flags.help || argv.includes('-h')) return { text: SUBMIT_USAGE, code: 0 };
-  if (isTTY && !flags['no-patch']) return { text: `submit: no patch envelope on stdin (it is a terminal)\n${SUBMIT_USAGE}`, code: 2 };
+  if (isTTY && !flags['no-patch'] && !flags.binary) return { text: `submit: no patch envelope on stdin (it is a terminal)\n${SUBMIT_USAGE}`, code: 2 };
   return null;
 }
