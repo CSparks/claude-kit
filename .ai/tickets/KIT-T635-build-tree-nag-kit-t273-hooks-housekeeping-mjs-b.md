@@ -38,3 +38,4 @@ Tests: hooks/build-tree.test.mjs 11 asserts (depth-7 submodule target, lane dirs
 - [2026-10-23 23:18] (comment) ticked: SessionStart nag walks the whole current repo (submodule, lanes, worktrees) with the unbounded build-dir discovery shared with the sweep; counts first, bytes only after a count trips
 - [2026-10-23 23:18] (comment) ticked: SessionStart surfaces the sweep log's last receipt, and warns when the scheduled task is missing or not firing
 - [2026-10-23 23:18] (status) todo → review
+- [2026-10-23 23:18] (landed) fb0cdb3 implements KIT-T635: SessionStart build-tree nag walks the whole repo and surfaces the sweep receipt / missing-task warn

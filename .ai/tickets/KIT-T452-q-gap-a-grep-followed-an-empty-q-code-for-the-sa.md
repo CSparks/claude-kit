@@ -36,3 +36,4 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 - [2026-10-17 22:06] (comment) seen again in rapid-game: q: q code "pin-only" --path scripts/broker 2>&1 then grep: ^broker
 - [2026-10-18 03:38] (comment) seen again in stiletto-2349: q: q code "export async function payload" -A12 hooks/lib.mjs 2>&1 then grep: payload
 - [2026-10-18 20:36] (comment) seen again in dirt-empire: q: q code "deck" --path .ai/config.yml 2>&1 then grep: deck\|clone\|submodule\|git
+- [2026-10-27 03:56] (comment) seen again in dirt-empire: q: q code 'name = "bevy_gltf"' --path Cargo.lock -A 2 2>&1 then grep: ^name = "bevy"$

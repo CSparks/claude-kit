@@ -43,3 +43,4 @@ Security hardening (follow-up): whole-dir delete and per-generation pruning now 
 - [2026-10-23 23:17] (comment) ticked: build-sweep install registers the 03:30 nightly task claude-kit-build-sweep; launchd plist on macOS
 - [2026-10-23 23:18] (status) todo → review
 - [2026-10-23 23:18] (landed) 0e07d49 implements KIT-T636: nightly age-based cargo build-dir sweep (build-sweep.mjs, scheduler install, KIT-D106 supersedes KI
+- [2026-10-23 23:23] (landed) c9ebad8 implements KIT-T636: harden the sweep against planted markers (cargo signature + .fingerprint, target-shaped name, no so
