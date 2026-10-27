@@ -2,7 +2,7 @@
 id: KIT-T658
 title: Implement KIT-D107: auto-close review tickets idle 14+ days without maintainer feedback (label lapsed); reopen a lapsed ticket when a capture/triage collides with it
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-27T22:14:44Z
-updated: 2026-10-27T22:14:44Z
+updated: 2026-10-27T22:27:35Z
 ---
 
 ## Description
@@ -29,3 +29,4 @@ Checked as possible duplicates and judged different work (--not-dup): KIT-T025
 
 ## History
 - [2026-10-27 22:14] (created) feature — Implement KIT-D107: auto-close review tickets idle 14+ days without maintainer feedback (label lapsed); reopen a lapsed ticket when a capture/triage collides with it
+- [2026-10-27 22:27] (status) todo → review
