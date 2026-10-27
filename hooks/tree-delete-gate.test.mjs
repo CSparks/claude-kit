@@ -53,6 +53,18 @@ try {
   })());
   check('treeDeleteTargets resolves relative paths against the cwd', treeDeleteTargets('rm a/b.txt', live, join(live, 'src')).length === 1);
   check('treeDeleteTargets ignores paths outside the root', treeDeleteTargets('rm /elsewhere/x', live, live).length === 0);
+  for (const [name, command] of [
+    ['a quoted shell variable', 'rm -rf "$S/out"'],
+    ['a braced shell variable', 'rm -rf ${S}/out'],
+    ['a command substitution', 'rm -rf $(mktemp -d)/x'],
+    ['a cmd.exe variable', 'del %TEMP%\\x.txt'],
+    ['a home path', 'rm -rf ~/scratch'],
+    ['a relative path after a cd into a variable', 'cd "$S" && rm -rf out'],
+  ]) {
+    check(`treeDeleteTargets leaves ${name} unresolved (KIT-T644)`, treeDeleteTargets(command, live, live).length === 0, command);
+    check(`allows an rm of ${name} in a daemon-owned checkout`, run(live, command).status === 0);
+  }
+  check('treeDeleteTargets still resolves a literal path after an unknown cd is left by an absolute one', treeDeleteTargets(`cd "$S" && cd ${live.replace(/\\/g, '/')} && rm -rf out`, live, live).length === 1);
   writeFileSync(join(live, '.claude-kit-ignore.yaml'), 'tree-delete:\n  - "scripts/**"\n');
   check('the documented exclusion lifts the block', run(live, 'rm -rf scripts/__pycache__').status === 0);
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: live, input: 'nope', encoding: 'utf8' }).status === 0);

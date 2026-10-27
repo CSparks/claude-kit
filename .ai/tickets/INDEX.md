@@ -509,7 +509,7 @@
 | KIT-T640 | bug | todo | high | dispatch-guard capability-table-stale blocks the weekly model-reassessment dispatch it demands (deadlock): orient says DISPATCH NOW a sonnet |
 | KIT-T641 | bug | todo | high | model-refresh.mjs keys the research file on the UTC date (toISOString, line 96) while the reassessment doc is written on the local date: res |
 | KIT-T643 | bug | todo | high | q gap: 'code' has no --test "cargo flag |
-| KIT-T644 | bug | todo | critical | tree-delete-gate: blocks rm -rf "$S/out" where S is a shell variable pointing at the session scratchpad outside the checkout; the gate resol |
+| KIT-T644 | bug | review | critical | tree-delete-gate: blocks rm -rf "$S/out" where S is a shell variable pointing at the session scratchpad outside the checkout; the gate resol |
 | KIT-T645 | bug | todo | critical | broker job over the 5-minute ceiling (KIT-D104): dirt-empire run phase took 9.5 min of 9.9 min total, 0.0 min of it queued for the machine b |
 | KIT-T646 | bug | todo | high | Blender-session 'stays in Blender' hold parks Chris's decisions in .blend text blocks outside .ai: front geometry/rake/fork-travel decisions |
 | KIT-T647 | feature | review | medium | q: index Cargo.lock so dependency pins are searchable (design agent had to grep Cargo.lock for bevy_gltf/gltf presence, 2026-10-26) |
