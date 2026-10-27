@@ -8,6 +8,10 @@
 //                                                any other root (a fixture, the checkout itself) is read as a file.
 //                                                Falls back to the runtime's own copy when the checkout is unknown or git fails.
 //   readCommitted(codeRoot, kitRoot, rel, checkout) -> the same decision with its inputs named (tests)
+//   kitDataWriteRoot(kitRoot)                 -> where a data writer (refresh, re-date) writes: the registered checkout
+//                                                when `kitRoot` is the sealed runtime, else `kitRoot`. The write takes
+//                                                effect once committed there.
+//   writeRootFor(codeRoot, kitRoot, checkout) -> the same decision with its inputs named (tests)
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -34,6 +38,15 @@ export function readCommitted(codeRoot, kitRoot, rel, checkout) {
     if (text !== null) return text;
   }
   return readFileSync(join(kitRoot, ...rel), 'utf8');
+}
+
+export function writeRootFor(codeRoot, kitRoot, checkout) {
+  const sealed = SEALED_NAME.test(basename(codeRoot)) && resolve(kitRoot) === resolve(codeRoot);
+  return sealed && checkout && existsSync(join(checkout, '.git')) ? checkout : kitRoot;
+}
+
+export function kitDataWriteRoot(kitRoot) {
+  return writeRootFor(CODE_ROOT, kitRoot, process.env.CLAUDE_KIT_LADDER_ROOT ? null : readRegistry().projects[KIT_PROJECT]);
 }
 
 const sealedHere = (kitRoot) => SEALED_NAME.test(basename(CODE_ROOT)) && resolve(kitRoot) === CODE_ROOT;

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { jobCapabilityTable, redateRows } from './job-capability.mjs';
 import { readLadder } from './dispatch-ladder.mjs';
-import { refresh } from './model-refresh.mjs';
+import { refresh, localDate } from './model-refresh.mjs';
 import { autoReviewDirective } from '../hooks/lib/auto-review.mjs';
 import { hook, cleanup, reporter, fixtureKit, isoDaysAgo, quietHome, homeEnv, capabilityNote } from '../hooks/test-harness.mjs';
 
@@ -46,7 +46,7 @@ try {
   capabilityNote(kit, '2026-10-11');
   ok('redate all touches every row', redateRows(kit, '2026-10-11', ['all']).length === Object.keys(after).length);
 
-  capabilityNote(kit, new Date().toISOString().slice(0, 10));
+  capabilityNote(kit, localDate(new Date()));
   const r = await refresh({ kitRoot: kit, now: new Date(), fetchImpl: fetchStub, env: {} });
   ok('the research note carries the per-job capability section', /## Capability per job/.test(readFileSync(r.research, 'utf8')) && /\| wiring \|/.test(readFileSync(r.research, 'utf8')));
 

@@ -8,13 +8,13 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { capabilityStatus, modelsLine, modelVersion } from './model-lineup.mjs';
-import { refresh } from './model-refresh.mjs';
+import { refresh, localDate } from './model-refresh.mjs';
 import { redateRows } from './job-capability.mjs';
 import { adopted, hook, cleanup, reporter, fixtureKit, isoDaysAgo, capabilityNote } from '../hooks/test-harness.mjs';
 
 const { ok, done } = reporter('model-refresh');
 const NOW = new Date();
-const TODAY = NOW.toISOString().slice(0, 10);
+const TODAY = localDate(NOW);
 const noted = (kit, opts) => { capabilityNote(kit, TODAY, opts); return kit; };
 
 const docsFetch = (ids) => async (url) => ({
@@ -64,7 +64,7 @@ try {
   redateRows(old, TODAY, ['all']);
   ok('re-dating every row on capability evidence clears the gate', capabilityStatus(old).stale === false);
   ok('the refresh writes the dated research note with costs', existsSync(r.research) && /\| opus \| opus 5\.5 \| \$5 \| \$25 \|/.test(readFileSync(r.research, 'utf8')));
-  ok('the lineup record is written', JSON.parse(readFileSync(join(old, '.ai', 'model-lineup.json'), 'utf8')).refreshed === NOW.toISOString().slice(0, 10));
+  ok('the lineup record is written', JSON.parse(readFileSync(join(old, '.ai', 'model-lineup.json'), 'utf8')).refreshed === TODAY);
   ok('the refresh never rewrites the table', !/claude-opus-5-7/.test(readFileSync(join(old, '.ai', 'config.yml'), 'utf8')));
 
   const kit2 = noted(fixtureKit(isoDaysAgo(30)));

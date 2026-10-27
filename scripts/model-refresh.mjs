@@ -9,6 +9,7 @@
 // It REFUSES to run (writing nothing, so the gate stays shut) unless research/models-capability-<date>.md
 // holds a graded per-job table for every dispatch.jobs row (capability-research.mjs, KIT-T433).
 //   CLI: node scripts/model-refresh.mjs        refresh now
+// Run from the sealed runtime, it writes into the registered kit checkout (kit-data.mjs); commit there.
 // A successful run stamps the lineup `refreshed`; rows are re-dated separately, by capability
 // evidence only (job-capability.mjs redate). A newer model stays blocking until the aliases move.
 
@@ -16,6 +17,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ladderRoot, readLadder } from './dispatch-ladder.mjs';
+import { kitDataWriteRoot } from './kit-data.mjs';
 import { capabilityStatus, modelVersion, LINEUP_REL } from './model-lineup.mjs';
 import { reserveNextId } from './id-reserve.mjs';
 import { jobCapabilityTable } from './job-capability.mjs';
@@ -92,8 +94,11 @@ function proposal(kitRoot, date, status, ladder) {
   return file;
 }
 
-export async function refresh({ kitRoot = ladderRoot(), now = new Date(), fetchImpl = fetch, env = process.env, outcomeRoots = [] } = {}) {
-  const date = now.toISOString().slice(0, 10);
+// The research doc is named by the local calendar date its author sees (KIT-T641).
+export const localDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+export async function refresh({ kitRoot = kitDataWriteRoot(ladderRoot()), now = new Date(), fetchImpl = fetch, env = process.env, outcomeRoots = [] } = {}) {
+  const date = localDate(now);
   const coverage = capabilityCoverage(kitRoot, date);
   if (!coverage.exists) throw new Error(`no capability research at ${coverage.file}; write the per-job table (Job | ... | Basis with an A/B/C source or a dated M decision) first. The gate stays shut`);
   if (coverage.missing.length) throw new Error(`${coverage.file} has no graded (A/B/C source or dated M decision) Basis for: ${coverage.missing.join(', ')}. The gate stays shut`);

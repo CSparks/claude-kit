@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ladderRoot, readLadder } from './dispatch-ladder.mjs';
+import { kitDataWriteRoot } from './kit-data.mjs';
 import { jobStats, proposals } from './dispatch-report.mjs';
 import { capabilityCoverage, recordDecisionRow } from './capability-research.mjs';
 import { isMain } from './is-main.mjs';
@@ -58,7 +59,7 @@ export function redateRows(kitRoot, date, ids) {
 
 if (isMain(import.meta.url) && process.argv[2] === 'redate') {
   try {
-    console.log(`re-dated: ${redateRows(ladderRoot(), process.argv[3], String(process.argv[4] || '').split(',')).join(', ') || 'none'}`);
+    console.log(`re-dated: ${redateRows(kitDataWriteRoot(ladderRoot()), process.argv[3], String(process.argv[4] || '').split(',')).join(', ') || 'none'}`);
   } catch (e) {
     console.error(`redate refused: ${e.message}`);
     process.exit(1);
@@ -70,8 +71,8 @@ if (isMain(import.meta.url) && process.argv[2] === 'decide') {
     const [date, job] = [process.argv[3], process.argv[4]];
     const flag = (name) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
     if (!date || !job) throw new Error('usage: decide <date> <job> --by <who> --on <YYYY-MM-DD> --quote "<his words>"');
-    const note = recordDecisionRow(ladderRoot(), date, { job, by: flag('by'), on: flag('on'), quote: flag('quote') });
-    console.log(`decision recorded in ${note}; re-dated: ${redateRows(ladderRoot(), date, [job]).join(', ') || 'none'}`);
+    const note = recordDecisionRow(kitDataWriteRoot(ladderRoot()), date, { job, by: flag('by'), on: flag('on'), quote: flag('quote') });
+    console.log(`decision recorded in ${note}; re-dated: ${redateRows(kitDataWriteRoot(ladderRoot()), date, [job]).join(', ') || 'none'}`);
   } catch (e) {
     console.error(`decide refused: ${e.message}`);
     process.exit(1);

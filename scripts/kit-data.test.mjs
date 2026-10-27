@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readCommitted } from './kit-data.mjs';
+import { readCommitted, writeRootFor } from './kit-data.mjs';
 
 let passed = 0;
 const ok = (name, fn) => { fn(); passed++; console.log(`  ok    ${name}`); };
@@ -53,6 +53,16 @@ try {
     mkdirSync(join(runtime, 'research'), { recursive: true });
     writeFileSync(join(runtime, 'research', 'only-sealed.md'), 'sealed only\n');
     assert.equal(readCommitted(runtime, runtime, ['research', 'only-sealed.md'], checkout), 'sealed only\n');
+  });
+  ok('a data writer in a sealed runtime writes into the checkout the reader reads (KIT-T640)', () => {
+    assert.equal(writeRootFor(runtime, runtime, checkout), checkout);
+  });
+  ok('negative: a writer with no registered checkout, or outside a sealed runtime, keeps its root', () => {
+    assert.equal(writeRootFor(runtime, runtime, null), runtime);
+    assert.equal(writeRootFor(runtime, runtime, join(base, 'nowhere')), runtime);
+    assert.equal(writeRootFor(checkout, checkout, checkout), checkout);
+    const fixture = join(base, 'fixture');
+    assert.equal(writeRootFor(runtime, fixture, checkout), fixture);
   });
 } finally {
   rmSync(base, { recursive: true, force: true });
