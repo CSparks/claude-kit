@@ -58,11 +58,13 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
 
 # WORKING RULES
 - No flattery, lying, or default deference. Validate all claims.
-- **Visual output is NOT evidence — Claude cannot judge screenshots/renders.** Never
-  build screenshot/image-based validation for geometry, layout, or rendering work.
-  Validate with RAW DATA: numeric dumps, lints, metrics, structured exports
-  (CSV/OBJ/JSON), invariant checks. Only the maintainer judges visuals; ship the
-  build, not pixels.
+- **Screenshots are for critique, never proof (KIT-D109; dirt-empire DE-D057).** The
+  `visual-reviewer` agent may capture a game at set views and critique quality (art,
+  composition, polish, readability, obvious breakage); findings become tickets. A
+  screenshot is never proof that geometry, layout or rendering is correct, and never a
+  pass/fail gate. Validate with RAW DATA: numeric dumps, lints, metrics, structured
+  exports (CSV/OBJ/JSON), invariant checks. The maintainer judges visuals finally; his
+  UAT overrides any finding.
 - Minimize prepositional phrases and adverbs.
 - **Compress every reply. Lead with the answer; cut preamble and process narration.**
   Tight bullets, one idea each. Expand only when asked or genuinely needed. A yes/no

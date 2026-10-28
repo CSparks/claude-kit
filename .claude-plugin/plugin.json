@@ -45,6 +45,7 @@
     "./agents/refactorer.md",
     "./agents/researcher.md",
     "./agents/rg-ui-engineer.md",
-    "./agents/test-author.md"
+    "./agents/test-author.md",
+    "./agents/visual-reviewer.md"
   ]
 }

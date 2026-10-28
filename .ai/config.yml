@@ -162,6 +162,14 @@ dispatch:
       evidence: 2026-10-28
       source: "KIT-D076; KIT-D091; research/models-capability-2026-10-12.md (A, C); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
       use: "ordinary architecture, planning and root-cause analysis on opus; it writes the plan and apply brief that sonnet implements; multi-system or spatial plans go to the plan job"
+    greenfield:
+      family: opus
+      effort: high
+      self_escalating: true
+      cost: "high; the first pass only, follow-up fixes fall back to the fix row on sonnet"
+      evidence: 2026-10-28
+      source: "DE-D057; Chris 2026-10-28: 'ANy new greenfield stuff gets the first pass with Opus.'"
+      use: "the first implementation pass of a new system or feature with no existing code to extend; a dispatch to this job is itself the escalation, so it needs no [escalate] or [model-override]; follow-up fixes on it dispatch [job: fix]"
     ui-creative:
       family: opus
       effort: high

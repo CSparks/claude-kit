@@ -75,6 +75,7 @@ process failure; the stale-doing detector (housekeeping + orient) will flag it l
 | [editor-workbench](editor-workbench.md) | rapid-game HTML editor: manifest injection, the `/api/editor/recipes` contract, per-game vite config | Read, Grep, Glob, Edit, Write, Bash |
 | [game-asset-artist](game-asset-artist.md) | Authors procedural game assets (mesh/material/texture factories); verifies numerically, never visually | Read, Grep, Glob, Edit, Write, Bash |
 | [perf-tuner](perf-tuner.md) | Performance-tuning writer: one lever per dispatch, ledgered theories, scene-named numbers, fidelity-neutral proof, max 3 probe runs | Read, Grep, Glob, Edit, Write, Bash |
+| [visual-reviewer](visual-reviewer.md) | Captures set views through the game's own capture path and critiques screenshots for quality (art, composition, polish, breakage) with severity and a fix per finding; never a pass/fail gate, numbers stay the gate (KIT-D109) | Read, Grep, Glob, Bash (read-only) |
 
 No agent here carries a `model:` line (KIT-D080): the orchestrator names a family on every
 dispatch from the capability table in the kit `.ai/config.yml` (`dispatch.jobs`). Asset authoring
