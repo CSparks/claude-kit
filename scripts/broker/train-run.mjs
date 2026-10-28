@@ -11,6 +11,7 @@
 //   commands  [{ cmd, owners, from }] from train-commands.mjs
 //   nextLog   () → the next log number for this train
 //   baseline  baseline.mjs's runner, or null (a re-verify after a rebase: no attribution)
+// A command the daemon aborted (operator cancel, timeout: run.mjs) fails the run at once, unattributed.
 // → { entries, failing: entry | null }
 
 import { readFileSync } from 'node:fs';
@@ -28,6 +29,7 @@ export function runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseli
     const entry = { ...r, log, owners: c.owners, ...(c.from ? { coalesced: c.from } : {}), ...diagnose(readFileSync(log, 'utf8')) };
     entries.push(entry);
     forgetPassed(cfg, repo, entry.passed);
+    if (r.aborted) return { entries, failing: entry };
     if (r.exit === 0) continue;
     if (Object.keys(entry.errors).length) {
       const red = knownRed ? knownRed(entry) : null;

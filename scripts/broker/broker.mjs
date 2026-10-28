@@ -12,7 +12,8 @@
 //   node broker.mjs --root <checkout> --log auto       # log to target/broker/logs/daemon-<time>-<pid>.log (launch.mjs passes it)
 //   node broker.mjs pause --root <checkout>            # stop starting jobs (one in flight finishes)
 //   node broker.mjs resume --root <checkout>
-//   node broker.mjs cancel <job-id> --root <checkout>  # withdraw a QUEUED job; a running one is refused
+//   node broker.mjs cancel <job-id> --root <checkout>  # withdraw a QUEUED job
+//   node broker.mjs cancel <job-id> --running          # kill the running job's command tree; the job ends cancelled (not while it lands)
 //   node broker.mjs status --root <checkout>           # queue, pause, deferred foreign failures
 //   node broker.mjs clean <path...> | --pycache --root <checkout>   # remove untracked leftovers (never tracked files)
 //   node broker.mjs restore <path...> | --debris --root <checkout> # put Cargo.lock debris and broker-written files back from HEAD
@@ -47,6 +48,8 @@ import { stopDaemon } from './stop.mjs';
 import { setStopNow } from './stop-now.mjs';
 import { cargoScopeRefusal } from './cargo-scope.mjs';
 import { withdrawJob } from './withdraw.mjs';
+import { cancelRunning, clearCancel } from './cancel-running.mjs';
+import { daemonAbortWatch, setAbortWatch } from './run-abort.mjs';
 
 const MS_PER_MIN = 60 * 1000;
 const flags = parseFlags(process.argv.slice(2));
@@ -70,9 +73,14 @@ if (command === 'pause' || command === 'resume') {
 }
 
 if (command === 'cancel') {
-  const id = flags._[1];
+  const id = flags._[1] || (typeof flags.running === 'string' ? flags.running : null);
   const laneCfg = id ? laneCfgFor(cfg, id) : cfg;
   if (!id) { console.error('broker: cancel needs a job id'); process.exit(2); }
+  if (flags.running) {
+    const killed = cancelRunning(laneCfg, id);
+    console.error(`broker: ${killed.text}`);
+    process.exit(killed.ok ? 0 : 1);
+  }
   const gone = withdrawJob(laneCfg, id, { status: STATUS.CANCELLED, message: 'cancelled by the operator' });
   console.error(gone.ok ? `broker: cancelled queued ${id}` : `broker: ${gone.error}`);
   process.exit(gone.ok ? 0 : 1);
@@ -139,7 +147,7 @@ const notCargo = cargoScopeRefusal(root);
 if (notCargo) { console.error(`broker: ${notCargo}`); process.exit(2); }
 const lock = acquireLock(cfg, { spawnedBy: typeof flags['spawned-by'] === 'string' ? flags['spawned-by'] : null, log: logFile });
 const childRegistry = join(brokerPaths(cfg).home, 'children.json');
-if (lock.ok) { clearStop(cfg); pinRuntime(); setPulse(() => heartbeat(cfg)); setChildRegistry(childRegistry); }
+if (lock.ok) { clearStop(cfg); clearCancel(cfg); pinRuntime(); setPulse(() => heartbeat(cfg)); setChildRegistry(childRegistry); setAbortWatch(daemonAbortWatch(cfg)); }
 if (!lock.ok) {
   console.error(`broker: another broker holds the lock (pid ${lock.holder.pid} on ${lock.holder.host} since ${lock.holder.ts})`);
   process.exit(1);
@@ -180,6 +188,7 @@ const pausedNote = (summary) => {
 
 const drain = () => {
   heartbeat(cfg);
+  clearCancel(cfg);
   if (recoveryReason) {
     recoverPending();
     if (recoveryReason) { note(`broker: ${recoveryReason}`); return { processed: [], paused: false }; }

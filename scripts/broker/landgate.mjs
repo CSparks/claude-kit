@@ -3,8 +3,9 @@
 // the worker's own targeted commands; suite-shaped commands leave the gate and run on the suite
 // cadence (suite.mjs). A path the map cannot place falls back to the job's full commands.
 //
-// A job that carries its own targeted commands (--test) runs exactly those: the affected set only
-// replaces a job with none, or a suite-shaped one, unless `affected.mandatory` is set. A crate in a
+// A job that carries its own targeted commands (--test) runs those in place of the mapped tests (the affected
+// set only fills in for a job with none, or a suite-shaped one, unless `affected.mandatory` is set); the compile
+// check of every target runs first either way, so a landing cannot break a target its commands do not build (KIT-T677). A crate in a
 // nested workspace (a submodule's `rust/`) is tested with `cd <workspace> &&` in front.
 //
 // `landGate(cfg, cwd, job, files)` (the plan's Map path → { text }, text null = deleted) → null (run the job's commands as given) or
@@ -66,7 +67,7 @@ export function landGate(cfg, cwd, job, files) {
   const given = Array.isArray(job.commands) && job.commands.length ? job.commands : [];
   const dropped = given.filter((c) => isSuiteShaped(c, cfg.suite));
   const kept = given.filter((c) => !dropped.includes(c));
-  if (kept.length && !cfg.affected.mandatory) return { commands: kept, selection: { reasons: [], dropped, explicit: true } };
+  if (kept.length && !cfg.affected.mandatory) return { commands: [...new Set([cfg.affected.check, ...kept])], selection: { reasons: [], dropped, explicit: true } };
   const tests = [...sel.crates].filter(([, specs]) => specs.size).map(([name, specs]) => `${inWorkspace(sel.workspaces.get(name))}${cfg.affected.test} -p ${name} ${[...specs].join(' ')}`);
   const commands = [...new Set([cfg.affected.check, ...tests, ...kept])];
   return { commands, selection: { reasons: sel.reasons, dropped } };

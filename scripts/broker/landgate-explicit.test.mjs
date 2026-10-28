@@ -58,13 +58,14 @@ test('a lane whose checkout holds the workspace one level down enters it', () =>
   } finally { cleanup(dir); }
 });
 
-test('a job that carries its own --test commands runs exactly those', () => {
+test('a job that carries its own --test commands runs those after the all-targets check', () => {
   const dir = layout();
   try {
     const own = ['cd rust && cargo test -p phys --test wheels'];
     const gate = landGate(cfg(), join(dir, 'sub'), { commands: own }, files('rust/engine/phys/src/world.rs'));
-    assert.deepEqual(gate.commands, own);
+    assert.deepEqual(gate.commands, ['CHECK', ...own], 'the check compiles every target the commands do not build');
     assert.equal(gate.selection.explicit, true);
+    assert.deepEqual(landGate(cfg(), join(dir, 'sub'), { commands: ['CHECK', ...own] }, files('rust/engine/phys/src/world.rs')).commands, ['CHECK', ...own], 'a command equal to the check is not run twice');
   } finally { cleanup(dir); }
 });
 

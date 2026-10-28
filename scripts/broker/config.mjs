@@ -14,6 +14,8 @@
 //     coalesce_ms: 2000                            # a drain waits until the queue has been quiet this long (0 starts at once), so
 //                                                    # back-to-back submits form one train; capped at 5x this from the oldest job
 //     stall_kill_s: 600                            # wait/submit kill a daemon silent this long (default 600; 0 never kills)
+//     command_timeout_multiple: 4                  # a job command is killed past this multiple of its longest passing run (command-limit.mjs)
+//     command_timeout_floor_s: 600                 # ... but never before this many seconds; 0 turns the timeout off
 //     untracked_blocks: ["crates/**/*.rs"]        # untracked paths that pause the queue; absent, derived from
 //                                                    # the checkout's tracked crates and workspace members (blocks.mjs),
 //                                                    # falling back to ["**/*.rs", "**/Cargo.toml"] without a Cargo.toml
@@ -35,6 +37,9 @@ import { resolveJobs } from './jobs.mjs';
 import { pipelineConfig } from './pipeline-config.mjs';
 import { PAUSE_GLOBS } from './build-globs.mjs';
 
+const MS_PER_S = 1000;
+const DEFAULT_TIMEOUT_MULTIPLE = 4;
+const DEFAULT_TIMEOUT_FLOOR_S = 600;
 const DEFAULT_POLL_MS = 2000;
 const DEFAULT_COALESCE_MS = 2000;
 const DEFAULT_VERIFY = ['cargo test --no-fail-fast'];
@@ -72,6 +77,7 @@ export function normalizeBroker(root, broker) {
     pollMs: num(broker.poll_ms, DEFAULT_POLL_MS),
     coalesceMs: Math.max(0, num(broker.coalesce_ms, DEFAULT_COALESCE_MS)),
     stallKillS: broker.stall_kill_s == null || broker.stall_kill_s === '' ? null : num(broker.stall_kill_s, null),
+    commandTimeout: { multiple: Math.max(1, num(broker.command_timeout_multiple, DEFAULT_TIMEOUT_MULTIPLE)), floorMs: Math.max(0, num(broker.command_timeout_floor_s, DEFAULT_TIMEOUT_FLOOR_S)) * MS_PER_S },
     untrackedBlocks: Array.isArray(broker.untracked_blocks) ? broker.untracked_blocks.map(String) : DEFAULT_UNTRACKED_BLOCKS.slice(),
     untrackedDerived: !Array.isArray(broker.untracked_blocks),
     dirtyBlocks: Array.isArray(broker.dirty_blocks) ? broker.dirty_blocks.map(String) : DEFAULT_DIRTY_BLOCKS.slice(),

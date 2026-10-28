@@ -8,6 +8,8 @@
 //            group in halves, first half first (bisection by subset: files come from the plans
 //            in memory and the journal, never from git). Each later group runs on the HEAD the
 //            earlier ones landed.
+// A command the daemon aborted ends the build without blame: a timeout fails the whole group, an operator
+// cancel fails the named member and the rest rebuild without it (KIT-T676).
 // A member leaves the queue only once its result is written; a crash re-queues the rest and the
 // restart restores the tree from the journal.
 //
@@ -106,6 +108,15 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
         if (kept) discard(cfg);
         else putBack();
         groups.unshift(...landed.regroup);
+        continue;
+      }
+      if (run.failing.aborted) {
+        const { kind, ids, message } = run.failing.aborted;
+        const hit = kind === 'cancel' ? pool.filter((m) => ids.includes(m.job.id)) : pool;
+        for (const m of hit) finish(m, { status: kind === 'cancel' ? STATUS.CANCELLED : STATUS.FAILED, phase: 'run', ...ranFor(m), message: `${message} (${id})` });
+        const rest = pool.filter((m) => !hit.includes(m));
+        if (rest.length) groups.unshift(rest);
+        putBack();
         continue;
       }
       const verdict = blame(run.failing, pool.map((m) => ({ id: m.job.id, touched: m.touched, commands: own(m).commands })));

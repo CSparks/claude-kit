@@ -1,6 +1,6 @@
 // withdraw.mjs — take a QUEUED job out of the queue with a final result (KIT-T323): `--revises`
 // withdraws its predecessor as `superseded`, `broker cancel <id>` as `cancelled`. A job the daemon is
-// running is never touched.
+// running is never touched here (cancel-running.mjs kills it on request).
 //
 // `withdrawJob(cfg, id, { status, message })` -> { ok, error? }
 
@@ -9,7 +9,7 @@ import { STATUS, listQueue, readResult, removeJob, writeResult } from './result.
 
 export function withdrawJob(cfg, id, { status = STATUS.CANCELLED, message = 'cancelled' } = {}) {
   const running = readInflight(cfg);
-  if (inflightHas(running, id)) return { ok: false, error: `${id} is running; a running job is never cancelled` };
+  if (inflightHas(running, id)) return { ok: false, error: `${id} is running; cancel it with --running` };
   const job = listQueue(cfg).find((j) => j.id === id);
   if (!job) {
     const done = readResult(cfg, id);

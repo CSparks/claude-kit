@@ -4,7 +4,7 @@
 // `usageProblem(flags)` → null | { text, code }: code 0 for help, 2 for a bad argument.
 
 const COMMANDS = new Set(['pause', 'resume', 'cancel', 'status', 'stop', 'stats', 'clean', 'restore']);
-const FLAGS = new Set(['_', 'root', 'log', 'once', 'poll', 'idle-exit', 'spawned-by', 'now', 'help', 'since', 'json', 'lane', 'pycache', 'debris']);
+const FLAGS = new Set(['_', 'root', 'log', 'once', 'poll', 'idle-exit', 'spawned-by', 'now', 'help', 'since', 'json', 'lane', 'pycache', 'debris', 'running']);
 
 export const USAGE = [
   'usage: broker.mjs [--root <checkout>] [command] [options]',
@@ -12,7 +12,7 @@ export const USAGE = [
   '  status         show the daemon, queue and suite state',
   '  stats [--since 24h|7d|<ISO>] [--json]   queue wait, phase minutes, failure rates, batches, fairness, stall kills, ST-T904 share',
   '  pause|resume   stop or resume starting jobs',
-  '  cancel <id>    withdraw a queued job',
+  '  cancel <id> [--running]   withdraw a queued job; --running kills the running command tree; the job ends cancelled',
   '  clean <path...>|--pycache   remove untracked leftovers from the checkout (a stray __pycache__); tracked files are refused',
   '  restore <path...>|--debris   put Cargo.lock debris a killed job left, and files a broker job wrote, back from HEAD (hand edits are refused)',
   '  stop [--now]   stop the daemon after its current job; refuses while a job is queued or running unless --now',

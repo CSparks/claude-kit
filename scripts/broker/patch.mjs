@@ -31,7 +31,7 @@ import { lockFilesDeep, resolveLocks } from './locks.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand, runDiagnosed } from './run.mjs';
 import { writePlan } from './write-plan.mjs';
-import { foreignOf, isGreen, jobCommands, landedJob } from './job-commands.mjs';
+import { abortOf, foreignOf, isGreen, jobCommands, landedJob } from './job-commands.mjs';
 import { prebuildCommand, withPrebuild } from './prebuild.mjs';
 import { foreignBuild } from './known-red.mjs';
 
@@ -134,6 +134,8 @@ export function processPatch(cfg, job, repo) {
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
     if (green && !job.land && (job.ops || []).length) recordGreen(cfg, key, { job: job.id, commands, foreign });
+    const aborted = abortOf(commands);
+    if (aborted) return done({ status: aborted.kind === 'cancel' ? STATUS.CANCELLED : STATUS.FAILED, phase: 'run', commands, diffStat, foreign, selection, message: aborted.message });
     if (!green || !job.land) return done({ status: green ? STATUS.PASSED : STATUS.FAILED, phase: 'run', commands, diffStat, foreign, selection, pinScope: note });
 
     // Every Cargo.lock was journalled as found (KIT-T306), so a lock that differs from HEAD now

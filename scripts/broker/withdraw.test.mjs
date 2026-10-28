@@ -64,7 +64,7 @@ test('broker cancel withdraws a queued job; the daemon never runs it', () => {
   } finally { s.done(); }
 });
 
-test('broker cancel on a running job is refused with a clear message and changes nothing', () => {
+test('a plain broker cancel on a running job is refused, naming --running, and changes nothing', () => {
   const s = fixture();
   try {
     const job = queue(s);
@@ -72,7 +72,7 @@ test('broker cancel on a running job is refused with a clear message and changes
     capture(s.cfg, { id: job.id, cwd: s.root, paths: [] });
     const c = run(BROKER, s, ['cancel', job.id]);
     assert.equal(c.status, 1);
-    assert.match(c.stderr, /is running; a running job is never cancelled/);
+    assert.match(c.stderr, /is running; cancel it with --running/);
     assert.equal(listQueue(s.cfg).length, 1);
     assert.equal(readResult(s.cfg, job.id), null);
   } finally { s.done(); }
