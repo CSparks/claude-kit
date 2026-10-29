@@ -4,8 +4,11 @@
 // binaries execute in series. With `runner: nextest`, commands that differ only in their packages
 // and target selectors merge into
 // `cargo nextest run --no-fail-fast <shared args> -p a -p b <selectors…>`: one build over every
-// package, binaries in parallel. cargo applies each selector to the packages that have that
-// target, so a package may run a few targets beyond its own command (more tests, never fewer).
+// package, binaries in parallel. cargo applies every selector to every named package, so a merge
+// is exact only when it is a product: two commands merge when they name the same packages (their
+// selectors union) or carry the same selectors (their packages union). `-p bike --lib` and
+// `-p dirt-empire --test bike` differ in both and stay apart: merged, `--lib` would run the whole
+// dirt-empire lib.
 //
 // A command merges only when it is `cargo test|t` with at least one target selector and nothing
 // after `--` (a test-name filter or harness flag keeps its own run). Commands naming packages
@@ -45,23 +48,28 @@ function parse(text) {
 
 const addAll = (into, list) => { for (const x of list) if (!into.includes(x)) into.push(x); };
 
+const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+
+// The group a command joins without changing what runs: same packages, or same selectors.
+const exactGroup = (candidates, p) => (candidates || []).find((g) => sameSet(g.packages, p.packages) || sameSet(g.selectors, p.selectors));
+
 export function coalesce(commands) {
-  const groups = new Map();
+  const byKey = new Map();
   const slots = [];
   for (const cmd of commands) {
     const p = parse(cmd);
     if (!p) { slots.push({ cmd, from: null }); continue; }
-    if (!groups.has(p.key)) {
-      const slot = { cmd, from: [], enter: p.enter, shared: p.shared, packages: [], selectors: [] };
-      groups.set(p.key, slot);
-      slots.push(slot);
+    let g = exactGroup(byKey.get(p.key), p);
+    if (!g) {
+      g = { cmd, from: [], enter: p.enter, shared: p.shared, packages: [], selectors: [] };
+      byKey.set(p.key, [...(byKey.get(p.key) || []), g]);
+      slots.push(g);
     }
-    const g = groups.get(p.key);
     g.from.push(cmd);
     addAll(g.packages, p.packages);
     addAll(g.selectors, p.selectors);
   }
-  for (const g of groups.values()) {
+  for (const g of [...byKey.values()].flat()) {
     if (g.from.length < 2) { g.cmd = g.from[0]; g.from = null; }
     else g.cmd = `${g.enter}${['cargo nextest run --no-fail-fast', ...g.shared, ...g.packages.flatMap((p) => ['-p', p]), ...g.selectors].join(' ')}`;
     delete g.enter;

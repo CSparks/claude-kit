@@ -27,10 +27,18 @@ test('per-target cargo tests of one package merge into one nextest run, in first
   assert.equal(out[1].from, null);
 });
 
-test('targets of several packages merge into one nextest run naming every package', () => {
-  const out = coalesce(['cargo test --offline -p game --lib --test lanes', 'cargo check --workspace', 'cargo test --offline -p ui --lib', 'cargo test --offline -p game --test venue']);
-  assert.deepEqual(out.map((s) => s.cmd), ['cargo nextest run --no-fail-fast --offline -p game -p ui --lib --test lanes --test venue', 'cargo check --workspace']);
-  assert.equal(out[0].from.length, 3);
+test('commands with the same selectors merge into one nextest run naming every package', () => {
+  const out = coalesce(['cargo test --offline -p game --lib', 'cargo check --workspace', 'cargo test --offline -p ui --lib', 'cargo test --offline -p game --test venue']);
+  assert.deepEqual(out.map((s) => s.cmd), ['cargo nextest run --no-fail-fast --offline -p game -p ui --lib', 'cargo check --workspace', 'cargo test --offline -p game --test venue']);
+  assert.equal(out[0].from.length, 2);
+});
+
+test('different packages with different selectors never merge: one package\'s --lib must not reach the other (DE-T222)', () => {
+  const bike = 'cargo t -p bike --lib';
+  const race = 'cargo t -p dirt-empire --test bike';
+  assert.deepEqual(cmds([bike, race]), [bike, race], 'kept as written');
+  assert.deepEqual(cmds([bike, race, 'cargo t -p bike --test x']), ['cargo nextest run --no-fail-fast -p bike --lib --test x', race], 'the same package still merges');
+  assert.deepEqual(cmds(['cargo t -p game --lib --test lanes', 'cargo t -p ui --lib', 'cargo t -p game --test venue']), ['cargo nextest run --no-fail-fast -p game --lib --test lanes --test venue', 'cargo t -p ui --lib']);
 });
 
 test('negative: name filters, unfiltered runs, workspace-wide runs, other flags and lone targets keep their own run', () => {
@@ -75,6 +83,6 @@ for (const runner of ['nextest', 'cargo']) {
 }
 
 test('a cd prefix leads the merged command and never merges across workspaces', () => {
-  const out = coalesce(['cd rust && cargo t -p a --lib', 'cd rust && cargo t -p b --test x', 'cargo t -p c --lib', 'cargo t -p d --lib']);
-  assert.deepEqual(out.map((s) => s.cmd), ['cd rust && cargo nextest run --no-fail-fast -p a -p b --lib --test x', 'cargo nextest run --no-fail-fast -p c -p d --lib']);
+  const out = coalesce(['cd rust && cargo t -p a --lib', 'cd rust && cargo t -p b --lib', 'cargo t -p c --lib', 'cargo t -p d --lib']);
+  assert.deepEqual(out.map((s) => s.cmd), ['cd rust && cargo nextest run --no-fail-fast -p a -p b --lib', 'cargo nextest run --no-fail-fast -p c -p d --lib']);
 });
