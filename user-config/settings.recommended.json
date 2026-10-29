@@ -1,6 +1,10 @@
 {
   "$comment": "MERGE these keys into your existing ~/.claude/settings.json. Do NOT replace the file — you already have config there. bootstrap.sh links the referenced scripts into ~/.claude/{hooks,skills,agents,commands}; apply this by hand or with jq.",
 
+  "env": {
+    "PYTHON_BASIC_REPL": "1"
+  },
+
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh"
