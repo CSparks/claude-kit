@@ -7,8 +7,11 @@
 // A script the patch touches (.mjs/.cjs/.js) must pass `node --check` (syntax-check.mjs); that check needs no cargo and runs
 // whenever the precheck is on. The cargo check of a COLD target dir (nothing has ever finished there) is a whole-workspace
 // build: it runs only while every lane is idle, so it never competes with a landing job for the machine (a cold precheck
-// beside a running job slowed it past the 10-minute kill). Once one run has finished, the target dir is warm and the
-// precheck runs beside jobs again.
+// beside a running job slowed it past the 10-minute kill). A target dir the precheck created is cold (marker
+// `precheck-<repo>.cold`) until one run finishes there; an older dir is warm.
+// The check runs in two stages inside one deadline: the packages, libraries and test binaries the job's own cargo commands
+// build (precheck-scope.mjs), then the whole workspace. A timeout in the second stage keeps the first stage's verdict, and a
+// rustc error already in the log of a run cut off at the deadline rejects the job.
 //
 //   precheckJob(cfg, job, repo, { run?, prepare?, busy? }) -> a failed-result object to write, or null when the job may queue
 
@@ -17,7 +20,9 @@ import { join } from 'node:path';
 import { prepareCheckTree } from './check-tree.mjs';
 import { brokerPaths } from './config.mjs';
 import { UNLOCATED, diagnose } from './diagnose.mjs';
+import { jobCommands } from './job-commands.mjs';
 import { laneBusy } from './lane-busy.mjs';
+import { narrowCheck } from './precheck-scope.mjs';
 import { STATUS } from './result.mjs';
 import { runCancellable } from './run-cancellable.mjs';
 import { scriptSyntaxFailures } from './syntax-check.mjs';
@@ -62,24 +67,34 @@ export function precheckJob(cfg, job, repo, { run = runCancellable, prepare = pr
     const broken = scriptSyntaxFailures(tree.cwd, applied.files);
     if (broken.length) return syntaxResult(job, broken);
     if (!cfg.affected?.check || [...applied.files.keys()].every((file) => DOC_ONLY.test(file))) return null;
-    const warm = join(home, `${KIND}-${repo.name}.warm`);
-    if (!existsSync(warm) && busy(cfg)) return null;
-    return cargoCheck(cfg, job, repo, home, tree, warm, run);
+    const target = join(home, `${KIND}-target`, repo.name);
+    const cold = join(home, `${KIND}-${repo.name}.cold`);
+    if ((existsSync(cold) || !existsSync(target)) && busy(cfg)) return null;
+    if (!existsSync(target)) writeFileSync(cold, new Date().toISOString());
+    return cargoChecks(cfg, job, { home, tree, target, cold, run });
   } finally { release(); }
 }
 
-function cargoCheck(cfg, job, repo, home, tree, warm, run) {
-  const log = join(home, `${KIND}-${job.id}.log`);
+// The job's own targets first (precheck-scope.mjs), then the whole workspace, inside one deadline. A rustc error in either
+// rejects the job, even when the run was cut off at the deadline: cargo prints an error as it finds it.
+function cargoChecks(cfg, job, { home, tree, target, cold, run }) {
   const deadline = Date.now() + cfg.precheckTimeoutMs;
-  const opts = { cwd: tree.cwd, targetDir: join(home, `${KIND}-target`, repo.name), logPath: log, jobs: cfg.jobs, timeoutMs: cfg.precheckTimeoutMs };
-  const r = run(cfg.affected.check, opts, { shouldCancel: () => Date.now() > deadline });
-  if (r.cancelled || r.timedOut) return null;
-  if (r.exit === 0) { writeFileSync(warm, new Date().toISOString()); return null; }
-  const { errors } = diagnose(readFileSync(log, 'utf8'));
-  if (!Object.keys(errors).some((file) => file !== UNLOCATED)) return null;
-  writeFileSync(warm, new Date().toISOString());
-  return failedResult(job, {
-    commands: [{ cmd: r.cmd, exit: r.exit, durationMs: r.durationMs, log, logTail: r.logTail, errors }],
-    message: `compile error in the patch (${cfg.affected.check}, ${Math.round(r.durationMs / MS_PER_S)}s); the job never entered the queue`,
-  });
+  const stages = [narrowCheck(cfg.affected.check, jobCommands(cfg, job)), cfg.affected.check].filter(Boolean);
+  for (const [i, cmd] of stages.entries()) {
+    const left = deadline - Date.now();
+    if (left <= 0) return null;
+    const log = join(home, `${KIND}-${job.id}${i ? '-full' : ''}.log`);
+    const r = run(cmd, { cwd: tree.cwd, targetDir: target, logPath: log, jobs: cfg.jobs, timeoutMs: left }, { shouldCancel: () => Date.now() > deadline });
+    const errors = r.exit === 0 ? {} : diagnose(readFileSync(log, 'utf8')).errors;
+    if (Object.keys(errors).some((file) => file !== UNLOCATED)) {
+      rmSync(cold, { force: true });
+      return failedResult(job, {
+        commands: [{ cmd: r.cmd, exit: r.exit, durationMs: r.durationMs, log, logTail: r.logTail, errors }],
+        message: `compile error in the patch (${cmd}, ${Math.round(r.durationMs / MS_PER_S)}s); the job never entered the queue`,
+      });
+    }
+    if (r.cancelled || r.timedOut || r.exit !== 0) return null;
+  }
+  rmSync(cold, { force: true });
+  return null;
 }
