@@ -32,3 +32,8 @@ first seen in Chris Sparks. Filed automatically (KIT-T286): every kit bug is a t
 - [2026-10-29 16:13] (created) bug — source-shell-gate false positive: it blocks a Bash command whose write shape only appears inside a quoted string argument. On 2026-10-29, at
 - [2026-10-29 16:17] (status) todo → done
 - [2026-10-29 16:17] (landed) 36a6e60 shell write gates judge redirects and heredoc code on the command with quoted string content blanked (maskQuoted, one ho
+- [2026-10-29 16:20] (landed) 70c797f tickets: KIT-T701 done (implements KIT-T701)
+- [2026-10-29 16:31] (landed) 8e8d4d8 shell write gates fail closed on quoting: strings are blanked only as echo/printf arguments that feed no shell (shell-qu
+- [2026-10-29 16:39] (comment) @sonnet55: Closed as WON'T FIX (maintainer decision): a write shape inside a quoted argument is rare, and every quote-masking versi (full comment #1 in ## Notes)
+### comment #1 [2026-10-29 16:39] @sonnet55
+Closed as WON'T FIX (maintainer decision): a write shape inside a quoted argument is rare, and every quote-masking version opened a bypass (a deny gate that blanks text is a parser differential). The gate scans the raw command. Workaround: put the payload in a scratchpad file (node hook.mjs < payload.json) or use the exclusion surfaces. Landed instead: wrapper recursion made linear with a depth cap of 4 that blocks, and tests that the bypass shapes (bash -c, powershell -Command, eval, command substitution, escaped quotes, echo | bash, echo | node -) block.

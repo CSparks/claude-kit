@@ -10,7 +10,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isSourcePath, shellSourceWrite } from './lib/shell-source-write.mjs';
-import { maskInertStrings } from './lib/shell-quotes.mjs';
 
 const HOOK = fileURLToPath(new URL('./source-shell-gate.mjs', import.meta.url));
 let fails = 0;
@@ -94,45 +93,49 @@ try {
   check('KIT-T700 negative control: writing a .ai store note after `cd <repo>` passes', outside(`cd ${into} && echo note > .ai/notes/a.md`).status === 0);
   check('KIT-T700 negative control: the same write from a non-repo directory with no cd passes', outside('cat > hooks/x.mjs <<\'EOF\'\nx\nEOF').status === 0);
   const probe = `{"tool_input":{"command":"cd /d/dev/claude-kit && cat > hooks/x.mjs <<EOF\\nx\\nEOF"}}`;
-  const passes = [
-    ['single-quoted probe payload piped to node', `echo '${probe}' | node hook.mjs`],
-    ['double-quoted payload piped to cat', 'echo "cat > hooks/x.mjs" | cat'],
-    ['printf payload piped to jq', "printf '%s' 'cat > hooks/x.mjs' | jq ."],
-    ['payload piped to python with a script file', "echo 'cat > hooks/x.mjs' | python3 check.py"],
-    ['PowerShell doubled quote kept as data', "echo 'it''s > hooks/x.mjs here'"],
-  ];
-  for (const [name, command] of passes) check(`KIT-T701: ${name} passes`, !blocked(command), run(command).stderr.slice(0, 100));
   const holes = [
+    ['a write shape inside a quoted probe payload (rare; the payload goes in a scratchpad file)', `echo '${probe}' | node hook.mjs`],
+    ['a write shape inside double quotes', 'echo "cat > hooks/x.mjs" | cat'],
     ['bash -c with a double-quoted heredoc write', 'bash -c "cat > hooks/x.mjs <<EOF\nx\nEOF"'],
     ['bash -c with a redirect', `bash -c 'echo hi > hooks/x.mjs'`],
     ['sh -c fed by a pipe', `echo x | sh -c 'echo hi > hooks/x.mjs'`],
     ['dash -c', `dash -c 'echo hi > hooks/x.mjs'`],
     ['wsl sh -c', `wsl sh -c "echo hi > hooks/x.mjs"`],
     ['su -c', `su -c 'echo hi > hooks/x.mjs'`],
-    ['ssh host command', `ssh host 'echo hi > hooks/x.mjs'`],
+    ['ssh host command', `ssh host 'rm hooks/x.mjs'`],
     ['xargs sh -c', `echo x | xargs sh -c 'echo hi > hooks/x.mjs'`],
     ['powershell -Command Set-Content', 'powershell -Command "Set-Content hooks/x.mjs hi"'],
     ['pwsh -c', `pwsh -c "'x' | Out-File hooks/x.mjs"`],
     ['cmd /c', 'cmd /c "echo hi > hooks\\x.mjs"'],
     ['eval', `eval 'echo hi > hooks/x.mjs'`],
+    ['env then sed -i', 'env A=1 sed -i s/a/b/ hooks/x.mjs'],
+    ['timeout then rm', 'timeout 5 rm hooks/x.mjs'],
     ['command substitution in double quotes', 'echo "$(cat > hooks/x.mjs)"'],
     ['backticks in double quotes', 'echo "`cat > hooks/x.mjs`"'],
-    ['an escaped quote hiding a redirect', 'echo "a\\" > hooks/x.mjs #"'],
+    ['an escaped quote around a redirect', 'echo "a\\" > hooks/x.mjs #"'],
     ['PowerShell backtick-escaped quotes', "echo `' > hooks/x.mjs `'"],
     ['a $\'…\' string', "echo $'a\\' ; cat > hooks/x.mjs ; echo \\'b'"],
     ['a quote inside a comment', "echo hi # ' ; cat > hooks/x.mjs ; echo '"],
-    ['a payload piped into a shell', "echo 'cat > hooks/x.mjs' | bash"],
-    ['a payload piped into node -', "echo 'require(\"fs\").writeFileSync(\"hooks/x.mjs\",1)' | node -"],
+    ['echo piped into bash', "echo 'cat > hooks/x.mjs' | bash"],
+    ['echo piped into node -', "echo 'require(\"fs\").writeFileSync(\"hooks/x.mjs\",1)' | node -"],
     ['a quoted span across a newline', "echo 'a\ncat > hooks/x.mjs' | cat"],
     ['a heredoc after an echo', "echo 'a' && cat > hooks/x.mjs <<'EOF'\nx\nEOF"],
-    ['node heredoc code naming the file inside quotes', `echo 'node - <<EOF fs.writeFileSync("hooks/a.mjs", 1)' | cat`],
     ['a real redirect after a quoted argument', "echo 'hi' > hooks/x.mjs"],
     ['a quoted redirect target', 'echo hi > "hooks/x.mjs"'],
     ['a write after a doubled-quote PowerShell string', "Write-Output 'it''s'; Set-Content hooks/x.mjs hi"],
   ];
-  for (const [name, command] of holes) check(`KIT-T701 fail-closed: ${name} blocks`, blocked(command), run(command).stderr.slice(0, 100));
-  check('KIT-T701: maskInertStrings blanks an echo payload and keeps a quoted redirect target', maskInertStrings(`echo 'a > b.mjs' | cat`) === `echo '' | cat` && maskInertStrings(`echo hi > 'c.mjs'`) === `echo hi > 'c.mjs'`);
-  check('KIT-T701: maskInertStrings returns ambiguous text unchanged', ["echo 'unbalanced", 'echo `x`', "echo hi # c '", "cat <<EOF\n'a'\nEOF"].every((t) => maskInertStrings(t) === t));
+  for (const [name, command] of holes) check(`KIT-T701 raw scan: ${name} blocks`, blocked(command), run(command).stderr.slice(0, 100));
+  check('KIT-T701 workaround: the probe payload read from a scratchpad file passes', !blocked('node hook.mjs < payload.json'));
+
+  const chain = `${'env '.repeat(40)}cat > hooks/x.mjs`;
+  const started = Date.now();
+  const deepRedirect = shellSourceWrite(chain);
+  check('KIT-T701: a 40-deep env chain with a redirect blocks in under 100 ms', !!deepRedirect && Date.now() - started < 100);
+  const startedDeep = Date.now();
+  const deepRm = shellSourceWrite(`${'env '.repeat(40)}rm hooks/x.mjs`);
+  check('KIT-T701: a 40-deep wrapper chain with no redirect blocks as too deeply nested, in under 100 ms', !!deepRm && /nested more than 4/.test(deepRm.path) && Date.now() - startedDeep < 100);
+  check('KIT-T701: a 3-deep wrapper chain around a write still resolves the real path', shellSourceWrite('env A=1 timeout 5 rm hooks/x.mjs')?.path === 'hooks/x.mjs');
+  check('KIT-T701 negative control: a wrapper around a read-only command passes', shellSourceWrite('env A=1 timeout 5 cat hooks/x.mjs') === null);
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: repo, input: 'not json', encoding: 'utf8' }).status === 0);
 } finally {
   rmSync(repo, { recursive: true, force: true });
