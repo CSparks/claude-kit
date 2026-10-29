@@ -10,6 +10,7 @@
 //   broker-owned-tree    (KIT-T276) — a writer-capable agent into a checkout a broker daemon owns
 //   patch-worker-discipline (KIT-T687) — worker cap, required/overlapping [paths:], train rules
 //   lessons-checked      (KIT-T690) — rendering/perf/asset/streaming work briefed without citing the framework lessons ledger
+//   conformance-named    (KIT-T690) — the same work briefed without naming the framework's conformance test
 //   ui-framework-first   (KIT-T583) — UI sizing/layout work briefed to a generic agent in a rapid-game repo
 //   handoff-before-replace (KIT-D116) — a dispatch replacing a past-ceiling agent that wrote no handoff (and a warning listing past-ceiling agents)
 // exit 2 = block, 0 = allow. No-ops on unadopted repos; FAIL-OPEN everywhere else.
@@ -33,6 +34,7 @@ import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage, brokerConfig } fr
 import { WORKER_CHECK, workerAdvice, workerBlock } from './dispatch-worker.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
+import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
 import { CEILING_CHECK, HANDOFF_CHECK, ceilingWarning, handoffBlock } from './dispatch-context.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
@@ -83,6 +85,7 @@ try {
     foreignTreeBlock(root, input, prompt, p),
     workerCheck(root, input, prompt, p),
     lessonsCheck(root, input, prompt, p),
+    conformanceCheck(root, input, prompt, p),
     uiCheck(root, input, prompt, p),
     handoffCheck(root, prompt, p),
   ].filter(Boolean);
@@ -193,6 +196,12 @@ function workerAdviceText(root, input, prompt, p) {
 function lessonsCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, LESSONS_CHECK, root)) return null;
   return lessonsBlock({ root, input, prompt, footer: excludeFooter(LESSONS_CHECK) });
+}
+
+// --- conformance-named (KIT-T690) ---------------------------------------------------------
+function conformanceCheck(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, CONFORMANCE_CHECK, root)) return null;
+  return conformanceBlock({ root, input, prompt, footer: excludeFooter(CONFORMANCE_CHECK) });
 }
 
 // --- ui-framework-first (KIT-T583) --------------------------------------------------

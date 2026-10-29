@@ -7,6 +7,7 @@
 //     match: word                                    # word (default) | module: how a src module finds the tests naming it (affected-match.mjs)
 //     dependents: true                               # false: skip the tests of the touched crates' reverse dependencies (Cargo.lock) in the landing gate
 //     mandatory: false                               # true: the affected set runs even when the job gave its own --test commands
+//     conformance: cargo t -p game --test conformance   # the framework conformance test (rg-testkit); joins every landing that touches .rs or .toml (landgate.mjs)
 //   pin_test_args: ["-P", "pin"]   # appended to an auto-pin's test run (pin-scope.mjs): e.g. a nextest profile without the GPU group
 //   suite: [ "cargo test", … ]   # the full suite run on the cadence; default verify_default
 //   suite_every: 10              # opt out of the nightly slot: run the suite every N landings (once due it runs when the queue is idle)
@@ -23,7 +24,7 @@
 //   batch_window_s: 0            # >0: a lone trainable job waits up to this long for a peer while 2+ sessions are active (batch-window.mjs); 0 (default) off
 //   incremental_keep_hours: 24   # after a suite run, drop incremental caches unused this long (incremental.mjs); off disables
 //
-// `pipelineConfig(broker, verifyDefault, env)` → { landGate, affected: { check, test, match, mandatory, dependents }, suiteSchedule, nightlyAt, nightly, suite, suiteEvery, suitePartitions, runner, batch, batchWindowMs, precheck, precheckTimeoutMs }.
+// `pipelineConfig(broker, verifyDefault, env)` → { landGate, affected: { check, test, match, mandatory, dependents, conformance }, suiteSchedule, nightlyAt, nightly, suite, suiteEvery, suitePartitions, runner, batch, batchWindowMs, precheck, precheckTimeoutMs }.
 
 const DEFAULT_CHECK = 'cargo check --workspace --all-targets';
 const DEFAULT_TEST = 'cargo test';
@@ -54,7 +55,7 @@ export function pipelineConfig(broker, verifyDefault, env = process.env) {
   const every = Number(broker.suite_every);
   return {
     landGate: broker.land_gate === 'full' || (broker.land_gate !== 'affected' && legacyDefaults(env)) ? 'full' : 'affected',
-    affected: { check: String(a.check || DEFAULT_CHECK), test: String(a.test || DEFAULT_TEST), match: a.match === 'module' ? 'module' : 'word', mandatory: a.mandatory === true, dependents: a.dependents !== false },
+    affected: { check: String(a.check || DEFAULT_CHECK), test: String(a.test || DEFAULT_TEST), match: a.match === 'module' ? 'module' : 'word', mandatory: a.mandatory === true, dependents: a.dependents !== false, conformance: a.conformance ? String(a.conformance) : null },
     suiteSchedule: (broker.suite_every != null && broker.suite_every !== '') || legacyDefaults(env) ? 'cadence' : 'nightly',
     nightlyAt: nightlyAt(broker.nightly_at),
     nightly: [].concat(broker.nightly == null ? [] : broker.nightly).map(String).filter(Boolean),

@@ -94,8 +94,9 @@ test('module matching picks the tests that reach the module by path, not by a wo
 });
 
 test('the affected keys parse: match module and mandatory true, defaults word and false', () => {
-  assert.deepEqual(pipelineConfig({ land_gate: 'affected', affected: { match: 'module', mandatory: true } }, []).affected, { check: 'cargo check --workspace --all-targets', test: 'cargo test', match: 'module', mandatory: true, dependents: true });
+  assert.deepEqual(pipelineConfig({ land_gate: 'affected', affected: { match: 'module', mandatory: true } }, []).affected, { check: 'cargo check --workspace --all-targets', test: 'cargo test', match: 'module', mandatory: true, dependents: true, conformance: null });
   const dflt = pipelineConfig({ land_gate: 'affected' }, []).affected;
   assert.equal(dflt.match, 'word');
   assert.equal(dflt.mandatory, false);
+  assert.equal(pipelineConfig({ affected: { conformance: 'cargo t -p g --test conformance' } }, []).affected.conformance, 'cargo t -p g --test conformance');
 });

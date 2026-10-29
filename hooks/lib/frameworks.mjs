@@ -44,6 +44,7 @@ export function parseFramework(text) {
     submodule: scalar('submodule'),
     cargo: scalar('cargo'),
     lessons: scalar('lessons'),
+    conformance: scalar('conformance'),
     paths: list('paths'),
     body: body.trim(),
   };

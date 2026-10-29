@@ -11,6 +11,9 @@
 //   concernFindings(root, deps?)         -> [{ concern, crate, files: [{ path, lines }], tickets }]
 //   findingLine(finding, maxLocs?)       -> the one-line report
 //   concernBlock(root, deps?)            -> orient lines, at most BLOCK_MAX
+//                                           and, after it, bypassBlock's lines
+//   bypassBlock(root, deps?)             -> the same for a `bypass = [...]` row: a game skipping a tuned framework default
+//                                           (plain DefaultPlugins, no budget, position-only stream follow) instead of using the default-on builder
 //
 // Run: node scripts/concern-check.mjs [--root <dir>]
 
@@ -36,14 +39,14 @@ const listField = (row, key) => {
   return [...m[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => unquote(`"${x[1]}"`)).filter(Boolean);
 };
 
-/** Ownership rows of the framework at `frameworkDir` that declare primitives. */
-export function readOwnership(frameworkDir) {
+/** Rows of the framework at `frameworkDir` that list calls under `field`: `primitives` (the concern is owned) or `bypass` (a default is skipped). */
+export function readOwnership(frameworkDir, field = 'primitives') {
   const file = join(frameworkDir, 'docs', 'CHOICES.toml');
   if (!existsSync(file)) return [];
   let text;
   try { text = readFileSync(file, 'utf8').replace(/\r\n/g, '\n'); } catch { return []; }
   return text.split(/^\[\[choice\]\]\s*$/m).slice(1)
-    .map((row) => ({ concern: stringField(row, 'concern'), crate: stringField(row, 'crate'), primitives: listField(row, 'primitives') }))
+    .map((row) => ({ concern: stringField(row, 'concern'), crate: stringField(row, 'crate'), primitives: listField(row, field) }))
     .filter((r) => r.concern && r.primitives.length);
 }
 
@@ -73,12 +76,12 @@ const splitLoc = (loc) => {
 };
 
 /** Every declared concern the game also does locally, with the files and lines that do it. */
-export async function concernFindings(root, { search = defaultSearch, tickets = defaultTickets, frameworks = frameworkRoots } = {}) {
+export async function concernFindings(root, { search = defaultSearch, tickets = defaultTickets, frameworks = frameworkRoots, field = 'primitives' } = {}) {
   const fws = frameworks(root);
   const prefixes = fws.map((f) => relative(root, f.dir).replace(/\\/g, '/'));
   const out = [];
   for (const fw of fws) {
-    for (const row of readOwnership(fw.dir)) {
+    for (const row of readOwnership(fw.dir, field)) {
       const byFile = new Map();
       for (const prim of row.primitives) {
         for (const loc of await search(root, prim)) {
@@ -100,23 +103,40 @@ export async function concernFindings(root, { search = defaultSearch, tickets = 
 }
 
 /** `concern "<name>" owned by <crate>; game does it locally in N files: <file:line …> open tickets: <ids>` */
-export function findingLine(f, maxLocs = MAX_LOCS) {
+export function findingLine(f, maxLocs = MAX_LOCS, { noun = 'concern', verb = 'owned', does = 'does it locally' } = {}) {
   const locs = f.files.slice(0, maxLocs).map((x) => `${x.path}:${x.lines[0]}`);
   const more = f.files.length > maxLocs ? ` +${f.files.length - maxLocs} more` : '';
   const tix = f.tickets.length ? f.tickets.join(' ') : 'none';
-  return `concern "${f.concern}" owned by ${f.crate}; game does it locally in ${f.files.length} file${f.files.length === 1 ? '' : 's'}: ${locs.join(' ')}${more} open tickets: ${tix}`;
+  return `${noun} "${f.concern}" ${verb} by ${f.crate}; game ${does} in ${f.files.length} file${f.files.length === 1 ? '' : 's'}: ${locs.join(' ')}${more} open tickets: ${tix}`;
 }
 
-/** The orient block: a header plus findings, never more than BLOCK_MAX lines. */
-export async function concernBlock(root, deps) {
-  const found = await concernFindings(root, deps);
+/** `default "<name>" kept by <crate>; game bypasses it in N files: <file:line …> open tickets: <ids>` */
+export function bypassLine(f, maxLocs = MAX_LOCS) {
+  return findingLine(f, maxLocs, { noun: 'default', verb: 'kept', does: 'bypasses it' });
+}
+
+function block(found, header, line) {
   if (!found.length) return [];
   const room = BLOCK_MAX - 1;
   const shown = found.length > room ? found.slice(0, room - 1) : found;
-  const lines = ['--- FRAMEWORK OWNS THIS: the game does a declared framework concern locally (move it to the owning crate) ---'];
-  for (const f of shown) lines.push(`  ${findingLine(f)}`);
+  const lines = [header, ...shown.map((f) => `  ${line(f)}`)];
   if (shown.length < found.length) lines.push(`  +${found.length - shown.length} more concern(s) — node <kit>/scripts/concern-check.mjs`);
   return lines;
+}
+
+const OWNS_HEADER = '--- FRAMEWORK OWNS THIS: the game does a declared framework concern locally (move it to the owning crate) ---';
+const BYPASS_HEADER = '--- FRAMEWORK DEFAULT BYPASSED: the game skips a tuned framework default (use the default-on builder, opt out explicitly) ---';
+
+/** A game skipping a framework default (a `bypass = [...]` row in CHOICES.toml): header plus findings, at most BLOCK_MAX lines. */
+export async function bypassBlock(root, deps) {
+  return block(await concernFindings(root, { ...deps, field: 'bypass' }), BYPASS_HEADER, bypassLine);
+}
+
+/** The orient lines: the concerns the game does locally, then the framework defaults it bypasses; each block is at most BLOCK_MAX lines. */
+export async function concernBlock(root, deps) {
+  const owns = block(await concernFindings(root, deps), OWNS_HEADER, findingLine);
+  const bypass = await bypassBlock(root, deps);
+  return owns.length && bypass.length ? [...owns, '', ...bypass] : [...owns, ...bypass];
 }
 
 async function main(argv) {

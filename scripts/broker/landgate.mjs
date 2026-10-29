@@ -10,12 +10,18 @@
 //
 // `landGate(cfg, cwd, job, files)` (the plan's Map path → { text }, text null = deleted) → null (run the job's commands as given) or
 //   { commands, selection: { reasons, dropped } }.
+// `affected.conformance` (a command: the framework conformance test every game runs) joins every landing that touches Rust
+//   source or a manifest, whether its paths map or not, so a game cannot land a change that bypasses the framework's defaults.
 // `isSuiteShaped(cmd, suite)` → true for a suite command (modulo -j / --no-fail-fast) or an
 //   unfiltered `cargo test`.
 
 import { join } from 'node:path';
 import { selectAffected, splitSpecs } from './affected.mjs';
 import { dependentsOf, readLock } from './cargo-lock.mjs';
+import { jobCommands } from './job-commands.mjs';
+
+const SOURCE = /\.(rs|toml)$/;
+const withConformance = (cfg, commands, files) => (cfg.affected.conformance && [...files.keys()].some((p) => SOURCE.test(p)) ? [...new Set([...commands, cfg.affected.conformance])] : commands);
 
 const SELECTORS = new Set(['--test', '--tests', '--lib', '--bin', '--bins', '--example', '--examples', '--doc', '--bench']);
 const TAKES_VALUE = new Set(['-p', '--package', '--features', '-F', '--profile', '-j', '--jobs', '--target', '--manifest-path', '--config', '-Z', '--exclude']);
@@ -90,13 +96,17 @@ export function landGate(cfg, cwd, job, files) {
   if (cfg.landGate !== 'affected') return null;
   const deleted = [...files].filter(([, f]) => f.text === null).map(([p]) => p);
   const sel = selectAffected(cwd, [...files.keys()], { deleted, match: cfg.affected.match });
-  if (sel.unmapped.length) return null;
+  if (sel.unmapped.length) {
+    const own = jobCommands(cfg, job);
+    const commands = withConformance(cfg, own, files);
+    return commands.length > own.length ? { commands, selection: { reasons: [], dropped: [], unmapped: sel.unmapped } } : null;
+  }
   const given = Array.isArray(job.commands) && job.commands.length ? job.commands : [];
   const dropped = given.filter((c) => isSuiteShaped(c, cfg.suite));
   const kept = given.filter((c) => !dropped.includes(c));
-  if (kept.length && !cfg.affected.mandatory) return { commands: [...new Set([cfg.affected.check, ...kept])], selection: { reasons: [], dropped, explicit: true } };
+  if (kept.length && !cfg.affected.mandatory) return { commands: withConformance(cfg, [...new Set([cfg.affected.check, ...kept])], files), selection: { reasons: [], dropped, explicit: true } };
   const tests = [...sel.crates].filter(([, specs]) => specs.size).flatMap(([name, specs]) => crateTests(cfg, sel.workspaces.get(name), name, specs));
   const dependents = cfg.affected.dependents ? dependentTests(cfg, cwd, sel) : [];
-  const commands = [...new Set([cfg.affected.check, ...tests, ...dependents, ...kept])];
+  const commands = withConformance(cfg, [...new Set([cfg.affected.check, ...tests, ...dependents, ...kept])], files);
   return { commands, selection: { reasons: sel.reasons, dropped } };
 }

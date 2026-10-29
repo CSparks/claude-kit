@@ -47,3 +47,9 @@ bump is one rapid-game ticket that moves the set together.
 - **Build assets from COMPLEX SHAPES via `rg-meshkit`** — poly extrude/inset/bevel/loop
   cut, lathe, sweep, loft, solidify, booleans — producing ONE solid per asset. NEVER
   boring primitives jammed together, never interpenetrating boxes.
+
+**Tuned defaults are ON; a game opts out explicitly (KIT-T690).** The kit enforces it three ways once the framework ships
+them: a CHOICES.toml row's `bypass = [...]` patterns make orient print FRAMEWORK DEFAULT BYPASSED for a game that skips the
+default-on builder; the front matter key `conformance: <test target>` makes every rendering/perf/asset/streaming brief name
+that rg-testkit conformance test (dispatch check `conformance-named`); and `broker.affected.conformance` in the game's
+`.ai/config.yml` runs it in every landing that touches Rust source or a manifest. Add the front matter key when the test exists.

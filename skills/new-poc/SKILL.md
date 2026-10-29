@@ -32,6 +32,15 @@ remember.
      by design (Bevy's rust-version).
    - `cargo run --bin probe` prints numbers and `PROBE OK`.
    - `cargo tree --duplicates` — one bevy, or stop and investigate.
+   - the framework's tuned defaults are ON (KIT-T690): the game builds its app through the framework's default-on
+     builder (rg-engine / rg-graphics / rg-chunk-stream), never a plain `DefaultPlugins`, and opts OUT of a default
+     explicitly. The scaffold inherits the framework lint set and ships the rg-probe-kit drive tour. Grep the
+     scaffold for the `bypass = [...]` patterns in `<rapid-game>/docs/CHOICES.toml`: any hit is a defect.
+   - the framework conformance test passes (`conformance:` in the framework contract names it; run through
+     rg-testkit): backend pinned, pools sized, pooled uploads active, streamed meshes under the upload cap, stream
+     follows velocity, lint set inherited.
+   - broker wiring: when the project uses the broker, add `broker.affected.conformance: cargo t -p <game> --test <conformance test>`
+     to `.ai/config.yml`, so every landing that touches Rust source or a manifest runs it.
 6. **Remote:** create the GitHub repo under **CSparks** (the account of record) and
    push main. Never point anything at depixeled-chris.
 7. **Kit adoption (offer, don't assume):** `node <kit>/scripts/init-project.mjs`

@@ -108,6 +108,28 @@ await test('no framework adopted: no findings, no block', async () => {
   rmSync(plain, { recursive: true, force: true });
 });
 
+const BYPASS_CHOICES = `[[choice]]
+concern = "tuned app builder"
+crate = "rg-engine"
+bypass = ["add_plugins(DefaultPlugins", "TaskPoolOptions::default"]
+`;
+
+await test('bypass rows: a game file calling a bypass pattern is flagged as a skipped default; framework and test files are not', async () => {
+  const frameworks = () => [{ name: 'fw', dir: join(root, 'fw') }];
+  mkdirSync(join(root, 'fw', 'docs'), { recursive: true });
+  writeFileSync(join(root, 'fw', 'docs', 'CHOICES.toml'), BYPASS_CHOICES);
+  const search = async (_r, prim) => (prim === 'add_plugins(DefaultPlugins' ? ['crates/bay/src/main.rs:7', 'fw/rust/engine/src/app.rs:3', 'crates/bay/tests/boot.rs:2'] : []);
+  const deps = { frameworks, search, tickets: noTickets };
+  assert.deepEqual(readOwnership(join(root, 'fw'), 'bypass'), [{ concern: 'tuned app builder', crate: 'rg-engine', primitives: ['add_plugins(DefaultPlugins', 'TaskPoolOptions::default'] }]);
+  assert.deepEqual(readOwnership(join(root, 'fw')), [], 'a bypass row declares no ownership');
+  const block = await concernBlock(root, deps);
+  assert.match(block[0], /FRAMEWORK DEFAULT BYPASSED/);
+  assert.equal(block[1].trim(), 'default "tuned app builder" kept by rg-engine; game bypasses it in 1 file: crates/bay/src/main.rs:7 open tickets: none');
+  assert.equal(block.length, 2);
+  assert.ok(!(await concernBlock(root, { ...deps, search: async () => [] })).length, 'control: no bypass call, no block');
+  rmSync(join(root, 'fw'), { recursive: true, force: true });
+});
+
 rmSync(root, { recursive: true, force: true });
 rmSync(cache, { recursive: true, force: true });
 console.log(`\nconcern-check: ${pass} passed, ${fail} failed`);
