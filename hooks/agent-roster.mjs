@@ -15,6 +15,7 @@
 import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, ID_CITE_SRC } from './lib.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { declaredReadOnly } from './dispatch-readonly.mjs';
+import { workerPaths } from './dispatch-worker.mjs';
 import { rowModel, isKnownModel, stripModelTag } from './model-tag.mjs';
 import { appendOutcome, outcomeRow } from './lib/dispatch-ledger.mjs';
 import { dispatchJob, modelOverride } from './dispatch-job.mjs';
@@ -78,10 +79,11 @@ function recordDispatch(root, p) {
     }
     const outputFile = firstString(resp.output_file, resp.outputFile, resp.output_path, resp.outputPath, resp.transcript_path);
     const readOnly = declaredReadOnly(firstString(inp.prompt, inp.message));
+    const paths = workerPaths(firstString(inp.prompt, inp.message), targetRoot);
     // WHICH JOB it serves (`[job: fix]` in the brief) and what it cost where the response says (KIT-D080).
     const job = dispatchJob(root, inp);
     const override = modelOverride(firstString(inp.prompt, inp.message));
-    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(job ? { job } : {}), ...(override ? { modelOverride: override } : {}), ...outcomeFromResponse(resp), ...(readOnly ? { readOnly } : {}), ...(outputFile ? { outputFile } : {}), source: 'posttooluse' });
+    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(job ? { job } : {}), ...(override ? { modelOverride: override } : {}), ...outcomeFromResponse(resp), ...(readOnly ? { readOnly } : {}), ...(paths ? { paths } : {}), ...(outputFile ? { outputFile } : {}), source: 'posttooluse' });
     // Advisory: a delegation with no ticket id is ungrounded work — warn, never block (exit 0).
     const brief = firstString(inp.description, inp.task, inp.title, inp.prompt, inp.message) || '';
     if (brief && !ID_CITE_RE.test(brief)) {

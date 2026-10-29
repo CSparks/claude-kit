@@ -19,18 +19,22 @@ remember.
    submodule works — read-only); otherwise clone `git@github.com:CSparks/rapid-game.git`
    to the scratchpad. Prefer `--reference <local checkout>` when cloning the submodule
    into the new project — it is dramatically faster.
-3. **Generate:** `node <rapid-game>/scripts/new-poc.mjs <name> <dest> [--reference <local>]`
+3. **Read the lessons ledger** (`<rapid-game>/docs/LESSONS.md`, KIT-T690): the structure rules (L-B01: by-concern crates from day one; L-B02: dev profile) and the broker rules (L-K01..K03) bind the new project before the first line is written.
+4. **Generate:** `node <rapid-game>/scripts/new-poc.mjs <name> <dest> [--reference <local>]`
    — stamps the template, git-inits, adds the rapid-game submodule pinned at its
    current main.
-4. **Verify (always, before handing over):**
+5. **Verify (always, before handing over):**
+   - the scaffold is by-concern (L-B01): the game is more than one crate under `crates/`, one per concern
+     (sim, render, ui, world…) with the shared types in a small base crate; a single game crate gets split
+     before handing over, because a one-crate game compiles serially forever;
    - bare `cargo run` from the repo root compiles and opens the window (ST-D011) —
      first build is minutes; `rust-toolchain.toml` may pull a newer rustc, that's
      by design (Bevy's rust-version).
    - `cargo run --bin probe` prints numbers and `PROBE OK`.
    - `cargo tree --duplicates` — one bevy, or stop and investigate.
-5. **Remote:** create the GitHub repo under **CSparks** (the account of record) and
+6. **Remote:** create the GitHub repo under **CSparks** (the account of record) and
    push main. Never point anything at depixeled-chris.
-6. **Kit adoption (offer, don't assume):** `node <kit>/scripts/init-project.mjs`
+7. **Kit adoption (offer, don't assume):** `node <kit>/scripts/init-project.mjs`
    inside the new repo wires `.ai/` + hooks if the maintainer wants the full workflow
    on this POC.
 

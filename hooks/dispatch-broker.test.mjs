@@ -56,7 +56,7 @@ const writer = { subagent_type: 'general-purpose', prompt: 'implement the ticket
   const blocked = run(live, writer);
   expect('a writer-capable dispatch is blocked while the broker lock is live', blocked.code === 2 && /broker-owned-tree|broker daemon owns/.test(blocked.err));
   expect('the block points at patch-worker and names the exclusion id', /patch-worker/.test(blocked.err) && /broker-owned-tree/.test(blocked.err));
-  expect('the patch-worker dispatches while the lock is live', run(live, { subagent_type: 'claude-kit:patch-worker', prompt: 'queue the patch' }, READ_ONLY).code === 0);
+  expect('the patch-worker dispatches while the lock is live', run(live, { subagent_type: 'claude-kit:patch-worker', prompt: 'queue the patch [paths: docs/x.md]' }, READ_ONLY).code === 0);
   expect('an opus55 writer is blocked while the lock is live', run(live, { subagent_type: 'opus55', prompt: 'implement the ticket' }).code === 2);
   expect('the block message says where a patch worker may write envelopes', /scratchpad or temp dir/.test(blocked.err));
   expect('[read-only: reason] on a writer type passes', run(live, { ...writer, prompt: `${writer.prompt} [read-only: survey only]` }, READ_ONLY).code === 0);
@@ -64,7 +64,7 @@ const writer = { subagent_type: 'general-purpose', prompt: 'implement the ticket
   expect('an empty escape token does not', run(live, { ...writer, prompt: `${writer.prompt} [maintainer-asked-parallel: ]` }).code === 2);
 
   writeFileSync(join(live, '.ai', 'agents.jsonl'), `${JSON.stringify({ ts: new Date().toISOString(), id: 'agent-w', status: 'in-flight', task: 'edit', scope: 'general-purpose' })}\n`);
-  expect('patch-worker still dispatches beside a writer already in flight', run(live, { subagent_type: 'claude-kit:patch-worker', prompt: 'queue the patch' }, READ_ONLY).code === 0);
+  expect('patch-worker still dispatches beside a writer already in flight', run(live, { subagent_type: 'claude-kit:patch-worker', prompt: 'queue the patch [paths: docs/x.md]' }, READ_ONLY).code === 0);
 }
 
 {

@@ -12,6 +12,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { lessonsSection } from './lessons.mjs';
 
 // …/hooks/lib/frameworks.mjs → the kit root, which is where `frameworks/` lives.
 const KIT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -42,6 +43,7 @@ export function parseFramework(text) {
     title: scalar('title') || scalar('name'),
     submodule: scalar('submodule'),
     cargo: scalar('cargo'),
+    lessons: scalar('lessons'),
     paths: list('paths'),
     body: body.trim(),
   };
@@ -108,6 +110,7 @@ export function frameworkSection(root) {
     out.push(`--- FRAMEWORK CONTRACT: ${framework.title} (BINDING here — this repo uses it) ---`);
     out.push(framework.body);
     out.push('');
+    out.push(...lessonsSection(root, framework));
   }
   return out.join('\n');
 }

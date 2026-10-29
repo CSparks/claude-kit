@@ -20,7 +20,7 @@ const slash = (p) => String(p).split(String.fromCharCode(92)).join('/');
 
 // Only a Cargo workspace whose `.ai/config.yml` declares broker repos is brokered (KIT-D096, KIT-D097);
 // any other repo (claude-kit, a Node repo) is never broker-owned, whatever a stray lock file says.
-function brokerConfig(tree) {
+export function brokerConfig(tree) {
   try {
     const cfg = readBrokerConfig(tree);
     return cfg.repos.length && hasTrackedCargo(tree) ? cfg : null;

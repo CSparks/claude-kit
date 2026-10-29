@@ -15,6 +15,7 @@ const BLOCK_START = /^(--- |!! |=== )/;
 // pass; if the text still overflows, a second pass cuts every listed block to its header.
 const DEMOTE = [
   { match: /^--- FRAMEWORK CONTRACT/, keep: 10 },
+  { match: /^--- FRAMEWORK LESSONS/, keep: 12 },
   { match: /^--- Decisions \(recent\)/i, keep: 1 },
   { match: /^--- Lineage/, keep: 0 },
   { match: /^--- Plan-of-record/, keep: 1 },

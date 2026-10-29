@@ -6,6 +6,7 @@ detect:
   paths:
     - rapid-game/rust
   cargo: rg-meshkit
+lessons: rapid-game/docs/LESSONS.md
 ---
 
 **Purpose — the fast lane.** `new-poc foo && cargo run` gives a running game with worldgen,

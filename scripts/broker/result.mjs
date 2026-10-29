@@ -19,6 +19,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
+import { recordRun } from './red-run.mjs';
 
 export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict', SUPERSEDED: 'superseded', CANCELLED: 'cancelled' };
 
@@ -100,6 +101,7 @@ export function writeResult(cfg, result) {
   const session = result.session || queuedSession(p.queue, result.id);
   const full = { finishedAt: new Date().toISOString(), ...result, ...(session ? { session } : {}), ...(killed ? { killed } : {}) };
   writeFileSync(join(p.results, `${result.id}.json`), JSON.stringify(full, null, 2));
+  recordRun(cfg, full);
   return full;
 }
 

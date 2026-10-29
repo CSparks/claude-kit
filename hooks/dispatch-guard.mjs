@@ -8,6 +8,8 @@
 //   cold-worktree-build  (KIT-T176, KIT-D074) — any worktree dispatch, any project
 //   shared-tree-dispatch (KIT-T176, KIT-D077) — a second read/write agent into a checkout that has one
 //   broker-owned-tree    (KIT-T276) — a writer-capable agent into a checkout a broker daemon owns
+//   patch-worker-discipline (KIT-T687) — worker cap, required/overlapping [paths:], train rules
+//   lessons-checked      (KIT-T690) — rendering/perf/asset/streaming work briefed without citing the framework lessons ledger
 //   ui-framework-first   (KIT-T583) — UI sizing/layout work briefed to a generic agent in a rapid-game repo
 // exit 2 = block, 0 = allow. No-ops on unadopted repos; FAIL-OPEN everywhere else.
 //
@@ -26,8 +28,10 @@ import { FOREIGN_TREE_CHECK, FOREIGN_TREE_OK, foreignEdits, foreignTreeMessage }
 import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
 import { ESCALATION_CHECK, escalationBlock } from './dispatch-escalation.mjs';
 import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loaded.mjs';
-import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage } from './dispatch-broker.mjs';
+import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage, brokerConfig } from './dispatch-broker.mjs';
+import { WORKER_CHECK, workerAdvice, workerBlock } from './dispatch-worker.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
+import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
 import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';
@@ -75,11 +79,15 @@ try {
     sharedTreeBlock(root, input, prompt),
     brokerOwnedBlock(root, input, prompt),
     foreignTreeBlock(root, input, prompt, p),
+    workerCheck(root, input, prompt, p),
+    lessonsCheck(root, input, prompt, p),
     uiCheck(root, input, prompt, p),
   ].filter(Boolean);
   if (!blocks.length) {
     const warning = agentRegistryWarning(root, input, p);
     if (warning) console.error(warning);
+    const advice = workerAdviceText(root, input, prompt, p);
+    if (advice) console.error(advice);
     process.exit(0);
   }
   console.error(blocks.join('\n'));
@@ -155,6 +163,31 @@ function unlabelledBlock(root, input, p) {
 function jobCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, JOB_CHECK, root)) return null;
   return jobBlock({ root, input, prompt, footer: excludeFooter(JOB_CHECK) });
+}
+
+// --- patch-worker-discipline (KIT-T687) ----------------------------------------------
+function workerTree(root, input) {
+  const tree = dispatchTargetRoot(root, input);
+  return { tree, cfg: brokerConfig(tree) };
+}
+
+function workerCheck(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, WORKER_CHECK, root)) return null;
+  const { tree, cfg } = workerTree(root, input);
+  const live = liveAgents(root, Date.now(), tree).filter((r) => /(?:^|:)patch-worker$/i.test(String(r.scope || '')));
+  return workerBlock({ tree, input, prompt, live, cfg, escaped: MAINTAINER_PARALLEL.test(prompt), footer: excludeFooter(WORKER_CHECK) });
+}
+
+function workerAdviceText(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, WORKER_CHECK, root)) return null;
+  const { cfg } = workerTree(root, input);
+  return workerAdvice({ input, prompt, cfg });
+}
+
+// --- lessons-checked (KIT-T690) ---------------------------------------------------------
+function lessonsCheck(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, LESSONS_CHECK, root)) return null;
+  return lessonsBlock({ root, input, prompt, footer: excludeFooter(LESSONS_CHECK) });
 }
 
 // --- ui-framework-first (KIT-T583) --------------------------------------------------

@@ -14,6 +14,7 @@
 //     coalesce_ms: 2000                            # a drain waits until the queue has been quiet this long (0 starts at once), so
 //                                                    # back-to-back submits form one train; capped at 5x this from the oldest job
 //     stall_kill_s: 600                            # wait/submit kill a daemon silent this long (default 600; 0 never kills)
+//     writer_cap: 3                                # most patch-worker agents in flight per checkout (dispatch-worker.mjs)
 //     command_timeout_multiple: 4                  # a job command is killed past this multiple of its longest passing run (command-limit.mjs)
 //     command_timeout_floor_s: 600                 # ... but never before this many seconds; 0 turns the timeout off
 //     untracked_blocks: ["crates/**/*.rs"]        # untracked paths that pause the queue; absent, derived from
@@ -77,6 +78,7 @@ export function normalizeBroker(root, broker) {
     pollMs: num(broker.poll_ms, DEFAULT_POLL_MS),
     coalesceMs: Math.max(0, num(broker.coalesce_ms, DEFAULT_COALESCE_MS)),
     stallKillS: broker.stall_kill_s == null || broker.stall_kill_s === '' ? null : num(broker.stall_kill_s, null),
+    writerCap: Math.max(1, Math.floor(num(broker.writer_cap, 3))),
     commandTimeout: { multiple: Math.max(1, num(broker.command_timeout_multiple, DEFAULT_TIMEOUT_MULTIPLE)), floorMs: Math.max(0, num(broker.command_timeout_floor_s, DEFAULT_TIMEOUT_FLOOR_S)) * MS_PER_S },
     untrackedBlocks: Array.isArray(broker.untracked_blocks) ? broker.untracked_blocks.map(String) : DEFAULT_UNTRACKED_BLOCKS.slice(),
     untrackedDerived: !Array.isArray(broker.untracked_blocks),

@@ -15,6 +15,7 @@ export const SUBMIT_USAGE = [
   '  --repo <submodule> --no-pin  push the submodule commit and leave the superproject alone',
   '  *** write-binary art/x.png   a binary file: base64 lines follow; creates or replaces the file whole',
   '  --binary <repo path>=<file>  add a binary file from disk as a write-binary section (repeatable; no stdin envelope needed)',
+  '  --diagnosed "<cause>"       after 2 red jobs in a row on a ticket, submit again only with a ticket note since the last red or this (20+ chars)',
   '  --session <id>               sessions are served in turn (default the harness session id)',
   '  wait.mjs <id> blocks on the outcome',
 ].join('\n');

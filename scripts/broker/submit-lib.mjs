@@ -16,6 +16,7 @@ import { parentWorkspaceCommand } from './lane-cargo.mjs';
 
 export const SUITE_REFUSAL = 'full suites run on the cadence; list the targets you touched (--test "cargo t -p <crate> --test <name>")';
 import { parsePins } from './pin.mjs';
+import { redRunRefusal } from './red-run.mjs';
 import { readInflight } from './preimage.mjs';
 import { staleEntries } from './admit.mjs';
 import { STATUS, listQueue, newJobId, readResult } from './result.mjs';
@@ -55,6 +56,9 @@ export function buildPatchJob(cfg, flags, text) {
   const tests = asList(flags.test).map(String);
   if (cfg.landGate === 'affected' && tests.some((c) => isSuiteShaped(c, cfg.suite))) return { error: SUITE_REFUSAL };
   if (cfg.landGate === 'affected' && flags['no-patch'] && !tests.length) return { error: SUITE_REFUSAL };
+
+  const red = redRunRefusal(cfg, flags.ticket ? String(flags.ticket) : null, flags.diagnosed);
+  if (red) return { error: red };
 
   if (flags['no-pin'] && !repo.submodule) return { error: '--no-pin applies to a job whose --repo is a submodule' };
   if (flags.pin && repo.submodule) return { error: '--pin belongs on the superproject job, not on a submodule job' };
