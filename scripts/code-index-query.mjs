@@ -3,7 +3,7 @@
 // VERIFIED against the file text held in the index (current after every refresh), so an answer
 // is exactly what grep would print: the trigram table only narrows candidate files. Flags: see QUERY_HELP in q.mjs.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { extractSymbols, langOfToken } from './code-index-extract.mjs';
 import { basename, isAbsolute, relative } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
@@ -82,11 +82,18 @@ export function parseCodeArgs(rawArgs) {
   return { text: flags.regex ? breAlternation(text) : text, flags };
 }
 
+const isAbsolutePath = (path) => isAbsolute(path) || /^[A-Za-z]:\//.test(path);
+
 // `--path D:/dev/repo/crates/x` names the same place as `--path crates/x` from inside the repo.
 function repoRelative(root, path) {
-  if (!isAbsolute(path) && !/^[A-Za-z]:\//.test(path)) return path;
+  if (!isAbsolutePath(path)) return path;
   const rel = relative(root, path).replace(/\\/g, '/');
   return rel.startsWith('..') || isAbsolute(rel) ? path : rel;
+}
+
+// An absolute `--path` outside the repo is a directory the index does not cover: scan it as `--dir` (KIT-T707).
+function outsideIndex(flags, root) {
+  return flags.dir === undefined && flags.path && isAbsolutePath(flags.path) && repoRelative(root, flags.path) === flags.path;
 }
 
 const escapeRe = (s) =>s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -440,6 +447,11 @@ async function answerRows(cmd, args, root, refresh) {
   if (flags.project !== undefined) {
     root = projectRepo(flags.project);
     refresh = refreshIndex;
+  }
+  if (outsideIndex(flags, root)) {
+    if (!existsSync(flags.path)) return [{ loc: '', text: `q --path ${flags.path}: outside the index and not found on disk` }];
+    flags.dir = flags.path;
+    flags.path = undefined;
   }
   if (flags.dir !== undefined) {
     const scanned = dirIndex(flags.dir);
