@@ -133,9 +133,36 @@ try {
   check('KIT-T701: a 40-deep env chain with a redirect blocks in under 100 ms', !!deepRedirect && Date.now() - started < 100);
   const startedDeep = Date.now();
   const deepRm = shellSourceWrite(`${'env '.repeat(40)}rm hooks/x.mjs`);
-  check('KIT-T701: a 40-deep wrapper chain with no redirect blocks as too deeply nested, in under 100 ms', !!deepRm && /nested more than 4/.test(deepRm.path) && Date.now() - startedDeep < 100);
-  check('KIT-T701: a 3-deep wrapper chain around a write still resolves the real path', shellSourceWrite('env A=1 timeout 5 rm hooks/x.mjs')?.path === 'hooks/x.mjs');
+  check('KIT-T701: a 40-deep wrapper chain with no redirect blocks in under 100 ms', deepRm?.path === 'hooks/x.mjs' && Date.now() - startedDeep < 100);
+  check('KIT-T701: a wrapper chain around a write resolves the real path', shellSourceWrite('env A=1 timeout 5 rm hooks/x.mjs')?.path === 'hooks/x.mjs');
   check('KIT-T701 negative control: a wrapper around a read-only command passes', shellSourceWrite('env A=1 timeout 5 cat hooks/x.mjs') === null);
+
+  const positionFree = [
+    ['sudo -u root sed -i', 'sudo -u root sed -i s/a/b/ hooks/a.mjs'],
+    ['env -u X tee', 'env -u X tee hooks/a.mjs'],
+    ['timeout -s KILL 5 sh -c "cat > …"', 'timeout -s KILL 5 sh -c "cat > hooks/a.mjs"'],
+    ['ssh -i key host tee', 'ssh -i k host tee hooks/a.mjs'],
+    ['sudo -u root rm', 'sudo -u root rm hooks/x.mjs'],
+    ['su root -c rm', `su root -c 'rm hooks/x.mjs'`],
+    ['del', 'del hooks\\x.mjs'],
+    ['Remove-Item', 'Remove-Item -Force hooks\\x.mjs'],
+    ['node -e unlinkSync', `node -e "require('fs').unlinkSync('hooks/x.mjs')"`],
+    ['perl -pi', `sudo -u root perl -pi -e 's/a/b/' hooks/a.mjs`],
+    ['cp under a wrapper', 'sudo -u root cp draft.mjs hooks/a.mjs'],
+    ['install', 'install -m 644 draft.mjs hooks/a.mjs'],
+  ];
+  for (const [name, command] of positionFree) check(`KIT-T701 position-free: ${name} blocks`, blocked(command), run(command).stderr.slice(0, 100));
+  const harmless = [
+    ['rm of build output', 'rm -rf target/debug/old.rs'],
+    ['rm of a scratchpad file', `rm ${join(tmpdir(), 'scratchpad', 'probe.mjs').replace(/\\/g, '/')}`],
+    ['sudo rm of a scratchpad file', `sudo -u root rm ${join(tmpdir(), 'scratchpad', 'probe.mjs').replace(/\\/g, '/')}`],
+    ['del of a data file', 'del out.json'],
+    ['a .ai store note removal', 'rm .ai/inbox/a.md'],
+    ['sed -n as a read', 'sudo -u root sed -n 1,5p hooks/a.mjs'],
+    ['grep for a write-tool word', 'grep -n touch hooks/a.mjs'],
+    ['git rm', 'git rm hooks/a.mjs'],
+  ];
+  for (const [name, command] of harmless) check(`KIT-T701 negative control: ${name} passes`, !blocked(command), run(command).stderr.slice(0, 100));
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: repo, input: 'not json', encoding: 'utf8' }).status === 0);
 } finally {
   rmSync(repo, { recursive: true, force: true });

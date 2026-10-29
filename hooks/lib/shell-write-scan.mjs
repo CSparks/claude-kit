@@ -1,14 +1,15 @@
 // Finds the hand write in a shell command (redirect, mv/rm/cp, sed -i, a PowerShell cmdlet, `node -e`,
 // a heredoc or scratch script) aimed at a path some gate protects. Callers supply the policy:
 //
-//   scanShellWrites(command, { hit, codeHit, readScript, deep }) -> null | whatever hit/codeHit returned
+//   scanShellWrites(command, { hit, codeHit, readScript }) -> null | whatever hit/codeHit returned
 //     hit(path)     judge one operand path of a writing command or redirect
 //     codeHit(code) judge inline code, a heredoc body or a scratch script that writes files
 //     readScript(p) the text of a script the command runs ('' when unreadable)
-//     deep(path)    the verdict for a command nested past MAX_WRAPPER_DEPTH shells/wrappers: it is blocked unread
 //
-// The command is scanned RAW: quoted text is never blanked, so a deny gate cannot be fooled by a parser difference.
-// Kit verbs (t, cap, rem, q, code-graph) and git never count as hand writes.
+// The raw command is scanned and a write tool counts WHEREVER its name appears as a word (`sudo -u root sed -i`,
+// `timeout -s KILL 5 sh -c "rm x"`, `ssh -i k host tee x`): no wrapper is parsed, no text is blanked, so a deny
+// gate cannot be steered by how a wrapper takes its options. The cost is an occasional false positive, lifted
+// through the exclusion surfaces. A segment led by a reader (grep, cat, git …) or a kit verb is not a write tool.
 
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -16,53 +17,48 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import { segments } from './shell-segments.mjs';
 
 const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
-const WRITING_CMD = /^(?:mv|rm|del|erase|ren|rename|rmdir|tee|touch|truncate|remove-item|move-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
-const COPY_CMD = /^(?:cp|copy|copy-item)$/i;
+const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
+const WRITING_CMD = /^(?:mv|rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|move-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
+const COPY_CMD = /^(?:cp|copy|copy-item|install)$/i;
+const IN_PLACE_TOOL = /^(?:sed|perl)$/i;
+const IN_PLACE_FLAG = /^(?:-[A-Za-z]*i[A-Za-z]*|--in-place(?:=.*)?)$/;
+const INTERPRETER = /^(?:node|python3?|py|powershell|pwsh)$/i;
+const INLINE_FLAG = /^(?:-e|--eval|-p|--print|-c|-command)$/i;
+const SCRIPT_FILE = /\.(?:m?js|cjs|py|ps1)$/i;
+const WORD = /[^\s'"`;|&()<>]+/g;
 const REDIRECT = /(?<![-=])>>?\s*(["']?)([^\s"'|;&<>)`]+)/g;
 const HEREDOC_CODE = /\b(?:node|python3?)(?:\.exe)?\s+-?\s*<<-?/i;
 const PIPED_CODE = /\|\s*(?:node|python3?|py)(?:\.exe)?(?:\s+-)?\s*(?:$|[|;&\n])/i;
-const WRAPPER = /^(?:bash|sh|zsh|dash|ksh|fish|cmd|su|sudo|wsl|ssh|eval|xargs|env|nohup|time|timeout|exec|command|pwsh|powershell)(?:\.exe)?$/i;
-const UNQUOTE = /^["']|["']$/g;
-const ASSIGNMENT = /^[A-Za-z_]\w*=/;
-const DURATION = /^\d+(?:\.\d+)?[smhd]?$/;
-const WRAPPER_FLAG = /^-|^\/[a-z]$/i;
-const MAX_WRAPPER_DEPTH = 4;
-export const DEEP_NESTING = 'a command nested more than 4 shells or wrappers deep';
 
 /** True when `code` calls a filesystem write API. */
 export const FS_WRITE = /\b(?:writeFile(?:Sync)?|appendFile(?:Sync)?|renameSync|rename|rmSync|rmdirSync|unlinkSync|copyFileSync|cpSync|createWriteStream|WriteAllText|WriteAllLines|WriteAllBytes)\b|\bopen\([^)]*['"][wax]b?['"]/;
 
-/** The command a wrapper runs: its flags, assignments, durations (and ssh's host) stripped. */
-function wrapped(leader, args) {
-  let i = 0;
-  while (i < args.length && (WRAPPER_FLAG.test(args[i]) || ASSIGNMENT.test(args[i]) || DURATION.test(args[i]))) i++;
-  if (/^ssh(?:\.exe)?$/i.test(leader)) i++;
-  return args.slice(i).join(' ');
+const nameOf = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
+
+function judgeTool(tool, rest, text, { hit, codeHit, readScript }) {
+  const operands = rest.map((r) => r.w);
+  if (WRITING_CMD.test(tool)) return operands.map(hit).find(Boolean) || null;
+  if (COPY_CMD.test(tool)) return hit(operands.filter((a) => !a.startsWith('-')).at(-1) || '');
+  if (IN_PLACE_TOOL.test(tool)) return operands.some((a) => IN_PLACE_FLAG.test(a)) ? operands.map(hit).find(Boolean) || null : null;
+  if (!INTERPRETER.test(tool)) return null;
+  const inline = rest.find((r) => INLINE_FLAG.test(r.w));
+  if (inline) return codeHit(text.slice(inline.at + inline.w.length));
+  const script = operands.find((a) => SCRIPT_FILE.test(a));
+  return script ? codeHit(readScript(script)) : null;
 }
 
 function judgeSegment(text, ctx) {
-  const { hit, codeHit, readScript } = ctx;
-  const tok = text.trim().match(/"[^"]*"|'[^']*'|\S+/g) || [];
-  if (!tok.length) return null;
-  const leader = tok[0].replace(/.*[\\/]/, '').replace(UNQUOTE, '');
-  const args = tok.slice(1).map((a) => a.replace(UNQUOTE, ''));
-  const isNode = /^node(?:\.exe)?$/i.test(leader);
-  if (isNode && args.some((a) => KIT_TOOL.test(a.replace(/.*[\\/]/, '')))) return null;
+  const words = [...text.matchAll(WORD)].map((m) => ({ w: m[0], at: m.index }));
+  if (!words.length) return null;
+  const leader = nameOf(words[0].w);
+  if (/^node$/i.test(leader) && words.some((x) => KIT_TOOL.test(x.w.replace(/.*[\\/]/, '')))) return null;
   if (KIT_TOOL.test(leader) || /^git$/i.test(leader)) return null;
 
-  for (const m of text.matchAll(REDIRECT)) { const h = hit(m[2]); if (h) return h; }
-  if (WRAPPER.test(leader)) {
-    const nested = scanShellWrites(wrapped(leader, args), ctx, ctx.depth + 1);
-    if (nested) return nested;
-  }
-  if (WRITING_CMD.test(leader)) return args.map(hit).find(Boolean) || null;
-  if (COPY_CMD.test(leader)) return hit(args.filter((a) => !a.startsWith('-')).at(-1) || '');
-  if (/^(?:sed|perl)$/i.test(leader) && args.some((a) => /^-[A-Za-z]*i/.test(a))) return args.map(hit).find(Boolean) || null;
-  if (isNode || /^(?:python3?|py|powershell|pwsh)(?:\.exe)?$/i.test(leader)) {
-    const inline = args.findIndex((a) => /^(?:-e|--eval|-p|--print|-c|-command)$/i.test(a));
-    if (inline >= 0) return codeHit(args.slice(inline + 1).join(' '));
-    const script = args.find((a) => /\.(?:m?js|cjs|py|ps1)$/i.test(a));
-    return script ? codeHit(readScript(script)) : null;
+  for (const m of text.matchAll(REDIRECT)) { const h = ctx.hit(m[2]); if (h) return h; }
+  if (READER.test(leader)) return null;
+  for (let i = 0; i < words.length; i++) {
+    const found = judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx);
+    if (found) return found;
   }
   return null;
 }
@@ -77,11 +73,10 @@ export function readTempScript(path) {
   } catch { return ''; }
 }
 
-export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript, deep = (path) => ({ path }), depth = 0 }, nesting = depth) {
-  if (nesting > MAX_WRAPPER_DEPTH) return deep(DEEP_NESTING);
+export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript }) {
   const text = String(command || '');
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return codeHit(text);
-  const ctx = { hit, codeHit, readScript, deep, depth: nesting };
+  const ctx = { hit, codeHit, readScript };
   for (const seg of segments(text)) {
     const found = judgeSegment(seg.text, ctx);
     if (found) return found;
