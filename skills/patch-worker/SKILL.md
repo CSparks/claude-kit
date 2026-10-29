@@ -48,6 +48,9 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
    prints your queue position; wait again, the job is still running). A wait the Bash tool
    kills at 120 s ends with exit 137 and no output: for a longer wait pass `--timeout 540` with
    the Bash timeout 600000, or run it in the background.
+   To follow the whole checkout instead of one id (the next landing, the full-suite result), run
+   `node <kit>/scripts/broker/watch.mjs --root <tree> --for landing|suite|any`; never `tail` or `grep`
+   `target/broker/logs` (blocked by `broker-log-gate`).
    - `stale` — per failing op: the reason (`not-found`, `ambiguous xN`, `create-exists`),
      the closest current excerpt, `HEAD`, and the commits since your base that touched the
      file. Re-read the file, fix the block, resubmit with `--revises <id>`.

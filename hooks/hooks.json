@@ -63,6 +63,10 @@
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" wait-poll.mjs" }]
       },
       {
+        "matcher": "Bash|PowerShell|Monitor",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" broker-log-gate.mjs" }]
+      },
+      {
         "matcher": "AskUserQuestion|request_user_input",
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" question-gate.mjs" },
@@ -134,7 +138,8 @@
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" orient.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" housekeeping.mjs" },
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" review-lapse.mjs" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" review-lapse.mjs" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" orphan-reaper.mjs" }
         ]
       }
     ],
@@ -159,6 +164,7 @@
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" code-graph.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" hydrate-cache.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" land-alert.mjs" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" orphan-reaper.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" progress.mjs" }
         ]
       }
