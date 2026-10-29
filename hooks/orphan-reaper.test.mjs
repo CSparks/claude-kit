@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { HOOKS, ENV, cleanup, reporter, tmpDir } from './test-harness.mjs';
 import { homedir, tmpdir } from 'node:os';
-import { lastReapMs, orphansOf, reapOrphans, reapStampPath } from './lib/process-reaper.mjs';
+import { orphansOf, reapOrphans } from './lib/process-reaper.mjs';
+import { lastReapMs, reapStampPath } from './lib/reap-state.mjs';
 
 const { ok, done } = reporter('orphan-reaper');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -75,20 +76,32 @@ try {
       spawnSync('taskkill', ['/PID', String(grepPid), '/F'], { stdio: 'ignore' });
     }
 
-    const stampDir = tmpDir('reaper-stamp-');
-    const hookEnv = { ...ENV, CLAUDE_KIT_REAP_STAMP_DIR: stampDir };
-    const cli = spawnSync(process.execPath, [join(HOOKS, 'orphan-reaper.mjs'), '--now'], { encoding: 'utf8', env: hookEnv });
-    ok('--now prints the one-line count and exits 0', cli.status === 0 && /^orphan-reaper: ended \d+ orphaned shell watcher\(s\)/m.test(cli.stdout));
-    const start = spawnSync(process.execPath, [join(HOOKS, 'orphan-reaper.mjs')], { input: JSON.stringify({ hook_event_name: 'SessionStart' }), encoding: 'utf8', env: hookEnv });
-    ok('SessionStart with nothing to reap prints nothing', start.status === 0 && !/ended [1-9]/.test(start.stdout));
-    const stop = spawnSync(process.execPath, [join(HOOKS, 'orphan-reaper.mjs')], { input: JSON.stringify({ hook_event_name: 'Stop' }), encoding: 'utf8', env: hookEnv });
-    ok('a Stop right after a reap is throttled and silent', stop.status === 0 && stop.stdout === '');
     live.kill();
   }
 
+  const stampDir = tmpDir('reaper-stamp-');
+  const hookEnv = { ...ENV, CLAUDE_KIT_REAP_STAMP_DIR: stampDir };
+  const stamp = join(stampDir, 'orphan-reaper.stamp');
+  const event = (name) => spawnSync(process.execPath, [join(HOOKS, 'orphan-reaper.mjs')], { input: JSON.stringify({ hook_event_name: name }), encoding: 'utf8', env: hookEnv });
+  const setStamp = (agoMs) => writeFileSync(stamp, String(Date.now() - agoMs));
+  const stampValue = () => readFileSync(stamp, 'utf8');
+
+  setStamp(1000);
+  writeFileSync(join(stampDir, 'orphan-reaper.report'), ['orphan-reaper: ended 3 orphaned shell watcher(s) (tail/grep) whose parent had exited', 'runaway-process: ended 1 runaway process tree(s) (python) left by Bash-tool shells'].join('\n'));
+  const first = event('SessionStart');
+  ok('SessionStart prints the last detached run report, one line per reaper', first.status === 0 && /ended 3 orphaned/.test(first.stdout) && /ended 1 runaway/.test(first.stdout));
+  ok('the report is printed once', event('SessionStart').stdout === '');
+
+  const before = stampValue();
+  ok('negative control: a fresh stamp throttles Stop (no new run, silent)', event('Stop').stdout === '' && stampValue() === before);
+  setStamp(2 * 60000);
+  const staleBefore = stampValue();
+  ok('a PostToolUse 2 minutes after a run is still throttled (5 minute floor)', event('PostToolUse').status === 0 && stampValue() === staleBefore);
+  ok('a SubagentStop after the floor starts a run and re-stamps', (() => { setStamp(6 * 60000); const old = stampValue(); event('SubagentStop'); return stampValue() !== old; })());
+
   const wiring = JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'));
   const wired = (event) => (wiring.hooks[event] || []).some((e) => e.hooks.some((h) => h.command.includes('orphan-reaper.mjs')));
-  ok('wired into SessionStart and Stop', wired('SessionStart') && wired('Stop'));
+  ok('wired into SessionStart, Stop, SubagentStop and PostToolUse', ['SessionStart', 'Stop', 'SubagentStop', 'PostToolUse'].every(wired));
 } finally {
   cleanup();
 }

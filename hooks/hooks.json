@@ -113,7 +113,8 @@
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" git-pull-hydrate.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" commit-stamp.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" shell-writes.mjs" },
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" progress.mjs" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" progress.mjs" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" orphan-reaper.mjs" }
         ]
       },
       {
@@ -150,7 +151,8 @@
       {
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" agent-roster.mjs" },
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" progress.mjs" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" progress.mjs" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" orphan-reaper.mjs" }
         ]
       }
     ],

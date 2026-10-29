@@ -87,3 +87,9 @@ export function pythonStdinCommand(command, { isStub = isStorePython, platform =
   }
   return null;
 }
+
+/** True when a process command line is a python that reads its program from stdin (`python -`, bare `python`). */
+export function isStdinPythonCommandLine(commandLine) {
+  const leader = pythonLeader(tokens(String(commandLine || '')));
+  return !!leader && readsStdin(leader.args);
+}
