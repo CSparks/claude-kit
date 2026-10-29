@@ -37,6 +37,19 @@ try {
   const commands = shellCommands(transcript);
   ok('shellCommands maps task ids to their commands', commands.get('bhung0001') === 'cargo nextest run --workspace -j 3 && echo done');
 
+  const movedResult = (id, task) => JSON.stringify({ message: { content: [{ type: 'tool_result', tool_use_id: id, content: [{ type: 'text', text: `Command was moved to the background (ID: ${task}) after running for 120s.` }] }] } });
+  const foreground = (id, command) => JSON.stringify({ message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command } }] } });
+  const fgResult = (id, text) => JSON.stringify({ message: { content: [{ type: 'tool_result', tool_use_id: id, content: text }] } });
+  const structured = (id, task) => JSON.stringify({ toolUseResult: { backgroundTaskId: task }, message: { content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] } });
+  const timedOut = join(base, 'timedout.jsonl');
+  writeFileSync(timedOut, [foreground('tu7', 'python - 2>/dev/null'), movedResult('tu7', 'bihj2rbyh'), foreground('tu8', 'echo done'), fgResult('tu8', 'job ID: bnotatask'), foreground('tu9', 'sleep 300'), structured('tu9', 'bstruct99')].join('\n'));
+  const moved = shellCommands(timedOut);
+  ok('shellCommands maps a call the harness moved to the background at its timeout', moved.get('bihj2rbyh') === 'python - 2>/dev/null');
+  ok('shellCommands maps toolUseResult.backgroundTaskId', moved.get('bstruct99') === 'sleep 300');
+  ok('negative: a foreground call whose output mentions an ID is not a background task', !moved.has('bnotatask'));
+  shell('bihj2rbyh', 'spinning\n', 5000);
+  ok('an orphan older than two days is still listed', orphanShells({ project: projectSlug(top), ids: ['bihj2rbyh'], commands: moved }).some((o) => o.id === 'bihj2rbyh' && o.ageMin > 4000));
+
   const all = orphanShells({ project: projectSlug(top), commands });
   ok('a shell without the exit marker is an orphan', all.some((o) => o.id === 'bhung0001'));
   ok('an exited shell and an agent output file are not', !all.some((o) => o.id === 'bdone0002' || o.id.startsWith('a')));
@@ -44,7 +57,7 @@ try {
   ok('the age is in minutes', all.find((o) => o.id === 'bhung0001').ageMin >= 89);
   ok('minAgeMin drops the fresh shell', !orphanShells({ project: projectSlug(top), minAgeMin: 30 }).some((o) => o.id === 'bfresh003'));
   ok('ids restricts to the named shells', orphanShells({ project: projectSlug(top), ids: ['bfresh003'] }).length === 1);
-  ok('orphanLines prints id, age and the command', /^ORPHAN SHELLS: bhung0001 \d+m cargo nextest run/.test(orphanLines(all)[0]));
+  ok('orphanLines prints id, age and the command', /^ORPHAN SHELLS: bhung0001 \d+m cargo nextest run/.test(orphanLines(all.filter((o) => o.id === 'bhung0001'))[0]));
   ok('a missing tasks dir yields nothing', orphanShells({ project: 'no-such-project' }).length === 0);
 
   const env = { CLAUDE_KIT_TASKS_BASE: base };

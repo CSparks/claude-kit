@@ -4,7 +4,8 @@
 // running or its owner is gone, and it sits in the maintainer's task list with a dead timer. Pure reads, fail-open.
 //
 //   orphanShells({ project, session?, ids?, minAgeMin?, commands?, now?, base? }) -> [{ id, ageMin, command }]
-//   shellCommands(transcriptPath)  -> Map<taskId, command> of the background shells a transcript started
+//   shellCommands(transcriptPath)  -> Map<taskId, command> of the background shells a transcript started,
+//                                     including a foreground call the harness moved to the background at its timeout
 //   orphanLines(list)              -> ['ORPHAN SHELLS: <id> <age> <first 80 chars of command>', ...]
 //   projectSlug(root)              -> the harness's directory name for a project root
 //
@@ -20,10 +21,10 @@ export const ORPHAN_AGE_MIN = 30;
 const SHELL_OUTPUT = /^(b[a-z0-9]{5,12})\.output$/;
 const END_MARKS = ['[exited with code', '[killed]'];
 const TAIL_BYTES = 512;
-const MAX_AGE_MIN = 2880; // older than two days is a long-dead leftover, not a live problem
 const COMMAND_CLIP = 80;
 const MS_PER_MIN = 60000;
 const TASK_ID = /\bID:\s*([a-z0-9]+)/;
+const MOVED_TO_BACKGROUND = /moved to the background \(ID:\s*([a-z0-9]+)\)/;
 
 export const projectSlug = (root) => String(root).replace(/[^A-Za-z0-9-]/g, '-');
 const baseDir = () => process.env.CLAUDE_KIT_TASKS_BASE || join(tmpdir(), 'claude');
@@ -66,7 +67,7 @@ export function orphanShells({ project, session, ids, minAgeMin = 0, commands = 
         const st = statSync(file);
         const started = Math.min(st.birthtimeMs || st.mtimeMs, st.mtimeMs);
         const ageMin = Math.floor((now - started) / MS_PER_MIN);
-        if (ageMin < minAgeMin || ageMin > MAX_AGE_MIN || exited(file)) continue;
+        if (ageMin < minAgeMin || exited(file)) continue;
         out.push({ id, ageMin, command: commands.get(id) || '(command unknown)' });
       } catch { /* vanished or unreadable — skip */ }
     }
@@ -89,10 +90,12 @@ export function shellCommands(transcriptPath) {
     const content = entry?.message?.content;
     if (!Array.isArray(content)) continue;
     for (const block of content) {
-      if (block?.type === 'tool_use' && block.input?.run_in_background) byToolUse.set(block.id, String(block.input.command || ''));
+      if (block?.type === 'tool_use' && block.name === 'Bash') byToolUse.set(block.id, { command: String(block.input?.command || ''), background: !!block.input?.run_in_background });
       if (block?.type === 'tool_result' && byToolUse.has(block.tool_use_id)) {
-        const task = TASK_ID.exec(textOf(block.content))?.[1];
-        if (task) byTask.set(task, byToolUse.get(block.tool_use_id));
+        const use = byToolUse.get(block.tool_use_id);
+        const text = textOf(block.content);
+        const task = entry.toolUseResult?.backgroundTaskId || (use.background ? TASK_ID : MOVED_TO_BACKGROUND).exec(text)?.[1];
+        if (task) byTask.set(task, use.command);
       }
     }
   }

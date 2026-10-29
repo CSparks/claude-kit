@@ -21,7 +21,9 @@ import { appendOutcome, outcomeRow } from './lib/dispatch-ledger.mjs';
 import { dispatchJob, modelOverride } from './dispatch-job.mjs';
 import { outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs';
 import { subagentOrphans, orphanLines } from './orphan-shells.mjs';
+import { killOrphanTasks } from './lib/task-kill.mjs';
 
+const ORPHAN_COMMAND_CLIP = 80;
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
 const ID_CITE_RE = new RegExp(ID_CITE_SRC); // at least one ticket/decision id anywhere in the brief
 
@@ -115,12 +117,17 @@ function recordStop(root, p) {
 }
 
 // The stopped agent's background shells that never exited: printed for the orchestrator and kept
-// on the roster row so orient shows them until stopped (KIT-T455).
+// on the roster row so orient shows them until stopped (KIT-T455). Their Bash-tool shell trees are
+// ended here: the subagent is gone and cannot TaskStop them (KIT-T699).
 function reportOrphanShells(root, id, p) {
   const orphans = subagentOrphans(p, root);
   if (!orphans.length) return;
   process.stderr.write(orphanLines(orphans).join('\n') + '\n');
   updateAgent(root, id, { orphan_shells: orphans.map((o) => o.id) });
+  const killed = killOrphanTasks(orphans);
+  if (!killed.length) return;
+  process.stderr.write(killed.map((k) => `KILLED ORPHAN SHELL: ${k.id} (${k.killed.length} process(es)) ${clip(k.command, ORPHAN_COMMAND_CLIP)}`).join('\n') + '\n');
+  updateAgent(root, id, { killed_shells: killed.map((k) => k.id) });
 }
 
 function isBackground(inp) {
