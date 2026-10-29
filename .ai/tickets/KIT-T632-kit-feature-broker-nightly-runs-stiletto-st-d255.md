@@ -2,7 +2,7 @@
 id: KIT-T632
 title: kit-feature: broker nightly runs. Stiletto (ST-D255, ST-T926) now keeps two nextest profiles off the push wall that must run once a day: 'ca
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:
 labels: [kit-feature]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-22T21:05:49Z
-updated: 2026-10-22T21:05:49Z
+updated: 2026-10-29T04:07:03Z
 ---
 
 ## Description
@@ -27,5 +27,9 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 ## Plan
 1.
 
+## Notes
+Built under KIT-D110: pipeline-config.mjs (suite_schedule nightly by default, nightly_at default 02:00, nightly: command list), suite.mjs (nightlySlot/nightlyDue, lastRunAt/sinceAt state, suite then the nightly tiers, suiteLine shows the schedule). The ticket's profile-specific commands (cargo t -P render -j 1 / -P perf -j 4 / test-timings record) go in the project's nightly: list. Tests: suite-nightly.test.mjs 3 passed. Not built: a render-crate trigger and the timings record as a broker step (run it as a nightly: command).
+
 ## History
 - [2026-10-22 21:05] (created) feature — kit-feature: broker nightly runs. Stiletto (ST-D255, ST-T926) now keeps two nextest profiles off the push wall that must run once a day: 'ca
+- [2026-10-29 04:07] (status) todo → review

@@ -22,7 +22,7 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## Acceptance Criteria
 <!-- each a checkable observation; t tick checks these as they pass -->
-- [ ]
+- [ ] Orient lists a project's unpromoted kit/framework decisions (KIT-D111): scripts/decision-promotion.mjs, decision-promotion.test.mjs 3 passed
 
 ## Plan
 1.
@@ -34,3 +34,4 @@ Built kit side: frameworks/rapid-game.md names its ledger (lessons: rapid-game/d
 ## History
 - [2026-10-28 22:57] (created) bug — Process failure (cross-project, 2026-10-28): problems already litigated and solved in Stiletto (instance/entity count is a CPU cost -> merge
 - [2026-10-29 00:46] (status) todo → review
+- [2026-10-29 04:07] (comment) criterion added: Orient lists a project's unpromoted kit/framework decisions (KIT-D111): scripts/decision-promotion.mjs, decision-promotion.test.mjs 3 passed

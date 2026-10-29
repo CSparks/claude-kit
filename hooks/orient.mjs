@@ -13,6 +13,7 @@ import { formatAgentLine, unlabelledAgents, statusOnlyAgents } from './lib/agent
 import { liveAgents, liveAgentLines, terminalAgentIds } from './lib/live-agents.mjs';
 import { recentCommits, ORIENT_WINDOW_MIN } from './live-sessions.mjs';
 import { frameworkSection } from './lib/frameworks.mjs';
+import { promotionLines } from '../scripts/decision-promotion.mjs';
 import { adoptedDocTree, trunkMap } from '../scripts/doc-tree.mjs';
 import { fitOrientation } from './lib/orient-budget.mjs';
 import { orphanShells, projectSlug, excludedIds, orphanLines, ORPHAN_AGE_MIN } from './orphan-shells.mjs';
@@ -285,6 +286,7 @@ try {
 } catch {
   /* framework layer unavailable — orientation proceeds without it */
 }
+out.push(...promotionLines(root));
 try {
   if (adoptedDocTree(root)) {
     out.push('--- DOC TREE (navigate trunk → branch before searching; full index docs/TREE.md) ---');

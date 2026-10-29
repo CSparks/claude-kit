@@ -13,7 +13,9 @@
 // `isSuiteShaped(cmd, suite)` → true for a suite command (modulo -j / --no-fail-fast) or an
 //   unfiltered `cargo test`.
 
+import { join } from 'node:path';
 import { selectAffected } from './affected.mjs';
+import { dependentsOf, readLock } from './cargo-lock.mjs';
 
 const SELECTORS = new Set(['--test', '--tests', '--lib', '--bin', '--bins', '--example', '--examples', '--doc', '--bench']);
 const TAKES_VALUE = new Set(['-p', '--package', '--features', '-F', '--profile', '-j', '--jobs', '--target', '--manifest-path', '--config', '-Z', '--exclude']);
@@ -59,6 +61,23 @@ export function isSuiteShaped(cmd, suite) {
 
 const inWorkspace = (dir) => (dir ? `cd ${dir} && ` : '');
 
+// Workspace crates that depend, through the workspace's Cargo.lock, on a touched crate: their whole test run follows the touched
+// crate's mapped targets (KIT-D110). A workspace without a lock yields none.
+function dependentTests(cfg, cwd, sel) {
+  const out = [];
+  const byWorkspace = new Map();
+  for (const [name, ws] of sel.workspaces) byWorkspace.set(ws, [...(byWorkspace.get(ws) || []), name]);
+  for (const [ws, names] of byWorkspace) {
+    const lock = readLock(join(cwd, ws, 'Cargo.lock'));
+    if (!lock) continue;
+    for (const dep of dependentsOf(lock, names)) {
+      if (names.includes(dep) || sel.crates.has(dep) || !(lock.get(dep) || {}).local) continue;
+      out.push(`${inWorkspace(ws)}${cfg.affected.test} -p ${dep}`);
+    }
+  }
+  return out;
+}
+
 export function landGate(cfg, cwd, job, files) {
   if (cfg.landGate !== 'affected') return null;
   const deleted = [...files].filter(([, f]) => f.text === null).map(([p]) => p);
@@ -69,6 +88,7 @@ export function landGate(cfg, cwd, job, files) {
   const kept = given.filter((c) => !dropped.includes(c));
   if (kept.length && !cfg.affected.mandatory) return { commands: [...new Set([cfg.affected.check, ...kept])], selection: { reasons: [], dropped, explicit: true } };
   const tests = [...sel.crates].filter(([, specs]) => specs.size).map(([name, specs]) => `${inWorkspace(sel.workspaces.get(name))}${cfg.affected.test} -p ${name} ${[...specs].join(' ')}`);
-  const commands = [...new Set([cfg.affected.check, ...tests, ...kept])];
+  const dependents = cfg.affected.dependents ? dependentTests(cfg, cwd, sel) : [];
+  const commands = [...new Set([cfg.affected.check, ...tests, ...dependents, ...kept])];
   return { commands, selection: { reasons: sel.reasons, dropped } };
 }

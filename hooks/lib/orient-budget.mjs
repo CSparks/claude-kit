@@ -16,6 +16,7 @@ const BLOCK_START = /^(--- |!! |=== )/;
 const DEMOTE = [
   { match: /^--- FRAMEWORK CONTRACT/, keep: 10 },
   { match: /^--- FRAMEWORK LESSONS/, keep: 12 },
+  { match: /^--- UNPROMOTED KIT\/FRAMEWORK DECISIONS/, keep: 5 },
   { match: /^--- Decisions \(recent\)/i, keep: 1 },
   { match: /^--- Lineage/, keep: 0 },
   { match: /^--- Plan-of-record/, keep: 1 },

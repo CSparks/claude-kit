@@ -57,6 +57,7 @@ for (const key of Object.keys(process.env)) if (key.startsWith('GIT_')) delete p
 process.env.BROKER_NO_AUTOSTART ??= '1';
 process.env.BROKER_ALLOW_NON_CARGO ??= '1';
 process.env.BROKER_NO_AUTOPIN ??= '1';
+process.env.BROKER_LEGACY_DEFAULTS ??= '1';
 
 const made = new Set();
 
