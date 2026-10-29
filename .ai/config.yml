@@ -188,7 +188,7 @@ dispatch:
       family: opus
       effort: medium
       cost: "high"
-      evidence: 2026-10-21
+      evidence: 2026-10-29
       source: "Chris 2026-10-06: 'I doubt the game asset artist really fucking needs fable.'; KIT-D091; research/models-capability-2026-10-12.md (none: spatial work unresearched, kept on opus); Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
       use: "3D modeling and game-asset authoring; never fable; spatial work is unresearched, so it stays on opus"
     forensic:
