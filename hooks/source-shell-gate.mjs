@@ -22,7 +22,7 @@ try {
   if (found && adopted(root)) {
     if (!pathExcluded(root, CHECK, found.path)) {
       process.stderr.write(`
-BLOCKED: a shell command writes a source file by hand (${found.path}).
+BLOCKED: ${found.variable ? 'a script writes through a path it builds at run time, so the gate cannot tell it is no source file (name the path as a quoted literal in the scratchpad, a temp dir or .ai)' : `a shell command writes a source file by hand (${found.path})`}.
   The pre-write gate (file length, comment prose, literals, rot markers) only sees the Edit and Write tools:
     Edit   change part of an existing file
     Write  create or replace a whole file
