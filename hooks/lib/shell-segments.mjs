@@ -33,15 +33,3 @@ export const toPath = (p) => String(p).replace(/^["']|["']$/g, '').replace(/^\/(
 
 // The directory a `cd [/d] <dir>` segment moves to, or '' when the segment is not a cd.
 export const cdTarget = (seg) => { const m = seg.match(/^cd\s+(?:\/d\s+)?(\S.*)$/s); return m ? toPath(m[1].trim()) : ''; };
-
-const QUOTED_SPAN = /"[^"]*"|'[^']*'/g;
-const REDIRECT_BEFORE = /(?<![-=])>>?\s*$/;
-
-/**
- * `text` with the content of every quoted string blanked to an empty pair, so an operator or write shape that
- * only appears INSIDE a string (an `echo '{…"cat > x.mjs"…}'` payload) is not read as shell syntax. A quoted
- * span that is itself a redirect target (`> "out.mjs"`) is kept.
- */
-export function maskQuoted(text) {
-  return String(text).replace(QUOTED_SPAN, (span, offset, whole) => (REDIRECT_BEFORE.test(whole.slice(0, offset)) ? span : `${span[0]}${span[0]}`));
-}

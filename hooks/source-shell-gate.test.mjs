@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isSourcePath, shellSourceWrite } from './lib/shell-source-write.mjs';
-import { maskQuoted } from './lib/shell-segments.mjs';
+import { maskInertStrings } from './lib/shell-quotes.mjs';
 
 const HOOK = fileURLToPath(new URL('./source-shell-gate.mjs', import.meta.url));
 let fails = 0;
@@ -94,13 +94,45 @@ try {
   check('KIT-T700 negative control: writing a .ai store note after `cd <repo>` passes', outside(`cd ${into} && echo note > .ai/notes/a.md`).status === 0);
   check('KIT-T700 negative control: the same write from a non-repo directory with no cd passes', outside('cat > hooks/x.mjs <<\'EOF\'\nx\nEOF').status === 0);
   const probe = `{"tool_input":{"command":"cd /d/dev/claude-kit && cat > hooks/x.mjs <<EOF\\nx\\nEOF"}}`;
-  check('KIT-T701: a write shape inside single quotes (a hook-probe payload piped to node) passes', !blocked(`echo '${probe}' | node hook.mjs`));
-  check('KIT-T701: a write shape inside double quotes passes', !blocked('echo "cat > hooks/x.mjs" | cat'));
-  check('KIT-T701: a quoted multi-line payload with a real newline passes', !blocked(`echo '{"command":"cat > hooks/x.mjs <<EOF\nx\nEOF"}' | node hook.mjs`));
-  check('KIT-T701: a heredoc-code shape inside quotes passes', !blocked(`echo 'node - <<EOF fs.writeFileSync("hooks/a.mjs", 1)' | cat`));
-  check('KIT-T701 negative control: a real redirect after a quoted argument still blocks', blocked("echo 'hi' > hooks/x.mjs"));
-  check('KIT-T701 negative control: a quoted redirect TARGET still blocks', blocked('echo hi > "hooks/x.mjs"'));
-  check('KIT-T701: maskQuoted blanks string content and keeps a quoted redirect target', maskQuoted(`echo 'a > b.mjs' > "c.mjs"`) === `echo '' > "c.mjs"`);
+  const passes = [
+    ['single-quoted probe payload piped to node', `echo '${probe}' | node hook.mjs`],
+    ['double-quoted payload piped to cat', 'echo "cat > hooks/x.mjs" | cat'],
+    ['printf payload piped to jq', "printf '%s' 'cat > hooks/x.mjs' | jq ."],
+    ['payload piped to python with a script file', "echo 'cat > hooks/x.mjs' | python3 check.py"],
+    ['PowerShell doubled quote kept as data', "echo 'it''s > hooks/x.mjs here'"],
+  ];
+  for (const [name, command] of passes) check(`KIT-T701: ${name} passes`, !blocked(command), run(command).stderr.slice(0, 100));
+  const holes = [
+    ['bash -c with a double-quoted heredoc write', 'bash -c "cat > hooks/x.mjs <<EOF\nx\nEOF"'],
+    ['bash -c with a redirect', `bash -c 'echo hi > hooks/x.mjs'`],
+    ['sh -c fed by a pipe', `echo x | sh -c 'echo hi > hooks/x.mjs'`],
+    ['dash -c', `dash -c 'echo hi > hooks/x.mjs'`],
+    ['wsl sh -c', `wsl sh -c "echo hi > hooks/x.mjs"`],
+    ['su -c', `su -c 'echo hi > hooks/x.mjs'`],
+    ['ssh host command', `ssh host 'echo hi > hooks/x.mjs'`],
+    ['xargs sh -c', `echo x | xargs sh -c 'echo hi > hooks/x.mjs'`],
+    ['powershell -Command Set-Content', 'powershell -Command "Set-Content hooks/x.mjs hi"'],
+    ['pwsh -c', `pwsh -c "'x' | Out-File hooks/x.mjs"`],
+    ['cmd /c', 'cmd /c "echo hi > hooks\\x.mjs"'],
+    ['eval', `eval 'echo hi > hooks/x.mjs'`],
+    ['command substitution in double quotes', 'echo "$(cat > hooks/x.mjs)"'],
+    ['backticks in double quotes', 'echo "`cat > hooks/x.mjs`"'],
+    ['an escaped quote hiding a redirect', 'echo "a\\" > hooks/x.mjs #"'],
+    ['PowerShell backtick-escaped quotes', "echo `' > hooks/x.mjs `'"],
+    ['a $\'…\' string', "echo $'a\\' ; cat > hooks/x.mjs ; echo \\'b'"],
+    ['a quote inside a comment', "echo hi # ' ; cat > hooks/x.mjs ; echo '"],
+    ['a payload piped into a shell', "echo 'cat > hooks/x.mjs' | bash"],
+    ['a payload piped into node -', "echo 'require(\"fs\").writeFileSync(\"hooks/x.mjs\",1)' | node -"],
+    ['a quoted span across a newline', "echo 'a\ncat > hooks/x.mjs' | cat"],
+    ['a heredoc after an echo', "echo 'a' && cat > hooks/x.mjs <<'EOF'\nx\nEOF"],
+    ['node heredoc code naming the file inside quotes', `echo 'node - <<EOF fs.writeFileSync("hooks/a.mjs", 1)' | cat`],
+    ['a real redirect after a quoted argument', "echo 'hi' > hooks/x.mjs"],
+    ['a quoted redirect target', 'echo hi > "hooks/x.mjs"'],
+    ['a write after a doubled-quote PowerShell string', "Write-Output 'it''s'; Set-Content hooks/x.mjs hi"],
+  ];
+  for (const [name, command] of holes) check(`KIT-T701 fail-closed: ${name} blocks`, blocked(command), run(command).stderr.slice(0, 100));
+  check('KIT-T701: maskInertStrings blanks an echo payload and keeps a quoted redirect target', maskInertStrings(`echo 'a > b.mjs' | cat`) === `echo '' | cat` && maskInertStrings(`echo hi > 'c.mjs'`) === `echo hi > 'c.mjs'`);
+  check('KIT-T701: maskInertStrings returns ambiguous text unchanged', ["echo 'unbalanced", 'echo `x`', "echo hi # c '", "cat <<EOF\n'a'\nEOF"].every((t) => maskInertStrings(t) === t));
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: repo, input: 'not json', encoding: 'utf8' }).status === 0);
 } finally {
   rmSync(repo, { recursive: true, force: true });

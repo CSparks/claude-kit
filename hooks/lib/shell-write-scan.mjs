@@ -11,13 +11,16 @@
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { maskQuoted, segments } from './shell-segments.mjs';
+import { maskInertStrings } from './shell-quotes.mjs';
+import { segments } from './shell-segments.mjs';
 
 const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const WRITING_CMD = /^(?:mv|rm|del|erase|ren|rename|rmdir|tee|touch|truncate|remove-item|move-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
 const COPY_CMD = /^(?:cp|copy|copy-item)$/i;
-const REDIRECT = /(?<![-=])>>?\s*(["']?)([^\s"'|;&<>]+)/g;
+const REDIRECT = /(?<![-=])>>?\s*(["']?)([^\s"'|;&<>)`]+)/g;
 const HEREDOC_CODE = /\b(?:node|python3?)(?:\.exe)?\s+-?\s*<<-?/i;
+const PIPED_CODE = /\|\s*(?:node|python3?|py)(?:\.exe)?(?:\s+-)?\s*(?:$|[|;&\n])/i;
+const WRAPPER = /^(?:bash|sh|zsh|dash|ksh|fish|cmd|su|sudo|wsl|ssh|eval|xargs|env|nohup|time|timeout|exec|command|pwsh|powershell)(?:\.exe)?$/i;
 const UNQUOTE = /^["']|["']$/g;
 
 /** True when `code` calls a filesystem write API. */
@@ -32,7 +35,13 @@ function judgeSegment(text, { hit, codeHit, readScript }) {
   if (isNode && args.some((a) => KIT_TOOL.test(a.replace(/.*[\\/]/, '')))) return null;
   if (KIT_TOOL.test(leader) || /^git$/i.test(leader)) return null;
 
-  for (const m of maskQuoted(text).matchAll(REDIRECT)) { const h = hit(m[2]); if (h) return h; }
+  for (const m of text.matchAll(REDIRECT)) { const h = hit(m[2]); if (h) return h; }
+  if (WRAPPER.test(leader)) {
+    for (let k = 0; k < args.length; k++) {
+      const nested = scanShellWrites(args.slice(k).join(' '), { hit, codeHit, readScript });
+      if (nested) return nested;
+    }
+  }
   if (WRITING_CMD.test(leader)) return args.map(hit).find(Boolean) || null;
   if (COPY_CMD.test(leader)) return hit(args.filter((a) => !a.startsWith('-')).at(-1) || '');
   if (/^(?:sed|perl)$/i.test(leader) && args.some((a) => /^-[A-Za-z]*i/.test(a))) return args.map(hit).find(Boolean) || null;
@@ -57,8 +66,8 @@ export function readTempScript(path) {
 
 export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript }) {
   const text = String(command || '');
-  if (HEREDOC_CODE.test(maskQuoted(text))) return codeHit(text);
-  for (const seg of segments(text)) {
+  if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return codeHit(text);
+  for (const seg of segments(maskInertStrings(text))) {
     const found = judgeSegment(seg.text, { hit, codeHit, readScript });
     if (found) return found;
   }
