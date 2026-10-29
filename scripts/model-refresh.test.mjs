@@ -76,7 +76,7 @@ try {
   const apiCalls = [];
   const kit3 = noted(fixtureKit(isoDaysAgo(30)));
   await refresh({ kitRoot: kit3, now: NOW, env: { ANTHROPIC_API_KEY: 'k' }, fetchImpl: async (url, init) => { apiCalls.push([url, init && init.headers]); return { ok: true, text: async () => JSON.stringify({ data: [{ id: 'claude-opus-5-5' }] }) }; } });
-  ok('with an API key the models endpoint is used', /v1\/models/.test(apiCalls[0][0]) && apiCalls[0][1]['x-api-key'] === 'k');
+  ok('an API key in the environment is ignored: the public docs page is read and no key header is sent (KIT-D112)', /docs\.claude\.com/.test(apiCalls[0][0]) && apiCalls.every((c) => !(c[1] && c[1]['x-api-key'])));
   let failed = false;
   await refresh({ kitRoot: noted(fixtureKit(isoDaysAgo(30))), now: NOW, fetchImpl: docsFetch([]), env: {} }).catch(() => { failed = true; });
   ok('a refresh that finds no models fails instead of clearing the gate', failed);

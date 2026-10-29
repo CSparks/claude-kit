@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // model-refresh.mjs — the scheduled research refresh behind the capability-table gate (KIT-T339).
-// Fetches the current lineup (Anthropic models API when ANTHROPIC_API_KEY is set, else the docs
-// page) and the per-family price, then writes:
+// Fetches the current lineup from the public docs page (no API key, KIT-D112) and the per-family price, then writes:
 //   .ai/model-lineup.json            machine record the dispatch gate and orient read
 //   research/models-<date>.md        the dated research note
 //   .ai/decisions/<KEY>-D###-…md     a PROPOSED superseding decision, only when a family has a newer model
@@ -25,7 +24,6 @@ import { capabilityCoverage } from './capability-research.mjs';
 import { readOutcomes } from '../hooks/lib/dispatch-ledger.mjs';
 import { isMain } from './is-main.mjs';
 
-const MODELS_API = 'https://api.anthropic.com/v1/models?limit=1000';
 const DOCS_MODELS = 'https://docs.claude.com/en/docs/about-claude/models/overview';
 const DOCS_PRICING = 'https://docs.claude.com/en/docs/about-claude/pricing';
 const ID_RE = /claude-[a-z]+-\d+(?:-\d{1,2})?(?!\d)/gi;
@@ -37,11 +35,7 @@ async function fetchText(fetchImpl, url, init) {
   return res.text();
 }
 
-export async function fetchLineup({ fetchImpl = fetch, env = process.env } = {}) {
-  if (env.ANTHROPIC_API_KEY) {
-    const body = JSON.parse(await fetchText(fetchImpl, MODELS_API, { headers: { 'x-api-key': env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' } }));
-    return { source: 'api.anthropic.com/v1/models', models: [...new Set((body.data || []).map((m) => m.id))] };
-  }
+export async function fetchLineup({ fetchImpl = fetch } = {}) {
   const html = await fetchText(fetchImpl, DOCS_MODELS);
   return { source: DOCS_MODELS, models: [...new Set((html.match(ID_RE) || []).map((id) => id.toLowerCase()))] };
 }
