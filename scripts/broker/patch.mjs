@@ -68,6 +68,13 @@ function runCommands(cfg, job, cwd, hooks) {
   return out;
 }
 
+// A landing that reuses a check-only run still compiles every target under the affected gate (KIT-T677): the
+// check-only run's own commands may build only the targets they name.
+function compileCheckMissing(cfg, job, cwd, reused) {
+  if (cfg.landGate !== 'affected' || reused.commands.some((c) => c.cmd === cfg.affected.check)) return [];
+  return runCommands(cfg, { ...job, commands: [cfg.affected.check] }, cwd, { baseline: () => null });
+}
+
 export function processPatch(cfg, job, repo) {
   const base = {
     id: job.id, revises: job.revises || null, revision: job.revision || 1, repo: job.repo, ticket: job.ticket || null,
@@ -130,7 +137,7 @@ export function processPatch(cfg, job, repo) {
       runAgain: (cmd) => runDiagnosed(cfg, cmd, cwd, logPathFor(cfg, job.id, `${n}-rerun`)),
     });
     record = reused ? null : testRecord(cfg, job, hashKey([key, ...jobCommands(cfg, runJob)]));
-    const commands = reused ? reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })) : runCommands(cfg, runJob, cwd, { baseline, knownRed, record });
+    const commands = reused ? [...reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })), ...compileCheckMissing(cfg, job, cwd, reused)] : runCommands(cfg, runJob, cwd, { baseline, knownRed, record });
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
     if (green && !job.land && (job.ops || []).length) recordGreen(cfg, key, { job: job.id, commands, foreign });

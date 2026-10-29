@@ -23,6 +23,7 @@ import { takeOverJournal } from './takeover.mjs';
 import { failOnError } from './contain.mjs';
 import { lastServed, markServed, roundRobin } from './rr.mjs';
 import { pruneIncremental, pruneLine } from './incremental.mjs';
+import { batchHold } from './batch-window.mjs';
 import { idleSubtrees, subtreesFor, takeSubtrees } from './subtree.mjs';
 
 // After a suite run nothing is building: drop incremental caches past `incremental_keep_hours`.
@@ -62,11 +63,13 @@ function pendingQueue(cfg) {
 // repo is kept), jobs for clean repos run. A job that needs a submodule's tree while the other lane holds it
 // (subtree.mjs) waits the same way and is reported in `waiting`. Returns a summary the daemon (or a test) can log;
 // `paused` is true while any repo is held. `onResult` is an optional per-job callback.
-export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
+export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindowMs = 0 } = {}) {
   const processed = [];
   if (isPaused(cfg)) return { processed, paused: true, reason: 'manual' };
   const coalesce = coalesceWait(listQueue(cfg), coalesceMs);
   if (coalesce) return { processed, paused: false, coalescing: coalesce };
+  const hold = batchHold(cfg, listQueue(cfg), batchWindowMs);
+  if (hold) return { processed, paused: false, coalescing: hold.waitMs, holding: 'a lone job waits for a train peer' };
   for (const d of dropSuperseded(cfg)) console.error(`broker: dropped auto-pin ${d.id}, superseded by ${d.by}`);
   const held = new Map();
   const waiting = new Map();
@@ -122,7 +125,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0 } = {}) {
   if (suite && !suite.cancelled && suite.status !== 'partial') suite.pruned = pruneAfterSuite(cfg);
   // Another lane's queued job also cancels idle work, but only this lane's own queue can be drained here.
   if ((deferred.cancelled || (suite && suite.cancelled)) && listQueue(cfg).length) {
-    const next = processOnce(cfg, { onResult, fileBug, coalesceMs });
+    const next = processOnce(cfg, { onResult, fileBug, coalesceMs, batchWindowMs });
     return { ...next, processed: [...processed, ...next.processed] };
   }
   return { processed, paused: false, deferred, suite: suite || null };

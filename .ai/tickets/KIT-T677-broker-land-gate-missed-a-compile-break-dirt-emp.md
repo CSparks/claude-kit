@@ -29,6 +29,7 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## Notes
 Tests: scripts/broker/landgate-explicit.test.mjs + landgate.test.mjs + land-gate.test.mjs + suite.test.mjs 18 passed.
+Second route closed: a landing that reuses a green check-only run (green cache) skipped the gate entirely, so a scoped --test check followed by --land could land a break in an unbuilt target. patch.mjs compileCheckMissing now runs affected.check on a reused landing under land_gate: affected. landgate-reuse.test.mjs 2 passed.
 
 ## History
 - [2026-10-28 21:18] (created) bug — broker land gate missed a compile break: dirt-empire ab5a964 (j-mvsj7sn5, DE-T195) added FeatureKind variants and landed although tests/gene

@@ -2,8 +2,9 @@
 // The head of the queue takes along later jobs of the same repo, in submit order, up to
 // `batch` members, when each one:
 //   - carries operations (a test-only job measures the baseline, so it runs alone),
-//   - holds no explicit `--pin`, touches no Cargo.toml / Cargo.lock nor a submodule path (a linked
-//     job, linked.mjs, lands alone), and shares the head's --no-pin,
+//   - holds no explicit `--pin`, touches no submodule path (a linked job, linked.mjs, lands alone), and
+//     shares the head's --no-pin; a Cargo.toml / Cargo.lock edit rides like any file (its path is claimed, so
+//     two jobs over one manifest never share a train) and the build's rewritten lock lands with that member,
 //   - has no paired pin for its ticket (paired.mjs: its failures must stay suspect),
 //   - passes admission (admit.mjs) and touches no path another member or an earlier skipped
 //     job touches, so jobs over the same file keep their submit order.
@@ -23,10 +24,12 @@ import { splitLinked } from './linked.mjs';
 
 const MANIFEST = /(^|\/)Cargo\.(toml|lock)$/;
 const posix = (p) => String(p).replace(/\\/g, '/');
+/** True for a Cargo.toml / Cargo.lock path. */
+export const isManifestPath = (p) => MANIFEST.test(posix(p));
 const rawPaths = (job) => (job.ops || []).map((o) => posix(o.path));
 
-const trainable = (cfg, job, head) => (job.ops || []).length > 0 && !(job.pins || []).length
-  && !rawPaths(job).some((p) => MANIFEST.test(p)) && !!job.noPin === !!head.noPin
+export const trainable = (cfg, job, head) => (job.ops || []).length > 0 && !(job.pins || []).length
+  && !!job.noPin === !!head.noPin
   && !splitLinked(cfg, repoByName(cfg, job.repo) || {}, rawPaths(job)).subs.size;
 
 function cachedGreen(cfg, repo, head, admitted) {

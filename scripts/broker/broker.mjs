@@ -196,8 +196,9 @@ const drain = () => {
   announce(selfCheck(cfg, { heal: true }).entries, said);
   const moved = rerouteMisplaced(cfg);
   if (moved.length) console.error(`broker: moved ${moved.length} job(s) to their repo's own queue: ${moved.join(', ')}`);
-  const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`), coalesceMs: flags.once ? 0 : cfg.coalesceMs });
+  const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`), coalesceMs: flags.once ? 0 : cfg.coalesceMs, batchWindowMs: flags.once ? 0 : cfg.batchWindowMs });
   if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : pausedNote(summary));
+  else if (summary.holding) note(`broker: ${summary.holding} (up to ${Math.ceil(summary.coalescing / 1000)} s more)`);
   else if (summary.waiting && summary.waiting.length) note(`broker: waiting — ${summary.waiting.join('; ')}`);
   else lastNote = '';
   if (summary.suite) console.error(`  suite ${summary.suite.sha.slice(0, 7)} → ${summary.suite.status}${summary.suite.filed ? ' (regression filed)' : ''}${summary.suite.pruned ? `; ${summary.suite.pruned}` : ''}`);

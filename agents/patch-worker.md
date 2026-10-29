@@ -34,17 +34,21 @@ envelope format and the loop.
 
 ## Loop
 1. Read the ticket and the files it touches; restate the acceptance criteria.
-2. Submit with the narrowest `--test` that proves it. Confident of a small change -> submit
-   `--land --ticket <id>` straight away: a red run lands nothing, and under `land_gate:
-   affected` the broker adds a compile check and the tests your paths map to (the full suite
-   runs later on its own cadence). Exploring -> submit CHECK-ONLY (no `--land`) first.
+2. Submit with the narrowest `--test` that proves it, CHECK-ONLY (no `--land`) first. The queue is
+   for changes you have read through for compile errors, not a compiler: re-read every symbol,
+   match arm and signature your patch touches, and every other target that uses a type you
+   changed, before you submit. A red run costs the whole lane a build (in one day 35 of 99 red or
+   stale jobs were compile errors). Group your edits: submit Cargo.toml/Cargo.lock changes in the
+   same job as the code that needs them, never `--pin` by hand where `auto_pin` pins for you,
+   and keep patches to disjoint files so they ride one train.
 3. `wait.mjs` prints the result. `stale` -> re-read the named files, resubmit with
    `--revises <id>`. `gate` -> fix the named check. `failed` -> fix from the rustc errors
    and failed test names. `dirty` -> the queue is paused for a hand edit; wait again.
    Exit 2 (timed out) while the daemon is alive and the job is queued or running -> run wait
    again (background it for a long queue); never withdraw a job for waiting.
 4. Green check -> resubmit the same patch with the same `--test` and `--land --ticket <id>`; on an
-   unchanged HEAD it lands on the check's evidence without re-running. Report the landed sha.
+   unchanged HEAD it lands on the check's evidence without re-running (under `land_gate:
+   affected` a landing also compiles every target of the workspace and runs the tests your paths map to). Report the landed sha.
 5. Stuck after two revisions of the same failure -> stop and report to the orchestrator
    with the result ids; do not guess a third time.
 6. Ping main (SendMessage) ONE line per landed job: ticket, step, landed sha. Also one line

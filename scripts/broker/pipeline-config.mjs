@@ -14,14 +14,17 @@
 //   suite_partitions: 1          # >1: each suite run covers one rotating partition (suite-shard.mjs)
 //   runner: cargo                # cargo (default) | nextest: a job's per-target cargo tests run as one nextest run
 //   batch: 8                     # most queued disjoint jobs one build carries (train.mjs); 1 runs every job alone
+//   batch_window_s: 0            # >0: a lone trainable job waits up to this long for a peer while 2+ sessions are active (batch-window.mjs); 0 (default) off
 //   incremental_keep_hours: 24   # after a suite run, drop incremental caches unused this long (incremental.mjs); off disables
 //
-// `pipelineConfig(broker, verifyDefault)` → { landGate, affected: { check, test, match, mandatory }, suite, suiteEvery, suitePartitions, runner, batch }.
+// `pipelineConfig(broker, verifyDefault)` → { landGate, affected: { check, test, match, mandatory }, suite, suiteEvery, suitePartitions, runner, batch, batchWindowMs }.
 
 const DEFAULT_CHECK = 'cargo check --workspace --all-targets';
 const DEFAULT_TEST = 'cargo test';
 const DEFAULT_BATCH = 8;
 const KEEP_HOURS = 24;
+const DEFAULT_BATCH_WINDOW_S = 0;
+const MS_PER_S = 1000;
 const positive = (v, dflt) => (Number.isFinite(Number(v)) && v !== '' && v != null && Number(v) > 0 ? Number(v) : dflt);
 
 export function pipelineConfig(broker, verifyDefault) {
@@ -39,6 +42,7 @@ export function pipelineConfig(broker, verifyDefault) {
     runner: broker.runner === 'nextest' ? 'nextest' : 'cargo',
     incrementalKeepHours: broker.incremental_keep_hours === 'off' || broker.incremental_keep_hours === false ? null
       : Number.isFinite(Number(broker.incremental_keep_hours)) && broker.incremental_keep_hours !== '' && broker.incremental_keep_hours != null ? Number(broker.incremental_keep_hours) : KEEP_HOURS,
+    batchWindowMs: (Number.isFinite(Number(broker.batch_window_s)) && broker.batch_window_s !== '' && broker.batch_window_s != null && Number(broker.batch_window_s) >= 0 ? Number(broker.batch_window_s) : DEFAULT_BATCH_WINDOW_S) * MS_PER_S,
     batch: Number.isInteger(Number(broker.batch)) && Number(broker.batch) >= 1 ? Number(broker.batch) : DEFAULT_BATCH,
   };
 }
