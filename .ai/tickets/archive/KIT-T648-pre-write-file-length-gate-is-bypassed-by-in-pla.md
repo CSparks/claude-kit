@@ -2,7 +2,7 @@
 id: KIT-T648
 title: pre-write file-length gate is bypassed by in-place edits made with node/shell (an implementer edited rapid-game shader_kit.wgsl, 617 lines,
 type: bug
-status: review
+status: done
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-27T14:34:39Z
-updated: 2026-10-27T21:47:01Z
+updated: 2026-10-29T16:07:22Z
+fixed_commit: 98629f7
 ---
 
 ## Description
@@ -29,6 +30,8 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## Notes
 2026-10-27 New PreToolUse gate hooks/source-shell-gate.mjs (check-id source-shell-write) blocks a shell write of a source file (redirect, tee, mv/rm/cp, sed/perl -i, PowerShell cmdlets, node -e / python -c, node heredoc, temp-dir scratch script) and points at Edit/Write, so pre-write's length, comment and literal checks are not bypassed. Temp dir, target/ node_modules/ dist/ build/, data files, git and kit verbs pass; exclusion via .claude-kit-ignore.yaml source-shell-write. Engine shared with store-shell-gate (new hooks/lib/shell-write-scan.mjs; store-shell-write.mjs now a policy over it, and perl -i now also guards the store). Registered in hooks/hooks.json, documented in hooks/README.md. Tests: hooks/source-shell-gate.test.mjs 40 passed (14 blocked shapes, 18 allowed shapes incl. negative controls, scratch script, exclusion, fail-open), store-shell-gate 29, pre-write 36, compat-run 12, plugin-compat 121, python-stdin-gate 18, tree-delete-gate 12. Not covered: a command that builds the source path at runtime without a quoted source literal. A publish ships this gate to every session: an implementer's sed -i / node-written source edit is then refused, including in other projects, so expect first-day friction and tell implementers to use Edit/Write.
+### comment #2 [2026-10-29 16:07] @sonnet55
+Gate built (98629f7) but never fired for subagents: it resolved the repo from the hook cwd, which is no repo when an agent cd's inside the command. Fixed under KIT-T700 (command-cwd resolution in payload(), gitRoot follows the command's cd, gate resolves the written file's own repo).
 
 ## History
 - [2026-10-27 14:34] (created) bug — pre-write file-length gate is bypassed by in-place edits made with node/shell (an implementer edited rapid-game shader_kit.wgsl, 617 lines,
@@ -38,3 +41,5 @@ Recurred 2026-10-27 in dirt-empire DE-T183: an implementer made two more shell i
 - [2026-10-27 21:46] (comment) criterion added: A shell command that writes a source file is blocked before it runs and names Edit/Write
 - [2026-10-27 21:46] (comment) ticked: A shell command that writes a source file is blocked before it runs and names Edit/Write
 - [2026-10-27 21:47] (status) todo → review
+- [2026-10-29 16:07] (comment) @sonnet55: Gate built (98629f7) but never fired for subagents: it resolved the repo from the hook cwd, which is no repo when an age (full comment #2 in ## Notes)
+- [2026-10-29 16:07] (status) review → done

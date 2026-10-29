@@ -20,7 +20,7 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:35.580Z
-updated: 2026-10-27T22:27:24Z
+updated: 2026-10-29T16:04:35Z
 ---
 
 ## Description
@@ -71,6 +71,10 @@ wider policy than this bug needs. The patch/diff class fix covers the reported c
 Evidence: `node hooks/exclusions.test.mjs` — all pass, including the two new patch/diff
 cases and the pre-existing "a bare literal in .ts still blocks" control; the pre-fix hook
 exits 2 on the same .patch payload.
+### comment #1 [2026-10-29 15:56] @chris
+Agents write source files through shell heredocs (cat > file <<EOF, tee, sed -i, node -e writeFileSync) instead of Write/Edit. The code-quality pre-write gate (300/600-line limits, comment rules) and the commit gate's file attribution never see those files, so commits end up needing '[commit-foreign: …]' overrides. Seen 2026-10-29 in the KIT-T699 writer's commits 1c442c6 through f66903f. Per KIT-D113: a hard block on Bash/PowerShell commands that write into tracked source paths (redirects, tee, sed -i, Set-Content/Out-File, inline node/python writes), pointing to Write/Edit. Scratchpad, temp dirs and .ai stores stay allowed, with exclusions on the usual surfaces.
+### comment #2 [2026-10-29 16:04] @sonnet55
+Reopened by mistake on 2026-10-29: the KIT-T700 capture shared generic words and the stopword 'the' with this title and tripped the KIT-D107 collision rule (0.6 coverage). Restored to done/lapsed; the comment above is T700's text, not feedback on this ticket. Rule fixed: stopwords ignored, coverage 0.75.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -87,3 +91,7 @@ exits 2 on the same .patch payload.
 - [2026-08-16 00:20] (status) doing → review
 - [2026-08-16 00:20] (comment) *.patch/*.diff join the skipped file classes; scratchpad-wide exclusion left as a maintainer policy call; hooks/exclusions.test.mjs all pass (b040d70)
 - [2026-10-27 22:27] (status) review → done — lapsed: 14d in review, no maintainer feedback (KIT-D107)
+- [2026-10-29 15:56] (status) done → todo
+- [2026-10-29 15:56] (comment) @chris: Agents write source files through shell heredocs (cat > file <<EOF, tee, sed -i, node -e writeFileSync) instead of Write (full comment #1 in ## Notes)
+- [2026-10-29 16:04] (status) todo → done
+- [2026-10-29 16:04] (comment) @sonnet55: Reopened by mistake on 2026-10-29: the KIT-T700 capture shared generic words and the stopword 'the' with this title and  (full comment #2 in ## Notes)
