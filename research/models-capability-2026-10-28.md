@@ -30,6 +30,7 @@ Extends `models-capability-2026-10-27.md`. Grades: A = Anthropic, B = named hand
 | 12 | coordination | sonnet | Maintainer decision; not re-dated. | M (Chris 2026-10-17) |
 | 13 | plan | opus (fallback fable) | Confirmed: Opus for planning. | C, M |
 | 14 | deep | fable (explicit only) | Alias and pricing seen; no capability evidence this run. Not re-dated. | A (prior) |
+| 15 | greenfield | opus | Maintainer decision (KIT-D108, DE-D057): first pass of a new system on Opus; no capability evidence this run. | M (Chris 2026-10-28) |
 
 ## Sources
 - C: https://www.cometapi.com/claude-opus-5-5-vs-sonnet-5-5/
@@ -45,4 +46,5 @@ Extends `models-capability-2026-10-27.md`. Grades: A = Anthropic, B = named hand
 - asset: no source evidence; not re-dated.
 - coordination: maintainer decision only; not re-dated.
 - deep: no capability evidence; not re-dated.
+- greenfield: maintainer decision only (Chris 2026-10-28); not source-confirmed.
 - No proposed family changes. No unresolved aliases (fable-5-1 pricing seen, benchmarks absent).
