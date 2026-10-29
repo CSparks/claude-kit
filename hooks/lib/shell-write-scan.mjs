@@ -47,15 +47,17 @@ function judgeTool(tool, rest, text, { hit, codeHit, readScript }) {
   return script ? codeHit(readScript(script)) : null;
 }
 
-function judgeSegment(text, ctx) {
+// An ambiguous segment is a whole command whose quoting is unresolved: its first word says nothing about
+// the commands after it, so no leader exemption applies.
+function judgeSegment({ text, ambiguous }, ctx) {
   const words = [...text.matchAll(WORD)].map((m) => ({ w: m[0], at: m.index }));
   if (!words.length) return null;
   const leader = nameOf(words[0].w);
-  if (/^node$/i.test(leader) && words.some((x) => KIT_TOOL.test(x.w.replace(/.*[\\/]/, '')))) return null;
-  if (KIT_TOOL.test(leader) || /^git$/i.test(leader)) return null;
+  if (!ambiguous && /^node$/i.test(leader) && words.some((x) => KIT_TOOL.test(x.w.replace(/.*[\\/]/, '')))) return null;
+  if (!ambiguous && (KIT_TOOL.test(leader) || /^git$/i.test(leader))) return null;
 
   for (const m of text.matchAll(REDIRECT)) { const h = ctx.hit(m[2]); if (h) return h; }
-  if (READER.test(leader)) return null;
+  if (!ambiguous && READER.test(leader)) return null;
   for (let i = 0; i < words.length; i++) {
     const found = judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx);
     if (found) return found;
@@ -78,7 +80,7 @@ export function scanShellWrites(command, { hit, codeHit, readScript = readTempSc
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return codeHit(text);
   const ctx = { hit, codeHit, readScript };
   for (const seg of segments(text)) {
-    const found = judgeSegment(seg.text, ctx);
+    const found = judgeSegment(seg, ctx);
     if (found) return found;
   }
   return null;

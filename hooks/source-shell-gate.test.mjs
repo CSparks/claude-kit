@@ -196,6 +196,12 @@ try {
   for (const [name, command] of literalWrites) check(`KIT-T706 negative control: ${name} passes`, !blocked(command), run(command).stderr.slice(0, 100));
   check('KIT-T706: a variable-path write passes from a directory that is no repo', run(`node -e "require('fs').writeFileSync(p, 'x')"`, plain).status === 0);
 
+  const hiddenSed = 'grep \\" ; sed -i s/a/b/ hooks/a.mjs ; echo \\"';
+  check('KIT-T705: an escaped quote that hides sed -i behind a reader blocks', blocked(hiddenSed), run(hiddenSed).stderr.slice(0, 100));
+  check('KIT-T705: an unclosed quote ahead of a sed -i still blocks', blocked("git log --format='%s' ; echo it's ; sed -i s/a/b/ hooks/a.mjs"));
+  check('KIT-T705: a PowerShell backtick-escaped quote hiding sed -i blocks', blocked("grep `\" ; sed -i s/a/b/ hooks/a.mjs ; echo `\""));
+  check('KIT-T705 negative control: an escaped quote around harmless text passes', !blocked('echo \\"hello\\" ; ls'));
+  check('KIT-T705 negative control: a read behind an escaped quote passes', !blocked('grep \\" hooks/a.mjs ; echo \\"'));
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: repo, input: 'not json', encoding: 'utf8' }).status === 0);
 } finally {
   rmSync(repo, { recursive: true, force: true });

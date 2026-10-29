@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-29T16:52:47Z
-updated: 2026-10-29T17:04:20Z
+updated: 2026-10-29T17:05:23Z
+fixed_commit: 4e08ff1
 ---
 
 ## Description
@@ -33,3 +34,5 @@ first seen in Chris Sparks. Filed automatically (KIT-T286): every kit bug is a t
 - [2026-10-29 17:04] (comment) @claude: Tests: hooks/source-shell-gate.test.mjs 122 passed (variable-path blocks, literal scratchpad passes, no-write script pas (full comment #1 in ## Notes)
 ### comment #1 [2026-10-29 17:04] @claude
 Tests: hooks/source-shell-gate.test.mjs 122 passed (variable-path blocks, literal scratchpad passes, no-write script passes). A literal non-source repo path still passes as before; only a non-literal target fails closed.
+- [2026-10-29 17:04] (landed) 4e08ff1 implements KIT-T706: source-shell-gate blocks a script whose write target is not a literal path
+- [2026-10-29 17:05] (status) done → done
