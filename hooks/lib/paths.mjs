@@ -6,7 +6,11 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { git } from './exec.mjs';
 
-export function gitRoot(cwd = process.cwd()) {
+// A Bash/PowerShell hook sets the directory its command acts in (stdin.mjs), so the repo is the one the command touches.
+let shellCwd = null;
+export const setShellCwd = (dir) => { shellCwd = dir; };
+
+export function gitRoot(cwd = shellCwd || process.cwd()) {
   return git(['rev-parse', '--show-toplevel'], cwd).trim();
 }
 

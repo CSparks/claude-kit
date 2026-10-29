@@ -82,6 +82,16 @@ try {
   writeFileSync(join(repo, '.claude-kit-ignore.yaml'), 'source-shell-write:\n  - "gen/**"\n');
   check('the documented exclusion lifts the block', !blocked('echo x > gen/table.rs'));
   check('the exclusion is per path: other source paths still block', blocked('echo x > src/table.rs'));
+  mkdirSync(join(repo, 'hooks'), { recursive: true });
+  const into = repo.replace(/\\/g, '/');
+  const outside = (command) => run(command, plain);
+  check('KIT-T700: a heredoc into hooks/*.mjs after `cd <repo>` is blocked even when the session cwd is no repo', outside(`cd ${into} && cat > hooks/lib/x.mjs <<'EOF'\nexport const a = 1;\nEOF`).status === 2);
+  check('KIT-T700: a redirect into hooks/*.mjs is blocked', blocked('echo "export const a = 1;" > hooks/gate.mjs'));
+  check('KIT-T700: an inline node writeFileSync after `cd <repo>` is blocked from a non-repo cwd', outside(`cd ${into} && node -e "require('fs').writeFileSync('hooks/y.mjs','x')"`).status === 2);
+  check('KIT-T700: sed -i after `cd <repo>` is blocked from a non-repo cwd', outside(`cd ${into}/hooks && sed -i s/a/b/ orient.mjs`).status === 2);
+  check('KIT-T700 negative control: a scratchpad write after `cd <repo>` passes', outside(`cd ${into} && cat > ${join(tmpdir(), 'scratchpad', 'probe.mjs').replace(/\\/g, '/')} <<'EOF'\nx\nEOF`).status === 0);
+  check('KIT-T700 negative control: writing a .ai store note after `cd <repo>` passes', outside(`cd ${into} && echo note > .ai/notes/a.md`).status === 0);
+  check('KIT-T700 negative control: the same write from a non-repo directory with no cd passes', outside('cat > hooks/x.mjs <<\'EOF\'\nx\nEOF').status === 0);
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: repo, input: 'not json', encoding: 'utf8' }).status === 0);
 } finally {
   rmSync(repo, { recursive: true, force: true });

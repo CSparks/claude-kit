@@ -17,7 +17,7 @@ process.env.KIT_USER = 'chris';
 
 const { sweepLapse } = await import('./review-lapse.mjs');
 const { setStatus } = await import('./t/status.mjs');
-const { reopenOnCollision } = await import('./lapsed-reopen.mjs');
+const { reopenOnCollision, findLapsedMatches } = await import('./lapsed-reopen.mjs');
 const { lapseVerdict } = await import('./t/lapse-rule.mjs');
 const CAP = fileURLToPath(new URL('./cap.mjs', import.meta.url));
 
@@ -189,6 +189,16 @@ await test('an unrelated capture reopens nothing', async () => {
   addTicket(root, 'TST-T001', { days: 30, title: GARAGE });
   await sweepLapse(root);
   assert.deepEqual(await reopenOnCollision(root, 'add dark mode to the settings page'), []);
+});
+
+await test('a capture sharing only generic words and stopwords with a lapsed title reopens nothing (KIT-T231 vs KIT-T700)', async () => {
+  const root = makeStore();
+  const title = 'Magic-numbers pre-write gate blocks .patch files in the scratchpad';
+  addTicket(root, 'TST-T002', { days: 30, title });
+  await sweepLapse(root);
+  const capture = 'Agents write source files through shell heredocs instead of Write/Edit. The code-quality pre-write gate (300/600-line limits) and the commit gate never see those files; allow scratchpad and temp writes';
+  assert.deepEqual(await reopenOnCollision(root, capture), []);
+  assert.equal(findLapsedMatches(root, title).length, 1, 'the ticket still matches its own title');
 });
 
 await test('cap prints `reopened <id> (KIT-D107)` for a lapsed match', async () => {

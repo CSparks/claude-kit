@@ -15,11 +15,12 @@ import { readConfig } from './t-config.mjs';
 import { resolveUser } from './identity.mjs';
 
 const MIN_SHARED_TERMS = 3;
-const MIN_TITLE_COVERAGE = 0.6;
+const MIN_TITLE_COVERAGE = 0.75;
 const MAX_REOPENED = 3;
 const SKIP = new Set(['_TEMPLATE.md', 'INDEX.md']);
+const STOPWORDS = new Set('the and for with from that this into over are was not but all any can has have had its our out per via off when then than they them their there these those which while will would should could also only just very more most some such each both been being does done'.split(' '));
 
-const termsOf = (text) => new Set((String(text || '').toLowerCase().match(ALNUM_TERM) || []).filter((t) => t.length > MIN_TERM_LEN));
+const termsOf = (text) => new Set((String(text || '').toLowerCase().match(ALNUM_TERM) || []).filter((t) => t.length > MIN_TERM_LEN && !STOPWORDS.has(t)));
 
 function lapsedTickets(root) {
   const cfg = readConfig(root);
