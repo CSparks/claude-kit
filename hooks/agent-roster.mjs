@@ -23,7 +23,6 @@ import { outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs'
 import { subagentOrphans, orphanLines } from './orphan-shells.mjs';
 import { killOrphanTasks } from './lib/task-kill.mjs';
 
-const ORPHAN_COMMAND_CLIP = 80;
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
 const ID_CITE_RE = new RegExp(ID_CITE_SRC); // at least one ticket/decision id anywhere in the brief
 
@@ -126,7 +125,7 @@ function reportOrphanShells(root, id, p) {
   updateAgent(root, id, { orphan_shells: orphans.map((o) => o.id) });
   const killed = killOrphanTasks(orphans);
   if (!killed.length) return;
-  process.stderr.write(killed.map((k) => `KILLED ORPHAN SHELL: ${k.id} (${k.killed.length} process(es)) ${clip(k.command, ORPHAN_COMMAND_CLIP)}`).join('\n') + '\n');
+  process.stderr.write(killed.map((k) => `KILLED ORPHAN SHELL: ${k.id} (${k.killed.length} process(es)); its tree is ended`).join('\n') + '\n');
   updateAgent(root, id, { killed_shells: killed.map((k) => k.id) });
 }
 

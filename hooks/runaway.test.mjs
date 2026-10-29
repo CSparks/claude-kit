@@ -48,4 +48,12 @@ ok('reapRunaways ends each runaway tree, leaves first', ended.join() === '12,11,
 ok('it files one kit bug per tree and prints one line with the count', filed.length === 2 && filed.every((b) => b.project === 'claude-kit' && b.shape.startsWith('runaway-process:')) && /ended 2 runaway process tree\(s\)/.test(result.line));
 ok('negative: claude.exe (1) and the tool shell (10) are never killed', !ended.includes(1) && !ended.includes(10));
 
+const secret = proc(80, 10, 'python.exe', 'python - --token=xyz -H "Authorization: Bearer abc123" https://user:pw0rd@host.example/x', 30, 1);
+const filedSecret = [];
+await reapRunaways({ table: [...base, secret], now: NOW, kill: () => {}, fileBug: (b) => filedSecret.push(b) });
+const written = JSON.stringify(filedSecret);
+ok('a runaway with secrets in its command line files a bug', filedSecret.length === 1);
+ok('the filed bug carries neither the bearer token, the --token value nor URL credentials', !/abc123|xyz|pw0rd|Authorization|token|user:/.test(written));
+ok('the shape is built only from fixed tokens: reason and a lowercased executable name', /^runaway-process:stdin-python:[a-z0-9._-]+$/.test(filedSecret[0].shape));
+
 done();
