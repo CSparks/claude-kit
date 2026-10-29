@@ -5,11 +5,15 @@
 //
 // The split follows plain quote pairing only. Shells disagree about escapes (a backslash before a quote in
 // bash, a backtick in PowerShell, `$'…'` strings), so a line with an escape character directly before a
-// quote, a `$'` or `$"` string or a quote that never closes is ambiguous: the segments are followed by the
-// whole command as a last segment flagged `ambiguous`, which a gate judges with no leader exemption.
-// The whole command comes last so a `cd` in it cannot disturb the directory a consumer tracks.
+// quote, a `$'` or `$"` string or a quote that never closes is ambiguous: the segments are followed by one
+// segment per word of the command (the text from that word to the end), each flagged `ambiguous`. A consumer
+// that reads a segment's first word as its leader thus sees every word that could start a command, and one
+// that scans the text position-free sees the whole command first. The flagged segments come last so a `cd` in
+// them cannot disturb the directory a consumer tracks before them.
 
 const AMBIGUOUS_QUOTING = /\$['"]|[\\`]["']/;
+const CANDIDATE_WORD = /[^\s'"`;|&()<>]+/g;
+const MAX_CANDIDATE_STARTS = 2000;
 
 function split(cmd) {
   const out = [];
@@ -36,10 +40,23 @@ function split(cmd) {
   return { out, open: q !== '' };
 }
 
+/**
+ * Every position in `cmd` where a command could start when the quoting is ambiguous: the start of each
+ * word. Capped so a huge heredoc stays cheap; the whole command is always a candidate.
+ */
+export function candidateStarts(cmd) {
+  const starts = [0];
+  for (const m of cmd.matchAll(CANDIDATE_WORD)) {
+    if (starts.length >= MAX_CANDIDATE_STARTS) break;
+    if (m.index > 0) starts.push(m.index);
+  }
+  return starts;
+}
+
 export function segments(cmd) {
   const { out, open } = split(cmd);
   if (!open && !AMBIGUOUS_QUOTING.test(cmd)) return out;
-  return [...out, { text: cmd, after: 'start', ambiguous: true }];
+  return [...out, ...candidateStarts(cmd).map((at) => ({ text: cmd.slice(at), after: 'start', ambiguous: true }))];
 }
 
 // A shell path argument as a native path: quotes stripped, MSYS `/d/x` drive form turned into `d:/x`.

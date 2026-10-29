@@ -10,6 +10,7 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { treeDeleteTargets } from './lib/tree-delete.mjs';
+import { hiddenBehindQuotes } from './hidden-command-cases.mjs';
 
 const HOOK = fileURLToPath(new URL('./tree-delete-gate.mjs', import.meta.url));
 let fails = 0;
@@ -39,6 +40,7 @@ try {
   const r = run(live, 'rm -rf scripts/__pycache__');
   check('blocks an rm inside a daemon-owned checkout', r.status === 2, r.stderr);
   check('the message names broker clean and the delete patch', /broker\.mjs" clean scripts\/__pycache__/.test(r.stderr) && /\*\*\* delete/.test(r.stderr));
+  check('KIT-T705: an rm hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('rm -rf scripts/__pycache__').every((c) => run(live, c).status === 2));
   check('blocks Remove-Item too', run(live, 'Remove-Item -Recurse -Force assets\\tmp').status === 2);
   check('allows an rm of build output', run(live, 'rm -rf target/debug').status === 0);
   check('allows an rm in the temp dir', run(live, `rm -rf ${join(tmpdir(), 'scratch')}`).status === 0);

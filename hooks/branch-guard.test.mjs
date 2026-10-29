@@ -8,6 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { HOOKS, cleanup, git, hook, identify, reporter, repo, tmpDir } from './test-harness.mjs';
+import { hiddenBehindQuotes } from './hidden-command-cases.mjs';
 
 const { ok, done } = reporter('branch-guard');
 
@@ -36,6 +37,7 @@ try {
   ok('block message never steers to a worktree', !/git worktree add|isolation/i.test(msg));
 
   ok('git switch <branch> blocks', blocks('git switch feature-x'));
+  ok('KIT-T705: a branch flip hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('git checkout -b hidden-x').every((c) => blocks(c)));
   ok('git switch -c <new> blocks', blocks('git switch -c another'));
   ok('git checkout -b <new> blocks', blocks('git checkout -b brand-new'));
   ok('git checkout -B <new> blocks', blocks('git checkout -B brand-new'));

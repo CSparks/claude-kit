@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // shell-segments.test.mjs — segments() splits a shell line on operators outside quotes (KIT-T523) and,
 // when an escape before a quote, a $'…' string or an unclosed quote leaves the quoting ambiguous, adds the
-// whole command as a last flagged segment (KIT-T705, KIT-D117).
+// flagged candidate segment from each word of the command (KIT-T705, KIT-D117).
 // Run: node hooks/shell-segments.test.mjs
 
-import { segments } from './lib/shell-segments.mjs';
+import { candidateStarts, segments } from './lib/shell-segments.mjs';
 
 let fails = 0;
 let passes = 0;
@@ -30,8 +30,13 @@ const ambiguousCases = [
 ];
 for (const [name, cmd] of ambiguousCases) {
   const segs = segments(cmd);
-  check(`KIT-T705: ${name} is ambiguous: the whole command is the last segment, flagged`, flagged(cmd).length === 1 && segs.at(-1).ambiguous === true && segs.at(-1).text === cmd);
+  const first = segs.findIndex((s) => s.ambiguous);
+  check(`KIT-T705: ${name} is ambiguous: flagged segments come last, the whole command first among them`, first > 0 && segs.slice(first).every((s) => s.ambiguous) && segs[first].text === cmd);
+  check(`KIT-T705: ${name} yields a candidate segment starting at each word`, flagged(cmd).length === candidateStarts(cmd).length && flagged(cmd).every((s, i) => s.text === cmd.slice(candidateStarts(cmd)[i])));
 }
+const hiddenPush = 'echo $\'a\\\' ; git push origin main ; \\\'\'';
+check('KIT-T705: a command hidden behind an escaped quote leads one candidate segment', texts(hiddenPush).some((t) => /^git push origin main/.test(t)));
+check('KIT-T705: a huge ambiguous command stays capped', segments(`echo \\" ${'w '.repeat(5000)}`).length < 2100);
 check('KIT-T705: the plain split is kept ahead of the flagged whole command', texts("echo hi ; grep x ; echo it's").slice(0, 3).join('|') === "echo hi|grep x|echo it's");
 
 console.log(`\n${passes} passed, ${fails} failed`);

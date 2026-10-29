@@ -8,6 +8,7 @@ import { mkdtempSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { hiddenBehindQuotes } from './hidden-command-cases.mjs';
 
 const HOOK = fileURLToPath(new URL('./query-gate.mjs', import.meta.url));
 let failures = 0;
@@ -42,6 +43,8 @@ expect('blocks find over the store', run(d, 'find .ai/tickets -name "*.md"').cod
 // BLOCK — tree-wide source discovery (JS/TS — code-graph CAN answer these).
 expect('blocks recursive grep of source', run(d, 'grep -rn "PhysicsSim" src/').code, 2);
 expect('blocks bare rg (recursive by default)', run(d, 'rg PhysicsSim').code, 2);
+expect('KIT-T705: blocks a recursive grep hidden behind an escaped quote', run(d, hiddenBehindQuotes('grep -rn "PhysicsSim" src/')[0]).code, 2);
+expect("KIT-T705: blocks a recursive grep hidden behind a $'…' string", run(d, hiddenBehindQuotes('grep -rn "PhysicsSim" src/')[1]).code, 2);
 expect('blocks git grep discovery', run(d, 'git grep usePhysics').code, 2);
 expect('blocks rg with --include=*.ts (indexed ext)', run(d, 'rg --include=*.ts "useState" src/').code, 2);
 

@@ -72,11 +72,13 @@ export function pythonStdinCommand(command, { isStub = isStorePython, platform =
   let cursor = 0;
   let skipTo = 0;
   for (const segment of segments(text)) {
-    const start = text.indexOf(segment.text, cursor);
-    cursor = start + segment.text.length;
+    // An ambiguous segment is the tail of the command from one word on.
+    const start = segment.ambiguous ? text.length - segment.text.length : text.indexOf(segment.text, cursor);
+    const end = start + segment.text.length;
+    if (!segment.ambiguous) cursor = end;
     if (start < skipTo) continue;
     const heredoc = heredocAfter(text, start);
-    const own = heredoc && heredoc.at < cursor ? heredoc : null;
+    const own = heredoc && heredoc.at < end ? heredoc : null;
     if (own) skipTo = own.end;
     const leader = pythonLeader(tokens(segment.text));
     if (!leader || !readsStdin(leader.args)) continue;

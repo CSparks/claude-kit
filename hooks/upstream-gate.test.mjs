@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { ENV, HOOKS, cleanup, git, hook, identify, reporter, repo } from './test-harness.mjs';
+import { hiddenBehindQuotes } from './hidden-command-cases.mjs';
 
 const { ok, done } = reporter('upstream-gate');
 const TOKEN_YES = '[upstream-policy-read: https://bevy.org/learn/contribute/policies/ai/; ai-allowed: yes]';
@@ -43,6 +44,7 @@ try {
   ok('a PR URL names the target', blocks('gh pr comment https://github.com/bevyengine/bevy/pull/26045 -b hi'));
   ok('GH_REPO env prefix names the target', blocks('GH_REPO=bevyengine/bevy gh pr create --title t'));
   ok('no -R: the upstream remote of the fork is the target', blocks('gh pr create --title t --body b'));
+  ok('KIT-T705: a foreign submission hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('gh pr create --repo bevyengine/bevy --title t').every((c) => blocks(c)));
   ok('chained segment blocks', blocks('git status && gh pr create --repo bevyengine/bevy --title t'));
 
   ok('token with ai-allowed: yes clears', !blocks(`gh pr create --repo bevyengine/bevy --title t  # ${TOKEN_YES}`));

@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { shellStoreWrite } from './lib/store-shell-write.mjs';
+import { hiddenBehindQuotes } from './hidden-command-cases.mjs';
 
 const HOOK = fileURLToPath(new URL('./store-shell-gate.mjs', import.meta.url));
 let fails = 0;
@@ -43,6 +44,9 @@ try {
     const r = run(command);
     check(`blocks ${name}`, r.status === 2 && hint.test(r.stderr), `exit=${r.status} ${r.stderr.slice(0, 120)}`);
   }
+
+  check('KIT-T705: a store rm hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('rm .ai/decisions/X-D001-a.md').every((c) => blocked(c)));
+  check('KIT-T705: a store rm behind a reader leader and an escaped quote blocks', blocked('grep \\" ; rm .ai/decisions/X-D001-a.md ; echo \\"'));
 
   const READS = [
     ['cat of a ticket', 'cat .ai/tickets/X-T001-a.md'],
