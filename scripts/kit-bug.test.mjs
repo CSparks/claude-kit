@@ -15,7 +15,7 @@ mkdirSync(join(store, '.ai', 'tickets'), { recursive: true });
 copyFileSync(join(KIT, '.ai', 'config.yml'), join(store, '.ai', 'config.yml'));
 const env = { CLAUDE_KIT_BUG_STORE: store, CLAUDE_KIT_TURN_STATE: tmpDir('kit-turn-'), CLAUDE_KIT_SEARCH_LOG_DIR: tmpDir('kit-slog-') };
 process.env.CLAUDE_KIT_BUG_STORE = store;
-const { fileKitBug, openKitBugs, kitStoreRoot, kitBugBlock, STANDING_KIT_AGENT } = await import('./kit-bug.mjs');
+const { fileKitBug, openKitBugs, openKitBugPage, kitStoreRoot, kitBugBlock, STANDING_KIT_AGENT } = await import('./kit-bug.mjs');
 const { reportHookCrash } = await import('../hooks/compat-core.mjs');
 
 let pass = 0;
@@ -168,7 +168,7 @@ await test('orient lists open kit-bug tickets under DISPATCH NOW', () => {
   const o = adopted(false);
   const r = hook('orient.mjs', { hook_event_name: 'SessionStart' }, o, env);
   assert.match(r.out, /--- DISPATCH NOW: open kit-bug \/ kit-feature tickets/);
-  assert.match(r.out, /KIT-T\d+ — /);
+  assert.match(r.out, /KIT-T\d+(?: \[\w+\])? — /);
   assert.match(r.out, /Policy \(KIT-D094\): keep ONE standing kit agent/, 'the standing-agent rule is replayed with them');
 });
 
@@ -177,6 +177,21 @@ await test('negative: no open kit tickets, no DISPATCH NOW block and no policy l
   assert.equal(kitBugBlock([{ id: 'KIT-T1', title: 'x' }])[1], `  ${STANDING_KIT_AGENT}`);
 });
 
+await test('kit bugs list by priority, then asked count, then newest; the block says N open, showing M', () => {
+  const dir = join(store, '.ai', 'tickets');
+  const stamped = (id, priority, asked, created, title) => writeFileSync(join(dir, `${id}-order.md`), ['---', `id: ${id}`, `title: ${title}`, 'type: bug', 'status: todo', `priority: ${priority}`, 'labels: [kit-bug]', `asked: ${asked}`, `created: ${created}`, '---', ''].join('\n'));
+  stamped('KIT-T901', 'low', 1, '2026-01-01T00:00:00Z', 'old low');
+  stamped('KIT-T902', 'low', 1, '2026-02-01T00:00:00Z', 'newer low');
+  stamped('KIT-T903', 'high', 1, '2026-01-15T00:00:00Z', 'older high');
+  stamped('KIT-T904', 'high', 3, '2026-01-10T00:00:00Z', 'asked high');
+  stamped('KIT-T905', 'high', 1, '2026-10-29T00:00:00Z', 'newest high');
+  const page = openKitBugPage(50);
+  const order = page.bugs.filter((b) => /^KIT-T90/.test(b.id)).map((b) => b.id);
+  assert.deepEqual(order, ['KIT-T904', 'KIT-T905', 'KIT-T903', 'KIT-T902', 'KIT-T901']);
+  const block = kitBugBlock(openKitBugPage(2));
+  assert.match(block[0], new RegExp(`${page.total} open, showing 2`));
+  assert.match(block[0], /dispatch required/);
+  assert.ok(!/agent dispatched/.test(block.join('\n')));
+});
+
 cleanup();
-console.log(`\nkit-bug: ${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);

@@ -4,7 +4,8 @@
 // kit's own store; orient lists the open ones as dispatch-now. Never throws: filing is best-effort and must not cost the caller.
 //
 //   fileKitBug({ shape, title, detail, project }) -> { id, created } | null
-//   openKitBugs(limit)                            -> [{ id, title, status }]
+//   openKitBugs(limit)                            -> [{ id, title, status, priority }] most urgent first
+//   openKitBugPage(limit)                         -> { bugs, total }
 //   kitStoreRoot()                                -> the kit repo root, or null
 //
 // The kit store is the registry project `claude-kit` (CLAUDE_KIT_BUG_STORE overrides the root;
@@ -23,6 +24,7 @@ const LABELS = { bug: 'kit-bug', feature: 'kit-feature' };
 const ANY_LABEL = /^labels:.*kit-(?:bug|feature)/m;
 const CLOSED = /^status:\s*(?:review|done|superseded)\b/m;
 const SHAPE_LINE = /^kit-bug-shape:\s*(.+)$/m;
+const PRIORITY_ORDER = ['critical', 'high', 'medium', 'low'];
 const TITLE_MAX = 140;
 const EXAMPLE_MAX = 300; // the one-line "seen again" comment only; a ticket's Description keeps the full capture
 
@@ -67,7 +69,7 @@ export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bu
       if (repeatAsk) bumpAsked(open.path, shape, readConfig(root).priorities);
       return { id: idm ? idm[1] : '', created: false };
     }
-    const description = `${full}\n\nkit-bug-shape: ${shape}\nfirst seen${where}. Filed automatically (KIT-T286): every kit bug is a ticket and an agent dispatched to fix it.`;
+    const description = `${full}\n\nkit-bug-shape: ${shape}\nfirst seen${where}. Filed automatically (KIT-T286): every kit bug is a ticket and needs an agent dispatched to fix it (filing dispatches nothing).`;
     const { id, path } = scaffoldNew(root, kind === 'feature' ? 'feature' : 'bug', String(title).slice(0, TITLE_MAX), { description });
     writeFileSync(path, readFileSync(path, 'utf8').replace(/^labels: \[\]$/m,`labels: [${LABELS[kind] || LABELS.bug}]`));
     return { id, created: true };
@@ -85,20 +87,32 @@ function bugRow(path) {
     status: (/^status:\s*(\S+)/m.exec(text) || [, ''])[1],
     id: (/^id:\s*(\S+)/m.exec(text) || [, ''])[1],
     title: (/^title:\s*(.+)$/m.exec(text) || [, ''])[1],
+    priority: (/^priority:\s*(\S+)/m.exec(text) || [, ''])[1],
+    asked: Number((/^asked:\s*(\d+)/m.exec(text) || [, 1])[1]),
+    created: Date.parse((/^created:\s*(\S+)/m.exec(text) || [, ''])[1]) || 0,
   };
 }
 
-export function openKitBugs(limit = 8) {
+const rankOf = (priority) => {
+  const rank = PRIORITY_ORDER.indexOf(priority);
+  return rank < 0 ? PRIORITY_ORDER.length : rank;
+};
+// Highest priority first, then the most-asked, then the newest: the bug that matters most is never lost in file order.
+const byUrgency = (a, b) => rankOf(a.priority) - rankOf(b.priority) || b.asked - a.asked || b.created - a.created;
+
+/** The open kit tickets with no agent yet, most urgent first: { bugs: first `limit`, total }. */
+export function openKitBugPage(limit = 8) {
   const root = kitStoreRoot();
-  if (!root) return [];
+  if (!root) return { bugs: [], total: 0 };
   const dir = join(root, '.ai', 'tickets');
   const files = statMarkdownFiles(dir, (n) => n.startsWith('_') || n === 'INDEX.md');
-  const rows = statCached(`kit-bugs-${pathKey(dir)}`, files, bugRow);
-  return rows
+  const rows = statCached(`kit-bugs-${pathKey(dir)}`, files, bugRow)
     .filter((r) => r.open && r.status !== 'doing') // a doing ticket already has an agent
-    .map(({ id, title, status }) => ({ id, title, status }))
-    .slice(0, limit);
+    .sort(byUrgency);
+  return { bugs: rows.slice(0, limit).map(({ id, title, status, priority }) => ({ id, title, status, priority })), total: rows.length };
 }
+
+export const openKitBugs = (limit = 8) => openKitBugPage(limit).bugs;
 
 const SHOWN_TITLE_MAX = 120;
 const clipTitle = (s) => (s.length > SHOWN_TITLE_MAX ? s.slice(0, SHOWN_TITLE_MAX - 1) + '…' : s);
@@ -107,12 +121,13 @@ const clipTitle = (s) => (s.length > SHOWN_TITLE_MAX ? s.slice(0, SHOWN_TITLE_MA
 export const STANDING_KIT_AGENT = 'Policy (KIT-D094): keep ONE standing kit agent (writer in the claude-kit checkout, reused warm); hand it every kit misbehaviour at once (ticket, diagnosis, fix, publish). No inline kit diagnosis by the orchestrator.';
 
 /** Orient's DISPATCH NOW block for open kit tickets: [] when none are open. */
-export function kitBugBlock(bugs = openKitBugs()) {
+export function kitBugBlock(page = openKitBugPage()) {
+  const { bugs, total = bugs.length } = Array.isArray(page) ? { bugs: page } : page;
   if (!bugs.length) return [];
   return [
-    '--- DISPATCH NOW: open kit-bug / kit-feature tickets (a kit bug or missing feature is a ticket + an agent dispatched in the claude-kit checkout, never a workaround) ---',
+    `--- DISPATCH NOW: open kit-bug / kit-feature tickets, ${total} open, showing ${bugs.length} (dispatch required: a kit bug or missing feature needs an agent in the claude-kit checkout, never a workaround; filing a ticket dispatches nothing) ---`,
     `  ${STANDING_KIT_AGENT}`,
-    ...bugs.map((b) => `  ${b.id} — ${clipTitle(b.title)}`),
+    ...bugs.map((b) => `  ${b.id}${b.priority ? ` [${b.priority}]` : ''} — ${clipTitle(b.title)}`),
     '',
   ];
 }
