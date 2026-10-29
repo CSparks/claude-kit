@@ -5,6 +5,7 @@
 //
 //   reapOrphans({ names?, list?, kill?, only? }) -> { reaped: [{ pid, name, command }], line }
 //   orphansOf(procs, names)    -> the procs among `names` whose parent is dead
+//   reapStampPath() / lastReapMs(path)  -> the per-user throttle stamp and its (future-proof) reading
 //   listProcesses(names)       -> [{ pid, ppid, name, started, command, parentDead? }]: the watchers (+ parents)
 //
 // A proc carrying `parentDead` is already decided. Otherwise a parent is dead when its pid is not in
@@ -12,6 +13,9 @@
 // `only(proc)` narrows the reap (tests).
 
 import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 export const WATCHER_NAMES = ['tail', 'grep', 'egrep', 'fgrep', 'rg'];
 const QUERY_TIMEOUT_MS = 60000;
@@ -97,4 +101,19 @@ export function reapOrphans({ names = WATCHER_NAMES, list = () => listProcesses(
   } catch { /* process table unreadable: reap nothing */ }
   const kinds = [...new Set(reaped.map((r) => r.name))].join('/');
   return { reaped, line: `orphan-reaper: ended ${reaped.length} orphaned shell watcher(s)${kinds ? ` (${kinds})` : ''} whose parent had exited` };
+}
+
+/** Per-user stamp file recording the last reap; `CLAUDE_KIT_REAP_STAMP_DIR` overrides the directory. */
+export function reapStampPath() {
+  const dir = process.env.CLAUDE_KIT_REAP_STAMP_DIR || join(process.env.CLAUDE_HOME || join(homedir(), '.claude'), 'claude-kit-state');
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  return join(dir, 'orphan-reaper.stamp');
+}
+
+/** Ms timestamp in the stamp file; 0 when absent, unreadable or dated in the future. */
+export function lastReapMs(path, now = Date.now()) {
+  try {
+    const at = Number(readFileSync(path, 'utf8')) || 0;
+    return at > now ? 0 : at;
+  } catch { return 0; }
 }

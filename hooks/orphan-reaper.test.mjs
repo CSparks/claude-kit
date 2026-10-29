@@ -6,7 +6,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { HOOKS, ENV, cleanup, reporter, tmpDir } from './test-harness.mjs';
-import { orphansOf, reapOrphans } from './lib/process-reaper.mjs';
+import { homedir, tmpdir } from 'node:os';
+import { lastReapMs, orphansOf, reapOrphans, reapStampPath } from './lib/process-reaper.mjs';
 
 const { ok, done } = reporter('orphan-reaper');
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -29,6 +30,18 @@ try {
   const r = reapOrphans({ list: () => table, kill: (pid) => killed.push(pid) });
   ok('reapOrphans kills only the orphans and counts them in one line', killed.join() === '10,12' && r.reaped.length === 2 && /ended 2 orphaned shell watcher\(s\) \(tail\)/.test(r.line));
   ok('an unreadable process table reaps nothing', reapOrphans({ list: () => { throw new Error('no ps'); } }).reaped.length === 0);
+
+  const saved = { dir: process.env.CLAUDE_KIT_REAP_STAMP_DIR, home: process.env.CLAUDE_HOME };
+  delete process.env.CLAUDE_KIT_REAP_STAMP_DIR;
+  delete process.env.CLAUDE_HOME;
+  const stampPath = reapStampPath();
+  Object.assign(process.env, Object.fromEntries(Object.entries({ CLAUDE_KIT_REAP_STAMP_DIR: saved.dir, CLAUDE_HOME: saved.home }).filter(([, v]) => v !== undefined)));
+  ok('the default stamp lives under the user home, not a shared temp dir', stampPath.startsWith(homedir()) && !stampPath.startsWith(tmpdir()));
+  const stampFile = join(tmpDir('reaper-future-'), 'stamp');
+  writeFileSync(stampFile, String(Date.now() + 3600000));
+  ok('a stamp dated in the future is ignored', lastReapMs(stampFile) === 0);
+  writeFileSync(stampFile, String(Date.now() - 1000));
+  ok('negative control: a past stamp is honoured', lastReapMs(stampFile) > 0);
 
   const hasTail = spawnSync('tail', ['--version'], { encoding: 'utf8' }).status === 0;
   if (!hasTail) {
