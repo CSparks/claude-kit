@@ -58,6 +58,26 @@ const allowed = [
 ];
 for (const cmd of allowed) check(`allows: ${first(cmd)}`, reason(cmd) === null, JSON.stringify(reason(cmd)));
 
+// KIT-T714: ambiguous quoting (escaped quote, `$'`) with no python invocation, or a fed python, must pass.
+const ambiguousAllowed = [
+  'grep -E "a\\"float8" notes.txt',
+  "grep -E '^$' notes.txt",
+  "python - <<'EOF'\nprint(\"a\\\"b\")\nEOF",
+  "python - <<'EOF'\nprint('it\\'s')\nEOF",
+  'node q.mjs code "python \\"stdin\\""',
+  'node cap.mjs bug "python-stdin-gate false positive: \\"x\\" python"',
+  'cat x | python3 - && echo \\"done\\"',
+  'echo \\" && python3 -c "print(1)"',
+];
+for (const cmd of ambiguousAllowed) check(`KIT-T714 allows: ${first(cmd)}`, reason(cmd) === null, JSON.stringify(reason(cmd)));
+
+const ambiguousBlocked = [
+  ['python - <<EOF\n\nEOF\necho \\"x\\"', 'empty-heredoc'],
+  ['echo \\"x\\" && python3 -', 'no-stdin'],
+  ...hiddenBehindQuotes('python3 -').map((c) => [c, 'no-stdin']),
+];
+for (const [cmd, why] of ambiguousBlocked) check(`KIT-T714 still blocks (${why}): ${first(cmd)}`, reason(cmd) === why, JSON.stringify(reason(cmd)));
+
 check('negative control: the empty-heredoc shape passes off Windows', reason(EMPTY_FALLBACK, { isStub: () => false, platform: 'linux' }) === null);
 check('the Microsoft Store stub still blocks a non-empty heredoc', reason("python3 - <<'EOF'\nprint(1)\nEOF", { isStub: () => true, platform: 'win32' }) === 'store-stub');
 check('a real interpreter does not trip the stub check', reason('cat f | python3 -', win) === null);

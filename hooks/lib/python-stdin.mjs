@@ -5,18 +5,18 @@
 //
 //   pythonStdinCommand(command, { isStub?, platform? }) -> null | { name, reason }
 //     reason: 'empty-heredoc' (heredoc with no body) | 'no-stdin' (`python -` / bare python with no `<`,
-//     heredoc or pipe) | 'store-stub' (python resolves into WindowsApps) | 'ambiguous-quoting' (Windows:
-//     a python word in a line whose quoting cannot be split, so stdin cannot be judged)
+//     heredoc or pipe) | 'store-stub' (python resolves into WindowsApps)
+//     When quote pairing is ambiguous (escaped quotes, $'…'), the command is judged on its quote-blind
+//     operator pieces: only a piece that LEADS with python can block.
 //   isStorePython(name)  true when `name` resolves into the Microsoft Store WindowsApps stub
 //
 // Allowed: a non-empty heredoc, a here-string, `< file`, a pipe, and scripts, `-c`, `-m`.
 
 import { spawnSync } from 'node:child_process';
 import { heredocAfter } from './heredoc.mjs';
-import { segments } from './shell-segments.mjs';
+import { segments, blindSegments } from './shell-segments.mjs';
 
 const PYTHON = /^(?:python|pythonw|py)(?:\d+(?:\.\d+)*)?(?:\.exe)?$/i;
-const PYTHON_WORD = /\b(?:python|pythonw|py)(?:\d+(?:\.\d+)*)?(?:\.exe)?\b/i;
 const STORE_DIR = /[\\/]WindowsApps[\\/]/i;
 const WRAPPERS = new Set(['env', 'exec', 'command', 'nohup', 'time', 'sudo']);
 const DURATION = /^\d+(?:\.\d+)?[smhd]?$/;
@@ -73,8 +73,8 @@ export function pythonStdinCommand(command, { isStub = isStorePython, platform =
   const text = String(command || '');
   let cursor = 0;
   let skipTo = 0;
-  const parts = segments(text);
-  if (parts.ambiguous) return platform === 'win32' && PYTHON_WORD.test(text) ? { name: 'python', reason: 'ambiguous-quoting' } : null;
+  const quoted = segments(text);
+  const parts = quoted.ambiguous ? blindSegments(text) : quoted;
   for (const segment of parts) {
     const start = text.indexOf(segment.text, cursor);
     cursor = start + segment.text.length;
