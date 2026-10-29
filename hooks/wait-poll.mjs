@@ -8,12 +8,15 @@
 //   - a Read or cat/tail/head/Get-Content of the SAME background-task output file more than twice
 //   - a Bash command that sleeps (sleep / Start-Sleep / until…do sleep) around a check of a
 //     build or output file
+// A read of a FINISHED task output (its exit marker is present) never counts, and each subagent has its own count, not the session's.
 // Offences 1 and 2 WARN (stderr, exit 0); the 3rd and every later one BLOCKS (exit 2).
 // Check-id: wait-poll (path glob subject: the output file, or the cwd for a sleep loop).
 // No-ops on unadopted repos. Fail-open on any error.
 
 import { readTurnState, writeTurnState, payload, gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
 import { segments, toPath } from './lib/shell-segments.mjs';
+import { exited } from './orphan-shells.mjs';
+import { subagentId } from './lib/subagent-id.mjs';
 
 const CHECK_ID = 'wait-poll';
 const FREE_READS = 2;
@@ -56,6 +59,9 @@ function isSleepLoop(command) {
   return BUILD_FILE.test(rest) && CHECK_CMD.test(rest);
 }
 
+// A finished task's output cannot change: reading it again is not polling.
+const finished = (f) => { try { return exited(f); } catch { return false; } };
+
 const trunc = (s) => (s.length > 100 ? s.slice(0, 97) + '...' : s);
 
 function message(n, what) {
@@ -84,12 +90,12 @@ try {
   const marks = markerExcludedLines(command, CHECK_ID);
   if (marks.wholeFile || marks.lines.size) process.exit(0);
 
-  const slot = `waitpoll-${String(p.session_id || 'nosession').replace(/[^\w-]/g, '_')}`;
+  const slot = `waitpoll-${String(subagentId(p) || p.session_id || 'nosession').replace(/[^\w-]/g, '_')}`;
   const state = readTurnState(root, slot) || { reads: {}, offences: 0 };
   const events = [];
 
   for (const f of outputReads(p.tool_name, input)) {
-    if (pathExcluded(root, CHECK_ID, f)) continue;
+    if (pathExcluded(root, CHECK_ID, f) || finished(f)) continue;
     state.reads[f] = (state.reads[f] || 0) + 1;
     if (state.reads[f] > FREE_READS) events.push(`read #${state.reads[f]} of ${f}`);
   }

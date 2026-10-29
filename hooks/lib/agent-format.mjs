@@ -3,6 +3,7 @@
 // model prints `[model?]` — never a blank path.
 
 import { modelDisplay } from '../model-tag.mjs';
+import { ceilingFlag } from './agent-context.mjs';
 
 export const MODEL_UNKNOWN = '[model?]';
 
@@ -23,7 +24,7 @@ export function formatAgentLine(row, { nowMs = Date.now(), clipTask = (s) => s, 
   const task = clipTask(row.task || row.summary || '?');
   const status = `${row.status || 'in-flight'}${row.reason && row.status === 'killed' ? `: ${row.reason}` : ''}`;
   const wip = Array.isArray(row.wip) && row.wip.length ? `  WIP: ${row.wip.join(', ')}` : '';
-  return `${indent}${modelTag(row)} ${row.scope || '?'}  ${row.id}  ${status}${ageText(row, nowMs)}${row.background ? ' bg' : ''}  ${task}${wip}`;
+  return `${indent}${modelTag(row)} ${row.scope || '?'}  ${row.id}  ${status}${ageText(row, nowMs)}${row.background ? ' bg' : ''}  ${task}${wip}${ceilingFlag(row)}`;
 }
 
 // A DISPATCH row carries the brief's task; a row with only id/status/source is a status update

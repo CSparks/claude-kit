@@ -33,7 +33,7 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
    base64 lines of a binary file (or pass --binary assets/x.glb=<file> and no stdin); replaces the file whole
    PATCH
    )
-   node <kit>/scripts/broker/wait.mjs $id --root <tree>
+   node <kit>/scripts/broker/wait.mjs $id --root <tree> --timeout 280
    ```
    - An `edit` block applies while its SEARCH text matches exactly once. Include enough
      context lines to be unique. One `*** edit` header may carry several blocks.
@@ -43,14 +43,13 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
      `--no-fail-fast`.
    - `--repo rapid-game` targets the submodule; paths are relative to it.
 
-3. **Read the result.** `submit` itself answers a stale dry run in seconds (JSON on stdout,
-   exit 1). `wait` exits 0 for passed/landed, 1 otherwise, 2 on timeout (default 100 s; it
-   prints your queue position; wait again, the job is still running). A wait the Bash tool
-   kills at 120 s ends with exit 137 and no output: for a longer wait pass `--timeout 540` with
-   the Bash timeout 600000, or run it in the background.
-   To follow the whole checkout instead of one id (the next landing, the full-suite result), run
-   `node <kit>/scripts/broker/watch.mjs --root <tree> --for landing|suite|any`; never `tail` or `grep`
-   `target/broker/logs` (blocked by `broker-log-gate`).
+3. **Read the result.** `submit` answers in seconds when the patch fails the pre-write gate, does not apply
+   (`stale`) or does not compile (`cargo check` in the broker's own precheck tree): the result prints as JSON, exit 1,
+   and the job never takes a queue slot. Otherwise it prints the id and you wait AT MOST ONCE, in the foreground:
+   `wait.mjs <id> --root <tree> --timeout 280` (the hook adds the timeout and a Bash timeout under 5 minutes).
+   `wait` exits 0 for passed/landed, 1 otherwise, 2 when the wait ended with the job still queued or running.
+   On exit 2, or when a second wait would follow, do not wait again: write the handoff and end (see *Handing back*).
+   Never poll, loop, `tail`, `sleep`, background a wait, re-submit a job to read it, or run `watch.mjs` (KIT-D115).
    - `stale` — per failing op: the reason (`not-found`, `ambiguous xN`, `create-exists`),
      the closest current excerpt, `HEAD`, and the commits since your base that touched the
      file. Re-read the file, fix the block, resubmit with `--revises <id>`.
@@ -71,6 +70,16 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
    with the full suite on a separate cadence (docs/BROKER.md "Fast landing"). The broker
    commits exactly the patch's paths (`<title> (implements <ticket>)`), pushes, and for a
    submodule repo pins the superproject. The result carries `landed.sha`.
+
+## Handing back (KIT-D115, KIT-D116)
+
+No agent spends more than 5 minutes waiting on anything. When the one wait is spent, or your context nears
+200k tokens, write a `Handoff <your agent id>` block in the ticket Notes (`t notes <ticket> "…"`) with the
+labelled lines `Jobs:` (job ids), `State:`, `Next:` (the action on pass, fail and stale) and `Files:` (pointers).
+Then end with nothing running and report the job ids. The orchestrator watches `target/broker/finished.log`
+(one line per finished job: id, verdict, agent, ticket) and resumes you, or briefs a fresh agent from the ticket.
+A handoff in a session scratchpad does not count. A job that prints numbers and may fail by design goes in
+with `--measure`: it runs in the idle lane and never delays a landing.
 
 ## Rules
 

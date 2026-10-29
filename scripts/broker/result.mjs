@@ -3,7 +3,8 @@
 //
 // JOB   (target/broker/queue/<id>.json), written by submit.mjs:
 //   { id, repo, base, ops, files: { path: blobSha }, commands: [ "cargo t -p foo", … ], land: bool,
-//     ticket, title, revises, revision, session, submittedAt }   (session: who submitted it; rr.mjs serves sessions in turn)
+//     ticket, title, revises, revision, session, agent, measure, submittedAt }   (session: who submitted it; rr.mjs serves sessions in turn;
+//     agent: the submitting subagent (agent.mjs); measure: a measurement job (measure.mjs), kept out of listQueue)
 //   empty `commands` means the broker fills `verify_default`.
 //
 // RESULT (target/broker/results/<id>.json), written by the broker or by submit on a stale dry run:
@@ -14,14 +15,15 @@
 //     diffStat, landed: { sha, superSha }|null, dirtyEntries, message, startedAt, finishedAt,
 //     killed?: { pid, at, beatAgeS, phase }  (the watchdog killed the daemon running this job; stall.mjs),
 //     resumed?: { journal, sha }  (a restarted daemon finished a landing past its commit; resume.mjs),
-//     train?: { id, members, size, builds }, blame?: [reason], session?: the submitting session }
+//     train?: { id, members, size, builds }, blame?: [reason], session?: the submitting session, agent?: the submitting subagent }
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { recordRun } from './red-run.mjs';
+import { recordFinished } from './finished-log.mjs';
 
-export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict', SUPERSEDED: 'superseded', CANCELLED: 'cancelled' };
+export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict', SUPERSEDED: 'superseded', CANCELLED: 'cancelled', MEASURED: 'measured' };
 
 export function ensureDirs(cfg) {
   const p = brokerPaths(cfg);
@@ -41,8 +43,12 @@ export function writeJob(cfg, job) {
   return full;
 }
 
-// The queue in submission order (id carries a base36 timestamp, so lexical sort is chronological).
-export function listQueue(cfg) {
+// The landing queue in submission order (id carries a base36 timestamp, so lexical sort is chronological).
+// Measurement jobs (`measure`) are not in it: they run in the idle lane (measure.mjs) and never delay a landing.
+export const listQueue = (cfg) => listJobs(cfg).filter((job) => !job.measure);
+export const listMeasure = (cfg) => listJobs(cfg).filter((job) => job.measure);
+
+function listJobs(cfg) {
   const p = brokerPaths(cfg);
   if (!existsSync(p.queue)) return [];
   return readdirSync(p.queue)
@@ -90,18 +96,20 @@ function takeKill(cfg, id) {
   return rest;
 }
 
-// The submitting session of a job still in the queue dir, so its result can name it for stats.
-function queuedSession(queueDir, id) {
-  try { return JSON.parse(readFileSync(join(queueDir, `${id}.json`), 'utf8')).session || null; } catch { return null; }
+// A field (session, agent) of a job still in the queue dir, so its result can name its submitter.
+function queuedField(queueDir, id, field) {
+  try { return JSON.parse(readFileSync(join(queueDir, `${id}.json`), 'utf8'))[field] || null; } catch { return null; }
 }
 
 export function writeResult(cfg, result) {
   const p = ensureDirs(cfg);
   const killed = result.killed || takeKill(cfg, result.id);
-  const session = result.session || queuedSession(p.queue, result.id);
-  const full = { finishedAt: new Date().toISOString(), ...result, ...(session ? { session } : {}), ...(killed ? { killed } : {}) };
+  const session = result.session || queuedField(p.queue, result.id, 'session');
+  const agent = result.agent || queuedField(p.queue, result.id, 'agent');
+  const full = { finishedAt: new Date().toISOString(), ...result, ...(session ? { session } : {}), ...(agent ? { agent } : {}), ...(killed ? { killed } : {}) };
   writeFileSync(join(p.results, `${result.id}.json`), JSON.stringify(full, null, 2));
   recordRun(cfg, full);
+  recordFinished(cfg, full);
   return full;
 }
 

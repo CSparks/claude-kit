@@ -29,7 +29,8 @@ const MOVED_TO_BACKGROUND = /moved to the background \(ID:\s*([a-z0-9]+)\)/;
 export const projectSlug = (root) => String(root).replace(/[^A-Za-z0-9-]/g, '-');
 const baseDir = () => process.env.CLAUDE_KIT_TASKS_BASE || join(tmpdir(), 'claude');
 
-function exited(file) {
+/** True when a task output file carries its end marker: the task finished, its content can no longer change. */
+export function exited(file) {
   const size = statSync(file).size;
   const fd = openSync(file, 'r');
   try {

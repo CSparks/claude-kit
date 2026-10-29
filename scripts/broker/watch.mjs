@@ -13,10 +13,13 @@
 
 import { parseFlags, loadCfg } from './cli.mjs';
 import { eventsSince, matches } from './watch-events.mjs';
+import { subagentRefusal } from './agent.mjs';
 
 const DEFAULT_TIMEOUT_S = 100;
 const FOR = ['landing', 'suite', 'any'];
 const flags = parseFlags(process.argv.slice(2));
+const refusal = subagentRefusal('watch', flags);
+if (refusal) { console.error(`watch: ${refusal}`); process.exit(2); }
 const want = flags.for === undefined ? 'any' : String(flags.for);
 if (!FOR.includes(want)) {
   console.error(`watch: --for takes one of ${FOR.join(', ')}`);

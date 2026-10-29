@@ -22,6 +22,8 @@ import { dispatchJob, modelOverride } from './dispatch-job.mjs';
 import { outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs';
 import { subagentOrphans, orphanLines } from './orphan-shells.mjs';
 import { killOrphanTasks } from './lib/task-kill.mjs';
+import { ticketsCited } from './dispatch-context.mjs';
+import { ceilingFlag } from './lib/agent-context.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
 const ID_CITE_RE = new RegExp(ID_CITE_SRC); // at least one ticket/decision id anywhere in the brief
@@ -80,11 +82,12 @@ function recordDispatch(root, p) {
     }
     const outputFile = firstString(resp.output_file, resp.outputFile, resp.output_path, resp.outputPath, resp.transcript_path);
     const readOnly = declaredReadOnly(firstString(inp.prompt, inp.message));
+    const tickets = ticketsCited(firstString(inp.prompt, inp.message));
     const paths = workerPaths(firstString(inp.prompt, inp.message), targetRoot);
     // WHICH JOB it serves (`[job: fix]` in the brief) and what it cost where the response says (KIT-D080).
     const job = dispatchJob(root, inp);
     const override = modelOverride(firstString(inp.prompt, inp.message));
-    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(job ? { job } : {}), ...(override ? { modelOverride: override } : {}), ...outcomeFromResponse(resp), ...(readOnly ? { readOnly } : {}), ...(paths ? { paths } : {}), ...(outputFile ? { outputFile } : {}), source: 'posttooluse' });
+    recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(job ? { job } : {}), ...(override ? { modelOverride: override } : {}), ...outcomeFromResponse(resp), ...(readOnly ? { readOnly } : {}), ...(paths ? { paths } : {}), ...(tickets.length ? { tickets } : {}), ...(outputFile ? { outputFile } : {}), source: 'posttooluse' });
     // Advisory: a delegation with no ticket id is ungrounded work — warn, never block (exit 0).
     const brief = firstString(inp.description, inp.task, inp.title, inp.prompt, inp.message) || '';
     if (brief && !ID_CITE_RE.test(brief)) {
@@ -109,6 +112,9 @@ function recordStop(root, p) {
     const outcome = outcomeFromTranscript(firstString(p.agent_transcript_path, p.agentTranscriptPath));
     const rosterRow = readAgents(root).find((r) => r.id === id) || {};
     updateAgent(root, id, { status: 'done', ...(scope ? { scope } : {}), ...outcome, source: 'subagentstop' });
+    const flag = ceilingFlag({ ...rosterRow, id, ...outcome });
+    if (flag) process.stderr.write(`RETIRE ${id}:${flag}
+`);
     appendOutcome(root, outcomeRow({ id, rosterRow, stop: p, outcome }));
   } catch {
     /* fail-open */
@@ -121,7 +127,7 @@ function recordStop(root, p) {
 function reportOrphanShells(root, id, p) {
   const orphans = subagentOrphans(p, root);
   if (!orphans.length) return;
-  process.stderr.write(orphanLines(orphans).join('\n') + '\n');
+  process.stderr.write(`AGENT ${id} ENDED WITH ${orphans.length} LIVE BACKGROUND TASK(S) (KIT-D115): an agent writes its handoff and ends with nothing running.\n${orphanLines(orphans).join('\n')}\n`);
   updateAgent(root, id, { orphan_shells: orphans.map((o) => o.id) });
   const killed = killOrphanTasks(orphans);
   if (!killed.length) return;

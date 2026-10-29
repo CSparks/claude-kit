@@ -4,7 +4,8 @@
 // train.mjs), else it runs alone (patch.mjs). A repo whose live checkout holds a hand-driven writer's changes
 // (patch.mjs decides) is held: its jobs stay queued while other repos' jobs run; a job leaves the queue
 // only after its result is written, so a crash mid-job re-queues it on the next start; a thrown
-// broker error fails the job it hit (contain.mjs) and the daemon carries on.
+// broker error fails the job it hit (contain.mjs) and the daemon carries on. Measurement jobs (--measure) are not in this
+// queue: they run as idle work before the deferred re-checks and the suite (measure.mjs).
 
 import { repoByName, withLane } from './config.mjs';
 import { dirtyHold, holdDirty, pausedOnDirt } from './dirty.mjs';
@@ -26,6 +27,8 @@ import { lastServed, markServed, roundRobin } from './rr.mjs';
 import { pruneIncremental, pruneLine } from './incremental.mjs';
 import { batchHold } from './batch-window.mjs';
 import { idleSubtrees, subtreesFor, takeSubtrees } from './subtree.mjs';
+import { runMeasurements } from './measure.mjs';
+import { linkedHold } from './linked-order.mjs';
 
 // After a suite run nothing is building: drop incremental caches past `incremental_keep_hours`.
 function pruneAfterSuite(cfg) {
@@ -74,9 +77,12 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
   for (const d of dropSuperseded(cfg)) console.error(`broker: dropped auto-pin ${d.id}, superseded by ${d.by}`);
   const held = new Map();
   const waiting = new Map();
+  const holds = [];
   const order = roundRobin(pendingQueue(cfg), lastServed(cfg));
   for (const job of order) {
     if (held.has(job.repo) || waiting.has(job.repo) || !queued(cfg, job.id)) continue; // withdrawn since the listing
+    const behindPin = linkedHold(cfg, job, order);
+    if (behindPin) { holds.push(behindPin.reason); continue; }
     let train = null;
     let ran;
     let tree = null;
@@ -86,7 +92,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
       if (taken) console.error(`broker: restored ${taken.restored.length} path(s) that ${job.id} left half-applied under ${taken.home}`);
       const own = repoByName(cfg, job.repo);
       if (own && dirtyHold(cfg, own)) { held.set(job.repo, job.id); rekeyHold(cfg, job, own); continue; }
-      train = formTrain(cfg, job, roundRobin(pendingQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) });
+      train = formTrain(cfg, job, roundRobin(pendingQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) || !!linkedHold(cfg, j, order) });
       tree = takeSubtrees(cfg, subtreesFor(cfg, repoByName(cfg, job.repo) || {}, train ? train.members.map((m) => m.job) : [job]), job.id);
       if (!tree.ok) { waiting.set(job.repo, tree.reason); continue; }
       markServed(cfg, job.session);
@@ -111,7 +117,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
     processed.push(result);
   }
   if (held.size) return { processed, paused: true, pausedOn: [...held.values()][0], pausedRepos: [...held.keys()], reason: 'dirty' };
-  if (waiting.size) return { processed, paused: false, waiting: [...waiting.values()] };
+  if (waiting.size || holds.length) return { processed, paused: false, waiting: [...waiting.values(), ...holds] };
   // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired.
   const dirtyLane = idleSubtrees(cfg).find((sub) => pausedOnDirt(withLane(cfg, sub.name), sub));
   if (dirtyLane) return { processed, paused: false, deferred: null, suite: null, waiting: [`${dirtyLane.name} is paused on uncommitted changes; idle work stays off its tree`] };
@@ -119,8 +125,10 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
   if (!idle.ok) return { processed, paused: false, deferred: null, suite: null, waiting: [idle.reason] };
   let deferred;
   let suite;
+  let measured;
   try {
-    deferred = recheckDeferred(cfg, fileBug ? { fileBug } : {});
+    measured = runMeasurements(cfg);
+    deferred = measured.cancelled ? { dropped: [], filed: [], kept: [], cancelled: true } : recheckDeferred(cfg, fileBug ? { fileBug } : {});
     suite = deferred.cancelled ? null : runSuite(cfg, fileBug ? { fileBug } : {});
   } finally { idle.release(); }
   if (suite && !suite.cancelled && suite.status !== 'partial') suite.pruned = pruneAfterSuite(cfg);
@@ -129,7 +137,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
     const next = processOnce(cfg, { onResult, fileBug, coalesceMs, batchWindowMs });
     return { ...next, processed: [...processed, ...next.processed] };
   }
-  return { processed, paused: false, deferred, suite: suite || null };
+  return { processed, paused: false, deferred, suite: suite || null, measured: measured.ran };
 }
 
 // Run one job to a written result. Returns { result, pause } — pause:true leaves the job queued.

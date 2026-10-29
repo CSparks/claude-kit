@@ -16,7 +16,7 @@ import { laneCfgFor } from './lanes.mjs';
 import { join } from 'node:path';
 import { isCurrentResult } from './current.mjs';
 import { brokerPaths } from './config.mjs';
-import { listQueue, readResult, STATUS } from './result.mjs';
+import { listMeasure, listQueue, readResult, STATUS } from './result.mjs';
 import { inflightHas, readInflight } from './preimage.mjs';
 import { printResult } from './report.mjs';
 import { IDLE_EXIT_MIN, NO_BROKER_GRACE_MS, ensureBroker, noBrokerWarning, spawnBroker } from './ensure.mjs';
@@ -25,6 +25,7 @@ import { announce, selfCheck } from './health.mjs';
 import { heartbeatLine } from './heartbeat.mjs';
 import { restartIfWedged } from './stall.mjs';
 import { holdAge, holdLine, holdReport } from './hand-hold.mjs';
+import { subagentRefusal } from './agent.mjs';
 
 // A foreground Bash call with no timeout argument is killed at 120 s (exit 137, no output): the default
 // ends the wait first, with exit 2 and the queue position. A longer wait names --timeout (up to 540) and
@@ -37,6 +38,8 @@ if (!id) {
   console.error('wait: a job id is required');
   process.exit(2);
 }
+const refusal = subagentRefusal('wait', flags);
+if (refusal) { console.error(`wait: ${refusal}`); process.exit(2); }
 const { root, cfg: rootCfg } = loadCfg(flags);
 const timeoutMs = (Number(flags.timeout) || DEFAULT_TIMEOUT_S) * 1000;
 const pollMs = Number(flags.poll) || rootCfg.pollMs;
@@ -46,7 +49,7 @@ const beatMs = (flags.heartbeat === undefined ? DEFAULT_HEARTBEAT_S : Number(fla
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const resultPath = (c) => join(brokerPaths(c).results, `${id}.json`);
-const known = (c) => listQueue(c).some((j) => j.id === id) || readResult(c, id) || inflightHas(readInflight(c), id);
+const known = (c) => listQueue(c).some((j) => j.id === id) || listMeasure(c).some((j) => j.id === id) || readResult(c, id) || inflightHas(readInflight(c), id);
 if (!known(laneCfgFor(rootCfg, id))) {
   console.error(`wait: unknown job ${id}: not queued, running or resulted under ${brokerPaths(laneCfgFor(rootCfg, id)).home} (root ${root}); check the id and --root`);
   process.exit(3);

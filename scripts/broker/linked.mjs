@@ -54,12 +54,20 @@ export function linkedReader(cfg, repo, cwd, ref = 'HEAD') {
   };
 }
 
+// True when the submodule's local main has moved past the commit it is checked out at (the superproject records
+// that commit): a landing pin has not caught up, and a commit there cannot be pushed until it does.
+export function mainMovedPast(subCwd, sub) {
+  const head = revParse(subCwd, 'HEAD');
+  const main = revParse(subCwd, sub.main);
+  return !!main && main !== head && git(['merge-base', '--is-ancestor', main, head], subCwd).code !== 0;
+}
+
 // The submodule on its main branch at the commit it is checked out at, so a commit there can be
 // pushed: refused when main has moved elsewhere locally.
 function onMain(subCwd, sub) {
   const head = revParse(subCwd, 'HEAD');
   const main = revParse(subCwd, sub.main);
-  if (main && main !== head && git(['merge-base', '--is-ancestor', main, head], subCwd).code !== 0) {
+  if (mainMovedPast(subCwd, sub)) {
     return `${sub.path}: local ${sub.main} (${main.slice(0, 10)}) is not under the recorded ${head.slice(0, 10)}; a linked job lands on ${sub.main}`;
   }
   const r = git(['checkout', '-q', '-B', sub.main, head], subCwd);

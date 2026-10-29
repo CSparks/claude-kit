@@ -16,6 +16,7 @@ export const SUBMIT_USAGE = [
   '  *** write-binary art/x.png   a binary file: base64 lines follow; creates or replaces the file whole',
   '  --binary <repo path>=<file>  add a binary file from disk as a write-binary section (repeatable; no stdin envelope needed)',
   '  --diagnosed "<cause>"       after 2 red jobs in a row on a ticket, submit again only with a ticket note since the last red or this (20+ chars)',
+  '  --measure                    a measurement job (prints numbers, red by design): runs in the idle lane, never delays a landing, never lands',
   '  --session <id>               sessions are served in turn (default the harness session id)',
   '  wait.mjs <id> blocks on the outcome',
 ].join('\n');

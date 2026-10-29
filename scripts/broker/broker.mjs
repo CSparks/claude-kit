@@ -28,7 +28,7 @@ import { acquireLock, heartbeat, liveHolder, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { recoverUnderLock } from './recover.mjs';
 import { processOnce } from './queue.mjs';
-import { STATUS, ensureDirs, listQueue } from './result.mjs';
+import { STATUS, ensureDirs, listMeasure, listQueue } from './result.mjs';
 import { suiteLine } from './suite.mjs';
 import { pinRuntime, runtimeTag } from '../runtime-pin.mjs';
 import { publishedSwap } from './runtime-swap.mjs';
@@ -236,7 +236,7 @@ const tick = () => {
   const { processed, coalescing } = drain();
   const swap = publishedSwap();
   if (swap) restartFromCurrent(`runtime ${runtimeTag()} superseded by published ${swap}`);
-  if (processed.length || listQueue(cfg).length || isPaused(cfg)) lastWork = Date.now();
+  if (processed.length || listQueue(cfg).length || listMeasure(cfg).length || isPaused(cfg)) lastWork = Date.now();
   if (idleMs && Date.now() - lastWork > idleMs) stop(`idle for ${flags['idle-exit']} min, exiting`);
   setTimeout(tick, coalescing ? Math.min(pollMs, coalescing) : pollMs);
 };

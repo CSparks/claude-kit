@@ -19,11 +19,13 @@ const table = [
   shell(20, 1, 'broker-daemon-stuff-long-enough'),
   proc(30, 0, 'bash.exe', `bash -c source ${SNAP} && eval 'python3 - import-time-sleep-forever-loop'`),
   shell(40, 1, 'ls'),
+  shell(50, 1, 'node D:/kit/scripts/broker/wait.mjs j-aaa-111 --root D:/x'),
+  proc(51, 50, 'node.exe', 'node wait.mjs j-aaa-111'),
 ];
 const kills = () => { const ended = []; return { ended, kill: (pid) => ended.push(pid) }; };
 const orphan = (id, command) => ({ id, command });
 
-ok('toolShells finds snapshot-sourcing bashes and never claude.exe', toolShells(table).map((p) => p.pid).join() === '10,20,30,40');
+ok('toolShells finds snapshot-sourcing bashes and never claude.exe', toolShells(table).map((p) => p.pid).join() === '10,20,30,40,50');
 ok('descendantsOf never enters a claude process', descendantsOf(table, 0).every((p) => p.name !== 'claude.exe') && descendantsOf(table, 10).map((p) => p.pid).join() === '11,12');
 ok('hasClaudeAncestor: true under claude, false for an unparented shell', hasClaudeAncestor(table, 11) && !hasClaudeAncestor(table, 30));
 
@@ -39,6 +41,10 @@ ok('negative: the claude.exe session and the unparented shell survive', !c.ended
 
 const d = kills();
 ok('negative: a broker command is reported, not killed', killOrphanTasks([orphan('bbrk', 'node scripts/broker/broker.mjs --root x broker-daemon-stuff-long-enough')], { table, kill: d.kill }).length === 0 && d.ended.length === 0);
+const w = kills();
+const waitKill = killOrphanTasks([orphan('bwait', 'node D:/kit/scripts/broker/wait.mjs j-aaa-111 --root D:/x')], { table, kill: w.kill });
+ok('a background broker wait is ended with its tree (KIT-D115)', waitKill.length === 1 && w.ended.join() === '51,50');
+ok('negative: the daemon (broker.mjs) next to it is still not killed', !w.ended.includes(20));
 ok('negative: a command too short to match safely is skipped', killOrphanTasks([orphan('bshort', 'ls')], { table, kill: d.kill }).length === 0 && d.ended.length === 0);
 ok('negative: a command in no shell kills nothing', killOrphanTasks([orphan('bnone', 'some-other-long-command-here')], { table, kill: d.kill }).length === 0);
 ok('no orphans, no process-table read', killOrphanTasks([]).length === 0);

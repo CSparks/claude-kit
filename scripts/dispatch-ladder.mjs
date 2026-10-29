@@ -9,6 +9,7 @@
 //   capabilityFreshness(kitRoot?, nowMs?)   -> { newest, oldest, oldestJob, ageDays (of the oldest row) } | null (no dated row)
 //   freshnessWarning(kitRoot?, nowMs?)      -> string | null (OLDEST row evidence older than the refresh period)
 //   readLadder(...).refreshDays             -> the refresh period in days (config dispatch.refresh_days, default FRESHNESS_DAYS)
+//   readLadder(...).contextCeilingTokens    -> the warm-reuse context ceiling (config dispatch.context_ceiling_tokens, default CONTEXT_CEILING_TOKENS; KIT-D116)
 //   dispatchDrift(projectRoot, kitRoot?)    -> string warning | null (project config carries a `dispatch:` block)
 //   CLI: node dispatch-ladder.mjs resolve [--type <ticket type>] [--job <job>]   prints JSON
 //        node dispatch-ladder.mjs freshness                                      prints the warning or `fresh`
@@ -21,6 +22,7 @@ import { kitDataText } from './kit-data.mjs';
 
 export const KIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const FRESHNESS_DAYS = 14;
+export const CONTEXT_CEILING_TOKENS = 200000;
 // Tests point the resolver at a fixture kit; production always reads the kit checkout.
 export const ladderRoot = () => process.env.CLAUDE_KIT_LADDER_ROOT || KIT_ROOT;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -66,7 +68,8 @@ export function readLadder(kitRoot = ladderRoot()) {
   const aliases = {};
   for (const m of subBlock(body, 'aliases').matchAll(/^ {4}([\w-]+):\s*([\w.-]+)/gm)) aliases[m[1].toLowerCase()] = m[2];
   const refresh = body.match(/^ {2}refresh_days:[ \t]*(\d+)/m);
-  return { jobs, defaultJob, aliases, refreshDays: refresh ? Number(refresh[1]) : FRESHNESS_DAYS };
+  const ceiling = body.match(/^ {2}context_ceiling_tokens:[ 	]*(d+)/m);
+  return { jobs, defaultJob, aliases, refreshDays: refresh ? Number(refresh[1]) : FRESHNESS_DAYS, contextCeilingTokens: ceiling ? Number(ceiling[1]) : CONTEXT_CEILING_TOKENS };
 }
 
 export function resolveJob({ type, job } = {}, kitRoot = ladderRoot()) {

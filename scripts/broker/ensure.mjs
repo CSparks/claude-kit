@@ -7,7 +7,7 @@ import { rmSync, statSync, writeFileSync } from 'node:fs';
 import { brokerPaths, laneConfigs, withLane } from './config.mjs';
 import { liveHolder, observedLive } from './lock.mjs';
 import { ensureDirs } from './result.mjs';
-import { listQueue } from './result.mjs';
+import { listMeasure, listQueue } from './result.mjs';
 import { restartIfWedged } from './stall.mjs';
 import { launchDaemon } from './launch.mjs';
 import { dirtNotice } from './hand-hold.mjs';
@@ -41,7 +41,7 @@ export function ensureBroker(cfg, root, spawner = spawnBroker) {
  * names it started ('root' for the superproject's).
  */
 export function ensureQueuedLanes(cfg, root, spawner = spawnBroker) {
-  return laneConfigs(withLane(cfg, null)).filter((lane) => listQueue(lane).length && ensureBroker(lane, root, spawner)).map((lane) => lane.lane || 'root');
+  return laneConfigs(withLane(cfg, null)).filter((lane) => (listQueue(lane).length || listMeasure(lane).length) && ensureBroker(lane, root, spawner)).map((lane) => lane.lane || 'root');
 }
 
 const SPAWN_CLAIM_MS = 30_000;

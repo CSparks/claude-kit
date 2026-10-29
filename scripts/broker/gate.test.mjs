@@ -7,6 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gateFile, GATE_CRASH } from './gate.mjs';
+import { parseEnvelope } from './envelope.mjs';
 import { processOnce } from './queue.mjs';
 import { readResult, writeJob } from './result.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
@@ -17,7 +18,8 @@ const longFile = (n) => Array.from({ length: n }, (_, i) => `fn f${i}() {}`).joi
 test('a patch leaving a file over the hard length limit stops at gate; the tree is untouched', () => {
   const s = fixture();
   try {
-    const { job } = buildPatchJob(s.cfg, {}, `*** write big.rs\n${longFile(700)}\n`);
+    const clean = buildPatchJob(s.cfg, {}, envelope(['beta', 'BETA'])).job;
+    const job = { ...clean, ops: parseEnvelope(`*** write big.rs\n${longFile(700)}\n`) };
     writeJob(s.cfg, job);
     const before = snapshot(s.root);
     processOnce(s.cfg);

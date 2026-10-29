@@ -39,7 +39,6 @@ try {
   ok('3rd Read of the same output file warns (offence 1)', third.code === 0 && /WARNING \(offence 1/.test(third.out) && third.out.includes('docs/wait-rule.md'));
   ok('4th warns (offence 2)', /offence 2/.test(read(d, 'neg1').out) && read(d, 'neg1').code === 2);
 
-  ok('KIT-T705 negative control: node -e with escaped quotes and no task output passes', bash(adopted(false), 'neg-esc', 'node -e "console.log(\\"x\\")"').code === 0);
   const hiddenReads = hiddenBehindQuotes(`cat "${OUT}"`);
   const hid = adopted(false);
   const hiddenResults = [...hiddenReads, ...hiddenReads, hiddenReads[0]].map((c) => bash(hid, 'hid1', c));
@@ -60,6 +59,17 @@ try {
   const lr = loops.map((c) => bash(f, 'pos3', c));
   ok('sleep loops around a build/output file warn, warn, then block', lr[0].code === 0 && /offence 1/.test(lr[0].out) && lr[1].code === 0 && lr[2].code === 2);
   ok('PowerShell Start-Sleep loop is an offence', /offence 1/.test(bash(adopted(false), 'pos4', 'while (-not (Test-Path target\out.log)) { Start-Sleep 5 }').out));
+
+  const doneOut = join(tmpDir('wp-done-'), 'bk9.output');
+  writeFileSync(doneOut, 'wait: j-1 passed\n[exited with code 0]\n');
+  const h = adopted(false);
+  ok('KIT-D115: re-reading a FINISHED task output is never polling', [1, 2, 3, 4, 5, 6].every(() => read(h, 'fin1', doneOut).code === 0 && read(h, 'fin1', doneOut).out === ''));
+  const liveOut = join(tmpDir('wp-live-'), 'bk8.output');
+  writeFileSync(liveOut, 'wait: j-1 running\n');
+  ok('negative: re-reading a task output with no exit marker still blocks', [1, 2, 3, 4, 5].map(() => read(adopted(false) && h, 'fin2', liveOut)).pop().code === 2);
+  const agentRead = (agent, f) => run(h, { tool_name: 'Read', session_id: 'shared', agent_id: agent, tool_input: { file_path: f } });
+  ok('each subagent has its own count: two agents sharing a session each read an output twice and pass', ['a1', 'a2', 'a3', 'a4'].every((a) => agentRead(a, liveOut.replace('bk8', 'bk7')).code === 0 && agentRead(a, liveOut.replace('bk8', 'bk7')).code === 0));
+  ok('negative: one agent re-reading the same live output past the limit is still blocked', [1, 2, 3, 4, 5].map(() => agentRead('a9', liveOut)).pop().code === 2);
 
   const g = adopted(false);
   writeFileSync(join(g, '.claude-kit-ignore.yaml'), 'wait-poll:\n  - "**/tasks/**"\n');

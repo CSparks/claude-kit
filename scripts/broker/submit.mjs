@@ -7,6 +7,10 @@
 // `--revises <id>` also withdraws <id> when it is still queued (its result reads `superseded by <new id>`).
 // `--no-patch` queues a test-only job: no envelope, the `--test` commands run on HEAD (check-only,
 // never with `--land`), e.g. to see whether a failure is already on main.
+// Before a job joins the queue, precheck.mjs runs a fast `cargo check` of the patch in the broker's precheck tree; a compile error
+// prints the failed result (exit 1) and the job never takes a queue slot. The pre-write gate runs at submit too (submit-lib.mjs).
+// `--measure` queues a measurement job: it runs in the idle lane (measure.mjs) and never delays a landing.
+// `--agent <id>` names the submitting subagent (the broker-agent-tag hook adds it); the result and the finished-job line carry it.
 // `--repo <submodule> --no-pin --land` pushes the submodule commit and leaves the superproject alone.
 // `--pin <submodule>=<sha>` (superproject job, repeatable) builds and tests with the submodule at <sha>;
 // with `--land` the gitlink and the patch paths land in ONE commit, and <sha> must already be on the
@@ -26,7 +30,7 @@
 import { readFileSync } from 'node:fs';
 import { asList, parseFlags, loadCfg } from './cli.mjs';
 import { binaryEnvelope } from './binary-flag.mjs';
-import { laneOfRepo, withLane } from './config.mjs';
+import { laneOfRepo, repoByName, withLane } from './config.mjs';
 import { ensureQueuedLanes, IDLE_EXIT_MIN } from './ensure.mjs';
 import { announce, selfCheck } from './health.mjs';
 import { STATUS, writeJob, writeResult } from './result.mjs';
@@ -34,10 +38,14 @@ import { withdrawJob } from './withdraw.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
 import { submitUsageProblem } from './submit-usage.mjs';
 import { cargoScopeRefusal } from './cargo-scope.mjs';
+import { subagentRefusal } from './agent.mjs';
+import { precheckJob } from './precheck.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 const usage = submitUsageProblem(process.argv.slice(2), flags, { isTTY: !!process.stdin.isTTY });
 if (usage) { (usage.code ? console.error : console.log)(usage.text); process.exit(usage.code); }
+const refusal = subagentRefusal('submit', flags);
+if (refusal) { console.error(`submit: ${refusal}`); process.exit(2); }
 const { root, cfg } = loadCfg(flags);
 const notCargo = cargoScopeRefusal(root);
 if (notCargo) { console.error(`submit: ${notCargo}`); process.exit(2); }
@@ -63,6 +71,11 @@ if (out.result) {
 }
 // The job joins its repo's own queue (KIT-D096): a submodule's jobs never sit in the root lane.
 const laneCfg = withLane(cfg, laneOfRepo(cfg, out.job.repo));
+const rejected = precheckJob(laneCfg, out.job, repoByName(laneCfg, out.job.repo));
+if (rejected) {
+  console.log(JSON.stringify(writeResult(laneCfg, rejected), null, 2));
+  process.exit(1);
+}
 const queuedJob = writeJob(laneCfg, out.job);
 console.log(queuedJob.id);
 if (typeof flags.revises === 'string') {

@@ -11,6 +11,8 @@ import { planAtHead } from './plan.mjs';
 import { linkedReader } from './linked.mjs';
 import { laneRef } from './lane-ref.mjs';
 import { jobSession } from './rr.mjs';
+import { agentOf } from './agent.mjs';
+import { GATE_CRASH, RUNTIME_GONE, gatePlan } from './gate.mjs';
 import { isSuiteShaped } from './landgate.mjs';
 import { parentWorkspaceCommand } from './lane-cargo.mjs';
 
@@ -57,7 +59,8 @@ export function buildPatchJob(cfg, flags, text) {
   if (cfg.landGate === 'affected' && tests.some((c) => isSuiteShaped(c, cfg.suite))) return { error: SUITE_REFUSAL };
   if (cfg.landGate === 'affected' && flags['no-patch'] && !tests.length) return { error: SUITE_REFUSAL };
 
-  const red = redRunRefusal(cfg, flags.ticket ? String(flags.ticket) : null, flags.diagnosed);
+  if (flags.measure && flags.land) return { error: '--measure cannot --land: a measurement job prints numbers and never lands' };
+  const red = flags.measure ? null : redRunRefusal(cfg, flags.ticket ? String(flags.ticket) : null, flags.diagnosed);
   if (red) return { error: red };
 
   if (flags['no-pin'] && !repo.submodule) return { error: '--no-pin applies to a job whose --repo is a submodule' };
@@ -75,6 +78,8 @@ export function buildPatchJob(cfg, flags, text) {
     id: newJobId(), revises: typeof flags.revises === 'string' ? flags.revises : null, repo: repo.name, base,
     ticket: flags.ticket ? String(flags.ticket) : null, title: flags.title ? String(flags.title) : '',
     session: jobSession(flags, process.env, join(cfg.root, '.ai')),
+    ...(agentOf(flags) ? { agent: agentOf(flags) } : {}),
+    ...(flags.measure ? { measure: true } : {}),
     ...(flags['auto-pin'] ? { autoPin: String(flags['auto-pin']) } : {}),
   };
   meta.revision = revisionOf(cfg, meta.revises);
@@ -82,6 +87,8 @@ export function buildPatchJob(cfg, flags, text) {
     const stale = staleEntries(cwd, base, plan.stale);
     return { result: { ...meta, head: base, status: STATUS.STALE, phase: 'submit-dryrun', stale, gate: [], commands: [], landed: null } };
   }
+  const gate = flags.measure ? [] : gatePlan(cwd, plan.files).filter((g) => g.check !== GATE_CRASH && g.check !== RUNTIME_GONE);
+  if (gate.length) return { result: { ...meta, head: base, status: STATUS.GATE, phase: 'submit-gate', gate, stale: [], commands: [], landed: null } };
   const files = Object.fromEntries([...plan.files.keys()].map((p) => [p, git(['rev-parse', `${ref}:${p}`], cwd).out || null]));
   return { job: { ...meta, ops, files, commands: tests, land: !!flags.land, pins: pinned.pins, noPin: !!flags['no-pin'] } };
 }

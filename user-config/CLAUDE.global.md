@@ -169,6 +169,15 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in a
   different checkout declares `[tree: <absolute path>]`. Two writers in ONE checkout need
   the maintainer's quoted words: `[maintainer-asked-parallel: <his words>]`.
+- **Warm reuse has a context ceiling (KIT-D116, amends KIT-D077/D094).** An agent past
+  `dispatch.context_ceiling_tokens` (200k, the orchestrator's default) is retired, never resumed:
+  request its handoff (`[write-handoff]`), then brief a fresh agent from the ticket Notes.
+  A retiring agent MUST write a `Handoff <agent id>` block (Jobs:, State:, Next:, Files:) in the
+  ticket Notes, never a scratchpad; the dispatch guard refuses a replacement until it exists.
+- **No agent waits (KIT-D115, KIT-D104's 5 minutes).** One foreground broker wait under 5 minutes
+  is fine; polling, loops, background waits and re-running a job to read it are denied. Past the
+  wait the agent writes its handoff and ends; resume it from `target/broker/finished.log`
+  (one Monitor), not by keeping it alive.
 
 ## Specialists over `general-purpose` — CREATE the missing specialist
 `general-purpose` is the last resort. Before every delegation: (1) pick `model` AND

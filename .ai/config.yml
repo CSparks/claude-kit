@@ -108,6 +108,7 @@ drain:
 # ---------------------------------------------------------------------------
 dispatch:
   refresh_days: 7   # gate: dispatch blocks when the table's evidence / last model refresh is older; weekly reassessment (KIT-T339, KIT-D088)
+  context_ceiling_tokens: 200000   # warm-reuse ceiling: an agent past it is retired after a written handoff (KIT-D116; the orchestrator's default, open to Chris)
   jobs:
     chore:
       family: haiku

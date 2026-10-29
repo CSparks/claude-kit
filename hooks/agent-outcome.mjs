@@ -6,6 +6,7 @@
 //   outcomeFromResponse(response)   -> outcome from a PostToolUse Agent tool_response (a synchronous
 //                                      agent returns resolvedModel, totalDurationMs, totalTokens,
 //                                      totalToolUseCount; an async launch returns resolvedModel only)
+//   lastContextTokens(path)         -> the live context size from a transcript's tail (KIT-D116)
 //   outcomeFromTranscript(path)     -> outcome from a subagent transcript JSONL (SubagentStop carries
 //                                      agent_transcript_path)
 //
@@ -13,9 +14,10 @@
 // source carries. `tokens` is the final request's total (input + cache + output), the figure the
 // harness reports as totalTokens; `outputTokens` sums output across every turn. Never throws.
 
-import { readFileSync, statSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 
 const MAX_TRANSCRIPT_BYTES = 64 * 1024 * 1024;
+const TAIL_BYTES = 256 * 1024;
 const JOB_TOKEN = /\[job:\s*([\w-]+)\s*\]/i;
 
 export function declaredJob(prompt) {
@@ -39,7 +41,7 @@ export function outcomeFromResponse(response) {
   });
 }
 
-const usageTotal = (u) => (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.output_tokens || 0);
+export const usageTotal = (u) => (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.output_tokens || 0);
 
 export function outcomeFromTranscript(path) {
   try {
@@ -74,4 +76,23 @@ export function outcomeFromTranscript(path) {
   } catch {
     return {};
   }
+}
+
+/** The context size of a running agent: the last request's total in its transcript's tail, or undefined. */
+export function lastContextTokens(path) {
+  try {
+    const size = statSync(path).size;
+    const len = Math.min(size, TAIL_BYTES);
+    const buf = Buffer.alloc(len);
+    const fd = openSync(path, 'r');
+    try { readSync(fd, buf, 0, len, size - len); } finally { closeSync(fd); }
+    const lines = buf.toString('utf8').split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+      try {
+        const usage = JSON.parse(lines[i])?.message?.usage;
+        if (usage) return usageTotal(usage);
+      } catch { /* a cut first line or a non-JSON line */ }
+    }
+  } catch { /* unreadable transcript */ }
+  return undefined;
 }

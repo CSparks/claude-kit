@@ -13,7 +13,7 @@ import { STATUS } from './result.mjs';
 
 const SUITE_STATE = 'state.json';
 const SUITE_SHA_CHARS = 7;
-const GOOD_JOB = new Set([STATUS.PASSED, STATUS.LANDED]);
+const GOOD_JOB = new Set([STATUS.PASSED, STATUS.LANDED, STATUS.MEASURED]);
 const readJson = (file) => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; } };
 const jsonFiles = (dir) => { try { return readdirSync(dir).filter((f) => f.endsWith('.json')); } catch { return []; } };
 const newer = (file, sinceMs) => { try { return statSync(file).mtimeMs > sinceMs; } catch { return false; } };

@@ -11,6 +11,7 @@
 //   patch-worker-discipline (KIT-T687) — worker cap, required/overlapping [paths:], train rules
 //   lessons-checked      (KIT-T690) — rendering/perf/asset/streaming work briefed without citing the framework lessons ledger
 //   ui-framework-first   (KIT-T583) — UI sizing/layout work briefed to a generic agent in a rapid-game repo
+//   handoff-before-replace (KIT-D116) — a dispatch replacing a past-ceiling agent that wrote no handoff (and a warning listing past-ceiling agents)
 // exit 2 = block, 0 = allow. No-ops on unadopted repos; FAIL-OPEN everywhere else.
 //
 // Every check is independent: it decides on its own escape token, its own ignore-file key, and
@@ -32,6 +33,7 @@ import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage, brokerConfig } fr
 import { WORKER_CHECK, workerAdvice, workerBlock } from './dispatch-worker.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
+import { CEILING_CHECK, HANDOFF_CHECK, ceilingWarning, handoffBlock } from './dispatch-context.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
 import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';
@@ -82,12 +84,15 @@ try {
     workerCheck(root, input, prompt, p),
     lessonsCheck(root, input, prompt, p),
     uiCheck(root, input, prompt, p),
+    handoffCheck(root, prompt, p),
   ].filter(Boolean);
   if (!blocks.length) {
     const warning = agentRegistryWarning(root, input, p);
     if (warning) console.error(warning);
     const advice = workerAdviceText(root, input, prompt, p);
     if (advice) console.error(advice);
+    const ceiling = pathExcluded(root, CEILING_CHECK, root) ? null : ceilingWarning(root);
+    if (ceiling) console.error(ceiling);
     process.exit(0);
   }
   console.error(blocks.join('\n'));
@@ -194,6 +199,12 @@ function lessonsCheck(root, input, prompt, p) {
 function uiCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, UI_CHECK, root)) return null;
   return uiBlock({ root, input, prompt, footer: excludeFooter(UI_CHECK) });
+}
+
+// --- handoff-before-replace (KIT-D116) --------------------------------------------
+function handoffCheck(root, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, HANDOFF_CHECK, root)) return null;
+  return handoffBlock({ root, prompt, footer: excludeFooter(HANDOFF_CHECK) });
 }
 
 // --- agent-registry-stale (KIT-T431) ----------------------------------------------

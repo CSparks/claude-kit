@@ -11,6 +11,7 @@ const FAILED_TEST = /^test (\S+) \.\.\. FAILED/;
 // nextest: `FAIL [ 0.1s] (38/48) <binary-id> <test name>`; the (n/m) counter is optional.
 const NEXTEST = /^\s*(FAIL|PASS) \[[^\]]*\]\s+(?:\(\s*\d+\/\d+\)\s+)?(\S+)\s+(\S+)/;
 const PASSED_TEST = /^test (\S+) \.\.\. ok/;
+export const UNLOCATED = '(unlocated)';
 export const testKey = (t) => `${t.binary || ''}|${t.test}`;
 
 export function diagnose(log) {
