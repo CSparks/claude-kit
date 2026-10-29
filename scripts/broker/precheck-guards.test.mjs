@@ -77,6 +77,19 @@ test('control: a cold target builds while every lane is idle and is then warm, s
   } finally { s.done(); }
 });
 
+test('a patch that touches only markdown never starts a cargo check; control: one source file alongside it does', () => {
+  const docs = setup({ 'docs/NOTES.md': '# notes\n' });
+  const mixed = setup({ 'docs/NOTES.md': '# notes\n', 'notes.txt': 'x\n' });
+  try {
+    const only = spy();
+    assert.equal(precheckJob(docs.cfg, docs.job, docs.repo, { run: only.run, busy: () => null }), null);
+    assert.deepEqual(only.calls, [], 'no cargo check for a docs-only patch');
+    const both = spy();
+    assert.equal(precheckJob(mixed.cfg, mixed.job, mixed.repo, { run: both.run, busy: () => null }), null);
+    assert.equal(both.calls.length, 1);
+  } finally { docs.s.done(); mixed.s.done(); }
+});
+
 test('control: a run that timed out leaves the target cold', () => {
   const { s, cfg, job, repo } = setup({ 'notes.txt': 'x\n' });
   try {

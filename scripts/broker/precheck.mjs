@@ -24,6 +24,7 @@ import { scriptSyntaxFailures } from './syntax-check.mjs';
 import { applyPatch } from './tree-apply.mjs';
 
 const KIND = 'precheck';
+const DOC_ONLY = /\.md$/i;
 const STALE_LOCK_MS = 10 * 60 * 1000;
 const MS_PER_S = 1000;
 
@@ -60,7 +61,7 @@ export function precheckJob(cfg, job, repo, { run = runCancellable, prepare = pr
     if (!applied.ok) return null;
     const broken = scriptSyntaxFailures(tree.cwd, applied.files);
     if (broken.length) return syntaxResult(job, broken);
-    if (!cfg.affected?.check) return null;
+    if (!cfg.affected?.check || [...applied.files.keys()].every((file) => DOC_ONLY.test(file))) return null;
     const warm = join(home, `${KIND}-${repo.name}.warm`);
     if (!existsSync(warm) && busy(cfg)) return null;
     return cargoCheck(cfg, job, repo, home, tree, warm, run);
