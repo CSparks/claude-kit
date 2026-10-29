@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { segments } from './shell-segments.mjs';
+import { maskQuoted, segments } from './shell-segments.mjs';
 
 const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const WRITING_CMD = /^(?:mv|rm|del|erase|ren|rename|rmdir|tee|touch|truncate|remove-item|move-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
@@ -32,7 +32,7 @@ function judgeSegment(text, { hit, codeHit, readScript }) {
   if (isNode && args.some((a) => KIT_TOOL.test(a.replace(/.*[\\/]/, '')))) return null;
   if (KIT_TOOL.test(leader) || /^git$/i.test(leader)) return null;
 
-  for (const m of text.matchAll(REDIRECT)) { const h = hit(m[2]); if (h) return h; }
+  for (const m of maskQuoted(text).matchAll(REDIRECT)) { const h = hit(m[2]); if (h) return h; }
   if (WRITING_CMD.test(leader)) return args.map(hit).find(Boolean) || null;
   if (COPY_CMD.test(leader)) return hit(args.filter((a) => !a.startsWith('-')).at(-1) || '');
   if (/^(?:sed|perl)$/i.test(leader) && args.some((a) => /^-[A-Za-z]*i/.test(a))) return args.map(hit).find(Boolean) || null;
@@ -57,7 +57,7 @@ export function readTempScript(path) {
 
 export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript }) {
   const text = String(command || '');
-  if (HEREDOC_CODE.test(text)) return codeHit(text);
+  if (HEREDOC_CODE.test(maskQuoted(text))) return codeHit(text);
   for (const seg of segments(text)) {
     const found = judgeSegment(seg.text, { hit, codeHit, readScript });
     if (found) return found;

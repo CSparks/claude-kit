@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isSourcePath, shellSourceWrite } from './lib/shell-source-write.mjs';
+import { maskQuoted } from './lib/shell-segments.mjs';
 
 const HOOK = fileURLToPath(new URL('./source-shell-gate.mjs', import.meta.url));
 let fails = 0;
@@ -92,6 +93,14 @@ try {
   check('KIT-T700 negative control: a scratchpad write after `cd <repo>` passes', outside(`cd ${into} && cat > ${join(tmpdir(), 'scratchpad', 'probe.mjs').replace(/\\/g, '/')} <<'EOF'\nx\nEOF`).status === 0);
   check('KIT-T700 negative control: writing a .ai store note after `cd <repo>` passes', outside(`cd ${into} && echo note > .ai/notes/a.md`).status === 0);
   check('KIT-T700 negative control: the same write from a non-repo directory with no cd passes', outside('cat > hooks/x.mjs <<\'EOF\'\nx\nEOF').status === 0);
+  const probe = `{"tool_input":{"command":"cd /d/dev/claude-kit && cat > hooks/x.mjs <<EOF\\nx\\nEOF"}}`;
+  check('KIT-T701: a write shape inside single quotes (a hook-probe payload piped to node) passes', !blocked(`echo '${probe}' | node hook.mjs`));
+  check('KIT-T701: a write shape inside double quotes passes', !blocked('echo "cat > hooks/x.mjs" | cat'));
+  check('KIT-T701: a quoted multi-line payload with a real newline passes', !blocked(`echo '{"command":"cat > hooks/x.mjs <<EOF\nx\nEOF"}' | node hook.mjs`));
+  check('KIT-T701: a heredoc-code shape inside quotes passes', !blocked(`echo 'node - <<EOF fs.writeFileSync("hooks/a.mjs", 1)' | cat`));
+  check('KIT-T701 negative control: a real redirect after a quoted argument still blocks', blocked("echo 'hi' > hooks/x.mjs"));
+  check('KIT-T701 negative control: a quoted redirect TARGET still blocks', blocked('echo hi > "hooks/x.mjs"'));
+  check('KIT-T701: maskQuoted blanks string content and keeps a quoted redirect target', maskQuoted(`echo 'a > b.mjs' > "c.mjs"`) === `echo '' > "c.mjs"`);
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: repo, input: 'not json', encoding: 'utf8' }).status === 0);
 } finally {
   rmSync(repo, { recursive: true, force: true });
