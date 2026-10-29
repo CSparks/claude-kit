@@ -12,6 +12,7 @@ import { readInflight } from './preimage.mjs';
 import { listQueue } from './result.mjs';
 import { submittedAt } from './stats.mjs';
 import { rollupLine } from './metrics.mjs';
+import { liveLine } from './live-patch.mjs';
 
 const MAX_LANDS = 10;
 const MAX_DEFERRED = 4; // deferred failures listed inline; each can run to hundreds of characters
@@ -66,6 +67,7 @@ export function brokerLines(root, now = Date.now()) {
   const lines = [`broker: ${brokerLive(cfg) ? 'daemon live' : 'daemon not running'}${origin}${isPaused(cfg) ? ', PAUSED' : ''}`];
   const rollup = rollupLine(cfg, now);
   if (rollup) lines.push(rollup);
+  lines.push(`  ${liveLine(cfg)}`);
   const inflight = readInflight(cfg);
   if (inflight) lines.push(`  in flight: ${inflight.id} (${Math.round((now - Date.parse(inflight.startedAt)) / MS_PER_MIN)} min, tree holds its changes until it restores)`);
   const deferred = deferredLines(cfg);

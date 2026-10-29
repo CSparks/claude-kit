@@ -50,11 +50,15 @@ function usesTree(cfg, sub, job) {
   return paths.some((p) => p === posix(sub.path) || p.startsWith(`${posix(sub.path)}/`));
 }
 
-/** The submodules whose tree a lane needs for `jobs` of `repo`: its own, or those a superproject job builds. */
+/**
+ * The submodules whose tree a lane needs for `jobs` of `repo`: its own, or those a superproject job builds. With the
+ * check tree (check-tree.mjs) only a landing or a pin touches the live submodule; a check-only job builds in its own tree.
+ */
 export function subtreesFor(cfg, repo, jobs) {
-  if (repo.submodule) return [repo];
+  const live = cfg.checkTree ? jobs.filter((j) => j.land || (j.pins || []).length) : jobs;
+  if (repo.submodule) return live.length ? [repo] : [];
   const subs = cfg.repos.filter((r) => r.submodule && String(r.pinIn) === String(repo.path));
-  return subs.filter((sub) => jobs.some((j) => usesTree(cfg, sub, j)));
+  return subs.filter((sub) => live.some((j) => usesTree(cfg, sub, j)));
 }
 
 /** Every submodule tree a lane's idle work (re-checks, the suite) runs over. */

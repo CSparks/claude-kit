@@ -12,6 +12,7 @@ import { rekeyHold } from './hand-hold.mjs';
 import { isPaused } from './control.mjs';
 import { recheckDeferred } from './deferred.mjs';
 import { processPatch } from './patch.mjs';
+import { processChecked } from './check-run.mjs';
 import { reportRedPin } from './autopin.mjs';
 import { dropSuperseded } from './autopin-supersede.mjs';
 import { reportOverrun } from './overrun.mjs';
@@ -137,5 +138,5 @@ export function processJob(cfg, job) {
   if (!repo) {
     return { result: writeResult(cfg, { id: job.id, repo: job.repo, status: STATUS.FAILED, phase: 'apply', commands: [], message: `unknown repo '${job.repo}'` }) };
   }
-  return processPatch(cfg, job, repo);
+  return processChecked(cfg, job, repo, processPatch);
 }

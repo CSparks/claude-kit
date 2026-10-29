@@ -3,9 +3,9 @@
 // current one goes to `<broker home>/phase.json` for wait's heartbeat, and the finished list
 // becomes the result's `timings: [{ phase, ms }]`.
 //
-// `phaseTracker(cfg, id)` → { enter(name), timings(), snapshot() }; snapshot reads the timings so far without closing the phase.  `readPhase(cfg)` → { id, phase, since } | null.
+// `phaseTracker(cfg, id)` → { enter(name), timings(), snapshot(), end() }; a finished job (timings or end) removes its phase.json; snapshot reads the timings so far without closing the phase.  `readPhase(cfg)` → { id, phase, since } | null.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { pulse } from './stall.mjs';
@@ -34,7 +34,12 @@ export function phaseTracker(cfg, id) {
     timings() {
       close(Date.now());
       current = null;
+      this.end();
       return done.slice();
+    },
+    end() {
+      const mine = readPhase(cfg);
+      if (mine && mine.id === id) rmSync(file(cfg), { force: true });
     },
   };
 }

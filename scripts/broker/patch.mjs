@@ -75,7 +75,9 @@ function compileCheckMissing(cfg, job, cwd, reused) {
   return runCommands(cfg, { ...job, commands: [cfg.affected.check] }, cwd, { baseline: () => null });
 }
 
-export function processPatch(cfg, job, repo) {
+// `opts.gated` runs a landing's gate without landing (the check-tree run of a landing, check-run.mjs); `opts.write` replaces
+// writeResult (that run's result stays private); `opts.keyTree()` is the tree state the green key is taken over (the live checkout's).
+export function processPatch(cfg, job, repo, opts = {}) {
   const base = {
     id: job.id, revises: job.revises || null, revision: job.revision || 1, repo: job.repo, ticket: job.ticket || null,
     base: job.base || null, startedAt: new Date().toISOString(), land: !!job.land,
@@ -83,7 +85,8 @@ export function processPatch(cfg, job, repo) {
   };
   const ph = phaseTracker(cfg, job.id);
   const cwd = join(cfg.root, repo.path);
-  const done = (fields) => ({ result: writeResult(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields, timings: ph.timings() }) });
+  const writeOut = opts.write || writeResult;
+  const done = (fields) => ({ result: writeOut(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields, timings: ph.timings() }) });
   const admitted = admit(cfg, job, repo, { onPhase: (p) => ph.enter(p) });
   if (admitted.pause) ph.enter('held');
   if (!admitted.ok) return { ...done(admitted.fields), pause: admitted.pause };
@@ -101,8 +104,9 @@ export function processPatch(cfg, job, repo) {
   const explicit = () => pins.filter((p) => !p.implicit);
 
   const pre = { tree: treeState(cfg, cwd), dirty: dirtyPaths(cwd), head: revParse(cwd, 'HEAD') };
-  const key = greenKey({ repo: job.repo, pre: pre.tree, files: plan.files, commands: jobCommands(cfg, job), pins });
-  const reused = job.land ? findGreen(cfg, key) : null;
+  const key = greenKey({ repo: job.repo, pre: opts.keyTree ? opts.keyTree() : pre.tree, files: plan.files, commands: jobCommands(cfg, job), pins });
+  const gateRun = job.land || opts.gated;
+  const reused = gateRun ? findGreen(cfg, key) : null;
   const locksBefore = lockFilesDeep(cwd);
   const captureTree = () => capture(cfg, { id: job.id, cwd, paths: [...new Set([...plan.files.keys(), ...locksBefore])] });
   const startedAt = new Date().toISOString();
@@ -123,9 +127,9 @@ export function processPatch(cfg, job, repo) {
       leave: () => { restoreTree(); journal = captureTree(); checkoutPins(pins); writePlan(cwd, plan.files); },
     });
     // A patch job with no commands takes the affected gate too, never the full verify_default.
-    const wantsGate = job.land || ((job.ops || []).length && !(job.commands || []).length);
+    const wantsGate = gateRun || ((job.ops || []).length && !(job.commands || []).length);
     const gated = wantsGate && !reused ? landGate(cfg, cwd, job, plan.files) : null;
-    const prebuild = job.land && !reused ? prebuildCommand(repo, cwd, plan.files) : null;
+    const prebuild = gateRun && !reused ? prebuildCommand(repo, cwd, plan.files) : null;
     const scoped = job.autoPin && !gated && !reused ? scopePin(cfg, cwd, jobCommands(cfg, job), pins.filter((p) => !p.implicit)) : null;
     const runJob = gated || scoped || prebuild ? { ...job, commands: withPrebuild(gated ? gated.commands : scoped ? scoped.commands : jobCommands(cfg, job), prebuild) } : job;
     const note = scoped ? scoped.note : null;

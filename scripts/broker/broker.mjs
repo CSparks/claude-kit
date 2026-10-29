@@ -49,6 +49,7 @@ import { setStopNow } from './stop-now.mjs';
 import { cargoScopeRefusal } from './cargo-scope.mjs';
 import { withdrawJob } from './withdraw.mjs';
 import { cancelRunning, clearCancel } from './cancel-running.mjs';
+import { clearLive, liveLine } from './live-patch.mjs';
 import { daemonAbortWatch, setAbortWatch } from './run-abort.mjs';
 
 const MS_PER_MIN = 60 * 1000;
@@ -134,6 +135,7 @@ if (command === 'status') {
   if (holder) console.error(`broker: pid ${holder.pid} (runtime ${holder.runtime || '?'})${holder.spawnedBy ? `, spawned by ${holder.spawnedBy}` : ''}${holder.log ? `, log ${holder.log}` : ''}`);
   console.error(`broker: ${stall ? stallLine(stall) : `${isPaused(cfg) ? 'PAUSED' : 'running'}, ${queued} queued`}`);
   for (const line of deferredLines(cfg)) console.error(`  ${line}`);
+  console.error(`  ${liveLine(cfg)}`);
   const suite = suiteLine(cfg);
   if (suite) console.error(`  ${suite}`);
   const hold = holdReport(cfg);
@@ -174,6 +176,7 @@ const recoverPending = () => {
   return !r.done;
 };
 recoverPending();
+if (!recoveryReason) clearLive(cfg);
 console.error(`broker: watching ${root} (target ${cfg.targetDir}, jobs -j ${cfg.jobs})`);
 for (const line of dirtNotice(cfg)) console.error(line);
 

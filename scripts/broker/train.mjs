@@ -35,6 +35,8 @@ import { runTrainCommands } from './train-run.mjs';
 import { filesOf, writePlan } from './write-plan.mjs';
 import { foreignBuild } from './known-red.mjs';
 import { runDiagnosed } from './run.mjs';
+import { prepareCheckTree } from './check-tree.mjs';
+import { clearLive, markLive, withLive } from './live-patch.mjs';
 
 function baseFields(job, startedAt) {
   return {
@@ -45,32 +47,45 @@ function baseFields(job, startedAt) {
 }
 
 export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
-  const cwd = members[0].cwd;
   const id = `train-${members[0].job.id}`;
   const size = members.length;
   const ph = phaseTracker(cfg, id);
   const startedAt = new Date().toISOString();
+  const live = members[0].cwd;
+  let cwd = live;
+  let runCfg = cfg;
+  const checkTree = cfg.checkTree && !members[0].job.pins?.length;
+  const enterCheck = () => {
+    const t = checkTree ? prepareCheckTree(cfg, repo) : { error: 'off' };
+    if (t.error && checkTree) console.error(`broker: check tree unavailable for ${repo.name} (${t.error}); ${id} runs in the live checkout`);
+    cwd = t.error ? live : t.cwd;
+    runCfg = t.error ? cfg : t.cfg;
+  };
+  enterCheck();
+  if (cwd === live) markLive(cfg, id, 'train runs in the live checkout');
   const results = [];
   let builds = 0;
   const finish = (m, fields) => {
     const train = { id, members: members.map((x) => x.job.id), size, builds };
-    const r = writeResult(cfg, { ...baseFields(m.job, startedAt), head: revParse(cwd, 'HEAD'), ...fields, train, timings: ph.snapshot() });
+    const r = writeResult(cfg, { ...baseFields(m.job, startedAt), head: revParse(live, 'HEAD'), ...fields, train, timings: ph.snapshot() });
     removeJob(cfg, m.job.id);
     onResult(r);
     results.push(r);
   };
 
-  const held = implicitPins(cfg, repo, cwd, members[0].job);
+  const held = implicitPins(runCfg, repo, cwd, members[0].job);
   if (held.error) {
     for (const m of members) finish(m, { status: STATUS.FAILED, phase: 'pin', message: held.error });
+    clearLive(cfg);
+    ph.end();
     return { results, builds };
   }
-  const pins = held.pins;
+  let pins = held.pins;
   const groups = [members.slice()];
   let logN = 0;
   const nextLog = () => logN++;
   let journal = null;
-  const dirtyBefore = dirtyPaths(cwd);
+  const dirtyBefore = dirtyPaths(live);
   let locksBefore = [];
   let kept = false;
   const putBack = () => { restore(cfg, journal); dropNewLocks(cwd, locksBefore); };
@@ -80,33 +95,53 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
       const pool = groups.shift().filter((m) => !hasFinalResult(cfg, m.job.id));
       if (!pool.length) continue;
       const waiting = [pool, ...groups].flat();
+      if (checkTree) enterCheck();
       locksBefore = lockFilesDeep(cwd);
       const paths = [...new Set([...waiting.flatMap(filesOf), ...locksBefore])];
       const snap = () => capture(cfg, { id, cwd, paths, members: waiting.map((m) => m.job.id), startedAt });
-      const pre = { tree: treeState(cfg, cwd), dirty: dirtyPaths(cwd), head: revParse(cwd, 'HEAD') };
+      const pre = { tree: treeState(runCfg, cwd), dirty: dirtyPaths(cwd), head: revParse(cwd, 'HEAD') };
       journal = snap();
       kept = false;
       const writePool = () => { for (const m of pool) writePlan(cwd, m.plan.files); };
       writePool();
-      const { commands, perMember } = trainCommands(cfg, cwd, pool);
+      const { commands, perMember } = trainCommands(runCfg, cwd, pool);
       const own = (m) => perMember.get(m.job.id);
-      const baseline = makeBaseline({ cfg, job: { id, repo: repo.name }, cwd, pre, held: pins, enter: putBack, leave: () => { putBack(); journal = snap(); writePool(); } });
+      const baseline = makeBaseline({ cfg: runCfg, job: { id, repo: repo.name }, cwd, pre, held: pins, enter: putBack, leave: () => { putBack(); journal = snap(); writePool(); } });
       ph.enter('run');
       builds++;
       const knownRed = (entry) => foreignBuild({
-        cfg, cwd, entry, touched: pool.flatMap((m) => m.touched), tree: pre.tree, head: pre.head,
+        cfg: runCfg, cwd, entry, touched: pool.flatMap((m) => m.touched), tree: pre.tree, head: pre.head,
         runBase: (cmd) => { const b = baseline((run) => ({ log: run(cmd, `${nextLog()}-red`) })); return b && b.log; },
-        runAgain: (cmd) => runDiagnosed(cfg, cmd, cwd, logPathFor(cfg, id, `${nextLog()}-rerun`)),
+        runAgain: (cmd) => runDiagnosed(runCfg, cmd, cwd, logPathFor(cfg, id, `${nextLog()}-rerun`)),
       });
-      const run = runTrainCommands(cfg, { id, repo: repo.name, cwd, commands, nextLog, baseline, knownRed });
+      const run = runTrainCommands(runCfg, { id, repo: repo.name, cwd, commands, nextLog, baseline, knownRed });
       const foreign = foreignOf(run.entries);
       const ranFor = (m) => ({ commands: run.entries, foreign, diffStat: git(['diff', '--stat', '--', ...filesOf(m)], cwd).out, selection: own(m).selection });
 
       if (!run.failing) {
-        const landed = landGroup(cfg, repo, { id, cwd, pool, journal, entries: run.entries, foreign, own, ranFor, nextLog, finish, onPhase: (p) => ph.enter(p) });
-        kept = landed.kept;
-        if (kept) discard(cfg);
-        else putBack();
+        const landers = pool.filter((m) => m.job.land);
+        const stats = new Map(pool.map((m) => [m.job.id, ranFor(m)]));
+        const land = () => landGroup(cfg, repo, { id, cwd, pool, journal, entries: run.entries, foreign, own, ranFor: (m) => stats.get(m.job.id), nextLog, finish, onPhase: (p) => ph.enter(p) });
+        const settle = (out) => {
+          kept = out.kept;
+          if (kept) discard(cfg);
+          else putBack();
+          return out;
+        };
+        const landed = cwd === live || !landers.length ? settle(land()) : withLive(cfg, id, 'train landing', () => {
+          putBack();
+          revertPins(pins);
+          cwd = live;
+          runCfg = cfg;
+          const livePins = implicitPins(cfg, repo, live, members[0].job);
+          if (livePins.error) throw new Error(livePins.error);
+          pins = livePins.pins;
+          checkoutPins(pins);
+          locksBefore = lockFilesDeep(live);
+          journal = capture(cfg, { id, cwd: live, paths: [...new Set([...landers.flatMap(filesOf), ...locksBefore])], members: landers.map((m) => m.job.id), startedAt });
+          for (const m of landers) writePlan(live, m.plan.files);
+          return settle(land());
+        });
         groups.unshift(...landed.regroup);
         continue;
       }
@@ -139,7 +174,9 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
       checkRestore(cfg, journal, id);
     }
     revertPins(pins);
-    sweepOwnWrites(cfg, { id, cwd, before: dirtyBefore });
+    sweepOwnWrites(cfg, { id, cwd: live, before: dirtyBefore });
+    ph.end();
+    clearLive(cfg);
     if (journal) recordRun(cfg, { id, repo: repo.name, kind: 'train', startedAt, entries: journal.entries });
   }
   return { results, builds };

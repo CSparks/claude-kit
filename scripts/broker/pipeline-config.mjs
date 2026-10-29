@@ -16,6 +16,7 @@
 //   suite_max_hours: 2           # ... or this many hours
 //   suite_partitions: 1          # >1: each suite run covers one rotating partition (suite-shard.mjs)
 //   runner: cargo                # cargo (default) | nextest: a job's per-target cargo tests run as one nextest run
+//   check_tree: true             # check runs happen in a broker-owned git worktree, so the live checkout holds landed code only (check-tree.mjs); false: the live tree
 //   batch: 8                     # most queued disjoint jobs one build carries (train.mjs); 1 runs every job alone
 //   batch_window_s: 0            # >0: a lone trainable job waits up to this long for a peer while 2+ sessions are active (batch-window.mjs); 0 (default) off
 //   incremental_keep_hours: 24   # after a suite run, drop incremental caches unused this long (incremental.mjs); off disables
@@ -64,6 +65,7 @@ export function pipelineConfig(broker, verifyDefault, env = process.env) {
     incrementalKeepHours: broker.incremental_keep_hours === 'off' || broker.incremental_keep_hours === false ? null
       : Number.isFinite(Number(broker.incremental_keep_hours)) && broker.incremental_keep_hours !== '' && broker.incremental_keep_hours != null ? Number(broker.incremental_keep_hours) : KEEP_HOURS,
     batchWindowMs: (Number.isFinite(Number(broker.batch_window_s)) && broker.batch_window_s !== '' && broker.batch_window_s != null && Number(broker.batch_window_s) >= 0 ? Number(broker.batch_window_s) : DEFAULT_BATCH_WINDOW_S) * MS_PER_S,
+    checkTree: broker.check_tree === false || (broker.check_tree == null && legacyDefaults(env)) ? false : true,
     batch: Number.isInteger(Number(broker.batch)) && Number(broker.batch) >= 1 ? Number(broker.batch) : DEFAULT_BATCH,
   };
 }
