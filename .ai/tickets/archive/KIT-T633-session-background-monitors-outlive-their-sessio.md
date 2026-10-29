@@ -2,16 +2,16 @@
 id: KIT-T633
 title: Session background monitors outlive their session: on 2026-10-23 four stiletto broker-watch loops (watch.sh/watch13.sh, session 3221b1ce, st
 type: bug
-status: todo
+status: done
 priority: high
 milestone:
 labels: [kit-bug]
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T697
 created: 2026-10-23T17:37:07Z
-updated: 2026-10-23T17:37:07Z
+updated: 2026-10-29T15:48:37Z
 ---
 
 ## Description
@@ -29,3 +29,5 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 
 ## History
 - [2026-10-23 17:37] (created) bug — Session background monitors outlive their session: on 2026-10-23 four stiletto broker-watch loops (watch.sh/watch13.sh, session 3221b1ce, st
+- [2026-10-29 15:16] (status) → superseded (by KIT-T697)
+- [2026-10-29 15:48] (status) superseded → done

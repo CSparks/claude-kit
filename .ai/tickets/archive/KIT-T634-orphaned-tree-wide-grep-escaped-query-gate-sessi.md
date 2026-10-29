@@ -2,7 +2,7 @@
 id: KIT-T634
 title: Orphaned tree-wide grep escaped query-gate: session 27188 ran 'grep -rln -E start-server\.cmd|llm[\/]run\.ps1 /d/dev/claude-kit/scripts /d/l
 type: bug
-status: todo
+status: done
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-23T18:38:17Z
-updated: 2026-10-23T18:38:17Z
+updated: 2026-10-29T15:48:38Z
+fixed_commit: 1c442c6
 ---
 
 ## Description
@@ -29,3 +30,4 @@ first seen in Chris Sparks. Filed automatically (KIT-T286): every kit bug is a t
 
 ## History
 - [2026-10-23 18:38] (created) bug — Orphaned tree-wide grep escaped query-gate: session 27188 ran 'grep -rln -E start-server\.cmd|llm[\/]run\.ps1 /d/dev/claude-kit/scripts /d/l
+- [2026-10-29 15:48] (status) todo → done
