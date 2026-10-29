@@ -3,7 +3,8 @@
 // Write tools, where pre-write checks length, comments and literals; a shell write skips them.
 // This is the shell twin of pre-write's code checks (check-id source-shell-write, KIT-T648).
 //
-//   shellSourceWrite(command, { readScript, tempDir }) -> null | { path }
+//   shellSourceWrite(command, { readScript, tempDir }) -> null | { path, ambiguous? }
+//     ambiguous: the quoting could not be split and the command holds a write token (KIT-T705)
 //   isSourcePath(path, tempDir) -> boolean   a hand-authored source path (not temp, build output or a vendored tree)
 
 import { tmpdir } from 'node:os';
@@ -15,7 +16,9 @@ const QUOTED_SOURCE = new RegExp(`['"\`]([^'"\`\\s]+\\.(?:${SOURCE_EXT}))['"\`]`
 const GENERATED_DIR = /(?:^|\/)(?:target|node_modules|dist|build|\.git)\//;
 const DEVICE = /^\/dev\//;
 
-const slashed = (p) => String(p).replace(/\\/g, '/');
+export const AMBIGUOUS_PATH = '(ambiguous quoting)';
+
+const slashed =(p) => String(p).replace(/\\/g, '/');
 
 export function isSourcePath(path, tempDir = tmpdir()) {
   const p = slashed(path);
@@ -31,5 +34,5 @@ export function shellSourceWrite(command, { readScript = readTempScript, tempDir
     for (const m of code.matchAll(QUOTED_SOURCE)) { const h = hit(m[1]); if (h) return h; }
     return null;
   };
-  return scanShellWrites(command, { hit, codeHit, readScript });
+  return scanShellWrites(command, { hit, codeHit, readScript, ambiguous: () => ({ path: AMBIGUOUS_PATH, ambiguous: true }) });
 }

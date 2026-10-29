@@ -12,6 +12,7 @@
 
 import { resolve } from 'node:path';
 import { payload, git, gitRoot, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
+import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
 import { foreignSubmissions, policyToken, slugOf, CLAUDE_TRAILER, POLICY_URLS } from './lib/upstream-policy.mjs';
 
 const CHECK_ID = 'upstream-policy';
@@ -96,6 +97,11 @@ try {
   if (!/\b(?:gh|git)(?:\.exe)?\b/.test(command) || !/\b(?:create|comment|push)\b/.test(command)) process.exit(0);
   const marks = markerExcludedLines(command, CHECK_ID);
   if (marks.wholeFile || marks.lines.size) process.exit(0);
+
+  if (segments(command).ambiguous) {
+    process.stderr.write(`\nBLOCKED: a gh or git submission cannot be matched to its target repo (KIT-T395). ${AMBIGUOUS_MESSAGE}\n${excludeFooter(CHECK_ID)}`);
+    process.exit(2);
+  }
 
   const token = policyToken(command);
   for (const sub of foreignSubmissions(command, process.cwd(), ctx)) {

@@ -27,13 +27,22 @@ const CHECK_CMD = /\b(?:tail|cat|head|ls|stat|wc|grep|get-content|gc|test|type)\
 
 const norm = (p) => toPath(p).replace(/\\/g, '/');
 
+// With ambiguous quoting every task-output path in a command that holds a read command counts as read.
+function rawOutputReads(command) {
+  const words = command.split(/[\s'"`;|&()<>]+/).filter(Boolean);
+  if (!words.some((w) => READ_CMD.test(w))) return [];
+  return [...new Set(words.filter((w) => TASK_OUTPUT.test(w)).map(norm))];
+}
+
 function outputReads(toolName, input) {
   if (/^read$/i.test(toolName || '')) {
     const f = input.file_path || '';
     return TASK_OUTPUT.test(f) ? [norm(f)] : [];
   }
   const files = new Set();
-  for (const seg of segments(input.command || '')) {
+  const parts = segments(input.command || '');
+  if (parts.ambiguous) return rawOutputReads(input.command || '');
+  for (const seg of parts) {
     const words = seg.text.trim().split(/\s+/).filter(Boolean);
     if (!words.length || !READ_CMD.test(words[0])) continue;
     for (const w of words.slice(1)) if (!w.startsWith('-') && TASK_OUTPUT.test(w.replace(/^["']|["']$/g, ''))) files.add(norm(w));

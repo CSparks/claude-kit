@@ -47,17 +47,15 @@ function judgeTool(tool, rest, text, { hit, codeHit, readScript }) {
   return script ? codeHit(readScript(script)) : null;
 }
 
-// An ambiguous segment is a whole command whose quoting is unresolved: its first word says nothing about
-// the commands after it, so no leader exemption applies.
-function judgeSegment({ text, ambiguous }, ctx) {
+function judgeSegment(text, ctx) {
   const words = [...text.matchAll(WORD)].map((m) => ({ w: m[0], at: m.index }));
   if (!words.length) return null;
   const leader = nameOf(words[0].w);
-  if (!ambiguous && /^node$/i.test(leader) && words.some((x) => KIT_TOOL.test(x.w.replace(/.*[\\/]/, '')))) return null;
-  if (!ambiguous && (KIT_TOOL.test(leader) || /^git$/i.test(leader))) return null;
+  if (/^node$/i.test(leader) && words.some((x) => KIT_TOOL.test(x.w.replace(/.*[\\/]/, '')))) return null;
+  if (KIT_TOOL.test(leader) || /^git$/i.test(leader)) return null;
 
   for (const m of text.matchAll(REDIRECT)) { const h = ctx.hit(m[2]); if (h) return h; }
-  if (!ambiguous && READER.test(leader)) return null;
+  if (READER.test(leader)) return null;
   for (let i = 0; i < words.length; i++) {
     const found = judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx);
     if (found) return found;
@@ -75,12 +73,21 @@ export function readTempScript(path) {
   } catch { return ''; }
 }
 
-export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript }) {
+const wordsOf = (...patterns) => patterns.map((p) => p.source.slice('^(?:'.length, -')$'.length)).join('|');
+const WRITE_TOKEN = new RegExp(`\\b(?:${wordsOf(WRITING_CMD, COPY_CMD, IN_PLACE_TOOL)})\\b|>`, 'i');
+
+// With ambiguous quoting no segment can be trusted: a write-tool word, a `>` or a filesystem write call
+// anywhere in the command is a hit, and `ambiguous()` builds the gate's result for it.
+const ambiguousWrite = (text) => WRITE_TOKEN.test(text) || FS_WRITE.test(text);
+
+export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous }) {
   const text = String(command || '');
+  const parts = segments(text);
+  if (parts.ambiguous && ambiguous) return ambiguousWrite(text) ? ambiguous() : null;
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return codeHit(text);
   const ctx = { hit, codeHit, readScript };
-  for (const seg of segments(text)) {
-    const found = judgeSegment(seg, ctx);
+  for (const seg of parts) {
+    const found = judgeSegment(seg.text, ctx);
     if (found) return found;
   }
   return null;

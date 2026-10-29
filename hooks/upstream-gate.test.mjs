@@ -44,6 +44,7 @@ try {
   ok('a PR URL names the target', blocks('gh pr comment https://github.com/bevyengine/bevy/pull/26045 -b hi'));
   ok('GH_REPO env prefix names the target', blocks('GH_REPO=bevyengine/bevy gh pr create --title t'));
   ok('no -R: the upstream remote of the fork is the target', blocks('gh pr create --title t --body b'));
+  ok('KIT-T705 negative control: node -e with escaped quotes and no gh or git word passes', !blocks('node -e "console.log(\\"x\\")"'));
   ok('KIT-T705: a foreign submission hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('gh pr create --repo bevyengine/bevy --title t').every((c) => blocks(c)));
   ok('chained segment blocks', blocks('git status && gh pr create --repo bevyengine/bevy --title t'));
 

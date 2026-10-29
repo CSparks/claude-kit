@@ -21,6 +21,7 @@ try {
   const blocked = (tool, command) => { const r = run(tool, command); return r.code === 2 && /wait\.mjs/.test(r.out) && /watch\.mjs/.test(r.out) && r.out.includes('broker-log'); };
 
   ok('the Monitor tail -F | grep pipeline of the 2026-10-28 incident is blocked', blocked('Monitor', `tail -n 0 -F ${LOGS}/daemon-2026-10-28T16-54-37-526Z-27728.log | grep -E --line-buffered "suite|→ (failed|landed|stale)|crash"`));
+  ok('KIT-T705 negative control: node -e with escaped quotes and no log path passes', run('Bash', 'node -e "console.log(\\"x\\")"').code === 0);
   ok('KIT-T705: a log grep hidden behind an escaped quote or a $\'…\' string is blocked', hiddenBehindQuotes(`grep crash ${LOGS}/daemon-x.log`).every((c) => blocked('Bash', c)));
   ok('tail -f of a lane log is blocked', blocked('Bash', 'tail -f target/broker/lanes/rapid-game/logs/daemon-x.log'));
   ok('grep of a logs glob is blocked', blocked('Bash', `grep -l crash ${LOGS}/*.log`));

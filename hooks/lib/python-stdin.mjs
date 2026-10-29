@@ -5,7 +5,8 @@
 //
 //   pythonStdinCommand(command, { isStub?, platform? }) -> null | { name, reason }
 //     reason: 'empty-heredoc' (heredoc with no body) | 'no-stdin' (`python -` / bare python with no `<`,
-//     heredoc or pipe) | 'store-stub' (python resolves into WindowsApps)
+//     heredoc or pipe) | 'store-stub' (python resolves into WindowsApps) | 'ambiguous-quoting' (Windows:
+//     a python word in a line whose quoting cannot be split, so stdin cannot be judged)
 //   isStorePython(name)  true when `name` resolves into the Microsoft Store WindowsApps stub
 //
 // Allowed: a non-empty heredoc, a here-string, `< file`, a pipe, and scripts, `-c`, `-m`.
@@ -15,6 +16,7 @@ import { heredocAfter } from './heredoc.mjs';
 import { segments } from './shell-segments.mjs';
 
 const PYTHON = /^(?:python|pythonw|py)(?:\d+(?:\.\d+)*)?(?:\.exe)?$/i;
+const PYTHON_WORD = /\b(?:python|pythonw|py)(?:\d+(?:\.\d+)*)?(?:\.exe)?\b/i;
 const STORE_DIR = /[\\/]WindowsApps[\\/]/i;
 const WRAPPERS = new Set(['env', 'exec', 'command', 'nohup', 'time', 'sudo']);
 const DURATION = /^\d+(?:\.\d+)?[smhd]?$/;
@@ -71,14 +73,14 @@ export function pythonStdinCommand(command, { isStub = isStorePython, platform =
   const text = String(command || '');
   let cursor = 0;
   let skipTo = 0;
-  for (const segment of segments(text)) {
-    // An ambiguous segment is the tail of the command from one word on.
-    const start = segment.ambiguous ? text.length - segment.text.length : text.indexOf(segment.text, cursor);
-    const end = start + segment.text.length;
-    if (!segment.ambiguous) cursor = end;
+  const parts = segments(text);
+  if (parts.ambiguous) return platform === 'win32' && PYTHON_WORD.test(text) ? { name: 'python', reason: 'ambiguous-quoting' } : null;
+  for (const segment of parts) {
+    const start = text.indexOf(segment.text, cursor);
+    cursor = start + segment.text.length;
     if (start < skipTo) continue;
     const heredoc = heredocAfter(text, start);
-    const own = heredoc && heredoc.at < end ? heredoc : null;
+    const own = heredoc && heredoc.at < cursor ? heredoc : null;
     if (own) skipTo = own.end;
     const leader = pythonLeader(tokens(segment.text));
     if (!leader || !readsStdin(leader.args)) continue;

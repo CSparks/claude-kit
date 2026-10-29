@@ -48,6 +48,8 @@ try {
   check('KIT-T705: a store rm hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('rm .ai/decisions/X-D001-a.md').every((c) => blocked(c)));
   check('KIT-T705: a store rm behind a reader leader and an escaped quote blocks', blocked('grep \\" ; rm .ai/decisions/X-D001-a.md ; echo \\"'));
 
+  check('KIT-T705 negative control: node -e with escaped quotes and no write passes', !blocked('node -e "console.log(\\"x\\")"'));
+
   const READS = [
     ['cat of a ticket', 'cat .ai/tickets/X-T001-a.md'],
     ['a redirect of store content OUT to scratch', 'cat .ai/SESSION.md > /tmp/s.md'],

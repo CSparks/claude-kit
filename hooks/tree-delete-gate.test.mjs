@@ -40,6 +40,7 @@ try {
   const r = run(live, 'rm -rf scripts/__pycache__');
   check('blocks an rm inside a daemon-owned checkout', r.status === 2, r.stderr);
   check('the message names broker clean and the delete patch', /broker\.mjs" clean scripts\/__pycache__/.test(r.stderr) && /\*\*\* delete/.test(r.stderr));
+  check('KIT-T705 negative control: node -e with escaped quotes and no delete word passes', run(live, 'node -e "console.log(\\"x\\")"').status === 0);
   check('KIT-T705: an rm hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('rm -rf scripts/__pycache__').every((c) => run(live, c).status === 2));
   check('blocks Remove-Item too', run(live, 'Remove-Item -Recurse -Force assets\\tmp').status === 2);
   check('allows an rm of build output', run(live, 'rm -rf target/debug').status === 0);

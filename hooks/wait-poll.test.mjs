@@ -9,6 +9,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 
 import { ENV, HOOKS, ROOT, adopted, cleanup, hook, reporter, repo, tmpDir } from './test-harness.mjs';
 import { hiddenBehindQuotes } from './hidden-command-cases.mjs';
+import { hiddenBehindQuotes } from './hidden-command-cases.mjs';
 
 const { ok, done } = reporter('wait-poll');
 const OUT = "C:/Users/x/AppData/Local/Temp/claude/proj/sess/tasks/bk1.output";
@@ -39,6 +40,12 @@ try {
   ok('3rd Read of the same output file warns (offence 1)', third.code === 0 && /WARNING \(offence 1/.test(third.out) && third.out.includes('docs/wait-rule.md'));
   ok('4th warns (offence 2)', /offence 2/.test(read(d, 'neg1').out) && read(d, 'neg1').code === 2);
 
+  const hiddenReads = hiddenBehindQuotes(`cat "${OUT}"`);
+  const hid = adopted(false);
+  const hiddenResults = [...hiddenReads, ...hiddenReads, hiddenReads[0]].map((c) => bash(hid, 'hid1', c));
+  ok('KIT-T705: re-reads of one task output hidden behind an escaped quote or a $\'…\' string still count and block', hiddenResults.slice(0, 2).every((r) => r.code === 0) && hiddenResults[4].code === 2);
+
+  ok('KIT-T705 negative control: node -e with escaped quotes and no task output passes', bash(adopted(false), 'neg-esc', 'node -e "console.log(\\"x\\")"').code === 0);
   const hiddenReads = hiddenBehindQuotes(`cat "${OUT}"`);
   const hid = adopted(false);
   const hiddenResults = [...hiddenReads, ...hiddenReads, hiddenReads[0]].map((c) => bash(hid, 'hid1', c));

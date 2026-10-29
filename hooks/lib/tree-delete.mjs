@@ -10,6 +10,7 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import { segments, cdTarget, toPath } from './shell-segments.mjs';
 
 const DELETE_CMD = /^(?:rm|rmdir|del|erase|unlink|remove-item|ri)$/i;
+const DELETE_WORD = /\b(?:rm|rmdir|del|erase|unlink|remove-item|ri)\b/i;
 const BUILD_OUTPUT = new Set(['target', 'node_modules', 'dist', 'build']);
 
 const EXPANDS = /[$`]|%[^%\s]+%|^["']?~/;
@@ -22,10 +23,13 @@ const within = (base, abs) => {
   return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel);
 };
 
+// With ambiguous quoting no path can be resolved: a delete word anywhere makes the whole checkout the target.
 export function treeDeleteTargets(command, root, cwd) {
+  const parts = segments(command);
+  if (parts.ambiguous) return DELETE_WORD.test(command) ? [root] : [];
   const hits = [];
   let here = cwd;
-  for (const { text } of segments(command)) {
+  for (const { text } of parts) {
     const dir = cdTarget(text.trim());
     if (dir) { here = moveTo(here, dir); continue; }
     const tok = text.trim().match(/"[^"]*"|'[^']*'|\S+/g) || [];

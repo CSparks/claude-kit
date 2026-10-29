@@ -14,7 +14,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { payload, git, gitRoot, adopted } from './lib.mjs';
 import { classifyGitSegment, tokenize } from './lib/branch-ops.mjs';
-import { cdTarget, segments, toPath } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, cdTarget, segments, toPath } from './lib/shell-segments.mjs';
 
 const ESCAPE = /\[maintainer-asked-branch:\s*[^\]\s][^\]]*\]/i;
 
@@ -88,6 +88,14 @@ try {
   const command = (p.tool_input && p.tool_input.command) || '';
   if (!/\bgit\b/.test(command) || !/\b(?:switch|checkout|branch|worktree|clone)\b/.test(command)) process.exit(0);
   if (ESCAPE.test(command)) process.exit(0);
+  if (segments(command).ambiguous) {
+    const here = gitRoot();
+    if (!here || adopted(here)) {
+      process.stderr.write(`\nBLOCKED: a git command that may switch, branch or clone cannot be judged (KIT-D039). ${AMBIGUOUS_MESSAGE}\n`);
+      process.exit(2);
+    }
+    process.exit(0);
+  }
 
   const lookupsFor = (root) => {
     const defaultBranch = root ? git(['-C', root, 'symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).trim().replace(/^origin\//, '') : '';

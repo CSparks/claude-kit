@@ -14,14 +14,16 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { segments } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
 import { payload, gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
 
 const CHECK_ID = 'broker-log';
 const BROKER_DIR = join(dirname(dirname(fileURLToPath(import.meta.url))), 'scripts', 'broker').replace(/\\/g, '/');
 
 const LOGS_PATH = /broker[\\/](?:lanes[\\/][^\\/\s"']+[\\/])?logs(?:[\\/]|$)|\blanes[\\/][^\\/\s"']+[\\/]logs(?:[\\/]|$)/i;
-const READ_TOOL = /^(?:grep|egrep|fgrep|rg|ag|ack|sed|awk|findstr|select-string|sls|cat|head|tail|type|get-content|gc|less|more)$/;
+const READ_TOOLS = 'grep|egrep|fgrep|rg|ag|ack|sed|awk|findstr|select-string|sls|cat|head|tail|type|get-content|gc|less|more';
+const READ_TOOL = new RegExp(`^(?:${READ_TOOLS})$`);
+const READ_TOOL_WORD = new RegExp(`\\b(?:${READ_TOOLS})\\b`, 'i');
 const FOLLOW_FLAG = { tail: /^(?:-[A-Za-z]*[fF][A-Za-z]*|--follow(?:=\S+)?)$/, 'get-content': /^-wait$/i, gc: /^-wait$/i };
 const DAEMON_LOG = /daemon-[^\\/\s"']*\.log\b/i;
 const GLOB = /[*?]/;
@@ -60,7 +62,12 @@ try {
   if (!adopted(root)) process.exit(0);
   const marks = markerExcludedLines(command, CHECK_ID);
   if (marks.wholeFile || marks.lines.size) process.exit(0);
-  for (const { text } of segments(command)) {
+  const parts = segments(command);
+  if (parts.ambiguous && LOGS_PATH.test(command) && READ_TOOL_WORD.test(command)) {
+    process.stderr.write(`${message({ logs: [command.match(LOGS_PATH)[0]], follows: false })}${AMBIGUOUS_MESSAGE}\n${excludeFooter(CHECK_ID)}`);
+    process.exit(2);
+  }
+  for (const { text } of parts) {
     const hit = judge(text);
     if (!hit || hit.logs.every((l) => pathExcluded(root, CHECK_ID, l))) continue;
     process.stderr.write(message(hit) + excludeFooter(CHECK_ID));

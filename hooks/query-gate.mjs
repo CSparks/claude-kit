@@ -18,7 +18,7 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { segments } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
 import { indexEquivalent } from './lib/index-answerable.mjs';
 import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
@@ -34,6 +34,7 @@ const GRAPH = join(KIT, 'scripts', 'code-graph.mjs');
 // Text tools that READ/SEARCH file CONTENT (the wrong path for store + discovery).
 const SEARCH = /^(?:grep|egrep|fgrep|rg|ag|ack|sed|awk|findstr|select-string|sls)$/;
 const READ = /^(?:cat|head|tail|type|get-content|gc)$/;
+const SEARCH_WORD = new RegExp(`\\b${SEARCH.source.slice(1, -1)}\\b`, 'i');
 // Anything in the .ai work store — the data `q` owns. Tickets/decisions/etc. may also
 // be referenced bare (a `cd` already inside .ai), so match the store dirs at TOKEN START
 // only — `src/notes/` is a legit user directory, not the store (KIT-T056). The
@@ -115,7 +116,12 @@ async function main() {
   // A segment after a single `|` receives the previous command's OUTPUT, so a search
   // tool there with no path-ish args is filtering text (allowed); `||`/`&&`/`;` chains
   // run against the FILESYSTEM and are judged in full.
-  for (const { text, after } of segments(cmd)) {
+  const parts = segments(cmd);
+  if (parts.ambiguous && SEARCH_WORD.test(cmd)) {
+    process.stderr.write(`\nBLOCKED: a search command cannot be judged (retrieval gate). ${AMBIGUOUS_MESSAGE}\n${excludeFooter('source-discovery')}`);
+    process.exit(2);
+  }
+  for (const { text, after } of parts) {
     const c = text.trim();
     if (!c) continue;
     const verdict = judge(c, after === '|');

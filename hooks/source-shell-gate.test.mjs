@@ -169,6 +169,7 @@ try {
   check('KIT-T705: a PowerShell backtick-escaped quote hiding sed -i blocks', blocked("grep `\" ; sed -i s/a/b/ hooks/a.mjs ; echo `\""));
   const ansiC = "grep $'a\\' ; sed -i x hooks/a.mjs ; \\''";
   check("KIT-T705: a $'…' string whose escaped quote hides sed -i blocks", blocked(ansiC), run(ansiC).stderr.slice(0, 100));
+  check('KIT-T705 negative control: node -e with escaped quotes and no write passes', !blocked('node -e "console.log(\\"x\\")"'));
   check('KIT-T705 negative control: an escaped quote around harmless text passes', !blocked('echo \\"hello\\" ; ls'));
   check('KIT-T705 negative control: a read behind an escaped quote passes', !blocked('grep \\" hooks/a.mjs ; echo \\"'));
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: repo, input: 'not json', encoding: 'utf8' }).status === 0);

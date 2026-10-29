@@ -7,12 +7,14 @@
 
 import { payload, excludeFooter } from './lib.mjs';
 import { pythonStdinCommand } from './lib/python-stdin.mjs';
+import { AMBIGUOUS_MESSAGE } from './lib/shell-segments.mjs';
 
 const CHECK = 'python-stdin';
 const WHY = {
   'empty-heredoc': 'its heredoc has no body (bash hands python /dev/null, which Windows sees as NUL): CPython 3.14 starts its REPL and spins a full CPU core forever',
   'no-stdin': "it reads its program from stdin and nothing feeds it (no `<`, heredoc or pipe): it blocks forever on the tool's stdin pipe",
   'store-stub': 'it is the Microsoft Store stub, which never returns when fed stdin',
+  'ambiguous-quoting': `the quoting is too ambiguous to tell whether stdin feeds it. ${AMBIGUOUS_MESSAGE}`,
 };
 
 try {

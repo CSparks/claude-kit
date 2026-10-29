@@ -7,6 +7,7 @@
 
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { shellStoreWrite } from './lib/store-shell-write.mjs';
+import { AMBIGUOUS_MESSAGE } from './lib/shell-segments.mjs';
 
 const CHECK = 'store-shell-write';
 
@@ -18,7 +19,7 @@ try {
     const found = shellStoreWrite(command);
     if (found && !pathExcluded(root, CHECK, found.path)) {
       process.stderr.write(`
-BLOCKED: a shell command writes the .ai work store by hand (${found.path}).
+BLOCKED: ${found.ambiguous ? `a shell command may write the .ai work store by hand. ${AMBIGUOUS_MESSAGE}` : `a shell command writes the .ai work store by hand (${found.path}).`}
   The store changes through its verbs, which mint ids, stamp history and refresh the cache:
     ${found.hint}
   A verb that cannot do what you need is a kit gap: cap feature "t: <what is missing>" --project claude-kit,

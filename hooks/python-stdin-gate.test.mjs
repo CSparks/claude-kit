@@ -72,6 +72,7 @@ check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOO
 if (process.platform === 'win32') {
   const r = hook(EMPTY_FALLBACK);
   check('on Windows the hook blocks the empty-heredoc shape and names node', r.status === 2 && /node -e/.test(r.stderr) && /python-stdin/.test(r.stderr), r.stderr);
+  check('KIT-T705 negative control: node -e with escaped quotes and no python word passes', hook('node -e "console.log(\\"x\\")"').status === 0);
   check('KIT-T705: on Windows a stdin-less python hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('python3 -').every((c) => hook(c).status === 2));
   check('on Windows the hook allows a non-empty heredoc', hook("python3 - <<'EOF'\nprint(1)\nEOF").status === 0);
 }

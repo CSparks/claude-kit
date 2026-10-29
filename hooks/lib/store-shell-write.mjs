@@ -41,5 +41,5 @@ function codeWrites(code) {
 }
 
 export function shellStoreWrite(command, { readScript = readTempScript } = {}) {
-  return scanShellWrites(command, { hit, codeHit: codeWrites, readScript });
+  return scanShellWrites(command, { hit, codeHit: codeWrites, readScript, ambiguous: () => ({ path: '.ai/…', hint: HINTS.other, ambiguous: true }) });
 }
