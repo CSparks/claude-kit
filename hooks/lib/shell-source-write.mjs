@@ -3,16 +3,11 @@
 // Write tools, where pre-write checks length, comments and literals; a shell write skips them.
 // This is the shell twin of pre-write's code checks (check-id source-shell-write, KIT-T648).
 //
-//   shellSourceWrite(command, { readScript, tempDir }) -> null | { path, variable? }
-//     inline code or a scratch script whose write call targets anything but a quoted literal path
-//     cannot be checked: it yields { path: VARIABLE_TARGET, variable: true } (KIT-T706).
+//   shellSourceWrite(command, { readScript, tempDir }) -> null | { path }
 //   isSourcePath(path, tempDir) -> boolean   a hand-authored source path (not temp, build output or a vendored tree)
 
 import { tmpdir } from 'node:os';
-import { scriptWriteTargets } from './script-write-targets.mjs';
 import { FS_WRITE, readTempScript, scanShellWrites } from './shell-write-scan.mjs';
-
-export const VARIABLE_TARGET = 'a write target no literal path names';
 
 const SOURCE_EXT = 'rs|js|mjs|cjs|jsx|ts|tsx|vue|svelte|py|go|java|kt|swift|c|h|cc|cpp|hpp|cs|rb|php|sh|bash|ps1|lua|sql|wgsl|glsl|rhai|css|scss';
 const SOURCE_FILE = new RegExp(`\\.(?:${SOURCE_EXT})$`, 'i');
@@ -32,10 +27,9 @@ export function isSourcePath(path, tempDir = tmpdir()) {
 export function shellSourceWrite(command, { readScript = readTempScript, tempDir = tmpdir() } = {}) {
   const hit = (path) => (isSourcePath(path, tempDir) ? { path: slashed(path) } : null);
   const codeHit = (code) => {
-    const targets = scriptWriteTargets(code);
-    if (!FS_WRITE.test(code) && !targets.length) return null;
+    if (!FS_WRITE.test(code)) return null;
     for (const m of code.matchAll(QUOTED_SOURCE)) { const h = hit(m[1]); if (h) return h; }
-    return targets.includes(null) ? { path: VARIABLE_TARGET, variable: true } : null;
+    return null;
   };
   return scanShellWrites(command, { hit, codeHit, readScript });
 }

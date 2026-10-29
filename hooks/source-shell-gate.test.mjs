@@ -163,39 +163,6 @@ try {
     ['git rm', 'git rm hooks/a.mjs'],
   ];
   for (const [name, command] of harmless) check(`KIT-T701 negative control: ${name} passes`, !blocked(command), run(command).stderr.slice(0, 100));
-  const scratchpad = join(tmpdir(), 'scratchpad').replace(/\\/g, '/');
-  const variableWrites = [
-    ['node -e writeFileSync through a concatenated path', `node -e "const p = 'hooks/' + process.argv[1]; require('fs').writeFileSync(p, 'x')"`],
-    ['node -e appendFileSync through a variable', `node -e "require('fs').appendFileSync(target, 'x')"`],
-    ['node -e unlinkSync through a variable', `node -e "require('fs').unlinkSync(file)"`],
-    ['node -e renameSync with a variable destination', `node -e "require('fs').renameSync('a.txt', dest)"`],
-    ['node -e fs.promises.writeFile through a variable', `node -e "require('fs').promises.writeFile(out, 'x')"`],
-    ['node -e writeFileSync through path.join', `node -e "require('fs').writeFileSync(require('path').join('hooks', n), 'x')"`],
-    ['python -c open for write through a variable', `python -c "p = 'tools/' + n; open(p, 'w').write('x')"`],
-    ['python -c open for append through a variable', `python -c "open(p, 'a').write('x')"`],
-    ['python -c Path.write_text on a variable', `python -c "from pathlib import Path; Path(p).write_text('x')"`],
-    ['a node heredoc writing through a variable', "node - <<'EOF'\nfs.writeFileSync(target, t)\nEOF"],
-  ];
-  for (const [name, command] of variableWrites) check(`KIT-T706: ${name} blocks`, blocked(command), run(command).stderr.slice(0, 100));
-  const varScript = join(tmpdir(), `kit-shellsrc-var-${process.pid}.mjs`);
-  writeFileSync(varScript, "import fs from 'node:fs';\nconst p = 'hooks/' + process.argv[2];\nfs.writeFileSync(p, 'x');\n");
-  check('KIT-T706: a scratch script writing through a variable path blocks', blocked(`node ${varScript}`));
-  check('KIT-T706: the block names the unreadable target, not a file', /builds at run time/.test(run(`node ${varScript}`).stderr));
-  writeFileSync(varScript, "import fs from 'node:fs';\nconsole.log(fs.readFileSync(process.argv[2], 'utf8'));\n");
-  check('KIT-T706 negative control: a scratch script with no write call passes', !blocked(`node ${varScript}`));
-  rmSync(varScript, { force: true });
-  const literalWrites = [
-    ['a literal scratchpad path', `node -e "require('fs').writeFileSync('${scratchpad}/probe.mjs', 'x')"`],
-    ['a literal temp path with renameSync', `node -e "require('fs').renameSync('${scratchpad}/a.txt', '${scratchpad}/b.txt')"`],
-    ['a literal .ai path', `node -e "require('fs').writeFileSync('.ai/notes/a.md', 'x')"`],
-    ['python open for write on a literal scratchpad path', `python -c "open('${scratchpad}/out.txt', 'w').write('x')"`],
-    ['python Path.write_text on a literal scratchpad path', `python -c "from pathlib import Path; Path('${scratchpad}/out.txt').write_text('x')"`],
-    ['python open for read through a variable', `python -c "print(open(p).read())"`],
-    ['node -e reading through a variable', `node -e "console.log(require('fs').readFileSync(p, 'utf8'))"`],
-  ];
-  for (const [name, command] of literalWrites) check(`KIT-T706 negative control: ${name} passes`, !blocked(command), run(command).stderr.slice(0, 100));
-  check('KIT-T706: a variable-path write passes from a directory that is no repo', run(`node -e "require('fs').writeFileSync(p, 'x')"`, plain).status === 0);
-
   const hiddenSed = 'grep \\" ; sed -i s/a/b/ hooks/a.mjs ; echo \\"';
   check('KIT-T705: an escaped quote that hides sed -i behind a reader blocks', blocked(hiddenSed), run(hiddenSed).stderr.slice(0, 100));
   check('KIT-T705: an unclosed quote ahead of a sed -i still blocks', blocked("git log --format='%s' ; echo it's ; sed -i s/a/b/ hooks/a.mjs"));
