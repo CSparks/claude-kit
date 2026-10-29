@@ -10,7 +10,7 @@
 // two never race. The default slot keeps the original `<repo>.json` filename (back-compat for the
 // existing review-count snapshot).
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -42,6 +42,14 @@ export function readTurnState(root, slot = '') {
     return JSON.parse(readFileSync(turnStatePath(root, slot), 'utf8'));
   } catch {
     return null;
+  }
+}
+
+export function clearTurnState(root, slot = '') {
+  try {
+    rmSync(turnStatePath(root, slot), { force: true });
+  } catch {
+    /* already gone */
   }
 }
 

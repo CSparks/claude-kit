@@ -9,6 +9,7 @@
 import { basename, dirname } from 'node:path';
 import { git, readTurnState, writeTurnState } from './lib.mjs';
 import { readTurnSlots } from './lib/turn-state.mjs';
+import { clearHandWrite } from './lib/hand-writes.mjs';
 
 export const TURN_WRITES_SLOT = 'writes';
 const TURN_WRITES_MAX = 300;
@@ -34,7 +35,7 @@ const sessionSlot = (sid) => `swrites-${String(sid).replace(/[^A-Za-z0-9_-]/g, '
 export function recordTurnWrite(root, file, sessionId = '') {
   const rel = repoRelative(root, file);
   if (!rel) return;
-  if (sessionId) recordSessionWrite(root, rel, sessionId);
+  if (sessionId) { recordSessionWrite(root, rel, sessionId); clearHandWrite(root, sessionId, rel); }
   const prev = readTurnState(root, TURN_WRITES_SLOT) || {};
   const files = Array.isArray(prev.files) ? prev.files : [];
   files.push({ p: rel, ts: Date.now() });

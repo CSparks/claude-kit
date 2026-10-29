@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SRC } from './lib.mjs';
 import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
+import { pendingHandWrites } from './lib/hand-writes.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
@@ -162,6 +163,30 @@ if (dataRepo) {
   }
 }
 if (!adopted(root)) process.exit(0);
+
+// KIT-T706: a source file a shell call wrote by hand (hooks/hand-write-detect.mjs) stays out of a commit
+// until Edit or Write re-saves it; the source-shell-write ignore key lifts it.
+try {
+  const handWritten = pendingHandWrites(root, p.session_id, changed).filter((f) => !pathExcluded(root, 'source-shell-write', f));
+  if (handWritten.length) {
+    process.stderr.write(
+      [
+        '',
+        `BLOCKED: ${handWritten.length} path(s) in this commit were written by a shell call, not Edit or Write (KIT-T706).`,
+        '',
+        ...handWritten.slice(0, MAX_FOREIGN).map((f) => `  ${f}`),
+        ...(handWritten.length > MAX_FOREIGN ? [`  +${handWritten.length - MAX_FOREIGN} more`] : []),
+        '',
+        'Edit and Write run the pre-write checks (file length, comment prose, literals) that a shell write skips.',
+        'Re-save each file through Edit or Write, then commit.',
+        '',
+      ].join('\n') + excludeFooter('source-shell-write'),
+    );
+    process.exit(2);
+  }
+} catch {
+  /* the hand-write check is best-effort — never wedge a commit on a scan error */
+}
 
 // KIT-T407: block a commit carrying source this SESSION never wrote — a directory-wide `git add`
 // sweeping another session's WIP (596d1fc). Judged only when the session has a writes ledger

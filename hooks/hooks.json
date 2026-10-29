@@ -59,6 +59,10 @@
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" shell-writes.mjs" }]
       },
       {
+        "matcher": "Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" hand-write-detect.mjs" }]
+      },
+      {
         "matcher": "Read|Bash|PowerShell",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" wait-poll.mjs" }]
       },
@@ -113,6 +117,7 @@
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" git-pull-hydrate.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" commit-stamp.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" shell-writes.mjs" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" hand-write-detect.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" progress.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" orphan-reaper.mjs" }
         ]

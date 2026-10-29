@@ -41,6 +41,18 @@ try {
     ['python -c writing a source file', `python -c "open('tools/run.py','w').write('x')"`],
     ['a node heredoc rewriting a source file', "node - <<'EOF'\nfs.writeFileSync('hooks/lib/a.mjs', t)\nEOF"],
     ['a chained command', 'cargo fmt && sed -i s/a/b/ src/lib.rs'],
+    ['node openSync on a source file', `node -e "require('fs').openSync('hooks/x.mjs','w')"`],
+    ['node writeSync on a source file', `node -e "const fs=require('fs');fs.writeSync(fs.openSync('hooks/x.mjs','w'),'x')"`],
+    ['node fs[…] on a source file', `node -e "require('fs')['writeFileSync']('hooks/x.mjs','x')"`],
+    ['node fs.promises on a source file', `node -e "require('fs').promises.writeFile('hooks/x.mjs','x')"`],
+    ['node fs.rmSync on a source file', `node -e "require('fs').rmSync('hooks/x.mjs')"`],
+    ['python Path.write_text on a source file', `python -c "from pathlib import Path; Path('tools/x.py').write_text('x')"`],
+    ['python Path.unlink on a source file', `python -c "from pathlib import Path; Path('tools/x.py').unlink()"`],
+    ['python shutil.copy onto a source file', `python -c "import shutil; shutil.copy('a.txt','tools/x.py')"`],
+    ['python os.rename onto a source file', `python -c "import os; os.rename('a.txt','tools/x.py')"`],
+    ['python os.open on a source file', `python -c "import os; os.open('tools/x.py', os.O_WRONLY)"`],
+    ['python open with mode=', `python -c "open('tools/x.py', mode='w').write('x')"`],
+    ['python open for update', `python -c "open('tools/x.py', 'r+').write('x')"`],
   ];
   for (const [name, command] of WRITES) {
     const r = run(command);
@@ -63,6 +75,9 @@ try {
     ['a build tool', 'cargo fmt'],
     ['a kit verb', 'node /k/scripts/q.mjs code write_plan --path src/lib.rs'],
     ['node -e that reads source', `node -e "console.log(require('fs').readFileSync('src/lib.rs','utf8'))"`],
+    ['node -e replacing text read from a source file', `node -e "console.log(require('fs').readFileSync('src/lib.rs','utf8').replace(/a/,'b'))"`],
+    ['python reading a source file', `python -c "print(open('src/lib.rs').read())"`],
+    ['python opening a file whose name starts with a mode letter', `python -c "print(open('a.rs').read())"`],
     ['node -e writing a data file', `node -e "require('fs').writeFileSync('out.json','{}')"`],
     ['node -e writing a temp file named .rs', `node -e "require('fs').writeFileSync('/tmp/x.rs','x')"`],
     ['a broker patch submit heredoc', "node scripts/broker/submit.mjs --land <<'EOF'\n*** write src/new.rs\nfn a() {}\nEOF"],
