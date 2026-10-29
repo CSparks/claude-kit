@@ -53,7 +53,7 @@ export function suspects(cwd, landings, failing) {
   const out = [];
   for (const l of landings) {
     const sel = selectAffected(cwd, l.paths);
-    const hit = [...sel.crates.values()].flatMap((s) => [...s]).filter((s) => specs.has(s));
+    const hit = [...sel.crates.values()].flatMap((s) => [...s]).map((s) => s.replace(/ -- .*$/, '')).filter((s) => specs.has(s));
     if (hit.length) out.push({ sha: l.sha, subject: l.subject, why: `its paths map to ${[...new Set(hit)].join(', ')}` });
     else if (sel.unmapped.length) out.push({ sha: l.sha, subject: l.subject, why: `unmapped paths ${sel.unmapped.join(', ')}` });
     else if (blind) out.push({ sha: l.sha, subject: l.subject, why: 'the failure has no mapped target' });

@@ -14,7 +14,7 @@
 //   unfiltered `cargo test`.
 
 import { join } from 'node:path';
-import { selectAffected } from './affected.mjs';
+import { selectAffected, splitSpecs } from './affected.mjs';
 import { dependentsOf, readLock } from './cargo-lock.mjs';
 
 const SELECTORS = new Set(['--test', '--tests', '--lib', '--bin', '--bins', '--example', '--examples', '--doc', '--bench']);
@@ -78,6 +78,14 @@ function dependentTests(cfg, cwd, sel) {
   return out;
 }
 
+// One crate's mapped tests: the plain targets in one command, and each folded binary's module filters in a command of
+// its own, because a filter applies to every binary a command runs.
+function crateTests(cfg, workspace, name, specs) {
+  const { plain, areas } = splitSpecs(specs);
+  const prefix = `${inWorkspace(workspace)}${cfg.affected.test} -p ${name}`;
+  return [...(plain.length ? [`${prefix} ${plain.join(' ')}`] : []), ...[...areas].map(([area, filters]) => `${prefix} --test ${area} -- ${[...new Set(filters)].join(' ')}`)];
+}
+
 export function landGate(cfg, cwd, job, files) {
   if (cfg.landGate !== 'affected') return null;
   const deleted = [...files].filter(([, f]) => f.text === null).map(([p]) => p);
@@ -87,7 +95,7 @@ export function landGate(cfg, cwd, job, files) {
   const dropped = given.filter((c) => isSuiteShaped(c, cfg.suite));
   const kept = given.filter((c) => !dropped.includes(c));
   if (kept.length && !cfg.affected.mandatory) return { commands: [...new Set([cfg.affected.check, ...kept])], selection: { reasons: [], dropped, explicit: true } };
-  const tests = [...sel.crates].filter(([, specs]) => specs.size).map(([name, specs]) => `${inWorkspace(sel.workspaces.get(name))}${cfg.affected.test} -p ${name} ${[...specs].join(' ')}`);
+  const tests = [...sel.crates].filter(([, specs]) => specs.size).flatMap(([name, specs]) => crateTests(cfg, sel.workspaces.get(name), name, specs));
   const dependents = cfg.affected.dependents ? dependentTests(cfg, cwd, sel) : [];
   const commands = [...new Set([cfg.affected.check, ...tests, ...dependents, ...kept])];
   return { commands, selection: { reasons: sel.reasons, dropped } };

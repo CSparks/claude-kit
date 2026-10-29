@@ -94,7 +94,7 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
   `affected.check` (default `cargo check --workspace --all-targets`) plus `affected.test -p <crate>`
   over the targets its changed paths map to (`tests/x.rs` → `--test x`; a `src` module →
   `--lib` + the tests naming it; a shared test module or asset → the tests naming it;
-  `src/bin/b.rs` → `--bin b`), plus the worker's targeted commands. Suite-shaped commands (a
+  `src/bin/b.rs` → `--bin b`). A test binary folded from many files (`tests/<area>/main.rs` with one module per old file) is selected by module: a changed module file runs `--test <area> -- <module>::` plus the modules whose source names it, a src module runs only the modules that name it (the whole binary when its main.rs names it outside its `mod x;` lines), the binary root or a non-module file runs the whole area; filters ride in a command of their own because a filter applies to every binary of a command, plus the worker's targeted commands. Suite-shaped commands (a
   `suite` entry modulo `-j`/`--no-fail-fast`, or an unfiltered `cargo test`) leave the gate. A
   `.rs`/`Cargo.toml` outside every crate falls back to the job's commands. The result carries
   `selection: { reasons, dropped }`. A job that carries its own `--test` commands runs those in place of the mapped tests, after the

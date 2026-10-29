@@ -42,7 +42,8 @@ test('test files, shared test modules, src modules, bins and assets map to their
   const dir = layout();
   try {
     assert.deepEqual(specs(dir, ['crates/app/tests/alpha.rs']).app, ['--test alpha']);
-    assert.deepEqual(specs(dir, ['crates/app/tests/wall/sweep.rs']).app, ['--test wall'], 'a dir with main.rs is its own target');
+    assert.deepEqual(specs(dir, ['crates/app/tests/wall/sweep.rs']).app, ['--test wall -- sweep::'], 'a dir with main.rs is its own target; a module file narrows it to its module');
+    assert.deepEqual(specs(dir, ['crates/app/tests/wall/main.rs']).app, ['--test wall'], 'the binary root runs the whole target');
     assert.deepEqual(specs(dir, ['crates/app/tests/common/mod.rs']).app, ['--test beta'], 'a shared module maps to the tests naming it');
     assert.deepEqual(specs(dir, ['crates/app/src/camera.rs']).app, ['--lib', '--test alpha'], 'word match: camera_rig_extra does not name camera');
     assert.deepEqual(specs(dir, ['crates/app/src/track/mod.rs']).app, ['--lib', '--test beta']);

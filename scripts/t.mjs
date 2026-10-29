@@ -399,6 +399,7 @@ function parseArgs(argv) {
     else if (a === '--fix') { flags.fix = [argv[++i], argv[++i]]; if (flags.fix.some((x) => x === undefined)) { console.error('t: --fix takes <old> <new>'); process.exit(2); } }
     else if (a === '--drop') flags.drop = argv[++i];
     else if (a === '--status-to') flags.statusTo = argv[++i];
+    else if (a === '--promoted') flags.promoted = argv[++i];
     else if (a === '--summary') flags.summary = argv[++i];
     else if (a === '--title') flags.title = argv[++i];
     else if (a === '--type') flags.type = argv[++i];
@@ -419,7 +420,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|note|notes|epic|request|question|session|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t decide --file <draft.md> | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|note|notes|epic|request|question|session|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t decide --file <draft.md> | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<id|none (why)>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
@@ -527,9 +528,9 @@ async function main() {
   }
   if (cmd === 'revise') {
     const [id] = rest;
-    if (!id) { console.error('usage: t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--file <draft.md>]'); process.exit(2); }
+    if (!id) { console.error('usage: t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<KIT-D###|RG-D###|none (why)>"] [--file <draft.md>]'); process.exit(2); }
     const { reviseDecision } = await import('./t-revise.mjs');
-    const r = reviseDecision(root, id, { status: flags.statusTo, summary: flags.summary, draftText: flags.file ? readFileSync(flags.file, 'utf8') : '' });
+    const r = reviseDecision(root, id, { status: flags.statusTo, summary: flags.summary, promoted: flags.promoted, draftText: flags.file ? readFileSync(flags.file, 'utf8') : '' });
     await refresh(root);
     process.stdout.write(`revise: ${r.id} changed ${r.changed.join(', ')} -> ${relative(root, r.path)}\n`);
     return;

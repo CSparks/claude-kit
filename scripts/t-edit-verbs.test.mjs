@@ -71,6 +71,17 @@ try {
     assert.match(out, /revised: 2026-10-20\n---\n\n\*\*Decision:\*\* thing A\./);
   });
 
+  ok('revise --promoted records where a project decision was promoted, leaving the body alone', () => {
+    const root = store();
+    const file = join(root, '.ai', 'decisions', 'ED-D001-pick-a-thing.md');
+    writeFileSync(file, DECISION);
+    const r = reviseDecision(root, 'ED-D001', { promoted: 'KIT-D110', now: new Date('2026-10-29T00:00:00Z') });
+    const out = read(file);
+    assert.deepEqual(r.changed, ['promoted']);
+    assert.match(out, /promoted: KIT-D110\n/);
+    assert.match(out, /\n---\n\n\*\*Decision:\*\* thing A\.\n\n\*\*Why:\*\* because\.\n$/);
+  });
+
   ok('revise --file replaces the body; a body without Decision/Why and an unknown id refuse', () => {
     const root = store();
     const file = join(root, '.ai', 'decisions', 'ED-D001-pick-a-thing.md');

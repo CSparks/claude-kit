@@ -10,6 +10,7 @@
 // its frontmatter has `promoted: KIT-D### | RG-D### | none (<why>)`, or when a KIT or RG decision text cites its id.
 
 import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,19 +30,25 @@ function frontmatter(text) {
   return out;
 }
 
-const decisionDirs = (root) => [join(root, '.ai', 'decisions'), join(root, 'rapid-game', '.ai', 'decisions')].filter(existsSync);
+// The rapid-game project's own store, from the machine registry: a consumer's submodule checkout carries no store.
+function frameworkStore(registry) {
+  try {
+    const path = JSON.parse(readFileSync(registry, 'utf8')).projects['rapid-game'];
+    return path ? join(path, '.ai', 'decisions') : null;
+  } catch { return null; }
+}
 
-function citedIds(kitRoot, root) {
-  const dirs = [join(kitRoot, '.ai', 'decisions'), ...(resolve(root) === resolve(kitRoot) ? [] : [join(root, 'rapid-game', '.ai', 'decisions')])].filter(existsSync);
+function citedIds(kitRoot, root, registry) {
+  const dirs = [join(kitRoot, '.ai', 'decisions'), join(root, 'rapid-game', '.ai', 'decisions'), frameworkStore(registry)].filter((d) => d && existsSync(d));
   let text = '';
   for (const dir of dirs) for (const f of readdirSync(dir)) if (/^(?:KIT|RG)-D\d+.*\.md$/.test(f)) text += `${readFileSync(join(dir, f), 'utf8')}\n`;
   return text;
 }
 
-export function unpromoted(root, { kitRoot = KIT_ROOT } = {}) {
+export function unpromoted(root, { kitRoot = KIT_ROOT, registry = join(homedir(), '.claude', 'claude-kit-projects.json') } = {}) {
   const dir = join(root, '.ai', 'decisions');
   if (!existsSync(dir) || realpathSync(root) === realpathSync(kitRoot)) return [];
-  const cited = citedIds(kitRoot, root);
+  const cited = citedIds(kitRoot, root, registry);
   const flagged = [];
   for (const f of readdirSync(dir).filter((x) => /^[A-Z]+-D\d+.*\.md$/.test(x) && !x.startsWith('KIT-') && !x.startsWith('RG-'))) {
     const fm = frontmatter(readFileSync(join(dir, f), 'utf8'));
