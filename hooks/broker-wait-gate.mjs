@@ -14,20 +14,17 @@
 // Check-id: broker-wait (path glob subject: the checkout; in-source marker `# claude-kit-ignore broker-wait`).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fail-open on any error.
 
-import { createHash } from 'node:crypto';
-import { payload, gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter, readTurnState, writeTurnState } from './lib.mjs';
+import { payload,gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter, readTurnState, writeTurnState } from './lib.mjs';
 import { brokerCalls, usesCargo } from './lib/broker-calls.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
+import { waitSlot, jobId, digest } from './lib/broker-wait-state.mjs';
 
 const CHECK_ID = 'broker-wait';
 const MAX_TOOL_TIMEOUT_MS = 300000;
 const MAX_WAIT_S = 300;
-const DIGEST_CHARS = 12;
 const BROKER_STATE = /target[\\/]broker/i;
 const LOOP = /(?:^|[;&|(\n]|\bdo|\bthen)\s*(?:sleep|start-sleep|while|until|for|foreach)\b|\btail\s+-\w*[fF]|\bget-content\b[^|;&]*-wait\b/i;
 const flagValue = (words, name) => { const i = words.indexOf(name); return i >= 0 ? words[i + 1] : undefined; };
-const digest = (text) => createHash('sha1').update(text).digest('hex').slice(0, DIGEST_CHARS);
-const jobId = (call) => call.words.find((w) => /^j-/.test(w)) || call.sub;
 
 function problems(command, input, state) {
   const calls = brokerCalls(command);
@@ -71,7 +68,7 @@ try {
   if (!adopted(root) || pathExcluded(root, CHECK_ID, root)) process.exit(0);
   const marks = markerExcludedLines(command, CHECK_ID);
   if (marks.wholeFile || marks.lines.size) process.exit(0);
-  const slot = `brokerwait-${agent.replace(/[^\w-]/g, '_')}`;
+  const slot = waitSlot(agent);
   const state = { waited: [], submits: [], ...(readTurnState(root, slot) || {}) };
   const found = problems(command, input, state);
   if (found.length) {
