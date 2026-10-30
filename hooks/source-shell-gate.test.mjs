@@ -89,6 +89,10 @@ try {
   check('blocks a scratch script that writes a source file', blocked(`node ${script}`));
   writeFileSync(script, "import fs from 'node:fs';\nfs.writeFileSync('out.json', 'x');\n");
   check('allows a scratch script that writes a data file', !blocked(`node ${script}`));
+  writeFileSync(script, "import { x } from './lib/x.mjs';\nconsole.log('add t unlink (or replace) beside the link (cp) note');\n");
+  check('KIT-T733: a read-only scratch script quoting a source path whose prose says "unlink (or replace)" passes', !blocked(`node ${script}`));
+  writeFileSync(script, "import fs from 'node:fs';\nfs.rm('src/lib.rs');\n");
+  check('KIT-T733 control: a scratch script calling fs.rm on a source file still blocks', blocked(`node ${script}`));
   rmSync(script, { force: true });
 
   check('shellSourceWrite names the path it found', shellSourceWrite('rm src\\lib.rs')?.path === 'src/lib.rs');
