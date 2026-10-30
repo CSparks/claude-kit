@@ -8,16 +8,23 @@
 //   pre    the pre-patch state (cache.mjs treeState plus { dirty, head }) taken before the patch was written
 //   held   the pins that stay checked out during the baseline run
 //   enter  puts the tree into its pre-patch state; leave puts the patch back.
+//   since, clock  when the job's run began and the time source; onPhase('baseline' | 'run') marks the re-run's own phase.
 // `fn(run)` gets `run(cmd, tag)` → a base log path; baseline returns fn's result with { dirty, head }.
+// A re-run costs about what the failed command did, so past BASELINE_BUDGET_MS of the job the baseline is skipped
+// (a cached base log still answers) and baseline returns { skipped: <reason> }: the failure stays unattributed.
 
 import { existsSync } from 'node:fs';
 import { cacheGet, cachePut, hashKey } from './cache.mjs';
 import { logPathFor } from './result.mjs';
 import { runCommand } from './run.mjs';
+import { CEILING_MS } from './overrun.mjs';
 
 const NAME = 'baseline';
+export const BASELINE_BUDGET_MS = CEILING_MS / 2;
+const SKIPPED = Symbol('baseline skipped');
+const SKIP_REASON = 'attribution skipped: the job is past half the 5-minute ceiling (KIT-D104), so the failure was not re-run without the patch';
 
-export function makeBaseline({ cfg, job, cwd, pre, held, enter, leave }) {
+export function makeBaseline({ cfg, job, cwd, pre, held, enter, leave, onPhase = () => {}, since = Date.now(), clock = Date.now }) {
   const pinsKey = `pins ${JSON.stringify(held.map((p) => [p.path, p.sha]))}`;
   return (fn) => {
     let entered = false;
@@ -25,7 +32,12 @@ export function makeBaseline({ cfg, job, cwd, pre, held, enter, leave }) {
       const key = hashKey([`repo ${job.repo}`, pre.tree, pinsKey, `cmd ${String(cmd).trim()}`]);
       const hit = cacheGet(cfg, NAME, key);
       if (hit && existsSync(hit.log)) return hit.log;
-      if (!entered) { enter(); entered = true; }
+      if (!entered) {
+        if (clock() - since > BASELINE_BUDGET_MS) throw SKIPPED;
+        onPhase('baseline');
+        enter();
+        entered = true;
+      }
       const log = logPathFor(cfg, job.id, tag);
       runCommand(cmd, { cwd, targetDir: cfg.targetDir, logPath: log, jobs: cfg.jobs, testThreads: cfg.testThreads });
       cachePut(cfg, NAME, key, { job: job.id, log });
@@ -34,8 +46,11 @@ export function makeBaseline({ cfg, job, cwd, pre, held, enter, leave }) {
     try {
       const attributed = fn(run);
       return attributed ? { ...attributed, dirty: pre.dirty, head: pre.head } : attributed;
+    } catch (e) {
+      if (e !== SKIPPED) throw e;
+      return { skipped: SKIP_REASON };
     } finally {
-      if (entered) leave();
+      if (entered) { leave(); onPhase('run'); }
     }
   };
 }

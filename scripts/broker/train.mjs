@@ -106,7 +106,7 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
       writePool();
       const { commands, perMember } = trainCommands(runCfg, cwd, pool);
       const own = (m) => perMember.get(m.job.id);
-      const baseline = makeBaseline({ cfg: runCfg, job: { id, repo: repo.name }, cwd, pre, held: pins, enter: putBack, leave: () => { putBack(); journal = snap(); writePool(); } });
+      const baseline = makeBaseline({ cfg: runCfg, job: { id, repo: repo.name }, cwd, pre, held: pins, onPhase: (p) => ph.enter(p), enter: putBack, leave: () => { putBack(); journal = snap(); writePool(); } });
       ph.enter('run');
       builds++;
       const knownRed = (entry) => foreignBuild({

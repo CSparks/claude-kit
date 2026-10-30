@@ -32,6 +32,7 @@ export function panicLine(logLines, name) {
 export function commandSummary(c, { readLog = readText } = {}) {
   const out = [`  $ ${c.composed || c.cmd}  → exit ${c.exit} (${c.durationMs}ms)`];
   for (const f of c.foreign || []) out.push(`    foreign (also fails without the patch): ${f.test} — ${f.reason}`);
+  if (c.unattributed) out.push(`    ${c.unattributed}`);
   for (const f of c.suspect || []) out.push(`    ${f.reason}: ${f.test}`);
   const logLines = c.log ? readLog(c.log).split(/\r?\n/) : [];
   for (const m of collapseRepeats(logLines.filter((l) => METRIC.test(l))).slice(0, MAX_METRICS)) out.push(`    ${m.trim()}`);

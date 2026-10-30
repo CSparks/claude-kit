@@ -61,7 +61,8 @@ function runCommands(cfg, job, cwd, hooks) {
     const pins = pairedPins(cwd, job.base, job.ticket);
     if (pins.length) { entry.suspect = suspects(entry.failed, pins); break; }
     const attributed = hooks.baseline((run) => attribute({ command: entry, runBaseline: (cmd) => run(cmd, `${n}-base`) }));
-    if (!attributed || attributed.caused.length) break;
+    if (attributed && attributed.skipped) entry.unattributed = attributed.skipped;
+    if (!attributed || attributed.skipped || attributed.caused.length) break;
     entry.foreign = attributed.foreign;
     addDeferred(cfg, attributed.foreign.map((f) => ({ ...f, cmd: entry.cmd, repo: job.repo, job: job.id, dirty: attributed.dirty, head: attributed.head })));
   }
@@ -123,7 +124,7 @@ export function processPatch(cfg, job, repo, opts = {}) {
     writePlan(cwd, plan.files);
     const diffStat = git(['diff', '--stat'], cwd).out;
     const baseline = makeBaseline({
-      cfg, job, cwd, pre, held: pins.filter((p) => p.implicit),
+      cfg, job, cwd, pre, held: pins.filter((p) => p.implicit), onPhase: (p) => ph.enter(p),
       enter: () => { restoreTree(); revertPins(explicit()); },
       leave: () => { restoreTree(); journal = captureTree(); checkoutPins(pins); writePlan(cwd, plan.files); },
     });

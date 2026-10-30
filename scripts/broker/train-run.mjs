@@ -39,7 +39,8 @@ export function runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseli
     }
     if (!baseline || !entry.failedTests.length) return { entries, failing: entry };
     const attributed = baseline((run) => attribute({ command: entry, runBaseline: (cmd) => run(cmd, `${nextLog()}-base`) }));
-    if (!attributed) return { entries, failing: entry };
+    if (attributed && attributed.skipped) entry.unattributed = attributed.skipped;
+    if (!attributed || attributed.skipped) return { entries, failing: entry };
     if (attributed.caused.length) {
       entry.caused = attributed.caused;
       return { entries, failing: entry };
