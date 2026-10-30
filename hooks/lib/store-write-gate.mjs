@@ -11,13 +11,15 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 
+const PROSE = 't notes <id> "<prose>" (append) | t edit <id> --section Description|Plan|Notes --file <path> (replace)';
+
 export const ITEM_VERBS = {
-  tickets: 't status <id> <state> | t tick | t criterion | t link / t unlink | t comment <id> "<text>" --author <who> | t notes <id> "<prose>"',
+  tickets: `t status <id> <state> | t tick | t criterion | t link / t unlink | t comment <id> "<text>" --author <who> | ${PROSE}`,
   decisions: 't revise <id> [--status-to <s>] [--summary "<text>"] [--file <draft.md>] | t notes <id> "<prose>"',
   questions: 't ask <id> | t resolve <id> "<answer>" | t notes <id> "<prose>"',
-  notes: 't notes <id> "<prose>"',
-  epics: 't status <id> <state> | t notes <id> "<prose>"',
-  requests: 't status <id> <state> | t notes <id> "<prose>"',
+  notes: PROSE,
+  epics: `t status <id> <state> | ${PROSE}`,
+  requests: `t status <id> <state> | ${PROSE}`,
 };
 
 const CREATE = {

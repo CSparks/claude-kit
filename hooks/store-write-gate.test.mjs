@@ -66,6 +66,7 @@ try {
 
   const changes = [
     ['an existing ticket', join(ai, 'tickets', 'ZZ-T001-x.md'), 't status'],
+    ['an existing ticket (prose replace verb)', join(ai, 'tickets', 'ZZ-T001-x.md'), 't edit <id> --section'],
     ['an archived ticket', join(ai, 'tickets', 'archive', 'ZZ-T002-y.md'), 't link / t unlink'],
     ['an existing decision', join(ai, 'decisions', 'ZZ-D001-x.md'), 't revise'],
     ['an existing question', join(ai, 'questions', 'ZZ-Q001-x.md'), 't resolve'],
