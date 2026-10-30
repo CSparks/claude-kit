@@ -7,6 +7,7 @@ detect:
     - rapid-game/rust
   cargo: rg-meshkit
 lessons: rapid-game/docs/LESSONS.md
+conformance: framework_conformance
 ---
 
 **Purpose — the fast lane.** `new-poc foo && cargo run` gives a running game with worldgen,
