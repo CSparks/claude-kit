@@ -5,7 +5,8 @@
 //   changedSince(root, before) -> paths the call created, modified, deleted or reverted
 //   handWrittenSources(root, before, command) -> created or changed hand-authored source paths still on disk;
 //     a deleted path is no write (nothing is left to re-save), and [] when every segment of the command is a
-//     generator (git, a build tool, a formatter, a kit verb): its output is no hand write
+//     generator (git, a build tool, a formatter, a kit verb) or a reader with no file redirect (cat, grep, head):
+//     its output is no hand write, and a change that landed meanwhile is another writer's
 
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,6 +19,11 @@ const ENTRIES_MAX = 5000;
 const MIN_ENTRY_LENGTH = 4;
 const GONE = 'gone';
 const GENERATORS = /^(?:git|cargo|rustc|rustfmt|clippy-driver|npm|npx|pnpm|yarn|bun|make|cmake|ninja|dotnet|go|gofmt|prettier|eslint|black|ruff|isort|tsc|vite|esbuild|wasm-pack|cd|true|false|:)$/i;
+// Commands that only read or print: with no redirect into a file they cannot write source, so a change
+// that lands during the call is another writer's.
+const READERS = /^(?:cat|head|tail|less|more|wc|ls|stat|file|diff|cmp|grep|egrep|fgrep|rg|ag|ack|sort|uniq|cut|tr|echo|printf|pwd|date|sleep|which|whoami|tasklist)$/i;
+const BENIGN_REDIRECT = /\d?>&\d|&?\d?>>?\s*\/dev\/null/g;
+const hasFileRedirect = (command) => String(command || '').replace(BENIGN_REDIRECT, '').includes('>');
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 const signature = (root, rel) => {
@@ -58,10 +64,11 @@ const leaderOf = (text) => {
 function isGeneratorCommand(command) {
   const segs = segments(String(command || ''));
   if (segs.some((s) => s.ambiguous)) return false;
+  const redirects = hasFileRedirect(command);
   return segs.every(({ text }) => {
     if (!text.trim()) return true;
     const leader = leaderOf(text);
-    if (GENERATORS.test(leader) || KIT_TOOL.test(leader)) return true;
+    if (GENERATORS.test(leader) || KIT_TOOL.test(leader) || (!redirects && READERS.test(leader))) return true;
     return /^node$/i.test(leader) && text.split(/\s+/).some((w) => KIT_TOOL.test(w.replace(/.*[\\/]/, '')));
   });
 }

@@ -93,6 +93,8 @@ try {
     ['a .ai store note', 'node build.js', (e) => node(e.d, "require('fs').writeFileSync('.ai/notes.md', 'x')")],
     ['unlinkSync deleting a source file', 'node scratch.js', (e) => rewrite(e.d, 'fs.unlinkSync(p)')],
     ['rm -rf of a tracked source directory', 'rm -rf src', (e) => node(e.d, "require('fs').rmSync('src', { recursive: true })")],
+    ['another session writes during a git status | head pipeline (KIT-T735)', 'git status --short | head -5', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
+    ['another session writes during a cat | grep pipeline (KIT-T735)', 'cat src/b.mjs | grep export', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
     ['a read-only script', 'node build.js', (e) => node(e.d, "require('fs').readFileSync('src/a.mjs', 'utf8')")],
   ];
   for (const [name, command, action] of NOT_HAND) {
@@ -100,6 +102,13 @@ try {
     const r = call(e.d, 'S3', command, () => action(e));
     ok(`NEGATIVE CONTROL: ${name} is not flagged`, r.status === 0 && !r.stderr.includes('HAND WRITE'));
   }
+
+  const redirected = fresh();
+  const viaCat = call(redirected, 'S10', 'cat src/b.mjs > src/a.mjs', () => rewrite(redirected, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
+  ok('KIT-T735 control: a reader redirecting into a source file is still flagged', viaCat.status === 2 && viaCat.stderr.includes('src/a.mjs'));
+  const piped = fresh();
+  const toNull = call(piped, 'S11', 'cat src/b.mjs 2>/dev/null | head -1 > src/a.mjs', () => rewrite(piped, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
+  ok('KIT-T735 control: a benign redirect does not hide a real file redirect', toNull.status === 2);
 
   const gone = fresh();
   call(gone, 'S8', 'node scratch.js', () => rewrite(gone, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
