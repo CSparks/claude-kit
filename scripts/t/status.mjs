@@ -58,15 +58,12 @@ export function setStatus(root, id, state, opts = {}) {
 
   const type = field(t.parts.fm, 'type');
   const tailNotes = [];
-  // A sha the caller PASSED is written on any transition and any type (KIT-T190). It used to be
-  // read only inside the done+bug/regression branch, so `t status <id> review --fixed-commit <sha>`
-  // — the closing shape of every uat=required project — dropped the flag without a word, and the
-  // ticket's provenance link to its fixing commit was simply lost (seen on GB-T039).
+  // A sha the caller passes is written on any transition and any type (KIT-T190).
   if (opts.fixedCommit) {
     if (!SHA_RE.test(opts.fixedCommit)) throw new Error(`--fixed-commit '${opts.fixedCommit}' is not a sha`);
     fm = setField(fm, 'fixed_commit', opts.fixedCommit);
   } else if (state === 'done' && (type === 'bug' || type === 'regression') && !field(t.parts.fm, 'fixed_commit')) {
-    tailNotes.push(`set fixed_commit on this ${type} (pass --fixed-commit <sha>) — regression tracking needs the fixing commit`);
+    tailNotes.push(`set fixed_commit on this ${type}: t status ${id} done --fixed-commit <sha> (or t link ${id} fixed_commit <sha>) — regression tracking needs the fixing commit`);
   }
 
   const suffix = opts.lapsed ? ` — ${lapseNote}` : opts.human ? ` ${HUMAN_MARK}` : '';

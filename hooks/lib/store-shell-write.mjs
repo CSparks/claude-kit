@@ -5,19 +5,20 @@
 //   shellStoreWrite(command, { readScript }) -> null | { path, hint }
 
 import { FS_WRITE, readTempScript, scanShellWrites } from './shell-write-scan.mjs';
+import { ITEM_VERBS } from './store-write-gate.mjs';
 
 const ITEM_DIRS = 'tickets|decisions|questions|notes|epics|requests|inbox|resolved|reminders';
 const STORE_PATH = new RegExp(`(?:\\.ai|projects[\\\\/][^\\\\/\\s"']+)[\\\\/](?:(${ITEM_DIRS})[\\\\/]|SESSION\\.md|agents\\.jsonl|read-receipts\\.json|REGRESSIONS\\.md|SUPERSEDED\\.md)`, 'i');
 const BUILT_PATH = new RegExp(`['"]\\.ai['"][\\s\\S]*['"](?:${ITEM_DIRS}|SESSION\\.md)['"]`, 'i');
 
 const HINTS = {
-  tickets: 't new | t status | t tick | t criterion | t link | t comment | t notes <id> "<prose>"  (prose sections: the Edit tool)',
-  decisions: 't decide --file <draft.md> (new) | t revise <id> [--status-to <s>] [--summary "<text>"] [--file <draft.md>] (change)',
+  tickets: `t new | ${ITEM_VERBS.tickets}`,
+  decisions: `t decide --file <draft.md> (new) | ${ITEM_VERBS.decisions}`,
   inbox: 'cap [type] "<text>" (capture) | t triage <inbox-file> [--type <t>] (promote and file the capture)',
-  questions: 't question | t ask <id> | t resolve <id> "<answer>"',
-  notes: 't note "<title>" | t notes <id> "<prose>"',
-  epics: 't epic "<title>" | t status <id> <state>',
-  requests: 't request "<title>" | t status <id> <state>',
+  questions: `t question | ${ITEM_VERBS.questions}`,
+  notes: `t note "<title>" | ${ITEM_VERBS.notes}`,
+  epics: `t epic "<title>" | ${ITEM_VERBS.epics}`,
+  requests: `t request "<title>" | ${ITEM_VERBS.requests}`,
   resolved: 'cap --done [type] "<text>"',
   reminders: 'rem add "<title>" --every <days>',
   session: 't session "<text>" | --append | --replace --file <draft> | --fix "<old>" "<new>" | --drop "<text>"',

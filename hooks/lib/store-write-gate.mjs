@@ -1,13 +1,24 @@
 // The "every store write goes through a kit command" convention (KIT-T509), as a pure decision
 // for the pre-write hook (check-id `store-write`). Hand Writes/Edits are refused for:
 //   - CREATING a file in a typed store folder (the verb mints the id and builds the file),
+//   - CHANGING an existing item there (KIT-D120: t and cap keep History and the cache true),
 //   - any write to SESSION.md, the generated views and the hook-owned logs.
-// Editing the prose of an existing item (Description, Notes, Plan) stays a direct edit (KIT-D037).
+// Templates and READMEs are not items. Every refusal names the verb that makes the change.
 //
 //   storeWriteViolation(file, { exists }) -> null | { rel, command, why }
+//   ITEM_VERBS                  the verbs that change an existing item, by store folder
 
 import { existsSync, readFileSync } from 'node:fs';
 import { basename } from 'node:path';
+
+export const ITEM_VERBS = {
+  tickets: 't status <id> <state> | t tick | t criterion | t link / t unlink | t comment <id> "<text>" --author <who> | t notes <id> "<prose>"',
+  decisions: 't revise <id> [--status-to <s>] [--summary "<text>"] [--file <draft.md>] | t notes <id> "<prose>"',
+  questions: 't ask <id> | t resolve <id> "<answer>" | t notes <id> "<prose>"',
+  notes: 't notes <id> "<prose>"',
+  epics: 't status <id> <state> | t notes <id> "<prose>"',
+  requests: 't status <id> <state> | t notes <id> "<prose>"',
+};
 
 const CREATE = {
   tickets: ['t new <type> "<title>" [--description "<text>" | --file <path>]', 'a ticket'],
@@ -60,6 +71,10 @@ export function storeWriteViolation(file, { exists = existsSync(file) } = {}) {
   const create = CREATE[dir];
   if (create && rel.includes('/') && !exists && !NON_ITEMS.has(basename(rel))) {
     return { rel, command: create[0], why: `${create[1]} is created by its command, which mints the id and builds the file` };
+  }
+  const change = ITEM_VERBS[dir];
+  if (change && rel.includes('/') && exists && !NON_ITEMS.has(basename(rel))) {
+    return { rel, command: change, why: `${create[1]} is changed by its command, which stamps History and refreshes the cache (KIT-D120)` };
   }
   return null;
 }

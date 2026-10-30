@@ -20,7 +20,10 @@
 //   t untick <id> <ordinal|substring>               uncheck one (same ordinal)
 //   t criterion <id> "<text>"                       append an acceptance criterion
 //   t link <id> <rel> <target>                      supersedes|superseded_by|regressed_from|
-//                                                   causing_commit|fixed_commit|parent|link
+//                                                   causing_commit|fixed_commit|parent|link; a supersede link
+//                                                   writes both files (newer.supersedes, older.superseded_by)
+//   t unlink <id> <rel> <target>                    remove that link (both sides of a supersede; the retired
+//                                                   ticket returns to its prior status)
 //   t move <id> <repo-path>                         promote an item into an adopted repo's .ai/
 //
 // IDs are NEVER hand-picked — `t new` mints via id-reserve.reserveNextId (KIT-D011). Every subcommand
@@ -44,43 +47,17 @@ import { readProvenanceGate, trailGate } from './provenance.mjs';
 import { resolveStoreRoot, refuseIfExcluded } from '../hooks/lib.mjs';
 import { readConfig } from './t-config.mjs';
 import { findDuplicates, refusal } from './t-dedup.mjs';
-import { SHA_RE, findTicket, setField } from './t/ticket-file.mjs';
+import { findTicket } from './t/ticket-file.mjs';
 import { setStatus } from './t/status.mjs';
+import { link, unlink, LINK_REL_NAMES } from './t/link.mjs';
 import { askQuestion, resolveQuestionFile } from './t/ask.mjs';
 import { isMain } from './is-main.mjs';
 import { runVerb } from './t-verbs.mjs';
 import { splitDraft } from './t-draft.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const ID_RE = /^[A-Za-z][A-Za-z0-9]*-[A-Za-z]?\d+$/; // KIT-T075, KIT-D032 (keys may carry digits: S2-T001)
 
-// A typed-link relation either points at another ITEM (id-shaped) or a COMMIT (sha-shaped).
-// Anything else is rejected — `t link` never writes a free-text edge.
-const LINK_RELS = {
-  supersedes: 'id',
-  superseded_by: 'id',
-  regressed_from: 'id',
-  parent: 'id',
-  link: 'id',
-  causing_commit: 'sha',
-  fixed_commit: 'sha',
-};
-
-// --- frontmatter WRITERS (the readers come from frontmatter.mjs — KIT-T110) -----------------
-// The local reader copies this file carried were LF-only: a ticket whose delimiters end CRLF
-// (any Windows editor, any autocrlf checkout) matched nothing, so every mutation died with
-// "no frontmatter block to update" while the block looked perfectly valid on inspection.
-function addToList(fm, key, value) {
-  const re = new RegExp(`^(${key}:)[ \\t]*(.*)$`, 'm');
-  const m = fm.match(re);
-  if (!m) return `${fm}\n${key}: [${value}]`;
-  const cur = m[2].trim().replace(/^\[|\]$/g, '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (cur.includes(value)) return fm;
-  cur.push(value);
-  return fm.replace(re, `$1 [${cur.join(', ')}]`);
-}
-
-export { readConfig, findTicket, setStatus };
+export { readConfig, findTicket, setStatus, link, unlink };
 
 // --- t new ---------------------------------------------------------------------------------
 
@@ -195,47 +172,6 @@ export const setCriterion = (root, id, index, checked, opts = {}) =>
 
 export const addCriterionTo = (root, id, text, opts = {}) =>
   mutateCriteria(root, id, (body) => addCriterion(body, text, { ...opts, id }));
-
-// --- t link --------------------------------------------------------------------------------
-
-// Write a TYPED link, shape-validated. `supersedes` is reciprocal: it writes the back-pointer
-// AND flips the retired ticket to status: superseded on BOTH files, so the relationship is
-// never left half-declared (the failure that shipped placeholder text in supersede fields).
-export function link(root, id, rel, target) {
-  const kind = LINK_RELS[rel];
-  if (!kind) throw new Error(`t link: unknown rel '${rel}' (one of: ${Object.keys(LINK_RELS).join(', ')})`);
-  if (kind === 'id' && !ID_RE.test(target)) throw new Error(`t link: '${target}' is not an id-shaped target for ${rel}`);
-  if (kind === 'sha' && !SHA_RE.test(target)) throw new Error(`t link: '${target}' is not a sha for ${rel}`);
-
-  const t = findTicket(root, id);
-  if (!t.parts) throw new Error(`${id}: no frontmatter block`);
-
-  if (rel === 'link') {
-    const fm = addToList(t.parts.fm, 'links', target);
-    writeFileSync(t.path, t.parts.open + fm + t.parts.close + t.parts.rest);
-    return { id, rel, target };
-  }
-
-  if (rel === 'supersedes' || rel === 'superseded_by') {
-    // Normalize to (newer supersedes older) regardless of which side was named.
-    const newer = rel === 'supersedes' ? id : target;
-    const older = rel === 'supersedes' ? target : id;
-    const nt = findTicket(root, newer);
-    const ot = findTicket(root, older);
-    const nfm = setField(nt.parts.fm, 'supersedes', older);
-    writeFileSync(nt.path, nt.parts.open + nfm + nt.parts.close + nt.parts.rest);
-    let ofm = setField(ot.parts.fm, 'superseded_by', newer);
-    ofm = setField(ofm, 'status', 'superseded');
-    const obody = appendUnderSection(ot.parts.rest, 'History', `- [${stamp()}] (status) → superseded (by ${newer})`);
-    writeFileSync(ot.path, ot.parts.open + ofm + ot.parts.close + obody);
-    return { id, rel, target, newer, older, bothSides: true };
-  }
-
-  // single-sided provenance scalar (regressed_from / causing_commit / fixed_commit / parent)
-  const fm = setField(t.parts.fm, rel, target);
-  writeFileSync(t.path, t.parts.open + fm + t.parts.close + t.parts.rest);
-  return { id, rel, target };
-}
 
 // --- t comment ----------------------------------------------------------------------------
 
@@ -474,12 +410,13 @@ async function main() {
     process.stdout.write(`criterion: ${r.id} + ${r.criterion}\n`);
     return;
   }
-  if (cmd === 'link') {
+  if (cmd === 'link' || cmd === 'unlink') {
     const [id, rel, target] = rest;
-    if (!id || !rel || !target) { console.error('usage: t link <id> <rel> <target>'); process.exit(2); }
-    const r = link(root, id, rel, target);
+    if (!id || !rel || !target) { console.error(`usage: t ${cmd} <id> <rel> <target>   (rel: ${LINK_REL_NAMES.join(' | ')})`); process.exit(2); }
+    const r = (cmd === 'link' ? link : unlink)(root, id, rel, target);
     await refresh(root);
-    process.stdout.write(`link: ${r.id} ${r.rel} ${r.target}${r.bothSides ? ` (+ ${r.older}.superseded_by = ${r.newer})` : ''}\n`);
+    const sides = r.bothSides ? ` (${r.newer}.supersedes, ${r.older}.superseded_by)` : '';
+    process.stdout.write(`${cmd}: ${r.id} ${r.rel} ${r.target}${sides}\n`);
     return;
   }
   if (cmd === 'comment') {
