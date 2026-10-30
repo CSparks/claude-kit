@@ -30,6 +30,9 @@ try {
   ok('negative: a low-priority ticket alone does not block', stop(transcript(say('filed KIT-T803'))).code === 0);
   ok('negative: a ticket never mentioned this session does not block', stop(transcript(say('nothing relevant'))).code === 0);
   ok('negative: an Agent call naming the id clears it', stop(transcript(say('KIT-T801'), agent('fix KIT-T801 in the claude-kit checkout'))).code === 0);
+  const message = (text) => ({ message: { content: [{ type: 'tool_use', name: 'SendMessage', input: { to: 'kit-agent', message: text } }] } });
+  ok('negative: a SendMessage to the standing kit agent naming the id clears it (KIT-T736)', stop(transcript(say('KIT-T801'), message('next: KIT-T801 in the claude-kit checkout'))).code === 0);
+  ok('KIT-T736 control: a SendMessage naming a different id leaves the ticket blocked', stop(transcript(say('KIT-T801'), message('next: KIT-T802'))).code === 2);
   ok('only the undispatched id is named when one of two is dispatched', (() => { const r = stop(transcript(say('KIT-T801 KIT-T802'), agent('KIT-T801 please'))); return r.code === 2 && /KIT-T802/.test(r.out) && !/KIT-T801 \[/.test(r.out); })());
   ok('stop_hook_active allows', stop(transcript(say('KIT-T801')), { stop_hook_active: true }).code === 0);
 

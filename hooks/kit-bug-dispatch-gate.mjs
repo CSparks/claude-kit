@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Stop — the KIT-BUG DISPATCH gate (KIT-T699). Filing a kit bug dispatches nothing: a high or critical kit
-// ticket this session filed or saw (its id is in the transcript) while no Agent call names that id sits
-// open, and the next session meets it again. Blocks the stop ONCE per distinct set of such ids, naming
+// ticket this session filed or saw (its id is in the transcript) while no Agent call (or SendMessage to the standing
+// kit agent) names that id sits open, and the next session meets it again. Blocks the stop ONCE per distinct set of such ids, naming
 // them and the dispatch required. `stop_hook_active` allows; fails open on any error.
 // Check-id: kit-bug-dispatch (path glob matched against the ticket id).
 
@@ -13,7 +13,7 @@ import { openKitBugPage } from '../scripts/kit-bug.mjs';
 const CHECK_ID = 'kit-bug-dispatch';
 const URGENT = new Set(['critical', 'high']);
 const PAGE_LIMIT = 500;
-const DISPATCH_TOOLS = new Set(['Agent', 'Task']);
+const DISPATCH_TOOLS = new Set(['Agent', 'Task', 'SendMessage']);
 
 function dispatchedText(lines) {
   const out = [];
