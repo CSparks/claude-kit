@@ -3,8 +3,9 @@
 // form is seen alike.
 //   snapshotDirty(root) -> { [relPath]: signature }          capped at ENTRIES_MAX paths
 //   changedSince(root, before) -> paths the call created, modified, deleted or reverted
-//   handWrittenSources(root, before, command) -> changed hand-authored source paths; [] when every segment
-//     of the command is a generator (git, a build tool, a formatter, a kit verb): its output is no hand write
+//   handWrittenSources(root, before, command) -> created or changed hand-authored source paths still on disk;
+//     a deleted path is no write (nothing is left to re-save), and [] when every segment of the command is a
+//     generator (git, a build tool, a formatter, a kit verb): its output is no hand write
 
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -67,5 +68,5 @@ function isGeneratorCommand(command) {
 
 export function handWrittenSources(root, before, command) {
   if (isGeneratorCommand(command)) return [];
-  return changedSince(root, before).filter((rel) => isSourcePath(rel));
+  return changedSince(root, before).filter((rel) => isSourcePath(rel) && signature(root, rel) !== GONE);
 }

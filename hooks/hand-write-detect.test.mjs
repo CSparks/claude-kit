@@ -54,7 +54,6 @@ try {
     ['openSync and writeSync', "const fd = fs.openSync(p, 'w'); fs.writeSync(fd, 'export const a = 9;\\n'); fs.closeSync(fd)"],
     ['appendFileSync', "fs.appendFileSync(p, 'export const z = 3;\\n')"],
     ['renameSync over the file', "fs.writeFileSync('x.tmp', 'export const a = 9;\\n'); fs.renameSync('x.tmp', p)"],
-    ['unlinkSync', 'fs.unlinkSync(p)'],
   ];
   for (const [name, expr] of SINKS) {
     const d = fresh();
@@ -92,6 +91,8 @@ try {
     ['a data file', 'node build.js', (e) => node(e.d, "require('fs').writeFileSync('out.json', '{}')")],
     ['a write into the scratchpad', 'node build.js', (e) => node(e.d, `require('fs').writeFileSync(${JSON.stringify(join(scratch, 'probe.mjs'))}, 'x')`)],
     ['a .ai store note', 'node build.js', (e) => node(e.d, "require('fs').writeFileSync('.ai/notes.md', 'x')")],
+    ['unlinkSync deleting a source file', 'node scratch.js', (e) => rewrite(e.d, 'fs.unlinkSync(p)')],
+    ['rm -rf of a tracked source directory', 'rm -rf src', (e) => node(e.d, "require('fs').rmSync('src', { recursive: true })")],
     ['a read-only script', 'node build.js', (e) => node(e.d, "require('fs').readFileSync('src/a.mjs', 'utf8')")],
   ];
   for (const [name, command, action] of NOT_HAND) {
@@ -99,6 +100,11 @@ try {
     const r = call(e.d, 'S3', command, () => action(e));
     ok(`NEGATIVE CONTROL: ${name} is not flagged`, r.status === 0 && !r.stderr.includes('HAND WRITE'));
   }
+
+  const gone = fresh();
+  call(gone, 'S8', 'node scratch.js', () => rewrite(gone, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
+  call(gone, 'S8', 'rm src/a.mjs', () => rewrite(gone, 'fs.unlinkSync(p)'));
+  ok('a ledgered file deleted afterwards no longer blocks the commit', !commit(gone, 'S8', ['src/a.mjs']).out.includes('KIT-T706'));
 
   const dirty = fresh();
   writeFileSync(join(dirty, 'src', 'b.mjs'), 'export const b = 5;\n');

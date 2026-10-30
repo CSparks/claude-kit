@@ -4,6 +4,8 @@
 //
 // Machine-local turn state, per session, capped; every path fails open.
 
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { readTurnState, writeTurnState } from './turn-state.mjs';
 
 const HAND_WRITES_MAX = 500;
@@ -18,10 +20,10 @@ export function handWrites(root, sid) {
   return sid ? new Set(filesOf(root, sid)) : new Set();
 }
 
-/** The ledgered paths among `paths` (repo-relative, POSIX): the files a commit may not carry yet. */
+/** The ledgered paths among `paths` (repo-relative, POSIX) still on disk: the files a commit may not carry yet. */
 export function pendingHandWrites(root, sid, paths) {
   const ledger = handWrites(root, sid);
-  return ledger.size ? paths.filter((p) => ledger.has(p)) : [];
+  return ledger.size ? paths.filter((p) => ledger.has(p) && existsSync(join(root, p))) : [];
 }
 
 export function addHandWrites(root, sid, rels) {
