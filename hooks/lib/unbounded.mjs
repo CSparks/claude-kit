@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { readRegistry } from './registry.mjs';
 import { storeRoot } from './paths.mjs';
+import { frameworkStoreRoot } from './framework-store.mjs';
 import { excludedRoot, excludedMessage } from './excluded-trees.mjs';
 
 export const UNBOUNDED_DIR = 'unbounded';
@@ -43,12 +44,14 @@ export function isUnbounded(root) {
 
 // THE resolution rule, shared by every entry point (cap, t, q, orient, flush): the nearest
 // store above `start`, else the unbounded catch-all, else null (nothing configured — the
-// caller keeps its historical no-op). Never guesses a project: the unbounded store is a
+// caller keeps its historical no-op). A registered framework's submodule checkout resolves to that
+// framework's store, not the game above it (framework-store.mjs). Never guesses a project: the unbounded store is a
 // deliberate catch-all, not an inference. An excluded tree (KIT-T447) resolves to NO store:
 // the catch-all must not quietly adopt it.
 export function resolveStoreRoot(start = process.cwd()) {
   if (excludedRoot(start)) return null;
-  return storeRoot(resolve(start)) || unboundedRoot();
+  const nearest = storeRoot(resolve(start));
+  return frameworkStoreRoot(start, nearest) || nearest || unboundedRoot();
 }
 
 // Why a cwd resolved to NO store at all: an excluded tree, else nothing above it and no
