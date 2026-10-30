@@ -5,9 +5,10 @@
 
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, realpathSync, rmSync, utimesSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { publishRuntime, currentRuntime } from './runtime-publish.mjs';
+import { gitOrThrow } from './runtime-publish-guard.mjs';
 import { liveUsers, pinRuntime } from './runtime-pin.mjs';
 import { referencedRuntimes } from './runtime-refs.mjs';
 
@@ -125,6 +126,29 @@ ok('keep prunes older sha directories once nothing pins them', shaDirs().length 
   bump(12);
   publish({ repo, runtimeRoot, keep: 1, lines: [] });
   ok('negative control: an old copy no process names is pruned', !existsSync(join(runtimeRoot, old)) && dirs().length === 1);
+}
+
+// KIT-T737: one publish at a time, git's own error text, and no scratch export left behind.
+{
+  const lock = join(runtimeRoot, 'publish.lock');
+  writeFileSync(lock, JSON.stringify({ pid: process.pid, host: hostname(), since: 'now' }));
+  let message = '';
+  try { publish({ repo, runtimeRoot }); } catch (e) { message = e.message; }
+  ok('a live holder of the publish lock blocks a second publish and is named', message.includes(`pid ${process.pid}`) && existsSync(lock));
+  const finished = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' });
+  writeFileSync(lock, JSON.stringify({ pid: Number(finished.stdout), host: hostname(), since: 'then' }));
+  const again = publish({ repo, runtimeRoot });
+  ok('negative control: a dead holder is taken over and the publish runs', Boolean(again.sha) && currentRuntime(runtimeRoot) === realpathSync(again.dir));
+  ok('the lock is released after a publish, ok or red', !existsSync(lock));
+  try { publish({ repo, runtimeRoot, verify: () => { throw new Error('red'); } }); } catch { /* red */ }
+  ok('the lock is released after a red publish', !existsSync(lock));
+  const notRepo = join(tmp, 'plain');
+  mkdirSync(notRepo, { recursive: true });
+  let gitMessage = '';
+  try { gitOrThrow(notRepo, ['commit', '-q', '-m', 'x']); } catch (e) { gitMessage = e.message; }
+  ok('a git failure carries git stderr', /not a git repository|fatal/i.test(gitMessage));
+  const scratchParent = dirname(repo);
+  ok('no .kit-verify scratch export stays beside the repo after the publishes', !readdirSync(scratchParent).some((n) => n.startsWith('.kit-verify-')));
 }
 
 const before = currentRuntime(runtimeRoot);

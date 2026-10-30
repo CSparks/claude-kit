@@ -21,6 +21,7 @@ import { liveUsers } from './runtime-pin.mjs';
 import { installedPlugin, pluginDrift } from './plugin-drift.mjs';
 import { heldRuntimes } from './runtime-holders.mjs';
 import { referencedRuntimes } from './runtime-refs.mjs';
+import { gitOrThrow, stopProcessesUnder, withPublishLock } from './runtime-publish-guard.mjs';
 
 const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
@@ -29,6 +30,8 @@ const MS_PER_HOUR = 3600 * 1000;
 const SHA_DIR = /^[0-9a-f]{7,40}$/;
 const LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
 const ARCHIVE_MAX_BYTES = 1 << 30;
+const SCRATCH_RM_RETRIES = 10;
+const SCRATCH_RM_DELAY_MS = 300;
 
 const link = (target, path) => symlinkSync(target, path, LINK_TYPE);
 
@@ -70,10 +73,9 @@ function prune(runtimeRoot, { keep, currentSha, projects, graceHours, lines }) {
 
 // Tests expect a git checkout: the export becomes a one-commit repo (never the real history).
 function initGit(dir, sha) {
-  const git = (...args) => execFileSync('git', ['-c', 'user.email=publish@kit', '-c', 'user.name=publish', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], { cwd: dir, stdio: 'ignore' });
-  git('init', '-q', '-b', 'main');
-  git('add', '-A');
-  git('commit', '-q', '-m', `export of ${sha}`);
+  gitOrThrow(dir, ['init', '-q', '-b', 'main']);
+  gitOrThrow(dir, ['add', '-A']);
+  gitOrThrow(dir, ['commit', '-q', '-m', `export of ${sha}`]);
 }
 
 // The repo's installed dependencies (root and each first-level package such as server/), linked into an export.
@@ -92,12 +94,17 @@ function verifyHead(repo, runtimeRoot, sha, verify) {
     linkModules(repo, scratch);
     verify(scratch);
   } finally {
-    rmSync(scratch, { recursive: true, force: true });
+    stopProcessesUnder(scratch);
+    rmSync(scratch, { recursive: true, force: true, maxRetries: SCRATCH_RM_RETRIES, retryDelay: SCRATCH_RM_DELAY_MS });
   }
 }
 
 /** Export HEAD of `repo` and repoint `current`; `verify(dir)` tests the exported HEAD first, never the working tree. Throws before touching `current` if either fails. */
-export function publishRuntime({ repo, runtimeRoot = defaultRuntimeRoot(), keep = DEFAULT_KEEP, graceHours = DEFAULT_GRACE_HOURS, projects, verify, lines }) {
+export function publishRuntime({ runtimeRoot = defaultRuntimeRoot(), ...options }) {
+  return withPublishLock(runtimeRoot, () => publishLocked({ runtimeRoot, ...options }));
+}
+
+function publishLocked({ repo, runtimeRoot, keep = DEFAULT_KEEP, graceHours = DEFAULT_GRACE_HOURS, projects, verify, lines }) {
   const sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
   mkdirSync(runtimeRoot, { recursive: true });
   const dir = join(runtimeRoot, sha);
