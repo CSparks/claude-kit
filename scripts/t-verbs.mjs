@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { createItem, KINDS } from './t-create.mjs';
 import { appendNotes } from './t-notes.mjs';
+import { editSection } from './t-edit.mjs';
 import { editSession, writeSession } from './t-session.mjs';
 
 const USAGE = {
@@ -16,6 +17,7 @@ const USAGE = {
   request: 't request "<title>" [--body "<text>" | --file <path>] [--priority <p>] [--links A,B]',
   question: 't question "<question>" [--body "<detail>" | --file <path>] [--answerable-by chris|claude]',
   notes: 't notes <id> "<prose>" | --file <path>',
+  edit: 't edit <id> --section Description|Plan|Notes --file <path>',
   session: 't session "<text>" | --file <path> [--append] | --replace --file <path> | --fix "<old>" "<new>" | --drop "<text>"',
 };
 
@@ -43,6 +45,15 @@ export async function runVerb(cmd, rest, flags, root, refresh) {
     await refresh(root);
     const how = flags.replace ? 'replaced' : flags.append ? 'appended' : 'noted';
     process.stdout.write(`session: ${relative(root, r.path)} ${how} (${r.lines} lines)${r.backup ? `; previous kept at ${relative(root, r.backup)}` : ''}\n`);
+    return true;
+  }
+  if (cmd === 'edit') {
+    const [id] = rest;
+    if (!id || !flags.section || !flags.file) fail(cmd);
+    const r = editSection(root, id, flags.section, readFileSync(flags.file, 'utf8'));
+    await refresh(root);
+    process.stdout.write(`edit: ${r.id} ${r.section} replaced in ${relative(root, r.path)}
+`);
     return true;
   }
   if (cmd === 'notes') {

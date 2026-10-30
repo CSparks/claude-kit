@@ -24,6 +24,7 @@
 //                                                   writes both files (newer.supersedes, older.superseded_by)
 //   t unlink <id> <rel> <target>                    remove that link (both sides of a supersede; the retired
 //                                                   ticket returns to its prior status)
+//   t edit <id> --section Description|Plan|Notes --file <path>   replace one section of an item (History line stamped)
 //   t move <id> <repo-path>                         promote an item into an adopted repo's .ai/
 //
 // IDs are NEVER hand-picked — `t new` mints via id-reserve.reserveNextId (KIT-D011). Every subcommand
@@ -327,6 +328,7 @@ function parseArgs(argv) {
     else if (a === '--by') flags.by = argv[++i];
     else if (a === '--root') flags.root = argv[++i];
     else if (a === '--file') flags.file = argv[++i];
+    else if (a === '--section') flags.section = argv[++i];
     else if (a === '--description') flags.description = argv[++i];
     else if (a === '--body') flags.body = argv[++i];
     else if (a === '--links') flags.links = String(argv[++i] || '').split(',').map((x) => x.trim()).filter(Boolean);

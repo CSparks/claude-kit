@@ -32,3 +32,14 @@ export function sectionRange(lines, heading) {
   const rel = lines.slice(start + 1).findIndex((l) => /^## /.test(l));
   return { start: start + 1, end: rel === -1 ? lines.length : start + 1 + rel };
 }
+
+// Replace the content of `## <heading>` with `text`, keeping the heading and every other section byte for byte.
+// The section ends at the next `## ` heading or EOF. Returns null when the section is absent.
+export function replaceSection(body, heading, text) {
+  const lines = body.split('\n');
+  const range = sectionRange(lines, heading);
+  if (!range) return null;
+  const replacement = String(text).replace(/\s+$/, '').split('\n');
+  const tail = range.end < lines.length ? ['', ...lines.slice(range.end)] : [''];
+  return [...lines.slice(0, range.start), ...replacement, ...tail].join('\n');
+}
