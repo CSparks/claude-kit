@@ -49,6 +49,8 @@ try {
   ok('PowerShell Get-Content -Wait on target/broker is blocked', blocked(sub('Get-Content target\\broker\\finished.log -Wait')));
   ok('negative: sleep with no broker in the command passes', sub('sleep 2 && echo hi').code === 0);
   ok('negative: a loop over files with no broker passes', sub('for f in a b; do echo $f; done').code === 0);
+  ok('negative: a for loop running q over scripts/broker never calls the broker (KIT-T734)', sub('for a in "x --path scripts/broker" "y --path scripts/broker/q.test.mjs"; do node q.mjs code $a; done').code === 0);
+  ok('KIT-T734 control: a for loop that calls the broker client is still blocked', blocked(sub('for i in 1 2 3; do node ' + BROKER + '/broker.mjs status; done')));
   ok('ambiguous quoting (an escaped quote) still blocks a broker watch by its words', blocked(sub(`echo "a\\"b" && node ${BROKER}/watch.mjs --for any`)));
 
   const submit = `node ${BROKER}/submit.mjs --root D:/x --ticket T-1 --title "t" --test "cargo t -p x" < env.txt`;

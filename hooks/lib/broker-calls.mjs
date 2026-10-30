@@ -4,7 +4,7 @@
 //   usesCargo(command)   -> does any segment run `cargo`
 //
 // A call is a segment whose command word is `node`/a path to one of the broker scripts (after env
-// assignments); `sub` is the first positional word after `broker.mjs`. A shell wrapper
+// assignments and loop keywords such as `do`); `sub` is the first positional word after `broker.mjs`. A shell wrapper
 // (`bash -c`, `sh -c`, `pwsh -Command`, `cmd /c`, `eval`) is unwrapped to a depth of WRAP_DEPTH.
 // Mentions inside a quoted argument of another command (`q code "wait.mjs"`) are not calls.
 
@@ -14,12 +14,13 @@ const WRAP_DEPTH = 4;
 const SCRIPT = /^(submit|wait|watch|broker)\.mjs$/i;
 const WRAPPER = /^(?:bash|sh|zsh|dash|cmd|cmd\.exe|pwsh|powershell|powershell\.exe|eval)$/i;
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const LOOP_KEYWORD = /^(?:do|then|else|elif|while|until|if|!|\{)$/;
 const base = (w) => w.replace(/^["']|["']$/g, '').replace(/\\/g, '/').split('/').pop();
 const unquote = (s) => s.replace(/^(["'])([\s\S]*)\1$/, '$2');
 const words = (text) => text.trim().match(/"[^"]*"|'[^']*'|\S+/g) || [];
 
 function callOf(ws) {
-  const at = ws.findIndex((w) => !ENV_ASSIGN.test(w));
+  const at = ws.findIndex((w) => !ENV_ASSIGN.test(w) && !LOOP_KEYWORD.test(w));
   if (at < 0) return null;
   const head = base(ws[at]).toLowerCase();
   const scriptWord = /^node(?:\.exe)?$/.test(head) ? ws.slice(at + 1).find((w) => !w.startsWith('-')) : ws[at];
