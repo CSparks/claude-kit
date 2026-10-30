@@ -16,7 +16,7 @@ import { processPatch } from './patch.mjs';
 import { processChecked } from './check-run.mjs';
 import { reportRedPin } from './autopin.mjs';
 import { dropSuperseded } from './autopin-supersede.mjs';
-import { reportOverrun } from './overrun.mjs';
+import { reportOverrun, reportTrainOverrun } from './overrun.mjs';
 import { runSuite } from './suite.mjs';
 import { STATUS, hasFinalResult, listQueue, queued, removeJob, writeResult } from './result.mjs';
 import { formTrain } from './train-form.mjs';
@@ -104,7 +104,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
       if (tree && tree.ok) tree.release();
     }
     if (train) {
-      for (const r of ran.results) reportOverrun({ id: r.id, repo: r.repo, ticket: r.ticket }, r, overrunOpts(fileBug));
+      reportTrainOverrun(ran.results, overrunOpts(fileBug));
       processed.push(...ran.results);
       continue;
     }
