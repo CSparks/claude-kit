@@ -3,7 +3,7 @@
 // dir of its own, so it never waits on the daemon's cargo lock and never touches the live or the check tree. A rustc error
 // returns the failed result and the job is not queued. Anything else lets the job queue as before: a precheck that is off,
 // a patch with no operations, another precheck holding the tree, a timeout (its progress stays in the target dir for the
-// next one), a cargo that fails without a rustc error.
+// next one), a cargo that fails without a rustc error, a crash inside the precheck itself.
 // A script the patch touches (.mjs/.cjs/.js) must pass `node --check` (syntax-check.mjs); that check needs no cargo and runs
 // whenever the precheck is on. The cargo check of a COLD target dir (nothing has ever finished there) is a whole-workspace
 // build: it runs only while every lane is idle, so it never competes with a landing job for the machine (a cold precheck
@@ -42,6 +42,8 @@ function takeLock(dir) {
   } catch { return null; }
 }
 
+const readLog = (log) => (existsSync(log) ? readFileSync(log, 'utf8') : '');
+
 const failedResult = (job, fields) => ({
   id: job.id, revises: job.revises || null, revision: job.revision, ticket: job.ticket || null, repo: job.repo, base: job.base, head: job.base,
   ...(job.session ? { session: job.session } : {}), ...(job.agent ? { agent: job.agent } : {}),
@@ -53,7 +55,15 @@ const syntaxResult = (job, failures) => failedResult(job, {
   message: `syntax error in ${failures.map((f) => f.file).join(', ')} (node --check); the job never entered the queue`,
 });
 
-export function precheckJob(cfg, job, repo, { run = runCancellable, prepare = prepareCheckTree, busy = laneBusy } = {}) {
+// The precheck is advisory: a crash inside it (a missing log, an unreadable tree) is reported and the job queues without it.
+export function precheckJob(cfg, job, repo, deps = {}) {
+  try { return runPrecheck(cfg, job, repo, deps); } catch (e) {
+    console.error(`submit: precheck skipped (${e.message}); the job queues without it`);
+    return null;
+  }
+}
+
+function runPrecheck(cfg, job, repo, { run = runCancellable, prepare = prepareCheckTree, busy = laneBusy } = {}) {
   if (!cfg.precheck || !repo || !(job.ops || []).length || job.measure) return null;
   const home = brokerPaths(cfg).home;
   mkdirSync(home, { recursive: true });
@@ -85,7 +95,7 @@ function cargoChecks(cfg, job, { home, tree, target, cold, run }) {
     if (left <= 0) return null;
     const log = join(home, `${KIND}-${job.id}${i ? '-full' : ''}.log`);
     const r = run(cmd, { cwd: tree.cwd, targetDir: target, logPath: log, jobs: cfg.jobs, timeoutMs: left }, { shouldCancel: () => Date.now() > deadline });
-    const errors = r.exit === 0 ? {} : diagnose(readFileSync(log, 'utf8')).errors;
+    const errors = r.exit === 0 ? {} : diagnose(readLog(log)).errors;
     if (Object.keys(errors).some((file) => file !== UNLOCATED)) {
       rmSync(cold, { force: true });
       return failedResult(job, {

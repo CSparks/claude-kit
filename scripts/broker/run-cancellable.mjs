@@ -8,7 +8,7 @@
 //   command has run that long (the slot wait is not counted); the result then has `timedOut: true`.
 
 import { spawn } from 'node:child_process';
-import { appendFileSync, closeSync, existsSync, openSync, readFileSync, rmSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { composeCommand, tail } from './run.mjs';
 import { pulse } from './stall.mjs';
@@ -55,10 +55,11 @@ export function runCancellable(cmd, opts, hooks) {
 }
 
 // The command waits for its machine-wide build slot (build-slot.mjs) before it starts; the queue
-// time is reported as `slotWaitMs`, and a cancel during the wait runs nothing.
+// time is reported as `slotWaitMs`, and a cancel during the wait runs nothing and leaves an empty log, so a reader of `logPath` never finds it missing.
 function runOnce(cmd, opts, hooks) {
   const composed = composeCommand(cmd, { jobs: opts.jobs, testThreads: opts.testThreads, cwd: opts.cwd });
   const slot = acquireBuildSlot(composed, { jobs: opts.jobs, label: String(cmd).trim(), shouldCancel: hooks.shouldCancel });
+  if (slot.cancelled) writeFileSync(opts.logPath, '');
   if (slot.cancelled) return { cmd: String(cmd).trim(), composed, exit: 1, durationMs: 0, slotWaitMs: slot.waitedMs, logTail: [], cancelled: true };
   try {
     return { ...runInSlot(cmd, composed, opts, hooks), slotWaitMs: slot.waitedMs };
