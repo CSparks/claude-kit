@@ -224,14 +224,20 @@ export function findRegressionGaps(aiDir) {
       const hasLink = regressedFrom || causingCommit || hasProvenance;
 
       if (!hasLink) {
-        gaps.push({ id, file: `${sub}/${f}`, reason: 'missing provenance links (regressed_from / causing_commit / provenance:)' });
+        gaps.push({ id, file: `${sub}/${f}`, rel: 'regressed_from|causing_commit', reason: 'missing provenance links (regressed_from / causing_commit / provenance:)' });
       }
       if (status === 'done' && !fixedCommit) {
-        gaps.push({ id, file: `${sub}/${f}`, reason: 'done regression missing fixed_commit' });
+        gaps.push({ id, file: `${sub}/${f}`, rel: 'fixed_commit', reason: 'done regression missing fixed_commit' });
       }
     }
   }
   return gaps;
+}
+
+/** The remedy line for regression gaps: one `t link <id> <rel> <ref>` per distinct missing rel. */
+export function regressionRemedy(gaps) {
+  const rels = [...new Set(gaps.map((g) => g.rel))];
+  return rels.map((rel) => `t link <id> ${rel} <${rel === 'fixed_commit' ? 'fixing sha' : 'ref'}>`).join('  and  ');
 }
 
 // One call for the hooks: integrity over a whole project's stores.
