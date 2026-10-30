@@ -201,6 +201,16 @@ await test('a capture sharing only generic words and stopwords with a lapsed tit
   assert.equal(findLapsedMatches(root, title).length, 1, 'the ticket still matches its own title');
 });
 
+await test('a capture covering a lapsed title made only of common words reopens nothing (KIT-T724)', async () => {
+  const root = makeStore();
+  addTicket(root, 'TST-T001', { days: 30, title: 'Gate blocks files write script hook' });
+  addTicket(root, 'TST-T002', { days: 30, title: GARAGE });
+  for (let i = 0; i < 60; i++) addTicket(root, `TST-T1${String(i).padStart(2, '0')}`, { days: 3, title: `Gate blocks files write script hook case ${i}` });
+  await sweepLapse(root);
+  assert.deepEqual(findLapsedMatches(root, 'the gate blocks files and write script hook all misfire'), [], 'common words alone never collide');
+  assert.deepEqual(findLapsedMatches(root, GARAGE).map((t) => t.id), ['TST-T002'], 'a distinctive title still collides');
+});
+
 await test('cap prints `reopened <id> (KIT-D107)` for a lapsed match', async () => {
   const root = makeStore();
   addTicket(root, 'TST-T001', { days: 30, title: GARAGE });
