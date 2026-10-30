@@ -5,7 +5,9 @@
 //
 // A job that carries its own targeted commands (--test) runs those in place of the mapped tests (the affected
 // set only fills in for a job with none, or a suite-shaped one, unless `affected.mandatory` is set); the compile
-// check of every target runs first either way, so a landing cannot break a target its commands do not build (KIT-T677). A crate in a
+// check of every target runs first either way, so a landing cannot break a target its commands do not build (KIT-T677).
+// The test run of every dependent of a touched crate follows in both cases, so a landing cannot break a crate downstream of
+// the one its commands name (KIT-T719). A crate in a
 // nested workspace (a submodule's `rust/`) is tested with `cd <workspace> &&` in front.
 //
 // `landGate(cfg, cwd, job, files)` (the plan's Map path → { text }, text null = deleted) → null (run the job's commands as given) or
@@ -104,9 +106,9 @@ export function landGate(cfg, cwd, job, files) {
   const given = Array.isArray(job.commands) && job.commands.length ? job.commands : [];
   const dropped = given.filter((c) => isSuiteShaped(c, cfg.suite));
   const kept = given.filter((c) => !dropped.includes(c));
-  if (kept.length && !cfg.affected.mandatory) return { commands: withConformance(cfg, [...new Set([cfg.affected.check, ...kept])], files), selection: { reasons: [], dropped, explicit: true } };
-  const tests = [...sel.crates].filter(([, specs]) => specs.size).flatMap(([name, specs]) => crateTests(cfg, sel.workspaces.get(name), name, specs));
   const dependents = cfg.affected.dependents ? dependentTests(cfg, cwd, sel) : [];
+  if (kept.length && !cfg.affected.mandatory) return { commands: withConformance(cfg, [...new Set([cfg.affected.check, ...kept, ...dependents])], files), selection: { reasons: [], dropped, explicit: true } };
+  const tests = [...sel.crates].filter(([, specs]) => specs.size).flatMap(([name, specs]) => crateTests(cfg, sel.workspaces.get(name), name, specs));
   const commands = withConformance(cfg, [...new Set([cfg.affected.check, ...tests, ...dependents, ...kept])], files);
   return { commands, selection: { reasons: sel.reasons, dropped } };
 }

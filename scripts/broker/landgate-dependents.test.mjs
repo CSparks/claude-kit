@@ -50,6 +50,18 @@ test('the gate adds the whole test run of every local crate that depends on a to
   } finally { cleanup(dir); }
 });
 
+test('a job that names its own --test commands still runs the dependents of the crate it touched (KIT-T719)', () => {
+  const dir = layout();
+  try {
+    const own = ['cargo test -p base --test unit'];
+    const gate = landGate(cfg(true), dir, { commands: own }, files('crates/base/src/lib.rs'));
+    assert.deepEqual(gate.commands, ['CHECK', ...own, 'cargo test -p mid', 'cargo test -p top']);
+    assert.equal(gate.selection.explicit, true);
+    assert.deepEqual(landGate(cfg(false), dir, { commands: own }, files('crates/base/src/lib.rs')).commands, ['CHECK', ...own], 'dependents off keeps the job list alone');
+    assert.deepEqual(landGate(cfg(true), dir, { commands: own }, files('crates/top/src/lib.rs')).commands, ['CHECK', ...own], 'nothing depends on top');
+  } finally { cleanup(dir); }
+});
+
 test('negative controls: dependents off, a leaf crate and a registry dependent add nothing', () => {
   const dir = layout();
   try {
