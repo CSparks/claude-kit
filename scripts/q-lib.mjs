@@ -66,6 +66,7 @@ import { printRows } from './q-print.mjs';
 import { QUERY_SURFACE, verbHelp } from './q-help.mjs';
 import { codeVerbRows } from './code-index-query.mjs';
 import { printFtsExtras } from './q-fts-extras.mjs';
+import { withDecisionHits } from './q-decision-hit.mjs';
 import { registryRows, takeRegistry } from './q-registry.mjs';
 import { recentRows, DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
 
@@ -251,12 +252,12 @@ function cannedQueries(root) {
       // carries its scope so a framework hit reads as one.
       const { scopeTok, query, limit, any } = splitFts(raw);
       const scopes = searchScopes(scopeTok, root);
-      return db.all(
-        `SELECT i.scope, f.id, i.type, i.status, i.title, snippet(items_fts, ?, '[', ']', '…', ?) AS hit
+      return withDecisionHits(db.all(
+        `SELECT i.scope, f.id, i.type, i.status, i.title, snippet(items_fts, ?, '[', ']', '…', ?) AS hit, f.body
          FROM items_fts f JOIN items i ON i.id = f.id
          WHERE items_fts MATCH ?${scopes.length ? ` AND i.scope IN (${scopes.map(() => '?').join(',')})` : ''}
          ORDER BY rank LIMIT ?`,
-        [SNIPPET_COL, SNIPPET_TOKENS, any ? ftsAnyQuery(query) : ftsMatchQuery(query), ...scopes, limit || -1]);
+        [SNIPPET_COL, SNIPPET_TOKENS, any ? ftsAnyQuery(query) : ftsMatchQuery(query), ...scopes, limit || -1]));
     },
 
     // Per-scope open counts. `rundown all` is the cross-project board; bare `rundown` answers
