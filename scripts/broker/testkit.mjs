@@ -90,6 +90,10 @@ export function tempDir(prefix = 'broker-') {
   return dir;
 }
 
+// Build slots are machine-wide: a test's pre-push gate would queue behind a real build on the
+// box. Each test process gets its own slot directory, which its children inherit.
+process.env.CLAUDE_KIT_BUILD_SLOT_DIR ??= tempDir('broker-slots-');
+
 // A repo on `main` with target/ gitignored (so the broker's own control files never dirty it)
 // and one committed file. Local identity + no gpg signing + protocol.file for local submodules.
 export function makeRepo(dir) {
