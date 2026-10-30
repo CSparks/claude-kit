@@ -5,7 +5,7 @@ type: bug
 status: done
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
-labels: [lapsed]
+labels: []
 aka: []                # prior ids/labels this item was known by (populated by rekey-ids)
 parent:                # id of the parent item (epic/request) this belongs to — upward link only; children generated
 introduced_by:         # bug provenance: ticket@commit or ticket-id that introduced this bug (KIT-T095)
@@ -20,7 +20,8 @@ effort:                # OPTIONAL override: low | medium | high | xhigh | max �
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
 superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
 created: 2026-08-16T00:06:35.580Z
-updated: 2026-10-29T16:04:35Z
+updated: 2026-10-30T04:34:31Z
+fixed_commit: b040d70
 ---
 
 ## Description
@@ -75,6 +76,8 @@ exits 2 on the same .patch payload.
 Agents write source files through shell heredocs (cat > file <<EOF, tee, sed -i, node -e writeFileSync) instead of Write/Edit. The code-quality pre-write gate (300/600-line limits, comment rules) and the commit gate's file attribution never see those files, so commits end up needing '[commit-foreign: …]' overrides. Seen 2026-10-29 in the KIT-T699 writer's commits 1c442c6 through f66903f. Per KIT-D113: a hard block on Bash/PowerShell commands that write into tracked source paths (redirects, tee, sed -i, Set-Content/Out-File, inline node/python writes), pointing to Write/Edit. Scratchpad, temp dirs and .ai stores stay allowed, with exclusions on the usual surfaces.
 ### comment #2 [2026-10-29 16:04] @sonnet55
 Reopened by mistake on 2026-10-29: the KIT-T700 capture shared generic words and the stopword 'the' with this title and tripped the KIT-D107 collision rule (0.6 coverage). Restored to done/lapsed; the comment above is T700's text, not feedback on this ticket. Rule fixed: stopwords ignored, coverage 0.75.
+### comment #3 [2026-10-30 04:26] @chris
+t cannot correct its own links, forcing manual ticket edits (2026-10-30, KIT-T487/T720 agent): 't link T720 superseded_by T487' wrote the supersede link in BOTH directions, there is no 't unlink' / link-replace, and 't status done' demanded --fixed-commit without saying how; the agent fell back to Edit, then a scratchpad script, on .ai/tickets files. Per the new decision (all ticket maintenance through KIT, no manual edits): fix t link directionality, add t unlink (or replace), and add a gate that blocks Edit/Write and shell writes to .ai/<items> files outside t/cap, naming the t command to use.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -95,3 +98,7 @@ Reopened by mistake on 2026-10-29: the KIT-T700 capture shared generic words and
 - [2026-10-29 15:56] (comment) @chris: Agents write source files through shell heredocs (cat > file <<EOF, tee, sed -i, node -e writeFileSync) instead of Write (full comment #1 in ## Notes)
 - [2026-10-29 16:04] (status) todo → done
 - [2026-10-29 16:04] (comment) @sonnet55: Reopened by mistake on 2026-10-29: the KIT-T700 capture shared generic words and the stopword 'the' with this title and  (full comment #2 in ## Notes)
+- [2026-10-30 04:26] (status) done → todo
+- [2026-10-30 04:26] (comment) @chris: t cannot correct its own links, forcing manual ticket edits (2026-10-30, KIT-T487/T720 agent): 't link T720 superseded_b (full comment #3 in ## Notes)
+- [2026-10-30 04:34] (status) todo → done
+- [2026-10-30 04:34] (comment) Reopened by mistake 2026-10-30: KIT-T723 capture matched the lapsed-title terms only by generic words (gate, blocks, files, write); no collision. Still fixed by b040d70.
