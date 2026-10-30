@@ -170,7 +170,7 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   different checkout declares `[tree: <absolute path>]`. Two writers in ONE checkout need
   the maintainer's quoted words: `[maintainer-asked-parallel: <his words>]`.
 - **Warm reuse has a context ceiling (KIT-D116, amends KIT-D077/D094).** An agent past
-  `dispatch.context_ceiling_tokens` (200k, the orchestrator's default) is retired, never resumed:
+  `dispatch.context_ceiling_tokens` (300k, Chris 2026-10-30) is retired, never resumed:
   request its handoff (`[write-handoff]`), then brief a fresh agent from the ticket Notes.
   A retiring agent MUST write a `Handoff <agent id>` block (Jobs:, State:, Next:, Files:) in the
   ticket Notes, never a scratchpad; the dispatch guard refuses a replacement until it exists.

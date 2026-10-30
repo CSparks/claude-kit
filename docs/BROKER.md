@@ -55,7 +55,10 @@ landings since the last look.
 Stop at the first failure; each writes `target/broker/results/<id>.json`.
 
 1. `submit-dryrun` — `submit.mjs` applies every op in memory to `git show HEAD:<path>`. A miss
-   returns `stale` in seconds and never queues.
+   returns `stale` in seconds and never queues (exit 1, no job id); stderr prints each op index, path,
+   reason and fix hint (a `create-exists` says to edit the existing file with SEARCH/REPLACE). A
+   byte-identical envelope that already came back stale on the same base (`stale-envelopes.json`)
+   is refused the same way, phase `submit-repeat`.
 2. `apply` — the daemon re-runs the dry run against current `HEAD`. An `edit` applies while its
    SEARCH text matches exactly once, so intervening commits do not matter unless they touched
    that text. Misses are `not-found`, `ambiguous xN`, `create-exists` (a `write` onto an

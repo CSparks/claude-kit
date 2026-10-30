@@ -10,6 +10,9 @@
 // Before a job joins the queue, precheck.mjs runs a fast `cargo check` of the patch in the broker's precheck tree; a compile error
 // prints the failed result (exit 1) and the job never takes a queue slot; so does a syntax error in a touched .mjs/.cjs/.js script
 // (`node --check`). The pre-write gate runs at submit too (submit-lib.mjs).
+// The dry run also refuses at submit (exit 1, no job id) a create-exists, a SEARCH not found, an ambiguous SEARCH, and a
+// byte-identical envelope that already came back stale on the same base (stale-envelope.mjs); stderr names each op index,
+// path, reason and fix.
 // `--measure` queues a measurement job: it runs in the idle lane (measure.mjs) and never delays a landing.
 // `--agent <id>` names the submitting subagent (the broker-agent-tag hook adds it); the result and the finished-job line carry it.
 // `--repo <submodule> --no-pin --land` pushes the submodule commit and leaves the superproject alone.
@@ -36,7 +39,7 @@ import { ensureQueuedLanes, IDLE_EXIT_MIN } from './ensure.mjs';
 import { announce, selfCheck } from './health.mjs';
 import { STATUS, writeJob, writeResult } from './result.mjs';
 import { withdrawJob } from './withdraw.mjs';
-import { buildPatchJob } from './submit-lib.mjs';
+import { buildPatchJob, refusalLines } from './submit-lib.mjs';
 import { submitUsageProblem } from './submit-usage.mjs';
 import { cargoScopeRefusal } from './cargo-scope.mjs';
 import { subagentRefusal } from './agent.mjs';
@@ -67,6 +70,7 @@ if (out.error) {
   process.exit(2);
 }
 if (out.result) {
+  for (const line of refusalLines(out.result)) console.error(line);
   console.log(JSON.stringify(writeResult(cfg, out.result), null, 2));
   process.exit(1);
 }

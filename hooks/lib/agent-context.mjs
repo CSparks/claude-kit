@@ -5,7 +5,8 @@
 //   contextCeiling()                 -> the ceiling in tokens (kit config)
 //   contextTokens(row)               -> an agent's context size: its row's `tokens`, else (in-flight) its live transcript tail
 //   overCeiling(rows)                -> [{ row, tokens }] for the rows past the ceiling
-//   ceilingFlag(row)                 -> '' under the ceiling, else the one-line flag orient and the guards print
+//   ceilingFlag(row)                 -> '' under the ceiling, else the one-line flag orient and the guards print, ending with what the
+//                                       context is made of (context-breakdown.mjs) when the row names its transcript (`transcript` or `outputFile`)
 //   handoffRequest(row)              -> the SendMessage text that asks a past-ceiling agent for its handoff
 //   hasHandoff(notes, agentId)       -> does a ticket's Notes carry `Handoff <agent>` with Jobs:, State:, Next:, Files:
 //   missingHandoffs(root, rows, tickets) -> past-ceiling rows citing one of `tickets` whose handoff is not in the ticket Notes yet
@@ -14,6 +15,7 @@
 import { readLadder } from '../../scripts/dispatch-ladder.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
 import { lastContextTokens } from '../agent-outcome.mjs';
+import { breakdownLine } from './context-breakdown.mjs';
 
 export const WRITE_HANDOFF = /\[write-handoff\]/i;
 const HANDOFF_LABELS = ['Jobs', 'State', 'Next', 'Files'];
@@ -41,7 +43,8 @@ export function ceilingFlag(row) {
   const ceiling = contextCeiling();
   if (!(tokens > ceiling)) return '';
   const k = (n) => `${Math.round(n / TOKENS_PER_K)}k`;
-  return ` !! CONTEXT ${k(tokens)} > ${k(ceiling)} ceiling (KIT-D116): retire, do not resume. Request the handoff first: SendMessage ${row.id} "${handoffRequest(row)}"`;
+  const made = breakdownLine(row.transcript || row.outputFile, tokens, row.id);
+  return ` !! CONTEXT ${k(tokens)} > ${k(ceiling)} ceiling (KIT-D116): retire, do not resume. Request the handoff first: SendMessage ${row.id} "${handoffRequest(row)}"${made ? ` Composition: ${made}` : ''}`;
 }
 
 export function hasHandoff(notes, agentId) {

@@ -3,7 +3,7 @@
 // the SubagentStop retire line, and the no-wait rule appended to a patch-worker brief (KIT-D115).
 // Run: node hooks/agent-context.test.mjs
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { adopted, cleanup, fixtureKit, hook, isoDaysAgo, reporter } from './test-harness.mjs';
 import { ceilingFlag, contextCeiling, handoffRequest, hasHandoff } from './lib/agent-context.mjs';
@@ -19,12 +19,15 @@ const TICKET = 'KIT-T900';
 const handoff = (id) => `## Notes\n\n### Handoff ${id}\n- Jobs: j-1-a (passed)\n- State: patch landed\n- Next: run the suite\n- Files: hooks/x.mjs:10\n`;
 
 try {
-  ok('the ceiling is the kit config value, 200000 by default', contextCeiling() === 200000);
+  const CEILING = Number(/context_ceiling_tokens:\s*(\d+)/.exec(readFileSync(join(import.meta.dirname, '..', '.ai', 'config.yml'), 'utf8'))[1]);
+  const OVER = CEILING * 1.5;
+  const UNDER = CEILING / 2;
+  ok('the ceiling is the kit config value', contextCeiling() === CEILING);
   const row = (tokens, extra = {}) => ({ id: OLD, scope: 'implementer', model: 'claude-sonnet-5-5', status: 'done', task: 'work', tokens, tickets: [TICKET], ...extra });
   ok('negative: an agent under the ceiling has no flag', ceilingFlag(row(150000)) === '');
   ok('negative: a row with no token count has no flag', ceilingFlag(row(undefined)) === '');
-  const flag = ceilingFlag(row(450000));
-  ok('a past-ceiling agent is flagged with its size, the ceiling and the handoff request', /450k > 200k/.test(flag) && flag.includes('[write-handoff]') && flag.includes(`Handoff ${OLD}`));
+  const flag = ceilingFlag(row(OVER));
+  ok('a past-ceiling agent is flagged with its size, the ceiling and the handoff request', flag.includes(`${OVER / 1000}k > ${CEILING / 1000}k`) && flag.includes('[write-handoff]') && flag.includes(`Handoff ${OLD}`));
   ok('orient\'s agent line carries the flag', formatAgentLine(row(450000)).includes('retire, do not resume'));
   ok('negative: orient\'s agent line is clean under the ceiling', !formatAgentLine(row(150000)).includes('CONTEXT'));
   ok('the handoff request names the ticket and the four labels', /KIT-T900/.test(handoffRequest(row(1))) && /Jobs:, State:, Next:, Files:/.test(handoffRequest(row(1))));

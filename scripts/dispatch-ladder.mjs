@@ -22,7 +22,7 @@ import { kitDataText } from './kit-data.mjs';
 
 export const KIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const FRESHNESS_DAYS = 14;
-export const CONTEXT_CEILING_TOKENS = 200000;
+export const CONTEXT_CEILING_TOKENS = 300000;
 // Tests point the resolver at a fixture kit; production always reads the kit checkout.
 export const ladderRoot = () => process.env.CLAUDE_KIT_LADDER_ROOT || KIT_ROOT;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -68,7 +68,7 @@ export function readLadder(kitRoot = ladderRoot()) {
   const aliases = {};
   for (const m of subBlock(body, 'aliases').matchAll(/^ {4}([\w-]+):\s*([\w.-]+)/gm)) aliases[m[1].toLowerCase()] = m[2];
   const refresh = body.match(/^ {2}refresh_days:[ \t]*(\d+)/m);
-  const ceiling = body.match(/^ {2}context_ceiling_tokens:[ 	]*(d+)/m);
+  const ceiling = body.match(/^ {2}context_ceiling_tokens:[ \t]*(\d+)/m);
   return { jobs, defaultJob, aliases, refreshDays: refresh ? Number(refresh[1]) : FRESHNESS_DAYS, contextCeilingTokens: ceiling ? Number(ceiling[1]) : CONTEXT_CEILING_TOKENS };
 }
 

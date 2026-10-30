@@ -26,6 +26,7 @@ import { heartbeatLine } from './heartbeat.mjs';
 import { restartIfWedged } from './stall.mjs';
 import { holdAge, holdLine, holdReport } from './hand-hold.mjs';
 import { subagentRefusal } from './agent.mjs';
+import { heartbeatKey, repeatPrinter } from './collapse-repeats.mjs';
 
 // A foreground Bash call with no timeout argument is killed at 120 s (exit 137, no output): the default
 // ends the wait first, with exit 2 and the queue position. A longer wait names --timeout (up to 540) and
@@ -46,7 +47,10 @@ const pollMs = Number(flags.poll) || rootCfg.pollMs;
 const graceMs = flags['grace-ms'] === undefined ? NO_BROKER_GRACE_MS : Number(flags['grace-ms']);
 const beatMs = (flags.heartbeat === undefined ? DEFAULT_HEARTBEAT_S : Number(flags.heartbeat)) * 1000;
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// A heartbeat that only moved its clock is the same line: "queued at position 3" prints once, then "(repeated N×)".
+const beats = repeatPrinter((line) => console.error(line), { key: heartbeatKey });
+
+const sleep =(ms) => new Promise((r) => setTimeout(r, ms));
 
 const resultPath = (c) => join(brokerPaths(c).results, `${id}.json`);
 const known = (c) => listQueue(c).some((j) => j.id === id) || listMeasure(c).some((j) => j.id === id) || readResult(c, id) || inflightHas(readInflight(c), id);
@@ -64,6 +68,7 @@ while (Date.now() < deadline) {
   const cfg = laneCfgFor(rootCfg, id);
   const result = readResult(cfg, id);
   if (result && isCurrentResult(cfg, result)) {
+    beats.flush();
     printResult(result);
     const hold = result.status === STATUS.DIRTY ? holdReport(cfg) : null;
     if (hold) console.log(`  ${holdLine(hold)} (${holdAge(hold)})`);
@@ -78,11 +83,12 @@ while (Date.now() < deadline) {
   if (!process.env.BROKER_NO_AUTOSTART) restartIfWedged(cfg, root, { spawner: (r, why) => spawnBroker(r, null, why, cfg.lane) });
   if (beatMs > 0 && Date.now() >= nextBeat) {
     const line = heartbeatLine(cfg, id);
-    if (line) console.error(line);
+    if (line) beats.line(line);
     nextBeat = Date.now() + beatMs;
   }
   await sleep(pollMs);
 }
+beats.flush();
 const cfg = laneCfgFor(rootCfg, id);
 const position = listQueue(cfg).findIndex((j) => j.id === id);
 const where = heartbeatLine(cfg, id);

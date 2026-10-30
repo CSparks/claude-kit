@@ -4,7 +4,7 @@
 
 import { join } from 'node:path';
 import { asList } from './cli.mjs';
-import { repoByName } from './config.mjs';
+import { laneOfRepo, repoByName, withLane } from './config.mjs';
 import { parseEnvelope } from './envelope.mjs';
 import { git, revParse } from './git.mjs';
 import { planAtHead } from './plan.mjs';
@@ -21,7 +21,8 @@ import { parsePins } from './pin.mjs';
 import { redRunRefusal } from './red-run.mjs';
 import { readInflight } from './preimage.mjs';
 import { staleEntries } from './admit.mjs';
-import { STATUS, listQueue, newJobId, readResult } from './result.mjs';
+import { REPEAT_PHASE, STATUS, listQueue, newJobId, readResult } from './result.mjs';
+import { envelopeHash, priorStale } from './stale-envelope.mjs';
 
 // Files the daemon's in-flight run wrote into `cwd` that did not exist before it: a check-only
 // run holds them until it restores, and a submit planned meanwhile must not read them as collisions.
@@ -75,7 +76,7 @@ export function buildPatchJob(cfg, flags, text) {
   const base = revParse(cwd, ref);
   const { plan } = planAtHead(cwd, ops, { ref, read: linkedReader(cfg, repo, cwd, ref), ownFiles: inflightCreated(cfg, cwd) });
   const meta = {
-    id: newJobId(), revises: typeof flags.revises === 'string' ? flags.revises : null, repo: repo.name, base,
+    id: newJobId(), envelope: envelopeHash(text), revises: typeof flags.revises === 'string' ? flags.revises : null, repo: repo.name, base,
     ticket: flags.ticket ? String(flags.ticket) : null, title: flags.title ? String(flags.title) : '',
     session: jobSession(flags, process.env, join(cfg.root, '.ai')),
     ...(agentOf(flags) ? { agent: agentOf(flags) } : {}),
@@ -87,8 +88,19 @@ export function buildPatchJob(cfg, flags, text) {
     const stale = staleEntries(cwd, base, plan.stale);
     return { result: { ...meta, head: base, status: STATUS.STALE, phase: 'submit-dryrun', stale, gate: [], commands: [], landed: null } };
   }
+  const repeat = ops.length ? priorStale(withLane(cfg, laneOfRepo(cfg, repo.name)), meta.envelope, base) : null;
+  if (repeat) {
+    const message = `this envelope came back stale on this base as ${repeat.id} (${repeat.reason}); change it, or wait for the base to move`;
+    return { result: { ...meta, head: base, status: STATUS.STALE, phase: REPEAT_PHASE, stale: [], gate: [], commands: [], landed: null, message } };
+  }
   const gate = flags.measure ? [] : gatePlan(cwd, plan.files).filter((g) => g.check !== GATE_CRASH && g.check !== RUNTIME_GONE);
   if (gate.length) return { result: { ...meta, head: base, status: STATUS.GATE, phase: 'submit-gate', gate, stale: [], commands: [], landed: null } };
   const files = Object.fromEntries([...plan.files.keys()].map((p) => [p, git(['rev-parse', `${ref}:${p}`], cwd).out || null]));
   return { job: { ...meta, ops, files, commands: tests, land: !!flags.land, pins: pinned.pins, noPin: !!flags['no-pin'] } };
 }
+
+/** One line per refusal reason of a result submit rejects: the op index, path, reason and what to do about it. */
+export const refusalLines = (result) => [
+  ...(result.stale || []).map((s) => `submit: op ${s.index} ${s.path}: ${s.reason}${s.hint ? ` (${s.hint})` : ''}`),
+  ...(result.message ? [`submit: ${result.message}`] : []),
+];

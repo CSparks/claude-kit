@@ -5,7 +5,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { readLadder, resolveJob, dispatchDrift, capabilityFreshness, freshnessWarning, FRESHNESS_DAYS, KIT_ROOT } from './dispatch-ladder.mjs';
+import { CONTEXT_CEILING_TOKENS, readLadder, resolveJob, dispatchDrift, capabilityFreshness, freshnessWarning, FRESHNESS_DAYS, KIT_ROOT } from './dispatch-ladder.mjs';
 import { adopted, hook, git, cleanup, reporter, tmpDir, fixtureKit, isoDaysAgo } from '../hooks/test-harness.mjs';
 
 const { ok, done } = reporter('dispatch-ladder');
@@ -61,6 +61,13 @@ try {
   ok('a project dispatch block does not change the resolved job', JSON.stringify(after) === JSON.stringify(before));
   ok('the project dispatch block is flagged as drift', /ignored/.test(dispatchDrift(proj) || ''));
   ok('the kit checkout never flags itself', dispatchDrift(KIT_ROOT) === null);
+
+  const CUSTOM_CEILING = 123456;
+  const ceilingKit = tmpDir('kit-ceiling-');
+  mkdirSync(join(ceilingKit, '.ai'), { recursive: true });
+  writeFileSync(join(ceilingKit, '.ai', 'config.yml'), `dispatch:\n  refresh_days: 7\n  context_ceiling_tokens: ${CUSTOM_CEILING}   # note\n  jobs:\n`);
+  ok('the context ceiling is read from dispatch.context_ceiling_tokens', readLadder(ceilingKit).contextCeilingTokens === CUSTOM_CEILING);
+  ok('negative: with no key the ceiling falls back to the default', readLadder(kitWith([isoDaysAgo(0)])).contextCeilingTokens === CONTEXT_CEILING_TOKENS);
 
   const r = hook('orient.mjs', { hook_event_name: 'SessionStart' }, proj, { CLAUDE_KIT_LADDER_ROOT: fixtureKit(isoDaysAgo(0)) });
   ok('orient surfaces the drift warning', r.out.includes('`dispatch:` block — ignored'));

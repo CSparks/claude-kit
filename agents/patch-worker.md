@@ -55,7 +55,7 @@ you author the patch, you submit it, you wait ONCE at most, and you hand back. L
    ticket Notes (`t notes <id> "…"`) with the labelled lines `Jobs:` (ids), `State:`, `Next:` (what to do on
    pass, fail and stale) and `Files:` (pointers). Never in a scratchpad: it dies with the session. End with no
    background task running and report the job ids; the orchestrator resumes you from the broker's finished-job
-   line. The same applies when your context nears 200k tokens (KIT-D116): hand off and end.
+   line. The same applies when your context nears the context ceiling (`dispatch.context_ceiling_tokens`, 300k; KIT-D116): hand off and end.
    Ping main (SendMessage) ONE line per landed job: ticket, step, landed sha.
 
 The dispatcher names the family on the call (sonnet by default for a patch, opus for a large one).

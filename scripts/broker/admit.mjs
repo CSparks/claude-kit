@@ -7,6 +7,7 @@
 //   { ok: false, fields, pause? }                            result fields to write; pause leaves it queued
 
 import { join } from 'node:path';
+import { staleHint } from './apply.mjs';
 import { dirtState } from './dirty.mjs';
 import { entriesText, untrackedNote } from './hand-hold.mjs';
 import { GATE_CRASH, RUNTIME_GONE, gatePlan } from './gate.mjs';
@@ -17,7 +18,7 @@ import { linkedReader } from './linked.mjs';
 import { STATUS } from './result.mjs';
 
 export function staleEntries(cwd, base, stale) {
-  return stale.map((s) => ({ ...s, since: base ? logSince(cwd, base, s.path) : [] }));
+  return stale.map((s) => ({ ...s, hint: staleHint(s.reason), since: base ? logSince(cwd, base, s.path) : [] }));
 }
 
 const posix = (p) => String(p).replace(/[\\]/g, '/');

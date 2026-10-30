@@ -12,6 +12,16 @@ const EXCERPT_BEFORE = 3;
 const EXCERPT_AFTER = 4;
 const NEEDLE_CHARS = 30;
 
+// What a worker does about each stale reason; submit prints it beside the op index and path.
+export function staleHint(reason) {
+  if (reason === 'create-exists') return 'the file already exists: edit the existing file with SEARCH/REPLACE instead of writing it';
+  if (reason === 'not-found') return 'the SEARCH text is not in the file at the base (or the file is absent): re-read it and copy the lines exactly';
+  if (String(reason).startsWith('ambiguous')) return 'the SEARCH text matches more than once: add neighbouring lines until it matches once';
+  if (reason === 'binary-file') return 'a binary file cannot be edited: replace it whole with `*** write-binary`';
+  if (reason === 'bad-path') return 'use a path relative to the repo root, without `..`';
+  return '';
+}
+
 export const safePath = (p) => !!p && !/^([a-zA-Z]:|[\\/])/.test(p) && !p.split(/[\\/]/).includes('..');
 
 // Lines of `text` around the one most like the first non-blank SEARCH line, numbered.

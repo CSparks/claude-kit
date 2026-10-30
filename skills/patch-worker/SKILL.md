@@ -50,9 +50,13 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
    `wait` exits 0 for passed/landed, 1 otherwise, 2 when the wait ended with the job still queued or running.
    On exit 2, or when a second wait would follow, do not wait again: write the handoff and end (see *Handing back*).
    Never poll, loop, `tail`, `sleep`, background a wait, re-submit a job to read it, or run `watch.mjs` (KIT-D115).
+   Read a result with `node result-summary.mjs <id> --root <tree>`: the verdict, each command's exit code, each failed test
+   with its panic location, the DRIVE/summary lines and the log path. Never read a log whole and never `tail` one: repeated
+   lines ("Compiling" walls, queued/running ticks) are collapsed to "×N" and cost context for nothing (KIT-D116).
    - `stale` — per failing op: the reason (`not-found`, `ambiguous xN`, `create-exists`),
      the closest current excerpt, `HEAD`, and the commits since your base that touched the
-     file. Re-read the file, fix the block, resubmit with `--revises <id>`.
+     file. Re-read the file, fix the block, resubmit with `--revises <id>`. Submit refuses these (and
+     a byte-identical resubmit of a stale envelope, phase `submit-repeat`) before queueing: exit 1, no id.
    - `gate` — a pre-write check failed (file length, comments, forbidden path); the message
      names it. Fix the patch; nothing touched the tree.
    - `failed` — rustc error blocks keyed by file and the failed test names; fix and resubmit.
@@ -74,7 +78,7 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
 ## Handing back (KIT-D115, KIT-D116)
 
 No agent spends more than 5 minutes waiting on anything. When the one wait is spent, or your context nears
-200k tokens, write a `Handoff <your agent id>` block in the ticket Notes (`t notes <ticket> "…"`) with the
+the ceiling (`dispatch.context_ceiling_tokens`, 300k), write a `Handoff <your agent id>` block in the ticket Notes (`t notes <ticket> "…"`) with the
 labelled lines `Jobs:` (job ids), `State:`, `Next:` (the action on pass, fail and stale) and `Files:` (pointers).
 Then end with nothing running and report the job ids. The orchestrator watches `target/broker/finished.log`
 (one line per finished job: id, verdict, agent, ticket) and resumes you, or briefs a fresh agent from the ticket.

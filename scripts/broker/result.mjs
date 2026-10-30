@@ -2,7 +2,7 @@
 // write JOBS into the queue dir; the broker writes RESULTS a worker's `wait` polls for.
 //
 // JOB   (target/broker/queue/<id>.json), written by submit.mjs:
-//   { id, repo, base, ops, files: { path: blobSha }, commands: [ "cargo t -p foo", … ], land: bool,
+//   { id, repo, base, envelope (sha256 of the envelope text), ops, files: { path: blobSha }, commands: [ "cargo t -p foo", … ], land: bool,
 //     ticket, title, revises, revision, session, agent, measure, submittedAt }   (session: who submitted it; rr.mjs serves sessions in turn;
 //     agent: the submitting subagent (agent.mjs); measure: a measurement job (measure.mjs), kept out of listQueue)
 //   empty `commands` means the broker fills `verify_default`.
@@ -22,8 +22,11 @@ import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { recordRun } from './red-run.mjs';
 import { recordFinished } from './finished-log.mjs';
+import { recordStaleEnvelope } from './stale-envelope.mjs';
 
 export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict', SUPERSEDED: 'superseded', CANCELLED: 'cancelled', MEASURED: 'measured' };
+
+export const REPEAT_PHASE = 'submit-repeat';
 
 export function ensureDirs(cfg) {
   const p = brokerPaths(cfg);
@@ -110,6 +113,9 @@ export function writeResult(cfg, result) {
   writeFileSync(join(p.results, `${result.id}.json`), JSON.stringify(full, null, 2));
   recordRun(cfg, full);
   recordFinished(cfg, full);
+  if (full.status === STATUS.STALE && full.stale?.length && full.phase !== REPEAT_PHASE) {
+    recordStaleEnvelope(cfg, full, result.envelope || queuedField(p.queue, result.id, 'envelope'));
+  }
   return full;
 }
 
