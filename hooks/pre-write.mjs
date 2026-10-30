@@ -35,10 +35,13 @@ const NATIVE_LINTED = new Set(['rs', 'py', 'go', 'sh', 'bash', 'zsh']);
 const DOC = new Set(['md', 'markdown', 'mdx', 'txt', 'rst', 'adoc']);
 // KIT-T114: `conf`/`properties`/`env` join the config family. An nginx `listen 443 ssl;`
 // or a `rsa_key_size=4096` is a required literal, not an extractable constant.
-const DATA = new Set(['json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'csv', 'ini', 'cfg', 'conf', 'properties', 'env']);
+const DATA = new Set(['json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'csv', 'ini', 'cfg', 'conf', 'properties', 'env', 'caddy']);
+// A path token such as `/2018/02/26/post/`: a slash that follows no operand, with path characters straight after it.
+// Division (`a/60`, `a / 60`) is left to the magic-number scan.
+const URL_PATH_TOKEN = /(?<![\w)\]])\/[\w.~-]*\d[\w.~-]*(?:\/[\w.~-]*)*/g;
 // Infra files carrying config in a name rather than an extension — `Dockerfile` has no
 // ext at all, so the DATA check above can never reach them. `EXPOSE 3000` takes a literal.
-const INFRA_BASENAME = /^(Dockerfile|Containerfile|Makefile|Procfile|\.env)(\..*)?$/i;
+const INFRA_BASENAME = /^(Dockerfile|Containerfile|Makefile|Procfile|Caddyfile|\.env)(\..*)?$/i;
 // Shell-family scripts. sh/bash/zsh already skip magic-numbers via NATIVE_LINTED; these
 // have the same property (ports, key sizes, retry counts are idiomatic literals) but no
 // native linter, so they get the magic-numbers exemption ONLY — rot markers and dead-code
@@ -463,7 +466,7 @@ if (!NATIVE_LINTED.has(ext) && !SHELL_LIKE.has(ext) && !isTest && !isMig && !exc
     if (/^[\s\d.,;[\]{}()-]+$/.test(raw)) continue; // continuation row of a multi-line initializer
     if (/[A-Za-z_$][\w$.\])]*\s*(?<![=!<>])[:=](?!=)\s*-?\.?\d/.test(raw)) continue; // `opts.timeout = 5000`, `(attempts = 5)`, `{retries: 3}` — comparisons excluded
     if (/\b(parseInt|toString)\s*\([^)]*\d+\s*\)/.test(raw)) continue; // radix argument
-    const stripped = code.replace(/\d+(px|em|rem)/g, '');
+    const stripped = code.replace(URL_PATH_TOKEN, '').replace(/\d+(px|em|rem)/g, '');
     const m = stripped.match(/[^A-Za-z0-9_.](-?\d+(\.\d+)?)/);
     if (m && !ALLOWED.has(m[1])) hits.push(`${i + 1}: ${raw.trim()}`);
   }

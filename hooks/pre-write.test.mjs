@@ -136,6 +136,12 @@ try {
   ok('pre-write: comparison to a magic number STILL blocks (KIT-T077 non-regression)',
     pw({ file_path: '/x/a.ts', content: 'export function gone(s) {\n  return s.status === 404;\n}\n' }).code === 2);
 
+  ok('pre-write: a .caddy redirect with a dated URL path passes (KIT-T732)',
+    pw({ file_path: '/x/site.caddy', content: 'redir /2018/02/26/thing-hasnt-taken-russian-hackers-yet-ok-lets-update/ /posts/ permanent\nheader Cache-Control max-age=31536000\n' }).code === 0);
+  ok('pre-write: digits in a URL path token in code pass (KIT-T732)',
+    pw({ file_path: '/x/a.ts', content: 'export function f() {\n  go /2018/02/26/post/ now;\n}\n' }).code === 0);
+  ok('pre-write: division without spaces by a magic number STILL blocks (KIT-T732 control)',
+    pw({ file_path: '/x/a.ts', content: 'export function minutes(x) {\n  return x/60;\n}\n' }).code === 2);
   ok('pre-write: plain css one-off literals pass (no first-class variables)',
     pw({ file_path: '/x/a.css', content: '.a { font-size: 30px; font-weight: 700; }\n' }).code === 0);
   ok('pre-write: scss reused literal hardcoded blocks (should be a token)',
