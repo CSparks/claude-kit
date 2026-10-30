@@ -11,6 +11,12 @@ test('a named package and test binary: the library and that binary, features kep
     'cargo check --offline -p dirt-empire --lib --test app --features dirt-empire/tools');
 });
 
+test('two commands naming different test binaries, one with a test filter and passthrough args, check the lib and both binaries (KIT-T728)', () => {
+  assert.equal(
+    narrowCheck(CHECK, ['cargo t -p dirt-empire --test track grid_circuit_golden', 'cargo t -p dirt-empire --test free_ride free_ride_shadow_casters -- --nocapture']),
+    'cargo check --offline -p dirt-empire --lib --test track --test free_ride --features dirt-empire/tools');
+});
+
 test('a package with no named target checks all its tests; several commands union their packages and binaries', () => {
   assert.equal(narrowCheck('cargo check --workspace --all-targets', ['cargo test --offline -p game']), 'cargo check -p game --lib --tests');
   assert.equal(narrowCheck('cargo check --workspace', ['cargo t -p a --test x', 'cargo t -p b --test y', 'cargo t -p a --test x']), 'cargo check -p a -p b --lib --test x --test y');

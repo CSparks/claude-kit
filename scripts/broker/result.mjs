@@ -24,7 +24,7 @@ import { recordRun } from './red-run.mjs';
 import { recordFinished } from './finished-log.mjs';
 import { recordStaleEnvelope } from './stale-envelope.mjs';
 
-export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict', SUPERSEDED: 'superseded', CANCELLED: 'cancelled', MEASURED: 'measured' };
+export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict', SUPERSEDED: 'superseded', CANCELLED: 'cancelled', MEASURED: 'measured', BUILD_ERROR: 'compile-error' };
 
 export const REPEAT_PHASE = 'submit-repeat';
 

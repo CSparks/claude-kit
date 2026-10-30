@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { precheckJob } from './precheck.mjs';
 import { parseEnvelope } from './envelope.mjs';
@@ -58,16 +58,29 @@ test('control: a precheck that runs past its timeout fails open and leaves nothi
   } finally { s.done(); }
 });
 
-test('control: off, no operations, a measurement job, or a held tree all skip the precheck', () => {
+test('control: off, no operations, or a held tree all skip the precheck', () => {
   const { s, cfg, job, repo } = setup(RUSTC_ERROR);
   try {
     assert.equal(precheckJob({ ...cfg, precheck: false }, job, repo), null, 'precheck: false');
     assert.equal(precheckJob(cfg, { ...job, ops: [] }, repo), null, 'no operations');
-    assert.equal(precheckJob(cfg, { ...job, measure: true }, repo), null, 'a measurement job');
     const lock = join(cfg.targetDir, 'broker', 'precheck-app.lock');
     mkdirSync(lock, { recursive: true });
-    assert.equal(precheckJob(cfg, job, repo), null, 'another precheck holds the tree');
+    assert.equal(precheckJob({ ...cfg, precheckTimeoutMs: 1500 }, job, repo), null, 'another precheck holds the tree past the wait');
     assert.equal(existsSync(lock), true, 'a held lock is not stolen');
+  } finally { s.done(); }
+});
+
+test('a precheck that finds the tree held waits for the holder and then checks its own patch (KIT-T728)', () => {
+  const { s, cfg, job, repo } = setup(RUSTC_ERROR);
+  try {
+    const lock = join(cfg.targetDir, 'broker', 'precheck-app.lock');
+    mkdirSync(lock, { recursive: true });
+    const waits = [];
+    const pause = (ms) => { waits.push(ms); rmSync(lock, { recursive: true, force: true }); };
+    const rejected = precheckJob(cfg, job, repo, { pause });
+    assert.equal(waits.length, 1, 'it waited once for the holder');
+    assert.equal(rejected.phase, 'precheck', 'the waited-for check ran and rejected the rustc error');
+    assert.equal(existsSync(lock), false, 'its own lock is released');
   } finally { s.done(); }
 });
 

@@ -2,7 +2,7 @@
 // the broker's own PRECHECK tree and `affected.check` (a `cargo check` of every target) runs there, in a persistent target
 // dir of its own, so it never waits on the daemon's cargo lock and never touches the live or the check tree. A rustc error
 // returns the failed result and the job is not queued. Anything else lets the job queue as before: a precheck that is off,
-// a patch with no operations, another precheck holding the tree, a timeout (its progress stays in the target dir for the
+// a patch with no operations, another precheck still holding the tree after a wait of one timeout, a timeout (its progress stays in the target dir for the
 // next one), a cargo that fails without a rustc error, a crash inside the precheck itself.
 // A script the patch touches (.mjs/.cjs/.js) must pass `node --check` (syntax-check.mjs); that check needs no cargo and runs
 // whenever the precheck is on. The cargo check of a COLD target dir (nothing has ever finished there) is a whole-workspace
@@ -13,7 +13,7 @@
 // build (precheck-scope.mjs), then the whole workspace. A timeout in the second stage keeps the first stage's verdict, and a
 // rustc error already in the log of a run cut off at the deadline rejects the job.
 //
-//   precheckJob(cfg, job, repo, { run?, prepare?, busy? }) -> a failed-result object to write, or null when the job may queue
+//   precheckJob(cfg, job, repo, { run?, prepare?, busy?, pause? }) -> a failed-result object to write, or null when the job may queue
 
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -33,13 +33,22 @@ const DOC_ONLY = /\.md$/i;
 const STALE_LOCK_MS = 10 * 60 * 1000;
 const MS_PER_S = 1000;
 
-// One precheck at a time per repo: the tree holds one patch. A second caller queues without a precheck.
-function takeLock(dir) {
-  try {
-    if (existsSync(dir) && Date.now() - statSync(dir).mtimeMs > STALE_LOCK_MS) rmSync(dir, { recursive: true, force: true });
-    mkdirSync(dir);
-    return () => rmSync(dir, { recursive: true, force: true });
-  } catch { return null; }
+const LOCK_POLL_MS = 1000;
+const sleepMs = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// One precheck at a time per repo: the tree holds one patch. A second caller waits for the holder (which ends inside its own
+// deadline) up to `waitMs`, then queues without a precheck.
+function takeLock(dir, waitMs, pause) {
+  const giveUp = Date.now() + waitMs;
+  for (;;) {
+    try {
+      if (existsSync(dir) && Date.now() - statSync(dir).mtimeMs > STALE_LOCK_MS) rmSync(dir, { recursive: true, force: true });
+      mkdirSync(dir);
+      return () => rmSync(dir, { recursive: true, force: true });
+    } catch { /* held */ }
+    if (Date.now() >= giveUp) return null;
+    pause(LOCK_POLL_MS);
+  }
 }
 
 const readLog = (log) => (existsSync(log) ? readFileSync(log, 'utf8') : '');
@@ -63,11 +72,11 @@ export function precheckJob(cfg, job, repo, deps = {}) {
   }
 }
 
-function runPrecheck(cfg, job, repo, { run = runCancellable, prepare = prepareCheckTree, busy = laneBusy } = {}) {
-  if (!cfg.precheck || !repo || !(job.ops || []).length || job.measure) return null;
+function runPrecheck(cfg, job, repo, { run = runCancellable, prepare = prepareCheckTree, busy = laneBusy, pause = sleepMs } = {}) {
+  if (!cfg.precheck || !repo || !(job.ops || []).length) return null;
   const home = brokerPaths(cfg).home;
   mkdirSync(home, { recursive: true });
-  const release = takeLock(join(home, `${KIND}-${repo.name}.lock`));
+  const release = takeLock(join(home, `${KIND}-${repo.name}.lock`), cfg.precheckTimeoutMs, pause);
   if (!release) return null;
   try {
     const tree = prepare(cfg, repo, { kind: KIND });
