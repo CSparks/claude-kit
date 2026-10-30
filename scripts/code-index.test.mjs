@@ -365,6 +365,7 @@ await test('q code answers a grep-style pattern, a --lang list, an absolute --pa
   w('docs/guards.md', 'the branch-guard hook\n');
   w('hooks/branch-guard.mjs', '// branch-guard\n');
   w('.ai/config.yml', 'statuses:\n  - todo\n');
+  w('pins/versions.pin', '[[package]]\nname = "bevy"\n\n[[package]]\nname = "bevy_gltf"\nversion = "0.16"\n');
   const run = (args) => codeVerbRows('code', args, g);
   try {
     const bre = await run(['held.push\|Held {', '--lang', 'rust']);
@@ -376,6 +377,9 @@ await test('q code answers a grep-style pattern, a --lang list, an absolute --pa
     assert.deepEqual(locs(await run(['held.push', '--lang', 'rs'])), ['src/held.rs:1'], 'a file extension names its language');
     assert.deepEqual(locs(await run(['statuses:', '--path', `${g.split(sep).join('/')}/.ai/config.yml`])), ['.ai/config.yml:1']);
     assert.match((await run(['x', '--path', 'crates/nonexistent']))[0].text, /no indexed file passes --path crates\/nonexistent/);
+    assert.deepEqual(locs(await run(['name = "bevy_gltf"', '--path', 'pins/versions.pin', '-A', '1'])), ['pins/versions.pin:5', 'pins/versions.pin-6'], 'a named file the index skips is searched from disk (KIT-T452)');
+    assert.deepEqual(locs(await run(['^name = "bevy"$', '--regex', '--path', 'pins/versions.pin'])), ['pins/versions.pin:2']);
+    assert.match((await run(['zzz_nowhere', '--path', 'pins/versions.pin']))[0].text, /no indexed file passes --path pins\/versions\.pin/, 'a miss in a named unindexed file still says why');
     assert.deepEqual(await run(['zzz_nowhere', '--path', 'src']), [], 'a real miss stays empty');
     assert.deepEqual(locs(await ftsDocLines('SELF-COMMENTING CODE', g)), ['docs/CLAUDE.md:1']);
   } finally { rmSync(g, { recursive: true, force: true }); }

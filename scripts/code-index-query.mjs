@@ -3,9 +3,9 @@
 // VERIFIED against the file text held in the index (current after every refresh), so an answer
 // is exactly what grep would print: the trigram table only narrows candidate files. Flags: see QUERY_HELP in q.mjs.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { extractSymbols, langOfToken } from './code-index-extract.mjs';
-import { basename, isAbsolute, relative } from 'node:path';
+import { basename, isAbsolute, relative, resolve } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
 import { projectRepo } from './q-project.mjs';
 import { dirIndex } from './q-scan-dir.mjs';
@@ -16,6 +16,7 @@ export const DEFAULT_LIMIT = 40;
 const MIN_LITERAL = 3;
 const DOC_LINE_LIMIT = 5;
 const LINE_CLIP = 160;
+const NAMED_FILE_MAX_BYTES = 8 * 1024 * 1024;
 const UNRANKED = 9;
 const GAP = '\u0000';
 const DEFAULT_KINDS = ['code', 'doc', 'config'];
@@ -279,8 +280,25 @@ async function emptyResult(root, text, flags, refresh, filtered) {
     const rows = await codeVerb(root, parts.map(escapeRe).join('|'), { ...flags, regex: true }, refresh);
     if (rows.length) return [{ loc: '', text: `no literal "${text}"; matched as ${parts.length} alternatives (--regex)` }, ...rows];
   }
-  if (!filtered) return [{ loc: '', text: `(no results: no indexed file passes ${filterSummary(flags)})` }];
+  if (!filtered) return scanNamedFile(root, text, flags) || [{ loc: '', text: `(no results: no indexed file passes ${filterSummary(flags)})` }];
   return [];
+}
+
+// `--path <file>` naming an existing file the index skips (Cargo.lock, an unknown extension) is
+// searched straight from disk, so the answer never has to come from grep. null when the path is not
+// one literal file, the file is too big to read whole, or nothing matches.
+function scanNamedFile(root, text, flags) {
+  const matcher = buildMatcher(text, flags);
+  if (!flags.path || /[*?]/.test(flags.path) || !matcher) return null;
+  try {
+    const file = resolve(root, flags.path);
+    const stat = statSync(file);
+    if (!stat.isFile() || stat.size > NAMED_FILE_MAX_BYTES) return null;
+    const body = readFileSync(file, 'utf8');
+    const hits = [];
+    splitLines(body).forEach((l, i) => { if (matcher(l)) hits.push(i); });
+    return hits.length ? renderHits([{ path: flags.path, text: body, hits }], flags, flags.only ? buildExtractor(text, flags) : null) : null;
+  } catch { return null; }
 }
 
 const filterSummary = (flags) => [flags.path && `--path ${flags.path}`, flags.langs && `--lang ${flags.langs.join(',')}`, flags.kinds && `--kind ${flags.kinds.join(',')}`]
