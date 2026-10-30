@@ -8,6 +8,8 @@
 //
 // Both engines are wrapped to ONE tiny interface so hydrate/query code never branches on
 // which one it got:  exec(sql) · run(sql, params) · all(sql, params) · close().
+// open(path, { readOnly, busyTimeoutMs }): a read handle opens read-only and waits up to
+// busyTimeoutMs on a held lock (KIT-T487); with no options the handle is the plain writer.
 // This is the cache's only hard dependency surface — keep it this narrow.
 
 let cached;
@@ -16,8 +18,8 @@ async function tryBetterSqlite() {
   try {
     const mod = await import('better-sqlite3');
     const Database = mod.default || mod;
-    return (path) => {
-      const db = new Database(path);
+    return (path, { readOnly = false, busyTimeoutMs = 0 } = {}) => {
+      const db = new Database(path, { readonly: readOnly, timeout: busyTimeoutMs });
       return {
         name: 'better-sqlite3',
         exec: (sql) => db.exec(sql),
@@ -42,8 +44,9 @@ async function tryNodeSqlite() {
     };
     const { DatabaseSync } = await import('node:sqlite');
     process.emitWarning = prev;
-    return (path) => {
-      const db = new DatabaseSync(path);
+    return (path, { readOnly = false, busyTimeoutMs = 0 } = {}) => {
+      const db = new DatabaseSync(path, { readOnly });
+      if (busyTimeoutMs > 0) db.exec(`PRAGMA busy_timeout = ${Math.trunc(busyTimeoutMs)}`);
       return {
         name: 'node:sqlite',
         exec: (sql) => db.exec(sql),

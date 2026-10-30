@@ -45,6 +45,7 @@ import { existsSync, statSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { resolveEngine } from './db-engine.mjs';
+import { withLockRetry, lockTimeoutMs } from './q-lock.mjs';
 import { hydrate, defaultDbPath, hydrationSources, isRegisteredStore, isSharedDb } from './hydrate-db.mjs';
 import { readIdConfig, statStoreFiles } from './id-utils.mjs';
 import { fallback } from './q-fallback.mjs';
@@ -115,8 +116,9 @@ export async function dbOpen(root, dbPath, { assumeFresh = false } = {}) {
   // `assumeFresh`: a caller that just ran a verified query moments ago (orient's follow-up
   // trails) skips the store walk, which statistics every .md under every registered project.
   const wasStale = !existsSync(dbPath) || (!assumeFresh && statSync(dbPath).mtimeMs < await newestAcross(hydrationSources(root)));
-  if (wasStale) await hydrate({ root, dbPath });
-  return { handle: open(dbPath), wasStale };
+  if (wasStale) await withLockRetry(() => hydrate({ root, dbPath }));
+  const handle = await withLockRetry(() => open(dbPath, { readOnly: true, busyTimeoutMs: lockTimeoutMs() }));
+  return { handle, wasStale };
 }
 
 // ---- q verify (KIT-T076) — per-scope staleness self-check --------------------
@@ -130,7 +132,7 @@ async function verifyCache(root, dbPath) {
   if (!open) return { error: 'no-engine', scopes: [], stale: false };
   if (!existsSync(dbPath)) return { error: 'no-db', scopes: [], stale: true };
 
-  const handle = open(dbPath);
+  const handle = open(dbPath, { readOnly: true, busyTimeoutMs: lockTimeoutMs() });
   const scopeRows = [];
   try {
     const sources = hydrationSources(root);
