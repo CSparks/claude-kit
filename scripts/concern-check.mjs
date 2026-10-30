@@ -11,7 +11,7 @@
 //   concernFindings(root, deps?)         -> [{ concern, crate, files: [{ path, lines }], tickets }]
 //   findingLine(finding, maxLocs?)       -> the one-line report
 //   concernBlock(root, deps?)            -> orient lines, at most BLOCK_MAX
-//                                           and, after it, bypassBlock's lines
+//                                           and, after it, bypassBlock's lines and framework-profile's profileBlock lines
 //   bypassBlock(root, deps?)             -> the same for a `bypass = [...]` row: a game skipping a tuned framework default
 //                                           (plain DefaultPlugins, no budget, position-only stream follow) instead of using the default-on builder
 //
@@ -20,6 +20,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { isMain } from './is-main.mjs';
+import { profileBlock } from './framework-profile.mjs';
 import { frameworkRoots } from './q-framework.mjs';
 
 export const BLOCK_MAX = 5;
@@ -132,11 +133,14 @@ export async function bypassBlock(root, deps) {
   return block(await concernFindings(root, { ...deps, field: 'bypass' }), BYPASS_HEADER, bypassLine);
 }
 
-/** The orient lines: the concerns the game does locally, then the framework defaults it bypasses; each block is at most BLOCK_MAX lines. */
+/** The orient lines: the concerns the game does locally, the framework defaults it bypasses, then its missing dev fast tier; the first two blocks are at most BLOCK_MAX lines. */
 export async function concernBlock(root, deps) {
-  const owns = block(await concernFindings(root, deps), OWNS_HEADER, findingLine);
-  const bypass = await bypassBlock(root, deps);
-  return owns.length && bypass.length ? [...owns, '', ...bypass] : [...owns, ...bypass];
+  const blocks = [
+    block(await concernFindings(root, deps), OWNS_HEADER, findingLine),
+    await bypassBlock(root, deps),
+    await profileBlock(root, deps),
+  ].filter((b) => b.length);
+  return blocks.flatMap((b, i) => (i ? ['', ...b] : b));
 }
 
 async function main(argv) {

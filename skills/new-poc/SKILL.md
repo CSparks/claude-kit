@@ -36,11 +36,16 @@ remember.
      builder (rg-engine / rg-graphics / rg-chunk-stream), never a plain `DefaultPlugins`, and opts OUT of a default
      explicitly. The scaffold inherits the framework lint set and ships the rg-probe-kit drive tour. Grep the
      scaffold for the `bypass = [...]` patterns in `<rapid-game>/docs/CHOICES.toml`: any hit is a defect.
-   - the framework conformance test passes (`conformance:` in the framework contract names it; run through
-     rg-testkit): backend pinned, pools sized, pooled uploads active, streamed meshes under the upload cap, stream
-     follows velocity, lint set inherited.
-   - broker wiring: when the project uses the broker, add `broker.affected.conformance: cargo t -p <game> --test <conformance test>`
-     to `.ai/config.yml`, so every landing that touches Rust source or a manifest runs it.
+   - the dev fast tier is in the root `Cargo.toml` (L-B03): `new-poc.mjs` appends one
+     `[profile.dev.package."rg-…"]` section per framework crate the game builds; after the split into by-concern crates
+     run `node <rapid-game>/scripts/dev-profile.mjs <dest> --write` for the crates the new manifests add.
+   - the framework conformance test passes (`conformance:` in the framework contract names it, `framework_conformance`;
+     the scaffold ships `crates/<game>/tests/framework_conformance.rs`, which calls
+     `rg_testkit::conformance::assert_framework_conformance`): the dev fast tier today; backend pinned, pools sized,
+     pooled uploads active, streamed meshes under the upload cap and stream follows velocity join as the framework ships them.
+   - broker wiring: when the project uses the broker, add `broker.affected.conformance: cargo t -p <game> --test framework_conformance`
+     to `.ai/config.yml`, so every landing that touches Rust source or a manifest runs it. Orient prints
+     FRAMEWORK CONFORMANCE NOT WIRED until it is set.
 6. **Remote:** create the GitHub repo under **CSparks** (the account of record) and
    push main. Never point anything at depixeled-chris.
 7. **Kit adoption (offer, don't assume):** `node <kit>/scripts/init-project.mjs`
