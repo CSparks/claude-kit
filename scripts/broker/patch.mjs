@@ -86,10 +86,11 @@ export function processPatch(cfg, job, repo, opts = {}) {
   const ph = phaseTracker(cfg, job.id);
   const cwd = join(cfg.root, repo.path);
   const writeOut = opts.write || writeResult;
-  const done = (fields) => ({ result: writeOut(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields, timings: ph.timings() }) });
+  const done = (fields, { paused = false } = {}) => ({ result: writeOut(cfg, { ...base, head: revParse(cwd, 'HEAD'), ...fields, timings: paused ? ph.snapshot() : ph.timings() }) });
   const admitted = admit(cfg, job, repo, { onPhase: (p) => ph.enter(p) });
   if (admitted.pause) ph.enter('held');
-  if (!admitted.ok) return { ...done(admitted.fields), pause: admitted.pause };
+  // A paused job stays queued, so its phase file keeps saying held.
+  if (!admitted.ok) return { ...done(admitted.fields, { paused: !!admitted.pause }), pause: admitted.pause };
   const { plan } = admitted;
 
   let pins = [];
