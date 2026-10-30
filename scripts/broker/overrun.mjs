@@ -36,7 +36,11 @@ export function overrun(result) {
   return { totalMs, phase: top.phase, phaseMs: top.ms, rounds: top.rounds, queuedMs: sum(commands, (c) => c.slotWaitMs), commandMs: sum(commands, (c) => c.durationMs) };
 }
 
+// The testkit sets NO_FILING_ENV: a fixture job on a starved box must never file into the real kit store.
+export const NO_FILING_ENV = 'CLAUDE_KIT_NO_BUG_FILING';
+
 export function fileKitBug({ text }) {
+  if (process.env[NO_FILING_ENV]) return false;
   const r = spawnSync(process.execPath, [CAP, 'bug', text, '--project', 'claude-kit'], { encoding: 'utf8', windowsHide: true });
   return r.status === 0;
 }

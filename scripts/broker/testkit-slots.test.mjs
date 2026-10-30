@@ -9,6 +9,11 @@ import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import './testkit.mjs';
 import { acquireBuildSlot, slotDir } from './build-slot.mjs';
+import { fileKitBug } from './overrun.mjs';
+
+test('a fixture job over the ceiling never files a bug into the real kit store (KIT-T625)', () => {
+  assert.equal(fileKitBug({ text: 'fixture overrun that must not be filed' }), false);
+});
 
 test('the testkit gives this process a slot directory outside the real one', () => {
   const real = join(homedir(), '.claude', 'claude-kit-build-slots');
