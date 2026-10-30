@@ -40,7 +40,7 @@ import { foreignBuild } from './known-red.mjs';
 // let the job carry on, any caused failure or unattributable one stops it. A paired pin for
 // the job's ticket (paired.mjs) makes every failure suspect: no baseline, the job fails.
 function runCommands(cfg, job, cwd, hooks) {
-  const commands = cfg.runner === 'nextest' ? coalesce(jobCommands(cfg, job)) : jobCommands(cfg, job).map((cmd) => ({ cmd, from: null }));
+  const commands = cfg.runner === 'nextest' ? coalesce(jobCommands(cfg, job), { cwd }) : jobCommands(cfg, job).map((cmd) => ({ cmd, from: null }));
   const out = [];
   for (let n = 0; n < commands.length; n++) {
     const log = logPathFor(cfg, job.id, n);

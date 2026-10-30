@@ -78,12 +78,20 @@ export function packageScoped(cmd, cwd) {
   return [...toks.slice(0, ci + 1), ...alias.filter((t) => !WORKSPACE_FLAGS.has(t)), ...rest].join(' ');
 }
 
+/** The tokens `cargo <sub>` expands to in the checkout `cmd` runs in (a leading `cd <dir> &&` counts), or null when `<sub>` is no alias. */
+export function aliasOf(cmd, cwd) {
+  const toks = String(cmd).trim().split(/\s+/);
+  const ci = toks.indexOf('cargo');
+  if (ci === -1 || !cwd) return null;
+  return aliasesAt(cargoDir(toks, ci, cwd))[toks[ci + 1]] || null;
+}
+
 /** True when `cmd` is a cargo-nextest run: `cargo nextest …`, or an alias of the checkout that expands to `nextest` (stiletto's `cargo t`). */
 export function runsNextest(cmd, cwd) {
   const toks = String(cmd).trim().split(/\s+/);
   const ci = toks.indexOf('cargo');
   if (ci === -1) return false;
   if (toks[ci + 1] === 'nextest') return true;
-  const alias = cwd ? aliasesAt(cargoDir(toks, ci, cwd))[toks[ci + 1]] : null;
+  const alias = aliasOf(cmd, cwd);
   return !!alias && alias[0] === 'nextest';
 }

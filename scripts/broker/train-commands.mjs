@@ -34,7 +34,7 @@ export function trainCommands(cfg, cwd, members) {
     }
   }
   const list = [...owners.keys()];
-  const slots = cfg.runner === 'nextest' ? coalesce(list) : list.map((cmd) => ({ cmd, from: null }));
+  const slots = cfg.runner === 'nextest' ? coalesce(list, { cwd }) : list.map((cmd) => ({ cmd, from: null }));
   const commands = slots.map((s) => {
     const ids = new Set((s.from || [s.cmd]).flatMap((c) => [...(owners.get(String(c).trim()) || [])]));
     return { cmd: s.cmd, from: s.from, owners: members.map((m) => m.job.id).filter((id) => ids.has(id)) };
