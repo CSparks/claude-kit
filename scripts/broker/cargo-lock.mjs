@@ -3,6 +3,7 @@
 //   readLock(file)                    -> Map<name, { local: boolean, deps: [name] }> | null when the file is absent
 //                                         (local: no `source`, so a workspace member or path dependency)
 //   dependentsOf(lock, names)         -> Set of every package that depends, directly or not, on one of `names` (the names included)
+//   dependenciesOf(lock, names)       -> Set of every package `names` depend on, directly or not (the names included)
 
 import { existsSync, readFileSync } from 'node:fs';
 
@@ -26,5 +27,11 @@ export function dependentsOf(lock, names) {
   for (const [name, { deps }] of lock) for (const d of deps) reverse.set(d, [...(reverse.get(d) || []), name]);
   const seen = new Set(names);
   for (const n of seen) for (const up of reverse.get(n) || []) seen.add(up);
+  return seen;
+}
+
+export function dependenciesOf(lock, names) {
+  const seen = new Set(names);
+  for (const n of seen) for (const d of (lock.get(n) || { deps: [] }).deps) seen.add(d);
   return seen;
 }

@@ -2,7 +2,7 @@
 id: KIT-T729
 title: broker: coalesce drops the project cargo alias so a rapid-game job builds the Bevy stack in a second feature set (j-mvvcgf3d 836 s)
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-30T19:36:12Z
-updated: 2026-10-30T19:36:12Z
+updated: 2026-10-30T19:47:55Z
 ---
 
 ## Description
@@ -36,12 +36,19 @@ All 16 rapid-game precheck logs in the dirt-empire broker (lanes/rapid-game/prec
 - [x] A merged cargo test keeps the project alias of its commands (coalesce-alias.test.mjs, 3 tests; they fail on the old coalesce.mjs)
 - [x] A submodule repo is prechecked by a narrow check run from the job's `cd` directory, without the superproject features or whole-workspace stage (precheck-submodule.test.mjs, 4 tests)
 - [ ] Next rapid-game job with a feature-graph change: command 0 shows `--workspace --features rg-engine/dynamic_linking` in `composed` and compiles no Bevy crate that command 1 would find warm
+- [x] A -p crate that cannot reach the alias's --features pkg/feat builds alone, not with --workspace behind it (alias-closure.test.mjs, 3 tests)
 
 ## Plan
 1.
 
 ## Notes
 Checked as possible duplicates and judged different work (--not-dup): KIT-T717, KIT-T649, KIT-T534
+fixed_commit 95cc7e1, runtime 95cc7e1 published. Tests: coalesce-alias 3 (fail on old coalesce.mjs), precheck-submodule 4, coalesce 12, alias+scope+precheck 33 passed. Residual: the 39-crate rebuild from rg-input[gamepad] (429 s) is inherent to the patch's first run and still exceeds 5 min once; criterion 3 needs the next rapid-game feature-graph job. A daemon started before the publish keeps the old coalesce until restarted. train-gate.test.mjs hangs on baseline: KIT-T730.
+Second breach, train-j-mvvhq5a6-mnekzi (lane rapid-game, 2 patches): command 'cd rust && cargo t -p rg-ui --lib screens::' ran 396+ s. Not contention (CPU load 27%, no cargo lock line in the log): the alias expansion is --workspace --features rg-engine/dynamic_linking -E package(rg-ui), so cargo built the lib unit tests of every workspace library behind the patched rg-ui (rg-input, rg-ui-bevy, rg-editor-kit, three tool editors, rg-graphics, rg-relevance-bevy, rg-material-book, rg-screens ...) in a serial Bevy-heavy chain to run rg-ui's tests only. rg-ui does not depend on rg-engine, so the feature cannot change its build. Fix: alias.mjs expands such a command as plain -p <crate> (no --workspace, no --features) when no named crate reaches the feature's package in Cargo.lock. The queue wait of 8 min is the machine build slot (KIT-D105), unchanged.
 
 ## History
 - [2026-10-30 19:36] (created) bug — broker: coalesce drops the project cargo alias so a rapid-game job builds the Bevy stack in a second feature set (j-mvvcgf3d 836 s)
+- [2026-10-30 19:42] (landed) 95cc7e1 broker: a merged cargo test keeps the project alias (no second feature-set Bevy build); a submodule repo is prechecked b
+- [2026-10-30 19:47] (status) todo → review
+- [2026-10-30 21:58] (comment) criterion added: A -p crate that cannot reach the alias's --features pkg/feat builds alone, not with --workspace behind it (alias-closure.test.mjs, 3 tests)
+- [2026-10-30 21:59] (comment) ticked: A -p crate that cannot reach the alias's --features pkg/feat builds alone, not with --workspace behind it (alias-closure.test.mjs, 3 tests)
