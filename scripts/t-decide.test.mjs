@@ -10,6 +10,9 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { recordDecision } from './t-decide.mjs';
+import { auditDecisions } from './decision-attribution.mjs';
+
+process.env.KIT_USER = 'chris';
 
 let passed = 0;
 const ok = (name, fn) => { fn(); passed++; console.log(`  ok    ${name}`); };
@@ -57,6 +60,22 @@ try {
     assert.throws(() => recordDecision(s.root, BODY), /frontmatter/);
     assert.equal(readdirSync(s.dir).length, before);
     assert.equal(recordDecision(s.root, draft('title: next')).id, `${s.key}-D002`, 'no id was burned by the refusals');
+  });
+
+  ok('a source naming the maintainer needs a verbatim Maintainer quote; a quoted one and an assistant source pass (KIT-T722)', () => {
+    const s = store();
+    const named = (src, extra = '') => `---\ntitle: t\nsource: ${src}\n---\n\n${BODY}${extra}`;
+    assert.throws(() => recordDecision(s.root, named('Chris 2026-10-10', '\n**Assistant-added:** audio-only scope\n')), /Maintainer:\*\*/);
+    assert.throws(() => recordDecision(s.root, named('maintainer 2026-10-10', '\n**Maintainer:** yes do it\n')), /Maintainer:\*\*/, 'unquoted words are not verbatim');
+    assert.equal(recordDecision(s.root, named('maintainer 2026-10-10', '\n**Maintainer:**\n> Please make it policy.\n\n**Assistant-added:** audio-only scope\n')).id, `${s.key}-D002`);
+    assert.equal(recordDecision(s.root, named('research/models.md', '')).id, `${s.key}-D003`, 'a non-maintainer source needs no quote');
+  });
+
+  ok('the audit lists existing decisions that name the maintainer without a quote', () => {
+    const s = store();
+    writeFileSync(join(s.dir, `${s.key}-D009-bad.md`), `---\nid: ${s.key}-D009\ntitle: bad\nsource: Chris 2026-10-10\n---\n\n**Decision:** x\n`);
+    writeFileSync(join(s.dir, `${s.key}-D010-good.md`), `---\nid: ${s.key}-D010\ntitle: good\nsource: maintainer 2026-10-10\n---\n\n**Maintainer:** "do exactly this please"\n`);
+    assert.deepEqual(auditDecisions(s.root).map((d) => d.id), [`${s.key}-D009`]);
   });
 
   ok('the CLI records a draft file and prints the id', () => {

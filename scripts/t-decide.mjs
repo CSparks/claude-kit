@@ -5,6 +5,8 @@
 //
 // A draft: frontmatter with `title:` (one line) and optional `summary:`, `date:` (YYYY-MM-DD,
 // default today), `supersedes:`, `source:`, `id:`; a body holding `**Decision:**` and `**Why:**`.
+// A `source:` naming the maintainer also needs a `**Maintainer:**` paragraph quoting their words verbatim;
+// what the assistant added goes in `**Assistant-added:**` (decision-attribution.mjs).
 // The id is the store's next one (id-reserve). A draft `id:` is claimed exactly or refused (taken
 // on disk, at or below the store's highest, or reserved by another creator), so a cite written
 // against the draft id never points at a different decision.
@@ -14,6 +16,7 @@
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { field, frontmatterBlock, splitFrontmatter } from './frontmatter.mjs';
+import { attributionProblem } from './decision-attribution.mjs';
 import { reserveId, reserveNextId } from './id-reserve.mjs';
 import { maxStoreNum, readIdConfig } from './id-utils.mjs';
 
@@ -34,6 +37,8 @@ function parseDraft(text) {
   if (!/\*\*Decision:\*\*/.test(draft.body)) throw new Error('t decide: the body needs a **Decision:** paragraph');
   if (!/\*\*Why:\*\*/.test(draft.body)) throw new Error('t decide: the body needs a **Why:** paragraph');
   if (draft.date && !DATE.test(draft.date)) throw new Error(`t decide: date '${draft.date}' is not YYYY-MM-DD`);
+  const misattributed = attributionProblem(draft.source, draft.body);
+  if (misattributed) throw new Error(`t decide: ${misattributed}`);
   return draft;
 }
 
