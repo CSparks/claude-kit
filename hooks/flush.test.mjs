@@ -51,6 +51,10 @@ function run(dir, unbounded = '') {
 ok('citedPaths: picks up a relative path with an extension', citedPaths('see scratchpad/x.md now').includes('scratchpad/x.md'));
 ok('citedPaths: ignores a bare dotted word', citedPaths('flushed SESSION.md today').length === 0);
 ok('citedPaths: ignores URLs', citedPaths('https://example.com/a/b.md').length === 0);
+ok('citedPaths: ignores an absolute POSIX host path', citedPaths('env at /srv/showtimewarp/.env today').length === 0);
+ok('citedPaths: ignores a ~/ home path', citedPaths('see ~/.claude/settings.json').length === 0);
+ok('citedPaths: does not truncate a long extension into a path', citedPaths('keys in infra/.secrets here').length === 0);
+ok('citedPaths: still reports a repo-relative path beside host paths', citedPaths('/srv/a/.env and docs/missing.md').join() === 'docs/missing.md');
 ok('citedPaths: ignores globs', citedPaths('touched src/**/*.mjs').length === 0);
 
 // --- existing citation -> silent -----------------------------------------------------
