@@ -6,13 +6,13 @@
 //   fileKitBug({ shape, title, detail, project }) -> { id, created } | null
 //   commentKitBug({ shape, text, project })       -> { id } | null: a comment on the OPEN ticket of that shape, never a new ticket
 //   openKitBugs(limit)                            -> [{ id, title, status, priority }] most urgent first
-//   openKitBugPage(limit)                         -> { bugs, total }
+//   openKitBugPage(limit)                         -> { bugs, total }; a ticket `doing` and touched within 4 h is claimed by a live kit agent (any session's) and excluded
 //   kitStoreRoot()                                -> the kit repo root, or null
 //
 // The kit store is the registry project `claude-kit` (CLAUDE_KIT_BUG_STORE overrides the root;
 // unset + unregistered = nothing is filed). `shape` is the dedup key: one open ticket per shape.
 
-import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { readRegistry } from '../hooks/lib.mjs';
 import { scaffoldNew, readConfig } from './t.mjs';
@@ -104,8 +104,14 @@ function bugRow(path) {
     priority: (/^priority:\s*(\S+)/m.exec(text) || [, ''])[1],
     asked: Number((/^asked:\s*(\d+)/m.exec(text) || [, 1])[1]),
     created: Date.parse((/^created:\s*(\S+)/m.exec(text) || [, ''])[1]) || 0,
+    touched: statSync(path).mtimeMs,
   };
 }
+
+// A `doing` ticket is claimed by some session's kit agent while the agent keeps touching it (status, notes, ticks).
+// A claim untouched for CLAIM_TTL_MS belongs to a dead agent and the ticket counts as unclaimed again.
+const CLAIM_TTL_MS = 4 * 60 * 60 * 1000;
+const claimed = (r, now) => r.status === 'doing' && now - r.touched < CLAIM_TTL_MS;
 
 const rankOf = (priority) => {
   const rank = PRIORITY_ORDER.indexOf(priority);
@@ -120,8 +126,9 @@ export function openKitBugPage(limit = 8) {
   if (!root) return { bugs: [], total: 0 };
   const dir = join(root, '.ai', 'tickets');
   const files = statMarkdownFiles(dir, (n) => n.startsWith('_') || n === 'INDEX.md');
+  const now = Date.now();
   const rows = statCached(`kit-bugs-${pathKey(dir)}`, files, bugRow)
-    .filter((r) => r.open && r.status !== 'doing') // a doing ticket already has an agent
+    .filter((r) => r.open && !claimed(r, now))
     .sort(byUrgency);
   return { bugs: rows.slice(0, limit).map(({ id, title, status, priority }) => ({ id, title, status, priority })), total: rows.length };
 }

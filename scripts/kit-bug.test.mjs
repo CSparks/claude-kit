@@ -3,7 +3,7 @@
 // grep-after-empty-q, hook crashes and `cap bug`; orient lists the open ones.
 // Run: node scripts/kit-bug.test.mjs
 
-import { copyFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, readdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
@@ -64,6 +64,18 @@ await test('openKitBugs lists open kit-bug tickets, skips ones an agent is doing
   const doing = tickets().find((n) => /other:shape/.test(read(n)));
   writeFileSync(join(store, '.ai', 'tickets', doing), read(doing).replace(/^status: todo$/m, 'status: doing'));
   assert.ok(!openKitBugs().some((b) => b.title === 'another gap'));
+});
+
+await test('a doing ticket untouched past the claim window belongs to a dead agent and lists again (KIT-T768)', () => {
+  const doing = tickets().find((n) => /other:shape/.test(read(n)));
+  const path = join(store, '.ai', 'tickets', doing);
+  assert.ok(!openKitBugs().some((b) => b.title === 'another gap'), 'control: a fresh claim holds');
+  const stale = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  utimesSync(path, stale, stale);
+  assert.ok(openKitBugs().some((b) => b.title === 'another gap'));
+  const now = new Date();
+  utimesSync(path, now, now);
+  assert.ok(!openKitBugs().some((b) => b.title === 'another gap'), 'touching the ticket renews the claim');
 });
 
 await test('without a kit store nothing is filed', () => {

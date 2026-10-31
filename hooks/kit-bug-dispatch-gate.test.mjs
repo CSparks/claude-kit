@@ -2,7 +2,7 @@
 // it blocks the Stop once; a dispatch, a low priority, an unseen id and stop_hook_active all pass.
 // Run: node hooks/kit-bug-dispatch-gate.test.mjs
 
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ROOT, HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 
@@ -15,6 +15,15 @@ const ticket = (id, priority) => writeFileSync(join(store, '.ai', 'tickets', `${
 ticket('KIT-T801', 'high');
 ticket('KIT-T802', 'critical');
 ticket('KIT-T803', 'low');
+const claim = (id, hoursAgo) => {
+  const path = join(store, '.ai', 'tickets', `${id}-t.md`);
+  ticket(id, 'high');
+  writeFileSync(path, readFileSync(path, 'utf8').replace('status: todo', 'status: doing'));
+  const at = new Date(Date.now() - hoursAgo * 3600 * 1000);
+  utimesSync(path, at, at);
+};
+claim('KIT-T804', 0);
+claim('KIT-T805', 5);
 
 try {
   const d = adopted(false);
@@ -34,6 +43,8 @@ try {
   ok('negative: a SendMessage to the standing kit agent naming the id clears it (KIT-T736)', stop(transcript(say('KIT-T801'), message('next: KIT-T801 in the claude-kit checkout'))).code === 0);
   ok('KIT-T736 control: a SendMessage naming a different id leaves the ticket blocked', stop(transcript(say('KIT-T801'), message('next: KIT-T802'))).code === 2);
   ok('only the undispatched id is named when one of two is dispatched', (() => { const r = stop(transcript(say('KIT-T801 KIT-T802'), agent('KIT-T801 please'))); return r.code === 2 && /KIT-T802/.test(r.out) && !/KIT-T801 \[/.test(r.out); })());
+  ok('KIT-T768: a ticket another session\'s live kit agent holds (doing, touched lately) does not block', stop(transcript(say('KIT-T804 is with the kit agent'))).code === 0);
+  ok('KIT-T768 control: a doing ticket untouched for hours belongs to a dead agent and blocks', (() => { const r = stop(transcript(say('KIT-T805'))); return r.code === 2 && /KIT-T805/.test(r.out); })());
   ok('stop_hook_active allows', stop(transcript(say('KIT-T801')), { stop_hook_active: true }).code === 0);
 
   const file = transcript(say('KIT-T802 again'));
