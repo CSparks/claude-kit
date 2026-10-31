@@ -62,16 +62,26 @@ export function mainMovedPast(subCwd, sub) {
   return !!main && main !== head && git(['merge-base', '--is-ancestor', main, head], subCwd).code !== 0;
 }
 
+/** The submodules among `paths` whose local main moved past the recorded commit, as [{ sub, message }]. */
+export function movedSubmodules(cfg, repo, paths) {
+  const { subs } = splitLinked(cfg, repo, paths);
+  return [...subs.keys()].filter((sub) => mainMovedPast(join(cfg.root, sub.path), sub)).map((sub) => ({ sub, message: movedMessage(cfg, sub) }));
+}
+
+// The refusal for a moved base, with the worker's next action: the base is stale, not the change.
+function movedMessage(cfg, sub) {
+  const subCwd = join(cfg.root, sub.path);
+  const [head, main] = [revParse(subCwd, 'HEAD').slice(0, 10), revParse(subCwd, sub.main).slice(0, 10)];
+  return `${sub.path}: local ${sub.main} (${main}) is not under the recorded ${head}; another landing moved ${sub.name}. A linked job lands on ${sub.main}, so this one is stale, not failed. Wait for the ${sub.name} auto-pin to land, then resubmit the same patch with submit.mjs --revises <this job id>.`;
+}
+
 // The submodule on its main branch at the commit it is checked out at, so a commit there can be
 // pushed: refused when main has moved elsewhere locally.
-function onMain(subCwd, sub) {
+function onMain(cfg, subCwd, sub) {
+  if (mainMovedPast(subCwd, sub)) return { stale: true, error: movedMessage(cfg, sub) };
   const head = revParse(subCwd, 'HEAD');
-  const main = revParse(subCwd, sub.main);
-  if (mainMovedPast(subCwd, sub)) {
-    return `${sub.path}: local ${sub.main} (${main.slice(0, 10)}) is not under the recorded ${head.slice(0, 10)}; a linked job lands on ${sub.main}`;
-  }
   const r = git(['checkout', '-q', '-B', sub.main, head], subCwd);
-  return r.code === 0 ? null : `${sub.path}: cannot put ${sub.main} at ${head.slice(0, 10)}: ${r.err.trim()}`;
+  return r.code === 0 ? null : { error: `${sub.path}: cannot put ${sub.main} at ${head.slice(0, 10)}: ${r.err.trim()}` };
 }
 
 export function landLinked(cfg, repo, job, cwd, paths, { verify, trailer, onPhase = () => {}, onCommitted, onSubLanded = () => {} } = {}) {
@@ -79,8 +89,8 @@ export function landLinked(cfg, repo, job, cwd, paths, { verify, trailer, onPhas
   const landed = [];
   for (const [sub, rels] of subs) {
     const subCwd = join(cfg.root, sub.path);
-    const refused = onMain(subCwd, sub);
-    if (refused) return { ok: false, committed: false, error: refused };
+    const refused = onMain(cfg, subCwd, sub);
+    if (refused) return { ok: false, committed: false, ...refused };
     onPhase(`${sub.name} commit`);
     const r = landCommits(cfg, sub, subCwd, [{ job: { ...job, noPin: true }, paths: rels, trailer }], { verify, onPhase });
     if (!r.ok) return { ...r, committed: false, error: `${sub.name} half did not land, nothing landed: ${r.error}` };

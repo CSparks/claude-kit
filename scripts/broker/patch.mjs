@@ -9,7 +9,7 @@ import { admit } from './admit.mjs';
 import { capture, discard, dropNewLocks, markCommitted, markLinked, restore } from './preimage.mjs';
 import { checkRestore } from './restore-check.mjs';
 import { sweepOwnWrites } from './own-writes.mjs';
-import { landLinked } from './linked.mjs';
+import { landLinked, movedSubmodules } from './linked.mjs';
 import { diagnose } from './diagnose.mjs';
 import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
@@ -94,6 +94,9 @@ export function processPatch(cfg, job, repo, opts = {}) {
   if (!admitted.ok) return { ...done(admitted.fields, { paused: !!admitted.pause }), pause: admitted.pause };
   const { plan } = admitted;
 
+  const movedBase = job.land && !(job.pins || []).length ? movedSubmodules(cfg, repo, [...plan.files.keys()]) : [];
+  if (movedBase.length) return done({ status: STATUS.STALE, phase: 'linked-base', message: movedBase.map((m) => m.message).join('\n') });
+
   let pins = [];
   if ((job.pins || []).length) {
     const prep = preparePins(cfg, cwd, job);
@@ -177,7 +180,7 @@ export function processPatch(cfg, job, repo, opts = {}) {
       pins = pins.filter((p) => !land.landedSubs.includes(String(p.path).split('\\').join('/')));
     }
     if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
-    if (!land.ok) return done({ status: STATUS.FAILED, phase: 'land', commands, diffStat, foreign, selection, message: land.error });
+    if (!land.ok) return done({ status: land.stale ? STATUS.STALE : STATUS.FAILED, phase: 'land', commands, diffStat, foreign, selection, message: land.error });
     return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, selection, pinScope: note, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha, ...(land.subSha ? { subSha: land.subSha } : {}) } });
   } finally {
     if (record) record.clear();

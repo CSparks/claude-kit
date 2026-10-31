@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { linkedHold, PIN_GRACE_MS } from './linked-order.mjs';
+import { landLinked } from './linked.mjs';
 import { processOnce } from './queue.mjs';
 import { queued, readResult, writeJob } from './result.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
@@ -66,7 +67,7 @@ test('the linked job queued before its submodule auto-pin waits, then lands once
   } finally { t.done(); }
 });
 
-test('control: with no pin ever queued the job is held for the grace, then runs and fails with the plain refusal', () => {
+test('with no pin ever queued the job is held for the grace, then reported STALE before any command runs (KIT-T766)', () => {
   const t = setup();
   try {
     const { linked } = moved(t);
@@ -75,8 +76,24 @@ test('control: with no pin ever queued the job is held for the grace, then runs 
     assert.equal(linkedHold(t.cfg, linked, [], { now: PIN_GRACE_MS + 1 }), null, 'past the grace it runs');
     processOnce(t.cfg);
     const r = readResult(t.cfg, linked.id);
-    assert.equal(r.status, 'failed');
-    assert.match(JSON.stringify(r), /is not under the recorded/);
+    assert.equal(r.status, 'stale');
+    assert.equal(r.phase, 'linked-base');
+    assert.deepEqual(r.commands, [], 'no build or test was spent on a stale base');
+    assert.match(r.message, /is not under the recorded/);
+    assert.match(r.message, /resubmit the same patch with submit\.mjs --revises/, 'the message names the next action');
+  } finally { t.done(); }
+});
+
+test('a base that moves after the pre-check is refused at the land step as stale with the same next action (KIT-T766)', () => {
+  const t = setup();
+  try {
+    recordApi(t);
+    const linked = buildPatchJob(t.cfg, { ticket: 'T-9', land: true, title: 'api v2' }, editBoth('v2')).job;
+    advance(t);
+    const r = landLinked(t.cfg, t.cfg.repos[0], linked, t.root, ['rapid-game/api.txt', 'api.txt'], {});
+    assert.equal(r.ok, false);
+    assert.equal(r.stale, true);
+    assert.match(r.error, /resubmit the same patch with submit\.mjs --revises/);
   } finally { t.done(); }
 });
 
