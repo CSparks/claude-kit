@@ -249,6 +249,10 @@ compaction summary.
   you did NOT touch needs a pointer (file:line, sha, or the query you ran) or the
   words "not checked". "Implemented" requires the implementing commit or test; else
   say "ruled, not built".
+- **Attributing a decision to the maintainer requires reading it (KIT-D122).** Before
+  saying "you decided X" or "settled: X", read the decision with `q show <id>`; a
+  search excerpt (`q fts`, grep) is not the decision and may be its Rejected line. Not
+  read: say "not checked".
 - To discuss any past topic credibly, recreate its context first (git log/grep, the
   ticket, DECISIONS, the research doc). Every claim traces to a source.
 
