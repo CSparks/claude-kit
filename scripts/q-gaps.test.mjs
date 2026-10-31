@@ -44,6 +44,14 @@ try {
     assert.equal((await rows(['absent-token'])).filter((r) => r.loc).length, 0);
   });
 
+  await ok('an empty --dir answer states the files read and the files skipped, so empty proves absence only for those (KIT-T745)', async () => {
+    const empty = await rows(['absent-token']);
+    const note = empty.find((r) => /^searched /.test(r.text));
+    assert.ok(note, JSON.stringify(empty));
+    assert.match(note.text, /searched 2 files under .*; NOT read: 1 \(blob\.bin \(binary\)\)/);
+    assert.equal((await rows(['ERROR'])).some((r) => /^searched /.test(r.text)), false, 'hits carry no note');
+  });
+
   await ok('--project accepts a name prefix that picks exactly one project', async () => {
     const mk = (name, key) => ({ name, key, aliases: new Set([name, key.toLowerCase()]) });
     const table = [mk('stiletto-2349', 'ST'), mk('stiletto-old', 'SO'), mk('dirt-empire', 'DE'), mk('dirt-bike', 'DB')];

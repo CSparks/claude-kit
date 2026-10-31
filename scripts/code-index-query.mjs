@@ -8,7 +8,7 @@ import { extractSymbols, langOfToken } from './code-index-extract.mjs';
 import { basename, isAbsolute, relative, resolve } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
 import { projectRepo } from './q-project.mjs';
-import { dirIndex } from './q-scan-dir.mjs';
+import { dirIndex, scanSummary } from './q-scan-dir.mjs';
 import { uncheckedFrameworks } from './q-framework.mjs';
 import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 
@@ -471,12 +471,18 @@ async function answerRows(cmd, args, root, refresh) {
     flags.dir = flags.path;
     flags.path = undefined;
   }
+  let scanned = null;
   if (flags.dir !== undefined) {
-    const scanned = dirIndex(flags.dir);
+    scanned = dirIndex(flags.dir);
     refresh = async () => scanned;
     root = flags.dir;
   }
   if (flags.path) flags.path = repoRelative(root, flags.path);
+  const rows = await verbRows(cmd, text, flags, root, refresh);
+  return scanned && !rows.some((r) => r.loc) ? [...rows, { loc: '', text: scanSummary(flags.dir, scanned) }] : rows;
+}
+
+function verbRows(cmd, text, flags, root, refresh) {
   if (cmd === 'code') return text ? codeVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q code <text> [--regex] [-i] [-w] [--lang L] [--path P] [--not-path G] [-C n]' }];
   if (cmd === 'sym') return symVerb(root, text, flags, refresh);
   return text ? fileVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q file <substring|glob>' }];
