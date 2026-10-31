@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tunedBatchWindowMs } from './timing-correct.mjs';
+import { tunedBaselineBudgetMs, tunedBatchWindowMs } from './timing-tuning.mjs';
 import { timingTick } from './timing-tick.mjs';
 import { blockersReport } from './timing-report.mjs';
 import { cleanup, tempDir } from './testkit.mjs';
@@ -30,7 +30,8 @@ function job(cfg, finishedAt, turnaroundMs, n) {
 const history = (cfg) => { for (let i = 0; i < 4; i++) job(cfg, T - (i + 1) * 10 * 60 * S, 300 * S, `b${i}`); };
 const later = (cfg, turnaroundMs) => { for (let i = 0; i < 4; i++) job(cfg, T + H + i * 10 * 60 * S, turnaroundMs, `a${i}`); };
 const recorder = () => { const calls = []; return { calls, fileBug: (b) => { calls.push(b); return { id: 'KIT-T1' }; }, comment: (c) => { calls.push({ comment: c }); return { id: 'KIT-T1' }; } }; };
-const corrections = (cfg) => readFileSync(join(cfg.targetDir, 'broker', 'corrections.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+const corrections = (cfg) => readFileSync(join(cfg.targetDir, 'broker', 'corrections.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((r) => r.lever === 'batch-window');
+const levers = (done) => done.events.filter((e) => e.lever === 'batch-window');
 
 test('a lane whose top blocker is the slot queue gets the batch window; the queue is not ticketed while it is worked on', () => {
   const { root, cfg } = fixture();
@@ -38,8 +39,9 @@ test('a lane whose top blocker is the slot queue gets the batch window; the queu
     history(cfg);
     const rec = recorder();
     const done = timingTick(cfg, { now: T, ...rec });
-    assert.deepEqual(done.events.map((e) => `${e.lever} ${e.decision}`), ['batch-window applied']);
+    assert.deepEqual(done.events.map((e) => `${e.lever} ${e.decision}`), ['batch-window applied', 'baseline-budget tuned']);
     assert.equal(tunedBatchWindowMs(cfg), 200 * S);
+    assert.equal(tunedBaselineBudgetMs(cfg), 210 * S, 'the baseline re-run budget is the lane\'s own p90 run time, not a fixed number');
     assert.ok(rec.calls.length > 0 && rec.calls.every((c) => !c.shape.endsWith('|phase|queue')), 'the queue has a lever on it, so it is not a ticket');
     assert.ok(rec.calls.some((c) => c.shape.includes('|crate|a')), 'what no lever works on is ticketed');
     assert.equal(timingTick(cfg, { now: T + 1000, ...rec }), null, 'not due again within the cadence');
@@ -79,7 +81,7 @@ test('negative controls: a hand-set batch window is left alone, and a lane with 
   const empty = fixture();
   try {
     history(hand.cfg);
-    assert.deepEqual(timingTick(hand.cfg, { now: T, ...recorder() }).events, []);
+    assert.deepEqual(levers(timingTick(hand.cfg, { now: T, ...recorder() })), []);
     assert.equal(tunedBatchWindowMs(hand.cfg), 0);
     assert.deepEqual(timingTick(empty.cfg, { now: T, ...recorder() }).events, []);
   } finally { cleanup(hand.root); cleanup(empty.root); }

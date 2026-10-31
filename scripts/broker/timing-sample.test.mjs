@@ -85,3 +85,23 @@ test('the members of one train are one sample and shared commands count once', (
   assert.equal(samples[0].turnaroundMs, 1500);
   assert.deepEqual(ids(samples[0], 'crate'), { mid: 5 * S });
 });
+
+test('a nested workspace\'s crate reaches the project crate that depends on it through the project lock, and base movement counts like the diff', () => {
+  const dir = tempDir('timing-nested-');
+  const put = (p, text) => { mkdirSync(dirname(join(dir, p)), { recursive: true }); writeFileSync(join(dir, p), text); };
+  try {
+    put('Cargo.lock', '[[package]]\nname = "game"\nversion = "0.1.0"\ndependencies = [\n "phys",\n]\n\n[[package]]\nname = "phys"\nversion = "0.1.0"\n');
+    put('fw/rust/Cargo.lock', '[[package]]\nname = "phys"\nversion = "0.1.0"\n');
+    put('fw/rust/phys/Cargo.toml', '[package]\nname = "phys"\n');
+    put('fw/rust/phys/src/lib.rs', '');
+    put('crates/game/Cargo.toml', '[package]\nname = "game"\n');
+    const commands = [cmd(dir, put, 'c0', 'cargo t -p game --lib', { compiled: ['phys', 'game', 'lone'], finished: 9 })];
+    const ctx = { project: 'p', lane: 'root', bases: [dir] };
+    const own = sampleOf([{ id: 'j-a', finishedAt: '2026-10-30T10:00:00Z', diffStat: ' fw/rust/phys/src/lib.rs | 1 +', commands }], ctx);
+    assert.deepEqual(ids(own, 'waste'), { 'rebuild lone': 3 * S });
+    const landed = sampleOf([{ id: 'j-a', finishedAt: '2026-10-30T10:00:00Z', diffStat: ' docs/a.md | 1 +', commands }], { ...ctx, moved: ['fw/rust/phys/src/lib.rs'] });
+    assert.deepEqual(ids(landed, 'waste'), { 'rebuild lone': 3 * S }, 'phys rebuilt because the pin moved: not waste');
+    const unmoved = sampleOf([{ id: 'j-a', finishedAt: '2026-10-30T10:00:00Z', diffStat: ' docs/a.md | 1 +', commands }], ctx);
+    assert.deepEqual(ids(unmoved, 'waste'), { 'rebuild phys': 3 * S, 'rebuild lone': 3 * S }, 'control: with nothing moved, phys is a rebuild nothing asked for');
+  } finally { cleanup(dir); }
+});

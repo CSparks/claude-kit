@@ -1,23 +1,25 @@
-// baseline-budget.test.mjs — the attribution baseline re-runs a failed command on the pre-patch tree, which
-// roughly doubles a red job; past half the 5-minute ceiling (KIT-D104) it is skipped and the failure stays
-// unattributed. A baseline that does run is its own phase, not time charged to `run`.
+// baseline-budget.test.mjs — the attribution baseline re-runs a failed command on the pre-patch tree, which roughly
+// doubles a red job; once the job has run longer than the lane's measured p90 run time (KIT-D121) it is skipped and
+// the failure stays unattributed. A lane with no history always attributes. A baseline that does run is its own phase.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBaseline, BASELINE_BUDGET_MS } from './baseline.mjs';
-import { CEILING_MS } from './overrun.mjs';
+import { makeBaseline } from './baseline.mjs';
 import { fixture } from './patchkit.mjs';
 import { ensureDirs } from './result.mjs';
 import { runTrainCommands } from './train-run.mjs';
 import { commandSummary } from './command-summary.mjs';
+import { setTuning } from './timing-tuning.mjs';
 
 const RED = `node -e "console.log('test a_red ... FAILED');console.log('---- a_red stdout ----');console.log('boom');process.exit(1)"`;
 const ECHO = 'node -e "console.log(1)"';
 const pre = { tree: 'tree-state', dirty: [], head: 'abc' };
+const BUDGET_MS = 90_000;
 
-function harness({ clock }) {
+function harness({ clock, budgetMs = BUDGET_MS }) {
   const s = fixture();
   ensureDirs(s.cfg);
+  if (budgetMs) setTuning(s.cfg, { baselineBudgetMs: budgetMs });
   const calls = { enter: 0, leave: 0, phases: [] };
   const baseline = makeBaseline({
     cfg: s.cfg, job: { id: 'j-budget', repo: 'app' }, cwd: s.root, pre, held: [], clock, since: 0,
@@ -26,28 +28,33 @@ function harness({ clock }) {
   return { s, calls, baseline };
 }
 
-test('the budget is half the broker ceiling', () => {
-  assert.equal(BASELINE_BUDGET_MS, CEILING_MS / 2);
-});
-
-test('a job past the budget skips the baseline: no tree restore, no run, a stated reason', () => {
-  const h = harness({ clock: () => BASELINE_BUDGET_MS + 1 });
+test('a job past the lane\'s measured budget skips the baseline: no tree restore, no run, a stated reason', () => {
+  const h = harness({ clock: () => BUDGET_MS + 1 });
   try {
     const out = h.baseline((run) => ({ log: run(ECHO, '0-base') }));
-    assert.match(out.skipped, /past half the 5-minute ceiling/);
+    assert.match(out.skipped, /longer than the lane's p90 run time/);
     assert.equal(h.calls.enter, 0);
     assert.deepEqual(h.calls.phases, []);
   } finally { h.s.done(); }
 });
 
 test('a job inside the budget runs the baseline as its own phase and returns to run', () => {
-  const h = harness({ clock: () => BASELINE_BUDGET_MS - 1 });
+  const h = harness({ clock: () => BUDGET_MS - 1 });
   try {
     const out = h.baseline((run) => ({ log: run(ECHO, '0-base') }));
     assert.ok(out.log, 'the base log path comes back');
     assert.equal(h.calls.enter, 1);
     assert.equal(h.calls.leave, 1);
     assert.deepEqual(h.calls.phases, ['baseline', 'run']);
+  } finally { h.s.done(); }
+});
+
+test('control: a lane with no history has no budget, so even a very long job is attributed', () => {
+  const h = harness({ clock: () => Number.MAX_SAFE_INTEGER, budgetMs: 0 });
+  try {
+    const out = h.baseline((run) => ({ log: run(ECHO, '0-base') }));
+    assert.ok(out.log);
+    assert.equal(h.calls.enter, 1);
   } finally { h.s.done(); }
 });
 

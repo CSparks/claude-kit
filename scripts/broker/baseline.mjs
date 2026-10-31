@@ -10,19 +10,19 @@
 //   enter  puts the tree into its pre-patch state; leave puts the patch back.
 //   since, clock  when the job's run began and the time source; onPhase('baseline' | 'run') marks the re-run's own phase.
 // `fn(run)` gets `run(cmd, tag)` → a base log path; baseline returns fn's result with { dirty, head }.
-// A re-run costs about what the failed command did, so past BASELINE_BUDGET_MS of the job the baseline is skipped
-// (a cached base log still answers) and baseline returns { skipped: <reason> }: the failure stays unattributed.
+// A re-run costs about what the failed command did, so once the job has run longer than the lane's measured p90 run
+// time (timing-tuning.mjs, re-derived every tick; no limit until the lane has history) the baseline is skipped (a cached
+// base log still answers) and baseline returns { skipped: <reason> }: the failure stays unattributed. The job still runs.
 
 import { existsSync } from 'node:fs';
 import { cacheGet, cachePut, hashKey } from './cache.mjs';
 import { logPathFor } from './result.mjs';
 import { runCommand } from './run.mjs';
-import { CEILING_MS } from './overrun.mjs';
+import { tunedBaselineBudgetMs } from './timing-tuning.mjs';
 
 const NAME = 'baseline';
-export const BASELINE_BUDGET_MS = CEILING_MS / 2;
 const SKIPPED = Symbol('baseline skipped');
-const SKIP_REASON = 'attribution skipped: the job is past half the 5-minute ceiling (KIT-D104), so the failure was not re-run without the patch';
+const SKIP_REASON = 'attribution skipped: the job has run longer than the lane\'s p90 run time (KIT-D121), so the failure was not re-run without the patch';
 
 export function makeBaseline({ cfg, job, cwd, pre, held, enter, leave, onPhase = () => {}, since = Date.now(), clock = Date.now }) {
   const pinsKey = `pins ${JSON.stringify(held.map((p) => [p.path, p.sha]))}`;
@@ -33,7 +33,7 @@ export function makeBaseline({ cfg, job, cwd, pre, held, enter, leave, onPhase =
       const hit = cacheGet(cfg, NAME, key);
       if (hit && existsSync(hit.log)) return hit.log;
       if (!entered) {
-        if (clock() - since > BASELINE_BUDGET_MS) throw SKIPPED;
+        if (clock() - since > tunedBaselineBudgetMs(cfg)) throw SKIPPED;
         onPhase('baseline');
         enter();
         entered = true;

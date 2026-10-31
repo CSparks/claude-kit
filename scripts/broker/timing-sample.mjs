@@ -14,6 +14,7 @@ import { basename, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { commandSplit } from './metrics.mjs';
 import { loadResults, submittedAt } from './stats.mjs';
+import { movedPaths } from './timing-moved.mjs';
 import { wasteOf } from './timing-waste.mjs';
 
 export const PHASE = 'phase';
@@ -45,7 +46,7 @@ function targetsOf(cmd) {
 
 const mean = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : 0);
 
-export function sampleOf(members, { project, lane, bases = [] }) {
+export function sampleOf(members, { project, lane, bases = [], moved = [] }) {
   const [first] = members;
   const commands = [...new Map(members.flatMap((m) => m.commands || []).map((c) => [c.log || c.cmd, c])).values()];
   const entries = new Map();
@@ -75,24 +76,34 @@ export function sampleOf(members, { project, lane, bases = [] }) {
     else add(PHASE, t.phase, t.ms);
   }
   add(PHASE, 'run-idle', runMs - accounted);
-  const waste = wasteOf(commands, members, { bases, cratesOf, targetsOf });
+  const waste = wasteOf(commands, members, { bases, cratesOf, targetsOf, moved });
   for (const e of waste.entries) add(e.kind, e.key, e.ms);
   const turnarounds = members.map((m) => Date.parse(m.finishedAt) - submittedAt(m.id)).filter(Number.isFinite);
   return { id: first.train ? first.train.id : first.id, project, lane, at: Date.parse(first.finishedAt), turnaroundMs: mean(turnarounds), jobs: members.length, entries: [...entries.values()], cache: waste.cache };
 }
 
+// `ctx.movedBetween(prev, cur)` names the paths the base moved from the lane's previous job to this one.
 export function samplesFromResults(results, ctx) {
   const groups = new Map();
-  for (const r of results) {
+  for (const r of [...results].sort((a, b) => Date.parse(a.finishedAt) - Date.parse(b.finishedAt))) {
     const key = r.train ? r.train.id : r.id;
     groups.set(key, [...(groups.get(key) || []), r]);
   }
-  return [...groups.values()].map((members) => sampleOf(members, ctx)).filter((s) => Number.isFinite(s.at));
+  let previous = null;
+  const samples = [];
+  for (const members of groups.values()) {
+    const moved = previous && ctx.movedBetween ? ctx.movedBetween(previous[0], members[0]) : [];
+    samples.push(sampleOf(members, { ...ctx, moved }));
+    previous = members;
+  }
+  return samples.filter((s) => Number.isFinite(s.at));
 }
 
 export const laneName = (cfg) => cfg.lane || 'root';
 
 export function laneSamples(cfg) {
   const bases = [cfg.root, ...cfg.repos.map((r) => join(cfg.root, r.path || r.name))];
-  return samplesFromResults(loadResults(brokerPaths(cfg).results), { project: basename(cfg.root), lane: laneName(cfg), bases });
+  const repoDir = (result) => join(cfg.root, cfg.repos.find((r) => r.name === result.repo)?.path || '.');
+  const movedBetween = (prev, cur) => (prev.repo === cur.repo ? movedPaths(repoDir(cur), prev.base, cur.base) : []);
+  return samplesFromResults(loadResults(brokerPaths(cfg).results), { project: basename(cfg.root), lane: laneName(cfg), bases, movedBetween });
 }

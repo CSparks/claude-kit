@@ -6,22 +6,17 @@
 //
 //   selfCorrect(cfg, { now, windowMs, samples }) -> events [{ lever, decision, beforeMs, afterMs, jobs }]
 //   correctingIds(cfg)                    -> blocker ids a lever is applied to or kept for (they are not ticketed)
-//   tunedBatchWindowMs(cfg)               -> the batch window the controller set for this lane (0 when none)
-//   LEVERS                                -> the registry
+//   Each tick also re-derives the baseline re-run budget from the lane's history (timing-tuning.mjs).
+//   LEVERS                               -> the registry
 
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
-import { brokerPaths } from './config.mjs';
+import { writeFileSync } from 'node:fs';
+import { basename } from 'node:path';
 import { DEFAULT_WINDOW_MS, blockerId, profile } from './timing-profile.mjs';
 import { PHASE, QUEUE, laneName, laneSamples } from './timing-sample.mjs';
+import { logCorrection, readJson, refreshBaselineBudget, setTuning, tuningFiles } from './timing-tuning.mjs';
 
-const files = (cfg) => { const { home } = brokerPaths(cfg); return { state: join(home, 'corrections.json'), log: join(home, 'corrections.jsonl'), tuning: join(home, 'tuning.json') }; };
-const readJson = (file, fallback) => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return fallback; } };
 const mean = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : 0);
 const median = (list) => (list.length ? [...list].sort((a, b) => a - b)[Math.floor(list.length / 2)] : 0);
-
-const setTuning = (cfg, patch) => writeFileSync(files(cfg).tuning, JSON.stringify({ ...readJson(files(cfg).tuning, {}), ...patch }));
-export const tunedBatchWindowMs = (cfg) => Number(readJson(files(cfg).tuning, {}).batchWindowMs) || 0;
 
 // A lone job waits for a train peer: fewer builds, so fewer slot queues. The window is the median slot queue a job
 // already sits through, so holding it costs a typical job nothing it was not paying. A hand-set window is left alone.
@@ -35,9 +30,9 @@ export const LEVERS = [{
   revert: (cfg) => setTuning(cfg, { batchWindowMs: 0 }),
 }];
 
-const readState = (cfg) => readJson(files(cfg).state, { active: null, settled: {} });
-const writeState = (cfg, state) => writeFileSync(files(cfg).state, JSON.stringify(state));
-const log = (cfg, row) => appendFileSync(files(cfg).log, `${JSON.stringify(row)}\n`);
+const readState = (cfg) => readJson(tuningFiles(cfg).state, { active: null, settled: {} });
+const writeState = (cfg, state) => writeFileSync(tuningFiles(cfg).state, JSON.stringify(state));
+const log = logCorrection;
 
 function evaluate(cfg, state, samples, now) {
   const a = state.active;
@@ -74,7 +69,8 @@ export function selfCorrect(cfg, { now = Date.now(), windowMs = DEFAULT_WINDOW_M
   const state = readState(cfg);
   const events = state.active ? evaluate(cfg, state, samples, now) : start(cfg, state, samples, now, windowMs);
   if (events.length) writeState(cfg, state);
-  return events;
+  const tuned = refreshBaselineBudget(cfg, samples.filter((s) => s.at > now - windowMs && s.at <= now), now);
+  return tuned ? [...events, tuned] : events;
 }
 
 export function correctingIds(cfg) {

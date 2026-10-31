@@ -6,7 +6,8 @@
 //   cache    per cargo command: a hit compiled nothing, a miss compiled something
 // Dependents come from Cargo.lock (cargo-lock.mjs); a command whose graph cannot be read yields no waste entry.
 //
-//   wasteOf(commands, members, { bases, targetsOf, cratesOf }) -> { entries: [{ kind: 'waste', key, ms }], cache: { hits, misses } }
+//   `moved`: paths the base moved since the lane's last job (timing-moved.mjs); they reach crates like the job's own diff
+//   wasteOf(commands, members, { bases, targetsOf, cratesOf, moved }) ->{ entries: [{ kind: 'waste', key, ms }], cache: { hits, misses } }
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -37,25 +38,29 @@ function crateAt(file, bases) {
   return null;
 }
 
-function lockAbove(dir) {
+// Every Cargo.lock at or above `dir`: a nested workspace (a submodule's) and the project's own both hold dependents.
+function locksAbove(dir) {
+  const locks = [];
   for (let d = dir; ; d = dirname(d)) {
     const lock = readLock(join(d, 'Cargo.lock'));
-    if (lock || dirname(d) === d) return lock;
+    if (lock) locks.push(lock);
+    if (dirname(d) === d) return locks;
   }
 }
 
 // { reach: crates the change reaches, known: false when the diff touches Rust the checkout cannot place }
-function reachOf(members, bases) {
-  const rust = diffPaths(members).filter((p) => RUST_PATH.test(p));
-  if (!rust.length) return { reach: new Set(), known: true, lock: null };
+function reachOf(members, bases, moved) {
+  const rust = [...new Set([...diffPaths(members), ...moved])].filter((p) => RUST_PATH.test(p));
+  if (!rust.length) return { reach: new Set(), known: true };
   const touched = rust.map((p) => crateAt(p, bases)).filter(Boolean);
-  if (!touched.length) return { reach: new Set(), known: false, lock: null };
-  const lock = lockAbove(touched[0].dir);
-  return lock ? { reach: dependentsOf(lock, touched.map((t) => t.name)), known: true, lock } : { reach: new Set(), known: false, lock: null };
+  const locks = [...touched.map((t) => t.dir), ...bases].flatMap(locksAbove);
+  if (!touched.length || !locks.length) return { reach: new Set(), known: false };
+  const names = touched.map((t) => t.name);
+  return { reach: new Set(locks.flatMap((lock) => [...dependentsOf(lock, names)])), known: true };
 }
 
-export function wasteOf(commands, members, { bases, cratesOf, targetsOf }) {
-  const { reach, known } = reachOf(members, bases);
+export function wasteOf(commands, members, { bases, cratesOf, targetsOf, moved = [] }) {
+  const { reach, known } = reachOf(members, bases, moved);
   const entries = new Map();
   const add = (key, ms) => { if (ms > 0) entries.set(key, { kind: WASTE, key, ms: (entries.get(key)?.ms || 0) + ms }); };
   const cache = { hits: 0, misses: 0 };

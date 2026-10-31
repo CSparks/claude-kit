@@ -45,7 +45,7 @@ import { reconcileSubtrees } from './subtree.mjs';
 import { reapOrphans, setChildRegistry } from './children.mjs';
 import { ensureQueuedLanes } from './ensure.mjs';
 import { stopDaemon } from './stop.mjs';
-import { tunedBatchWindowMs } from './timing-correct.mjs';
+import { tunedBatchWindowMs } from './timing-tuning.mjs';
 import { timingTick } from './timing-tick.mjs';
 
 // The hourly timing cadence (KIT-D121) is best effort: a failure in it never stops the daemon.
