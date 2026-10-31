@@ -70,7 +70,8 @@ export function resolveQuestion(text, who, answer, now = stamp()) {
   return `${parts.open}${setField(parts.fm, 'status', 'resolved')}${parts.close}${rest}`;
 }
 
-const words = (s) => new Set(String(s).toLowerCase().match(/[a-z][a-z0-9]+/g)?.filter((w) => w.length >= MIN_WORD && !STOPWORDS.has(w)) ?? []);
+/** The distinctive words of a text: lower-case, at least 4 letters, no stopword. */
+export const words = (s) => new Set(String(s).toLowerCase().match(/[a-z][a-z0-9]+/g)?.filter((w) => w.length >= MIN_WORD && !STOPWORDS.has(w)) ?? []);
 
 export const citesId = (text, id) => new RegExp(`\\b${id}\\b`).test(text);
 
