@@ -2,6 +2,8 @@
 // work the change did not need is. From a job's cargo logs and its diff:
 //   rebuild  a crate compiled that neither the change touched nor depends on it (a cold or flipped cache), cost =
 //            the command's compile time split over the crates it compiled
+//   repeat   the same, for a crate an earlier command of the job already compiled; keyed by the cause (check->test,
+//            same or different flags) so the ranking shows which command pairs throw the work away
 //   scope    a test run of crates the change does not reach (no touched crate is among their dependencies)
 //   cache    per cargo command: a hit compiled nothing, a miss compiled something
 // Dependents come from Cargo.lock (cargo-lock.mjs); a command whose graph cannot be read yields no waste entry.
@@ -59,11 +61,18 @@ function reachOf(members, bases, moved) {
   return { reach: new Set(locks.flatMap((lock) => [...dependentsOf(lock, names)])), known: true };
 }
 
+const subOf = (cmd) => (/\bcheck\b/.test(cmd) ? 'check' : /\b(?:build|--no-run)\b/.test(cmd) ? 'build' : 'test');
+const flagsOf = (cmd) => (String(cmd).match(/--features \S+|--workspace|-p \S+|--all-targets|--profile \S+|--release/g) || []).sort().join(' ');
+
+// Why a crate compiled twice in one job: the earlier and the later command's kind and whether their flags matched.
+const causeOf = (before, now) => `${subOf(before)}->${subOf(now)} ${flagsOf(before) === flagsOf(now) ? 'same' : 'different'} flags`;
+
 export function wasteOf(commands, members, { bases, cratesOf, targetsOf, moved = [] }) {
   const { reach, known } = reachOf(members, bases, moved);
   const entries = new Map();
   const add = (key, ms) => { if (ms > 0) entries.set(key, { kind: WASTE, key, ms: (entries.get(key)?.ms || 0) + ms }); };
   const cache = { hits: 0, misses: 0 };
+  const compiledBefore = new Map();
   for (const c of commands) {
     if (!c.log || !CARGO_WORK.test(c.cmd)) continue;
     const compiled = compiledIn(c.log);
@@ -71,8 +80,9 @@ export function wasteOf(commands, members, { bases, cratesOf, targetsOf, moved =
     const named = cratesOf(c.cmd);
     if (known && compiled.length) {
       const wasted = compiled.filter((name) => !reach.has(name) && !named.includes(name));
-      for (const name of wasted) add(`rebuild ${name}`, commandSplit(c).build / compiled.length);
+      for (const name of wasted) add(compiledBefore.has(name) ? `repeat ${causeOf(compiledBefore.get(name), c.cmd)}` : `rebuild ${name}`, commandSplit(c).build / compiled.length);
     }
+    for (const name of compiled) compiledBefore.set(name, c.cmd);
     const ranTests = /\b(?:test|t|nextest)\b/.test(c.cmd);
     const namedOnly = named.every((n) => !n.startsWith('('));
     if (known && reach.size && ranTests && namedOnly && named.every((n) => !reach.has(n))) add(`scope ${named.join(',')} ${targetsOf(c.cmd).join(' ')}`, (c.slotWaitMs || 0) + (c.durationMs || 0));

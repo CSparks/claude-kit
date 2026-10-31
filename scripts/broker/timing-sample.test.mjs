@@ -54,6 +54,19 @@ test('waste: a crate compiled that the change neither touched nor reaches, a tes
   } finally { cleanup(dir); }
 });
 
+test('a crate an earlier command of the job compiled and a later one compiles again is a repeat, keyed by the command pair', () => {
+  const { dir, put } = workspace();
+  try {
+    const commands = [
+      cmd(dir, put, 'c0', 'cargo check --workspace --all-targets', { compiled: ['lone'], finished: 6 }),
+      cmd(dir, put, 'c1', 'cargo t -p mid --lib', { compiled: ['lone'], finished: 4 }),
+      cmd(dir, put, 'c2', 'cargo t -p mid --test api', { compiled: ['lone'], finished: 2 }),
+    ];
+    const s = sampleOf([{ id: 'j-a', finishedAt: '2026-10-30T10:00:00Z', diffStat: ' crates/base/src/lib.rs | 2 +-', commands }], { project: 'p', lane: 'root', bases: [dir] });
+    assert.deepEqual(ids(s, 'waste'), { 'rebuild lone': 10 * S, 'repeat check->test different flags': 4 * S, 'repeat test->test same flags': 2 * S });
+  } finally { cleanup(dir); }
+});
+
 test('negative controls: a touched crate and its dependents are not waste, and an unplaceable diff yields no waste claim', () => {
   const { dir, put } = workspace();
   try {
