@@ -9,13 +9,16 @@
 //                                       context is made of (context-breakdown.mjs) when the row names its transcript (`transcript` or `outputFile`)
 //   handoffRequest(row)              -> the SendMessage text that asks a past-ceiling agent for its handoff
 //   hasHandoff(notes, agentId)       -> does a ticket's Notes carry `Handoff <agent>` with Jobs:, State:, Next:, Files:
-//   missingHandoffs(root, rows, tickets) -> past-ceiling rows citing one of `tickets` whose handoff is not in the ticket Notes yet
+//   missingHandoffs(root, rows, tickets) -> past-ceiling WRITER rows owning one of `tickets` (ticket-store.mjs) whose handoff is not in
+//                                           the ticket Notes yet; read-only agents own no work and never appear
 //   WRITE_HANDOFF                    -> the token that marks a resume message as the handoff request
 
 import { readLadder } from '../../scripts/dispatch-ladder.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
 import { lastContextTokens } from '../agent-outcome.mjs';
 import { breakdownLine } from './context-breakdown.mjs';
+import { readOnlyRow } from '../dispatch-readonly.mjs';
+import { ownedTickets, ticketStore } from './ticket-store.mjs';
 
 export const WRITE_HANDOFF = /\[write-handoff\]/i;
 const HANDOFF_LABELS = ['Jobs', 'State', 'Next', 'Files'];
@@ -55,8 +58,10 @@ export function hasHandoff(notes, agentId) {
   return HANDOFF_LABELS.every((label) => new RegExp(String.raw`^[ \t]*[-*]?[ \t]*\**${label}\**[ \t]*:`, 'im').test(block));
 }
 
-export function missingHandoffs(root, rows, tickets) {
-  const wanted = new Set(tickets);
-  return overCeiling(rows).map((r) => r.row).filter((row) => (row.tickets || []).some((t) => wanted.has(t))
-    && !(row.tickets || []).some((t) => wanted.has(t) && hasHandoff(ticketNotes(root, t), row.id)));
+export function missingHandoffs(root, rows, tickets, table) {
+  return overCeiling(rows).map((r) => r.row).filter((row) => {
+    if (readOnlyRow(root, row)) return false;
+    const owned = ownedTickets(root, row, tickets, table);
+    return owned.length > 0 && !owned.some((t) => hasHandoff(ticketNotes(ticketStore(root, t, table), t), row.id));
+  });
 }

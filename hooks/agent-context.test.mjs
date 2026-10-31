@@ -64,6 +64,17 @@ try {
   ok('with the handoff in the ticket Notes the replacement dispatches', released.code === 0);
   ok('the dispatch warns about the past-ceiling agent', /agents past the context ceiling/.test(released.out) && released.out.includes(OLD));
 
+  // read-only agents and agents working in another checkout own no ticket here (KIT-T715)
+  const bare = (t) => writeFileSync(join(d, '.ai', 'tickets', `${t}-thing.md`), `---\nid: ${t}\n---\n\n## Notes\n\nnothing yet\n`);
+  const extra = [row(OVER, { id: 'c3d4e5f6a7b8c9d0e', tickets: ['KIT-T902'], readOnly: 'analyst report only' }),
+    row(OVER, { id: 'd4e5f6a7b8c9d0e1f', tickets: ['KIT-T903'], targetRoot: join(d, 'elsewhere') }),
+    row(OVER, { id: 'e5f6a7b8c9d0e1f2a', tickets: ['KIT-T904'], targetRoot: d })];
+  for (const t of ['KIT-T902', 'KIT-T903', 'KIT-T904']) bare(t);
+  writeFileSync(join(d, '.ai', 'agents.jsonl'), readFileSync(join(d, '.ai', 'agents.jsonl'), 'utf8') + extra.map((r) => JSON.stringify({ ts: new Date().toISOString(), ...r })).join('\n') + '\n');
+  ok('negative: a read-only past-ceiling agent does not hold a ticket hostage', dispatch('Continue KIT-T902').code === 0);
+  ok('negative: an agent working in another checkout owns no ticket of this store', dispatch('Continue KIT-T903').code === 0);
+  ok('a writer working in this checkout with no handoff still blocks', dispatch('Continue KIT-T904').code === 2);
+
   // SubagentStop: retire line
   const transcript = join(d, 'agent.jsonl');
   writeFileSync(transcript, JSON.stringify({ type: 'assistant', timestamp: new Date().toISOString(), message: { id: 'm1', model: 'claude-sonnet-5-5', usage: { input_tokens: 10, cache_read_input_tokens: 449990, output_tokens: 100 }, content: [] } }) + '\n');
