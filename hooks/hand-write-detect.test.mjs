@@ -98,6 +98,7 @@ try {
     ['a read-only script', 'node build.js', (e) => node(e.d, "require('fs').readFileSync('src/a.mjs', 'utf8')")],
     ['a broker landing writes during watch.mjs (KIT-T746)', 'node /k/scripts/broker/watch.mjs --root /r --for landing', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
     ['a broker landing writes during a quoted wait.mjs path with a space (KIT-T746)', 'node "C:/Users/Chris Sparks/rt/scripts/broker/wait.mjs" j-1-a --root /r | tail -3', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
+    ['a pipeline whose quoted commit message holds a > (the Co-Authored-By address) is no file redirect (KIT-T746)', 'git log -1 --format="a <b@c.d>" | head -1', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
     ['a broker landing writes during submit.mjs (KIT-T746)', 'node /k/scripts/broker/submit.mjs --root /r --ticket T-1', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
   ];
   for (const [name, command, action] of NOT_HAND) {

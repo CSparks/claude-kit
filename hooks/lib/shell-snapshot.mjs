@@ -25,7 +25,8 @@ const GENERATORS = /^(?:git|cargo|rustc|rustfmt|clippy-driver|npm|npx|pnpm|yarn|
 const READERS = /^(?:cat|head|tail|less|more|wc|ls|stat|file|diff|cmp|grep|egrep|fgrep|rg|ag|ack|sort|uniq|cut|tr|echo|printf|pwd|date|sleep|which|whoami|tasklist)$/i;
 const BROKER_CLIENT = /^(?:submit|wait|watch|broker)\.mjs$/i;
 const BENIGN_REDIRECT = /\d?>&\d|&?\d?>>?\s*\/dev\/null/g;
-const hasFileRedirect = (command) => String(command || '').replace(BENIGN_REDIRECT, '').includes('>');
+const QUOTED = /"[^"]*"|'[^']*'/g;
+const hasFileRedirect = (command) => String(command || '').replace(QUOTED, '""').replace(BENIGN_REDIRECT, '').includes('>');
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 const signature = (root, rel) => {
