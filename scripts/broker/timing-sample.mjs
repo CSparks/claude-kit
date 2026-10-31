@@ -5,6 +5,7 @@
 //   crate  a command's queue + run time over the crates its `-p` names ('(workspace)' when none)
 //   test   a test command's queue + run time under '<crate> --test <name>' / '<crate> --lib' / '<crate> (all tests)'
 //   waste  work the change did not need (timing-waste.mjs)
+//   flagged  test commands for crates the change does not reach, keyed by whether they passed or failed (timing-waste.mjs)
 //
 //   sampleOf(members, { project, lane, bases }) -> { id, project, lane, at, turnaroundMs, jobs, entries, cache }
 //   samplesFromResults(results, ctx)         -> samples, the members of one train counted once
@@ -14,35 +15,16 @@ import { basename, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { commandSplit } from './metrics.mjs';
 import { loadResults, submittedAt } from './stats.mjs';
+import { cratesOf, targetsOf } from './timing-cmd.mjs';
 import { movedPaths } from './timing-moved.mjs';
+import { reachBases } from './timing-reach.mjs';
 import { wasteOf } from './timing-waste.mjs';
 
 export const PHASE = 'phase';
 export const CRATE = 'crate';
 export const TEST = 'test';
 export const QUEUE = 'queue';
-const WORKSPACE = '(workspace)';
 const TEST_COMMAND = /\bcargo\b.*\b(?:test|t|nextest)\b/;
-const PACKAGE_FLAGS = new Set(['-p', '--package']);
-const TARGET_FLAGS = new Set(['--test', '--bin', '--example', '--bench']);
-
-const argsOf = (cmd) => {
-  const toks = String(cmd).trim().split(/\s+/);
-  const sep = toks.indexOf('--');
-  return sep === -1 ? toks : toks.slice(0, sep);
-};
-
-function cratesOf(cmd) {
-  const args = argsOf(cmd);
-  const named = args.flatMap((t, i) => (PACKAGE_FLAGS.has(args[i - 1]) ? [t] : []));
-  return named.length ? named : [WORKSPACE];
-}
-
-function targetsOf(cmd) {
-  const args = argsOf(cmd);
-  const named = args.flatMap((t, i) => (TARGET_FLAGS.has(args[i - 1]) ? [`${args[i - 1]} ${t}`] : args[i] === '--lib' ? ['--lib'] : []));
-  return named.length ? named : ['(all tests)'];
-}
 
 const mean = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : 0);
 
@@ -102,7 +84,7 @@ export function samplesFromResults(results, ctx) {
 export const laneName = (cfg) => cfg.lane || 'root';
 
 export function laneSamples(cfg) {
-  const bases = [cfg.root, ...cfg.repos.map((r) => join(cfg.root, r.path || r.name))];
+  const bases = reachBases(cfg);
   const repoDir = (result) => join(cfg.root, cfg.repos.find((r) => r.name === result.repo)?.path || '.');
   const movedBetween = (prev, cur) => (prev.repo === cur.repo ? movedPaths(repoDir(cur), prev.base, cur.base) : []);
   return samplesFromResults(loadResults(brokerPaths(cfg).results), { project: basename(cfg.root), lane: laneName(cfg), bases, movedBetween });

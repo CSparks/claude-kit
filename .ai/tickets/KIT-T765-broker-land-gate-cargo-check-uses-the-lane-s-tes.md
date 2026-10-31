@@ -2,7 +2,7 @@
 id: KIT-T765
 title: broker: land-gate cargo check uses the lane's test feature set; the extra-feature check runs on the suite schedule (KIT-Q005 lever 1, KIT-D121)
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-31T16:18:10Z
-updated: 2026-10-31T16:18:10Z
+updated: 2026-10-31T16:45:09Z
 ---
 
 ## Description
@@ -32,3 +32,6 @@ Evidence: gate-check 7, precheck/precheck-scope/-guards/-submodule/-missing-log,
 
 ## History
 - [2026-10-31 16:18] (created) feature — broker: land-gate cargo check uses the lane's test feature set; the extra-feature check runs on the suite schedule (KIT-Q005 lever 1, KIT-D121)
+- [2026-10-31 16:18] (landed) 8549ec1 broker: the land-gate cargo check takes the feature set its tests use, and a check feature the tests lack runs with the
+- [2026-10-31 16:27] (landed) 9a462f5 broker: the --measure precheck test fixture sets fullCheck like the other precheck fixtures (measure-build 3, precheck/g
+- [2026-10-31 16:45] (status) todo → review

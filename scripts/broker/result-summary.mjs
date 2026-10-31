@@ -8,6 +8,7 @@ import { parseFlags, loadCfg } from './cli.mjs';
 import { laneCfgFor } from './lanes.mjs';
 import { resultSummary } from './command-summary.mjs';
 import { readResult } from './result.mjs';
+import { outsideReachOf, reachBases } from './timing-reach.mjs';
 
 const EXIT_NO_RESULT = 3;
 const flags = parseFlags(process.argv.slice(2));
@@ -22,4 +23,4 @@ if (!result) {
   console.error(`result-summary: no result for ${id} yet`);
   process.exit(EXIT_NO_RESULT);
 }
-console.log(resultSummary(result).join('\n'));
+console.log(resultSummary(result, { outside: new Set(outsideReachOf(result, reachBases(cfg))) }).join('\n'));

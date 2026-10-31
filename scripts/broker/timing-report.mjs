@@ -29,5 +29,7 @@ export function blockersReport(rootCfg, { since = null, topN = DEFAULT_TOP, now 
   const lines = data.top.length ? data.top.map((row, i) => `${i + 1}. ${describe(row)}`) : ['no timed jobs in the window'];
   const cache = Object.entries(data.cache).map(([lane, c]) => `${lane} ${c.hits}/${c.hits + c.misses} cargo commands compiled nothing`);
   const head = `broker blockers (waste first), last ${(windowMs / MS_PER_HOUR).toFixed(1)} h vs the window before (${rootCfg.root}):`;
-  return { data, text: [head, ...lines, ...(cache.length ? [`cache hits: ${cache.join('; ')}`] : [])].join('\n') };
+  const flagged = data.byKind.flagged.map((row) => `  ${describe(row)}`);
+  const outside = flagged.length ? ['test runs outside the change\'s reach, by outcome (advisory; the data an auto-skip needs):', ...flagged] : [];
+  return { data, text: [head, ...lines, ...outside, ...(cache.length ? [`cache hits: ${cache.join('; ')}`] : [])].join('\n') };
 }
