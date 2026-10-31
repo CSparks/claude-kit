@@ -6,11 +6,13 @@
 //            same or different flags) so the ranking shows which command pairs throw the work away
 //   scope    a test run of crates the change does not reach (no touched crate is among their dependencies)
 //   flagged  the same commands, keyed '<crates> <targets> passed|failed' (KIT-Q005 lever 2): the data an auto-skip needs
+//   dirty    each rebuild or repeat crate, keyed '<crate>: <reason>' with cargo's dirty reason (fingerprint-log.mjs), cost
+//            as the rebuild's; present for commands run with the fingerprint log (KIT-Q005 lever 3)
 //   cache    per cargo command: a hit compiled nothing, a miss compiled something
 // Dependents come from Cargo.lock (cargo-lock.mjs); a command whose graph cannot be read yields no waste entry.
 //
 //   `moved`: paths the base moved since the lane's last job (timing-moved.mjs); they reach crates like the job's own diff
-//   wasteOf(commands, members, { bases, targetsOf, cratesOf, moved }) ->{ entries: [{ kind: 'waste' | 'flagged', key, ms }], cache: { hits, misses } }
+//   wasteOf(commands, members, { bases, targetsOf, cratesOf, moved }) ->{ entries: [{ kind: 'waste' | 'flagged' | 'dirty', key, ms }], cache: { hits, misses } }
 
 import { readFileSync } from 'node:fs';
 import { commandSplit } from './metrics.mjs';
@@ -18,11 +20,20 @@ import { outsideReach, reachOf } from './timing-reach.mjs';
 
 export const WASTE = 'waste';
 export const FLAGGED = 'flagged';
+export const DIRTY = 'dirty';
+const UNREPORTED = 'not reported by cargo';
 const COMPILING = /^\s*(?:Compiling|Checking)\s+(\S+)\s+v\S+/gm;
 const CARGO_WORK = /\bcargo\b.*\b(?:test|t|nextest|build|check|clippy)\b/;
 
 const compiledIn = (log) => {
   try { return [...readFileSync(log, 'utf8').matchAll(COMPILING)].map((m) => m[1]); } catch { return []; }
+};
+
+// The dirty reasons the command captured for a crate (fingerprint-log.mjs); none when the command was not captured.
+const reasonsFor = (dirty, name) => {
+  if (!Array.isArray(dirty)) return [];
+  const own = dirty.filter((d) => d.crate === name).map((d) => d.reason);
+  return own.length ? [...new Set(own)] : [UNREPORTED];
 };
 
 const subOf = (cmd) => (/\bcheck\b/.test(cmd) ? 'check' : /\b(?:build|--no-run)\b/.test(cmd) ? 'build' : 'test');
@@ -44,7 +55,12 @@ export function wasteOf(commands, members, { bases, cratesOf, targetsOf, moved =
     const named = cratesOf(c.cmd);
     if (state.known && compiled.length) {
       const wasted = compiled.filter((name) => !state.reach.has(name) && !named.includes(name));
-      for (const name of wasted) add(WASTE, compiledBefore.has(name) ? `repeat ${causeOf(compiledBefore.get(name), c.cmd)}` : `rebuild ${name}`, commandSplit(c).build / compiled.length);
+      for (const name of wasted) {
+        const ms = commandSplit(c).build / compiled.length;
+        add(WASTE, compiledBefore.has(name) ? `repeat ${causeOf(compiledBefore.get(name), c.cmd)}` : `rebuild ${name}`, ms);
+        const reasons = reasonsFor(c.dirty, name);
+        for (const reason of reasons) add(DIRTY, `${name}: ${reason}`, ms / reasons.length);
+      }
     }
     for (const name of compiled) compiledBefore.set(name, c.cmd);
     if (outsideReach(c.cmd, state)) {

@@ -19,6 +19,7 @@ import { diagnose } from './diagnose.mjs';
 import { packageScoped, runsNextest } from './alias.mjs';
 import { CARGO_BUILD_SUBS } from './cargo-subs.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
+import { FINGERPRINT_ENV, harvestDirty } from './fingerprint-log.mjs';
 
 const LOG_TAIL_LINES = 60;
 const TEST_SUBS = new Set(['test', 't']);
@@ -55,12 +56,17 @@ export function composeCommand(cmd, { jobs = 3, testThreads, cwd } = {}) {
 // Run one command through the platform shell (so the fixture's `node -e`/echoes and real cargo
 // both work), redirecting stdout+stderr to `logPath`. CARGO_TARGET_DIR is injected so every
 // build shares the broker's one warm cache. Returns exit code, wall-clock duration, and the
-// last ~60 log lines.
+// last ~60 log lines. Cargo runs with the fingerprint log on; its dirty reasons are parsed into `dirty` and the raw
+// lines are removed from the log (fingerprint-log.mjs).
 // Inside the daemon (a pulse is registered) the command runs through runCancellable, whose poll
 // keeps the heartbeat fresh, so a 25-minute suite never reads as a stalled daemon (KIT-T488). The poll also
 // ends the command when the operator cancelled the running job or it ran past its limit (KIT-T676); the
 // result then carries `aborted: { kind: 'cancel'|'timeout', message, ids? }`.
-export function runCommand(cmd, { cwd, targetDir, logPath, jobs, testThreads }) {
+export function runCommand(cmd, opts) {
+  return harvestDirty(execute(cmd, opts), opts.logPath, tail);
+}
+
+function execute(cmd, { cwd, targetDir, logPath, jobs, testThreads }) {
   if (pulseActive()) {
     let asked = null;
     const limitMs = limitFor(cmd);
@@ -84,7 +90,7 @@ export function runCommand(cmd, { cwd, targetDir, logPath, jobs, testThreads }) 
       shell: true,
       windowsHide: true,
       stdio: ['ignore', fd, fd],
-      env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: targetDir, ...(jobs ? { CARGO_BUILD_JOBS: String(jobs) } : {}) },
+      env: { ...FINGERPRINT_ENV, ...process.env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: targetDir, ...(jobs ? { CARGO_BUILD_JOBS: String(jobs) } : {}) },
     });
     code = r.status == null ? 1 : r.status;
   } finally {

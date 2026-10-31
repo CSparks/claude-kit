@@ -16,6 +16,7 @@ import { linkFailure, recoverLink } from './link-recover.mjs';
 import { LOCK_BACKOFF_MS, fileLockFailure, holdersOf, lockNote } from './file-lock.mjs';
 import { killTree, trackChild, untrackChild } from './children.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
+import { FINGERPRINT_ENV } from './fingerprint-log.mjs';
 
 const CHILD = join(import.meta.dirname, 'run-child.mjs');
 const DEFAULT_POLL_MS = 500;
@@ -75,7 +76,7 @@ function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0 }, { 
   try {
     child = spawn(process.execPath, [CHILD, marker, composed], {
       cwd, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', fd, fd],
-      env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: targetDir },
+      env: { ...FINGERPRINT_ENV, ...process.env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: targetDir },
     });
     child.unref();
   } finally { closeSync(fd); }

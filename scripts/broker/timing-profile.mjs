@@ -7,12 +7,13 @@
 //   profile(samples, { now, windowMs, topN }) -> { windowMs, now, jobs, cache, byKind, top }
 //     row: { project, lane, kind, key, ms, share, perJobMs, prevPerJobMs, deltaPct, trend, rank, prevRank }
 //     trend: 'new' | 'worse' | 'better' | 'flat'; top: waste first, then the topN rows of the other kinds, never
-//     'flagged' (out-of-reach test runs by outcome: data for a later skip, reported by `broker blockers`)
+//     'flagged' (out-of-reach test runs by outcome: data for a later skip) or 'dirty' (cargo's rebuild reason per crate);
+//     `broker blockers` reports both
 //     cache: { 'project|lane': { hits, misses } } for the current window
 //   blockerId(row) -> 'project|lane|kind|key'
 
 import { CRATE, PHASE, QUEUE, TEST } from './timing-sample.mjs';
-import { FLAGGED, WASTE } from './timing-waste.mjs';
+import { DIRTY, FLAGGED, WASTE } from './timing-waste.mjs';
 
 export const CAUSED_QUEUE = 'slot queue caused by waste (estimate)';
 const COMMAND_PHASES = new Set(['compile', 'test', 'command']);
@@ -21,8 +22,9 @@ const MS_PER_HOUR = 3600000;
 const PERCENT = 100;
 export const DEFAULT_WINDOW_MS = 24 * MS_PER_HOUR;
 export const DEFAULT_TOP = 3;
-const KINDS = [WASTE, PHASE, CRATE, TEST, FLAGGED];
-const TICKETED = KINDS.filter((k) => k !== FLAGGED);
+const DATA_KINDS = new Set([FLAGGED, DIRTY]);
+const KINDS = [WASTE, PHASE, CRATE, TEST, FLAGGED, DIRTY];
+const TICKETED = KINDS.filter((k) => !DATA_KINDS.has(k));
 
 export const blockerId = (row) => [row.project, row.lane, row.kind, row.key].join('|');
 const laneId = (s) => `${s.project}|${s.lane}`;

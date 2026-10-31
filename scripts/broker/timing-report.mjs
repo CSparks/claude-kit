@@ -7,6 +7,7 @@
 
 import { laneConfigs, withLane } from './config.mjs';
 import { parseSince } from './metrics.mjs';
+import { dirtyLines } from './timing-dirty.mjs';
 import { DEFAULT_TOP, DEFAULT_WINDOW_MS, profile } from './timing-profile.mjs';
 import { laneSamples } from './timing-sample.mjs';
 
@@ -31,5 +32,5 @@ export function blockersReport(rootCfg, { since = null, topN = DEFAULT_TOP, now 
   const head = `broker blockers (waste first), last ${(windowMs / MS_PER_HOUR).toFixed(1)} h vs the window before (${rootCfg.root}):`;
   const flagged = data.byKind.flagged.map((row) => `  ${describe(row)}`);
   const outside = flagged.length ? ['test runs outside the change\'s reach, by outcome (advisory; the data an auto-skip needs):', ...flagged] : [];
-  return { data, text: [head, ...lines, ...outside, ...(cache.length ? [`cache hits: ${cache.join('; ')}`] : [])].join('\n') };
+  return { data, text: [head, ...lines, ...outside, ...dirtyLines(data.byKind.dirty), ...(cache.length ? [`cache hits: ${cache.join('; ')}`] : [])].join('\n') };
 }

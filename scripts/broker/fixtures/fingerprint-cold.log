@@ -1,0 +1,13 @@
+   0.083343000s  INFO prepare_target{force=false package_id=probe v0.1.0 (C:\Users\USER\AppData\Local\Temp\claude\D--dev-infra\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\scratchpad\dirty) target="probe"}: cargo::core::compiler::fingerprint: fingerprint error for probe v0.1.0 (C:\Users\USER\AppData\Local\Temp\claude\D--dev-infra\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\scratchpad\dirty)/Build/TargetInner { name: "probe", doc: true, ..: with_path("C:\\Users\\USER\\AppData\\Local\\Temp\\claude\\D--dev-infra\\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\\scratchpad\\dirty\\src\\main.rs", Edition2021) }
+   0.083436300s  INFO prepare_target{force=false package_id=probe v0.1.0 (C:\Users\USER\AppData\Local\Temp\claude\D--dev-infra\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\scratchpad\dirty) target="probe"}: cargo::core::compiler::fingerprint:     err: failed to read `C:/Users/USER/AppData/Local/Temp/claude/D--dev-infra/c9ba9543-c7cc-4181-8fe5-ff9c641edcab/scratchpad/dirty/target3\debug\.fingerprint\probe-19c2056c5b5f4300\bin-probe`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+   0.084551700s  INFO prepare_target{force=false package_id=depc v0.1.0 (C:\Users\USER\AppData\Local\Temp\claude\D--dev-infra\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\scratchpad\dirty\dep) target="depc"}: cargo::core::compiler::fingerprint: fingerprint error for depc v0.1.0 (C:\Users\USER\AppData\Local\Temp\claude\D--dev-infra\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\scratchpad\dirty\dep)/Build/TargetInner { name_inferred: true, ..: lib_target("depc", ["lib"], "C:\\Users\\USER\\AppData\\Local\\Temp\\claude\\D--dev-infra\\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\\scratchpad\\dirty\\dep\\src\\lib.rs", Edition2021) }
+   0.084577500s  INFO prepare_target{force=false package_id=depc v0.1.0 (C:\Users\USER\AppData\Local\Temp\claude\D--dev-infra\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\scratchpad\dirty\dep) target="depc"}: cargo::core::compiler::fingerprint:     err: failed to read `C:/Users/USER/AppData/Local/Temp/claude/D--dev-infra/c9ba9543-c7cc-4181-8fe5-ff9c641edcab/scratchpad/dirty/target3\debug\.fingerprint\depc-13d508b2e701303c\lib-depc`
+
+Caused by:
+    The system cannot find the file specified. (os error 2)
+   Compiling depc v0.1.0 (C:\Users\USER\AppData\Local\Temp\claude\D--dev-infra\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\scratchpad\dirty\dep)
+   Compiling probe v0.1.0 (C:\Users\USER\AppData\Local\Temp\claude\D--dev-infra\c9ba9543-c7cc-4181-8fe5-ff9c641edcab\scratchpad\dirty)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.39s
