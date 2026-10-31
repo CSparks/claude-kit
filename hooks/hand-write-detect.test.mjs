@@ -96,6 +96,9 @@ try {
     ['another session writes during a git status | head pipeline (KIT-T735)', 'git status --short | head -5', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
     ['another session writes during a cat | grep pipeline (KIT-T735)', 'cat src/b.mjs | grep export', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
     ['a read-only script', 'node build.js', (e) => node(e.d, "require('fs').readFileSync('src/a.mjs', 'utf8')")],
+    ['a broker landing writes during watch.mjs (KIT-T746)', 'node /k/scripts/broker/watch.mjs --root /r --for landing', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
+    ['a broker landing writes during a quoted wait.mjs path with a space (KIT-T746)', 'node "C:/Users/Chris Sparks/rt/scripts/broker/wait.mjs" j-1-a --root /r | tail -3', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
+    ['a broker landing writes during submit.mjs (KIT-T746)', 'node /k/scripts/broker/submit.mjs --root /r --ticket T-1', (e) => rewrite(e.d, "fs.writeFileSync(p, 'export const a = 9;\\n')")],
   ];
   for (const [name, command, action] of NOT_HAND) {
     const e = { d: fresh() };
@@ -106,6 +109,9 @@ try {
   const redirected = fresh();
   const viaCat = call(redirected, 'S10', 'cat src/b.mjs > src/a.mjs', () => rewrite(redirected, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
   ok('KIT-T735 control: a reader redirecting into a source file is still flagged', viaCat.status === 2 && viaCat.stderr.includes('src/a.mjs'));
+  const brokerRedirect = fresh();
+  const viaWatch = call(brokerRedirect, 'S12', 'node /k/scripts/broker/watch.mjs > src/a.mjs', () => rewrite(brokerRedirect, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
+  ok('KIT-T746 control: a broker client redirecting into a source file is still flagged', viaWatch.status === 2 && viaWatch.stderr.includes('src/a.mjs'));
   const piped = fresh();
   const toNull = call(piped, 'S11', 'cat src/b.mjs 2>/dev/null | head -1 > src/a.mjs', () => rewrite(piped, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
   ok('KIT-T735 control: a benign redirect does not hide a real file redirect', toNull.status === 2);

@@ -5,8 +5,9 @@
 //   changedSince(root, before) -> paths the call created, modified, deleted or reverted
 //   handWrittenSources(root, before, command) -> created or changed hand-authored source paths still on disk;
 //     a deleted path is no write (nothing is left to re-save), and [] when every segment of the command is a
-//     generator (git, a build tool, a formatter, a kit verb) or a reader with no file redirect (cat, grep, head):
-//     its output is no hand write, and a change that landed meanwhile is another writer's
+//     generator (git, a build tool, a formatter, a kit verb, a broker client script) or a reader with no file
+//     redirect (cat, grep, head): its output is no hand write, and a change that landed meanwhile (a broker
+//     landing included) is another writer's
 
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,6 +23,7 @@ const GENERATORS = /^(?:git|cargo|rustc|rustfmt|clippy-driver|npm|npx|pnpm|yarn|
 // Commands that only read or print: with no redirect into a file they cannot write source, so a change
 // that lands during the call is another writer's.
 const READERS = /^(?:cat|head|tail|less|more|wc|ls|stat|file|diff|cmp|grep|egrep|fgrep|rg|ag|ack|sort|uniq|cut|tr|echo|printf|pwd|date|sleep|which|whoami|tasklist)$/i;
+const BROKER_CLIENT = /^(?:submit|wait|watch|broker)\.mjs$/i;
 const BENIGN_REDIRECT = /\d?>&\d|&?\d?>>?\s*\/dev\/null/g;
 const hasFileRedirect = (command) => String(command || '').replace(BENIGN_REDIRECT, '').includes('>');
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
@@ -69,7 +71,11 @@ function isGeneratorCommand(command) {
     if (!text.trim()) return true;
     const leader = leaderOf(text);
     if (GENERATORS.test(leader) || KIT_TOOL.test(leader) || (!redirects && READERS.test(leader))) return true;
-    return /^node$/i.test(leader) && text.split(/\s+/).some((w) => KIT_TOOL.test(w.replace(/.*[\\/]/, '')));
+    if (!/^node$/i.test(leader)) return false;
+    return text.split(/\s+/).some((w) => {
+      const name = w.replace(/^["']|["']$/g, '').replace(/.*[\\/]/, '');
+      return KIT_TOOL.test(name) || (!redirects && BROKER_CLIENT.test(name));
+    });
   });
 }
 
