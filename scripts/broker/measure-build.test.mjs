@@ -47,7 +47,7 @@ test('the submit precheck rejects a --measure job whose patch has a rustc error;
   const good = fixture();
   try {
     const run = (s, check) => {
-      const cfg = { ...s.cfg, precheck: true, precheckTimeoutMs: 30000, affected: { ...s.cfg.affected, check } };
+      const cfg = { ...s.cfg, precheck: true, precheckTimeoutMs: 30000, affected: { ...s.cfg.affected, check, fullCheck: check } };
       const { job } = buildPatchJob(cfg, { measure: true, ticket: 'KIT-T7' }, envelope(['gamma', 'GAMMA']));
       return precheckJob(cfg, job, cfg.repos[0]);
     };
