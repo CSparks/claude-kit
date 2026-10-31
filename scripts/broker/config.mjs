@@ -85,7 +85,7 @@ export function normalizeBroker(root, broker) {
     dirtyBlocks: Array.isArray(broker.dirty_blocks) ? broker.dirty_blocks.map(String) : DEFAULT_DIRTY_BLOCKS.slice(),
     repos,
     lane: null,
-    ...pipelineConfig(broker, verifyDefault),
+    ...pipelineConfig(broker, verifyDefault, process.env, root),
   };
 }
 

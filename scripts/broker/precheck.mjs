@@ -98,7 +98,8 @@ function runPrecheck(cfg, job, repo, { run = runCancellable, prepare = prepareCh
 // rejects the job, even when the run was cut off at the deadline: cargo prints an error as it finds it.
 function cargoChecks(cfg, job, { home, tree, target, cold, run, submodule }) {
   const deadline = Date.now() + cfg.precheckTimeoutMs;
-  const stages = [narrowCheck(cfg.affected.check, jobCommands(cfg, job), { submodule }), submodule ? null : cfg.affected.check].filter(Boolean);
+  const check = cfg.affected.fullCheck || cfg.affected.check;
+  const stages = [narrowCheck(check, jobCommands(cfg, job), { submodule }), submodule ? null : check].filter(Boolean);
   for (const [i, cmd] of stages.entries()) {
     const left = deadline - Date.now();
     if (left <= 0) return null;

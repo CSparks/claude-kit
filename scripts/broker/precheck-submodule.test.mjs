@@ -23,7 +23,7 @@ test('control: without the submodule option the check is unchanged (the cd is dr
 
 function setup(repoFields) {
   const s = fixture();
-  const cfg = { ...s.cfg, precheck: true, precheckTimeoutMs: 30000, affected: { ...s.cfg.affected, check: CHECK } };
+  const cfg = { ...s.cfg, precheck: true, precheckTimeoutMs: 30000, affected: { ...s.cfg.affected, check: CHECK, fullCheck: CHECK } };
   const { job } = buildPatchJob(cfg, { ticket: 'KIT-T1' }, envelope(['beta', 'BETA']));
   const ran = [];
   const run = (cmd) => { ran.push(cmd); return { exit: 0, durationMs: 1, logTail: [], cmd }; };

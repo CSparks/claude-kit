@@ -19,7 +19,7 @@ const SLOW = String.raw`node -e "setTimeout(() => {}, 20000)"`;
 
 function setup(check, extra = {}) {
   const s = fixture();
-  const cfg = { ...s.cfg, precheck: true, precheckTimeoutMs: 30000, affected: { ...s.cfg.affected, check }, ...extra };
+  const cfg = { ...s.cfg, precheck: true, precheckTimeoutMs: 30000, affected: { ...s.cfg.affected, check, fullCheck: check }, ...extra };
   const { job } = buildPatchJob(cfg, { ticket: 'KIT-T1' }, envelope(['beta', 'BETA']));
   return { s, cfg, job, repo: cfg.repos[0] };
 }

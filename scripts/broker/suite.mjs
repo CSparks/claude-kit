@@ -119,7 +119,7 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
   const parts = scope.parts;
   const k = Math.min(state.shard || 1, parts);
   const tag = parts > 1 ? `-p${k}` : '';
-  const suite = [...shardCommands(scope.suite, k, parts), ...(cfg.suiteSchedule === 'nightly' && !cfg.lane ? cfg.nightly : [])];
+  const suite = [...shardCommands(scope.suite, k, parts), ...(cfg.lane ? [] : cfg.scheduledChecks || []), ...(cfg.suiteSchedule === 'nightly' && !cfg.lane ? cfg.nightly : [])];
   const id = `suite-${short(head)}${tag}`;
   const startedAt = new Date().toISOString();
   const kept = state.partial && state.partial.id === id ? state.partial.commands : [];

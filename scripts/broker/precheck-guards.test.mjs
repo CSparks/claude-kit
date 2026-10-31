@@ -15,7 +15,7 @@ const BROKEN_SCRIPT = 'export const answer = () => { return (1 + ;\n';
 
 function setup(files, extra = {}) {
   const s = fixture();
-  const cfg = { ...s.cfg, precheck: true, precheckTimeoutMs: 30000, affected: { ...s.cfg.affected, check: PASSES }, ...extra };
+  const cfg = { ...s.cfg, precheck: true, precheckTimeoutMs: 30000, affected: { ...s.cfg.affected, check: PASSES, fullCheck: PASSES }, ...extra };
   const body = Object.entries(files).map(([path, text]) => `*** write ${path}\n${text}`).join('');
   const { job } = buildPatchJob(cfg, { ticket: 'KIT-T1', measure: false }, body);
   return { s, cfg, job, repo: cfg.repos[0] };
@@ -99,7 +99,7 @@ const TEST_RUN = ['cargo test --offline -p game --test near_ring --no-fail-fast 
 const RUSTC_ERROR = 'error[E0599]: no method named `x`\n --> crates/game/tests/near_ring.rs:92:9\n';
 
 function scoped(extra = {}) {
-  const t = setup({ 'notes.txt': 'x\n' }, { affected: { check: CHECK }, ...extra });
+  const t = setup({ 'notes.txt': 'x\n' }, { affected: { check: CHECK, fullCheck: CHECK }, ...extra });
   return { ...t, job: { ...t.job, commands: TEST_RUN } };
 }
 

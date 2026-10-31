@@ -2,7 +2,7 @@
 //
 //   land_gate: affected          # affected (default, KIT-D110): check of every target + the tests the changed paths map to, their dependents included; full: the job's commands as given
 //   affected:
-//     check: cargo check --workspace --all-targets   # compile every target of the workspace
+//     check: cargo check --workspace --all-targets   # compile every target of the workspace; the gate runs it with the features `test` uses, and a check feature the tests lack runs with the suite (gate-check.mjs)
 //     test: cargo test                               # prefix for the mapped `-p <crate> --test …` run
 //     match: word                                    # word (default) | module: how a src module finds the tests naming it (affected-match.mjs)
 //     dependents: true                               # false: skip the tests of the touched crates' reverse dependencies (Cargo.lock) in the landing gate
@@ -25,6 +25,9 @@
 //   incremental_keep_hours: 24   # after a suite run, drop incremental caches unused this long (incremental.mjs); off disables
 //
 // `pipelineConfig(broker, verifyDefault, env)` → { landGate, affected: { check, test, match, mandatory, dependents, conformance }, suiteSchedule, nightlyAt, nightly, suite, suiteEvery, suitePartitions, runner, batch, batchWindowMs, precheck, precheckTimeoutMs }.
+
+import { aliasOf } from './alias.mjs';
+import { gateChecks } from './gate-check.mjs';
 
 const DEFAULT_CHECK = 'cargo check --workspace --all-targets';
 const DEFAULT_TEST = 'cargo test';
@@ -50,13 +53,16 @@ function nightlyAt(value) {
   return { hour, minute, text: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}` };
 }
 
-export function pipelineConfig(broker, verifyDefault, env = process.env) {
+export function pipelineConfig(broker, verifyDefault, env = process.env, root = null) {
   const a = broker.affected && typeof broker.affected === 'object' ? broker.affected : {};
+  const test = String(a.test || DEFAULT_TEST);
+  const { gate, scheduled } = gateChecks(String(a.check || DEFAULT_CHECK), test, (prefix) => (root ? aliasOf(prefix, root) : null));
   const every = Number(broker.suite_every);
   return {
     landGate: broker.land_gate === 'full' || (broker.land_gate !== 'affected' && legacyDefaults(env)) ? 'full' : 'affected',
-    affected: { check: String(a.check || DEFAULT_CHECK), test: String(a.test || DEFAULT_TEST), match: a.match === 'module' ? 'module' : 'word', mandatory: a.mandatory === true, dependents: a.dependents !== false, conformance: a.conformance ? String(a.conformance) : null },
+    affected: { check: gate, fullCheck: String(a.check || DEFAULT_CHECK), test, match: a.match === 'module' ? 'module' : 'word', mandatory: a.mandatory === true, dependents: a.dependents !== false, conformance: a.conformance ? String(a.conformance) : null },
     suiteSchedule: (broker.suite_every != null && broker.suite_every !== '') || legacyDefaults(env) ? 'cadence' : 'nightly',
+    scheduledChecks: scheduled,
     nightlyAt: nightlyAt(broker.nightly_at),
     nightly: [].concat(broker.nightly == null ? [] : broker.nightly).map(String).filter(Boolean),
     pinTestArgs: [].concat(broker.pin_test_args == null ? [] : broker.pin_test_args).map(String).filter(Boolean),
