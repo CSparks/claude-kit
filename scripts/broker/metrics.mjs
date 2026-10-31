@@ -66,6 +66,8 @@ function compileMs(c) {
 }
 
 // A command's compile share and its warm (test) share; a pure build command is all compile.
+export { split as commandSplit };
+
 function split(c) {
   if (c.reusedFrom || !Number.isFinite(c.durationMs)) return { build: 0, warm: 0, test: 0 };
   const build = BUILD.test(c.cmd || '') ? c.durationMs : compileMs(c);

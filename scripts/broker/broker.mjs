@@ -45,6 +45,16 @@ import { reconcileSubtrees } from './subtree.mjs';
 import { reapOrphans, setChildRegistry } from './children.mjs';
 import { ensureQueuedLanes } from './ensure.mjs';
 import { stopDaemon } from './stop.mjs';
+import { tunedBatchWindowMs } from './timing-correct.mjs';
+import { timingTick } from './timing-tick.mjs';
+
+// The hourly timing cadence (KIT-D121) is best effort: a failure in it never stops the daemon.
+const tickTiming = (cfg) => {
+  try {
+    const done = timingTick(cfg);
+    if (done?.events.length) console.error(`broker: timing ${done.events.map((e) => `${e.lever} ${e.decision}`).join(', ')}`);
+  } catch (e) { console.error(`broker: timing tick failed: ${e.message}`); }
+};
 import { setStopNow } from './stop-now.mjs';
 import { cargoScopeRefusal } from './cargo-scope.mjs';
 import { withdrawJob } from './withdraw.mjs';
@@ -125,6 +135,13 @@ if (command === 'stats') {
   process.exit(0);
 }
 
+if (command === 'blockers') {
+  const { blockersReport } = await import('./timing-report.mjs');
+  const r = blockersReport(cfg, { since: typeof flags.since === 'string' ? flags.since : null, topN: Number(flags.top) || undefined });
+  console.log(flags.json ? JSON.stringify(r.data, null, 2) : r.text);
+  process.exit(0);
+}
+
 if (command === 'status') {
   for (const lane of process.env.BROKER_NO_AUTOSTART ? [] : ensureQueuedLanes(rootCfg, root)) console.error(`broker: no daemon was behind the ${lane} queue; started one`);
   for (const cfg of flags.lane ? [rootCfg] : laneConfigs(rootCfg)) {
@@ -199,7 +216,8 @@ const drain = () => {
   announce(selfCheck(cfg, { heal: true }).entries, said);
   const moved = rerouteMisplaced(cfg);
   if (moved.length) console.error(`broker: moved ${moved.length} job(s) to their repo's own queue: ${moved.join(', ')}`);
-  const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`), coalesceMs: flags.once ? 0 : cfg.coalesceMs, batchWindowMs: flags.once ? 0 : cfg.batchWindowMs });
+  const summary = processOnce(cfg, { onResult: (r) => console.error(`  ${r.id} → ${r.status}`), coalesceMs: flags.once ? 0 : cfg.coalesceMs, batchWindowMs: flags.once ? 0 : cfg.batchWindowMs || tunedBatchWindowMs(cfg) });
+  if (!flags.once) tickTiming(cfg);
   if (summary.paused) note(summary.reason === 'manual' ? 'broker: paused by operator; `resume` to continue' : pausedNote(summary));
   else if (summary.holding) note(`broker: ${summary.holding} (up to ${Math.ceil(summary.coalescing / 1000)} s more)`);
   else if (summary.waiting && summary.waiting.length) note(`broker: waiting — ${summary.waiting.join('; ')}`);

@@ -4,6 +4,7 @@
 // kit's own store; orient lists the open ones as dispatch-now. Never throws: filing is best-effort and must not cost the caller.
 //
 //   fileKitBug({ shape, title, detail, project }) -> { id, created } | null
+//   commentKitBug({ shape, text, project })       -> { id } | null: a comment on the OPEN ticket of that shape, never a new ticket
 //   openKitBugs(limit)                            -> [{ id, title, status, priority }] most urgent first
 //   openKitBugPage(limit)                         -> { bugs, total }
 //   kitStoreRoot()                                -> the kit repo root, or null
@@ -73,6 +74,19 @@ export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bu
     const { id, path } = scaffoldNew(root, kind === 'feature' ? 'feature' : 'bug', String(title).slice(0, TITLE_MAX), { description });
     writeFileSync(path, readFileSync(path, 'utf8').replace(/^labels: \[\]$/m,`labels: [${LABELS[kind] || LABELS.bug}]`));
     return { id, created: true };
+  } catch {
+    return null;
+  }
+}
+
+export function commentKitBug({ shape, text, project = '' }) {
+  try {
+    const root = kitStoreRoot();
+    const open = root && shape ? openFor(root, shape) : null;
+    if (!open) return null;
+    const where = project ? ` in ${project}` : '';
+    appendFileSync(open.path, `- [${stamp()}] (comment) update${where}: ${String(text).replace(/\s+/g, ' ').slice(0, EXAMPLE_MAX)}\n`);
+    return { id: (/^id:\s*(\S+)/m.exec(open.text) || [, ''])[1] };
   } catch {
     return null;
   }
