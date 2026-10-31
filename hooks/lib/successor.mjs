@@ -4,6 +4,7 @@
 //   pendingSuccessors(root, rows, { nowMs }) -> [{ row, ticket }]: done roster rows whose ticket is still open, carries
 //                                               that row's `Handoff <id>` block, and has no later dispatch citing it
 //   openTicketStatus(root, id)               -> the live ticket's status, or null (no live file: archived or unknown)
+//   handoffLines(root, ticket, agentId)      -> the Jobs:, State:, Next:, Files: lines of that agent's Handoff block
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -39,4 +40,16 @@ export function pendingSuccessors(root, rows, { nowMs = Date.now() } = {}) {
     }
   }
   return out;
+}
+
+const HANDOFF_LABEL = /^[ \t]*[-*]?[ \t]*\**(Jobs|State|Next|Files)\**[ \t]*:/i;
+const ID_PREFIX_CHARS = 8;
+const HANDOFF_LABEL_COUNT = 4; // Jobs, State, Next, Files
+
+export function handoffLines(root, ticket, agentId) {
+  const notes = String(ticketNotes(root, ticket) || '');
+  const head = new RegExp(String.raw`^[ \t]*(?:#{1,6}[ \t]*|\*\*)?Handoff[^\n]*${String(agentId).slice(0, ID_PREFIX_CHARS)}[^\n]*$`, 'im').exec(notes);
+  if (!head) return [];
+  const labelled = notes.slice(head.index + head[0].length).split('\n').filter((l) => HANDOFF_LABEL.test(l));
+  return labelled.slice(0, HANDOFF_LABEL_COUNT).map((l) => l.trim());
 }

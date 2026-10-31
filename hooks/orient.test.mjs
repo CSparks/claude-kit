@@ -47,6 +47,24 @@ try {
     ok('orient: standing section itself omits the out-of-scope decision', !standingSection.includes('D-001'));
   }
 
+  // --- a retired agent's handoff on an open ticket, with no successor, is listed (KIT-T718) ---------
+  {
+    const o = adopted(false);
+    mkdirSync(join(o, '.ai', 'tickets'), { recursive: true });
+    const ticket = (id, status) => writeFileSync(join(o, '.ai', 'tickets', `${id}-work.md`), `---\nid: ${id}\ntitle: open work\nstatus: ${status}\n---\n\n## Notes\n\n### Handoff agent-retired-1\n- Jobs: j-1 (landed)\n- State: fw2 queued green\n- Next: draft fw3\n- Files: src/a.rs\n\n## History\n`);
+    ticket('T-901', 'doing');
+    ticket('T-902', 'review');
+    const rows = [{ ts: new Date().toISOString(), id: 'agent-retired-1', status: 'done', scope: 'p:implementer', tickets: ['T-901', 'T-902'] }];
+    writeFileSync(join(o, '.ai', 'agents.jsonl'), rows.map((x) => JSON.stringify(x)).join('\n') + '\n');
+    git(['add', '-A'], o);
+    const r = hook('orient.mjs', {}, o);
+    ok('orient KIT-T718: the retired agent is listed on its open ticket with the handoff lines', r.out.includes('T-901: agent-retired-1') && r.out.includes('Next: draft fw3') && r.out.includes('State: fw2 queued green'));
+    ok('orient KIT-T718: a ticket already in review is not listed', !r.out.includes('T-902: agent-retired-1'));
+    const later = { ts: new Date(Date.now() + MS_PER_MINUTE).toISOString(), id: 'agent-successor', status: 'in-flight', scope: 'p:implementer', tickets: ['T-901'] };
+    writeFileSync(join(o, '.ai', 'agents.jsonl'), [...rows, later].map((x) => JSON.stringify(x)).join('\n') + '\n');
+    ok('orient KIT-T718: a dispatch citing the ticket after the retirement clears the warning', !hook('orient.mjs', {}, o).out.includes('RETIRED AGENT, OPEN WORK'));
+  }
+
   // --- directives without a test are listed (KIT-T554) ---------------------------
   {
     const o = adopted(false);

@@ -2,9 +2,13 @@
 // every live agent on the machine (KIT-T461), orphan background shells (KIT-T455) and the broker's lands (KIT-T276).
 // Each part is best-effort.
 //
+// A retired agent that left a Handoff block on a ticket still open, with no dispatch since, is listed with its handoff
+// (KIT-T718): "a fresh agent takes over" dispatches nothing.
+//
 //   agentsSection(ctx)
 
 import { AGENT_STALE_MS, partitionAgents, projectAiDirs, readAgents } from '../../lib.mjs';
+import { handoffLines, pendingSuccessors } from '../successor.mjs';
 import { formatProgress, progressFor, readProgress } from '../../progress-store.mjs';
 import { formatAgentLine, statusOnlyAgents, unlabelledAgents } from '../agent-format.mjs';
 import { liveAgentLines, liveAgents, terminalAgentIds } from '../live-agents.mjs';
@@ -52,9 +56,24 @@ function rosterSection({ out, root }) {
   }
 }
 
+function successorSection({ out, root }) {
+  try {
+    const pending = pendingSuccessors(root, readAgents(root));
+    if (!pending.length) return;
+    out.push('', '--- RETIRED AGENT, OPEN WORK, NO SUCCESSOR (dispatch a fresh agent citing the ticket; KIT-T718) ---');
+    for (const { row, ticket } of pending) {
+      out.push(`  ${ticket}: ${row.id} (${row.scope || '?'}) retired with a Handoff; no dispatch has cited ${ticket} since`);
+      for (const line of handoffLines(root, ticket, row.id)) out.push(`    ${clip(line, LINE_MAX)}`);
+    }
+  } catch {
+    /* successor view is best-effort */
+  }
+}
+
 export async function agentsSection(ctx) {
   const { out, root } = ctx;
   rosterSection(ctx);
+  successorSection(ctx);
   try {
     const live = liveAgents({ terminalIds: terminalAgentIds(projectAiDirs().map((p) => p.aiDir)) });
     const lines = liveAgentLines(live);
