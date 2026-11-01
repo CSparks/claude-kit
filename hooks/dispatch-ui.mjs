@@ -14,11 +14,15 @@ export const UI_CHECK = 'ui-framework-first';
 const CHECKED = /\[ui-framework-checked:\s*[^\]\s][^\]]*\]/i;
 const UI_NOUN = /\b(?:hud|ui|menu|menus|screen|screens|panel|widget|overlay)\b/i;
 const UI_SIZING = /\b(?:px|pixels?|font[- ]size|val::px|ppu|layout|margin|padding|gap|anchor|scale|resolution|safe area)\b/i;
+const UI_SIZING_NO_LAYOUT = /\b(?:px|pixels?|font[- ]size|val::px|ppu|margin|padding|gap|anchor|scale|resolution|safe area)\b/i;
+// Level and world generation brief: its "layout" is a floor plan, not a UI frame.
+const WORLD_LAYOUT = /\b(?:procedural(?:ly)?|dungeons?|rooms?|levels?|world[- ]?gen(?:eration)?|tilemaps?|floor ?plans?|chunks?)\b/i;
 const SPECIALIST = /(?:^|:)rg-ui-engineer$/i;
 
 export function uiWork(prompt) {
   const text = String(prompt || '');
-  return UI_NOUN.test(text) && UI_SIZING.test(text);
+  const sizing = WORLD_LAYOUT.test(text) ? UI_SIZING_NO_LAYOUT : UI_SIZING;
+  return UI_NOUN.test(text) && sizing.test(text);
 }
 
 export function uiBlock({ root, input, prompt, footer }) {

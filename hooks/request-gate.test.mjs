@@ -82,6 +82,21 @@ function expect(name, actual, wanted) {
   const tx = writeTranscript(d, "I'd like X in the future", 'Logged it.', '2026-06-03T00:00:00.000Z');
   expect('allows when a store file was just written', run(d, { transcript_path: tx }).code, 0);
 }
+// 5b. the request routed with `t decide` / `t request` this turn is a capture (KIT-T808, KIT-T655)
+for (const [store, file] of [['decisions', 'MAR-D013-overworld.md'], ['requests', 'MAR-R001-overworld.md']]) {
+  const d = makeRepo();
+  mkdirSync(join(d, '.ai', store), { recursive: true });
+  writeFileSync(join(d, '.ai', store, file), '---\nid: x\n---\n');
+  const tx = writeTranscript(d, 'Overworld would be nice if it has features like the other game', 'Recorded.', '2026-06-03T00:00:00.000Z');
+  expect(`allows when ${store} got a file this turn`, run(d, { transcript_path: tx }).code, 0);
+}
+// 5c. a ticket edit alone never releases the valve
+{
+  const d = makeRepo();
+  writeFileSync(join(d, '.ai', 'tickets', 'X-T001-a.md'), '---\nid: X-T001\n---\n');
+  const tx = writeTranscript(d, "I'd like X in the future", 'Working.', '2026-06-03T00:00:00.000Z');
+  expect('still blocks when only a ticket changed', run(d, { transcript_path: tx }).code, 2);
+}
 // 6. stop_hook_active -> ALLOW (loop-proof)
 {
   const d = makeRepo();

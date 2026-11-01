@@ -29,6 +29,9 @@ try {
   check('non-UI work passes', block(game, 'claude-kit:patch-worker', 'Fix the tire friction curve in the physics step') === null);
   check('a UI noun without sizing or layout passes', block(game, 'claude-kit:patch-worker', 'Rename the menu enum variant and update the callers') === null);
   check('a repo without the framework passes', block(plain, 'claude-kit:patch-worker', BRIEF) === null);
+  const LEVELGEN = 'Plan procedural level and room generation: room layouts, corridor layout, dungeon floor plans, how screens of rooms stream in. Read-only.';
+  check('a level/room generation brief with "layout" is not UI work', block(game, 'Plan', LEVELGEN) === null && !uiWork(LEVELGEN));
+  check('a menu layout brief that mentions a level still blocks on sizing words', uiWork('level select menu: padding 8px'));
   check('uiWork needs a noun and a sizing word', uiWork('menu layout') && !uiWork('menu') && !uiWork('padding'));
 } finally {
   rmSync(game, { recursive: true, force: true });

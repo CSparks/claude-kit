@@ -30,7 +30,7 @@ test('every tracked agent definition carries the q-first search section', () => 
 });
 
 test('dispatching commands tell every brief to search with q', () => {
-  for (const f of ['commands/work.md', 'commands/drain.md']) assert.match(read(f), /Search with q\.mjs \(q code \/ sym \/ file \/ fts\), never grep/, f);
+  for (const f of ['commands/work.md', 'commands/drain.md']) assert.match(read(f), /Search with q \(q code \/ sym \/ file \/ fts\), never grep/, f);
 });
 
 test('the base contract names q as THE search tool and the kit-feature escape', () => {

@@ -57,12 +57,12 @@ const RECEIPT = new RegExp(
   'i',
 );
 
-// The file-valve counts only NEW frictionless captures (the inbox — where `cap` writes). It
-// deliberately does NOT count tickets/decisions/etc., because active work edits those EVERY
-// turn (the active ticket), which would hold the valve permanently open and let a brand-new
-// request slip — exactly the failure this fixes. Capturing straight to a ticket/decision
-// instead releases via the receipt token in the reply (RECEIPT).
-const CAPTURE_STORES = ['inbox'];
+// The file-valve counts the stores a request is written to as a fresh file: the inbox (`cap`),
+// decisions (`t decide`), requests (`t request`) and questions (`t question`). It deliberately
+// does NOT count tickets, which active work edits EVERY turn: that would hold the valve
+// permanently open and let a brand-new request slip. A ticket capture releases via the receipt
+// token in the reply (RECEIPT).
+const CAPTURE_STORES = ['inbox', 'decisions', 'requests', 'questions'];
 const NON_CAPTURE = /^(README|_TEMPLATE|INDEX|REGRESSIONS)\b/i;
 
 main().catch(() => process.exit(0)); // any failure → allow the stop (fail-open)
