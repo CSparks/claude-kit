@@ -8,6 +8,7 @@ import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SR
 import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
+import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
@@ -354,6 +355,26 @@ if (ticketChanges.length) {
   }
 }
 
+// Does the change actually touch code? (docs/config-only commits are fine)
+// KIT-T051: a code file path excluded from `commit-log` doesn't count toward the
+// citation requirement — so a generated/vendored tree can be committed uncited.
+const touchesCode = changed.some(
+  (f) => CODE.has((f.split('.').pop() || '').toLowerCase()) && !pathExcluded(root, 'commit-log', f),
+);
+
+// KIT-T799: a code commit's cited key must belong to this repo's store or a submodule it touches.
+// Judged before the plan-of-record early-allow: a foreign key alone blocks even beside a ticket edit.
+const foreignCite = touchesCode && !/\[no-log/.test(command) ? foreignCiteProblem(root, changed, command) : null;
+if (foreignCite) {
+  const expected = foreignCite.expected.map((k) => `${k}-T###`).join(' / ');
+  process.stderr.write(
+    ['', `BLOCKED: this commit cites ${foreignCite.cited.join(', ')}, a key outside this repo's store (KIT-T799).`, '',
+      `Cite a ${expected} item in the message, or include '[no-log: <reason>]'.`, ''].join('\n') +
+      excludeFooter('commit-log'),
+  );
+  process.exit(2);
+}
+
 // Plan-of-record part of the change? A root/legacy ROADMAP|DECISIONS.md, or any of the
 // atomic .ai/ stores (tickets/decisions/questions/notes/inbox — D-009).
 if (changed.some((f) => /(^|\/)(ROADMAP|DECISIONS)\.md$/i.test(f) || /\.ai\/(tickets|decisions|questions|notes|inbox)\//.test(f))) {
@@ -362,13 +383,6 @@ if (changed.some((f) => /(^|\/)(ROADMAP|DECISIONS)\.md$/i.test(f) || /\.ai\/(tic
 // Commit cites a logged item, or explicitly overrides? Scheme <KEY>-<TYPE><NUM> (HOD-T045,
 // KIT-D010) via the shared atom (KIT-T059) · or [no-log:].
 if (new RegExp(String.raw`\b${ID_CITE_SRC}\b|\[no-log`).test(command)) process.exit(0);
-
-// Does the change actually touch code? (docs/config-only commits are fine)
-// KIT-T051: a code file path excluded from `commit-log` doesn't count toward the
-// citation requirement — so a generated/vendored tree can be committed uncited.
-const touchesCode = changed.some(
-  (f) => CODE.has((f.split('.').pop() || '').toLowerCase()) && !pathExcluded(root, 'commit-log', f),
-);
 if (!touchesCode) process.exit(0);
 
 const blockedLine = centralized
