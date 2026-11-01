@@ -67,6 +67,16 @@ test('a landing runs its checks in the check tree, then writes the live tree onc
   } finally { t.done(); }
 });
 
+test('the commands of a landing\'s own check-tree run are not marked as replayed: the work happened under that job (KIT-T804)', () => {
+  const t = setup();
+  try {
+    const { result } = t.submit({ ticket: 'T-1', title: 'beta', land: true }, t.command);
+    assert.equal(result.status, 'landed', JSON.stringify(result));
+    assert.equal(result.reusedFrom, null);
+    assert.ok(result.commands.length > 0 && result.commands.every((c) => !c.reusedFrom), 'no command carries a reuse mark');
+  } finally { t.done(); }
+});
+
 test('a failing landing never touches the live checkout', () => {
   const t = setup();
   try {

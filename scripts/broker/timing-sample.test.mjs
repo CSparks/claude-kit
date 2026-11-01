@@ -119,6 +119,20 @@ test('a nested workspace\'s crate reaches the project crate that depends on it t
   } finally { cleanup(dir); }
 });
 
+test('a command a landing replays from an earlier green run costs the landing nothing: no phase, crate, test or waste entry (KIT-T804, KIT-T805)', () => {
+  const { dir, put } = workspace();
+  try {
+    const own = { ...cmd(dir, put, 'j-a-abc-0', 'cargo t -p mid --lib', { compiled: ['base', 'mid', 'lone'], finished: 9, ran: 20 * S }), reusedFrom: 'j-a-abc' };
+    const replay = { ...cmd(dir, put, 'j-earlier-abc-1', 'cargo t -p lone --lib', { compiled: ['lone'], finished: 3, ran: 100 * S }), reusedFrom: 'j-a-abc' };
+    const s = sampleOf([{ id: 'j-a-abc', finishedAt: '2026-10-30T10:00:00Z', diffStat: ' crates/mid/src/lib.rs | 1 +', commands: [own, replay] }], { project: 'p', lane: 'root', bases: [dir] });
+    assert.deepEqual(ids(s, 'crate'), { mid: 20 * S }, 'the command this job ran is counted although the landing stamped it reusedFrom; the replay is not');
+    assert.deepEqual(ids(s, 'phase'), { compile: 9 * S, test: 11 * S }, 'cargo t is a test command, and the replayed 100 s is in no phase');
+    assert.deepEqual(ids(s, 'waste'), { 'rebuild base': 3 * S, 'rebuild lone': 3 * S }, 'waste comes from the command that compiled, not its replay');
+    const unmarked = { ...replay, reusedFrom: undefined };
+    assert.ok('lone' in ids(sampleOf([{ id: 'j-a-abc', finishedAt: '2026-10-30T10:00:00Z', diffStat: '', commands: [unmarked] }], { project: 'p', lane: 'root', bases: [dir] }), 'crate'), 'control: without the replay mark another job\'s log still counts');
+  } finally { cleanup(dir); }
+});
+
 test('the previous job\'s own patch counts as moved: reverting it rebuilds its dependents, not waste of the next job (KIT-T801)', () => {
   const { dir, put } = workspace();
   try {

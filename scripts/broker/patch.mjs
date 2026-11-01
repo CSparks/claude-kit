@@ -147,7 +147,8 @@ export function processPatch(cfg, job, repo, opts = {}) {
       runAgain: (cmd) => runDiagnosed(cfg, cmd, cwd, logPathFor(cfg, job.id, `${n}-rerun`)),
     });
     record = reused ? null : testRecord(cfg, job, hashKey([key, ...jobCommands(cfg, runJob)]));
-    const commands = reused ? [...reused.commands.map((c) => ({ ...c, reusedFrom: reused.job })), ...compileCheckMissing(cfg, job, cwd, reused)] : runCommands(cfg, runJob, cwd, { baseline, knownRed, record });
+    const replayedFrom = reused && reused.job !== job.id ? reused.job : null;
+    const commands = reused ? [...reused.commands.map((c) => ({ ...c, ...(replayedFrom ? { reusedFrom: replayedFrom } : {}) })), ...compileCheckMissing(cfg, job, cwd, reused)] : runCommands(cfg, runJob, cwd, { baseline, knownRed, record });
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
     if (green && !job.land && (job.ops || []).length) recordGreen(cfg, key, { job: job.id, commands, foreign });
@@ -182,7 +183,7 @@ export function processPatch(cfg, job, repo, opts = {}) {
     }
     if (land.conflict) return done({ status: STATUS.CONFLICT, phase: 'land', commands, diffStat, foreign, conflict: land.conflict, message: land.error });
     if (!land.ok) return done({ status: land.stale ? STATUS.STALE : STATUS.FAILED, phase: 'land', commands, diffStat, foreign, selection, message: land.error });
-    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, selection, pinScope: note, reusedFrom: reused ? reused.job : null, landed: { sha: land.sha, superSha: land.superSha, ...(land.subSha ? { subSha: land.subSha } : {}) } });
+    return done({ status: STATUS.LANDED, phase: 'land', commands, diffStat, foreign, selection, pinScope: note, reusedFrom: replayedFrom, landed: { sha: land.sha, superSha: land.superSha, ...(land.subSha ? { subSha: land.subSha } : {}) } });
   } finally {
     if (record) record.clear();
     if (keep) { discard(cfg); settlePins(pins); }

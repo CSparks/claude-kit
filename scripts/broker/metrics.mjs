@@ -21,7 +21,7 @@ const MS_PER_HOUR = 3600000;
 const GREEN = new Set(['passed', 'landed']);
 const FAILED = new Set(['failed', 'gate', 'conflict', 'stale', 'dirty']);
 const BUILD = /\b(check|build|clippy)\b/;
-const TEST = /\b(test|nextest)\b/;
+const TEST = /\b(test|nextest)\b|\bcargo t\b/;
 
 const quantile = (list, q) => {
   if (!list.length) return null;

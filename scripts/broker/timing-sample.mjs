@@ -1,5 +1,8 @@
 // timing-sample.mjs — one timing sample per finished job or train (KIT-D121), derived on demand from the result
 // files (phase timings, per-command queue and run milliseconds, cargo logs): history starts with the module.
+// A command marked `reusedFrom` whose log was written by another job replays that job's green run: it costs this job
+// nothing and its own job already counted it, so no entry is made for it. (The mark alone is not enough: a landing
+// stamps it on commands it ran itself, whose logs carry its own id.)
 // A sample splits the wall time into entries { kind, key, ms }:
 //   phase  queue (machine build slot), compile, test, command, run-idle, and every other timed phase by name
 //   crate  a command's queue + run time over the crates its `-p` names ('(workspace)' when none)
@@ -26,11 +29,17 @@ export const TEST = 'test';
 export const QUEUE = 'queue';
 const TEST_COMMAND = /\bcargo\b.*\b(?:test|t|nextest)\b/;
 
+const LOG_OWNER = /^(j-[0-9a-z]+-[0-9a-z]+)-/;
+const ownerOf = (log) => LOG_OWNER.exec(basename(String(log || '').replace(/\\/g, '/')))?.[1] || '';
+const isReplay = (member, c) => !!c.reusedFrom && !!ownerOf(c.log) && ownerOf(c.log) !== member.id;
+// The commands a member ran itself; a stale reuse mark on its own gated run is dropped so the compile and test split reads them.
+const playedCommands = (member) => (member.commands || []).filter((c) => !isReplay(member, c)).map(({ reusedFrom, ...c }) => c);
+
 const mean = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : 0);
 
 export function sampleOf(members, { project, lane, bases = [], moved = [] }) {
   const [first] = members;
-  const commands = [...new Map(members.flatMap((m) => m.commands || []).map((c) => [c.log || c.cmd, c])).values()];
+  const commands = [...new Map(members.flatMap(playedCommands).map((c) => [c.log || c.cmd, c])).values()];
   const entries = new Map();
   const add = (kind, key, ms) => {
     if (!(ms > 0)) return;
