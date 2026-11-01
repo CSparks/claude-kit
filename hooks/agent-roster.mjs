@@ -24,6 +24,7 @@ import { subagentOrphans, orphanLines } from './orphan-shells.mjs';
 import { killOrphanTasks } from './lib/task-kill.mjs';
 import { ticketsCited } from './dispatch-context.mjs';
 import { ceilingFlag } from './lib/agent-context.mjs';
+import { releaseAgent, releaseTree } from './lib/checkout-holder.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster
 const ID_CITE_RE = new RegExp(ID_CITE_SRC); // at least one ticket/decision id anywhere in the brief
@@ -87,6 +88,7 @@ function recordDispatch(root, p) {
     // WHICH JOB it serves (`[job: fix]` in the brief) and what it cost where the response says (KIT-D080).
     const job = dispatchJob(root, inp);
     const override = modelOverride(firstString(inp.prompt, inp.message));
+    if (!background && p.session_id) releaseTree(targetRoot, p.session_id); // a synchronous writer has already finished
     recordAgent(root, { id, status: 'in-flight', task, scope, background, isolation, targetRoot, model, ...(job ? { job } : {}), ...(override ? { modelOverride: override } : {}), ...outcomeFromResponse(resp), ...(readOnly ? { readOnly } : {}), ...(paths ? { paths } : {}), ...(tickets.length ? { tickets } : {}), ...(outputFile ? { outputFile } : {}), source: 'posttooluse' });
     // Advisory: a delegation with no ticket id is ungrounded work — warn, never block (exit 0).
     const brief = firstString(inp.description, inp.task, inp.title, inp.prompt, inp.message) || '';
@@ -107,6 +109,7 @@ function recordStop(root, p) {
   try {
     const id = firstString(p.agent_id, p.agentId, p.task_id, p.id);
     if (!id) return; // no handle to reconcile against — leave the in-flight row for the stale-age flag
+    releaseAgent(id);
     reportOrphanShells(root, id, p);
     const scope = firstString(p.agent_type, p.agentType);
     const outcome = outcomeFromTranscript(firstString(p.agent_transcript_path, p.agentTranscriptPath));

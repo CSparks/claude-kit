@@ -7,6 +7,7 @@
 //   dispatch-escalation  (KIT-T432) — a job dearer than the ticket type's default, no [escalate:]
 //   cold-worktree-build  (KIT-T176, KIT-D074) — any worktree dispatch, any project
 //   shared-tree-dispatch (KIT-T176, KIT-D077) — a second read/write agent into a checkout that has one
+//   checkout-holder      (KIT-T811, KIT-D123) — a writer into a checkout another session already holds with a live writer
 //   broker-owned-tree    (KIT-T276) — a writer-capable agent into a checkout a broker daemon owns
 //   patch-worker-discipline (KIT-T687) — worker cap, required/overlapping [paths:], train rules
 //   lessons-checked      (KIT-T690) — rendering/perf/asset/streaming work briefed without citing the framework lessons ledger
@@ -33,6 +34,7 @@ import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loade
 import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage, brokerConfig } from './dispatch-broker.mjs';
 import { WORKER_CHECK, workerAdvice, workerBlock } from './dispatch-worker.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
+import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
 import { CEILING_CHECK, HANDOFF_CHECK, ceilingWarning, handoffBlock } from './dispatch-context.mjs';
@@ -81,6 +83,7 @@ try {
     staleTableBlock(root, p),
     coldWorktreeBlock(root, input, prompt),
     sharedTreeBlock(root, input, prompt),
+    holderBlockFor(root, input, prompt, p),
     brokerOwnedBlock(root, input, prompt),
     foreignTreeBlock(root, input, prompt, p),
     workerCheck(root, input, prompt, p),
@@ -90,6 +93,7 @@ try {
     handoffCheck(root, prompt, p),
   ].filter(Boolean);
   if (!blocks.length) {
+    registerWriterDispatch(root, input, prompt, p);
     const warning = agentRegistryWarning(root, input, p);
     if (warning) console.error(warning);
     const advice = workerAdviceText(root, input, prompt, p);
@@ -309,6 +313,23 @@ function sharedTreeBlock(root, input, prompt) {
     '',
     excludeFooter(SHARED_TREE_CHECK),
   ].join('\n');
+}
+
+// --- checkout-holder (KIT-T811) ------------------------------------------------
+// Another session's live writer in the target checkout (machine-wide registry), which the per-project roster
+// above cannot see. An allowed writer dispatch registers the dispatching session as the holder.
+function writerDispatch(root, input, prompt) {
+  return !isWorktreeIsolation(input.isolation) && !MAINTAINER_PARALLEL.test(prompt) && !readOnlyDispatch(root, label(input), prompt);
+}
+
+function holderBlockFor(root, input, prompt, p) {
+  if (!p.tool_input || !p.session_id || !writerDispatch(root, input, prompt) || pathExcluded(root, HOLDER_CHECK, root)) return null;
+  return holderBlock({ tree: dispatchTargetRoot(root, input), session: p.session_id, footer: excludeFooter(HOLDER_CHECK) });
+}
+
+function registerWriterDispatch(root, input, prompt, p) {
+  if (!p.tool_input || !p.session_id || !writerDispatch(root, input, prompt)) return;
+  registerWriter({ tree: dispatchTargetRoot(root, input), session: p.session_id, label: label(input) });
 }
 
 // --- broker-owned-tree (KIT-T276) ---------------------------------------------

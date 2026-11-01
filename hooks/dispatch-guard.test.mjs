@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 import { fixtureKit, isoDaysAgo } from './test-harness.mjs';
 const FRESH_KIT = fixtureKit(isoDaysAgo(0));
+process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'dg-holders-'));
 const HOOK = fileURLToPath(new URL('./dispatch-guard.mjs', import.meta.url));
 const HOURS = 60 * 60 * 1000;
 let failures = 0;
@@ -346,9 +347,48 @@ expect('blocks in a non-Rust repo too (the rule is per checkout)', run(roster(ma
     input: JSON.stringify({ session_id: 'S1', tool_input: { file_path: join(tree, 'src.js'), content: 'export const a = 2;\n' } }),
   });
   expect('an edit this session wrote is attributable: writer allowed', send('S1', writer).code, 0);
+  process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'dg-holders-'));
   expect('the same edit stays foreign to another session', send('S2', writer).code, 2);
   rmSync(stateDir, { recursive: true, force: true });
   delete process.env.CLAUDE_KIT_TURN_STATE;
+}
+
+// --- checkout-holder (KIT-T811) ----------------------------------------------------------
+// Two simulated sessions in two projects dispatch writers into one third checkout. The first becomes its holder;
+// the second is refused until the holder stops, goes silent, or the dispatch is read-only.
+{
+  process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'dg-holders-'));
+  const { beatHolder } = await import('./lib/checkout-holder.mjs');
+  const target = makeRepo();
+  const homeA = makeRepo();
+  const homeB = makeRepo();
+  const send = (home, sid, input = {}) => runRaw(home, JSON.stringify({ tool_name: 'Agent', session_id: sid, tool_input: { model: 'sonnet', subagent_type: 'general-purpose', ...input, prompt: `${input.prompt || 'x'} [tree: ${target}] [job: fix]` } }));
+  const beat = (sid, agent) => {
+    const file = join(target, 'f.js');
+    writeFileSync(file, 'x\n');
+    spawnSync(process.execPath, [fileURLToPath(new URL('./holder-beat.mjs', import.meta.url))], { cwd: homeA, encoding: 'utf8', input: JSON.stringify({ session_id: sid, ...(agent ? { agent_id: agent, agent_type: 'claude-kit:agent' } : {}), tool_input: { file_path: file } }) });
+  };
+
+  expect('the first session\'s writer dispatch into the checkout is allowed', send(homeA, 'SA').code, 0);
+  const refused = send(homeB, 'SB');
+  expect('a second session\'s writer dispatch into the held checkout is blocked', refused.code, 2);
+  expect('the block names the holder session, the full-id hand-off and the check', /session SA/.test(refused.err) && /SendMessage/.test(refused.err) && /KIT-T###/.test(refused.err) && /checkout-holder/.test(refused.err) ? 1 : 0, 1);
+  expect('the holder\'s own warm agent is allowed', send(homeA, 'SA', { prompt: 'next ticket' }).code, 0);
+  expect('a read-only agent type is allowed into the held checkout', send(homeB, 'SB', { subagent_type: 'claude-kit:researcher' }).code, 0);
+  expect('[read-only: reason] on a writer type is allowed', send(homeB, 'SB', { prompt: 'x [read-only: audit]' }).code, 0);
+  expect('[maintainer-asked-parallel: his words] is allowed', send(homeB, 'SB', { prompt: 'x [maintainer-asked-parallel: run both]' }).code, 0);
+  expect('the ignore file key lifts it', runRaw(ignoreFile(makeRepo(), 'checkout-holder'), JSON.stringify({ tool_name: 'Agent', session_id: 'SB', tool_input: { model: 'sonnet', subagent_type: 'general-purpose', prompt: `x [tree: ${target}] [job: fix]` } })).code, 0);
+  expect('a dispatch with no session id fails open', runRaw(homeB, JSON.stringify({ tool_name: 'Agent', tool_input: { model: 'sonnet', subagent_type: 'general-purpose', prompt: `x [tree: ${target}] [job: fix]` } })).code, 0);
+
+  process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'dg-holders-'));
+  beatHolder({ tree: target.replace(/\\/g, '/'), session: 'SA', label: 'claude-kit:agent', now: Date.now() - 20 * 60 * 1000 });
+  expect('a holder silent past the heartbeat window does not block', send(homeB, 'SB').code, 0);
+
+  process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'dg-holders-'));
+  beat('SA', 'agent-kit-1');
+  expect('an edit in the checkout by the holder\'s agent renews the hold', send(homeB, 'SB').code, 2);
+  spawnSync(process.execPath, [fileURLToPath(new URL('./agent-roster.mjs', import.meta.url))], { cwd: homeA, encoding: 'utf8', input: JSON.stringify({ hook_event_name: 'SubagentStop', session_id: 'SA', agent_id: 'agent-kit-1' }) });
+  expect('the holder\'s agent stopping releases the checkout', send(homeB, 'SB').code, 0);
 }
 
 // --- dispatch-job (KIT-T419) ---------------------------------------------------------
