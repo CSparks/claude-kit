@@ -17,6 +17,15 @@ const PAGE_LIMIT = 500;
 const DISPATCH_TOOLS = new Set(['Agent', 'Task']);
 const HANDOFF_TOOL = 'SendMessage';
 
+// A bare T### in a message that names a full KEY-T### id resolves to that key (KIT-T809): the text gains the
+// expanded id for every key the message names.
+function withBareIdsExpanded(text) {
+  const keys = new Set([...text.matchAll(new RegExp(String.raw`\b([A-Z][A-Z0-9]+)-T\d{1,4}\b`, 'g'))].map((m) => m[1]));
+  if (!keys.size) return text;
+  const bare = [...text.matchAll(/(?<![-\w])T(\d{1,4})\b/g)].map((m) => m[1]);
+  return [text, ...[...keys].flatMap((key) => bare.map((n) => `${key}-T${n}`))].join(' ');
+}
+
 // A dispatch counts for the session's life. A hand-off (SendMessage to the standing kit agent or the
 // session holding the kit checkout, KIT-D123) counts while it is inside the claim window; after that
 // with no claim the ticket is open again. An entry with no timestamp counts (fail open).
@@ -31,7 +40,7 @@ function dispatchedText(lines, now) {
     const fresh = Number.isNaN(at) || now - at < CLAIM_TTL_MS;
     for (const block of content) {
       if (block?.type !== 'tool_use') continue;
-      if (DISPATCH_TOOLS.has(block.name) || (block.name === HANDOFF_TOOL && fresh)) out.push(JSON.stringify(block.input || {}));
+      if (DISPATCH_TOOLS.has(block.name) || (block.name === HANDOFF_TOOL && fresh)) out.push(withBareIdsExpanded(JSON.stringify(block.input || {})));
     }
   }
   return out.join('\n');

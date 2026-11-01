@@ -64,6 +64,9 @@ try {
   ok('KIT-T800 control: a hand-off naming a different id leaves the ticket blocked', viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T802', 0.5))).code === 2);
   ok('KIT-T800 control: a hand-off older than the 4 h claim window with no claim lapses and blocks', (() => { const r = viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T801', 5))); return r.code === 2 && /SendMessage/.test(r.out); })());
   ok('KIT-T800: a lapsed hand-off does not reopen a ticket the holder claimed', viaRegistry(transcript(say('KIT-T804'), handoff('please take KIT-T804', 5))).code === 0);
+  ok('KIT-T809: from a non-kit root, bare T### ids in a hand-off that names a full KIT-T id clear every listed ticket', viaRegistry(transcript(say('KIT-T801 KIT-T802'), handoff('take KIT-T803, T801 and T802 now', 0.5))).code === 0);
+  ok('KIT-T809 control: a bare id not listed in the hand-off stays blocked', viaRegistry(transcript(say('KIT-T801 KIT-T802'), handoff('take KIT-T803, T801', 0.5))).code === 2);
+  ok('KIT-T809 control: bare ids in a message naming no full id resolve to nothing', viaRegistry(transcript(say('KIT-T801'), handoff('take T801', 0.5))).code === 2);
   ok('stop_hook_active allows', stop(transcript(say('KIT-T801')), { stop_hook_active: true }).code === 0);
 
   const file = transcript(say('KIT-T802 again'));
