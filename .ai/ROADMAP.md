@@ -341,6 +341,8 @@
 - KIT-T810 — broker land gate: the dependents run was one cargo test per crate, so each command got its own feature set and recompiled the shared crates (dirt-empire land j-mvydj8de-fhpscb: rg-meshkit-bevy compiled 4 times, 8m38s of compile in 4 commands) (high)
 - KIT-T811 — dispatch-guard let marblequest-18 dispatch a claude-kit writer (14:5x-16:10, 2026-11-01) while infra-09's standing kit agent held the checko (high)
 - KIT-T816 — time sinks: dirt-empire/root (high)
+- KIT-T817 — Process failure: a questionnaire question cited a ticket by bare id (the KIT-T703 scope question) and the maintainer could not tell what it (high)
+- KIT-T818 — dispatch-guard handoff-before-replace (KIT-D116) demands a 'Handoff <agent-id>' block on every ticket a past-ceiling agent ever touched, inc (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)

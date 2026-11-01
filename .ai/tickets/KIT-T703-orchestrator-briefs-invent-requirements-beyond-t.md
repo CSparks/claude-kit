@@ -29,7 +29,10 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## Notes
 Handoff (standing kit agent, context limit). Jobs: KIT-T703 brief-invents-requirements gate. State: claimed, no code written. Design considered: a dispatch-guard check (check-id brief-grounded, new hooks/dispatch-brief.mjs beside dispatch-lessons.mjs) that, for a brief citing a ticket whose type is feature or request, requires a quoted maintainer sentence token (maintainer-words) and, when the ticket title names a variant of an existing feature, a reuses token naming the existing mechanism; blocks otherwise with the DE-T195 MX/stadium example. Open decision for the maintainer: block or warn, and which ticket types. Next: confirm the gate shape with the maintainer, then write hooks/dispatch-brief.mjs plus tests in hooks/dispatch-guard.test.mjs. Files: hooks/dispatch-guard.mjs, hooks/dispatch-lessons.mjs (pattern to copy).
+### comment #1 [2026-11-01 23:47] @chris
+Maintainer 2026-11-01, two AskUserQuestion answers: the brief-grounding check BLOCKS (option '(Recommended) Block'), and it covers feature and request tickets only (option '(Recommended) New features only'). Bug, chore and refactor briefs are not checked.
 
 ## History
 - [2026-10-29 16:38] (created) bug — Orchestrator briefs invent requirements beyond the maintainer's words: DE-T195 'MX track class with higher hills and jumps' was built as a s
 - [2026-11-01 23:23] (status) todo → doing
+- [2026-11-01 23:47] (comment) @chris: Maintainer 2026-11-01, two AskUserQuestion answers: the brief-grounding check BLOCKS (option '(Recommended) Block'), and (full comment #1 in ## Notes)

@@ -38,3 +38,4 @@ Review only (2026-11-01), nothing deleted. tools/llm-fleet/ holds fleet.ps1 (84 
 The security review re-flagged this on 2026-10-29 as HIGH. Suggested fix: a run-lane.ps1 launcher with named params (Repo, LaneName, LaneSrc, Example, Kit), launched via 'powershell -File run-lane.ps1 -Repo … -LaneName …' as separate argv elements, so no -Command string is built from lanes JSON values.
 - [2026-11-01 23:27] (status) todo → review
 - [2026-11-01 23:27] (landed) 616aa8a tickets: T702 review findings, T703 handoff, sink tickets to review [no-test: ticket store only] (implements KIT-T702; r
+- [2026-11-01 23:47] (comment) @chris: Maintainer 2026-11-01, AskUserQuestion answer: '(Recommended) Delete it'. Delete tools/llm-fleet.

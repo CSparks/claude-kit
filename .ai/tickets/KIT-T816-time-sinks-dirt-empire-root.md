@@ -11,22 +11,20 @@ files: []
 supersedes: KIT-T815
 superseded_by:
 created: 2026-11-01T22:36:05Z
-updated: 2026-11-01T22:36:05Z
+updated: 2026-11-01T23:33:48Z
 ---
 
 ## Description
 Ranked time sinks for dirt-empire/root, waste first (rewritten each tick):
-1. waste scope rg-tool-asset-editor (all tests) in dirt-empire/root: 3.5 min, 18% of its waste time, 0.2 min/job, new (no earlier window), #1 (new)
-2. waste scope rg-shader-kit (all tests) in dirt-empire/root: 3.5 min, 17% of its waste time, 0.2 min/job, new (no earlier window), #2 (new)
-3. phase command in dirt-empire/root: 31.1 min, 50% of its phase time, 1.5 min/job, worse (+1292% per job), #1 (was #10)
-4. phase test in dirt-empire/root: 14.9 min, 24% of its phase time, 0.7 min/job, better (-16% per job), #2 (was #5)
-5. phase compile in dirt-empire/root: 10.1 min, 16% of its phase time, 0.5 min/job, better (-63% per job), #3 (was #2)
-6. crate dirt-empire in dirt-empire/root: 32.6 min, 58% of its crate time, 1.6 min/job, better (-40% per job), #1 unchanged
-7. crate race in dirt-empire/root: 4.1 min, 7% of its crate time, 0.2 min/job, worse (+254% per job), #2 (was #22)
-8. crate rg-tool-asset-editor in dirt-empire/root: 3.5 min, 6% of its crate time, 0.2 min/job, new (no earlier window), #3 (new)
-9. test dirt-empire --test bike in dirt-empire/root: 20.1 min, 38% of its test time, 1.0 min/job, better (-2% per job), #1 unchanged
-10. test dirt-empire --test race in dirt-empire/root: 8.3 min, 16% of its test time, 0.4 min/job, worse (+42% per job), #2 (was #6)
-11. test race (all tests) in dirt-empire/root: 4.1 min, 8% of its test time, 0.2 min/job, worse (+254% per job), #3 (was #29)
+1. waste repeat test->test different flags in dirt-empire/root: 8.9 min, 27% of its waste time, 0.3 min/job, worse (+583% per job), #1 (was #8)
+2. phase compile in dirt-empire/root: 38.6 min, 52% of its phase time, 1.5 min/job, worse (+27% per job), #1 (was #2)
+3. phase test in dirt-empire/root: 27.9 min, 38% of its phase time, 1.1 min/job, worse (+26% per job), #2 (was #4)
+4. crate dirt-empire in dirt-empire/root: 38.7 min, 58% of its crate time, 1.5 min/job, better (-35% per job), #1 unchanged
+5. crate (workspace) in dirt-empire/root: 7.6 min, 11% of its crate time, 0.3 min/job, worse (+78% per job), #2 (was #12)
+6. crate race in dirt-empire/root: 4.1 min, 6% of its crate time, 0.2 min/job, worse (+148% per job), #3 (was #19)
+7. test dirt-empire --test bike in dirt-empire/root: 23.9 min, 40% of its test time, 0.9 min/job, better (-11% per job), #1 unchanged
+8. test dirt-empire --test race in dirt-empire/root: 10.6 min, 18% of its test time, 0.4 min/job, worse (+124% per job), #2 (was #10)
+9. test race (all tests) in dirt-empire/root: 4.1 min, 7% of its test time, 0.2 min/job, worse (+148% per job), #3 (was #24)
 
 A sink gets its own ticket only when someone starts fixing it: file it with shape broker-blocker:dirt-empire|root|<kind>|<key>; the tick then comments its rank there.
 

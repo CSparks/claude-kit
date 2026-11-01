@@ -6,12 +6,12 @@ status: superseded
 priority: high
 milestone:
 labels: [kit-bug]
-links: []
+links: [KIT-D121]
 files: []
 supersedes:
-superseded_by: KIT-T816
+superseded_by: 
 created: 2026-10-31T01:24:48Z
-updated: 2026-11-01T22:36:20Z
+updated: 2026-11-01T23:49:00Z
 ---
 
 ## Description
@@ -40,3 +40,5 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 - [2026-11-01 20:32] (comment) update in dirt-empire: no longer a top blocker (was #1): improved, corrected or gone quiet
 - [2026-11-01 22:36] (status) todo → superseded
 - [2026-11-01 22:36] (status) superseded → superseded (by KIT-T816)
+- [2026-11-01 23:48] (unlink) superseded_by KIT-T816; status superseded → todo
+- [2026-11-01 23:49] (status) todo → superseded
