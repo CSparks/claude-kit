@@ -2,7 +2,7 @@
 id: KIT-T769
 title: broker: dirt-empire check tree leaked a foreign rapid-game patch into an unrelated job. j-mvwllvig-oap0hj (DE-T228, touches only crates/bike
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes: KIT-T770
 superseded_by:
 created: 2026-10-31T16:28:57Z
-updated: 2026-10-31T16:28:57Z
+updated: 2026-11-01T15:55:09Z
 ---
 
 ## Description
@@ -34,3 +34,5 @@ Tests: scripts/broker/content-align.test.mjs 5 passed (real cargo: control links
 
 ## History
 - [2026-10-31 16:28] (created) bug — broker: dirt-empire check tree leaked a foreign rapid-game patch into an unrelated job. j-mvwllvig-oap0hj (DE-T228, touches only crates/bike
+- [2026-11-01 15:55] (landed) 99d4cc5 broker: a cargo build gives every file whose content differs from the target dir's last build a fresh mtime, under a per
+- [2026-11-01 15:55] (status) todo → review

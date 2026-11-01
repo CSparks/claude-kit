@@ -32,3 +32,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 - [2026-11-01 19:30] (status) todo → doing
 - [2026-11-01 19:35] (status) doing → review
 - [2026-11-01 19:35] (landed) a315e09 source-shell-gate: a scratch script is judged by the paths its write calls aim at, so one that reads a source file and w
+- [2026-11-01 19:38] (landed) d70bd7d kit-bug-dispatch gate: tests pin that the kit store is read through the registry from a non-kit project root, a live cla

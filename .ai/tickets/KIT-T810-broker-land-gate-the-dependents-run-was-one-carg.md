@@ -35,3 +35,4 @@ Evidence: logs j-mvydj8de-fhpscb-4..8 (target/broker/logs) compile rg-meshkit-be
 - [2026-11-01 22:18] (comment) criterion added: A land gate names every dependent of a workspace in one cargo command (scripts/broker/landgate-dependents.test.mjs)
 - [2026-11-01 22:18] (comment) ticked: A land gate names every dependent of a workspace in one cargo command (scripts/broker/landgate-dependents.test.mjs)
 - [2026-11-01 22:18] (status) doing → review
+- [2026-11-01 22:18] (landed) d00f3db broker land gate: the dependents run is one cargo command per workspace, so features unify once and shared crates compil

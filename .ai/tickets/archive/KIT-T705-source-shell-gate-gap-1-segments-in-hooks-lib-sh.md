@@ -42,3 +42,5 @@ Tests: hooks/shell-segments.test.mjs 14 passed, hooks/source-shell-gate.test.mjs
 - [2026-10-29 17:41] (comment) @claude: Final shape (ce5747f): segments() returns the plain split flagged ambiguous; every deny gate tests its own target words  (full comment #2 in ## Notes)
 ### comment #2 [2026-10-29 17:41] @claude
 Final shape (ce5747f): segments() returns the plain split flagged ambiguous; every deny gate tests its own target words in the raw command and blocks. Tests: hooks/shell-segments.test.mjs 13, source-shell-gate 123, store-shell-gate 32, branch-guard 46, query-gate all pass, tree-delete-gate 27, upstream-gate 38, broker-log-gate 19, python-stdin-gate 41, wait-poll 26.
+- [2026-10-29 17:41] (landed) 684d75c implements KIT-T706 and KIT-T705: tickets record the fixing commits and test evidence
+- [2026-10-29 17:50] (landed) e782b85 implements KIT-T705: remove the duplicated import and test block in wait-poll.test.mjs

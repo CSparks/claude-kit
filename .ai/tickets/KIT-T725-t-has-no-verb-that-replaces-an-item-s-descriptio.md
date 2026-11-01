@@ -33,3 +33,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 - [2026-10-30 04:37] (landed) 616f14d t edit replaces one Description/Plan/Notes section from a file and stamps History; files KIT-T725 and records KIT-D120 (
 - [2026-10-30 04:37] (status) todo → review
 - [2026-10-30 04:37] (comment) t edit landed in 616f14d; gate hint in eaab6bb
+- [2026-10-30 04:38] (landed) 8995b3a KIT-T725 to review with fixed_commit 616f14d (implements KIT-T725)

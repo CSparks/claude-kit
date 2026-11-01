@@ -2,6 +2,8 @@
 
 ## Current state (2026-10-21)
 
+- [2026-10-28 14:58] 2026-10-28 ~10:00 filed KIT-T670: subagents leave hung 'python3 -' heredoc processes spinning a core after completion (6 found from the rapid-game overnight fan-out + a 10-27 session; all killed with maintainer approval). Open kit bugs from that night, not yet dispatched: KIT-T662, T663, T664, T669, T670.
+- [2026-10-28 05:47] 2026-10-28 00:45 model reassessment landed c503d05 (10 rows re-dated, build row left for maintainer discussion: model routing stays in flux). Filed KIT-T662/T663/T664 (runtime-dir reassessment brief, t new unbounded fallthrough in clones, q --path in submodules); dispatch kit-fix agents when subagent slots free (20 cap held by rapid-game lanes).
 - [2026-10-23 22:55] 2026-10-23 build-dir reclaim: maintainer approved deleting all 45 cargo build dirs under D:\dev (list: scratchpad dirs.txt; PowerShell parallel rd running - Git Bash cmd //c rd failed silently twice). Filed KIT-T635 (nag blind to submodule/lane/worktree targets), KIT-T636 (nightly age-based sweep, approved; supersedes T273 not-automated), inbox tech-debt (rapid-game built twice per game). Implementer (sonnet) dispatched on T636 then T635. Next: confirm GB freed + nothing LEFT; collect implementer shas, npm test count, scheduled task name; triage the double-build capture.
 
 Standing kit agent (KIT-D094). Runtime 1149758 is published; the capability table (asset, plan) is re-dated by Chris's decision (KIT-D100).

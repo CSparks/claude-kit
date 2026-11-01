@@ -2,7 +2,7 @@
 id: KIT-T717
 title: broker precheck does not catch compile errors on rapid-game (submodule) lane jobs: j-mvu4zyvo-zssgvh (dirt-empire DE-T234, --repo rapid-game
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-29T22:52:47Z
-updated: 2026-10-29T22:52:47Z
+updated: 2026-10-30T21:49:38Z
 ---
 
 ## Description
@@ -27,8 +27,13 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 ## Plan
 1.
 
+## Notes
+Verified: fixed by 95cc7e1 (implements KIT-T717/T729): a submodule repo is prechecked from the job's cd directory without superproject features. Evidence: scripts/broker/precheck-submodule.test.mjs run again at the current tree.
+
 ## History
 - [2026-10-29 22:52] (created) bug — broker precheck does not catch compile errors on rapid-game (submodule) lane jobs: j-mvu4zyvo-zssgvh (dirt-empire DE-T234, --repo rapid-game
 - [2026-10-30 19:36] (comment) @claude: Fixed with KIT-T729: precheck on a submodule repo now runs narrowCheck(..., { submodule }) from the job's cd directory,  (full comment #1 in ## Notes)
 ### comment #1 [2026-10-30 19:36] @claude
 Fixed with KIT-T729: precheck on a submodule repo now runs narrowCheck(..., { submodule }) from the job's cd directory, drops the superproject --features and skips the whole-workspace stage (precheck-submodule.test.mjs 4 passed). Cause: all 16 rapid-game precheck logs in dirt-empire held 'cannot specify features for packages outside of workspace' and failed open.
+- [2026-10-30 19:42] (landed) 95cc7e1 broker: a merged cargo test keeps the project alias (no second feature-set Bevy build); a submodule repo is prechecked b
+- [2026-10-30 21:49] (status) todo → review

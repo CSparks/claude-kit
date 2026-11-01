@@ -30,6 +30,11 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 ## Notes
 Verified 2026-10-30: fix is adb5c5a; precheck-missing-log.test.mjs 4 passed (re-run now).
 Already fixed by adb5c5a (runOnce leaves an empty log on a slot cancel, cargoChecks reads a missing log as empty, precheckJob fail-open); test scripts/broker/precheck-missing-log.test.mjs 4 passed per comment #3. Closing as fixed; no further code.
+### Handoff adbb68fdaa83e0807
+- Jobs: none running; dirt-empire j-mvvhdz77-09ippr, j-mvvg3ebj-ejwjfa, j-mvvj5a05-ty89pj read for evidence
+- State: in review; fixed earlier in adb5c5a, precheck-missing-log.test.mjs 4 passed. Runtime publish b0xe0qt6d FAILED (git commit exit 3221225794 = 0xC0000142 in D:\dev\.kit-verify-b83d356-30400); not yet published, current is 773fb4a, stale publish.lock (pid 24508) may remain.
+- Next: none beyond publishing the runtime.
+- Files: scripts/broker/precheck-missing-log.test.mjs
 
 ## History
 - [2026-10-29 22:42] (created) bug — broker submit printed a precheck-log ENOENT error on a --land submit (dirt-empire j-mvu4lpjt-8ex1fr, DE-T209 truck split) yet the job still

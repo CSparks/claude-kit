@@ -32,3 +32,4 @@ Built: timing-reach.mjs (reachOf, outsideReach, outsideReachOf, reachBases), tim
 - [2026-10-31 16:44] (created) feature — broker: flag test commands for crates the change does not reach in the job result, and record each flagged command's pass or fail in the timing profile (KIT-Q005 lever 2 option A, KIT-D121)
 - [2026-10-31 16:44] (status) todo → doing
 - [2026-10-31 16:52] (status) doing → review
+- [2026-10-31 16:52] (landed) 1a8e905 broker: test commands for crates the change does not reach are flagged in result-summary, and the timing profile records

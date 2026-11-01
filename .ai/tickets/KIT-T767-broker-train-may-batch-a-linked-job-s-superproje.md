@@ -35,3 +35,4 @@ Hypothesis (a) and the train both refuted, cause confirmed as the shared-target 
 - [2026-10-31 16:26] (created) bug — broker train may batch a linked job's superproject half without its submodule half: dirt-empire j-mvwllsyo-s23z2a (DE-T264, only cell_draw.r
 - [2026-10-31 16:33] (status) todo → doing
 - [2026-10-31 16:42] (status) doing → review
+- [2026-11-01 15:55] (landed) 99d4cc5 broker: a cargo build gives every file whose content differs from the target dir's last build a fresh mtime, under a per

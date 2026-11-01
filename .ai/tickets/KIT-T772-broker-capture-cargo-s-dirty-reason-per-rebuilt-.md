@@ -32,3 +32,4 @@ Built: fingerprint-log.mjs (CARGO_LOG=cargo::core::compiler::fingerprint=info fo
 - [2026-10-31 16:44] (created) feature — broker: capture cargo's dirty reason per rebuilt crate and rank the top reasons per crate in broker blockers (KIT-Q005 lever 3, KIT-D121)
 - [2026-10-31 16:44] (status) todo → doing
 - [2026-10-31 16:57] (status) doing → review
+- [2026-10-31 16:57] (landed) a0cecb2 broker: every cargo command logs cargo's fingerprint dirty reasons, parsed into the timing record per unneeded rebuild a

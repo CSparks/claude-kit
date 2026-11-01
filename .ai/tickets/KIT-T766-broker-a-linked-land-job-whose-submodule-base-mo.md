@@ -31,3 +31,4 @@ Fixed: scripts/broker/linked.mjs movedSubmodules + movedMessage (stale, next act
 ## History
 - [2026-10-31 16:19] (created) bug — broker: a linked --land job whose submodule base moved fails at the land step after a full build (dirt-empire j-mvvpahyd-bofajm, DE-T263): report STALE before the build, and name the next action
 - [2026-10-31 16:19] (status) todo → review
+- [2026-10-31 16:19] (landed) a29abbe broker: a linked --land job whose submodule base moved is STALE before the build (phase linked-base, no commands run) an

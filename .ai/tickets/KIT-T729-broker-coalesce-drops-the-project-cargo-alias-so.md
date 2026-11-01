@@ -45,6 +45,11 @@ All 16 rapid-game precheck logs in the dirt-empire broker (lanes/rapid-game/prec
 Checked as possible duplicates and judged different work (--not-dup): KIT-T717, KIT-T649, KIT-T534
 fixed_commit 95cc7e1, runtime 95cc7e1 published. Tests: coalesce-alias 3 (fail on old coalesce.mjs), precheck-submodule 4, coalesce 12, alias+scope+precheck 33 passed. Residual: the 39-crate rebuild from rg-input[gamepad] (429 s) is inherent to the patch's first run and still exceeds 5 min once; criterion 3 needs the next rapid-game feature-graph job. A daemon started before the publish keeps the old coalesce until restarted. train-gate.test.mjs hangs on baseline: KIT-T730.
 Second breach, train-j-mvvhq5a6-mnekzi (lane rapid-game, 2 patches): command 'cd rust && cargo t -p rg-ui --lib screens::' ran 396+ s. Not contention (CPU load 27%, no cargo lock line in the log): the alias expansion is --workspace --features rg-engine/dynamic_linking -E package(rg-ui), so cargo built the lib unit tests of every workspace library behind the patched rg-ui (rg-input, rg-ui-bevy, rg-editor-kit, three tool editors, rg-graphics, rg-relevance-bevy, rg-material-book, rg-screens ...) in a serial Bevy-heavy chain to run rg-ui's tests only. rg-ui does not depend on rg-engine, so the feature cannot change its build. Fix: alias.mjs expands such a command as plain -p <crate> (no --workspace, no --features) when no named crate reaches the feature's package in Cargo.lock. The queue wait of 8 min is the machine build slot (KIT-D105), unchanged.
+### Handoff adbb68fdaa83e0807
+- Jobs: none running; dirt-empire j-mvvhdz77-09ippr, j-mvvg3ebj-ejwjfa, j-mvvj5a05-ty89pj read for evidence
+- State: in review; alias-closure fix adcd3a8 and coalesce/precheck fix 95cc7e1 pushed; criterion 3 (next rapid-game feature-graph job) still needs a live job. Runtime publish b0xe0qt6d FAILED (git commit exit 3221225794 = 0xC0000142 in D:\dev\.kit-verify-b83d356-30400); not yet published, current is 773fb4a, stale publish.lock (pid 24508) may remain.
+- Next: after publishing, check the next rapid-game job composed command keeps --workspace --features rg-engine/dynamic_linking.
+- Files: scripts/broker/alias.mjs scripts/broker/alias-closure.test.mjs scripts/broker/coalesce-alias.test.mjs
 
 ## History
 - [2026-10-30 19:36] (created) bug — broker: coalesce drops the project cargo alias so a rapid-game job builds the Bevy stack in a second feature set (j-mvvcgf3d 836 s)
@@ -52,3 +57,4 @@ Second breach, train-j-mvvhq5a6-mnekzi (lane rapid-game, 2 patches): command 'cd
 - [2026-10-30 19:47] (status) todo → review
 - [2026-10-30 21:58] (comment) criterion added: A -p crate that cannot reach the alias's --features pkg/feat builds alone, not with --workspace behind it (alias-closure.test.mjs, 3 tests)
 - [2026-10-30 21:59] (comment) ticked: A -p crate that cannot reach the alias's --features pkg/feat builds alone, not with --workspace behind it (alias-closure.test.mjs, 3 tests)
+- [2026-10-30 22:05] (landed) adcd3a8 broker: a -p crate the alias's --features pkg/feat cannot reach builds alone, not with --workspace behind it (rg-ui --li

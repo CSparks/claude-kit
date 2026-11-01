@@ -2,7 +2,7 @@
 id: KIT-T740
 title: sync-data's REGRESSION INCOMPLETE remedy names regressed_from|causing_commit even when the gap is a done regression missing fixed_commit (dirt-empire DE-T098/T115/T130/T131/T134/T138 after the KIT-D107 lapse)
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-30T23:27:21Z
-updated: 2026-10-30T23:27:21Z
+updated: 2026-10-30T23:27:35Z
 ---
 
 ## Description
@@ -26,6 +26,9 @@ After the SessionStart review lapse (KIT-D107) moved review tickets to done, the
 
 ## Notes
 Checked as possible duplicates and judged different work (--not-dup): KIT-T066, KIT-T393, KIT-T530
+Fixed in this commit: id-utils findRegressionGaps tags each gap with its rel; regressionRemedy builds the sync-data hint. Tests: id-utils 55, sync-data 19, review-lapse 15 passed. The lapse itself is unchanged (KIT-D107 rules a 14-day lapse; a sha cannot be invented).
 
 ## History
 - [2026-10-30 23:27] (created) bug — sync-data's REGRESSION INCOMPLETE remedy names regressed_from|causing_commit even when the gap is a done regression missing fixed_commit (dirt-empire DE-T098/T115/T130/T131/T134/T138 after the KIT-D107 lapse)
+- [2026-10-30 23:27] (status) todo → review
+- [2026-10-30 23:27] (landed) 3fcdb82 sync-data: the REGRESSION INCOMPLETE remedy names the missing rel (fixed_commit for a done regression without a fix sha,

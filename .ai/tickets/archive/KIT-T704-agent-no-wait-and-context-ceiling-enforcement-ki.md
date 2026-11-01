@@ -49,3 +49,4 @@ Fixed 8425f6a (code), 36066ee + daa99d3 (plugin 0.1.26: new hooks and the patch-
 - [2026-10-29 18:03] (landed) 36066ee plugin 0.1.26: sessions pick up broker-wait-gate, broker-agent-tag, the resume-check ceiling block and the patch-worker
 - [2026-10-29 18:08] (landed) daa99d3 codex plugin 0.1.26: the Claude and Codex manifests share the release version (implements KIT-T704)
 - [2026-10-29 18:11] (status) review → done
+- [2026-10-29 18:11] (landed) 011c35f tickets: KIT-T704 done on 8425f6a / daa99d3 (implements KIT-T704)

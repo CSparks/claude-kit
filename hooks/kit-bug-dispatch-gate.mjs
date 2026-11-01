@@ -3,7 +3,7 @@
 // ticket this session filed or saw (its id is in the transcript) while no Agent call (or SendMessage to the standing
 // kit agent or the session holding the checkout, inside the claim window) names that id sits open, and the next session meets it again. A ticket `doing` and touched within the
 // claim window (kit-bug.mjs) is held by a live kit agent of any session and never counts as open (KIT-T768). Blocks the stop ONCE per distinct set of such ids, naming
-// them and the dispatch required. `stop_hook_active` allows; fails open on any error.
+// them and the dispatch required. A ticket labelled kit-queue (the broker's rolling time-sink tickets) belongs to the kit agent's queue and never counts. `stop_hook_active` allows; fails open on any error.
 // Check-id: kit-bug-dispatch (path glob matched against the ticket id).
 
 import { readFileSync } from 'node:fs';
@@ -53,7 +53,7 @@ try {
   const dispatched = dispatchedText(transcript.split('\n'), Date.now());
   const root = gitRoot();
   const open = openKitBugPage(PAGE_LIMIT).bugs
-    .filter((b) => URGENT.has(b.priority) && new RegExp(`\\b${b.id}\\b`).test(transcript) && !dispatched.includes(b.id) && !pathExcluded(root, CHECK_ID, b.id));
+    .filter((b) => URGENT.has(b.priority) && !b.queued && new RegExp(`\\b${b.id}\\b`).test(transcript) && !dispatched.includes(b.id) && !pathExcluded(root, CHECK_ID, b.id));
   if (!open.length) process.exit(0);
   if (!firstSighting(`kit-bug-dispatch-${p.session_id || 'nosession'}`, open.map((b) => b.id).join(','))) process.exit(0);
   process.stderr.write(`

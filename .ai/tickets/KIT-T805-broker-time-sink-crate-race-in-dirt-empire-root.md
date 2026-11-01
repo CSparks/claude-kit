@@ -35,3 +35,5 @@ Not yet investigated; queue position after T801-T803 accounting.
 - [2026-11-01 20:32] (created) bug — broker time sink: crate race in dirt-empire/root
 - [2026-11-01 21:32] (comment) seen again in dirt-empire: crate race in dirt-empire/root: 1.9 min, 8% of its crate time, 0.2 min/job, worse (+217% per job), #3 (was #22)
 - [2026-11-01 22:06] (status) todo → doing
+- [2026-11-01 22:33] (comment) seen again in dirt-empire: crate race in dirt-empire/root: 4.1 min, 8% of its crate time, 0.2 min/job, worse (+272% per job), #2 (was #22)
+- [2026-11-01 22:33] (comment) seen again in dirt-empire: crate race in dirt-empire/root: 4.1 min, 7% of its crate time, 0.2 min/job, worse (+254% per job), #2 (was #22)

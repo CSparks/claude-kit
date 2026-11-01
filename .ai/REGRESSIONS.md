@@ -4,4 +4,7 @@
 Chains of `original → recurrence`, longest first (repeat offenders at the top). A
 recurrence is a `type: regression` ticket with `regressed_from:` set.
 
-_No regressions linked yet._
+- **KIT-T768**  →  **KIT-T793**  →  **KIT-T800**  · 3 occurrence(s)
+- **KIT-T734**  →  **KIT-T798**  · 2 occurrence(s)
+- **KIT-T719**  →  **KIT-T810**  · 2 occurrence(s)
+- **KIT-T584** (fixed in 71ea5ed)  →  **KIT-T699** (fixed in 657ebce)  · 2 occurrence(s)

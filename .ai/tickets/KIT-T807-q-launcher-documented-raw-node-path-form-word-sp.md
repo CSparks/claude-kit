@@ -33,3 +33,6 @@ Cause: bare q shims already ship (bin/q, bin/q.cmd, KIT-T180) but docs, agent te
 ## History
 - [2026-11-01 21:46] (created) bug — q launcher: documented raw node path form word-splits on a home dir with a space (C:\Users\Chris Sparks); docs and agent text must name the
 - [2026-11-01 21:50] (status) todo → review
+- [2026-11-01 21:50] (landed) d100660 fix: bare q is the documented command, raw node paths quoted; maintainer's word closes tickets; silence bookkeeping nags
+- [2026-11-01 22:06] (landed) 6c9fd22 chore: bump plugin to 0.1.29 so changed agent and command text reaches sessions (implements KIT-T807)
+- [2026-11-01 22:10] (landed) 48f386b chore: Codex manifest version 0.1.29 to match the Claude manifest (implements KIT-T807)

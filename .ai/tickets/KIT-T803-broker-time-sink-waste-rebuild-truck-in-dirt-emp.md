@@ -34,3 +34,6 @@ Finding (standing kit agent, 2026-11-01): the look/track/truck/vehicle rebuilds 
 - [2026-11-01 20:32] (created) bug — broker time sink: waste rebuild truck in dirt-empire/root
 - [2026-11-01 21:32] (comment) seen again in dirt-empire: waste rebuild truck in dirt-empire/root: 0.3 min, 14% of its waste time, 0.0 min/job, better (-9% per job), #3 (was #13)
 - [2026-11-01 22:06] (status) todo → doing
+- [2026-11-01 22:25] (landed) d4ea676 tickets T801-T805, T796, T797: findings so far on the dirt-empire waste rebuilds (implements KIT-T801; implements KIT-T8
+- [2026-11-01 22:33] (comment) update in dirt-empire: no longer a top blocker (was #3): improved, corrected or gone quiet
+- [2026-11-01 22:33] (comment) update in dirt-empire: no longer a top blocker (was #3): improved, corrected or gone quiet

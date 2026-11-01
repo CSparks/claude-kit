@@ -33,3 +33,4 @@ Fix: hooks/request-gate.mjs CAPTURE_STORES now also counts decisions, requests a
 ## History
 - [2026-11-01 21:54] (created) bug — request-gate request-capture false-positive: a turn that routed the request with t decide --file (MAR-D013 written this turn) was still flag
 - [2026-11-01 21:57] (status) todo → review
+- [2026-11-01 21:57] (landed) 4783974 fix: decisions and requests count as request captures; level-generation briefs are not UI work (implements KIT-T808, KIT

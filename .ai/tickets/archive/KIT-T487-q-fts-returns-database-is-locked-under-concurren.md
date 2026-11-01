@@ -34,3 +34,4 @@ Checked as possible duplicates and judged different work (--not-dup): KIT-T430
 - [2026-10-30 04:21] (status) superseded → todo
 - [2026-10-30 04:21] (status) superseded → done
 - [2026-10-30 04:22] (landed) e2f32ec q reads wait out SQLite lock contention instead of failing (implements KIT-T487; supersedes KIT-T720)
+- [2026-10-30 04:22] (landed) b4e2b50 KIT-T487 fixed_commit e2f32ec (implements KIT-T487)

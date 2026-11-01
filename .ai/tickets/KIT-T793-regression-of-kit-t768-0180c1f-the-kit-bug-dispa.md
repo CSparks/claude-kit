@@ -35,3 +35,4 @@ Not reproduced as a store-resolution bug: kitStoreRoot() reads the registry proj
 - [2026-11-01 19:31] (created) bug — regression of KIT-T768 (0180c1f): the kit-bug-dispatch Stop gate in dirt-empire-83 (D:/dev/claude-kit/hooks/kit-bug-dispatch-gate.mjs via co
 - [2026-11-01 19:35] (status) todo → doing
 - [2026-11-01 19:37] (status) doing → review
+- [2026-11-01 19:38] (landed) d70bd7d kit-bug-dispatch gate: tests pin that the kit store is read through the registry from a non-kit project root, a live cla

@@ -33,3 +33,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 - [2026-10-30 04:34] (landed) b88590e t link writes forward+inverse per relation, t unlink removes both sides, fixed-commit warning names the command, store-w
 - [2026-10-30 04:35] (status) todo → review
 - [2026-10-30 04:35] (comment) t link direction verified correct (tests lock it); t unlink added; fixed-commit message names the command; store-write gate now refuses Edit/Write of an existing item. See commit b88590e.
+- [2026-10-30 04:35] (landed) 2e03e42 KIT-T723 to review with fixed_commit b88590e; file KIT-T724; KIT-T231 restored to done (implements KIT-T723)

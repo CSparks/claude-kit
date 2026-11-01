@@ -2,7 +2,7 @@
 id: KIT-T571
 title: broker wedged in dirty hold: job j-mvekiha9-oya0no hit 'dirty at apply' 20:20 CDT while another agent hand-edited; the edits were committed
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-19T02:12:47Z
-updated: 2026-10-19T02:12:47Z
+updated: 2026-10-30T21:49:35Z
 ---
 
 ## Description
@@ -27,5 +27,10 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 ## Plan
 1.
 
+## Notes
+Verified, not redone: the release path (dirtyHold drops the marker once the tree is clean, KIT-T552 C) plus 1e48ba0 (hold marker follows the live job) and 355fe8a (a paused job keeps its held phase file) cover the report. Evidence: scripts/broker/dirty-hold.test.mjs, hold-rekey.test.mjs, hand-hold.test.mjs 15 passed incl. 'once the tree is clean the lane runs the job and clears the hold'. No broker edits in the working tree (no other session mid-change).
+
 ## History
 - [2026-10-19 02:12] (created) bug — broker wedged in dirty hold: job j-mvekiha9-oya0no hit 'dirty at apply' 20:20 CDT while another agent hand-edited; the edits were committed
+- [2026-10-30 03:50] (landed) 355fe8a broker: a paused job keeps its held phase file; done() closed the tracker and removed phase.json the moment the lane pau
+- [2026-10-30 21:49] (status) todo → review

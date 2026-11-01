@@ -5,6 +5,7 @@ Chains of `older → newer`, the rightmost id being the live replacement. A tick
 superseded when a newer one sets `supersedes:` (or it carries `superseded_by:` / status
 `superseded`); superseded tickets are dropped from the active board + drain.
 
+- **KIT-T791**  →  **KIT-T790**  →  **KIT-T816**  · 2 superseded
 - **KIT-T037**  →  **KIT-T014**  · 1 superseded
 - **KIT-T060**  →  **KIT-T075**  · 1 superseded
 - **KIT-T120**  →  **KIT-T169**  · 1 superseded
@@ -16,11 +17,26 @@ superseded when a newer one sets `supersedes:` (or it carries `superseded_by:` /
 - **KIT-T453**  →  **KIT-T311**  · 1 superseded
 - **KIT-T400**  →  **KIT-T341**  · 1 superseded
 - **KIT-T654**  →  **KIT-T344**  · 1 superseded
+- **KIT-T806**  →  **KIT-T347**  · 1 superseded
 - **KIT-T376**  →  **KIT-T377**  · 1 superseded
-- **KIT-T427**  →  **KIT-T392**  · 1 superseded
+- **KIT-T441**  →  **KIT-T392**  · 1 superseded
 - **KIT-T396**  →  **KIT-T395**  · 1 superseded
 - **KIT-T340**  →  **KIT-T451**  · 1 superseded
+- **KIT-T741**  →  **KIT-T452**  · 1 superseded
 - **KIT-T469**  →  **KIT-T468**  · 1 superseded
+- **KIT-T720**  →  **KIT-T487**  · 1 superseded
 - **KIT-T496**  →  **KIT-T495**  · 1 superseded
 - **KIT-T599**  →  **KIT-T598**  · 1 superseded
 - **KIT-T623**  →  **KIT-T621**  · 1 superseded
+- **KIT-T692**  →  **KIT-T691**  · 1 superseded
+- **KIT-T633**  →  **KIT-T697**  · 1 superseded
+- **KIT-T670**  →  **KIT-T699**  · 1 superseded
+- **KIT-T770**  →  **KIT-T769**  · 1 superseded
+- **KIT-T775**  →  **KIT-T774**  · 1 superseded
+- **KIT-T777**  →  **KIT-T776**  · 1 superseded
+- **KIT-T779**  →  **KIT-T778**  · 1 superseded
+- **KIT-T781**  →  **KIT-T780**  · 1 superseded
+- **KIT-T783**  →  **KIT-T782**  · 1 superseded
+- **KIT-T349**  →  **KIT-T784**  · 1 superseded
+- **KIT-T787**  →  **KIT-T786**  · 1 superseded
+- **KIT-T789**  →  **KIT-T788**  · 1 superseded

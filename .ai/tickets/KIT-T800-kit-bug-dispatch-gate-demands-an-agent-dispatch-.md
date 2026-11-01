@@ -37,3 +37,4 @@ regressed_from KIT-T793 (the registry-found kit store) and shares its root with 
 - [2026-11-01 19:53] (comment) criterion added: A SendMessage hand-off naming the ticket clears the gate inside the 4 h window and lapses after it; tested from a non-kit root (hooks/kit-bug-dispatch-gate.test.mjs)
 - [2026-11-01 19:53] (comment) ticked: A SendMessage hand-off naming the ticket clears the gate inside the 4 h window and lapses after it; tested from a non-kit root (hooks/kit-bug-dispatch-gate.test.mjs)
 - [2026-11-01 19:53] (status) doing → review
+- [2026-11-01 19:53] (landed) 3a53eb4 kit-bug-dispatch-gate: a SendMessage hand-off naming the ticket counts inside the 4 h claim window and lapses after it w

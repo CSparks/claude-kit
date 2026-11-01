@@ -36,3 +36,4 @@ A bare T### in a hand-off message resolves to every full KEY-T### key that messa
 - [2026-11-01 22:07] (comment) criterion added: A bare T### in a hand-off that names a full KIT-T id clears that ticket (hooks/kit-bug-dispatch-gate.test.mjs)
 - [2026-11-01 22:07] (comment) ticked: A bare T### in a hand-off that names a full KIT-T id clears that ticket (hooks/kit-bug-dispatch-gate.test.mjs)
 - [2026-11-01 22:07] (status) doing → review
+- [2026-11-01 22:07] (landed) 805337a kit-bug-dispatch-gate: a bare T### in a hand-off naming a full KIT-T id resolves to that key (kit-bug-dispatch-gate 24 p

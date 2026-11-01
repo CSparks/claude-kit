@@ -5,7 +5,8 @@
 //
 //   fileKitBug({ shape, title, detail, project }) -> { id, created } | null
 //   commentKitBug({ shape, text, project })       -> { id } | null: a comment on the OPEN ticket of that shape, never a new ticket
-//   openKitBugs(limit)                            -> [{ id, title, status, priority }] most urgent first
+//   openKitBugs(limit)                            -> [{ id, title, status, priority, queued }] most urgent first; queued = labelled kit-queue: the kit agent owns it and no session is blamed for it
+//   openKitBugFor(root, shape)                    -> { path, text } of the open ticket of that shape, or null
 //   openKitBugPage(limit)                         -> { bugs, total }; a ticket `doing` and touched within 4 h is claimed by a live kit agent (any session's) and excluded
 //   kitStoreRoot()                                -> the kit repo root, or null
 //
@@ -24,6 +25,7 @@ const KIT_PROJECT = 'claude-kit';
 const LABELS = { bug: 'kit-bug', feature: 'kit-feature' };
 const ANY_LABEL = /^labels:.*kit-(?:bug|feature)/m;
 const CLOSED = /^status:\s*(?:review|done|superseded)\b/m;
+const QUEUED = /^labels:.*\bkit-queue\b/m;
 const SHAPE_LINE = /^kit-bug-shape:\s*(.+)$/m;
 const PRIORITY_ORDER = ['critical', 'high', 'medium', 'low'];
 const TITLE_MAX = 140;
@@ -45,7 +47,7 @@ const ticketFiles = (root) => {
   try { return readdirSync(dir).filter((n) => n.endsWith('.md') && !n.startsWith('_') && n !== 'INDEX.md').map((n) => join(dir, n)); } catch { return []; }
 };
 
-function openFor(root, shape) {
+export function openKitBugFor(root, shape) {
   for (const p of ticketFiles(root)) {
     const text = readFileSync(p, 'utf8');
     const m = SHAPE_LINE.exec(text);
@@ -62,7 +64,7 @@ export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bu
     const full = String(detail).trim();
     const example = full.replace(/\s+/g, ' ').slice(0, EXAMPLE_MAX);
     const where = project ? ` in ${project}` : '';
-    const open = openFor(root, shape);
+    const open = openKitBugFor(root, shape);
     if (open) {
       const idm = /^id:\s*(\S+)/m.exec(open.text);
       const line = `- [${stamp()}] (comment) seen again${where}: ${example}\n`;
@@ -82,7 +84,7 @@ export function fileKitBug({ shape, title, detail = '', project = '', kind = 'bu
 export function commentKitBug({ shape, text, project = '' }) {
   try {
     const root = kitStoreRoot();
-    const open = root && shape ? openFor(root, shape) : null;
+    const open = root && shape ? openKitBugFor(root, shape) : null;
     if (!open) return null;
     const where = project ? ` in ${project}` : '';
     appendFileSync(open.path, `- [${stamp()}] (comment) update${where}: ${String(text).replace(/\s+/g, ' ').slice(0, EXAMPLE_MAX)}\n`);
@@ -98,6 +100,7 @@ function bugRow(path) {
   const text = readFileSync(path, 'utf8');
   return {
     open: ANY_LABEL.test(text) && !CLOSED.test(text),
+    queued: QUEUED.test(text),
     status: (/^status:\s*(\S+)/m.exec(text) || [, ''])[1],
     id: (/^id:\s*(\S+)/m.exec(text) || [, ''])[1],
     title: (/^title:\s*(.+)$/m.exec(text) || [, ''])[1],
@@ -130,7 +133,7 @@ export function openKitBugPage(limit = 8) {
   const rows = statCached(`kit-bugs-${pathKey(dir)}`, files, bugRow)
     .filter((r) => r.open && !claimed(r, now))
     .sort(byUrgency);
-  return { bugs: rows.slice(0, limit).map(({ id, title, status, priority }) => ({ id, title, status, priority })), total: rows.length };
+  return { bugs: rows.slice(0, limit).map(({ id, title, status, priority, queued }) => ({ id, title, status, priority, queued })), total: rows.length };
 }
 
 export const openKitBugs = (limit = 8) => openKitBugPage(limit).bugs;

@@ -29,7 +29,8 @@ function job(cfg, finishedAt, turnaroundMs, n) {
 
 const history = (cfg) => { for (let i = 0; i < 4; i++) job(cfg, T - (i + 1) * 10 * 60 * S, 300 * S, `b${i}`); };
 const later = (cfg, turnaroundMs) => { for (let i = 0; i < 4; i++) job(cfg, T + H + i * 10 * 60 * S, turnaroundMs, `a${i}`); };
-const recorder = () => { const calls = []; return { calls, fileBug: (b) => { calls.push(b); return { id: 'KIT-T1' }; }, comment: (c) => { calls.push({ comment: c }); return { id: 'KIT-T1' }; } }; };
+const recorder = () => { const calls = []; const comments = []; return { calls, comments, roll: (b) => { calls.push(b); return { id: 'KIT-T1' }; }, comment: (c) => { comments.push(c); return { id: 'KIT-T1' }; } }; };
+const sinks = (rec) => rec.calls.map((c) => c.detail).join('\n');
 const corrections = (cfg) => readFileSync(join(cfg.targetDir, 'broker', 'corrections.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((r) => r.lever === 'batch-window');
 const levers = (done) => done.events.filter((e) => e.lever === 'batch-window');
 
@@ -42,8 +43,8 @@ test('a lane whose top blocker is the slot queue gets the batch window; the queu
     assert.deepEqual(done.events.map((e) => `${e.lever} ${e.decision}`), ['batch-window applied', 'baseline-budget tuned']);
     assert.equal(tunedBatchWindowMs(cfg), 200 * S);
     assert.equal(tunedBaselineBudgetMs(cfg), 210 * S, 'the baseline re-run budget is the lane\'s own p90 run time, not a fixed number');
-    assert.ok(rec.calls.length > 0 && rec.calls.every((c) => !c.shape.endsWith('|phase|queue')), 'the queue has a lever on it, so it is not a ticket');
-    assert.ok(rec.calls.some((c) => c.shape.includes('|crate|a')), 'what no lever works on is ticketed');
+    assert.ok(rec.calls.length > 0 && !/phase queue/.test(sinks(rec)), 'the queue has a lever on it, so it is not listed');
+    assert.match(sinks(rec), /crate a in /, 'what no lever works on is listed');
     assert.equal(timingTick(cfg, { now: T + 1000, ...rec }), null, 'not due again within the cadence');
   } finally { cleanup(root); }
 });
@@ -72,7 +73,7 @@ test('a correction that did not cut turnaround is reverted, logged, and the queu
     assert.equal(done.events[0].decision, 'reverted');
     assert.equal(tunedBatchWindowMs(cfg), 0);
     assert.deepEqual(corrections(cfg).map((r) => r.decision), ['applied', 'reverted']);
-    assert.ok(rec.calls.some((c) => c.shape?.endsWith('|phase|queue')), 'nothing is working on the queue now, so it is a ticket');
+    assert.match(sinks(rec), /phase queue in /, 'nothing is working on the queue now, so it is listed');
   } finally { cleanup(root); }
 });
 
@@ -93,9 +94,8 @@ test('a blocker that drops out of the top gets a comment on its ticket', () => {
     history(cfg);
     const rec = recorder();
     timingTick(cfg, { now: T, ...rec });
-    const comments = [];
-    timingTick(cfg, { now: T + 200 * H, ...rec, comment: (c) => { comments.push(c); return null; } });
-    assert.ok(comments.length > 0 && /no longer a top blocker/.test(comments[0].text));
+    timingTick(cfg, { now: T + 200 * H, ...rec });
+    assert.ok(rec.comments.length > 0 && /no longer a top blocker/.test(rec.comments[0].text));
   } finally { cleanup(root); }
 });
 
@@ -109,7 +109,36 @@ test('the blockers report prints the ranked rows with their trend', () => {
   } finally { cleanup(root); }
 });
 
-test('a ranked row worth seconds beside the lane\'s typical job is not ticketed; a material row still is', () => {
+test('a lane gets ONE rolling ticket holding every material sink, updated in place; no sink becomes its own ticket', () => {
+  const { root, cfg } = fixture();
+  try {
+    history(cfg);
+    const rec = recorder();
+    timingTick(cfg, { now: T, ...rec });
+    timingTick(cfg, { now: T + 2 * H, ...rec });
+    const shapes = [...new Set(rec.calls.map((c) => c.shape))];
+    assert.equal(shapes.length, 1, 'one lane, one rolling ticket');
+    assert.match(shapes[0], /^broker-sinks:.*\/root$/);
+    assert.equal(rec.calls.length, 2, 'one update per tick for the one lane');
+    assert.match(rec.calls[0].title, /^time sinks: .*\/root$/);
+    assert.match(rec.calls[0].detail, /^1\. /m);
+  } finally { cleanup(root); }
+});
+
+test('a blocker with its own ticket is commented only on its own shape, never given a ticket by the tick', () => {
+  const { root, cfg } = fixture();
+  try {
+    history(cfg);
+    const rec = recorder();
+    timingTick(cfg, { now: T, ...rec });
+    assert.deepEqual(rec.comments, [], 'first sighting: nothing to comment on');
+    timingTick(cfg, { now: T + 2 * H, ...rec });
+    assert.ok(rec.comments.every((c) => c.shape.startsWith('broker-blocker:')), 'comments go to own tickets by shape');
+    assert.ok(rec.calls.every((c) => !c.shape.startsWith('broker-blocker:')), 'the tick opens no per-blocker ticket');
+  } finally { cleanup(root); }
+});
+
+test('a ranked row worth seconds beside the lane\'s typical job is not listed in the lane ticket; a material row still is', () => {
   const { root, cfg } = fixture();
   try {
     for (let i = 0; i < 4; i++) {
@@ -124,9 +153,8 @@ test('a ranked row worth seconds beside the lane\'s typical job is not ticketed;
     }
     const rec = recorder();
     timingTick(cfg, { now: T, ...rec });
-    const shapes = rec.calls.map((c) => c.shape);
-    assert.ok(shapes.some((s) => s.endsWith('|crate|big')), 'the material crate is ticketed');
-    assert.ok(!shapes.some((s) => s.endsWith('|crate|tiny') || s.endsWith('|test|tiny --lib')), 'two seconds a job is under a twentieth of the job: ranked, not ticketed');
+    assert.match(sinks(rec), /crate big in /, 'the material crate is listed');
+    assert.ok(!/tiny/.test(sinks(rec)), 'two seconds a job is under a twentieth of the job: ranked, not listed');
     assert.match(blockersReport(cfg, { now: T }).text, /crate tiny in /, 'the report still ranks it');
   } finally { cleanup(root); }
 });

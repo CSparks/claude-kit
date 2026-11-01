@@ -78,6 +78,24 @@ await test('a doing ticket untouched past the claim window belongs to a dead age
   assert.ok(!openKitBugs().some((b) => b.title === 'another gap'), 'touching the ticket renews the claim');
 });
 
+await test('a rolling queue ticket is filed once, its body rewritten in place, and orient still lists it as queued (KIT-D121)', async () => {
+  const { rollKitQueueTicket } = await import('./kit-queue-ticket.mjs');
+  const roll = (detail, extra = {}) => rollKitQueueTicket({ shape: 'broker-sinks:p/lane', title: 'time sinks: p/lane', detail, project: 'p', ...extra });
+  const made = roll('1. crate a 5 min');
+  assert.equal(made.created, true);
+  const again = roll('1. crate b 7 min');
+  assert.deepEqual([again.created, again.id], [false, made.id]);
+  const mine = tickets().filter((n) => /broker-sinks:p\/lane/.test(read(n)));
+  assert.equal(mine.length, 1, 'one ticket, not one per tick');
+  const text = read(mine[0]);
+  assert.match(text, /^labels: \[kit-bug, kit-queue\]$/m);
+  assert.match(text, /1\. crate b 7 min/);
+  assert.ok(!/crate a 5 min/.test(text), 'the earlier ranking is replaced, not appended');
+  assert.equal(openKitBugs(50).find((b) => b.id === made.id)?.queued, true, 'orient lists it, flagged as queue-owned');
+  assert.equal(roll('nothing', { shape: 'broker-sinks:q/none', create: false }), null, 'create:false never opens a ticket');
+  assert.ok(!tickets().some((n) => /broker-sinks:q\/none/.test(read(n))));
+});
+
 await test('without a kit store nothing is filed', () => {
   const saved = process.env.CLAUDE_KIT_BUG_STORE;
   process.env.CLAUDE_KIT_BUG_STORE = join(store, 'missing');

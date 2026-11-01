@@ -36,3 +36,4 @@ Second hit 2026-11-01 (Plan brief on procedural level/room generation). Fix: hoo
 - [2026-11-01 21:54] (comment) seen again in claude-kit: dispatch-guard ui-framework-first false-positive: a read-only Plan brief about procedural level and room generation (room layouts, layout, dungeon) was blocked as UI layout work; UI detection must not trigger on world or level layout vocabulary
 - [2026-11-01 21:54] (asked again) 2026-11-01 — cap:bug:dispatch-guard-ui-framework-first-false-positive
 - [2026-11-01 21:57] (status) todo → review
+- [2026-11-01 21:57] (landed) 4783974 fix: decisions and requests count as request captures; level-generation briefs are not UI work (implements KIT-T808, KIT

@@ -8,7 +8,7 @@ milestone:
 labels: [kit-bug]
 links: []
 files: []
-supersedes:
+supersedes: KIT-T806
 superseded_by:
 created: 2026-10-06T14:47:47Z
 updated: 2026-10-20T00:53:36Z

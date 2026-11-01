@@ -34,3 +34,5 @@ Command phase of dirt-empire/root resolves into the crate and waste items (T801-
 - [2026-11-01 20:32] (created) bug — broker time sink: phase command in dirt-empire/root
 - [2026-11-01 21:32] (comment) seen again in dirt-empire: phase command in dirt-empire/root: 8.7 min, 35% of its phase time, 0.7 min/job, worse (+675% per job), #1 (was #10)
 - [2026-11-01 22:06] (status) todo → doing
+- [2026-11-01 22:33] (comment) seen again in dirt-empire: phase command in dirt-empire/root: 31.1 min, 53% of its phase time, 1.6 min/job, worse (+1362% per job), #1 (was #10)
+- [2026-11-01 22:33] (comment) seen again in dirt-empire: phase command in dirt-empire/root: 31.1 min, 50% of its phase time, 1.5 min/job, worse (+1292% per job), #1 (was #10)

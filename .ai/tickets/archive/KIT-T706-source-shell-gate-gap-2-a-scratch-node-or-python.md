@@ -42,3 +42,4 @@ Tests: hooks/source-shell-gate.test.mjs 122 passed (variable-path blocks, litera
 - [2026-10-29 17:41] (comment) @claude: Re-landed as an effect detector (KIT-D117): hooks/hand-write-detect.test.mjs 28 passed, hooks/source-shell-gate.test.mjs (full comment #2 in ## Notes)
 ### comment #2 [2026-10-29 17:41] @claude
 Re-landed as an effect detector (KIT-D117): hooks/hand-write-detect.test.mjs 28 passed, hooks/source-shell-gate.test.mjs 123 passed, commit-gate 42, shell-writes 7. The literal-path sink parser (4e08ff1) was reverted in 3ee49b2. Snapshot cost on dirt-empire: median 95 ms, max 240 ms (git status -uall plus stat of dirty files).
+- [2026-10-29 17:41] (landed) 684d75c implements KIT-T706 and KIT-T705: tickets record the fixing commits and test evidence

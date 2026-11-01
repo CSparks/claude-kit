@@ -33,3 +33,4 @@ Fixed with KIT-T808: .ai/requests counts as a capture store. Test hooks/request-
 ## History
 - [2026-10-27 21:59] (created) bug — request-gate false positive: a request filed with 't request' (.ai/requests/MAR-R001-*.md, marblequest 2026-10-27) is not counted as a captu
 - [2026-11-01 21:57] (status) todo → review
+- [2026-11-01 21:57] (landed) 4783974 fix: decisions and requests count as request captures; level-generation briefs are not UI work (implements KIT-T808, KIT

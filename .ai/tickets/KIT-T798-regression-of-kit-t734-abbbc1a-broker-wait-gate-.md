@@ -37,3 +37,4 @@ Landed by d85eb23 (KIT-T785). Test added: hooks/broker-wait-gate.test.mjs KIT-T7
 - [2026-11-01 19:34] (created) bug — regression of KIT-T734 (abbbc1a): broker-wait-gate still treats a one-shot shell for loop that reads finished target/broker/logs/*.log files
 - [2026-11-01 19:35] (status) todo → doing
 - [2026-11-01 19:51] (status) doing → review
+- [2026-11-01 19:51] (landed) 4e4b517 broker-wait-gate: a for loop of two greps over finished broker job logs passes, a while+sleep loop over them still block

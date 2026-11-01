@@ -31,3 +31,5 @@ Fixed: hooks/lib/shell-snapshot.mjs treats a node call of submit/wait/watch/brok
 ## History
 - [2026-10-31 00:11] (created) bug — hand-write-detect false positive: a broker client call (watch.mjs, wait.mjs, submit.mjs) is blamed for the source files a broker landing wrote during it (dirt-empire DE-T256, j-mvvn1t1y-k0zczz, commit 9d26d5b)
 - [2026-10-31 00:13] (status) todo → review
+- [2026-10-31 00:16] (landed) 8aa5722 hand-write-detect: a broker client call (submit, wait, watch, broker.mjs) without a file redirect is a generator command
+- [2026-10-31 00:20] (landed) 773fb4a hand-write-detect: a > inside a quoted argument (a commit message's Co-Authored-By address) is no file redirect, so a re
