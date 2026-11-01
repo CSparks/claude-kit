@@ -2,6 +2,7 @@
 // A crate is reached when the diff (or a path the base moved) touches it or one of its dependencies; dependents come from
 // every Cargo.lock at or above the touched crate (cargo-lock.mjs).
 //
+//   diffPaths(members)               -> the paths the members' diff stats name
 //   reachOf(members, bases, moved) -> { reach: Set of crate names, known: false when the diff touches Rust the checkout cannot place }
 //   reachBases(cfg)                  -> the directories diff paths are placed under
 //   outsideReach(cmd, { reach, known }) -> true for a test command whose named crates the change does not reach
@@ -17,7 +18,7 @@ const DIFF_PATH = /^\s*(\S.*?)\s+\|/;
 const PACKAGE_NAME = /^\[package\][^[]*?^name\s*=\s*"([^"]+)"/ms;
 const TEST_COMMAND = /\b(?:test|t|nextest)\b/;
 
-const diffPaths = (members) => [...new Set(members.flatMap((m) => String(m.diffStat || '').split('\n')).map((l) => DIFF_PATH.exec(l)?.[1]).filter((p) => p && !p.startsWith('...')))];
+export const diffPaths = (members) => [...new Set(members.flatMap((m) => String(m.diffStat || '').split('\n')).map((l) => DIFF_PATH.exec(l)?.[1]).filter((p) => p && !p.startsWith('...')))];
 
 function crateAt(file, bases) {
   for (const base of bases) {

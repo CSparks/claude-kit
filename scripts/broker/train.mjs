@@ -18,7 +18,8 @@
 
 import { makeBaseline } from './baseline.mjs';
 import { treeState } from './cache.mjs';
-import { dirtyPaths, git, revParse } from './git.mjs';
+import { diffStatOf } from './diff-stat.mjs';
+import { dirtyPaths, revParse } from './git.mjs';
 import { lockFilesDeep } from './locks.mjs';
 import { recordRun } from './health-store.mjs';
 import { foreignOf } from './job-commands.mjs';
@@ -116,7 +117,7 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
       });
       const run = runTrainCommands(runCfg, { id, repo: repo.name, cwd, commands, nextLog, baseline, knownRed });
       const foreign = foreignOf(run.entries);
-      const ranFor = (m) => ({ commands: run.entries, foreign, diffStat: git(['diff', '--stat', '--', ...filesOf(m)], cwd).out, selection: own(m).selection });
+      const ranFor = (m) => ({ commands: run.entries, foreign, diffStat: diffStatOf(cwd, filesOf(m)), selection: own(m).selection });
 
       if (!run.failing) {
         const landers = pool.filter((m) => m.job.land);

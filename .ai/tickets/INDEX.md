@@ -452,7 +452,7 @@
 | KIT-T808 | bug | review | high | request-gate request-capture false-positive: a turn that routed the request with t decide --file (MAR-D013 written this turn) was still flag |
 | KIT-T809 | bug | review | high | kit-bug-dispatch-gate hand-off match needs the full id: a SendMessage that named 'KIT-T801, T802, T803, T797, T805, T796 and T804' counted o |
 | KIT-T810 | bug | review | high | broker land gate: the dependents run was one cargo test per crate, so each command got its own feature set and recompiled the shared crates (dirt-empire land j-mvydj8de-fhpscb: rg-meshkit-bevy compiled 4 times, 8m38s of compile in 4 commands) |
-| KIT-T811 | bug | doing | high | dispatch-guard let marblequest-18 dispatch a claude-kit writer (14:5x-16:10, 2026-11-01) while infra-09's standing kit agent held the checko |
+| KIT-T811 | bug | review | high | dispatch-guard let marblequest-18 dispatch a claude-kit writer (14:5x-16:10, 2026-11-01) while infra-09's standing kit agent held the checko |
 | KIT-T812 | bug | todo | high | broker time sink: waste scope rg-tool-asset-editor (all tests) in dirt-empire/root |
 | KIT-T813 | bug | todo | high | broker time sink: waste scope rg-shader-kit (all tests) in dirt-empire/root |
 | KIT-T814 | bug | todo | high | broker time sink: crate rg-tool-asset-editor in dirt-empire/root |

@@ -17,7 +17,7 @@ import { commandSplit } from './metrics.mjs';
 import { loadResults, submittedAt } from './stats.mjs';
 import { cratesOf, targetsOf } from './timing-cmd.mjs';
 import { movedPaths } from './timing-moved.mjs';
-import { reachBases } from './timing-reach.mjs';
+import { diffPaths, reachBases } from './timing-reach.mjs';
 import { wasteOf } from './timing-waste.mjs';
 
 export const PHASE = 'phase';
@@ -64,7 +64,8 @@ export function sampleOf(members, { project, lane, bases = [], moved = [] }) {
   return { id: first.train ? first.train.id : first.id, project, lane, at: Date.parse(first.finishedAt), turnaroundMs: mean(turnarounds), jobs: members.length, entries: [...entries.values()], cache: waste.cache };
 }
 
-// `ctx.movedBetween(prev, cur)` names the paths the base moved from the lane's previous job to this one.
+// `ctx.movedBetween(prev, cur)` names the paths the base moved from the lane's previous job to this one. The previous
+// job's own diff counts as moved too: the shared target dir was built with that patch, so reverting it rebuilds its crates.
 export function samplesFromResults(results, ctx) {
   const groups = new Map();
   for (const r of [...results].sort((a, b) => Date.parse(a.finishedAt) - Date.parse(b.finishedAt))) {
@@ -74,7 +75,7 @@ export function samplesFromResults(results, ctx) {
   let previous = null;
   const samples = [];
   for (const members of groups.values()) {
-    const moved = previous && ctx.movedBetween ? ctx.movedBetween(previous[0], members[0]) : [];
+    const moved = previous ? [...(ctx.movedBetween ? ctx.movedBetween(previous[0], members[0]) : []), ...diffPaths(previous)] : [];
     samples.push(sampleOf(members, { ...ctx, moved }));
     previous = members;
   }

@@ -118,3 +118,16 @@ test('a nested workspace\'s crate reaches the project crate that depends on it t
     assert.deepEqual(ids(unmoved, 'waste'), { 'rebuild phys': 3 * S, 'rebuild lone': 3 * S }, 'control: with nothing moved, phys is a rebuild nothing asked for');
   } finally { cleanup(dir); }
 });
+
+test('the previous job\'s own patch counts as moved: reverting it rebuilds its dependents, not waste of the next job (KIT-T801)', () => {
+  const { dir, put } = workspace();
+  try {
+    const result = (id, finishedAt, diffStat, commands) => ({ id, finishedAt, timings: [], diffStat, commands });
+    const patch = result('j-a', '2026-10-30T10:00:00Z', ' crates/base/src/lib.rs | 1 +', []);
+    const next = result('j-b', '2026-10-30T11:00:00Z', ' docs/a.md | 1 +', [cmd(dir, put, 'n0', 'cargo t -p mid --lib', { compiled: ['base', 'mid', 'lone'], finished: 9 })]);
+    const ctx = { project: 'p', lane: 'root', bases: [dir] };
+    const [, after] = samplesFromResults([patch, next], ctx);
+    assert.deepEqual(ids(after, 'waste'), { 'rebuild lone': 3 * S }, 'base is the previous job\'s own edit: its residue, not waste');
+    assert.deepEqual(ids(samplesFromResults([next], ctx)[0], 'waste'), { 'rebuild base': 3 * S, 'rebuild lone': 3 * S }, 'control: with no previous patch base is waste too');
+  } finally { cleanup(dir); }
+});

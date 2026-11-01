@@ -11,6 +11,7 @@ import { checkRestore } from './restore-check.mjs';
 import { sweepOwnWrites } from './own-writes.mjs';
 import { landLinked, movedSubmodules } from './linked.mjs';
 import { diagnose } from './diagnose.mjs';
+import { diffStatOf } from './diff-stat.mjs';
 import { attribute } from './attribute.mjs';
 import { pairedPins, suspects } from './paired.mjs';
 import { addDeferred, forgetPassed } from './deferred.mjs';
@@ -26,7 +27,7 @@ import { scopePin } from './pin-scope.mjs';
 import { stalePins } from './pin-stale.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordRun } from './health-store.mjs';
-import { changedLocks, dirtyPaths, git, revParse } from './git.mjs';
+import { changedLocks, dirtyPaths, revParse } from './git.mjs';
 import { lockFilesDeep, resolveLocks } from './locks.mjs';
 import { STATUS, logPathFor, writeResult } from './result.mjs';
 import { runCommand, runDiagnosed } from './run.mjs';
@@ -125,7 +126,7 @@ export function processPatch(cfg, job, repo, opts = {}) {
   try {
     checkoutPins(pins);
     writePlan(cwd, plan.files);
-    const diffStat = git(['diff', '--stat'], cwd).out;
+    const diffStat = diffStatOf(cwd);
     const baseline = makeBaseline({
       cfg, job, cwd, pre, held: pins.filter((p) => p.implicit), onPhase: (p) => ph.enter(p),
       enter: () => { restoreTree(); revertPins(explicit()); },
