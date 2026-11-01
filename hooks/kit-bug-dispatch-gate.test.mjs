@@ -59,6 +59,11 @@ try {
   ok('KIT-T793: from a project root with no KIT tickets the kit store is found through the registry and a live claim there does not block', viaRegistry(transcript(say('KIT-T804 is held'))).code === 0);
   ok('KIT-T793 control: through the registry the same store still blocks a doing ticket untouched for hours', (() => { const r = viaRegistry(transcript(say('KIT-T805'))); return r.code === 2 && /KIT-T805/.test(r.out); })());
   ok('KIT-T793: a ticket in review, done or superseded never blocks', stop(transcript(say('KIT-T806 KIT-T807 KIT-T808'))).code === 0);
+  const handoff = (text, hoursAgo) => ({ timestamp: new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString(), message: { content: [{ type: 'tool_use', name: 'SendMessage', input: { to: 'infra-09', message: text } }] } });
+  ok('KIT-T800: from a non-kit root, a SendMessage to the session holding the checkout, naming the id, clears it', viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T801', 0.5))).code === 0);
+  ok('KIT-T800 control: a hand-off naming a different id leaves the ticket blocked', viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T802', 0.5))).code === 2);
+  ok('KIT-T800 control: a hand-off older than the 4 h claim window with no claim lapses and blocks', (() => { const r = viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T801', 5))); return r.code === 2 && /SendMessage/.test(r.out); })());
+  ok('KIT-T800: a lapsed hand-off does not reopen a ticket the holder claimed', viaRegistry(transcript(say('KIT-T804'), handoff('please take KIT-T804', 5))).code === 0);
   ok('stop_hook_active allows', stop(transcript(say('KIT-T801')), { stop_hook_active: true }).code === 0);
 
   const file = transcript(say('KIT-T802 again'));

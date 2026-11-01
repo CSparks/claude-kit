@@ -110,7 +110,7 @@ function bugRow(path) {
 
 // A `doing` ticket is claimed by some session's kit agent while the agent keeps touching it (status, notes, ticks).
 // A claim untouched for CLAIM_TTL_MS belongs to a dead agent and the ticket counts as unclaimed again.
-const CLAIM_TTL_MS = 4 * 60 * 60 * 1000;
+export const CLAIM_TTL_MS = 4 * 60 * 60 * 1000;
 const claimed = (r, now) => r.status === 'doing' && now - r.touched < CLAIM_TTL_MS;
 
 const rankOf = (priority) => {
