@@ -155,6 +155,12 @@ await test('a grep right after an empty q on overlapping terms files a gap with 
   assert.equal(tickets().length, n + 1);
   assert.ok(tickets().some((n2) => /grep-after-empty-q:fts/.test(read(n2)) && /sleepwake/.test(read(n2))));
 });
+await test('a q code miss that prints only the not-indexed hint still counts as empty for the grep that follows (KIT-T749)', () => {
+  const n = tickets().length;
+  post('Bash', { command: 'node q.mjs code JUCE_DIRECT2D --kind config' }, { stdout: 'NOT searched: gitignored build directories and trees outside the repo are not indexed; search one with --dir <path>\n' });
+  post('Bash', { command: 'grep -r JUCE_DIRECT2D C:/JUCE' }, { stdout: 'x' });
+  assert.equal(tickets().length, n + 1);
+});
 await test('a grep on unrelated terms, or after a q that answered, files nothing', () => {
   const n = tickets().length;
   post('Bash', { command: 'node q.mjs fts alphabeta' }, { stdout: '(no results)\n' });

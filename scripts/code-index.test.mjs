@@ -214,6 +214,14 @@ await test('unknown flag is reported, not silently ignored', async () => {
   assert.equal(parseCodeArgs(['x', '-3']).flags.unknown.length, 0);
 });
 
+await test('a lone -- makes the next token search text, and flags after it still apply (KIT-T678)', () => {
+  const dashed = parseCodeArgs(['--', '--capture', '--limit', '0']);
+  assert.equal(dashed.text, '--capture');
+  assert.equal(dashed.flags.limit, 0);
+  assert.deepEqual(dashed.flags.unknown, []);
+  assert.deepEqual(parseCodeArgs(['x', '--bogus']).flags.unknown, ['--bogus'], 'control: without -- an unknown flag is still reported');
+});
+
 await test('grep-style attached options: -B1 / -A1 / -C2 and --lang=wgsl equal their spaced forms (KIT-T303)', async () => {
   process.env.CLAUDE_KIT_BUG_STORE = 'off';
   const spaced = await rows('code', ['shade', '-B', '1', '--lang', 'wgsl']);
@@ -380,7 +388,10 @@ await test('q code answers a grep-style pattern, a --lang list, an absolute --pa
     assert.deepEqual(locs(await run(['name = "bevy_gltf"', '--path', 'pins/versions.pin', '-A', '1'])), ['pins/versions.pin:5', 'pins/versions.pin-6'], 'a named file the index skips is searched from disk (KIT-T452)');
     assert.deepEqual(locs(await run(['^name = "bevy"$', '--regex', '--path', 'pins/versions.pin'])), ['pins/versions.pin:2']);
     assert.match((await run(['zzz_nowhere', '--path', 'pins/versions.pin']))[0].text, /no indexed file passes --path pins\/versions\.pin/, 'a miss in a named unindexed file still says why');
-    assert.deepEqual(await run(['zzz_nowhere', '--path', 'src']), [], 'a real miss stays empty');
+    const miss = await run(['zzz_nowhere', '--path', 'src']);
+    assert.deepEqual(locs(miss), [], 'a real miss has no hit rows');
+    assert.match(miss[0].text, /gitignored build directories and trees outside the repo are not indexed; search one with --dir/, 'and says where an unindexed tree is searched (KIT-T749)');
+    assert.deepEqual(await run(['zzz_nowhere', '--path', 'src', '--dir', g]).then((r) => r.filter((x) => /not indexed/.test(x.text))), [], 'control: a --dir search needs no such hint');
     assert.deepEqual(locs(await ftsDocLines('SELF-COMMENTING CODE', g)), ['docs/CLAUDE.md:1']);
   } finally { rmSync(g, { recursive: true, force: true }); }
 });

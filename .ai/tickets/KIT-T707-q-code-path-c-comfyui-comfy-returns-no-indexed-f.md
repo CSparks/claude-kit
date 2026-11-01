@@ -2,7 +2,7 @@
 id: KIT-T707
 title: q code --path C:/ComfyUI/comfy returns 'no indexed file passes --path' from an unbounded session: the ComfyUI checkout (comfy-volta agent's
 type: bug
-status: todo
+status: doing
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-29T17:10:50Z
-updated: 2026-10-29T17:10:50Z
+updated: 2026-11-01T23:18:40Z
 ---
 
 ## Description
@@ -30,3 +30,4 @@ first seen in Chris Sparks. Filed automatically (KIT-T286): every kit bug is a t
 ## History
 - [2026-10-29 17:10] (created) bug — q code --path C:/ComfyUI/comfy returns 'no indexed file passes --path' from an unbounded session: the ComfyUI checkout (comfy-volta agent's
 - [2026-10-29 17:14] (landed) 36efa38 q code: an absolute --path outside the index is scanned on demand, a missing one errors (implements KIT-T707)
+- [2026-11-01 23:18] (status) todo → doing

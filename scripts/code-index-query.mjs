@@ -47,14 +47,15 @@ export function breAlternation(text) {
   return escaped && !bare ? text.replace(/\\\|/g, '|') : text;
 }
 
-/** Split argv-style tokens into { text, flags }. */
+/** Split argv-style tokens into { text, flags }. A lone `--` makes the next token search text even when it starts with `-` (`q code -- --capture`). */
 export function parseCodeArgs(rawArgs) {
   const args = splitAttached(rawArgs);
   const flags = { before: 0, after: 0, limit: DEFAULT_LIMIT, kinds: null, types: null, notPaths: [], unknown: [] };
   const words = [];
   for (let i = 0; i < args.length; i++) {
     const a = String(args[i]);
-    if (VALUE_FLAGS.has(a)) {
+    if (a === '--' && i + 1 < args.length) words.push(String(args[++i]));
+    else if (VALUE_FLAGS.has(a)) {
       const v = args[++i];
       if (a === '--kind') flags.kinds = String(v).split(',');
       else if (a === '--type') flags.types = String(v).split(',');
@@ -454,9 +455,16 @@ export async function codeVerbRows(cmd, args, root, refresh = refreshIndex) {
   const rows = await answerRows(cmd, args, root, refresh);
   if (rows.some((r) => r.loc)) return rows;
   const missing = uncheckedFrameworks(root);
-  if (!missing.length) return rows;
   const names = missing.map((m) => `${m.name} (${m.path})`).join(', ');
-  return [...rows, { loc: '', text: `NOT searched: framework submodule ${names} is not checked out here, so "no results" proves nothing about it (git submodule update --init)` }];
+  const notChecked = missing.length ? [{ loc: '', text: `NOT searched: framework submodule ${names} is not checked out here, so "no results" proves nothing about it (git submodule update --init)` }] : [];
+  return [...rows, ...notChecked, ...(cmd === 'code' ? outsideIndexHint(args) : [])];
+}
+
+// The index holds the repo's tracked and unignored files: a dependency tree fetched into a gitignored build
+// directory, or one installed outside the repo (JUCE under C:/JUCE), is searched with --dir or an absolute --path.
+function outsideIndexHint(args) {
+  const named = args.includes('--dir') || args.some((a) => isAbsolutePath(a));
+  return named ? [] : [{ loc: '', text: 'NOT searched: gitignored build directories and trees outside the repo are not indexed; search one with --dir <path> or an absolute --path <dir> (q scans it on demand), never grep' }];
 }
 
 async function answerRows(cmd, args, root, refresh) {

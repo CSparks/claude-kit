@@ -2,7 +2,7 @@
 id: KIT-T749
 title: q gap: a grep followed an empty q code for the same terms
 type: bug
-status: todo
+status: doing
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-31T01:19:25Z
-updated: 2026-10-31T01:19:25Z
+updated: 2026-11-01T23:23:00Z
 ---
 
 ## Description
@@ -29,3 +29,4 @@ first seen in groovegrid. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## History
 - [2026-10-31 01:19] (created) bug — q gap: a grep followed an empty q code for the same terms
+- [2026-11-01 23:23] (status) todo → doing

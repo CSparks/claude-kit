@@ -28,7 +28,7 @@ export function sameTerms(qTerms, text) {
   return shared > 0 && shared / Math.min(terms.length, qTerms.length) >= MIN_OVERLAP_SHARE;
 }
 
-const emptyOrFailed =(text) => /\(no results\)/.test(text) || /^q: /m.test(text) || !text.trim();
+const emptyOrFailed = (text) => /\(no results\b/.test(text) || /^NOT searched: /m.test(text) || /^q: /m.test(text) || !text.trim();
 
 export async function noteSearch(root, row, response, project) {
   const state = readTurnState(root, SLOT);
