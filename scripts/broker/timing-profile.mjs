@@ -5,7 +5,9 @@
 // times waste's share of the box's command time.
 //
 //   profile(samples, { now, windowMs, topN }) -> { windowMs, now, jobs, cache, byKind, top }
-//     row: { project, lane, kind, key, ms, share, perJobMs, prevPerJobMs, deltaPct, trend, rank, prevRank }
+//     row: { project, lane, kind, key, ms, share, jobShare, perJobMs, prevPerJobMs, deltaPct, trend, rank, prevRank }
+//     jobShare: perJobMs over the lane's typical job (queue + command time per job across all its history up to now),
+//     so a few seconds in a quiet window stays a small part of a job; `isMaterial(row)` is the ticketing test
 //     trend: 'new' | 'worse' | 'better' | 'flat'; top: waste first, then the topN rows of the other kinds, never
 //     'flagged' (out-of-reach test runs by outcome: data for a later skip) or 'dirty' (cargo's rebuild reason per crate);
 //     `broker blockers` reports both
@@ -22,11 +24,13 @@ const MS_PER_HOUR = 3600000;
 const PERCENT = 100;
 export const DEFAULT_WINDOW_MS = 24 * MS_PER_HOUR;
 export const DEFAULT_TOP = 3;
+const MATERIAL_JOB_SHARE = 0.05;
 const DATA_KINDS = new Set([FLAGGED, DIRTY]);
 const KINDS = [WASTE, PHASE, CRATE, TEST, FLAGGED, DIRTY];
 const TICKETED = KINDS.filter((k) => !DATA_KINDS.has(k));
 
-export const blockerId = (row) => [row.project, row.lane, row.kind, row.key].join('|');
+export const isMaterial = (row) => row.jobShare >= MATERIAL_JOB_SHARE;
+export const blockerId =(row) => [row.project, row.lane, row.kind, row.key].join('|');
 const laneId = (s) => `${s.project}|${s.lane}`;
 
 function windowOf(sample, now, windowMs) {
@@ -34,10 +38,23 @@ function windowOf(sample, now, windowMs) {
   return sample.at > now - 2 * windowMs && sample.at <= now - windowMs ? 'prev' : null;
 }
 
+const WORK_PHASES = new Set([...COMMAND_PHASES, QUEUE]);
+const workOf = (sample) => sample.entries.filter((e) => e.kind === PHASE && WORK_PHASES.has(e.key)).reduce((a, e) => a + e.ms, 0);
+
+function typicalJobMs(samples, now) {
+  const lanes = new Map();
+  for (const s of samples.filter((x) => x.at <= now)) {
+    const l = lanes.get(laneId(s)) || { workMs: 0, jobs: 0 };
+    lanes.set(laneId(s), { workMs: l.workMs + workOf(s), jobs: l.jobs + 1 });
+  }
+  return new Map([...lanes].map(([id, l]) => [id, l.workMs / l.jobs]));
+}
+
 function aggregate(samples, now, windowMs) {
   const jobs = new Map();
   const sums = new Map();
   const cache = {};
+  const typical = typicalJobMs(samples, now);
   for (const s of samples) {
     const w = windowOf(s, now, windowMs);
     if (!w) continue;
@@ -55,7 +72,7 @@ function aggregate(samples, now, windowMs) {
       sums.set(id, row);
     }
   }
-  return { jobs, cache, sums: [...sums.values(), ...causedQueue([...sums.values()])] };
+  return { jobs, cache, typical, sums: [...sums.values(), ...causedQueue([...sums.values()])] };
 }
 
 const sumOf = (rows, field, pick) => rows.filter(pick).reduce((a, r) => a + r[field], 0);
@@ -72,7 +89,7 @@ function causedQueue(rows) {
 
 const trendOf = (perJob, prevPerJob) => (!prevPerJob ? 'new' : perJob > prevPerJob ? 'worse' : perJob < prevPerJob ? 'better' : 'flat');
 
-function rankKind(rows, kind, jobs) {
+function rankKind(rows, kind, jobs, typical) {
   const ofKind = rows.filter((r) => r.kind === kind);
   const total = (r) => ofKind.filter((x) => x.project === r.project && x.lane === r.lane).reduce((a, x) => a + x.cur, 0);
   const prevRank = new Map([...ofKind].filter((r) => r.prev > 0).sort((a, b) => b.prev - a.prev).map((r, i) => [blockerId(r), i + 1]));
@@ -82,15 +99,15 @@ function rankKind(rows, kind, jobs) {
     const prevPerJobMs = counts.prev ? r.prev / counts.prev : 0;
     return {
       project: r.project, lane: r.lane, kind, key: r.key, ms: r.cur, share: r.cur / total(r),
-      perJobMs, prevPerJobMs, deltaPct: prevPerJobMs ? ((perJobMs - prevPerJobMs) / prevPerJobMs) * PERCENT : null,
+      jobShare: typical.get(`${r.project}|${r.lane}`) ? perJobMs / typical.get(`${r.project}|${r.lane}`) : 0, perJobMs, prevPerJobMs, deltaPct: prevPerJobMs ? ((perJobMs - prevPerJobMs) / prevPerJobMs) * PERCENT : null,
       trend: trendOf(perJobMs, prevPerJobMs), rank: i + 1, prevRank: prevRank.get(blockerId(r)) || 0,
     };
   });
 }
 
 export function profile(samples, { now = Date.now(), windowMs = DEFAULT_WINDOW_MS, topN = DEFAULT_TOP } = {}) {
-  const { jobs, cache, sums } = aggregate(samples, now, windowMs);
-  const byKind = Object.fromEntries(KINDS.map((k) => [k, rankKind(sums, k, jobs)]));
+  const { jobs, cache, typical, sums } = aggregate(samples, now, windowMs);
+  const byKind = Object.fromEntries(KINDS.map((k) => [k, rankKind(sums, k, jobs, typical)]));
   const top = TICKETED.flatMap((k) => byKind[k].slice(0, topN));
   return { windowMs, now, jobs: Object.fromEntries([...jobs].map(([id, c]) => [id, c.cur])), cache, byKind, top };
 }

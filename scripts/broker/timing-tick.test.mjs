@@ -108,3 +108,25 @@ test('the blockers report prints the ranked rows with their trend', () => {
     assert.match(text, /1\. phase queue in .*\/root: .* new /m);
   } finally { cleanup(root); }
 });
+
+test('a ranked row worth seconds beside the lane\'s typical job is not ticketed; a material row still is', () => {
+  const { root, cfg } = fixture();
+  try {
+    for (let i = 0; i < 4; i++) {
+      const finishedAt = T - (i + 1) * 10 * 60 * S;
+      const id = `j-tiny-${i}`;
+      const commands = [
+        { cmd: 'cargo t -p big --lib', exit: 0, durationMs: 200 * S, slotWaitMs: 0, log: join(root, `big-${i}.log`) },
+        { cmd: 'cargo t -p tiny --lib', exit: 0, durationMs: 2 * S, slotWaitMs: 0, log: join(root, `tiny-${i}.log`) },
+      ];
+      const result = { id, repo: 'r', status: 'passed', startedAt: new Date(finishedAt - 202 * S).toISOString(), finishedAt: new Date(finishedAt).toISOString(), diffStat: '', timings: [{ phase: 'run', ms: 202 * S }], commands };
+      writeFileSync(join(cfg.targetDir, 'broker', 'results', `${id}.json`), JSON.stringify(result));
+    }
+    const rec = recorder();
+    timingTick(cfg, { now: T, ...rec });
+    const shapes = rec.calls.map((c) => c.shape);
+    assert.ok(shapes.some((s) => s.endsWith('|crate|big')), 'the material crate is ticketed');
+    assert.ok(!shapes.some((s) => s.endsWith('|crate|tiny') || s.endsWith('|test|tiny --lib')), 'two seconds a job is under a twentieth of the job: ranked, not ticketed');
+    assert.match(blockersReport(cfg, { now: T }).text, /crate tiny in /, 'the report still ranks it');
+  } finally { cleanup(root); }
+});

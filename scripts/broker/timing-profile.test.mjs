@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CAUSED_QUEUE, blockerId, profile } from './timing-profile.mjs';
+import { CAUSED_QUEUE, blockerId, isMaterial, profile } from './timing-profile.mjs';
 import { describe } from './timing-report.mjs';
 
 const H = 3600000;
@@ -50,4 +50,13 @@ test('control: samples outside both windows and an empty history rank nothing', 
   assert.deepEqual(profile([sample(NOW - 80 * H, [e('phase', 'queue', 9)])], WINDOW).top, []);
   assert.deepEqual(profile([], WINDOW).top, []);
   assert.equal(blockerId({ project: 'p', lane: 'root', kind: 'phase', key: 'queue' }), 'p|root|phase|queue');
+});
+
+test('jobShare is a row\'s cost per job over the lane\'s typical job across its whole history; a twentieth of it is material', () => {
+  const old = sample(NOW - 90 * H, [e('phase', 'compile', 1000), e('phase', 'queue', 1000)]);
+  const cur = sample(NOW - H, [e('phase', 'compile', 1000), e('phase', 'queue', 1000), e('crate', 'big', 400), e('crate', 'small', 50)]);
+  const rows = profile([old, cur], WINDOW).byKind.crate;
+  assert.deepEqual(rows.map((r) => [r.key, r.jobShare, isMaterial(r)]), [['big', 0.2, true], ['small', 0.025, false]]);
+  assert.equal(isMaterial({ jobShare: 0.05 }), true);
+  assert.equal(profile([sample(NOW - H, [e('crate', 'x', 10)])], WINDOW).byKind.crate[0].jobShare, 0, 'a lane with no timed work has no typical job: not material');
 });

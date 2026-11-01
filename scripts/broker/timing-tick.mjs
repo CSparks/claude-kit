@@ -1,7 +1,8 @@
 // timing-tick.mjs — the cadence that turns the profile into action (KIT-D121). Once per `everyMs` the daemon:
 //   1. lets every lane's controller apply, keep or revert its levers (timing-correct.mjs);
 //   2. ranks the current blockers, waste first, and files each top one as a kit ticket or comments the new rank on
-//      its open ticket; a blocker a lever is applied to or kept for is not ticketed;
+//      its open ticket; a blocker a lever is applied to or kept for is not ticketed, nor one whose per-job cost is
+//      under a twentieth of the lane's typical job (profile.isMaterial: a ranking of seconds is not work);
 //   3. comments "left the top" on the tickets of blockers that dropped out.
 // Nothing here stops, kills or refuses a job: a long job is data, waste is the target.
 //
@@ -13,7 +14,7 @@ import { join } from 'node:path';
 import { commentKitBug, fileKitBug } from '../kit-bug.mjs';
 import { brokerPaths, laneConfigs, withLane } from './config.mjs';
 import { correctingIds, selfCorrect } from './timing-correct.mjs';
-import { DEFAULT_TOP, DEFAULT_WINDOW_MS, blockerId, profile } from './timing-profile.mjs';
+import { DEFAULT_TOP, DEFAULT_WINDOW_MS, blockerId, isMaterial, profile } from './timing-profile.mjs';
 import { checkoutSamples, describe } from './timing-report.mjs';
 
 export const NO_FILING_ENV = 'CLAUDE_KIT_NO_BUG_FILING';
@@ -33,7 +34,7 @@ export function timingTick(rootCfg, { now = Date.now(), everyMs = TICK_EVERY_MS,
   const lanes = laneConfigs(withLane(rootCfg, null));
   const events = lanes.flatMap((lane) => selfCorrect(lane, { now, windowMs }));
   const skip = new Set(lanes.flatMap(correctingIds));
-  const top = profile(checkoutSamples(rootCfg), { now, windowMs, topN }).top.filter((row) => !skip.has(blockerId(row)));
+  const top = profile(checkoutSamples(rootCfg), { now, windowMs, topN }).top.filter((row) => !skip.has(blockerId(row)) && isMaterial(row));
   const filed = {};
   for (const row of top) {
     const made = post({ shape: shapeOf(row), title: `broker time sink: ${row.kind} ${row.key} in ${row.project}/${row.lane}`, detail: describe(row), project: row.project });
