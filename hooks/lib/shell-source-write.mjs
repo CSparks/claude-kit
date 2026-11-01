@@ -9,6 +9,7 @@
 
 import { tmpdir } from 'node:os';
 import { FS_WRITE, readTempScript, scanShellWrites } from './shell-write-scan.mjs';
+import { writeCallTargets } from './shell-write-target.mjs';
 
 const SOURCE_EXT = 'rs|js|mjs|cjs|jsx|ts|tsx|vue|svelte|py|go|java|kt|swift|c|h|cc|cpp|hpp|cs|rb|php|sh|bash|ps1|lua|sql|wgsl|glsl|rhai|css|scss';
 const SOURCE_FILE = new RegExp(`\\.(?:${SOURCE_EXT})$`, 'i');
@@ -31,6 +32,8 @@ export function shellSourceWrite(command, { readScript = readTempScript, tempDir
   const hit = (path) => (isSourcePath(path, tempDir) ? { path: slashed(path) } : null);
   const codeHit = (code) => {
     if (!FS_WRITE.test(code)) return null;
+    const targets = writeCallTargets(code);
+    if (targets) return targets.map(hit).find(Boolean) || null;
     for (const m of code.matchAll(QUOTED_SOURCE)) { const h = hit(m[1]); if (h) return h; }
     return null;
   };

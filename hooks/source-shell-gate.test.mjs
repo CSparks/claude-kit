@@ -93,6 +93,25 @@ try {
   check('KIT-T733: a read-only scratch script quoting a source path whose prose says "unlink (or replace)" passes', !blocked(`node ${script}`));
   writeFileSync(script, "import fs from 'node:fs';\nfs.rm('src/lib.rs');\n");
   check('KIT-T733 control: a scratch script calling fs.rm on a source file still blocks', blocked(`node ${script}`));
+  const reader = [
+    'import fs from "node:fs";',
+    'const dir = "/tmp/scratchpad/";',
+    'const tree = "D:/dev/app/";',
+    'const read = (p) => fs.readFileSync(p, "utf8");',
+    'const old = read(tree + "crates/app/src/cell_draw.rs");',
+    'const env = `*** edit crates/app/src/cell_draw.rs\\n${old}`;',
+    'fs.writeFileSync(dir + "t264-game2.patch", env);',
+  ];
+  writeFileSync(script, `${reader.join('\n')}\n`);
+  check('KIT-T792: a scratch script that reads a source file and writes only a scratchpad patch passes', !blocked(`node ${script}`), run(`node ${script}`).stderr.slice(0, 120));
+  writeFileSync(script, `${reader.slice(0, -1).join('\n')}\nfs.writeFileSync(tree + "crates/app/src/cell_draw.rs", env);\n`);
+  check('KIT-T792 control: the same script writing the source path through tree + literal blocks', blocked(`node ${script}`));
+  writeFileSync(script, `${reader.slice(0, -1).join('\n')}\nconst target = tree + "crates/app/src/cell_draw.rs";\nfs.writeFileSync(target, env);\n`);
+  check('KIT-T792 control: the write target held in a const still blocks', blocked(`node ${script}`));
+  writeFileSync(script, `${reader.slice(0, -1).join('\n')}\nfor (const f of ["a.json"]) fs.writeFileSync(tree + f, env);\n`);
+  check('KIT-T792 control: a write whose target cannot be resolved keeps the whole-script rule and blocks', blocked(`node ${script}`));
+  writeFileSync(script, `${reader.slice(0, -1).join('\n')}\nfs.writeFileSync(dir + "a.patch", env);\nfs.rmSync(tree + "crates/app/src/cell_draw.rs");\n`);
+  check('KIT-T792 control: one scratchpad write does not excuse a second write to a source path', blocked(`node ${script}`));
   rmSync(script, { force: true });
 
   check('shellSourceWrite names the path it found', shellSourceWrite('rm src\\lib.rs')?.path === 'src/lib.rs');

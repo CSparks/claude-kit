@@ -30,9 +30,9 @@ const REDIRECT = /(?<![-=])>>?\s*(["']?)([^\s"'|;&<>)`]+)/g;
 const HEREDOC_CODE = /\b(?:node|python3?)(?:\.exe)?\s+-?\s*<<-?/i;
 const PIPED_CODE = /\|\s*(?:node|python3?|py)(?:\.exe)?(?:\s+-)?\s*(?:$|[|;&\n])/i;
 
-const WRITE_NAMES = 'writeFile(?:Sync)?|writeSync|writev(?:Sync)?|appendFile(?:Sync)?|openSync|renameSync|rmSync|rmdirSync|unlinkSync|copyFileSync|cpSync|truncateSync|ftruncateSync|symlinkSync|linkSync|createWriteStream|outputFile|WriteAllText|WriteAllLines|WriteAllBytes';
+export const WRITE_NAMES = 'writeFile(?:Sync)?|writeSync|writev(?:Sync)?|appendFile(?:Sync)?|openSync|renameSync|rmSync|rmdirSync|unlinkSync|copyFileSync|cpSync|truncateSync|ftruncateSync|symlinkSync|linkSync|createWriteStream|outputFile|WriteAllText|WriteAllLines|WriteAllBytes';
 // Methods only (`fs.rm(`, `p.unlink()`): a bare word before `(` is as often prose, as in "t unlink (or replace)".
-const WRITE_CALLS ='rename|rm|rmdir|unlink|copyFile|cp|truncate|symlink|link|write_text|write_bytes|touch';
+export const WRITE_CALLS = 'rename|rm|rmdir|unlink|copyFile|cp|truncate|symlink|link|write_text|write_bytes|touch';
 const PYTHON_MODULE_WRITE = String.raw`\b(?:os\.(?:remove|unlink|replace|rename|open|rmdir|removedirs|truncate)|shutil\.\w+)\b`;
 const OPEN_FOR_WRITE = String.raw`\bopen\s*\([^)]*['"][rbtU]*[wax+][bt+]*['"]`;
 
