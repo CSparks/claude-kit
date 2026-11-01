@@ -16,6 +16,7 @@
 
 import { payload,gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter, readTurnState, writeTurnState } from './lib.mjs';
 import { brokerCalls, usesCargo } from './lib/broker-calls.mjs';
+import { withoutDataArguments } from './lib/command-leads.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { waitSlot, jobId, digest } from './lib/broker-wait-state.mjs';
 
@@ -23,7 +24,10 @@ const CHECK_ID = 'broker-wait';
 const MAX_TOOL_TIMEOUT_MS = 300000;
 const MAX_WAIT_S = 300;
 const BROKER_STATE = /target[\\/]broker/i;
-const LOOP = /(?:^|[;&|(\n]|\bdo|\bthen)\s*(?:sleep|start-sleep|while|until|for|foreach)\b|\btail\s+-\w*[fF]|\bget-content\b[^|;&]*-wait\b/i;
+const AT_COMMAND = String.raw`(?:^|[;&|(\n]|\bdo|\bthen)\s*`;
+const WAITING = new RegExp(`${AT_COMMAND}(?:sleep|start-sleep)\\b|\\btail\\s+-\\w*[fF]|\\bget-content\\b[^|;&]*-wait\\b`, 'i');
+const POLL_LOOP = new RegExp(`${AT_COMMAND}(?:while|until)\\b(?!\\s+(?:IFS=\\S*\\s+)?read\\b)`, 'i');
+const COUNT_LOOP = new RegExp(`${AT_COMMAND}(?:for|foreach)\\b`, 'i');
 const flagValue = (words, name) => { const i = words.indexOf(name); return i >= 0 ? words[i + 1] : undefined; };
 
 function problems(command, input, state) {
@@ -41,7 +45,10 @@ function problems(command, input, state) {
     }
     if (c.script === 'submit' && !c.words.includes('--revises') && state.submits.includes(digest(command))) found.push('the same submit repeated verbatim: re-running a job to read its status');
   }
-  if (LOOP.test(command) && (calls.length || BROKER_STATE.test(command))) found.push('a sleep, poll or tail loop around the broker');
+  const text = withoutDataArguments(command);
+  const onBroker = calls.length || BROKER_STATE.test(text);
+  const polls = (WAITING.test(text) || POLL_LOOP.test(text)) && onBroker;
+  if (polls || (COUNT_LOOP.test(text) && calls.length)) found.push('a sleep, poll or tail loop around the broker');
   return found;
 }
 

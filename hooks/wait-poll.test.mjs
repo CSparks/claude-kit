@@ -58,6 +58,9 @@ try {
   const loops = ['until grep -q "test result" /tmp/build.log; do sleep 5; done', 'while [ ! -s target/out.log ]; do sleep 3; done', 'sleep 60; tail -20 build.log'];
   const lr = loops.map((c) => bash(f, 'pos3', c));
   ok('sleep loops around a build/output file warn, warn, then block', lr[0].code === 0 && /offence 1/.test(lr[0].out) && lr[1].code === 0 && lr[2].code === 2);
+  const prose = 'node scripts/t.mjs notes KIT-T1 "a sleep 5 then tail build.log loop"';
+  ok('KIT-T785: sleep and a build-file check inside a data command argument is not a poll', [1, 2, 3, 4].every((i) => bash(adopted(false), `prose${i}`, prose).code === 0));
+  ok('KIT-T785 control: sleep outside the quotes of a git line is still an offence', /offence 1/.test(bash(adopted(false), 'prose5', 'git commit -m "x" && sleep 5 && tail build.log').out));
   ok('PowerShell Start-Sleep loop is an offence', /offence 1/.test(bash(adopted(false), 'pos4', 'while (-not (Test-Path target\out.log)) { Start-Sleep 5 }').out));
 
   const doneOut = join(tmpDir('wp-done-'), 'bk9.output');

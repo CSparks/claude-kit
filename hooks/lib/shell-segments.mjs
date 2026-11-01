@@ -9,6 +9,13 @@
 // `ambiguous: true` and its segments cannot be trusted. A deny gate that sees the flag skips per-segment
 // parsing and tests the raw command for its own target words anywhere (KIT-T705, KIT-D117), or judges the
 // pieces from `blindSegments`, which split on every operator whatever the quoting.
+//
+// The bodies of quoted heredocs read by a data consumer are cut first (inert-heredoc.mjs, KIT-T784); the
+// returned array carries the cut text as `.text` for gates that also test the raw command.
+
+import { inertText } from './inert-heredoc.mjs';
+
+export { inertText };
 
 const AMBIGUOUS_QUOTING = /\$['"]|[\\`]["']/;
 
@@ -40,8 +47,10 @@ function split(cmd, blind = false) {
 }
 
 export function segments(cmd) {
-  const { out, open } = split(cmd);
-  out.ambiguous = open || AMBIGUOUS_QUOTING.test(cmd);
+  const text = inertText(cmd);
+  const { out, open } = split(text);
+  out.ambiguous = open || AMBIGUOUS_QUOTING.test(text);
+  out.text = text;
   return out;
 }
 

@@ -14,6 +14,7 @@
 // No-ops on unadopted repos. Fail-open on any error.
 
 import { readTurnState, writeTurnState, payload, gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
+import { withoutDataArguments } from './lib/command-leads.mjs';
 import { segments, toPath } from './lib/shell-segments.mjs';
 import { exited } from './orphan-shells.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
@@ -53,7 +54,8 @@ function outputReads(toolName, input) {
   return [...files];
 }
 
-function isSleepLoop(command) {
+function isSleepLoop(shell) {
+  const command = withoutDataArguments(shell);
   if (!SLEEP_CMD.test(command)) return false;
   const rest = command.replace(/(?:sleep|start-sleep)\s+[\w.:]+/gi, ' ');
   return BUILD_FILE.test(rest) && CHECK_CMD.test(rest);

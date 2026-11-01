@@ -3,7 +3,7 @@ id: KIT-T349
 title: query-gate false positive: blocked a heredoc APPEND to a ~/.claude/projects/*/memory/*.md file as 'searching the .ai work store with a…
 summary:               # OPTIONAL one-line gist — what a trail/brief shows instead of a clipped title
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -19,9 +19,9 @@ tier:                  # OPTIONAL dispatch firepower: light | standard | deep �
 model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pins the subagent model, beating tier.
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
-superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
+superseded_by: KIT-T784
 created: 2026-10-06T14:51:22.200Z
-updated: 2026-10-06T14:51:22.200Z
+updated: 2026-11-01T19:41:17Z
 ---
 
 ## Description
@@ -42,6 +42,7 @@ query-gate false positive: blocked a heredoc APPEND to a ~/.claude/projects/*/me
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+Fixed earlier (query-gate isStoreWrite; test hooks/query-gate.test.mjs 'allows a heredoc/redirect WRITE whose body names a store path'); KIT-T784 also passes a memory-file append with an apostrophe via the quoted-heredoc cut (probe exit 0). Superseded by KIT-T784.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -54,3 +55,5 @@ query-gate false positive: blocked a heredoc APPEND to a ~/.claude/projects/*/me
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-11-01 19:41] (status) todo → review
+- [2026-11-01 19:41] (status) review → superseded (by KIT-T784)

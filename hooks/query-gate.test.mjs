@@ -46,6 +46,12 @@ expect('blocks bare rg (recursive by default)', run(d, 'rg PhysicsSim').code, 2)
 expect('KIT-T705 negative control: node -e with escaped quotes and no search word passes', run(d, 'node -e "console.log(\\"x\\")"').code, 0);
 expect('KIT-T705: blocks a recursive grep hidden behind an escaped quote', run(d, hiddenBehindQuotes('grep -rn "PhysicsSim" src/')[0]).code, 2);
 expect("KIT-T705: blocks a recursive grep hidden behind a $'…' string", run(d, hiddenBehindQuotes('grep -rn "PhysicsSim" src/')[1]).code, 2);
+expect("KIT-T784: a git commit heredoc whose body holds an apostrophe and grep -r passes", run(d, "git commit -q -F - <<'EOF'\nfix: ancestors' grep -rn x src/ .ai/tickets\nEOF").code, 0);
+expect("KIT-T784 control: a shell heredoc body is still judged", run(d, "bash <<'EOF'\ngrep -rn \"PhysicsSim\" src/\nEOF").code, 2);
+expect("KIT-T784 control: a grep after a heredoc commit is still blocked", run(d, "git commit -q -F - <<'EOF'\nmsg\nEOF\ngrep -rn \"PhysicsSim\" src/").code, 2);
+expect('KIT-T784: a node -e file edit with escaped quotes and "grep" inside its string passes', run(d, "node -e 'const s=fs.readFileSync(p,\"utf8\").replace(/\\x27/g,\"\\\\\"\").replace(\"use grep -r\",\"use q\")'").code, 0);
+expect('KIT-T784: a t comment whose text holds escaped quotes and grep passes', run(d, 't comment KIT-T1 "saw \\"grep -r src\\" blocked"').code, 0);
+expect('KIT-T784 control: a leading sed hidden behind escaped quotes is still blocked', run(d, 'echo \\" ; sed -n 1p .ai/tickets/a.md .ai/tickets/b.md ; echo \\"').code, 2);
 expect('blocks git grep discovery', run(d, 'git grep usePhysics').code, 2);
 expect('blocks rg with --include=*.ts (indexed ext)', run(d, 'rg --include=*.ts "useState" src/').code, 2);
 

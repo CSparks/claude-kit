@@ -38,7 +38,7 @@ function wordCalls(command) {
 
 export function brokerCalls(command, depth = 0) {
   const segs = segments(String(command || ''));
-  const out = segs.ambiguous ? wordCalls(command) : [];
+  const out = segs.ambiguous ? wordCalls(segs.text) : [];
   for (const { text } of segs) {
     const ws = words(text);
     const call = callOf(ws);

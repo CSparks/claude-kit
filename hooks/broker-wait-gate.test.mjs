@@ -5,6 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { hiddenBehindQuotes } from './hidden-command-cases.mjs';
 import { ENV, HOOKS, adopted, cleanup, hook, reporter, repo, tmpDir } from './test-harness.mjs';
 
 const { ok, done } = reporter('broker-wait-gate');
@@ -52,6 +53,32 @@ try {
   ok('negative: a for loop running q over scripts/broker never calls the broker (KIT-T734)', sub('for a in "x --path scripts/broker" "y --path scripts/broker/q.test.mjs"; do node q.mjs code $a; done').code === 0);
   ok('KIT-T734 control: a for loop that calls the broker client is still blocked', blocked(sub('for i in 1 2 3; do node ' + BROKER + '/broker.mjs status; done')));
   ok('ambiguous quoting (an escaped quote) still blocks a broker watch by its words', blocked(sub(`echo "a\\"b" && node ${BROKER}/watch.mjs --for any`)));
+
+  const reads = [
+    ['a for loop over target/broker result files', 'for f in target/broker/results/*.json; do cat "$f"; done'],
+    ['an inline node -e for loop that only reads target/broker results', 'node -e "const fs=require(\'fs\');for(const f of fs.readdirSync(\'target/broker/results\'))console.log(fs.readFileSync(\'target/broker/results/\'+f,\'utf8\'))"'],
+    ['a while-read loop over target/broker paths', 'while read f; do cat target/broker/results/$f; done < list.txt'],
+    ['the tail of a node script that reads target/broker', 'node scripts/broker/status.mjs target/broker 2>&1 | tail -20'],
+    ['a one-shot tail -n of finished.log', 'tail -n 20 target/broker/finished.log'],
+  ];
+  for (const [name, command] of reads) ok(`KIT-T785 negative: ${name} passes`, sub(command).code === 0);
+  ok('KIT-T785 control: a sleep poll on target/broker results is still blocked', blocked(sub('sleep 30; cat target/broker/results/j-1.json')));
+  ok('KIT-T785 control: a while-true poll reading target/broker is still blocked', blocked(sub('while true; do cat target/broker/finished.log; sleep 5; done')));
+  ok('KIT-T785 control: tail -F on target/broker is still blocked', blocked(sub('tail -F target/broker/finished.log')));
+  ok('KIT-T785 control: a for loop around wait.mjs is still blocked', blocked(sub(`for i in 1 2 3; do node ${BROKER}/wait.mjs j-zzz-9; done`)));
+  ok("KIT-T784: a commit message heredoc naming target/broker, sleep and an apostrophe passes", sub("git commit -q -F - <<'EOF'\nfix: the agent's loop: sleep 5 then watch.mjs target/broker\nEOF").code === 0);
+  ok('KIT-T784: a t notes argument naming sleep, tail -f and target/broker is data and passes', sub('node scripts/t.mjs notes KIT-T1 "loops: sleep 5; tail -f target/broker/finished.log"').code === 0);
+  ok('KIT-T784 control: sleep outside the quotes of a git line still blocks', blocked(sub('git commit -m "x" && sleep 5 && cat target/broker/finished.log')));
+  ok('KIT-T784 control: a command substitution inside a data argument still blocks', blocked(sub('git commit -m "$(sleep 5; cat target/broker/finished.log)"')));
+  ok('KIT-T784 control: bash -c code in quotes still blocks', blocked(sub('bash -c "while true; do sleep 5; cat target/broker/finished.log; done"')));
+  ok('KIT-T784 control: the same words in a shell heredoc are still a block', blocked(sub("bash <<'EOF'\nwhile true; do sleep 5; cat target/broker/finished.log; done\nEOF")));
+
+  const [escapedQuote, dollarQuote] = hiddenBehindQuotes(`node ${BROKER}/watch.mjs --for any`);
+  ok('KIT-T711: a broker watch hidden behind an escaped quote is blocked', blocked(sub(escapedQuote)));
+  ok("KIT-T711: a broker watch hidden behind a $'…' string is blocked", blocked(sub(dollarQuote)));
+  ok('KIT-T711: a sleep loop on target/broker hidden behind an escaped quote is blocked', blocked(sub('echo \\" ; while true; do sleep 5; cat target/broker/finished.log; done ; echo \\"')));
+  ok('KIT-T711 negative: escaped quotes around an unrelated command pass', sub('echo \\" ; ls ; echo \\"').code === 0);
+  ok('KIT-T711: a hidden submit is tagged with the agent', JSON.stringify(hook('broker-agent-tag.mjs', { tool_name: 'Bash', agent_id: 'a1b2c3d4e5f6a7b8c', tool_input: { command: hiddenBehindQuotes(`node ${BROKER}/submit.mjs --root D:/x`)[0] } }, d, env)).includes('--agent a1b2c3d4e5f6a7b8c'));
 
   const submit = `node ${BROKER}/submit.mjs --root D:/x --ticket T-1 --title "t" --test "cargo t -p x" < env.txt`;
   ok('negative: the first submit passes', sub(submit).code === 0);

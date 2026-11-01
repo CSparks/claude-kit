@@ -33,5 +33,30 @@ for (const [name, cmd] of ambiguousCases) {
 }
 check('KIT-T705: the flag adds no segment: the plain split is returned', texts("echo hi ; grep x ; echo it's").join('|') === "echo hi|grep x|echo it's");
 
+// KIT-T784: a quoted heredoc read by a data consumer is inert data.
+const body = "ancestors' and \"quotes\" and `ticks` ; grep -r .ai/ ; rm x";
+const heredoc = (head, tail = '') => `${head} <<'EOF'\n${body}\nEOF${tail}`;
+check('KIT-T784: a git commit -F - heredoc with an apostrophe is not ambiguous', segments(heredoc('git commit -q -F -')).ambiguous === false);
+check('KIT-T784: the body adds no segment', texts(heredoc('git commit -q -F -')).filter(Boolean).join('|') === "git commit -q -F - <<'EOF'");
+check('KIT-T784: a double-quoted delimiter and <<- with tabs', segments(`t decide --file - <<-"EOF"\n\tit's\n\tEOF`).ambiguous === false);
+check('KIT-T784: commands after the terminator are still parsed', texts(heredoc('git commit -F -', '\ngrep -r x src')).includes('grep -r x src'));
+check('KIT-T784: two heredocs on one line', segments("cat <<'A' <<'B'\nit's\nA\nit's\nB").ambiguous === false);
+check('KIT-T784: a cap script run by node reads the body as data', segments(`node scripts/cap.mjs --file - <<'EOF'\nit's\nEOF`).ambiguous === false);
+const stays = [
+  ['an unquoted delimiter (expansion runs)', "git commit -F - <<EOF\nit's $(grep -r x)\nEOF"],
+  ['a shell reader', "bash <<'EOF'\nit's\nEOF"],
+  ['node reading its program from stdin', "node - <<'EOF'\nit's\nEOF"],
+  ['a remote shell', "ssh host <<'EOF'\nit's\nEOF"],
+  ['a pipe on from the reader', "cat <<'EOF' | bash\nit's\nEOF"],
+  ['an opener in a comment', "echo hi # <<'EOF'\nit's\nEOF"],
+  ['an opener behind a backslash', "echo \\<<'EOF'\nit's\nEOF"],
+  ['no terminator line', "git commit -F - <<'EOF'\nit's"],
+  ['an escaped quote in the head', "echo \\\" ; cat <<'EOF'\nx\nEOF"],
+  ['a here-string', "cat <<<'EOF'\nit's\nEOF"],
+];
+for (const [name, cmd] of stays) check(`KIT-T784 control: ${name} is not cut`, segments(cmd).text === cmd);
+check('KIT-T784 control: the body of a shell reader stays parsed (hidden command seen)', texts("bash <<'EOF'\ngrep -r x src\nEOF").includes('grep -r x src'));
+check('KIT-T784 control: an escaped-quote head keeps the line ambiguous', segments("echo \\\" ; cat <<'EOF'\nx\nEOF\ngrep -r a src").ambiguous === true);
+
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

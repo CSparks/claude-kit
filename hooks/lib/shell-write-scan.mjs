@@ -90,8 +90,8 @@ const WRITE_TOKEN = new RegExp(`\\b(?:${wordsOf(WRITING_CMD, COPY_CMD, IN_PLACE_
 const ambiguousWrite = (text) => WRITE_TOKEN.test(text) || FS_WRITE.test(text);
 
 export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous }) {
-  const text = String(command || '');
-  const parts = segments(text);
+  const parts = segments(String(command || ''));
+  const text = parts.text;
   if (parts.ambiguous && ambiguous) return ambiguousWrite(text) ? ambiguous() : null;
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return codeHit(text);
   const ctx = { hit, codeHit, readScript };

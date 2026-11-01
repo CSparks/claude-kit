@@ -48,6 +48,12 @@ try {
   check('KIT-T705: a store rm hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('rm .ai/decisions/X-D001-a.md').every((c) => blocked(c)));
   check('KIT-T705: a store rm behind a reader leader and an escaped quote blocks', blocked('grep \\" ; rm .ai/decisions/X-D001-a.md ; echo \\"'));
 
+  check("KIT-T784: a git commit -F - heredoc whose body holds an apostrophe, rm and a redirect passes", !blocked("git commit -q -F - <<'EOF'\nfix: ancestors' rm .ai/tickets/a.md > .ai/SESSION.md\nEOF"));
+  check("KIT-T784 control: a store redirect on the heredoc line still blocks", blocked("cat > .ai/tickets/X-T001-a.md <<'EOF'\nit's\nEOF"));
+  check("KIT-T784 control: a store rm after the heredoc still blocks", blocked("git commit -q -F - <<'EOF'\nmsg\nEOF\nrm .ai/decisions/X-D001-a.md"));
+  check("KIT-T784 control: a shell heredoc body that writes the store still blocks", blocked("bash <<'EOF'\nrm .ai/decisions/X-D001-a.md\nEOF"));
+  check("KIT-T784 control: node reading its program from a heredoc still blocks", blocked("node - <<'EOF'\nfs.writeFileSync('.ai/decisions/X-D001-a.md', t)\nEOF"));
+
   check('KIT-T705 negative control: node -e with escaped quotes and no write passes', !blocked('node -e "console.log(\\"x\\")"'));
 
   const READS = [
