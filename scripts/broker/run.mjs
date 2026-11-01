@@ -19,6 +19,7 @@ import { diagnose } from './diagnose.mjs';
 import { packageScoped, runsNextest } from './alias.mjs';
 import { CARGO_BUILD_SUBS } from './cargo-subs.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
+import { enterBuild } from './build-guard.mjs';
 import { FINGERPRINT_ENV, harvestDirty } from './fingerprint-log.mjs';
 
 const LOG_TAIL_LINES = 60;
@@ -81,6 +82,7 @@ function execute(cmd, { cwd, targetDir, logPath, jobs, testThreads }) {
   }
   const composed = composeCommand(cmd, { jobs, testThreads, cwd });
   const slot = acquireBuildSlot(composed, { jobs, label: String(cmd).trim() });
+  const guard = enterBuild(composed, { cwd, targetDir });
   const fd = openSync(logPath, 'w');
   const started = Date.now();
   let code;
@@ -95,6 +97,7 @@ function execute(cmd, { cwd, targetDir, logPath, jobs, testThreads }) {
     code = r.status == null ? 1 : r.status;
   } finally {
     closeSync(fd);
+    guard.release();
     slot.release();
   }
   return { cmd: String(cmd).trim(), composed, exit: code, durationMs: Date.now() - started, slotWaitMs: slot.waitedMs, logTail: tail(logPath) };

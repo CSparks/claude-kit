@@ -16,6 +16,7 @@ import { linkFailure, recoverLink } from './link-recover.mjs';
 import { LOCK_BACKOFF_MS, fileLockFailure, holdersOf, lockNote } from './file-lock.mjs';
 import { killTree, trackChild, untrackChild } from './children.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
+import { enterBuild } from './build-guard.mjs';
 import { FINGERPRINT_ENV } from './fingerprint-log.mjs';
 
 const CHILD = join(import.meta.dirname, 'run-child.mjs');
@@ -55,16 +56,21 @@ export function runCancellable(cmd, opts, hooks) {
   return { ...run, durationMs, recovered: notes.join('; ') };
 }
 
-// The command waits for its machine-wide build slot (build-slot.mjs) before it starts; the queue
-// time is reported as `slotWaitMs`, and a cancel during the wait runs nothing and leaves an empty log, so a reader of `logPath` never finds it missing.
+// The command waits for its machine-wide build slot (build-slot.mjs) and its target dir's guard (build-guard.mjs) before it
+// starts; the slot queue time is reported as `slotWaitMs`. A cancel during either wait runs nothing and leaves an empty log,
+// so a reader of `logPath` never finds it missing.
 function runOnce(cmd, opts, hooks) {
   const composed = composeCommand(cmd, { jobs: opts.jobs, testThreads: opts.testThreads, cwd: opts.cwd });
   const slot = acquireBuildSlot(composed, { jobs: opts.jobs, label: String(cmd).trim(), shouldCancel: hooks.shouldCancel });
-  if (slot.cancelled) writeFileSync(opts.logPath, '');
-  if (slot.cancelled) return { cmd: String(cmd).trim(), composed, exit: 1, durationMs: 0, slotWaitMs: slot.waitedMs, logTail: [], cancelled: true };
+  const guard = slot.cancelled ? null : enterBuild(composed, { cwd: opts.cwd, targetDir: opts.targetDir, shouldCancel: hooks.shouldCancel });
+  if (!guard || guard.cancelled) {
+    slot.release();
+    writeFileSync(opts.logPath, '');
+    return { cmd: String(cmd).trim(), composed, exit: 1, durationMs: 0, slotWaitMs: slot.waitedMs, logTail: [], cancelled: true };
+  }
   try {
     return { ...runInSlot(cmd, composed, opts, hooks), slotWaitMs: slot.waitedMs };
-  } finally { slot.release(); }
+  } finally { guard.release(); slot.release(); }
 }
 
 function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0 }, { shouldCancel, pollMs = DEFAULT_POLL_MS }) {

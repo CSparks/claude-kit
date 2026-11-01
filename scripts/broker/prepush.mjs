@@ -17,6 +17,7 @@ import { holdLocks } from './locks.mjs';
 import { runPulsing } from './run-pulsing.mjs';
 import { tail } from './run.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
+import { enterBuild } from './build-guard.mjs';
 
 const ZERO = '0'.repeat(40);
 
@@ -33,9 +34,11 @@ export function runPrePush(cfg, cwd, remote, branch, logPath) {
   writeFileSync(stdin, `refs/heads/${branch} ${local} refs/heads/${branch} ${remoteSha}\n`);
   let exit;
   const slot = acquireBuildSlot('pre-push gate', { jobs: cfg.jobs, label: `pre-push gate ${cwd}`, force: true });
+  const guard = enterBuild('pre-push gate', { cwd, targetDir: cfg.targetDir, force: true });
   try {
     exit = holdLocks(cwd, () => runPulsing(['git', 'hook', 'run', '--ignore-missing', `--to-stdin=${stdin}`, 'pre-push', '--', remote, url], { cwd, env: buildEnv(cfg), logPath }).status);
   } finally {
+    guard.release();
     slot.release();
     rmSync(stdin, { force: true });
   }
