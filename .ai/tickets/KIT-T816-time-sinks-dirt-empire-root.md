@@ -8,7 +8,7 @@ milestone:
 labels: [kit-bug, kit-queue]
 links: []
 files: []
-supersedes: KIT-T790
+supersedes: KIT-T815
 superseded_by:
 created: 2026-11-01T22:36:05Z
 updated: 2026-11-01T22:36:05Z
@@ -42,3 +42,4 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-11-01 22:36] (created) bug — time sinks: dirt-empire/root
+- [2026-11-01 23:29] (comment) @infra: KIT-T812..T815 superseded into this ticket: the old per-sink tick filed them at 22:33Z, five minutes before 0b1b982 published, so the step-1 migration missed them.

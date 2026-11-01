@@ -2,14 +2,14 @@
 id: KIT-T814
 title: broker time sink: crate rg-tool-asset-editor in dirt-empire/root
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:
 labels: [kit-bug]
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T816
 created: 2026-11-01T22:33:21Z
 updated: 2026-11-01T22:33:21Z
 ---
@@ -30,3 +30,4 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 ## History
 - [2026-11-01 22:33] (created) bug — broker time sink: crate rg-tool-asset-editor in dirt-empire/root
 - [2026-11-01 22:33] (comment) seen again in dirt-empire: crate rg-tool-asset-editor in dirt-empire/root: 3.5 min, 6% of its crate time, 0.2 min/job, new (no earlier window), #3 (new)
+- [2026-11-01 23:29] (status) todo → superseded (by KIT-T816)
