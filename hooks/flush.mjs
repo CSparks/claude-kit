@@ -7,7 +7,7 @@
 //    inbox items so captured-but-unrouted requests don't die at the context boundary.
 //  • Stop: the SESSION-anchor ratchet (mirrors request-gate). SESSION.md is only reliably
 //    written at PreCompact, so a mid-work /clear resumes from a stale anchor. This nudges ONCE
-//    when meaningful work landed THIS turn (a commit, or a write under .ai/) but SESSION.md
+//    when meaningful work landed THIS turn (a commit touching project files, or a decision/note/question) but SESSION.md
 //    wasn't touched — flipping the burden from "remember to flush" to "clear the gate".
 //
 // No-ops on unadopted repos. FAIL-OPEN everywhere: a durability hook must never wedge a session
@@ -27,11 +27,9 @@ const CITATION_LIST_MAX = 8;
 // same small clock-skew tolerance the request-gate uses for store mtimes.
 const TURN_SKEW_MS = 1500;
 const MS_PER_SEC = 1000; // git %ct is epoch SECONDS; compare in ms
-// Stores whose writes count as "meaningful work this turn" for the anchor nudge: the durable
-// record (tickets/decisions/notes/questions). inbox is EXCLUDED — a frictionless capture isn't
-// the substantive work the anchor must track, and counting it would hold the gate open on a
-// turn that only jotted an idea.
-const WORK_STORES = ['tickets', 'decisions', 'notes', 'questions'];
+// Stores whose writes count as "meaningful work this turn" for the anchor nudge. tickets and
+// inbox are EXCLUDED: status flips and captures are bookkeeping the anchor need not track.
+const WORK_STORES = ['decisions', 'notes', 'questions'];
 
 main().catch(() => process.exit(0)); // any failure → allow (fail-open)
 
@@ -207,6 +205,12 @@ function isSystemNotice(text) {
   return /^\s*(?:<task-notification\b|<system-reminder\b|\[SYSTEM NOTIFICATION\b|Stop hook feedback:)/i.test(text);
 }
 
+// A commit that changed only the .ai store is bookkeeping: the anchor has nothing new to point at.
+function touchesProjectFiles(root) {
+  const names = git(['-C', root, 'show', '--name-only', '--format=', 'HEAD']).split('\n').filter(Boolean);
+  return names.some((n) => !n.startsWith('.ai/'));
+}
+
 // What meaningful work landed since `ms`? A short label naming the first kind found (a commit
 // authored this turn, or a write into a durable .ai store), else '' for "nothing to anchor".
 function workSince(root, ms) {
@@ -214,8 +218,8 @@ function workSince(root, ms) {
   // A commit whose author-time is at/after the turn start. (Local commits are the canonical
   // "work landed" signal; the gate exists precisely so the anchor tracks them.)
   const lastCommit = git(['-C', root, 'log', '-1', '--format=%ct']).trim();
-  if (lastCommit && Number(lastCommit) * MS_PER_SEC >= tol) return 'a commit';
-  // A durable store write this turn (a ticket/decision/note/question file changed).
+  if (lastCommit && Number(lastCommit) * MS_PER_SEC >= tol && touchesProjectFiles(root)) return 'a commit';
+  // A durable store write this turn (a decision/note/question file changed).
   for (const store of WORK_STORES) {
     const dir = join(root, '.ai', store);
     let names;

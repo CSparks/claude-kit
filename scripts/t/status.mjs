@@ -46,7 +46,7 @@ export function setStatus(root, id, state, opts = {}) {
   const humanGated = !opts.lapsed && (cfg.humanOnly.includes(state) || uatRequiredClose);
   if (humanGated && !opts.human) {
     const why = uatRequiredClose ? `uat=required for ${id}` : `'${state}' is human_only`;
-    throw new Error(`${id}: ${why} — re-run with --human (this transition is the maintainer's call)`);
+    throw new Error(`${id}: ${why} — re-run with --human once the maintainer has said it works (KIT-D125)`);
   }
 
   let fm = setField(t.parts.fm, 'status', state);

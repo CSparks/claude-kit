@@ -35,7 +35,7 @@ git(repo, 'config', 'user.email', 't@t');
 git(repo, 'config', 'user.name', 't');
 for (const name of ['q', 't', 'cap']) put(repo, `scripts/${name}.mjs`, `console.log('${name} from the sealed copy');\n`);
 put(repo, 'hooks/compat-run.mjs', "console.log('compat-run from the sealed copy');\n");
-put(repo, 'user-config/CLAUDE.global.md', 'Search: `node <kit>/scripts/q.mjs`\n');
+put(repo, 'user-config/CLAUDE.global.md', 'Search: `node "<kit>/scripts/q.mjs"`\n');
 put(repo, 'user-config/statusline.sh', '#!/bin/sh\necho status\n');
 git(repo, 'add', '.');
 git(repo, 'commit', '-qm', 'good');
@@ -61,7 +61,7 @@ ok('control: the working-tree q.mjs is broken', run(join(repo, 'scripts', 'q.mjs
 const boot = run(join(KIT, 'bootstrap.mjs'), [], env, tmp);
 ok('bootstrap exits 0', boot.status === 0, boot.stderr);
 const composed = existsSync(join(claudeHome, 'CLAUDE.md')) ? readFileSync(join(claudeHome, 'CLAUDE.md'), 'utf8') : '';
-ok('composed CLAUDE.md resolves the base <kit> to the runtime', composed.includes('node ~/.claude/claude-kit-runtime/current/scripts/q.mjs'), composed);
+ok('composed CLAUDE.md resolves the base <kit> to the runtime', composed.includes('node "$HOME/.claude/claude-kit-runtime/current/scripts/q.mjs"'), composed);
 ok('composed CLAUDE.md resolves the overlay <kit> too', composed.includes('node ~/.claude/claude-kit-runtime/current/scripts/t.mjs'));
 ok('composed CLAUDE.md keeps no <kit> placeholder', !composed.includes('<kit>'));
 ok('the plugin install is a link onto the runtime', realpathSync(installPath) === realpathSync(join(runtimeRoot, 'current')));

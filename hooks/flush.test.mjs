@@ -3,7 +3,7 @@
 // Run: node hooks/flush.test.mjs
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, utimesSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -113,6 +113,36 @@ ok('Stop warns about this session\'s unresolved ask stamped today', nag.err.incl
 ok('Stop stays quiet about a stale ask, a resolved one and another session\'s', !/FQF-Q00[234]/.test(nag.err));
 ok('Stop never blocks on the question nag', nag.code === 0);
 ok('another session gets no nag for this session\'s ask', !runStop(qrepo, 'someone-else').err.includes('FQF-Q001'));
+
+// --- citations into another project's tree are not this anchor's to fix -------------------
+const foreignRepo = makeRepo({ session: 'Plan lives in D:\\dev\\other-project\\docs\\plan.md and docs/own-missing.md\n' });
+const rForeign = run(foreignRepo);
+ok('absolute path outside the repo is not reported', !/other-project/.test(rForeign.err));
+ok('a missing in-repo path beside it is still reported', /docs\/own-missing\.md/.test(rForeign.err));
+
+// --- Stop anchor nag: bookkeeping-only turns stay silent (KIT-D126) -----------------------
+function runStopWithTurn(dir, files) {
+  const turnStart = new Date(Date.now() - 60_000);
+  const tx = join(mkdtempSync(join(tmpdir(), 'flush-tx-')), 'transcript.jsonl');
+  writeFileSync(tx, JSON.stringify({ type: 'user', timestamp: turnStart.toISOString(), message: { role: 'user', content: 'go' } }) + '\n');
+  for (const [rel, body] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    writeFileSync(join(dir, rel), body);
+  }
+  const longAgo = new Date(Date.now() - 600_000);
+  utimesSync(join(dir, '.ai', 'SESSION.md'), longAgo, longAgo);
+  execFileSync('git', ['add', '-A'], { cwd: dir });
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'work'], { cwd: dir });
+  const r = spawnSync(process.execPath, [HOOK], {
+    cwd: dir, input: JSON.stringify({ hook_event_name: 'Stop', session_id: 's', transcript_path: tx }), encoding: 'utf8',
+    env: { ...process.env, CLAUDE_KIT_REGISTRY: NO_REGISTRY, CLAUDE_KIT_UNBOUNDED_AI: '' },
+  });
+  return { code: r.status, err: r.stderr || '' };
+}
+const bookkeeping = runStopWithTurn(makeRepo({ session: '# S\n' }), { '.ai/tickets/X-T001-a.md': '---\nid: X-T001\n---\n' });
+ok('a commit that only changes .ai tickets does not nag', bookkeeping.code === 0 && !/resume anchor/.test(bookkeeping.err));
+const realWork = runStopWithTurn(makeRepo({ session: '# S\n' }), { 'src/app.mjs': 'export {};\n' });
+ok('a commit that changes project files still nags once', realWork.code === 2 && /resume anchor/.test(realWork.err));
 
 console.log(`\n${count - failures}/${count} passed`);
 process.exit(failures ? 1 : 0);

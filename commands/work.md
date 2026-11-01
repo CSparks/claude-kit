@@ -76,11 +76,11 @@ process failure — a zombie `doing` surfaces as a nag on every subsequent sessi
 Never leave a ticket `doing` when you stop touching it.
 
 ## Search — q first (the kit's search tool)
-When you or a subagent you dispatch searches, use `q.mjs` (`node <kit>/scripts/q.mjs`), never grep or rg: it indexes the repo and its
+When you or a subagent you dispatch searches, use bare `q` (fallback: `node "<kit>/scripts/q.mjs"`, always quoted), never grep or rg: it indexes the repo and its
 framework submodule — code in every language, docs, configs, tickets — and answers ranked, compact, exact.
 - `q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [-C 2] [--kind code|doc|config|ticket]`
 - `q sym <name> [--type fn,struct,impl,use,mod]` · `q file <glob>` · `q fts <terms>` (work items) · `q show <id>`
 - If q cannot do what you need, that is a kit bug or feature: `cap feature "q: <what is missing>" --project claude-kit`
   (a ticket the kit team builds) — never fall back to grep silently.
-- Put this line in every dispatch brief: "Search with q.mjs (q code / sym / file / fts), never grep."
+- Put this line in every dispatch brief: "Search with q (q code / sym / file / fts), never grep."
 - Put this block in every dispatch brief (source: docs/wait-rule.md): wait ONCE per build or test — one Bash call with the max timeout or run_in_background, output filtered to failures/panics/assertions/`test result` totals, never poll or sleep-loop, re-run one test by name.

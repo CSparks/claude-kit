@@ -6,8 +6,8 @@ Drain work per `.ai/config.yml` → `drain`, so the maintainer never has to name
 Keep going item-to-item until the queue needs them or they stop.
 
 1. SELECT the next item — **QUERY the cache, don't open every ticket** (KIT-T026):
-   `node <kit>/scripts/q.mjs open` lists this repo's open items (status+priority, sorted), and
-   `node <kit>/scripts/q.mjs rundown` gives its open/doing/review counts. Every scope argument
+   `q open` lists this repo's open items (status+priority, sorted), and
+   `q rundown` gives its open/doing/review counts. Every scope argument
    defaults to the CWD project (KIT-T255) — pass `all` (`q.mjs open all`, `q.mjs rundown all`)
    or a project key to look wider. q.mjs auto-falls-back to a markdown scan when no SQLite
    engine is present, so it always answers.
@@ -35,7 +35,7 @@ Keep going item-to-item until the queue needs them or they stop.
      low-risk; otherwise surface ONE line — `next up: <id> — your call: <why>` — and wait.
    - `surface-only`: never start a new item without an explicit go.
 4. When an item reaches `review`: summarize the diff, then **pull the next item (step 1) and
-   continue** — that is the drain. Never set `done` (maintainer-only).
+   continue** — that is the drain. Never set `done` on your own judgment; the maintainer's "it's fixed" is the trigger to close it (KIT-D125).
 5. QUESTIONS drain alongside tickets (`drain.answer_self_questions`): scan `.ai/questions/` for
    `status: open`. Answer each `answerable_by: claude` one FROM the code + `.ai/decisions/` (never
    guess — one you can't ground from the record becomes a user question), write the answer + date
@@ -43,7 +43,7 @@ Keep going item-to-item until the queue needs them or they stop.
    (KIT-T064). Leave `answerable_by: user` ones open and batch them into the next `/decide`
    (a legacy personal alias in older data is read as `user`).
 6. UNREAD @MENTIONS drain alongside tickets (KIT-T130): at the start of a drain, check the
-   comments addressed to the acting agent identity — `node <kit>/scripts/q.mjs mentions <you>`
+   comments addressed to the acting agent identity — `q mentions <you>`
    (SessionStart already surfaces these; `<you>` defaults to `claude`, or `$KIT_AGENT`). Each
    unread mention is a durable UI/CLI comment to act on: address it as part of the work, then
    `node <kit>/scripts/t.mjs ack <id>#<n> --agent <you>` so it stops surfacing. Leave one open
@@ -89,11 +89,11 @@ Honor the standing rules throughout: log work to its ticket in the same change (
 enforces), record decisions the turn they happen, and don't start deferred/gated work.
 
 ## Search — q first (the kit's search tool)
-When you or a subagent you dispatch searches, use `q.mjs` (`node <kit>/scripts/q.mjs`), never grep or rg: it indexes the repo and its
+When you or a subagent you dispatch searches, use bare `q` (fallback: `node "<kit>/scripts/q.mjs"`, always quoted), never grep or rg: it indexes the repo and its
 framework submodule — code in every language, docs, configs, tickets — and answers ranked, compact, exact.
 - `q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [-C 2] [--kind code|doc|config|ticket]`
 - `q sym <name> [--type fn,struct,impl,use,mod]` · `q file <glob>` · `q fts <terms>` (work items) · `q show <id>`
 - If q cannot do what you need, that is a kit bug or feature: `cap feature "q: <what is missing>" --project claude-kit`
   (a ticket the kit team builds) — never fall back to grep silently.
-- Put this line in every dispatch brief: "Search with q.mjs (q code / sym / file / fts), never grep."
+- Put this line in every dispatch brief: "Search with q (q code / sym / file / fts), never grep."
 - Put this block in every dispatch brief (source: docs/wait-rule.md): wait ONCE per build or test — one Bash call with the max timeout or run_in_background, output filtered to failures/panics/assertions/`test result` totals, never poll or sleep-loop, re-run one test by name.

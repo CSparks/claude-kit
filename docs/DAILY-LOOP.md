@@ -32,7 +32,7 @@ reports a prioritized worklist.
 ```
 Claude restates acceptance criteria, **confirms scope**, sets `doing`, mirrors
 criteria to the native task list, executes ticking boxes, then sets `review` (or
-`done` when `config.uat: none`) and summarizes. You set `done` after merge
+`done` when `config.uat: none`) and summarizes. When you say it works, Claude closes it
 (human-only on projects with `uat: required`).
 
 Between tickets Claude pulls the next item itself via the drain rules — you don't

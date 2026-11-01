@@ -43,7 +43,9 @@ is ONE small file. Locate it and read only it: `code-graph --query defines <symb
 The query-gate blocks tree-wide source greps. Read less to do more.
 
 ## q is THE search tool — never grep or rg
-Every search goes through `q` (`node <kit>/scripts/q.mjs`): `q code <text>` (code in every
+Every search goes through the bare `q` command (shims in the plugin `bin/` on PATH). Fallback:
+`node "<kit>/scripts/q.mjs"`, always quoted, never kept in an unquoted variable (a home dir
+with a space word-splits it). `q code <text>` (code in every
 language, docs, configs, tickets, across the repo and its framework submodule; filters
 `--lang --path --kind --regex -i -w -C`), `q sym <name> [--type fn,struct,impl,use,mod]`,
 `q file <glob>`, `q fts <terms>` (work items), `q show <id>`. Ranked, compact, exact — and
@@ -52,7 +54,7 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
 - Dependency sources (cargo registry, vendored crates): `q code <text> --registry <crate-version>`
   (e.g. `rapier3d-0.25.1`; a bare crate name works when Cargo.lock pins one version) — also `q sym`,
   same filters, absolute paths. Never grep `~/.cargo/registry` or a `vendor/` dir.
-- A subagent brief says so: "Search with q.mjs, never grep." Agent definitions inherit it.
+- A subagent brief says so: "Search with q, never grep." Agent definitions inherit it.
 - q cannot do it? That is a kit feature: `cap feature "q: …" --project claude-kit`, a ticket
   the kit team builds. Never a silent grep.
 

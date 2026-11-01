@@ -91,8 +91,10 @@ On "work T-001" (or when I pull it from the drain):
    "N passed"), or the test/fixing commit sha — OR an explicit `[no-test: <reason>]`.
    The commit gate blocks the commit otherwise; "review/done" must mean test-backed,
    not self-asserted.
-6. Chris sets `status: done` after merge (a `statuses.human_only` status — **never
-   set it myself**). On done, the ticket moves to `.ai/tickets/archive/`.
+6. `done` is a `statuses.human_only` status: I never close on my own judgment. When Chris
+   reports a fix works ("it's fixed"), I close at once with `t status <id> done --human` and
+   link `fixed_commit` — never hand back `/done <id>` (KIT-D125). On done, the ticket moves
+   to `.ai/tickets/archive/`.
 
 ### Backlog vs roadmap
 - **Backlog** = tickets with `status: todo` and no `milestone`. Everything

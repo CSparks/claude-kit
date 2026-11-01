@@ -4,10 +4,11 @@
 // path and reports the ones absent from disk.
 //
 //   citedPaths(text)            -> the repo-checkable path tokens (separator + extension; host/home paths excluded)
-//   missingCitations(root, text)-> those that don't resolve on disk, relative paths anchored at root
+//   missingCitations(root, text)-> those that don't resolve on disk, relative paths anchored at root;
+//                                  absolute paths outside root (another project's tree) are skipped
 
 import { existsSync } from 'node:fs';
-import { isAbsolute, resolve } from 'node:path';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
 
 // A citation is a token carrying at least one path separator and a trailing file extension:
 // `docs/research/x.md`, `D:\dev\p\notes.md`, `../out/report.json`. Bare `SESSION.md` (no
@@ -36,6 +37,13 @@ export function citedPaths(text) {
   return [...out];
 }
 
+// An absolute path outside `root` names another project's tree; this repo's anchor cannot fix it.
+function outsideRoot(root, p) {
+  if (!isAbsolute(p)) return false;
+  const rel = relative(resolve(root), resolve(p));
+  return rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel);
+}
+
 export function missingCitations(root, text) {
-  return citedPaths(text).filter((p) => !existsSync(isAbsolute(p) ? p : resolve(root, p)));
+  return citedPaths(text).filter((p) => !outsideRoot(root, p) && !existsSync(isAbsolute(p) ? p : resolve(root, p)));
 }

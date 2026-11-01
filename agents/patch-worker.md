@@ -69,7 +69,7 @@ Cost is per tool call, so a wait is ONE call and one read of the result.
 - Never poll an output file, never sleep-loop, and never re-run a whole suite to see one test: run that test by name.
 
 ## Search — q first (the kit's search tool)
-Search with `q.mjs` (`node <kit>/scripts/q.mjs`), never grep or rg: it indexes the repo and its
+Search with bare `q` (fallback: `node "<kit>/scripts/q.mjs"`, always quoted), never grep or rg: it indexes the repo and its
 framework submodule — code in every language, docs, configs, tickets — and answers ranked, compact, exact.
 - `q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [-C 2] [--kind code|doc|config|ticket]`
 - `q sym <name> [--type fn,struct,impl,use,mod]` · `q file <glob>` · `q fts <terms>` (work items) · `q show <id>`
