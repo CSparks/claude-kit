@@ -66,6 +66,8 @@ try {
   ok('KIT-T785 control: a while-true poll reading target/broker is still blocked', blocked(sub('while true; do cat target/broker/finished.log; sleep 5; done')));
   ok('KIT-T785 control: tail -F on target/broker is still blocked', blocked(sub('tail -F target/broker/finished.log')));
   ok('KIT-T785 control: a for loop around wait.mjs is still blocked', blocked(sub(`for i in 1 2 3; do node ${BROKER}/wait.mjs j-zzz-9; done`)));
+  ok('KIT-T798: a for loop running two greps over finished broker job logs passes', sub('for t in a b; do grep -c "test result" target/broker/logs/job-$t.log; grep -n panicked target/broker/logs/job-$t.log; done').code === 0);
+  ok('KIT-T798 control: a while loop with sleep over target/broker job logs still blocks', blocked(sub('while true; do grep -c ok target/broker/logs/job-a.log; sleep 5; done')));
   ok("KIT-T784: a commit message heredoc naming target/broker, sleep and an apostrophe passes", sub("git commit -q -F - <<'EOF'\nfix: the agent's loop: sleep 5 then watch.mjs target/broker\nEOF").code === 0);
   ok('KIT-T784: a t notes argument naming sleep, tail -f and target/broker is data and passes', sub('node scripts/t.mjs notes KIT-T1 "loops: sleep 5; tail -f target/broker/finished.log"').code === 0);
   ok('KIT-T784 control: sleep outside the quotes of a git line still blocks', blocked(sub('git commit -m "x" && sleep 5 && cat target/broker/finished.log')));

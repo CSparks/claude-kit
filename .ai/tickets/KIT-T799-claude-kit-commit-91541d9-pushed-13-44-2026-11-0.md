@@ -30,6 +30,7 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## Notes
 Provenance: 91541d9 is the marblequest-18 session's kit agent work on KIT-T785, KIT-T784 and KIT-T711 (broker-wait-gate, inert-heredoc, command-leads, data-command, shell-segments, query-gate, tests, kit tickets). Its title (implements MAR-T035) is wrong: the agent reused a scratchpad commit-message file holding MAR-T035 text; the real MAR-T035 fix is marblequest 22a34d6. Pushed, not rewritten. The gate let it through because the commit touched kit tickets (plan-of-record early-allow ran before any key check). Fix: hooks/lib/commit-cite-keys.mjs, judged in hooks/commit-gate.mjs before the early-allow. Tests: hooks/commit-cite-keys.test.mjs (8 passed), commit-gate.test.mjs (42 passed).
+Correction: 91541d9 is no longer on main; the same tree is d85eb23 (implements KIT-T784, T785, T711), which origin/main holds. Nothing to revert.
 
 ## History
 - [2026-11-01 19:45] (created) bug — claude-kit commit 91541d9 (pushed, 13:44 2026-11-01) is titled 'fix: billboards face the camera square-on under rotated parents (implements
@@ -38,3 +39,4 @@ Provenance: 91541d9 is the marblequest-18 session's kit agent work on KIT-T785, 
 - [2026-11-01 19:48] (comment) criterion added: A foreign-key-only code commit blocks naming the expected key; own key and touched-submodule key pass (hooks/commit-cite-keys.test.mjs)
 - [2026-11-01 19:48] (comment) ticked: A foreign-key-only code commit blocks naming the expected key; own key and touched-submodule key pass (hooks/commit-cite-keys.test.mjs)
 - [2026-11-01 19:48] (status) doing → review
+- [2026-11-01 19:48] (landed) 85e9db6 commit-gate: a code commit's cited key must belong to the repo's store or a submodule the commit touches; a foreign key 
