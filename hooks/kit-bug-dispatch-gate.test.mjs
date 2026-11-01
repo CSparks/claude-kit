@@ -24,6 +24,16 @@ const claim = (id, hoursAgo) => {
 };
 claim('KIT-T804', 0);
 claim('KIT-T805', 5);
+const closed = (id, status) => {
+  const path = join(store, '.ai', 'tickets', `${id}-t.md`);
+  ticket(id, 'high');
+  writeFileSync(path, readFileSync(path, 'utf8').replace('status: todo', `status: ${status}`));
+};
+closed('KIT-T806', 'review');
+closed('KIT-T807', 'done');
+closed('KIT-T808', 'superseded');
+const registry = join(tmpDir('kit-dispatch-registry-'), 'projects.json');
+writeFileSync(registry, JSON.stringify({ projects: { 'claude-kit': store } }));
 
 try {
   const d = adopted(false);
@@ -45,6 +55,10 @@ try {
   ok('only the undispatched id is named when one of two is dispatched', (() => { const r = stop(transcript(say('KIT-T801 KIT-T802'), agent('KIT-T801 please'))); return r.code === 2 && /KIT-T802/.test(r.out) && !/KIT-T801 \[/.test(r.out); })());
   ok('KIT-T768: a ticket another session\'s live kit agent holds (doing, touched lately) does not block', stop(transcript(say('KIT-T804 is with the kit agent'))).code === 0);
   ok('KIT-T768 control: a doing ticket untouched for hours belongs to a dead agent and blocks', (() => { const r = stop(transcript(say('KIT-T805'))); return r.code === 2 && /KIT-T805/.test(r.out); })());
+  const viaRegistry = (file) => hook('kit-bug-dispatch-gate.mjs', { hook_event_name: 'Stop', session_id: `s${RUN}-${n++}`, transcript_path: file }, d, { CLAUDE_KIT_REGISTRY: registry });
+  ok('KIT-T793: from a project root with no KIT tickets the kit store is found through the registry and a live claim there does not block', viaRegistry(transcript(say('KIT-T804 is held'))).code === 0);
+  ok('KIT-T793 control: through the registry the same store still blocks a doing ticket untouched for hours', (() => { const r = viaRegistry(transcript(say('KIT-T805'))); return r.code === 2 && /KIT-T805/.test(r.out); })());
+  ok('KIT-T793: a ticket in review, done or superseded never blocks', stop(transcript(say('KIT-T806 KIT-T807 KIT-T808'))).code === 0);
   ok('stop_hook_active allows', stop(transcript(say('KIT-T801')), { stop_hook_active: true }).code === 0);
 
   const file = transcript(say('KIT-T802 again'));

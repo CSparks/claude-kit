@@ -2,7 +2,7 @@
 id: KIT-T768
 title: kit-bug-dispatch-gate blocks a session's Stop for a kit ticket another session's live standing kit agent already owns (dirt-empire-83 blocke
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-31T16:26:58Z
-updated: 2026-10-31T16:33:28Z
+updated: 2026-11-01T19:37:01Z
 ---
 
 ## Description
@@ -29,7 +29,10 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## Notes
 Fix: a ticket doing and touched within 4 h counts as claimed by a live kit agent of any session (kit-bug.mjs claimed()); an older doing ticket lists as open again. Evidence: hooks/kit-bug-dispatch-gate.test.mjs 14 passed, scripts/kit-bug.test.mjs 20 ok. Decision draft KIT-D123 (assistant-proposed, pending confirmation).
+Left doing after the landing; moved to review 2026-11-01 (a doing ticket untouched for 4 h counts as unclaimed by design, which is why dirt-empire's gate listed it again). Test: hooks/kit-bug-dispatch-gate.test.mjs 17 passed (a315e09 era).
 
 ## History
 - [2026-10-31 16:26] (created) bug — kit-bug-dispatch-gate blocks a session's Stop for a kit ticket another session's live standing kit agent already owns (dirt-empire-83 blocke
 - [2026-10-31 16:33] (status) todo → doing
+- [2026-10-31 16:37] (landed) 0180c1f kit-bug-dispatch gate: a ticket doing and touched within 4 h is claimed by a live kit agent of any session and is not op
+- [2026-11-01 19:37] (status) doing → review
