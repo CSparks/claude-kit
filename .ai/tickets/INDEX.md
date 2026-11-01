@@ -392,7 +392,7 @@
 | KIT-T702 | bug | todo | high | D:/dev/claude-kit/tools/llm-fleet/ (fleet.ps1 and convert-asset.mjs, dated 2026-08-31) has never been committed: it sits untracked in the ki ↳ KIT-T350 |
 | KIT-T703 | bug | todo | high | Orchestrator briefs invent requirements beyond the maintainer's words: DE-T195 'MX track class with higher hills and jumps' was built as a s |
 | KIT-T707 | bug | todo | high | q code --path C:/ComfyUI/comfy returns 'no indexed file passes --path' from an unbounded session: the ComfyUI checkout (comfy-volta agent's |
-| KIT-T708 | bug | todo | high | broker: an auto-pin job whose pin a linked landing already recorded ends as failed with 'nothing added to commit' (dirt-empire j-mvtutclx-ls |
+| KIT-T708 | bug | doing | high | broker: an auto-pin job whose pin a linked landing already recorded ends as failed with 'nothing added to commit' (dirt-empire j-mvtutclx-ls |
 | KIT-T709 | feature | todo | medium | hand-write-detect: the snapshot costs a median of 95 ms and 240 ms cold on dirt-empire (measured 2026-10-29, runtime e782b85), and PostToolU |
 | KIT-T710 | bug | todo | high | hand-write-detect compares only status, mtime and size, so on a filesystem with coarse mtimes a same-size rewrite inside one timestamp tick |
 | KIT-T711 | bug | review | high | broker-wait-gate and broker-agent-tag have no branch for ambiguous quoting (KIT-T705 contract): a command hidden behind an escaped quote is |
@@ -430,7 +430,7 @@
 | KIT-T769 | bug | review | high | broker: dirt-empire check tree leaked a foreign rapid-game patch into an unrelated job. j-mvwllvig-oap0hj (DE-T228, touches only crates/bike |
 | KIT-T771 | feature | review | medium | broker: flag test commands for crates the change does not reach in the job result, and record each flagged command's pass or fail in the timing profile (KIT-Q005 lever 2 option A, KIT-D121) |
 | KIT-T772 | feature | review | medium | broker: capture cargo's dirty reason per rebuilt crate and rank the top reasons per crate in broker blockers (KIT-Q005 lever 3, KIT-D121) |
-| KIT-T780 | bug | doing | high | broker time sink: crate rg-physics in dirt-empire/root |
+| KIT-T780 | bug | review | high | broker time sink: crate rg-physics in dirt-empire/root |
 | KIT-T784 | bug | review | high | query-gate and store-shell-gate refuse commands for ambiguous quoting: a heredoc commit message containing an apostrophe, and a t comment wh |
 | KIT-T785 | bug | review | high | broker-wait gate blocks read-only commands: an inline node -e loop that only reads broker results files, and a tail of a node script output, |
 |  | | | | ↳ children: KIT-T798 |
@@ -438,16 +438,16 @@
 | KIT-T793 | bug | review | high | regression of KIT-T768 (0180c1f): the kit-bug-dispatch Stop gate in dirt-empire-83 (D:/dev/claude-kit/hooks/kit-bug-dispatch-gate.mjs via co |
 | KIT-T794 | bug | review | high | broker time sink: waste rebuild rg-meshkit-script in dirt-empire/root |
 | KIT-T795 | bug | review | high | broker time sink: waste rebuild rg-meshkit-script-bevy in dirt-empire/root |
-| KIT-T796 | bug | doing | high | broker time sink: phase command in dirt-empire/rapid-game |
-| KIT-T797 | bug | doing | high | broker time sink: crate (workspace) in dirt-empire/rapid-game |
+| KIT-T796 | bug | review | high | broker time sink: phase command in dirt-empire/rapid-game |
+| KIT-T797 | bug | review | high | broker time sink: crate (workspace) in dirt-empire/rapid-game |
 | KIT-T798 | bug | review | high | regression of KIT-T734 (abbbc1a): broker-wait-gate still treats a one-shot shell for loop that reads finished target/broker/logs/*.log files ↳ KIT-T785 |
 | KIT-T799 | bug | review | high | claude-kit commit 91541d9 (pushed, 13:44 2026-11-01) is titled 'fix: billboards face the camera square-on under rotated parents (implements |
 | KIT-T800 | bug | review | high | kit-bug-dispatch-gate demands an Agent dispatch for tickets another session holds under KIT-D123: on 2026-11-01 the marblequest session disp |
-| KIT-T801 | bug | doing | high | broker time sink: waste rebuild look in dirt-empire/root |
-| KIT-T802 | bug | doing | high | broker time sink: waste rebuild track in dirt-empire/root |
-| KIT-T803 | bug | doing | high | broker time sink: waste rebuild truck in dirt-empire/root |
-| KIT-T804 | bug | doing | high | broker time sink: phase command in dirt-empire/root |
-| KIT-T805 | bug | doing | high | broker time sink: crate race in dirt-empire/root |
+| KIT-T801 | bug | review | high | broker time sink: waste rebuild look in dirt-empire/root |
+| KIT-T802 | bug | review | high | broker time sink: waste rebuild track in dirt-empire/root |
+| KIT-T803 | bug | review | high | broker time sink: waste rebuild truck in dirt-empire/root |
+| KIT-T804 | bug | review | high | broker time sink: phase command in dirt-empire/root |
+| KIT-T805 | bug | review | high | broker time sink: crate race in dirt-empire/root |
 | KIT-T807 | bug | review | high | q launcher: documented raw node path form word-splits on a home dir with a space (C:\Users\Chris Sparks); docs and agent text must name the |
 | KIT-T808 | bug | review | high | request-gate request-capture false-positive: a turn that routed the request with t decide --file (MAR-D013 written this turn) was still flag |
 | KIT-T809 | bug | review | high | kit-bug-dispatch-gate hand-off match needs the full id: a SendMessage that named 'KIT-T801, T802, T803, T797, T805, T796 and T804' counted o |

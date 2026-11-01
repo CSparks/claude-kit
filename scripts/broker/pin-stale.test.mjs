@@ -71,6 +71,19 @@ test('a check-only job may build with an older pin', () => {
   } finally { t.done(); }
 });
 
+test('a pin-only landing whose pin an earlier landing already recorded ends passed, not failed on nothing to commit (KIT-T708)', () => {
+  const t = setup();
+  try {
+    const pinned = frameworkCommit(t, 'a.txt');
+    assert.equal(t.run({ ticket: 'ST-T2', title: 'first pin', land: true, pin: `rapid-game=${pinned}` }, '*** write one.txt\n1\n').r.status, 'landed');
+    const head = g(['rev-parse', 'HEAD'], t.root);
+    const again = runQueued(t, queueOnly(t, { ticket: 'ST-T3', title: 'pin again', land: true, pin: `rapid-game=${pinned}`, 'no-patch': true }, ''));
+    assert.equal(again.status, 'passed', JSON.stringify(again));
+    assert.match(again.message, /already recorded/);
+    assert.equal(g(['rev-parse', 'HEAD'], t.root), head, 'no commit');
+  } finally { t.done(); }
+});
+
 test('a gitlink that advances while the job runs is caught again at land time', () => {
   const t = setup();
   try {

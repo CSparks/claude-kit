@@ -24,7 +24,7 @@ import { testRecord } from './test-record.mjs';
 import { phaseTracker } from './phase.mjs';
 import { gateTrailer } from './trailer.mjs';
 import { scopePin } from './pin-scope.mjs';
-import { stalePins } from './pin-stale.mjs';
+import { recordedPins, stalePins } from './pin-stale.mjs';
 import { checkoutPins, implicitPins, preparePins, revertPins, settlePins } from './pin.mjs';
 import { recordRun } from './health-store.mjs';
 import { changedLocks, dirtyPaths, revParse } from './git.mjs';
@@ -165,6 +165,8 @@ export function processPatch(cfg, job, repo, opts = {}) {
     };
     const stalePin = stalePins(cfg, cwd, explicit());
     if (stalePin) return done({ status: STATUS.STALE, phase: 'pin', commands, diffStat, foreign, selection, message: stalePin });
+    const recorded = !plan.files.size && !changedLocks(cwd).length ? recordedPins(cwd, explicit()) : null;
+    if (recorded) return done({ status: STATUS.PASSED, phase: 'pin', commands, diffStat, foreign, selection, message: recorded });
     resolveLocks(cwd, [...plan.files.keys()]);
     const land = landLinked(cfg, repo, job, cwd, [...new Set([...plan.files.keys(), ...changedLocks(cwd), ...explicit().map((p) => p.path)])], {
       verify: reverify, trailer: gateTrailer(job, commands, { reused, selection, note }), onPhase: (p) => ph.enter(p),

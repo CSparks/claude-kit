@@ -2,7 +2,7 @@
 id: KIT-T708
 title: broker: an auto-pin job whose pin a linked landing already recorded ends as failed with 'nothing added to commit' (dirt-empire j-mvtutclx-ls
 type: bug
-status: todo
+status: doing
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-29T18:38:31Z
-updated: 2026-10-29T18:38:31Z
+updated: 2026-11-01T23:12:52Z
 ---
 
 ## Description
@@ -29,3 +29,4 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-10-29 18:38] (created) bug — broker: an auto-pin job whose pin a linked landing already recorded ends as failed with 'nothing added to commit' (dirt-empire j-mvtutclx-ls
+- [2026-11-01 23:12] (status) todo → doing
