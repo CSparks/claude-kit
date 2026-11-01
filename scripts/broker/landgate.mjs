@@ -70,7 +70,9 @@ export function isSuiteShaped(cmd, suite) {
 const inWorkspace = (dir) => (dir ? `cd ${dir} && ` : '');
 
 // Workspace crates that depend, through the workspace's Cargo.lock, on a touched crate: their whole test run follows the touched
-// crate's mapped targets (KIT-D110). A workspace without a lock yields none.
+// crate's mapped targets (KIT-D110). One command per workspace names every dependent, so cargo unifies features once and
+// compiles each shared crate once; a command per crate gave each its own feature set and recompiled the shared crates (KIT-T801).
+// A workspace without a lock yields none.
 function dependentTests(cfg, cwd, sel) {
   const out = [];
   const byWorkspace = new Map();
@@ -78,10 +80,8 @@ function dependentTests(cfg, cwd, sel) {
   for (const [ws, names] of byWorkspace) {
     const lock = readLock(join(cwd, ws, 'Cargo.lock'));
     if (!lock) continue;
-    for (const dep of dependentsOf(lock, names)) {
-      if (names.includes(dep) || sel.crates.has(dep) || !(lock.get(dep) || {}).local) continue;
-      out.push(`${inWorkspace(ws)}${cfg.affected.test} -p ${dep}`);
-    }
+    const deps = [...dependentsOf(lock, names)].filter((dep) => !names.includes(dep) && !sel.crates.has(dep) && (lock.get(dep) || {}).local);
+    if (deps.length) out.push(`${inWorkspace(ws)}${cfg.affected.test} ${deps.map((dep) => `-p ${dep}`).join(' ')}`);
   }
   return out;
 }

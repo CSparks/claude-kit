@@ -46,7 +46,7 @@ test('the gate adds the whole test run of every local crate that depends on a to
   const dir = layout();
   try {
     const gate = landGate(cfg(true), dir, { commands: [] }, files('crates/base/src/lib.rs'));
-    assert.deepEqual(gate.commands, ['CHECK', 'cargo test -p base --lib', 'cargo test -p mid', 'cargo test -p top']);
+    assert.deepEqual(gate.commands, ['CHECK', 'cargo test -p base --lib', 'cargo test -p mid -p top'], 'one command names every dependent: cargo unifies features once (KIT-T801)');
   } finally { cleanup(dir); }
 });
 
@@ -55,7 +55,7 @@ test('a job that names its own --test commands still runs the dependents of the 
   try {
     const own = ['cargo test -p base --test unit'];
     const gate = landGate(cfg(true), dir, { commands: own }, files('crates/base/src/lib.rs'));
-    assert.deepEqual(gate.commands, ['CHECK', ...own, 'cargo test -p mid', 'cargo test -p top']);
+    assert.deepEqual(gate.commands, ['CHECK', ...own, 'cargo test -p mid -p top']);
     assert.equal(gate.selection.explicit, true);
     assert.deepEqual(landGate(cfg(false), dir, { commands: own }, files('crates/base/src/lib.rs')).commands, ['CHECK', ...own], 'dependents off keeps the job list alone');
     assert.deepEqual(landGate(cfg(true), dir, { commands: own }, files('crates/top/src/lib.rs')).commands, ['CHECK', ...own], 'nothing depends on top');
