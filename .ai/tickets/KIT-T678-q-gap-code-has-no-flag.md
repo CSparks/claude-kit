@@ -2,7 +2,7 @@
 id: KIT-T678
 title: q gap: 'code' has no -- flag
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-28T21:54:00Z
-updated: 2026-11-01T23:23:02Z
+updated: 2026-11-01T23:23:24Z
 ---
 
 ## Description
@@ -27,6 +27,9 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 ## Plan
 1.
 
+## Notes
+Fix: a lone -- makes the next token search text even when it starts with a dash, flags after it still apply (q code -- --capture --limit 0). Test code-index 27 passed (parse case plus control that an unknown flag is still reported).
+
 ## History
 - [2026-10-28 21:54] (created) bug — q gap: 'code' has no -- flag
 - [2026-10-28 21:54] (comment) seen again in dirt-empire: q code -- --showroom --limit 0
@@ -36,3 +39,5 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 - [2026-10-28 21:54] (comment) seen again in dirt-empire: q code -- --no-audio --limit 0
 - [2026-10-29 17:12] (comment) seen again in claude-kit: q code -- --dir --path scripts --lang js
 - [2026-11-01 23:23] (status) todo → doing
+- [2026-11-01 23:23] (status) doing → review
+- [2026-11-01 23:23] (landed) bee2e66 q code: a lone -- makes the next token search text; an empty q code says gitignored and out-of-repo trees are searched w

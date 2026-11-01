@@ -370,7 +370,7 @@
 | KIT-T675 | bug | review | high | broker: a cargo job fails 'failed to remove file target/debug/<bin>.exe: Access is denied (os error 5)' with no retry and no record of the h |
 | KIT-T676 | bug | review | high | broker: a running job can never be cancelled and has no command timeout; dirt-empire j-mvskowvb-iinf3d (a withdrawn DE-T196 diagnostic) hung |
 | KIT-T677 | bug | review | high | broker land gate missed a compile break: dirt-empire ab5a964 (j-mvsj7sn5, DE-T195) added FeatureKind variants and landed although tests/gene |
-| KIT-T678 | bug | doing | high | q gap: 'code' has no -- flag |
+| KIT-T678 | bug | review | high | q gap: 'code' has no -- flag |
 | KIT-T679 | bug | todo | high | q gap: 'code' has no -capture  flag |
 | KIT-T680 | feature | todo | medium | broker: superproject jobs that do not touch the submodule should build/test while a submodule-lane job runs (today the root lane waits whene |
 | KIT-T681 | feature | todo | medium | broker: cheap pre-flight before a queue slot: a submit runs 'cargo check' of the touched crates against HEAD (or in a scratch target) and re |
@@ -389,9 +389,9 @@
 | KIT-T695 | bug | todo | high | broker: both lanes share one CARGO_TARGET_DIR but the submodule lane's commands use rapid-game's cargo aliases (cargo t/b/r add --features r |
 | KIT-T696 | bug | todo | high | Process failure (cross-project, 2026-10-29): Stiletto's test policy (ST-D254 tiered tests: a merge runs touched crates + dependents, GPU gol |
 | KIT-T698 | bug | todo | high | broker: a check-only job applies its patch in the maintainer's live checkout, so a hand cargo r compiles patched code (dirt-empire 2026-10-2 |
-| KIT-T702 | bug | todo | high | D:/dev/claude-kit/tools/llm-fleet/ (fleet.ps1 and convert-asset.mjs, dated 2026-08-31) has never been committed: it sits untracked in the ki ↳ KIT-T350 |
-| KIT-T703 | bug | todo | high | Orchestrator briefs invent requirements beyond the maintainer's words: DE-T195 'MX track class with higher hills and jumps' was built as a s |
-| KIT-T707 | bug | doing | high | q code --path C:/ComfyUI/comfy returns 'no indexed file passes --path' from an unbounded session: the ComfyUI checkout (comfy-volta agent's |
+| KIT-T702 | bug | review | high | D:/dev/claude-kit/tools/llm-fleet/ (fleet.ps1 and convert-asset.mjs, dated 2026-08-31) has never been committed: it sits untracked in the ki ↳ KIT-T350 |
+| KIT-T703 | bug | doing | high | Orchestrator briefs invent requirements beyond the maintainer's words: DE-T195 'MX track class with higher hills and jumps' was built as a s |
+| KIT-T707 | bug | review | high | q code --path C:/ComfyUI/comfy returns 'no indexed file passes --path' from an unbounded session: the ComfyUI checkout (comfy-volta agent's |
 | KIT-T708 | bug | review | high | broker: an auto-pin job whose pin a linked landing already recorded ends as failed with 'nothing added to commit' (dirt-empire j-mvtutclx-ls |
 | KIT-T709 | feature | todo | medium | hand-write-detect: the snapshot costs a median of 95 ms and 240 ms cold on dirt-empire (measured 2026-10-29, runtime e782b85), and PostToolU |
 | KIT-T710 | bug | review | high | hand-write-detect compares only status, mtime and size, so on a filesystem with coarse mtimes a same-size rewrite inside one timestamp tick |
@@ -422,7 +422,7 @@
 | KIT-T739 | bug | review | critical | broker-wait-gate counts a wait.mjs call that never ran (node failed MODULE_NOT_FOUND from an unquoted path with a space in HOME) as the job |
 | KIT-T740 | bug | review | high | sync-data's REGRESSION INCOMPLETE remedy names regressed_from|causing_commit even when the gap is a done regression missing fixed_commit (dirt-empire DE-T098/T115/T130/T131/T134/T138 after the KIT-D107 lapse) |
 | KIT-T746 | bug | review | high | hand-write-detect false positive: a broker client call (watch.mjs, wait.mjs, submit.mjs) is blamed for the source files a broker landing wrote during it (dirt-empire DE-T256, j-mvvn1t1y-k0zczz, commit 9d26d5b) |
-| KIT-T749 | bug | doing | high | q gap: a grep followed an empty q code for the same terms |
+| KIT-T749 | bug | review | high | q gap: a grep followed an empty q code for the same terms |
 | KIT-T765 | feature | review | medium | broker: land-gate cargo check uses the lane's test feature set; the extra-feature check runs on the suite schedule (KIT-Q005 lever 1, KIT-D121) |
 | KIT-T766 | bug | review | high | broker: a linked --land job whose submodule base moved fails at the land step after a full build (dirt-empire j-mvvpahyd-bofajm, DE-T263): report STALE before the build, and name the next action |
 | KIT-T767 | bug | review | high | broker train may batch a linked job's superproject half without its submodule half: dirt-empire j-mvwllsyo-s23z2a (DE-T264, only cell_draw.r |
