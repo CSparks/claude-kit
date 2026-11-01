@@ -1,4 +1,4 @@
-// The effect of one shell call on a repo's working tree (KIT-D117): every dirty path with its mtime and size,
+// The effect of one shell call on a repo's working tree (KIT-D117): every dirty path with its mtime and size (and a content hash for source),
 // taken before the call and compared after it. Nothing is parsed to find a write, so every sink and path
 // form is seen alike.
 //   snapshotDirty(root) -> { [relPath]: signature }          capped at ENTRIES_MAX paths
@@ -9,7 +9,8 @@
 //     redirect (cat, grep, head): its output is no hand write, and a change that landed meanwhile (a broker
 //     landing included) is another writer's
 
-import { statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from './exec.mjs';
 import { isSourcePath } from './shell-source-write.mjs';
@@ -29,10 +30,19 @@ const QUOTED = /"[^"]*"|'[^']*'/g;
 const hasFileRedirect = (command) => String(command || '').replace(QUOTED, '""').replace(BENIGN_REDIRECT, '').includes('>');
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
+const HASH_MAX_BYTES = 1 << 20;
+
+// Source files carry a content hash beside mtime and size: a same-size rewrite inside one coarse timestamp tick
+// leaves the other two unchanged (KIT-T710).
+const contentHash = (path, size) => {
+  try { return size <= HASH_MAX_BYTES ? createHash('sha1').update(readFileSync(path)).digest('hex') : ''; } catch { return ''; }
+};
+
 const signature = (root, rel) => {
   try {
-    const s = statSync(join(root, rel));
-    return `${s.mtimeMs}:${s.size}`;
+    const path = join(root, rel);
+    const s = statSync(path);
+    return `${s.mtimeMs}:${s.size}${isSourcePath(rel) ? `:${contentHash(path, s.size)}` : ''}`;
   } catch {
     return GONE;
   }

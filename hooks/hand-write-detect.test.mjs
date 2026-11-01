@@ -71,6 +71,16 @@ try {
     console.log('  skip  python os.open (python not on PATH)');
   }
 
+  {
+    const d = fresh();
+    writeFileSync(join(d, 'src', 'a.mjs'), 'export const a = 5;\n');
+    const sameTick = "const s = fs.statSync(p); fs.writeFileSync(p, 'export const a = 9;\\n'); fs.utimesSync(p, s.atime, s.mtime)";
+    const r = call(d, 'S1', 'node scratch.js', () => rewrite(d, sameTick));
+    ok('a same-size rewrite of an already dirty file that restores its mtime is caught by content (KIT-T710)', r.status === 2 && r.stderr.includes('src/a.mjs'));
+    const untouched = call(d, 'S1', 'node scratch.js', () => {});
+    ok('control: a call that leaves the dirty file byte for byte alone reports nothing', untouched.status === 0);
+  }
+
   const d = fresh();
   const hit = call(d, 'S2', 'node scratch.js', () => rewrite(d, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
   ok('the hand write exits 2 so the message reaches the agent', hit.status === 2);

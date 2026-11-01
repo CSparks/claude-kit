@@ -2,7 +2,7 @@
 id: KIT-T710
 title: hand-write-detect compares only status, mtime and size, so on a filesystem with coarse mtimes a same-size rewrite inside one timestamp tick
 type: bug
-status: todo
+status: doing
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-29T19:23:16Z
-updated: 2026-10-29T19:23:16Z
+updated: 2026-11-01T23:17:08Z
 ---
 
 ## Description
@@ -29,3 +29,4 @@ first seen in Chris Sparks. Filed automatically (KIT-T286): every kit bug is a t
 
 ## History
 - [2026-10-29 19:23] (created) bug — hand-write-detect compares only status, mtime and size, so on a filesystem with coarse mtimes a same-size rewrite inside one timestamp tick
+- [2026-11-01 23:17] (status) todo → doing

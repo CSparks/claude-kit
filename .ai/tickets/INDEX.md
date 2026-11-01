@@ -392,9 +392,9 @@
 | KIT-T702 | bug | todo | high | D:/dev/claude-kit/tools/llm-fleet/ (fleet.ps1 and convert-asset.mjs, dated 2026-08-31) has never been committed: it sits untracked in the ki ↳ KIT-T350 |
 | KIT-T703 | bug | todo | high | Orchestrator briefs invent requirements beyond the maintainer's words: DE-T195 'MX track class with higher hills and jumps' was built as a s |
 | KIT-T707 | bug | todo | high | q code --path C:/ComfyUI/comfy returns 'no indexed file passes --path' from an unbounded session: the ComfyUI checkout (comfy-volta agent's |
-| KIT-T708 | bug | doing | high | broker: an auto-pin job whose pin a linked landing already recorded ends as failed with 'nothing added to commit' (dirt-empire j-mvtutclx-ls |
+| KIT-T708 | bug | review | high | broker: an auto-pin job whose pin a linked landing already recorded ends as failed with 'nothing added to commit' (dirt-empire j-mvtutclx-ls |
 | KIT-T709 | feature | todo | medium | hand-write-detect: the snapshot costs a median of 95 ms and 240 ms cold on dirt-empire (measured 2026-10-29, runtime e782b85), and PostToolU |
-| KIT-T710 | bug | todo | high | hand-write-detect compares only status, mtime and size, so on a filesystem with coarse mtimes a same-size rewrite inside one timestamp tick |
+| KIT-T710 | bug | doing | high | hand-write-detect compares only status, mtime and size, so on a filesystem with coarse mtimes a same-size rewrite inside one timestamp tick |
 | KIT-T711 | bug | review | high | broker-wait-gate and broker-agent-tag have no branch for ambiguous quoting (KIT-T705 contract): a command hidden behind an escaped quote is |
 | KIT-T713 | feature | todo | medium | broker/KIT-D115: the one allowed wait is wasted when the job is not at the head of the queue (dirt-empire 2026-10-29: waits of 280 s routine |
 | KIT-T716 | bug | review | high | broker submit printed a precheck-log ENOENT error on a --land submit (dirt-empire j-mvu4lpjt-8ex1fr, DE-T209 truck split) yet the job still |
