@@ -2,7 +2,7 @@
 id: KIT-T832
 title: q gap: a grep followed an empty q sym for the same terms
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-02T18:14:30Z
-updated: 2026-11-02T18:14:30Z
+updated: 2026-11-02T18:53:45Z
+fixed_commit: 5109170
 ---
 
 ## Description
@@ -32,4 +33,6 @@ Diagnosis: q sym foot --path rapid-game/rust/core/rg-ik --type fn,struct was cor
 
 ## History
 - [2026-11-02 18:14] (created) bug — q gap: a grep followed an empty q sym for the same terms
-- [2026-11-02 18:53] (comment) ticked: 
+- [2026-11-02 18:53] (comment) ticked:
+- [2026-11-02 18:53] (landed) 5109170 q-miss counts only search terms, not q flag names or values; a lapsed done regression needs no fixed_commit; q-miss 12,
+- [2026-11-02 18:53] (status) todo → review

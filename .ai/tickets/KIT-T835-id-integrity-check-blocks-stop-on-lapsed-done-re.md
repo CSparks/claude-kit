@@ -2,7 +2,7 @@
 id: KIT-T835
 title: id-integrity check blocks Stop on lapsed done regressions that have no fixed_commit
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-02T18:53:04Z
-updated: 2026-11-02T18:53:04Z
+updated: 2026-11-02T18:53:48Z
+fixed_commit: 5109170
 ---
 
 ## Description
@@ -29,3 +30,5 @@ findRegressionGaps skips the fixed_commit gap when labels include lapsed (LAPSE_
 
 ## History
 - [2026-11-02 18:53] (created) bug — id-integrity check blocks Stop on lapsed done regressions that have no fixed_commit
+- [2026-11-02 18:53] (landed) 5109170 q-miss counts only search terms, not q flag names or values; a lapsed done regression needs no fixed_commit; q-miss 12,
+- [2026-11-02 18:53] (status) todo → review
