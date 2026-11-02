@@ -30,7 +30,8 @@ import { followupSuite, launchFollowup, publishSuite } from './publish-suite.mjs
 const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
 const DEFAULT_GRACE_HOURS = 72;
-const MS_PER_HOUR = 3600 * 1000;
+const MS_PER_S = 1000;
+const MS_PER_HOUR = 3600 * MS_PER_S;
 const SHA_DIR = /^[0-9a-f]{7,40}$/;
 const LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
 const ARCHIVE_MAX_BYTES = 1 << 30;
@@ -93,16 +94,20 @@ function linkModules(repo, dest) {
 function verifyHead(repo, runtimeRoot, sha, verify, ref = 'HEAD') {
   const parent = dirname(resolve(repo));
   const scratch = join(parent, `.kit-verify-${sha}-${process.pid}`);
-  sweepScratch(parent);
+  const laps = [];
+  const lap = (name, fn) => {
+    const started = Date.now();
+    try { return fn(); } finally { laps.push(`${name} ${((Date.now() - started) / MS_PER_S).toFixed(1)}s`); }
+  };
+  lap('sweep', () => sweepScratch(parent));
   try {
-    exportHead(repo, scratch, ref);
-    initGit(scratch, sha);
-    linkModules(repo, scratch);
-    verify(scratch);
+    lap('export', () => { exportHead(repo, scratch, ref); initGit(scratch, sha); linkModules(repo, scratch); });
+    lap('suite', () => verify(scratch));
   } finally {
-    stopProcessesUnder(scratch);
-    rmSync(scratch, { recursive: true, force: true, maxRetries: SCRATCH_RM_RETRIES, retryDelay: SCRATCH_RM_DELAY_MS });
-    sweepScratch(parent);
+    lap('stop', () => stopProcessesUnder(scratch));
+    lap('remove', () => rmSync(scratch, { recursive: true, force: true, maxRetries: SCRATCH_RM_RETRIES, retryDelay: SCRATCH_RM_DELAY_MS }));
+    lap('sweep', () => sweepScratch(parent));
+    process.stderr.write(`runtime-publish phases: ${laps.join(', ')}\n`);
   }
 }
 
