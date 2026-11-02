@@ -141,7 +141,9 @@ function leadingTag(text) {
 
 // The repos above `root`, nearest first: a hook whose cwd sits inside a submodule must still
 // see the superproject's `.claude/agents/`, where a workspace pins its agents (KIT-T267).
+const superprojectChains = new Map();
 function superprojects(root) {
+  if (superprojectChains.has(root)) return superprojectChains.get(root);
   const chain = [];
   let cwd = root;
   while (cwd) {
@@ -150,6 +152,7 @@ function superprojects(root) {
     chain.push(up);
     cwd = up;
   }
+  superprojectChains.set(root, chain);
   return chain;
 }
 

@@ -41,3 +41,4 @@ The security review re-flagged this on 2026-10-29 as HIGH. Suggested fix: a run-
 - [2026-11-01 23:47] (comment) @chris: Maintainer 2026-11-01, AskUserQuestion answer: '(Recommended) Delete it'. Delete tools/llm-fleet.
 - [2026-11-02 00:03] (comment) @claude: Deleted tools/llm-fleet (convert-asset.mjs, fleet.ps1) per the maintainer choice Delete it. Never committed: git log -- tools/llm-fleet is empty and git status showed it untracked.
 - [2026-11-02 00:03] (status) review → review
+- [2026-11-02 00:04] (landed) 90e49bb tickets: llm-fleet deleted, plain-words-for-ids decision recorded [no-test: ticket store and untracked dead scripts remo
