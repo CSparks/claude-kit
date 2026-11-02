@@ -2,7 +2,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { narrowCheck } from './precheck-scope.mjs';
+import { narrowChecks } from './precheck-scope.mjs';
+
+const narrowCheck = (...args) => narrowChecks(...args)[0] ?? null;
 
 const CHECK = 'cargo check --offline --workspace --all-targets --features dirt-empire/tools';
 
@@ -27,4 +29,22 @@ test('negative: commands that name no package or are not cargo tests give no nar
   assert.equal(narrowCheck(CHECK, ['cargo t --test x']), null, 'workspace-wide');
   assert.equal(narrowCheck(CHECK, ['cargo clippy -p game', 'node tools/x.mjs']), null);
   assert.equal(narrowCheck(CHECK, []), null);
+});
+
+const FRAMEWORK_TEST = 'cargo test --manifest-path rapid-game/rust/Cargo.toml -p rg-shader-kit --test shader_compile';
+const FRAMEWORK_CHECK = 'cargo check --offline --manifest-path rapid-game/rust/Cargo.toml -p rg-shader-kit --lib --test shader_compile';
+
+test('a --manifest-path command is checked in its own workspace, apart from the repo-level commands (KIT-T829)', () => {
+  assert.deepEqual(narrowChecks(CHECK, [FRAMEWORK_TEST]), [FRAMEWORK_CHECK]);
+  assert.deepEqual(narrowChecks(CHECK, ['cargo t -p dirt-empire --test app', FRAMEWORK_TEST, 'cargo t --manifest-path=rapid-game/rust/Cargo.toml -p rg-testkit --lib']), [
+    'cargo check --offline -p dirt-empire --lib --test app --features dirt-empire/tools',
+    'cargo check --offline --manifest-path rapid-game/rust/Cargo.toml -p rg-shader-kit -p rg-testkit --lib --test shader_compile',
+  ]);
+});
+
+test('negative control: the manifest stays on its check, superproject features stay off it, and a manifest naming no package checks nothing', () => {
+  const [check] = narrowChecks(CHECK, [FRAMEWORK_TEST]);
+  assert.ok(check.includes('--manifest-path rapid-game/rust/Cargo.toml'));
+  assert.ok(!check.includes('--features'));
+  assert.deepEqual(narrowChecks(CHECK, ['cargo test --manifest-path rapid-game/rust/Cargo.toml --test x']), []);
 });

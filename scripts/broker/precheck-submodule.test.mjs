@@ -4,7 +4,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { precheckJob } from './precheck.mjs';
-import { narrowCheck } from './precheck-scope.mjs';
+import { narrowChecks } from './precheck-scope.mjs';
+
+const narrowCheck = (...args) => narrowChecks(...args)[0] ?? null;
 import { buildPatchJob } from './submit-lib.mjs';
 import { envelope, fixture } from './patchkit.mjs';
 

@@ -22,7 +22,7 @@ import { brokerPaths } from './config.mjs';
 import { UNLOCATED, diagnose } from './diagnose.mjs';
 import { jobCommands } from './job-commands.mjs';
 import { laneBusy } from './lane-busy.mjs';
-import { narrowCheck } from './precheck-scope.mjs';
+import { narrowChecks } from './precheck-scope.mjs';
 import { STATUS } from './result.mjs';
 import { runCancellable } from './run-cancellable.mjs';
 import { scriptSyntaxFailures } from './syntax-check.mjs';
@@ -99,7 +99,7 @@ function runPrecheck(cfg, job, repo, { run = runCancellable, prepare = prepareCh
 function cargoChecks(cfg, job, { home, tree, target, cold, run, submodule }) {
   const deadline = Date.now() + cfg.precheckTimeoutMs;
   const check = cfg.affected.fullCheck || cfg.affected.check;
-  const stages = [narrowCheck(check, jobCommands(cfg, job), { submodule }), submodule ? null : check].filter(Boolean);
+  const stages = [...narrowChecks(check, jobCommands(cfg, job), { submodule }), ...(submodule ? [] : [check])];
   for (const [i, cmd] of stages.entries()) {
     const left = deadline - Date.now();
     if (left <= 0) return null;

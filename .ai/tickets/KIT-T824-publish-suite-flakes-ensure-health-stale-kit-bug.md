@@ -36,3 +36,4 @@ Evidence: published as runtime 6b1d621 (npm run publish:runtime at HEAD 6b1d621,
 - [2026-11-02 16:49] (landed) b5787a2 Test runner: a file is done when its process exits (a daemon holding stdout no longer blocks a worker or records minutes
 - [2026-11-02 16:57] (landed) 0302076 Test fixes from the export run: runner tests ignore the publish's own env, control.test matches a landing line not the l
 - [2026-11-02 17:02] (status) todo → review
+- [2026-11-02 17:02] (landed) ca1b44d KIT-T823..T828 to review after runtime 6b1d621 published, 137 files green [no-test: ticket store only] (implements KIT-T

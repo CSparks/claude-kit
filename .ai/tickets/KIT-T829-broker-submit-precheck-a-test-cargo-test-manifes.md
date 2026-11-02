@@ -28,6 +28,9 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 ## Plan
 1.
 
+## Notes
+Fix: scripts/broker/precheck-scope.mjs narrowChecks groups the job's cargo commands by workspace; a --manifest-path command (also --manifest-path=) gets its own cargo check that repeats the manifest and drops the superproject --features, so the framework crate resolves with its own dev-dependencies (rg-testkit, naga_oil); the repo-level check still follows. precheck.mjs runs every stage. Tests: precheck-scope 6 (2 new), precheck-manifest 2 new (stage commands + negative control), precheck-submodule 4, precheck 6, guards, missing-log: 37 passed; mutation (manifest ignored) fails 4. Duplicates: q fts finds only this ticket; the second cap filing was folded in by cap (asked: 2), nothing else to close. Same gap for a non-submodule 'cd <dir> &&' prefix is left as is (precheck-submodule control locks it).
+
 ## History
 - [2026-11-02 16:41] (created) bug — broker submit precheck: a --test 'cargo test --manifest-path rapid-game/rust/Cargo.toml -p rg-shader-kit --test X' is folded into the superp
 - [2026-11-02 16:41] (comment) seen again in dirt-empire: broker submit precheck: a --test 'cargo test --manifest-path rapid-game/rust/Cargo.toml -p rg-shader-kit --test X' is folded into the superproject 'cargo check -p rg-shader-kit --test X', where the submodule crate's dev-dependencies (rg-testkit, naga_oil) do not exist, so every framework integration

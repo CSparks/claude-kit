@@ -35,3 +35,4 @@ Evidence: published as runtime 6b1d621 (npm run publish:runtime at HEAD 6b1d621,
 - [2026-11-02 16:42] (landed) 0f59f85 Publish fits the foreground window and never defers what it gates on: windowsHide children, workers scale to cores, --re
 - [2026-11-02 16:58] (comment) @claude: @kit-agent: claimed by the standing kit agent; fixed in 0f59f85, publishing now, will move to review with the test evidence when green
 - [2026-11-02 17:02] (status) todo → review
+- [2026-11-02 17:02] (landed) ca1b44d KIT-T823..T828 to review after runtime 6b1d621 published, 137 files green [no-test: ticket store only] (implements KIT-T

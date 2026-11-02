@@ -50,6 +50,7 @@ Second breach, train-j-mvvhq5a6-mnekzi (lane rapid-game, 2 patches): command 'cd
 - State: in review; alias-closure fix adcd3a8 and coalesce/precheck fix 95cc7e1 pushed; criterion 3 (next rapid-game feature-graph job) still needs a live job. Runtime publish b0xe0qt6d FAILED (git commit exit 3221225794 = 0xC0000142 in D:\dev\.kit-verify-b83d356-30400); not yet published, current is 773fb4a, stale publish.lock (pid 24508) may remain.
 - Next: after publishing, check the next rapid-game job composed command keeps --workspace --features rg-engine/dynamic_linking.
 - Files: scripts/broker/alias.mjs scripts/broker/alias-closure.test.mjs scripts/broker/coalesce-alias.test.mjs
+KIT-T718 handoff asked for a 270 s framework-repo check note. The job id behind that figure is not on disk (not in this ticket, KIT-T649, or dirt-empire finished.log by search), so the cause is not measured. Candidate, unverified: the precheck builds in its own target dir with the check command's feature set while the test builds use the project alias (--workspace --features rg-engine/dynamic_linking), so a cold or flipped precheck rebuilds the Bevy stack once more; the alias fixes (95cc7e1, adcd3a8) removed the same flip in the test path. Next measurement: the first precheck log over 200 s, read for the rebuilt crate list (KIT-T772 rebuild reasons).
 
 ## History
 - [2026-10-30 19:36] (created) bug — broker: coalesce drops the project cargo alias so a rapid-game job builds the Bevy stack in a second feature set (j-mvvcgf3d 836 s)
