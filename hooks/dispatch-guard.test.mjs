@@ -136,7 +136,7 @@ expect('block message carries the exclude footer', /dispatch-ladder/.test(msg) ?
 // --- cold-worktree-build (KIT-T176) ---------------------------------------------
 const rust = makeRepo({ cargo: true });
 const plain = makeRepo();
-const wt = { subagent_type: 'general-purpose', model: 'opus', isolation: 'worktree', prompt: 'port the drill mesh (KIT-T176)' };
+const wt = { subagent_type: 'general-purpose', model: 'opus', isolation: 'worktree', prompt: 'port the drill mesh (KIT-T176) [maintainer-words: "port the drill mesh"] [reuses: drill mesh port]' };
 
 expect('blocks a worktree dispatch into a Cargo workspace', run(rust, wt).code, 2);
 expect('blocks even when the brief provisions CARGO_TARGET_DIR (KIT-D039)', run(rust, { ...wt, prompt: 'port the drill mesh — export CARGO_TARGET_DIR=../main/target first' }).code, 2);
@@ -157,7 +157,7 @@ expect('cold-build message carries the exclude footer', /id: cold-worktree-build
 
 // --- shared-tree-dispatch (KIT-T176) --------------------------------------------
 const busy = roster(makeRepo({ cargo: true }), [inFlightRow()]);
-const shared = { subagent_type: 'general-purpose', model: 'opus', prompt: 'add the ore-seam test (KIT-T176)' };
+const shared = { subagent_type: 'general-purpose', model: 'opus', prompt: 'add the ore-seam test (KIT-T176) [maintainer-words: "add the ore-seam test"] [reuses: ore-seam fixture]' };
 
 // The one escape for both shared-tree and parallel-dispatch: the maintainer's quoted words.
 const PAR = '[maintainer-asked-parallel: "run both lanes at once"]';
@@ -492,6 +492,31 @@ body
   ticket(join(repo, 'rapid-game'), 'RG-T215', 'bug');
   expect('bug tickets in the submodule store, tech-debt ST-T904 cited: fix passes', call({ model: 'sonnet', prompt: brief }).code, 0);
   expect('control: an opus build on that brief still blocks', call({ model: 'opus', prompt: 'fix RG-T213 and RG-T215, context ST-T904 [job: build]' }).code, 2);
+}
+
+// --- brief-grounded (KIT-T703): a feature brief carries the maintainer's words and the mechanism it reuses ---
+{
+  const repo = makeRepo();
+  const ticket = (id, type, title) => {
+    mkdirSync(join(repo, '.ai', 'tickets'), { recursive: true });
+    writeFileSync(join(repo, '.ai', 'tickets', `${id}-x.md`), `---\nid: ${id}\ntitle: ${title}\ntype: ${type}\nstatus: todo\n---\nbody\n`);
+  };
+  ticket('KIT-T910', 'feature', 'MX track class with higher hills and jumps');
+  ticket('KIT-T911', 'feature', 'Add a tooltip to the garage button');
+  ticket('KIT-T912', 'bug', 'MX track class draws no jumps');
+  const call = (prompt, extra = {}) => run(repo, { subagent_type: 'general-purpose', model: 'sonnet', prompt, ...extra }, opus);
+  const words = '[maintainer-words: "MX tracks get higher hills and jumps"]';
+  const blocked = call('build KIT-T910');
+  expect('a feature brief with no quoted maintainer words is blocked', blocked.code, 2);
+  expect('the block names the check and the DE-T195 example', /brief-grounded/.test(blocked.err) && /stadium layout generator/.test(blocked.err) ? 1 : 0, 1);
+  expect('a variant feature with words but no reuses token is blocked', call(`build KIT-T910 ${words}`).code, 2);
+  expect('a feature brief with a quote and a reuses token passes', call(`build KIT-T910 ${words} [reuses: stadium layout generator]`).code, 0);
+  expect('a non-variant feature needs only the quote', call(`build KIT-T911 ${words}`).code, 0);
+  expect('negative control: a bug brief passes with no quote', call('fix KIT-T912').code, 0);
+  expect('negative control: an empty maintainer-words token does not count', call('build KIT-T911 [maintainer-words: ]').code, 2);
+  expect('negative control: a brief citing no ticket passes', call('tidy the readme').code, 0);
+  expect('negative control: a read-only agent is not asked', call('study KIT-T910', { subagent_type: 'Explore' }).code, 0);
+  expect('the ignore file lifts brief-grounded', run(ignoreFile(repo, 'brief-grounded'), { subagent_type: 'general-purpose', model: 'sonnet', prompt: 'build KIT-T910' }, opus).code, 0);
 }
 
 // --- agent-registry-stale (KIT-T431) -------------------------------------------------

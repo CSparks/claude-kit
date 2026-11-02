@@ -390,7 +390,7 @@
 | KIT-T696 | bug | todo | high | Process failure (cross-project, 2026-10-29): Stiletto's test policy (ST-D254 tiered tests: a merge runs touched crates + dependents, GPU gol |
 | KIT-T698 | bug | todo | high | broker: a check-only job applies its patch in the maintainer's live checkout, so a hand cargo r compiles patched code (dirt-empire 2026-10-2 |
 | KIT-T702 | bug | review | high | D:/dev/claude-kit/tools/llm-fleet/ (fleet.ps1 and convert-asset.mjs, dated 2026-08-31) has never been committed: it sits untracked in the ki ↳ KIT-T350 |
-| KIT-T703 | bug | doing | high | Orchestrator briefs invent requirements beyond the maintainer's words: DE-T195 'MX track class with higher hills and jumps' was built as a s |
+| KIT-T703 | bug | review | high | Orchestrator briefs invent requirements beyond the maintainer's words: DE-T195 'MX track class with higher hills and jumps' was built as a s |
 | KIT-T707 | bug | review | high | q code --path C:/ComfyUI/comfy returns 'no indexed file passes --path' from an unbounded session: the ComfyUI checkout (comfy-volta agent's |
 | KIT-T708 | bug | review | high | broker: an auto-pin job whose pin a linked landing already recorded ends as failed with 'nothing added to commit' (dirt-empire j-mvtutclx-ls |
 | KIT-T709 | feature | todo | medium | hand-write-detect: the snapshot costs a median of 95 ms and 240 ms cold on dirt-empire (measured 2026-10-29, runtime e782b85), and PostToolU |
