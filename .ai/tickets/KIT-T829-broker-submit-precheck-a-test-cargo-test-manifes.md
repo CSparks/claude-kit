@@ -37,3 +37,4 @@ Fix: scripts/broker/precheck-scope.mjs narrowChecks groups the job's cargo comma
 - [2026-11-02 16:41] (asked again) 2026-11-02 — cap:bug:broker-submit-precheck-a-test-cargo-test-manifes
 - [2026-11-02 17:06] (landed) d70d595 Broker precheck: a --manifest-path cargo test is checked in its own workspace with its dev-dependencies, not folded into
 - [2026-11-02 17:06] (status) todo → review
+- [2026-11-02 17:11] (landed) 00e36d4 KIT-T829 to review [no-test: ticket store only] (implements KIT-T829)
