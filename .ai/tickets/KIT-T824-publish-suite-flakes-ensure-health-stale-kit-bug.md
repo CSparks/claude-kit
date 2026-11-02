@@ -29,3 +29,6 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## History
 - [2026-11-02 16:33] (created) bug — publish suite 'flakes' (ensure, health-stale, kit-bug, landgate-conformance, gate, worktree-guard, liveness pass alone, FAIL in the suite) a
+- [2026-11-02 16:42] (landed) 0f59f85 Publish fits the foreground window and never defers what it gates on: windowsHide children, workers scale to cores, --re
+- [2026-11-02 16:49] (landed) b5787a2 Test runner: a file is done when its process exits (a daemon holding stdout no longer blocks a worker or records minutes
+- [2026-11-02 16:57] (landed) 0302076 Test fixes from the export run: runner tests ignore the publish's own env, control.test matches a landing line not the l

@@ -29,3 +29,5 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## History
 - [2026-11-02 16:33] (created) bug — stale D:/dev/.kit-verify-* scratch copies are never removed (8 present), stopProcessesUnder never matched Windows paths (JSON-escaped backsl
+- [2026-11-02 16:42] (landed) 0f59f85 Publish fits the foreground window and never defers what it gates on: windowsHide children, workers scale to cores, --re
+- [2026-11-02 16:49] (landed) b5787a2 Test runner: a file is done when its process exits (a daemon holding stdout no longer blocks a worker or records minutes

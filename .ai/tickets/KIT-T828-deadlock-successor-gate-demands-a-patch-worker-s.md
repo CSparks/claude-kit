@@ -29,3 +29,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## History
 - [2026-11-02 16:33] (created) bug — deadlock: successor gate demands a patch-worker successor that dispatch-guard refuses on [paths: *] overlap with an in-flight worker; a bloc
+- [2026-11-02 16:42] (landed) 0f59f85 Publish fits the foreground window and never defers what it gates on: windowsHide children, workers scale to cores, --re

@@ -29,3 +29,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## History
 - [2026-11-02 16:33] (created) bug — successor gate / reconciler names a reopen (SendMessage) for an agent that is not resumable in this session (No transcript found for agent I
+- [2026-11-02 16:42] (landed) 0f59f85 Publish fits the foreground window and never defers what it gates on: windowsHide children, workers scale to cores, --re
