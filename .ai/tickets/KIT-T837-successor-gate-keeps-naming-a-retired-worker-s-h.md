@@ -31,3 +31,4 @@ Fix: hooks/resume-check.mjs records each SendMessage that names tickets (hooks/l
 ## History
 - [2026-11-02 19:27] (created) bug — successor gate keeps naming a retired worker's handoff after the orchestrator reopened that worker with SendMessage naming the ticket (dirt-empire 2026-11-02, 5+ times: a39efbdfcc9ab317f DE-T278, ab469c920a2a9e28f DE-T245)
 - [2026-11-02 19:28] (status) todo → review
+- [2026-11-02 19:28] (landed) 0ab34ce A SendMessage resume naming the ticket takes the retired worker's handoff over until it retires again or stays silent 30
