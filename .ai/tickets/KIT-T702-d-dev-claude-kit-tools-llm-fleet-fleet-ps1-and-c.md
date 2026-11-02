@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-29T16:15:24Z
-updated: 2026-11-01T23:27:08Z
+updated: 2026-11-02T00:03:46Z
 parent: KIT-T350
 ---
 
@@ -39,3 +39,5 @@ The security review re-flagged this on 2026-10-29 as HIGH. Suggested fix: a run-
 - [2026-11-01 23:27] (status) todo → review
 - [2026-11-01 23:27] (landed) 616aa8a tickets: T702 review findings, T703 handoff, sink tickets to review [no-test: ticket store only] (implements KIT-T702; r
 - [2026-11-01 23:47] (comment) @chris: Maintainer 2026-11-01, AskUserQuestion answer: '(Recommended) Delete it'. Delete tools/llm-fleet.
+- [2026-11-02 00:03] (comment) @claude: Deleted tools/llm-fleet (convert-asset.mjs, fleet.ps1) per the maintainer choice Delete it. Never committed: git log -- tools/llm-fleet is empty and git status showed it untracked.
+- [2026-11-02 00:03] (status) review → review
