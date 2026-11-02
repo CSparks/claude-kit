@@ -61,6 +61,15 @@ try {
   roster(retired({ ts: at(STALE_DAYS * DAY_MS) }));
   ok('negative: a retirement past the window is ignored', stop().code === 0);
 
+  roster(retired({ scope: 'Explore' }));
+  ok('negative: a read-only built-in type that names the ticket creates no successor obligation', stop().code === 0);
+  roster(retired({ scope: 'claude-kit:researcher' }));
+  ok('negative: a read-only definition (researcher) creates no successor obligation', stop().code === 0);
+  roster(retired({ readOnly: true }));
+  ok('negative: a row declared read-only creates no successor obligation', stop().code === 0);
+  roster(retired({ scope: 'general-purpose' }));
+  ok('control: a writer-capable type with a Handoff still blocks', stop().code === 2);
+
   roster(retired());
   ok('stop_hook_active allows', stop({ stop_hook_active: true }).code === 0);
 
