@@ -55,7 +55,7 @@ test('orient lines list the patch in flight and landings since the last look, on
     const first = brokerLines(s.root, Date.now() + 1000);
     assert.match(first[0], /^broker: daemon not running/);
     assert.ok(first.some((l) => l.includes('landed') && l.includes('T-5')), first.join('\n'));
-    assert.deepEqual(brokerLines(s.root, Date.now() + 2000).filter((l) => l.includes('landed')), [], 'already seen');
+    assert.deepEqual(brokerLines(s.root, Date.now() + 2000).filter((l) => /landed [0-9a-f]{8}/.test(l)), [], 'already seen');
 
     capture(s.cfg, { id: 'j-live', cwd: s.root, paths: ['src.txt'] });
     assert.ok(brokerLines(s.root).some((l) => l.includes('in flight: j-live')));

@@ -1,5 +1,5 @@
 // run-tests.mjs — `npm test` entry (KIT-T467, KIT-T570). Runs every tracked *.test.mjs as its own
-// `node <file>` on a pool of KIT_TEST_WORKERS (default half the cores, bounded by MIN_WORKERS and MAX_WORKERS), longest first by the last run's times,
+// `node <file>` on a pool of KIT_TEST_WORKERS (default DEFAULT_WORKERS), longest first by the last run's times,
 // each file with private DB, code-index, registry, turn-state and temp dirs (isolate.mjs) so no suite
 // touches the maintainer's live stores or another file's. A failed file reruns once, alone: a pass
 // is reported as FLAKE and does not fail the run. Files in default-state.mjs run alone afterwards. A file over KIT_TEST_MAX_FILE_S (default 0 = off; the target is 60)
@@ -14,7 +14,7 @@
 //   node scripts/run-tests.mjs [--root <dir>] [--only <substring>] [--full] [--budget <seconds>] [--since <sha>] [--require-reached]
 
 import { mkdtempSync, rmSync } from 'node:fs';
-import { cpus, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_STATE_TESTS } from './test-runner/default-state.mjs';
@@ -26,9 +26,7 @@ import { reach, changedFiles, planRun } from './test-runner/select.mjs';
 import { longestFirst, readRan, readTimes, slowFiles, slowest, writeRan, writeTimes } from './test-runner/times.mjs';
 
 const SLOWEST_SHOWN = 10;
-const MIN_WORKERS = 8;
-const MAX_WORKERS = 16;
-const DEFAULT_WORKERS = Math.min(MAX_WORKERS, Math.max(MIN_WORKERS, Math.floor(cpus().length / 2)));
+const DEFAULT_WORKERS = 8;
 const DEFAULT_MAX_FILE_S = 0;
 const MS_PER_S = 1000;
 const flag = (name) => { const i = process.argv.indexOf(name); return i === -1 ? undefined : process.argv[i + 1]; };
