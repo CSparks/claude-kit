@@ -6,14 +6,14 @@
 //       session transcript and its subagent transcripts. A row is dropped when the session transcript holds a finished
 //       <task-notification> for it, or when its command is known, the process list was read, and no process carries it.
 //       A live match gains { pid, ppid, cmdline }; a row that cannot be checked (no command, no process list) stays with
-//       { unverified: true }, so the check fails open.
+//       { unverified: true }, so the check fails open, unless its output has been silent for 2 h (presumed dead).
 //   finishedTasks(transcriptPath)  -> Set of task ids the harness reported completed / failed / killed / stopped
 //   osProcesses()                  -> [{ pid, ppid, cmd }] of the machine, or null when it cannot be read
 //
 // CLAUDE_KIT_TRANSCRIPTS_BASE overrides `~/.claude/projects` (tests).
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { shellCommands } from './orphan-shells.mjs';
@@ -21,6 +21,7 @@ import { shellCommands } from './orphan-shells.mjs';
 const NOTIFICATION = /<task-id>([a-z0-9]+)<\/task-id>[\s\S]{0,600}?<status>(?:completed|failed|killed|stopped)<\/status>/g;
 const UNKNOWN_COMMAND = '(command unknown)';
 const AGENT_OUTPUT = /^a[a-z0-9]{8,}\.output$/;
+const UNVERIFIED_SILENT_MS = 2 * 60 * 60 * 1000;
 const SIGNATURE_TOKENS = 3;
 const MIN_TOKEN_CHARS = 8;
 const TOKEN_SPLIT = /[\s"'`|&;<>()]+/;
@@ -58,7 +59,14 @@ function commandsOf(transcript, tasksDir) {
   return commands;
 }
 
-export function verifyOrphans(list, { project, procs = osProcesses } = {}) {
+// A row nothing can check stays listed while its output is recent; one silent for UNVERIFIED_SILENT_MS is presumed dead.
+function keepUnverified(kept, row, command, now) {
+  let silentMs = 0;
+  try { silentMs = now - statSync(row.file).mtimeMs; } catch { /* unreadable: keep it */ }
+  if (silentMs < UNVERIFIED_SILENT_MS) kept.push({ ...row, command, unverified: true });
+}
+
+export function verifyOrphans(list, { project, procs = osProcesses, now = Date.now() } = {}) {
   const bySession = new Map();
   for (const row of list) bySession.set(row.session, [...(bySession.get(row.session) || []), row]);
   const kept = [];
@@ -71,9 +79,9 @@ export function verifyOrphans(list, { project, procs = osProcesses } = {}) {
       if (finished.has(row.id)) continue;
       const command = row.command !== UNKNOWN_COMMAND ? row.command : commands.get(row.id) || UNKNOWN_COMMAND;
       const tokens = command === UNKNOWN_COMMAND ? [] : signature(command);
-      if (!tokens.length) { kept.push({ ...row, command, unverified: true }); continue; }
+      if (!tokens.length) { keepUnverified(kept, row, command, now); continue; }
       if (processes === undefined) processes = procs();
-      if (!processes) { kept.push({ ...row, command, unverified: true }); continue; }
+      if (!processes) { keepUnverified(kept, row, command, now); continue; }
       const live = processes.find((p) => p.pid !== process.pid && tokens.every((t) => p.cmd.includes(t)));
       if (live) kept.push({ ...row, command, pid: live.pid, ppid: live.ppid, cmdline: live.cmd });
     }

@@ -13,6 +13,7 @@ import { finishedTasks, osProcesses, verifyOrphans } from './orphan-verify.mjs';
 const { ok, done } = reporter('orphan-verify');
 const MIN = 60000;
 const AGE_MIN = 90;
+const ANCIENT_MIN = 180;
 const PROJECT = 'proj-x';
 const SESSION = 'sess-1';
 const LIVE_TOKEN = `live-orphan-token-${process.pid}-${Date.now()}`;
@@ -27,13 +28,14 @@ try {
   const dir = join(tasks, PROJECT, SESSION, 'tasks');
   mkdirSync(dir, { recursive: true });
   mkdirSync(join(transcripts, PROJECT), { recursive: true });
-  const shell = (id) => {
+  const shell = (id, ageMin = AGE_MIN) => {
     const f = join(dir, `${id}.output`);
     writeFileSync(f, 'working...\n');
-    const t = (Date.now() - AGE_MIN * MIN) / 1000;
+    const t = (Date.now() - ageMin * MIN) / 1000;
     utimesSync(f, t, t);
   };
   for (const id of ['bfinished1', 'bdeadpid02', 'blivepid03', 'bnocmd0004', 'bsubagent5']) shell(id);
+  shell('bancient006', ANCIENT_MIN);
 
   const use = (id, command) => JSON.stringify({ message: { content: [{ type: 'tool_use', id, name: 'Bash', input: { command, run_in_background: true } }] } });
   const result = (id, task) => JSON.stringify({ message: { content: [{ type: 'tool_result', tool_use_id: id, content: `Command running in background with ID: ${task}` }] } });
@@ -48,7 +50,7 @@ try {
   ok('finishedTasks reads completed / failed / killed notifications', finishedTasks(join(transcripts, PROJECT, `${SESSION}.jsonl`)).has('bfinished1'));
 
   const candidates = () => orphanShells({ project: PROJECT, minAgeMin: 30 }).filter((o) => o.id.startsWith('b'));
-  ok('control: every never-exited file is a candidate before verification', candidates().length === 5);
+  ok('control: every never-exited file is a candidate before verification', candidates().length === 6);
 
   child = spawn(process.execPath, ['-e', `setTimeout(()=>{},${LIVE_MS})`, LIVE_TOKEN], { stdio: 'ignore', windowsHide: true });
   const rows = verifyOrphans(candidates(), { project: PROJECT });
@@ -59,6 +61,7 @@ try {
   ok('a live orphan is listed with its pid and command line', byId.get('blivepid03')?.pid === child.pid && byId.get('blivepid03').cmdline.includes(LIVE_TOKEN));
   ok('a command found only in a subagent transcript is checked too (no process: dropped)', !byId.has('bsubagent5'));
   ok('a row with no known command stays, flagged unverified, with its output file', byId.get('bnocmd0004')?.unverified === true);
+  ok('negative control: an unverifiable row whose output has been silent for 2 h is presumed dead', !byId.has('bancient006'));
   const lines = orphanLines(rows);
   ok('the warning line names pid, session and command line of the live row, the output file of the unverified one',
     lines.some((l) => l.includes('blivepid03') && l.includes(`pid ${child.pid}`) && l.includes(`session ${SESSION}`)) && lines.some((l) => l.includes('bnocmd0004') && l.includes('unverified') && l.includes('bnocmd0004.output')));
