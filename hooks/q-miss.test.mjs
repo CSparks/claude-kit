@@ -3,7 +3,7 @@
 // at least half of the smaller term set. A shared common word (`test`, `impl`) is not the same search.
 // Run: node hooks/q-miss.test.mjs
 
-import { sameTerms } from './lib/q-miss.mjs';
+import { sameTerms, queryTerms } from './lib/q-miss.mjs';
 
 let fails = 0;
 let passes = 0;
@@ -18,6 +18,15 @@ check('one shared common word out of nine is not', !sameTerms(terms('flake pin.t
 check('a different type name sharing only `impl` is not', !sameTerms(terms('Rng --type impl'), 'impl IntoMesh\\|trait IntoMesh'));
 check('no shared term is not', !sameTerms(terms('alpha beta'), 'gamma'));
 check('an empty search is not', !sameTerms(terms('alpha'), ''));
+
+const joined = (qs) => queryTerms(qs).join(' ');
+check('flag names and values are not terms', joined('foot --path rapid-game/rust/core/rg-ik --type fn,struct') === 'foot');
+check('= form, short flags and redirects are dropped', joined('-i --lang=rust -C 2 foot 2>&1') === 'foot');
+check('a boolean flag before the term keeps the term', joined('--regex "ChunkMesh" -l') === 'chunkmesh');
+check('a hyphenated term survives', joined('rg-pathfind --type fn') === 'pathfind');
+const symQ = queryTerms('foot --path rapid-game/rust/core/rg-ik --type fn,struct');
+check('a sym for a name then a public-API listing grep is not a gap', !sameTerms(symQ, 'pub fn\\|pub struct\\|^//!'));
+check('the same name then a grep for it is still a gap', sameTerms(symQ, 'foot'));
 
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

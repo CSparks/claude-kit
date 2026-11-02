@@ -18,7 +18,8 @@ import { join, extname } from 'node:path';
 // The ONE comment-aware, CRLF-tolerant parser (KIT-T107/KIT-T110). The local copies removed
 // here were LF-only, so a CRLF ticket scanned as having NO frontmatter — its id fell back to
 // the filename and its `type:`/`status:` read as empty (silent integrity blind spot).
-import { frontmatterBlock, field } from './frontmatter.mjs';
+import { frontmatterBlock, field, listField } from './frontmatter.mjs';
+import { LAPSE_LABEL } from './t/lapse-rule.mjs';
 
 // STORE_TYPE drives ID ALLOCATION (the <KEY>-<TYPE><NUM> letter), so only the stores that
 // mint frontmatter ids belong here. The cache must index MORE than these — inbox caps and
@@ -191,7 +192,9 @@ const PROVENANCE_OK = new Set(['inferred', 'given']);
 //   • `causing_commit`  (the offending commit sha)
 //   • `provenance: inferred|given`  (resolver already ran + was accepted)
 // Additionally, a `done` regression without a `fixed_commit` is also flagged
-// (paired with /done's own prompt — KIT-T060). A non-regression ticket is
+// (paired with /done's own prompt — KIT-T060), unless the close was a review lapse
+// (label `lapsed`, KIT-D107): a lapse is silence, not a fix, so no fixing commit exists.
+// A non-regression ticket is
 // never touched by this check.
 //
 // `aiDir` is the resolved .ai directory (not the project root) so central-data
@@ -226,7 +229,8 @@ export function findRegressionGaps(aiDir) {
       if (!hasLink) {
         gaps.push({ id, file: `${sub}/${f}`, rel: 'regressed_from|causing_commit', reason: 'missing provenance links (regressed_from / causing_commit / provenance:)' });
       }
-      if (status === 'done' && !fixedCommit) {
+      const lapsed = listField(fm, 'labels').includes(LAPSE_LABEL);
+      if (status === 'done' && !fixedCommit && !lapsed) {
         gaps.push({ id, file: `${sub}/${f}`, rel: 'fixed_commit', reason: 'done regression missing fixed_commit' });
       }
     }

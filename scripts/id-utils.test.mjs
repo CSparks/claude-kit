@@ -147,6 +147,14 @@ ok('the remedy for a missing fixed_commit names fixed_commit, not the provenance
 ok('the remedy for missing provenance names regressed_from|causing_commit', regressionRemedy(gNoLinks) === 't link <id> regressed_from|causing_commit <ref>');
 ok('mixed gaps name both remedies once each', regressionRemedy([...gNoLinks, ...gDoneNoFix, ...gDoneNoFix]).split('  and  ').length === 2);
 
+const lapsedDone = regressionProject('type: regression\nstatus: done\nregressed_from: HOD-T009\nlabels: [ui, lapsed]');
+ok('a lapsed done regression needs no fixed_commit (KIT-D107)', findRegressionGaps(join(lapsedDone, '.ai')).length === 0);
+const lapsedNoLink = regressionProject('type: regression\nstatus: done\nlabels: [lapsed]');
+const gLapsedNoLink = findRegressionGaps(join(lapsedNoLink, '.ai'));
+ok('a lapsed regression still needs its provenance links', gLapsedNoLink.length === 1 && gLapsedNoLink[0].rel === 'regressed_from|causing_commit');
+const labelledDone = regressionProject('type: regression\nstatus: done\nregressed_from: HOD-T009\nlabels: [ui]');
+ok('a done regression with other labels is still flagged', findRegressionGaps(join(labelledDone, '.ai')).length === 1);
+
 // Criterion 2 (clean): done regression WITH fixed_commit passes.
 const doneFixed = regressionProject('type: regression\nstatus: done\nregressed_from: HOD-T009\nfixed_commit: def5678');
 ok('done regression with fixed_commit passes (KIT-T066 C2)', findRegressionGaps(join(doneFixed, '.ai')).length === 0);

@@ -11,7 +11,16 @@ const WINDOW_CALLS = 5;
 const MIN_TERM = 3;
 const MIN_OVERLAP_SHARE = 0.5;
 
+const VALUE_FLAGS = /(?:^|\s)(?:--(?:path|not-path|type|lang|kind|project|registry|scope|limit|dir|store|status)|-[ABC])(?:=|\s+)(?:"[^"]*"|'[^']*'|\S+)/g;
+const BARE_FLAGS = /(?:^|\s)(?:-{1,2}[a-z][\w-]*|\d?>&?\d?)(?=\s|$)/gi;
+
 const words = (s) => new Set(String(s || '').toLowerCase().split(/[^a-z0-9_]+/).filter((w) => w.length >= MIN_TERM));
+
+/** The search terms of a q command's argument text: flag names and flag values (`--type fn,struct`) are filters, not terms. */
+export function queryTerms(queryText) {
+  const bare = String(queryText || '').replace(VALUE_FLAGS, ' ').replace(BARE_FLAGS, ' ');
+  return [...words(bare)];
+}
 
 /** Flatten a PostToolUse tool_response (string | { stdout, stderr } | content blocks) to text. */
 export function responseText(resp) {
@@ -35,7 +44,7 @@ export async function noteSearch(root, row, response, project) {
   if (row.kind === 'q') {
     if (emptyOrFailed(responseText(response))) {
       const cmd = `q ${row.verb || ''} ${row.queryText || ''}`.trim();
-      writeTurnState(root, { terms: [...words(row.queryText)], cmd, calls: 0 }, SLOT);
+      writeTurnState(root, { terms: queryTerms(row.queryText), cmd, calls: 0 }, SLOT);
     } else if (state) writeTurnState(root, {}, SLOT);
     return null;
   }
