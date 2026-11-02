@@ -63,7 +63,7 @@ export function brokerLines(root, now = Date.now()) {
   const p = brokerPaths(cfg);
   if (!existsSync(p.home)) return [];
   const holder = brokerLive(cfg) ? readLock(brokerPaths(cfg).lock) : null;
-  const origin = holder && holder.spawnedBy ? ` (spawned by ${holder.spawnedBy}${holder.log ? `; log ${holder.log}` : ''})` : '';
+  const origin = holder && holder.spawnedBy ? ` (started ${holder.ts || '?'} by ${holder.spawnedBy}${holder.log ? `; log ${holder.log}` : ''})` : '';
   const lines = [`broker: ${brokerLive(cfg) ? 'daemon live' : 'daemon not running'}${origin}${isPaused(cfg) ? ', PAUSED' : ''}`];
   const rollup = rollupLine(cfg, now);
   if (rollup) lines.push(rollup);

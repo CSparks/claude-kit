@@ -24,7 +24,7 @@ import { clearStop, isPaused, pause, resume, stopNowRequested, stopRequested } f
 import { deferredLines } from './deferred.mjs';
 import { announce, healthLine, selfCheck } from './health.mjs';
 import { dirtNotice, holdAge, holdLine, holdReport } from './hand-hold.mjs';
-import { acquireLock, heartbeat, liveHolder, releaseLock } from './lock.mjs';
+import { acquireLock, heartbeat, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { recoverUnderLock } from './recover.mjs';
 import { processOnce } from './queue.mjs';
@@ -32,7 +32,8 @@ import { STATUS, ensureDirs, listMeasure, listQueue } from './result.mjs';
 import { suiteLine } from './suite.mjs';
 import { pinRuntime, runtimeTag } from '../runtime-pin.mjs';
 import { publishedSwap } from './runtime-swap.mjs';
-import { setPulse, stallLine, stallState } from './stall.mjs';
+import { setPulse } from './stall.mjs';
+import { daemonStateLine } from './daemon-state.mjs';
 import { appendFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { launchDaemon } from './launch.mjs';
@@ -146,11 +147,7 @@ if (command === 'status') {
   for (const lane of process.env.BROKER_NO_AUTOSTART ? [] : ensureQueuedLanes(rootCfg, root)) console.error(`broker: no daemon was behind the ${lane} queue; started one`);
   for (const cfg of flags.lane ? [rootCfg] : laneConfigs(rootCfg)) {
   if (cfg.lane) console.error(`lane ${cfg.lane}:`);
-  const queued = listQueue(cfg).length;
-  const stall = stallState(cfg);
-  const holder = liveHolder(cfg);
-  if (holder) console.error(`broker: pid ${holder.pid} (runtime ${holder.runtime || '?'})${holder.spawnedBy ? `, spawned by ${holder.spawnedBy}` : ''}${holder.log ? `, log ${holder.log}` : ''}`);
-  console.error(`broker: ${stall ? stallLine(stall) : `${isPaused(cfg) ? 'PAUSED' : 'running'}, ${queued} queued`}`);
+  console.error(daemonStateLine(cfg));
   for (const line of deferredLines(cfg)) console.error(`  ${line}`);
   console.error(`  ${liveLine(cfg)}`);
   const suite = suiteLine(cfg);

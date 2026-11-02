@@ -110,7 +110,14 @@ const oneLine = (text) => { const t = String(text).replace(/\s+/g, ' ').trim(); 
 export function deferredLines(cfg) {
   const list = listDeferred(cfg);
   if (!list.length) return [];
-  const waits = (e) => (e.dirty.length ? `${e.dirty.length} dirty path(s) to clean or a HEAD move` : 'a HEAD move');
+  const headMoved = (e) => {
+    const repo = repoByName(cfg, e.repo);
+    return !!repo && !!e.head && e.head !== revParse(join(cfg.root, repo.path), 'HEAD');
+  };
+  const waits = (e) => {
+    if (headMoved(e)) return 'an idle queue (HEAD has moved since it was deferred; the re-run starts when no lane has work)';
+    return e.dirty.length ? `${e.dirty.length} dirty path(s) to clean or a HEAD move` : 'a HEAD move';
+  };
   return [
     `deferred: ${list.length} foreign test(s) waiting; detail in deferred.json`,
     ...list.map((e) => `  ${e.test} [${e.repo}] ${oneLine(e.reason)} (job ${e.job}; waits on ${waits(e)})`),

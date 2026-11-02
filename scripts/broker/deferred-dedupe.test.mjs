@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { addDeferred, deferredLines, forgetPassed, listDeferred } from './deferred.mjs';
+import { revParse } from './git.mjs';
 import { processOnce } from './queue.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
 import { ensureDirs, readResult, writeJob } from './result.mjs';
@@ -58,7 +59,8 @@ test('status prints a count and one line per test, never the dirty-path list', (
   const s = fixture();
   try {
     const dirty = Array.from({ length: 12 }, (_, i) => `assets/file-${i}.rhai`);
-    addDeferred(s.cfg, [entry('t_a', { dirty }), entry('t_b', { dirty })]);
+    const head = revParse(s.root, 'HEAD');
+    addDeferred(s.cfg, [entry('t_a', { dirty, head }), entry('t_b', { dirty, head })]);
     const lines = deferredLines(s.cfg);
     assert.equal(lines.length, 3);
     assert.match(lines[0], /2 .*foreign test/);
