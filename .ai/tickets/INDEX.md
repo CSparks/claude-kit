@@ -466,7 +466,7 @@
 | KIT-T826 | bug | review | high | stale D:/dev/.kit-verify-* scratch copies are never removed (8 present), stopProcessesUnder never matched Windows paths (JSON-escaped backsl |
 | KIT-T827 | bug | review | high | successor gate / reconciler names a reopen (SendMessage) for an agent that is not resumable in this session (No transcript found for agent I |
 | KIT-T828 | bug | review | high | deadlock: successor gate demands a patch-worker successor that dispatch-guard refuses on [paths: *] overlap with an in-flight worker; a bloc |
-| KIT-T829 | bug | todo | critical | broker submit precheck: a --test 'cargo test --manifest-path rapid-game/rust/Cargo.toml -p rg-shader-kit --test X' is folded into the superp |
+| KIT-T829 | bug | review | critical | broker submit precheck: a --test 'cargo test --manifest-path rapid-game/rust/Cargo.toml -p rg-shader-kit --test X' is folded into the superp |
 
 ## Superseded (72)
 | id | status | title | superseded by |
