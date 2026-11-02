@@ -35,3 +35,5 @@ Built 60fd3ca: submissions ledger + kept job copies (scripts/broker/submissions.
 - [2026-11-02 15:41] (landed) 60fd3ca Broker hand-back resume: submissions ledger + kept job copies, reconciler (result-ready, job-lost, successor, dead agent
 - [2026-11-02 15:55] (status) todo → review
 - [2026-11-02 15:56] (landed) 1002fe7 Ticket store: KIT-T821/T822 to review with evidence, decisions KIT-D129/D130, roadmap and index regenerated, T698/T816/T
+- [2026-11-02 16:14] (landed) 733947c plugin 0.1.30: sessions load the new handback-directive UserPromptSubmit hook; KIT-T821/T822 notes (implements KIT-T822)
+- [2026-11-02 16:17] (landed) 1044337 codex plugin 0.1.30 to match the Claude manifest (implements KIT-T822) [no-test: version bump, plugin-compat run]
