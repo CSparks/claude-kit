@@ -37,3 +37,4 @@ Fix 72c619b + follow-up: pendingSuccessors and the reconciler skip read-only age
 - [2026-11-02 15:29] (asked again) 2026-11-02 — cap:bug:successor-gate-demands-a-successor-for-a-read-on
 - [2026-11-02 15:29] (landed) 72c619b successor-gate: a read-only agent (researcher, Explore, Plan, declared) creates no successor obligation; successor-gate
 - [2026-11-02 15:55] (status) todo → review
+- [2026-11-02 15:56] (landed) 1002fe7 Ticket store: KIT-T821/T822 to review with evidence, decisions KIT-D129/D130, roadmap and index regenerated, T698/T816/T
