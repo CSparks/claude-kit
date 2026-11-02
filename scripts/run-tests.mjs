@@ -14,7 +14,7 @@
 // reached files that did not to <path> as a JSON array: the owed remainder of a two-phase publish (KIT-T839).
 // --files <path> (KIT_TEST_FILES) runs exactly the JSON array of files in <path>, no selection and no budget;
 // --failed-file <path> (KIT_TEST_FAILED_FILE) receives the failed files as a JSON array.
-// A time record older than a week, or with no stamp, is planned as unmeasured and rewritten when its file runs.
+// A time record older than a week, or with no stamp, is stale: its file runs first among the unreached and the run rewrites the record.
 //
 //   node scripts/run-tests.mjs [--root <dir>] [--only <substring>] [--full] [--budget <seconds>] [--since <sha>] [--require-reached] [--owed-file <path>] [--files <path>]
 
@@ -28,7 +28,7 @@ import { isolatedEnv } from './test-runner/isolate.mjs';
 import { runPool } from './test-runner/pool.mjs';
 import { runFile } from './test-runner/run-file.mjs';
 import { reach, changedFiles, planRun } from './test-runner/select.mjs';
-import { longestFirst, readRan, readStamps, readTimes, slowFiles, slowest, staleFiles, trustedTimes, writeRan, writeTimes } from './test-runner/times.mjs';
+import { longestFirst, readRan, readStamps, readTimes, slowFiles, slowest, staleFiles, writeRan, writeTimes } from './test-runner/times.mjs';
 import { defaultWorkers } from './test-runner/workers.mjs';
 
 const SLOWEST_SHOWN = 10;
@@ -57,16 +57,15 @@ const keepDefaults = (file) => DEFAULT_STATE_TESTS.includes(file);
 const attempt = (file, n) => runFile(root, file, isolatedEnv(process.env, scratch, file, n, { keepDefaults: keepDefaults(file) }));
 const announce = (r) => console.log(`${r.ok ? 'ok  ' : 'FAIL'} ${secs(r.ms)}s  ${r.file}`);
 
-const recorded = readTimes(timesFile);
-const stamps = readStamps(timesFile);
-const times = trustedTimes(recorded, stamps);
+const times = readTimes(timesFile);
+const stale = new Set(staleFiles(times, readStamps(timesFile)));
 const wanted = listed ? new Set(JSON.parse(readFileSync(listed, 'utf8'))) : null;
 const all = discoverTests(root).filter((f) => (!only || f.includes(only)) && (!wanted || wanted.has(f)));
 let chosen = all;
 if (!full) {
   const changed = changedFiles(root, { since: flag('--since') });
   const reached = reach(root, all, changed);
-  const plan = planRun({ tests: all, reached, times, ranAt: readRan(ranFile), budgetMs, workers });
+  const plan = planRun({ tests: all, reached, times, stale, ranAt: readRan(ranFile), budgetMs, workers });
   chosen = plan.run;
   const owed = plan.deferred.filter((f) => reached.has(f));
   if (owedFile) writeFileSync(owedFile, JSON.stringify(owed));
@@ -74,7 +73,7 @@ if (!full) {
     console.log(`REFUSED: ${owed.length} of the ${reached.size} files this change reaches do not fit the ${budgetMs / MS_PER_S}s budget (estimate ${(plan.estimateMs / MS_PER_S).toFixed(0)}s), so the run would gate on untested code: ${named(owed)}. Raise --budget or split the change.`);
     process.exit(1);
   }
-  console.log(`budget ${budgetMs / MS_PER_S}s: running ${plan.run.length} of ${all.length} files (estimate ${(plan.estimateMs / MS_PER_S).toFixed(0)}s; ${changed.length} changed paths reach ${reached.size} tests); ${plan.deferred.length} deferred, ${owed.length} of them reached by the change${owed.length ? `: ${named(owed)}` : ''}; ${staleFiles(recorded, stamps).length} stale time records planned as unmeasured`);
+  console.log(`budget ${budgetMs / MS_PER_S}s: running ${plan.run.length} of ${all.length} files (estimate ${(plan.estimateMs / MS_PER_S).toFixed(0)}s; ${changed.length} changed paths reach ${reached.size} tests); ${plan.deferred.length} deferred, ${owed.length} of them reached by the change${owed.length ? `: ${named(owed)}` : ''}; ${stale.size} time records older than a week, re-measured first`);
 }
 const files = longestFirst(chosen, times);
 const started = Date.now();

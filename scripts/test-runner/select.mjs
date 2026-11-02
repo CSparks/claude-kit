@@ -5,7 +5,10 @@
 //
 //   reach(root, tests, changed)      -> Map<test, distance>: 0 a changed test or the test named for a changed
 //                                        module, 1 a test that imports or names it, 2+ through importers
-//   planRun({ tests, reached, times, ranAt, budgetMs, workers }) -> { run, deferred, estimateMs }
+//   planRun({ tests, reached, times, stale, ranAt, budgetMs, workers }) -> { run, deferred, estimateMs }
+//                                        a file with no record, or in the `stale` set (record older than a week), is
+//                                        costed by its last record (30 s when none) and runs first among the unreached,
+//                                        so the run re-measures it
 //   changedFiles(root, { since, env }) -> paths changed: KIT_TEST_CHANGED (newline list), else since..HEAD
 //                                        plus the working tree
 
@@ -75,9 +78,9 @@ export function reach(root, tests, changed) {
   return new Map(tests.filter((t) => dist.has(t)).map((t) => [t, dist.get(t)]));
 }
 
-export function planRun({ tests, reached, times, ranAt = {}, budgetMs, workers }) {
+export function planRun({ tests, reached, times, stale = new Set(), ranAt = {}, budgetMs, workers }) {
   const cost = (t) => Math.min(times[t] ?? UNKNOWN_MS, FILE_COST_CAP_MS);
-  const unmeasured = (t) => (times[t] === undefined ? 0 : 1);
+  const unmeasured = (t) => (times[t] === undefined || stale.has(t) ? 0 : 1);
   const order = [
     ...tests.filter((t) => reached.has(t)).sort((a, b) => reached.get(a) - reached.get(b) || cost(a) - cost(b)),
     ...tests.filter((t) => !reached.has(t)).sort((a, b) => unmeasured(a) - unmeasured(b) || (ranAt[a] ?? 0) - (ranAt[b] ?? 0) || cost(a) - cost(b)),

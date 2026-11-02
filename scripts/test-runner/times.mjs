@@ -1,13 +1,12 @@
 // times.mjs — per-file wall times of the last test run (KIT-T570), kept in .cache/test-times.json
 // (gitignored; KIT_TEST_TIMES overrides the path so a publish export updates the source checkout's file).
 // Each record carries the epoch ms it was measured at; a record older than STALE_AFTER_MS, or one with no stamp,
-// is untrusted and planning treats the file as unmeasured until the next run of it rewrites the record (KIT-T839).
+// is stale: the planner runs its file first among the unreached and the run rewrites the record (KIT-T839).
 //
 //   readTimes(file)            -> { 'scripts/x.test.mjs': ms }  ({} when absent or unreadable)
 //   readStamps(file)           -> { 'scripts/x.test.mjs': epochMs }
 //   writeTimes(file, results, now)  merge `results` [{ file, ms }] and their stamps over the stored record
-//   trustedTimes(times, stamps, now) -> the times measured within STALE_AFTER_MS
-//   staleFiles(times, stamps, now)   -> the files whose record is untrusted
+//   staleFiles(times, stamps, now)   -> the files whose record is older than STALE_AFTER_MS or unstamped
 //   slowest(results, n)        -> the n slowest results, longest first
 //   slowFiles(results, limitMs)  -> the results over limitMs
 //   longestFirst(files, times) -> files ordered by stored time, longest first; unknown files lead (they may be long)
@@ -40,8 +39,6 @@ export function writeTimes(file, results, now = Date.now()) {
 }
 
 const isFresh = (stamps, file, now) => now - (stamps[file] ?? -Infinity) <= STALE_AFTER_MS;
-
-export const trustedTimes = (times, stamps, now = Date.now()) => Object.fromEntries(Object.entries(times).filter(([file]) => isFresh(stamps, file, now)));
 
 export const staleFiles = (times, stamps, now = Date.now()) => Object.keys(times).filter((file) => !isFresh(stamps, file, now));
 

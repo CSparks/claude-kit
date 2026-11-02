@@ -110,6 +110,21 @@ ok('keep prunes older sha directories once nothing pins them', shaDirs().length 
   ok('negative control: a red verify throws and current does not move', red && currentRuntime(runtimeRoot) === heldCurrent);
 }
 
+// KIT-T839: the scratch export is a clean one-commit git repo made without writing a loose object per file.
+{
+  const probe = [];
+  publish({ repo, runtimeRoot, verify: (dir) => probe.push({
+    status: git(dir, 'status', '--porcelain'),
+    commits: git(dir, 'rev-list', '--count', 'HEAD'),
+    tracked: git(dir, 'ls-files').split('\n'),
+    subject: git(dir, 'log', '-1', '--format=%s'),
+    loose: readdirSync(join(dir, '.git', 'objects')).filter((n) => /^[0-9a-f]{2}$/.test(n)).length,
+  }) });
+  const [p] = probe;
+  ok('the export is a clean one-commit repo tracking the committed files', p.status === '' && p.commits === '1' && p.tracked.includes('scripts/lib.mjs') && /^export of [0-9a-f]+$/.test(p.subject));
+  ok('negative control: the export writes one commit object, not an object per file', p.loose === 1);
+}
+
 // A session that calls a script by its sha path has no pin: the grace window and a command-line match keep that copy.
 {
   const dirs = () => readdirSync(runtimeRoot).filter((n) => /^[0-9a-f]{7,}$/.test(n));

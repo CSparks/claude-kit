@@ -13,7 +13,7 @@ import { isolatedEnv } from './isolate.mjs';
 import { runPool } from './pool.mjs';
 import { runFile } from './run-file.mjs';
 import { planRun } from './select.mjs';
-import { longestFirst, readStamps, readTimes, slowest, staleFiles, trustedTimes, writeTimes } from './times.mjs';
+import { longestFirst, readStamps, readTimes, slowest, staleFiles, writeTimes } from './times.mjs';
 import { defaultWorkers } from './workers.mjs';
 
 const KIT = join(import.meta.dirname, '..', '..');
@@ -196,32 +196,38 @@ test('--files runs exactly the listed files and --failed-file names the ones tha
 
 const DAY_MS = 24 * 3600 * 1000;
 
-test('a stale time record is not trusted, is planned as unmeasured, and is rewritten fresh when its file runs (KIT-T839)', () => {
+test('a record past a week, or with no stamp, is stale; a fresh one is not (KIT-T839)', () => {
   const now = Date.now();
   const file = join(mkdtempSync(join(tmpdir(), 'times-stale-')), 'times.json');
   writeTimes(file, [{ file: 'old', ms: 900_000 }], now - 30 * DAY_MS);
   writeTimes(file, [{ file: 'new', ms: 5000 }], now);
   writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), files: { ...readTimes(file), unstamped: 77 } }));
-  assert.deepEqual(trustedTimes(readTimes(file), readStamps(file), now), { new: 5000 }, 'a record past a week, and one with no stamp, are dropped');
   assert.deepEqual(staleFiles(readTimes(file), readStamps(file), now).sort(), ['old', 'unstamped']);
-  assert.deepEqual(staleFiles(readTimes(file), readStamps(file), now + 1000), ['old', 'unstamped'], 'negative control: a fresh record stays trusted a moment later');
+  assert.deepEqual(staleFiles(readTimes(file), readStamps(file), now + 1000).includes('new'), false, 'negative control: a fresh record stays fresh a moment later');
+});
+
+test('a stale record is re-measured first, costed by its last value, and rewritten fresh when its file runs (KIT-T839)', () => {
+  const now = Date.now();
+  const plan = planRun({ tests: ['fresh', 'stale'], reached: new Map(), times: { fresh: 10_000, stale: 80_000 }, stale: new Set(['stale']), ranAt: { fresh: 0, stale: 99 }, budgetMs: 5_000, workers: 1 });
+  assert.equal(plan.run[0], 'stale', 'the stale record leads although it ran more recently');
+  assert.equal(plan.estimateMs, 80_000, 'the estimate uses the stale value, not a guess');
+  const control = planRun({ tests: ['fresh', 'other'], reached: new Map(), times: { fresh: 10_000, other: 80_000 }, ranAt: { fresh: 0, other: 99 }, budgetMs: 5_000, workers: 1 });
+  assert.equal(control.run[0], 'fresh', 'negative control: with no stale record the oldest-run order holds');
 
   const root = fixtureRoot({ 'old.test.mjs': '', 'new.test.mjs': '' });
   writeTimes(join(root, 'times.json'), [{ file: 'old.test.mjs', ms: 900_000 }], now - 30 * DAY_MS);
-  const planned = runner(root, [], { KIT_TEST_CHANGED: '' });
-  assert.match(planned.stdout, /1 stale time records planned as unmeasured/);
-  assert.match(planned.stdout, /^ok .*old\.test\.mjs/m);
-  const rewritten = readTimes(join(root, 'times.json'));
-  assert.ok(rewritten['old.test.mjs'] < 60_000, 'the 900 s record is replaced by the measured time');
-  assert.ok(readStamps(join(root, 'times.json'))['old.test.mjs'] > now - DAY_MS);
-  assert.equal(staleFiles(rewritten, readStamps(join(root, 'times.json'))).length, 0);
+  const ran = runner(root, [], { KIT_TEST_CHANGED: '' });
+  assert.match(ran.stdout, /1 time records older than a week, re-measured first/);
+  assert.match(ran.stdout, /^ok .*old\.test\.mjs/m);
+  const stamps = readStamps(join(root, 'times.json'));
+  assert.ok(readTimes(join(root, 'times.json'))['old.test.mjs'] < 60_000, 'the 900 s record is replaced by the measured time');
+  assert.ok(stamps['old.test.mjs'] > now - DAY_MS);
+  assert.deepEqual(staleFiles(readTimes(join(root, 'times.json')), stamps), [], 'nothing is stale after the run');
 });
 
-test('planRun: a file with no trusted time is planned before measured files outside the reach', () => {
+test('planRun: a file with no record is planned before recorded files outside the reach', () => {
   const plan = planRun({ tests: ['measured', 'unmeasured'], reached: new Map(), times: { measured: 1000 }, ranAt: { measured: 0, unmeasured: 99 }, budgetMs: 5_000, workers: 1 });
   assert.equal(plan.run[0], 'unmeasured');
-  const control = planRun({ tests: ['measured', 'other'], reached: new Map(), times: { measured: 1000, other: 1000 }, ranAt: { measured: 0, other: 99 }, budgetMs: 5_000, workers: 1 });
-  assert.equal(control.run[0], 'measured', 'negative control: two measured files keep the oldest-run order');
 });
 
 test('defaultWorkers is half the cores within 4 and 16', () => {

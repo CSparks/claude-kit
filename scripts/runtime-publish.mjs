@@ -13,7 +13,7 @@
 // <runtime>/cache (the shared query cache, linked in as <sha>/.cache), node_modules linked from the
 // repo when present. `current` moves only after the export is complete.
 
-import { mkdirSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync, realpathSync, statSync } from 'node:fs';
+import { mkdirSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -76,11 +76,17 @@ function prune(runtimeRoot, { keep, currentSha, projects, graceHours, lines }) {
   }
 }
 
-// Tests expect a git checkout: the export becomes a one-commit repo (never the real history).
-function initGit(dir, sha) {
+// Tests expect a git checkout: the export becomes a one-commit repo (never the real history). The commit reuses the
+// source repo's tree through an alternate object store, so it writes one commit object instead of one loose object per
+// file (`git add -A` took 48 s on the Windows dev drive, 3 s elsewhere).
+function initGit(dir, sha, repo, ref) {
   gitOrThrow(dir, ['init', '-q', '-b', 'main']);
-  gitOrThrow(dir, ['add', '-A']);
-  gitOrThrow(dir, ['commit', '-q', '-m', `export of ${sha}`]);
+  const objects = gitOrThrow(repo, ['rev-parse', '--path-format=absolute', '--git-path', 'objects']).trim();
+  writeFileSync(join(dir, '.git', 'objects', 'info', 'alternates'), `${objects}\n`);
+  const tree = gitOrThrow(repo, ['rev-parse', `${ref}^{tree}`]).trim();
+  const commit = gitOrThrow(dir, ['commit-tree', tree, '-m', `export of ${sha}`]).trim();
+  gitOrThrow(dir, ['update-ref', 'refs/heads/main', commit]);
+  gitOrThrow(dir, ['read-tree', 'HEAD']);
 }
 
 // The repo's installed dependencies (root and each first-level package such as server/), linked into an export.
@@ -101,7 +107,7 @@ function verifyHead(repo, runtimeRoot, sha, verify, ref = 'HEAD') {
   };
   lap('sweep', () => sweepScratch(parent));
   try {
-    lap('export', () => { exportHead(repo, scratch, ref); initGit(scratch, sha); linkModules(repo, scratch); });
+    lap('export', () => { exportHead(repo, scratch, ref); initGit(scratch, sha, repo, ref); linkModules(repo, scratch); });
     lap('suite', () => verify(scratch));
   } finally {
     lap('stop', () => stopProcessesUnder(scratch));
