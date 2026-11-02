@@ -344,6 +344,7 @@
 - KIT-T817 — Process failure: a questionnaire question cited a ticket by bare id (the KIT-T703 scope question) and the maintainer could not tell what it (high)
 - KIT-T818 — dispatch-guard handoff-before-replace (KIT-D116) demands a 'Handoff <agent-id>' block on every ticket a past-ceiling agent ever touched, inc (high)
 - KIT-T819 — hooks/dispatch-guard.test.mjs is the slowest kit test file: 96 s alone and 163 s under the parallel suite (2026-11-01, runtime 90e49bb), nea (high)
+- KIT-T820 — scripts/broker/linked.test.mjs is now the slowest kit test file at 113 s in the publish run (2026-11-01, runtime 7cd325b), close to the KIT- (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)
