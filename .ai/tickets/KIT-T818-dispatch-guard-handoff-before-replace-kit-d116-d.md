@@ -33,3 +33,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 ### comment #1 [2026-11-02 00:01] @claude
 Fixed in hooks/lib/agent-context.mjs: missingHandoffs only asks for a handoff on tickets with status todo or doing (a missing status counts as open); hasHandoff accepts a Handoff block whose heading names the agent or names no agent id, with the four labels anywhere in the block. Tests: agent-context.test.mjs 37 passed, successor-gate.test.mjs run.
 - [2026-11-02 00:02] (status) todo → review
+- [2026-11-02 00:02] (landed) 4179129 handoff-before-replace: only a todo or doing ticket needs the handoff, and a Handoff block with the four labels counts w

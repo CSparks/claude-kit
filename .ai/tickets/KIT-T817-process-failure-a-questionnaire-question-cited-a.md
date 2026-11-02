@@ -2,7 +2,7 @@
 id: KIT-T817
 title: Process failure: a questionnaire question cited a ticket by bare id (the KIT-T703 scope question) and the maintainer could not tell what it
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-01T23:40:08Z
-updated: 2026-11-01T23:40:08Z
+updated: 2026-11-02T00:03:31Z
 ---
 
 ## Description
@@ -29,3 +29,7 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## History
 - [2026-11-01 23:40] (created) bug — Process failure: a questionnaire question cited a ticket by bare id (the KIT-T703 scope question) and the maintainer could not tell what it
+- [2026-11-02 00:03] (comment) @claude: Landed hooks/ids-described-gate.mjs (check ids-described) on AskUserQuestion beside reask-gate. Rule chosen: the title-w (full comment #1 in ## Notes)
+### comment #1 [2026-11-02 00:03] @claude
+Landed hooks/ids-described-gate.mjs (check ids-described) on AskUserQuestion beside reask-gate. Rule chosen: the title-word rule. Each id (KEY-T/D/Q###) in a question or its options is looked up (hooks/lib/item-title.mjs) and the same question must carry at least 2 of the title distinctive words; the id-removed-still-reads rule was rejected because the failing KIT-T703 question still read fine without its id. Unknown ids and parse errors pass. The Stop receipt extension is NOT done: a receipt is free prose, so judging whether an id sits beside a description needs its own parse; left for a follow-up. Tests: ids-described-gate.test.mjs 12 passed.
+- [2026-11-02 00:03] (status) todo → review

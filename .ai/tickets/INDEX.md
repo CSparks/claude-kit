@@ -454,7 +454,7 @@
 | KIT-T810 | bug | review | high | broker land gate: the dependents run was one cargo test per crate, so each command got its own feature set and recompiled the shared crates (dirt-empire land j-mvydj8de-fhpscb: rg-meshkit-bevy compiled 4 times, 8m38s of compile in 4 commands) |
 | KIT-T811 | bug | review | high | dispatch-guard let marblequest-18 dispatch a claude-kit writer (14:5x-16:10, 2026-11-01) while infra-09's standing kit agent held the checko |
 | KIT-T816 | bug | todo | high | time sinks: dirt-empire/root |
-| KIT-T817 | bug | todo | high | Process failure: a questionnaire question cited a ticket by bare id (the KIT-T703 scope question) and the maintainer could not tell what it |
+| KIT-T817 | bug | review | high | Process failure: a questionnaire question cited a ticket by bare id (the KIT-T703 scope question) and the maintainer could not tell what it |
 | KIT-T818 | bug | review | high | dispatch-guard handoff-before-replace (KIT-D116) demands a 'Handoff <agent-id>' block on every ticket a past-ceiling agent ever touched, inc |
 
 ## Superseded (72)
