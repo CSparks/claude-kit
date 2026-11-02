@@ -230,6 +230,35 @@ test('planRun: a file with no record is planned before recorded files outside th
   assert.equal(plan.run[0], 'unmeasured');
 });
 
+const NAP = "await new Promise((r) => setTimeout(r, 1500));";
+
+test('a file whose start would end past the budget is skipped even when its record said it fit; the first still runs (KIT-T839)', () => {
+  const root = fixtureRoot({ 'a.test.mjs': NAP, 'b.test.mjs': NAP, 'c.test.mjs': NAP });
+  writeTimes(join(root, 'times.json'), ['a', 'b', 'c'].map((n) => ({ file: `${n}.test.mjs`, ms: 10 })));
+  const r = runner(root, [], { KIT_TEST_WORKERS: '1', KIT_TEST_CHANGED: '', KIT_TEST_BUDGET_S: '2' });
+  assert.equal(r.status, 0, r.stdout);
+  assert.equal(r.stdout.match(/^ok /gm).length, 2, 'two ran');
+  assert.match(r.stdout, /skipped 1 files that would have ended past the 2s budget, 0 of them reached by the change/);
+  const full = runner(root, ['--full'], { KIT_TEST_WORKERS: '1', KIT_TEST_CHANGED: '', KIT_TEST_BUDGET_S: '2' });
+  assert.equal(full.stdout.match(/^ok /gm).length, 3, 'negative control: a full run has no gate');
+});
+
+test('a reached file the gate skips joins the owed remainder; without an owed file the required-reached run is refused (KIT-T839)', () => {
+  const root = fixtureRoot({ 'lib.mjs': 'export const v = 1;', 'a.test.mjs': `import './lib.mjs'; ${NAP}`, 'b.test.mjs': `import './lib.mjs'; ${NAP}` });
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['add', '-A'], { cwd: root });
+  writeTimes(join(root, 'times.json'), ['a', 'b'].map((n) => ({ file: `${n}.test.mjs`, ms: 10 })));
+  const env = { KIT_TEST_WORKERS: '1', KIT_TEST_CHANGED: 'lib.mjs', KIT_TEST_BUDGET_S: '1' };
+  const owedPath = join(root, 'owed.json');
+  const owedRun = runner(root, ['--require-reached', '--owed-file', owedPath], env);
+  assert.equal(owedRun.status, 0, owedRun.stdout);
+  assert.deepEqual(JSON.parse(readFileSync(owedPath, 'utf8')), ['b.test.mjs']);
+  writeTimes(join(root, 'times.json'), ['a', 'b'].map((n) => ({ file: `${n}.test.mjs`, ms: 10 })));
+  const refused = runner(root, ['--require-reached'], env);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stdout, /REFUSED: 1 files the change reaches did not start inside the budget: b\.test\.mjs/);
+});
+
 test('defaultWorkers is half the cores within 4 and 16', () => {
   assert.deepEqual([2, 8, 32, 128].map((cores) => defaultWorkers(cores)), [4, 4, 16, 16]);
 });

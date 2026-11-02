@@ -78,8 +78,11 @@ export function reach(root, tests, changed) {
   return new Map(tests.filter((t) => dist.has(t)).map((t) => [t, dist.get(t)]));
 }
 
+// What planning budgets for a file: its last record, 30 s when it has none, never past the artefact cap.
+export const fileCost = (times) => (t) => Math.min(times[t] ?? UNKNOWN_MS, FILE_COST_CAP_MS);
+
 export function planRun({ tests, reached, times, stale = new Set(), ranAt = {}, budgetMs, workers }) {
-  const cost = (t) => Math.min(times[t] ?? UNKNOWN_MS, FILE_COST_CAP_MS);
+  const cost = fileCost(times);
   const unmeasured = (t) => (times[t] === undefined || stale.has(t) ? 0 : 1);
   const order = [
     ...tests.filter((t) => reached.has(t)).sort((a, b) => reached.get(a) - reached.get(b) || cost(a) - cost(b)),

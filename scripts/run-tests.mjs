@@ -27,7 +27,8 @@ import { discoverTests } from './test-runner/discover.mjs';
 import { isolatedEnv } from './test-runner/isolate.mjs';
 import { runPool } from './test-runner/pool.mjs';
 import { runFile } from './test-runner/run-file.mjs';
-import { reach, changedFiles, planRun } from './test-runner/select.mjs';
+import { reach, changedFiles, fileCost, planRun } from './test-runner/select.mjs';
+import { NO_GATE, startGate } from './test-runner/start-gate.mjs';
 import { longestFirst, readRan, readStamps, readTimes, slowFiles, slowest, staleFiles, writeRan, writeTimes } from './test-runner/times.mjs';
 import { defaultWorkers } from './test-runner/workers.mjs';
 
@@ -62,12 +63,14 @@ const stale = new Set(staleFiles(times, readStamps(timesFile)));
 const wanted = listed ? new Set(JSON.parse(readFileSync(listed, 'utf8'))) : null;
 const all = discoverTests(root).filter((f) => (!only || f.includes(only)) && (!wanted || wanted.has(f)));
 let chosen = all;
+let reached = new Map();
+let owed = [];
 if (!full) {
   const changed = changedFiles(root, { since: flag('--since') });
-  const reached = reach(root, all, changed);
+  reached = reach(root, all, changed);
   const plan = planRun({ tests: all, reached, times, stale, ranAt: readRan(ranFile), budgetMs, workers });
   chosen = plan.run;
-  const owed = plan.deferred.filter((f) => reached.has(f));
+  owed = plan.deferred.filter((f) => reached.has(f));
   if (owedFile) writeFileSync(owedFile, JSON.stringify(owed));
   if (requireReached && !owedFile && owed.length) {
     console.log(`REFUSED: ${owed.length} of the ${reached.size} files this change reaches do not fit the ${budgetMs / MS_PER_S}s budget (estimate ${(plan.estimateMs / MS_PER_S).toFixed(0)}s), so the run would gate on untested code: ${named(owed)}. Raise --budget or split the change.`);
@@ -77,17 +80,22 @@ if (!full) {
 }
 const files = longestFirst(chosen, times);
 const started = Date.now();
-const pooled = files.filter((f) => !keepDefaults(f));
-const first = await runPool(pooled, workers, async (file) => {
+const gate = full ? NO_GATE : startGate({ budgetMs, cost: fileCost(times), reached, started });
+const late = [];
+const timed = async (file) => {
+  if (gate.skips(file)) { late.push(file); return null; }
   const r = await attempt(file, 1);
   announce(r);
   return r;
-});
+};
+const first = (await runPool(files.filter((f) => !keepDefaults(f)), workers, timed)).filter(Boolean);
 for (const file of files.filter(keepDefaults)) {
-  const r = await attempt(file, 1);
-  announce(r);
-  first.push(r);
+  const r = await timed(file);
+  if (r) first.push(r);
 }
+const lateOwed = late.filter((f) => reached.has(f));
+if (late.length) console.log(`skipped ${late.length} files that would have ended past the ${budgetMs / MS_PER_S}s budget, ${lateOwed.length} of them reached by the change: ${named(late)}`);
+if (owedFile && lateOwed.length) writeFileSync(owedFile, JSON.stringify([...owed, ...lateOwed]));
 
 const results = [];
 const flakes = [];
@@ -118,4 +126,7 @@ if (slow.length) console.log(`
 ${slow.length} SLOW (over ${maxFileMs / MS_PER_S}s): ${slow.map((r) => `${r.file} ${secs(r.ms).trim()}s`).join(', ')}`);
 if (failed.length) console.log(`
 ${failed.length} FAILED: ${failed.map((r) => r.file).join(', ')}`);
-process.exit(failed.length || slow.length ? 1 : 0);
+const gatedOnUntested = requireReached && !owedFile && lateOwed.length > 0;
+if (gatedOnUntested) console.log(`
+REFUSED: ${lateOwed.length} files the change reaches did not start inside the budget: ${named(lateOwed)}`);
+process.exit(failed.length || slow.length || gatedOnUntested ? 1 : 0);
