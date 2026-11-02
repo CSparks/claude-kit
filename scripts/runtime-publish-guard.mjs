@@ -3,7 +3,7 @@
 //   withPublishLock(runtimeRoot, fn) -> fn()'s result; one publish per runtime directory: a live holder
 //     makes this call throw naming its pid, a dead holder's lock is taken over, and the lock is released
 //     when fn returns or throws
-//   stopProcessesUnder(dir)          -> stops every process whose command line names `dir` (a q-server a
+//   stopProcessesUnder(dir | dirs)   -> one process scan stops every process whose command line names a directory (a q-server a
 //     test run left in an export), so the export can be deleted
 //   gitOrThrow(dir, args)            -> runs git in `dir`; a failure throws with git's own stderr
 //   CHILD_OPTIONS                    -> spawn options every publish child takes: windowsHide gives the child a console of its
@@ -31,12 +31,15 @@ export const alive = (pid) => {
 
 export function sweepScratch(parent, { isAlive = alive } = {}) {
   if (!existsSync(parent)) return [];
-  const removed = [];
-  for (const name of readdirSync(parent)) {
+  const dead = readdirSync(parent).filter((name) => {
     const m = SCRATCH.exec(name);
-    if (!m || isAlive(Number(m[1]))) continue;
+    return m && !isAlive(Number(m[1]));
+  });
+  if (!dead.length) return [];
+  stopProcessesUnder(dead.map((name) => join(parent, name)));
+  const removed = [];
+  for (const name of dead) {
     try {
-      stopProcessesUnder(join(parent, name));
       rmSync(join(parent, name), { recursive: true, force: true, maxRetries: SCRATCH_RM_RETRIES, retryDelay: SCRATCH_RM_DELAY_MS });
       removed.push(name);
     } catch { /* a copy still held is swept on the next run */ }
@@ -73,11 +76,13 @@ export function withPublishLock(runtimeRoot, fn) {
   }
 }
 
-const WIN_STOP = (dir) => `$d = '${String(dir).replace(/'/g, "''")}'; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne ${process.pid} -and $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.IndexOf($d, [StringComparison]::OrdinalIgnoreCase) -ge 0 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+const psQuoted = (dir) => `'${String(dir).replace(/'/g, "''")}'`;
+const WIN_STOP = (dirs) => `$ds = @(${dirs.map(psQuoted).join(', ')}); Get-CimInstance Win32_Process | Where-Object { $c = $_.CommandLine; $_.ProcessId -ne ${process.pid} -and $_.ProcessId -ne $PID -and $c -and ($ds | Where-Object { $c.IndexOf($_, [StringComparison]::OrdinalIgnoreCase) -ge 0 }) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
 
-export function stopProcessesUnder(dir) {
-  if (process.platform === 'win32') spawnSync('powershell', ['-NoProfile', '-Command', WIN_STOP(dir)], { stdio: 'ignore', ...CHILD_OPTIONS });
-  else spawnSync('pkill', ['-f', dir], { stdio: 'ignore' });
+export function stopProcessesUnder(dirOrDirs) {
+  const dirs = [dirOrDirs].flat();
+  if (process.platform === 'win32') spawnSync('powershell', ['-NoProfile', '-Command', WIN_STOP(dirs)], { stdio: 'ignore', ...CHILD_OPTIONS });
+  else for (const dir of dirs) spawnSync('pkill', ['-f', dir], { stdio: 'ignore' });
 }
 
 export function gitOrThrow(dir, args) {

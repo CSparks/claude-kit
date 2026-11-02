@@ -14,6 +14,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, join, posix } from 'node:path';
 
 const UNKNOWN_MS = 30_000;
+const FILE_COST_CAP_MS = 120_000; // a recorded time past this is a measurement artefact, never what planning budgets for
 const SOURCE = /\.(?:mjs|cjs|js)$/;
 const IMPORT = /(?:from\s*|import\s*\(?\s*|require\s*\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g;
 const MENTION = /[\w.-]+\.(?:mjs|cjs|js)\b/g;
@@ -75,7 +76,7 @@ export function reach(root, tests, changed) {
 }
 
 export function planRun({ tests, reached, times, ranAt = {}, budgetMs, workers }) {
-  const cost = (t) => times[t] ?? UNKNOWN_MS;
+  const cost = (t) => Math.min(times[t] ?? UNKNOWN_MS, FILE_COST_CAP_MS);
   const order = [
     ...tests.filter((t) => reached.has(t)).sort((a, b) => reached.get(a) - reached.get(b) || cost(a) - cost(b)),
     ...tests.filter((t) => !reached.has(t)).sort((a, b) => (ranAt[a] ?? 0) - (ranAt[b] ?? 0) || cost(a) - cost(b)),

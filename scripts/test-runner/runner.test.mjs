@@ -11,6 +11,8 @@ import { discoverTests } from './discover.mjs';
 import { DEFAULT_STATE_TESTS } from './default-state.mjs';
 import { isolatedEnv } from './isolate.mjs';
 import { runPool } from './pool.mjs';
+import { runFile } from './run-file.mjs';
+import { planRun } from './select.mjs';
 import { longestFirst, readTimes, slowest, writeTimes } from './times.mjs';
 
 const KIT = join(import.meta.dirname, '..', '..');
@@ -103,6 +105,33 @@ test('the pool never runs more than `workers` at once and starts items in the gi
   });
   assert.equal(peak, 2);
   assert.deepEqual(started, [1, 2, 3, 4, 5]);
+});
+
+const LINGER_MS = 8000;
+const LINGER_LIMIT_MS = 4000;
+
+test('a file is done when its process exits: a daemon it leaves holding stdout neither delays it nor inflates its time (KIT-T824)', async () => {
+  const root = fixtureRoot({
+    'daemon.test.mjs': `process.getBuiltinModule('child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, ${LINGER_MS})'], { stdio: ['ignore', 'inherit', 'inherit'], detached: true }).unref(); console.log('finished-clean');`,
+    'bad.test.mjs': 'console.log("failing-output"); process.exit(1);',
+  });
+  const clean = await runFile(root, 'daemon.test.mjs', process.env);
+  assert.equal(clean.ok, true);
+  assert.match(clean.output, /finished-clean/);
+  assert.ok(clean.ms < LINGER_LIMIT_MS, `took ${clean.ms} ms`);
+  const bad = await runFile(root, 'bad.test.mjs', process.env);
+  assert.equal(bad.ok, false);
+  assert.match(bad.output, /failing-output/, 'negative control: a failing file still returns its output');
+});
+
+test('planning budgets a recorded time at no more than the cap, so a poisoned time cannot defer reached files', () => {
+  const tests = ['a.test.mjs', 'b.test.mjs'];
+  const reached = new Map([['a.test.mjs', 1], ['b.test.mjs', 1]]);
+  const poisoned = planRun({ tests, reached, times: { 'a.test.mjs': 4_000_000, 'b.test.mjs': 4_000_000 }, budgetMs: 300_000, workers: 2 });
+  assert.deepEqual(poisoned.deferred, []);
+  assert.ok(poisoned.estimateMs <= 120_000);
+  const honest = planRun({ tests, reached, times: { 'a.test.mjs': 100_000, 'b.test.mjs': 100_000 }, budgetMs: 1_000, workers: 1 });
+  assert.equal(honest.deferred.length, 1, 'negative control: real long files still defer under a small budget');
 });
 
 const SLOW_FILE_MS = 100000;
