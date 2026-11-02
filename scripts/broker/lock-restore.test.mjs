@@ -133,7 +133,7 @@ test('a daemon killed after cargo rewrote Cargo.lock restores it at the next sta
     assert.notEqual(read(s.root, 'Cargo.lock'), LOCK, 'the kill left the rewritten lock in the tree');
     assert.equal(recoverInflight(s.cfg).resume, null);
     assert.equal(read(s.root, 'Cargo.lock'), LOCK, 'the recovery restored it');
-    assert.equal(g(['status', '--porcelain', '--untracked-files=no'], s.root), '');
+    assert.equal(g(['status', '--porcelain', '--untracked-files=no', '--', 'Cargo.lock'], s.root), '', 'the lock is clean; the test wrote the tracked config itself');
     const second = spawn(process.execPath, [BROKER, '--root', s.root, '--once'], { stdio: 'ignore', windowsHide: true });
     await new Promise((r) => second.on('exit', r));
     assert.equal(readResult(s.cfg, job.id).status, 'passed');

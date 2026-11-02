@@ -18,7 +18,8 @@
 //
 // Cleared by: an ack (SendMessage to the agent, `ack.mjs`, `resubmit.mjs`), a later dispatch citing the ticket, the
 // ticket reaching review/done, a handoff that owes nothing (Next says stop, or `ack.mjs --handoff <agent> --reason`).
-// A worker owes only the tickets its task label names (successor.mjs dispatchedTickets). A job still queued or running is waiting, not a failure.
+// A worker owes only the tickets its task label names (successor.mjs dispatchedTickets). A SendMessage that resumed the
+// worker and named the ticket (reopened.mjs) takes the handoff over; silence past SILENT_MS brings it back as 'reopened'. A job still queued or running is waiting, not a failure.
 
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -27,6 +28,7 @@ import { ownsWork } from '../dispatch-readonly.mjs';
 import { ackJobs, readAcks, sameAgent } from '../../scripts/broker/finished-ack.mjs';
 import { landedOnMain, resumable } from './handback-landed.mjs';
 import { applyQueued } from './handback-queued.mjs';
+import { SILENT_MS, reopenState } from './reopened.mjs';
 import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
@@ -36,6 +38,7 @@ import { CLOSED, dispatchedTickets, handoffClosed, openTicketStatus, recent, ret
 const ENDED = new Set(['done', 'error', 'killed', 'stale']);
 const ABNORMAL = new Set(['error', 'killed', 'stale']);
 const LOST_GRACE_MS = 2 * 60 * 1000;
+const MS_PER_MIN = 60 * 1000;
 const SHA_SHOWN = 8;
 const RESUBMIT = fileURLToPath(new URL('../../scripts/broker/resubmit.mjs', import.meta.url));
 const ACK = fileURLToPath(new URL('../../scripts/broker/ack.mjs', import.meta.url));
@@ -91,6 +94,7 @@ function describe(item, row) {
     if (item.step === 'fresh-worker') return `JOB LOST: ${item.job}${ctx}, no kept copy: dispatch a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
     return `JOB LOST, UNRECOVERABLE: ${item.job} (agent ${row.id}) has no result, no kept copy and no ticket to rebuild from`;
   }
+  if (item.kind === 'reopened') return `REOPENED, SILENT: ${item.ticket} (${row.id}) was resumed by SendMessage and has written nothing for ${SILENT_MS / MS_PER_MIN} min: SendMessage ${row.id} again, or dispatch a fresh worker citing ${item.ticket}, briefed from its Handoff`;
   if (item.kind === 'successor') return `RETIRED WITH HANDOFF: ${item.ticket} (${row.id}) has open work and no dispatch has cited it: dispatch a successor briefed from the Handoff, or if its Handoff shows nothing is owed: node "${ACK}" --handoff ${row.id} --reason "<why>"`;
   return `AGENT ${row.status.toUpperCase()}: ${row.id} left ${item.ticket} open with no Handoff: dispatch a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
 }
@@ -122,12 +126,15 @@ function jobItem(root, dir, rows, row, job, acks, nowMs, { sessionId, autoAck })
   return { ...base, kind: 'job-lost', step, key: `job-lost:${job.id}` };
 }
 
-function workItems(root, rows, row) {
+function workItems(root, rows, row, nowMs) {
   const out = [];
   for (const ticket of dispatchedTickets(row)) {
     if (!openTicket(root, ticket) || succeeded(root, rows, row, ticket) || handoffClosed(root, ticket, row.id)) continue;
     const handoff = hasHandoff(ticketNotes(root, ticket), row.id);
-    if (handoff) out.push({ kind: 'successor', step: 'successor', key: `successor:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
+    const reopened = handoff || ABNORMAL.has(row.status) ? reopenState(root, row, ticket, { nowMs, since: retiredAt(row) }) : null;
+    if (reopened === 'active') continue;
+    if (reopened === 'silent') out.push({ kind: 'reopened', step: 'reopened-silent', key: `reopened:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
+    else if (handoff) out.push({ kind: 'successor', step: 'successor', key: `successor:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
     else if (ABNORMAL.has(row.status)) out.push({ kind: 'dead', step: 'fresh-worker', key: `dead:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
   }
   return out;
@@ -145,7 +152,7 @@ export function reconcileHandbacks(root, rows, { nowMs = Date.now(), sessionId =
     const jobs = jobsOf(row, ledger, finished, claims.get(row.id));
     const waiting = jobs.some((j) => !j.fin && (inLane(dir, 'queue', j.id) || inLane(dir, 'results', j.id)));
     let found = jobs.map((j) => jobItem(root, dir, rows, row, j, acks, nowMs, { sessionId, autoAck })).filter(Boolean);
-    if (!found.length && !waiting) found = workItems(root, rows, row);
+    if (!found.length && !waiting) found = workItems(root, rows, row, nowMs);
     for (const item of found) items.push({ ...item, text: describe(item, row), retired: retiredAt(row) });
   }
   return applyQueued(root, rows, latestPerTicket(items));

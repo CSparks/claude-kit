@@ -11,7 +11,11 @@ export function printRows(rows, json) {
     }
     return;
   }
+  if (onlyNotes(rows)) process.stdout.write('(no results)\n');
   for (const r of rows) process.stdout.write(compact(r) + '\n');
 }
+
+// Rows with no location are notes (a "NOT searched" caution); a list of only notes found nothing.
+const onlyNotes = (rows) => rows.every((r) => r && typeof r === 'object' && r.loc === '' && !String(r.text).startsWith('(no results'));
 const compact = (r) =>
   typeof r === 'string' ? r : Object.values(r).map((v) => (v === null ? '' : String(v))).join('  ');
