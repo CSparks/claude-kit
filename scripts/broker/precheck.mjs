@@ -90,16 +90,16 @@ function runPrecheck(cfg, job, repo, { run = runCancellable, prepare = prepareCh
     const cold = join(home, `${KIND}-${repo.name}.cold`);
     if ((existsSync(cold) || !existsSync(target)) && busy(cfg)) return null;
     if (!existsSync(target)) writeFileSync(cold, new Date().toISOString());
-    return cargoChecks(cfg, job, { home, tree, target, cold, run, submodule: !!repo.submodule });
+    return cargoChecks(cfg, job, { home, tree, target, cold, run, submodule: !!repo.submodule, repoPath: repo.path, submodulePaths: cfg.repos.filter((r) => r.submodule).map((r) => r.path) });
   } finally { release(); }
 }
 
 // The job's own targets first (precheck-scope.mjs), then the whole workspace, inside one deadline. A rustc error in either
 // rejects the job, even when the run was cut off at the deadline: cargo prints an error as it finds it.
-function cargoChecks(cfg, job, { home, tree, target, cold, run, submodule }) {
+function cargoChecks(cfg, job, { home, tree, target, cold, run, submodule, repoPath, submodulePaths }) {
   const deadline = Date.now() + cfg.precheckTimeoutMs;
   const check = cfg.affected.fullCheck || cfg.affected.check;
-  const stages = [...narrowChecks(check, jobCommands(cfg, job), { submodule }), ...(submodule ? [] : [check])];
+  const stages = [...narrowChecks(check, jobCommands(cfg, job), { submodule, repoPath, submodulePaths }), ...(submodule ? [] : [check])];
   for (const [i, cmd] of stages.entries()) {
     const left = deadline - Date.now();
     if (left <= 0) return null;

@@ -4,12 +4,16 @@
 // package's library plus the test binaries it names (or all its tests when it names none), so an error in a file the
 // patch touches is found in seconds.
 //
-//   narrowChecks(checkCmd, jobCommands, { submodule }?) -> `cargo check` commands, [] when the job's commands name no package
+//   narrowChecks(checkCmd, jobCommands, { submodule, repoPath, submodulePaths }?) -> `cargo check` commands, [] when the job's commands name no package
 //     checkCmd: the configured whole-workspace check; its flags (--offline, --features …) are kept, --workspace and
 //     --all-targets are replaced by `-p <crate> … --lib --test <name> …`.
 //     submodule: the repo is a submodule with a workspace of its own. The check runs where the job's first cargo command
 //     runs (its `cd <dir> &&` prefix leads the check), covers only that command's workspace, and drops the superproject's
 //     `--features`: they name superproject crates, which cargo refuses outside its workspace.
+//     repoPath: the submodule's path in the superproject; a `cd <repoPath>/rust &&` in its commands is read as `cd rust &&`.
+//     submodulePaths: the submodule paths of the superproject. A superproject command that starts `cd <submodule path>/… &&`
+//     builds in that submodule's workspace: it gets a check of its own that keeps the `cd` and drops `--features`
+//     (the submodule's test-only dependencies do not resolve in the superproject workspace, KIT-T841).
 //     `--manifest-path <file>`: the command builds in the workspace that manifest roots (a framework crate with its own
 //     dev-dependencies). It gets a check of its own that repeats the flag and drops `--features`; folding its packages into
 //     the repo's check resolves them without those dev-dependencies and refuses every integration test (KIT-T829).
@@ -50,15 +54,38 @@ function addArgs(group, args) {
   group.targets.push(...(named.length ? named : ['--tests']));
 }
 
-// One group per workspace the commands build in: a manifest path is its own workspace; the rest share the repo's (a
-// submodule keeps one group per `cd` prefix and checks the first cargo command's).
-function wanted(commands, submodule) {
+const trimSlashes = (path) => String(path).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+
+// A job on a submodule repo runs in the submodule root, so a `cd <repo.path>/rust &&` written for the superproject becomes
+// `cd rust &&`, and a `cd <repo.path> &&` is the root itself.
+function fromSubmoduleRoot(command, repoPath) {
+  const root = trimSlashes(repoPath || '');
+  const m = root && /^cd\s+(\S+)\s*&&\s*/.exec(String(command).trim());
+  if (!m) return command;
+  const dir = trimSlashes(m[1]);
+  if (dir === root) return String(command).trim().replace(ENTER, '');
+  return dir.startsWith(`${root}/`) ? String(command).trim().replace(ENTER, `cd ${dir.slice(root.length + 1)} && `) : command;
+}
+
+// True when a `cd <dir> &&` prefix enters a submodule (its path in the superproject, or a directory below it).
+function entersSubmodule(command, submodulePaths) {
+  const m = /^cd\s+(\S+)\s*&&/.exec(String(command).trim());
+  if (!m) return false;
+  const dir = trimSlashes(m[1]);
+  return submodulePaths.some((p) => dir === trimSlashes(p) || dir.startsWith(`${trimSlashes(p)}/`));
+}
+
+// One group per workspace the commands build in: a manifest path is its own workspace, so is a `cd` into a submodule from
+// the superproject; the rest share the repo's (a submodule repo keeps one group per `cd` prefix and checks the first
+// cargo command's).
+function wanted(commands, { submodule, repoPath, submodulePaths }) {
   const groups = new Map();
-  for (const command of commands) {
+  for (const raw of commands) {
+    const command = submodule ? fromSubmoduleRoot(raw, repoPath) : raw;
     const args = cargoTest(command);
     if (!args) continue;
     const manifest = manifestOf(args);
-    const enter = submodule ? enterOf(command) : '';
+    const enter = submodule || entersSubmodule(command, submodulePaths) ? enterOf(command) : '';
     const key = `${enter}|${manifest}`;
     if (!groups.has(key)) groups.set(key, { enter, manifest, packages: [], targets: [] });
     addArgs(groups.get(key), args);
@@ -71,13 +98,13 @@ const withoutFeatures = (tokens) => tokens.filter((t, i) => !FEATURE_FLAGS.has(t
 
 function checkOf(checkCmd, { enter, manifest, packages, targets }, submodule) {
   const flags = String(checkCmd).trim().split(/\s+/).filter((t) => !WORKSPACE_FLAGS.has(t));
-  const kept = submodule || manifest ? withoutFeatures(flags) : flags;
+  const kept = submodule || enter || manifest ? withoutFeatures(flags) : flags;
   const scope = [...(manifest ? [MANIFEST_PATH, manifest] : []), ...packages.flatMap((p) => ['-p', p]), ...new Set(['--lib', ...targets])];
   const features = kept.findIndex((t) => FEATURE_FLAGS.has(t));
   const at = features === -1 ? kept.length : features;
   return `${enter}${[...kept.slice(0, at), ...scope, ...kept.slice(at)].join(' ')}`;
 }
 
-export function narrowChecks(checkCmd, jobCommands, { submodule = false } = {}) {
-  return wanted(jobCommands || [], submodule).map((group) => checkOf(checkCmd, group, submodule));
+export function narrowChecks(checkCmd, jobCommands, { submodule = false, repoPath = '', submodulePaths = [] } = {}) {
+  return wanted(jobCommands || [], { submodule, repoPath, submodulePaths }).map((group) => checkOf(checkCmd, group, submodule));
 }
