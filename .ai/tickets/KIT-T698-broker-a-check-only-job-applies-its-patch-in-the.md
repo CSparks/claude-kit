@@ -2,7 +2,7 @@
 id: KIT-T698
 title: broker: a check-only job applies its patch in the maintainer's live checkout, so a hand cargo r compiles patched code (dirt-empire 2026-10-2
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-10-29T14:59:30Z
-updated: 2026-10-29T14:59:30Z
+updated: 2026-11-02T15:08:12Z
 ---
 
 ## Description
@@ -32,3 +32,5 @@ Built: check-tree.mjs (broker-owned git worktree per repo under target/broker/ch
 
 ## History
 - [2026-10-29 14:59] (created) bug — broker: a check-only job applies its patch in the maintainer's live checkout, so a hand cargo r compiles patched code (dirt-empire 2026-10-2
+- [2026-11-02 15:08] (status) todo → review
+- [2026-11-02 15:08] (comment) @claude: (fixed) d96774d; check-tree 12 passed (check-tree, check-tree-train, check-tree-sub); runtime 533bf36 contains it

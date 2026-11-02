@@ -388,7 +388,7 @@
 | KIT-T694 | bug | todo | high | broker check-only runs patch the LIVE tree, so a maintainer's 'cargo run' (even in its own target dir) can compile an agent's unlanded chang |
 | KIT-T695 | bug | todo | high | broker: both lanes share one CARGO_TARGET_DIR but the submodule lane's commands use rapid-game's cargo aliases (cargo t/b/r add --features r |
 | KIT-T696 | bug | todo | high | Process failure (cross-project, 2026-10-29): Stiletto's test policy (ST-D254 tiered tests: a merge runs touched crates + dependents, GPU gol |
-| KIT-T698 | bug | todo | high | broker: a check-only job applies its patch in the maintainer's live checkout, so a hand cargo r compiles patched code (dirt-empire 2026-10-2 |
+| KIT-T698 | bug | review | high | broker: a check-only job applies its patch in the maintainer's live checkout, so a hand cargo r compiles patched code (dirt-empire 2026-10-2 |
 | KIT-T702 | bug | review | high | D:/dev/claude-kit/tools/llm-fleet/ (fleet.ps1 and convert-asset.mjs, dated 2026-08-31) has never been committed: it sits untracked in the ki ↳ KIT-T350 |
 | KIT-T703 | bug | review | high | Orchestrator briefs invent requirements beyond the maintainer's words: DE-T195 'MX track class with higher hills and jumps' was built as a s |
 | KIT-T707 | bug | review | high | q code --path C:/ComfyUI/comfy returns 'no indexed file passes --path' from an unbounded session: the ComfyUI checkout (comfy-volta agent's |
