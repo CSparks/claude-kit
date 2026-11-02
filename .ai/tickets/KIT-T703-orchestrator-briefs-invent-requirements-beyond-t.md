@@ -40,3 +40,4 @@ Landed: hooks/dispatch-brief.mjs (check brief-grounded) blocks a brief citing a 
 - [2026-11-01 23:47] (comment) @chris: Maintainer 2026-11-01, two AskUserQuestion answers: the brief-grounding check BLOCKS (option '(Recommended) Block'), and (full comment #1 in ## Notes)
 - [2026-11-02 00:00] (comment) @claude: Landed: hooks/dispatch-brief.mjs (check brief-grounded) blocks a brief citing a feature or request ticket with no [maint (full comment #2 in ## Notes)
 - [2026-11-02 00:00] (status) doing → review
+- [2026-11-02 00:00] (landed) b0becd1 dispatch-guard: brief-grounded blocks a feature or request brief that carries no maintainer quote, and a variant with no

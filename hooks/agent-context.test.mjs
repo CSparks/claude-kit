@@ -75,6 +75,19 @@ try {
   ok('negative: an agent working in another checkout owns no ticket of this store', dispatch('Continue KIT-T903').code === 0);
   ok('a writer working in this checkout with no handoff still blocks', dispatch('Continue KIT-T904').code === 2);
 
+  // only open tickets need the handoff (KIT-T818)
+  const withStatus = (t, status, notes = 'nothing yet\n') => writeFileSync(join(d, '.ai', 'tickets', `${t}-thing.md`), `---\nid: ${t}\nstatus: ${status}\n---\n\n## Notes\n\n${notes}`);
+  withStatus('KIT-T904', 'review');
+  ok('a ticket the agent finished (review) needs no handoff', dispatch('Continue KIT-T904').code === 0);
+  withStatus('KIT-T904', 'doing');
+  ok('negative: an open ticket (doing) without a handoff still blocks', dispatch('Continue KIT-T904').code === 2);
+  withStatus('KIT-T904', 'todo');
+  ok('negative: an open ticket (todo) without a handoff still blocks', dispatch('Continue KIT-T904').code === 2);
+  withStatus('KIT-T904', 'doing', 'Handoff (standing kit agent, context limit). Jobs: KIT-T904. State: claimed. Next: land it. Files: hooks/x.mjs.\n');
+  ok('a Handoff block with the four labels counts without the agent id in its heading', dispatch('Continue KIT-T904').code === 0);
+  withStatus('KIT-T904', 'doing', `Handoff ${NEW.slice(0, 8)}\n- Jobs: j\n- State: s\n- Next: n\n- Files: f\n`);
+  ok('negative: a handoff headed with another agent\'s id does not count', dispatch('Continue KIT-T904').code === 2);
+
   // SubagentStop: retire line
   const transcript = join(d, 'agent.jsonl');
   writeFileSync(transcript, JSON.stringify({ type: 'assistant', timestamp: new Date().toISOString(), message: { id: 'm1', model: 'claude-sonnet-5-5', usage: { input_tokens: 10, cache_read_input_tokens: 449990, output_tokens: 100 }, content: [] } }) + '\n');
