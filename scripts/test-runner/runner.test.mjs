@@ -28,7 +28,7 @@ function fixtureRoot(files) {
 }
 
 const runner = (root, args = [], env = {}) => spawnSync(process.execPath, [RUNNER, '--root', root, ...args], {
-  encoding: 'utf8', env: { ...process.env, KIT_TEST_TIMES: join(root, 'times.json'), KIT_TEST_REQUIRE_REACHED: '', KIT_TEST_BUDGET_S: '', ...env },
+  encoding: 'utf8', env: { ...process.env, KIT_TEST_TIMES: join(root, 'times.json'), KIT_TEST_REQUIRE_REACHED: '', KIT_TEST_BUDGET_S: '', KIT_TEST_FULL: '', ...env },
 });
 
 test('every git-tracked *.test.mjs is in the manifest, including files the old chain never ran', () => {
