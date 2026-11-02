@@ -11,6 +11,7 @@ import { projectRepo } from './q-project.mjs';
 import { dirIndex, scanSummary } from './q-scan-dir.mjs';
 import { uncheckedFrameworks } from './q-framework.mjs';
 import { globToRegExp } from '../hooks/lib/exclusions.mjs';
+import { grepPattern } from './q-grep-pattern.mjs';
 
 export const DEFAULT_LIMIT = 40;
 const MIN_LITERAL = 3;
@@ -35,17 +36,6 @@ const splitAttached = (args) => args.flatMap((a) => {
   const m = ATTACHED_COUNT.exec(String(a)) || ATTACHED_VALUE.exec(String(a));
   return m ? [m[1].startsWith('--') ? m[1] : `-${m[1]}`, m[2]] : [a];
 });
-
-// In --regex mode a pattern whose only alternation is grep's `\|` means alternation (a JS `\|`
-// is a literal pipe, which an agent writing `a\|b` never wants); a pattern with a bare `|` is left alone.
-export function breAlternation(text) {
-  let bare = false;
-  let escaped = false;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === '\\') { if (text[i + 1] === '|') escaped = true; i++; } else if (text[i] === '|') bare = true;
-  }
-  return escaped && !bare ? text.replace(/\\\|/g, '|') : text;
-}
 
 /** Split argv-style tokens into { text, flags }. A lone `--` makes the next token search text even when it starts with `-` (`q code -- --capture`). */
 export function parseCodeArgs(rawArgs) {
@@ -81,7 +71,7 @@ export function parseCodeArgs(rawArgs) {
     else words.push(a);
   }
   const text = words.join(' ');
-  return { text: flags.regex ? breAlternation(text) : text, flags };
+  return { text: flags.regex ? grepPattern(text) : text, flags };
 }
 
 const isAbsolutePath = (path) => isAbsolute(path) || /^[A-Za-z]:\//.test(path);

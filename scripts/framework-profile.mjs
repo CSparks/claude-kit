@@ -65,7 +65,7 @@ export async function profileBlock(root, deps = {}) {
   }
   const unwired = conformanceUnwired(root, deps);
   if (unwired.length) lines.push(CONFORMANCE_HEADER);
-  for (const u of unwired) lines.push(`  ${u.framework}: add broker.affected.conformance: cargo t -p <game> --test ${u.test}`);
+  for (const u of unwired) lines.push(`  ${u.framework}: t config set broker.affected.conformance "cargo t -p <game> --test ${u.test}"`);
   return lines;
 }
 

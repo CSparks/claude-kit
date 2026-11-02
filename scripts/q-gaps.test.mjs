@@ -111,6 +111,19 @@ try {
     const out = JSON.parse(r.stdout.trim());
     assert.equal(out.err, '');
   });
+
+  await ok('--regex reads a grep pattern with a bare paren as a literal paren (KIT-T833)', async () => {
+    writeFileSync(join(dir, 'vst.cpp'), 'x = getNumBuses( kEvent, 0);\naddEventOutput(1);\nother\n');
+    const out = await rows(['addEventOutput\\|getNumBuses( *kEvent\\|nomatch', '--regex']);
+    assert.deepEqual(out.map((r) => r.loc).map(norm), [`${norm(dir)}/vst.cpp:1`, `${norm(dir)}/vst.cpp:2`]);
+    const group = await rows(['(addEventOutput|other)', '--regex']);
+    assert.equal(group.length, 2, 'a balanced group stays a group');
+  });
+
+  await ok('--regex with a pattern no reading compiles still reports invalid pattern', async () => {
+    const out = await rows(['[unclosed(', '--regex']);
+    assert.match(out[0].text, /^invalid pattern: /);
+  });
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

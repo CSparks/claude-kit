@@ -10,6 +10,7 @@ import { createItem, KINDS } from './t-create.mjs';
 import { appendNotes } from './t-notes.mjs';
 import { editSection } from './t-edit.mjs';
 import { editSession, writeSession } from './t-session.mjs';
+import { runConfig } from './config-edit.mjs';
 
 const USAGE = {
   note: 't note "<title>" [--body "<text>" | --file <path>] [--links A,B]',
@@ -18,6 +19,7 @@ const USAGE = {
   question: 't question "<question>" [--body "<detail>" | --file <path>] [--answerable-by chris|claude]',
   notes: 't notes <id> "<prose>" | --file <path>',
   edit: 't edit <id> --section Description|Plan|Notes --file <path>',
+  config: 't config get <dotted.key> | t config set <dotted.key> <value>… (several values make a list; e.g. broker.affected.conformance "cargo t -p game --test conformance")',
   session: 't session "<text>" | --file <path> [--append] | --replace --file <path> | --fix "<old>" "<new>" | --drop "<text>"',
 };
 
@@ -45,6 +47,16 @@ export async function runVerb(cmd, rest, flags, root, refresh) {
     await refresh(root);
     const how = flags.replace ? 'replaced' : flags.append ? 'appended' : 'noted';
     process.stdout.write(`session: ${relative(root, r.path)} ${how} (${r.lines} lines)${r.backup ? `; previous kept at ${relative(root, r.backup)}` : ''}\n`);
+    return true;
+  }
+  if (cmd === 'config') {
+    try {
+      process.stdout.write(`config: ${runConfig(root, rest)}\n`);
+    } catch (e) {
+      if (e.message === 'usage') fail(cmd);
+      console.error(e.message);
+      process.exit(1);
+    }
     return true;
   }
   if (cmd === 'edit') {

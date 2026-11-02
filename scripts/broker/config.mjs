@@ -213,7 +213,7 @@ export function parseYaml(text) {
   return i < lines.length || lines.length ? parseMap(lines.length ? lines[0].indent : 0) : {};
 }
 
-function stripComment(line) {
+export function stripComment(line) {
   let out = '';
   let qs = 0;
   let qd = 0;
