@@ -2,7 +2,7 @@
 // wait.mjs — block on a job's result with a bounded poll, print it, and exit with the job's
 // status so a worker's turn is never left stopped on a background task. exit 0 = passed or landed;
 // 1 = failed/stale/gate/conflict/dirty; 2 = timed out (the job is still queued or running: wait again). A result older than the job's current
-// inflight run is a previous attempt's and is not final.
+// inflight run is a previous attempt's and is not final. The last stdout line is `wait: <id> <state> (exit N)` (KIT-T840).
 //
 // A heartbeat line (heartbeat.mjs: queue position, or running time and command) goes to stderr
 // every --heartbeat seconds (default 60; 0 = off).
@@ -33,8 +33,16 @@ import { heartbeatKey, repeatPrinter } from './collapse-repeats.mjs';
 // runs with the Bash tool's timeout raised to 600000, or in the background.
 const DEFAULT_TIMEOUT_S = 100;
 const DEFAULT_HEARTBEAT_S = 60;
+const EXIT = { OK: 0, NOT_OK: 1, RUNNING: 2, UNKNOWN: 3 };
 const flags = parseFlags(process.argv.slice(2));
 const id = flags._[0];
+
+// The last stdout line names the state and the exit code, so a caller that pipes wait through tail, or reads a task
+// notification that reports the wrapper's exit 0, still sees "STILL RUNNING" and not "done".
+function finish(state, code) {
+  console.log(`wait: ${id} ${state} (exit ${code})`);
+  process.exit(code);
+}
 if (!id) {
   console.error('wait: a job id is required');
   process.exit(2);
@@ -56,7 +64,7 @@ const resultPath = (c) => join(brokerPaths(c).results, `${id}.json`);
 const known = (c) => listQueue(c).some((j) => j.id === id) || listMeasure(c).some((j) => j.id === id) || readResult(c, id) || inflightHas(readInflight(c), id);
 if (!known(laneCfgFor(rootCfg, id))) {
   console.error(`wait: unknown job ${id}: not queued, running or resulted under ${brokerPaths(laneCfgFor(rootCfg, id)).home} (root ${root}); check the id and --root`);
-  process.exit(3);
+  finish('UNKNOWN JOB', EXIT.UNKNOWN);
 }
 
 const deadline = Date.now() + timeoutMs;
@@ -72,7 +80,7 @@ while (Date.now() < deadline) {
     printResult(result);
     const hold = result.status === STATUS.DIRTY ? holdReport(cfg) : null;
     if (hold) console.log(`  ${holdLine(hold)} (${holdAge(hold)})`);
-    process.exit(result.status === STATUS.PASSED || result.status === STATUS.LANDED ? 0 : 1);
+    finish(result.status, result.status === STATUS.PASSED || result.status === STATUS.LANDED ? EXIT.OK : EXIT.NOT_OK);
   }
   const missingForMs = missingSince === null ? 0 : Date.now() - missingSince;
   const warning = warned ? null : noBrokerWarning(cfg, id, { missingForMs, graceMs });
@@ -94,4 +102,4 @@ const position = listQueue(cfg).findIndex((j) => j.id === id);
 const where = heartbeatLine(cfg, id);
 const alive = observedLive(cfg) && where;
 console.error(`wait: timed out after ${timeoutMs / 1000}s waiting for ${id} (result expected at ${resultPath(cfg)})${position >= 0 ? ` (queue position ${position + 1})` : ''}${alive ? `; the daemon is alive and the job is ${where.replace(/^wait: \S+ /, '')}: run wait again, do not withdraw it` : ''}`);
-process.exit(2);
+finish('STILL RUNNING', EXIT.RUNNING);
