@@ -1,8 +1,8 @@
 // successor.mjs — an agent that retires with a Handoff block leaves its ticket's work to a successor (KIT-T718, KIT-D116).
 // The handoff is the record that work is open; a dispatch citing the ticket after the retirement is the successor.
 //
-//   pendingSuccessors(root, rows, { nowMs }) -> [{ row, ticket }]: done WRITER rows (a read-only agent hands nothing
-//                                               over) whose ticket is still open, carries that row's `Handoff <id>`
+//   pendingSuccessors(root, rows, { nowMs }) -> [{ row, ticket }]: done rows of agents that own ticket work (a
+//                                               read-only agent other than a patch-worker hands nothing over) whose ticket is still open, carries that row's `Handoff <id>`
 //                                               block, and has no later dispatch citing it
 //   openTicketStatus(root, id)               -> the live ticket's status, or null (no live file: archived or unknown)
 //   handoffLines(root, ticket, agentId)      -> the Jobs:, State:, Next:, Files: lines of that agent's Handoff block
@@ -10,7 +10,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { hasHandoff } from './agent-context.mjs';
-import { readOnlyRow } from '../dispatch-readonly.mjs';
+import { ownsWork } from '../dispatch-readonly.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
 
 export const CLOSED = new Set(['review', 'done']);
@@ -28,16 +28,16 @@ export function openTicketStatus(root, id) {
 
 export const retiredAt = (row) => String(row.ts || row.firstSeen || '');
 export const recent = (row, nowMs) => nowMs - Date.parse(retiredAt(row)) <= WINDOW_MS;
-export const succeeded = (rows, row, ticket) => rows.some((r) => r.id !== row.id && (r.tickets || []).includes(ticket) && String(r.firstSeen || r.ts || '') >= retiredAt(row));
+export const succeeded = (root, rows, row, ticket, since = retiredAt(row)) => rows.some((r) => r.id !== row.id && ownsWork(root, r) && (r.tickets || []).includes(ticket) && String(r.firstSeen || r.ts || '') >= since);
 
 export function pendingSuccessors(root, rows, { nowMs = Date.now() } = {}) {
   const out = [];
   for (const row of rows) {
-    if (row.status !== 'done' || !recent(row, nowMs) || readOnlyRow(root, row)) continue;
+    if (row.status !== 'done' || !recent(row, nowMs) || !ownsWork(root, row)) continue;
     for (const ticket of row.tickets || []) {
       const status = openTicketStatus(root, ticket);
       if (!status || CLOSED.has(status)) continue;
-      if (!hasHandoff(ticketNotes(root, ticket), row.id) || succeeded(rows, row, ticket)) continue;
+      if (!hasHandoff(ticketNotes(root, ticket), row.id) || succeeded(root, rows, row, ticket)) continue;
       out.push({ row, ticket });
     }
   }

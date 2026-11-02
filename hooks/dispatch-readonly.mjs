@@ -36,3 +36,13 @@ export function readOnlyDispatch(root, type, prompt) {
 export function readOnlyRow(root, row) {
   return !!(row && row.readOnly) || readOnlyType(root, row && row.scope);
 }
+
+const PATCH_WORKER = 'patch-worker';
+
+// Does the row's agent carry ticket work that can be left open? A patch-worker cannot write the tree but owns its
+// ticket through the broker (submit, hand back), so it counts; every other read-only row does not.
+export function ownsWork(root, row) {
+  if (row && row.readOnly) return false;
+  const name = String((row && row.scope) || '').split(':').pop().trim().toLowerCase();
+  return name === PATCH_WORKER || !readOnlyType(root, row && row.scope);
+}

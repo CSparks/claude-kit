@@ -18,7 +18,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readOnlyRow } from '../dispatch-readonly.mjs';
+import { ownsWork } from '../dispatch-readonly.mjs';
 import { readAcks, sameAgent } from '../../scripts/broker/finished-ack.mjs';
 import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
@@ -40,8 +40,22 @@ function lanes(dir) {
 }
 const inLane = (dir, sub, job) => lanes(dir).some((d) => existsSync(join(d, sub, `${job}.json`)));
 
-function jobsOf(row, ledger, finished) {
+// A finished line with no agent (a job submitted before the broker tagged them) belongs to the latest work-owning
+// row citing its ticket that started before the job finished.
+function untaggedClaims(root, rows, finished) {
+  const claims = new Map();
+  for (const f of finished) {
+    if (f.agent || !f.ticket) continue;
+    const owners = rows.filter((r) => ownsWork(root, r) && (r.tickets || []).includes(f.ticket) && String(r.firstSeen || r.ts) <= f.ts);
+    const owner = owners.sort((a, b) => String(b.firstSeen).localeCompare(String(a.firstSeen)))[0];
+    if (owner) claims.set(owner.id, [...(claims.get(owner.id) || []), f]);
+  }
+  return claims;
+}
+
+function jobsOf(row, ledger, finished, claimed = []) {
   const jobs = new Map();
+  for (const f of claimed) jobs.set(f.job, { id: f.job, ticket: f.ticket, fin: f });
   for (const s of ledger) if (sameAgent(s.agent, row.id)) jobs.set(s.id, { id: s.id, ticket: s.ticket, submittedAt: s.submittedAt });
   for (const f of finished) if (sameAgent(f.agent, row.id)) jobs.set(f.job, { ...jobs.get(f.job), id: f.job, ticket: jobs.get(f.job)?.ticket || f.ticket, fin: f });
   return [...jobs.values()];
@@ -70,7 +84,8 @@ function describe(item, row) {
 }
 
 function jobItem(root, dir, rows, row, job, acks, nowMs) {
-  if (acks.has(job.id) || (job.ticket && (!openTicket(root, job.ticket) || succeeded(rows, row, job.ticket)))) return null;
+  const since = job.fin ? job.fin.ts : job.submittedAt;
+  if (acks.has(job.id) || (job.ticket && (!openTicket(root, job.ticket) || succeeded(root, rows, row, job.ticket, since)))) return null;
   const base = { agent: row.id, scope: row.scope, ticket: job.ticket, job: job.id };
   if (job.fin) {
     const unread = ABNORMAL.has(row.status) || job.fin.ts > retiredAt(row);
@@ -86,7 +101,7 @@ function jobItem(root, dir, rows, row, job, acks, nowMs) {
 function workItems(root, rows, row) {
   const out = [];
   for (const ticket of row.tickets || []) {
-    if (!openTicket(root, ticket) || succeeded(rows, row, ticket)) continue;
+    if (!openTicket(root, ticket) || succeeded(root, rows, row, ticket)) continue;
     const handoff = hasHandoff(ticketNotes(root, ticket), row.id);
     if (handoff) out.push({ kind: 'successor', step: 'successor', key: `successor:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
     else if (ABNORMAL.has(row.status)) out.push({ kind: 'dead', step: 'fresh-worker', key: `dead:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
@@ -99,14 +114,26 @@ export function reconcileHandbacks(root, rows, { nowMs = Date.now() } = {}) {
   const finished = readFinished(dir);
   const acks = readAcks(dir);
   const ledger = readSubmissions(dir);
+  const claims = untaggedClaims(root, rows, finished);
   const items = [];
   for (const row of rows) {
-    if (!ENDED.has(row.status) || !recent(row, nowMs) || readOnlyRow(root, row)) continue;
-    const jobs = jobsOf(row, ledger, finished);
+    if (!ENDED.has(row.status) || !recent(row, nowMs) || !ownsWork(root, row)) continue;
+    const jobs = jobsOf(row, ledger, finished, claims.get(row.id));
     const waiting = jobs.some((j) => !j.fin && (inLane(dir, 'queue', j.id) || inLane(dir, 'results', j.id)));
     let found = jobs.map((j) => jobItem(root, dir, rows, row, j, acks, nowMs)).filter(Boolean);
     if (!found.length && !waiting) found = workItems(root, rows, row);
-    for (const item of found) items.push({ ...item, text: describe(item, row) });
+    for (const item of found) items.push({ ...item, text: describe(item, row), retired: retiredAt(row) });
   }
-  return items;
+  return latestPerTicket(items);
+}
+
+// One open-work item per ticket and kind: a ticket's earlier retired agents are superseded by its latest.
+function latestPerTicket(items) {
+  const keep = new Map();
+  for (const i of items) {
+    if (!(i.kind === 'successor' || i.kind === 'dead')) { keep.set(i.key, i); continue; }
+    const slot = `${i.kind}:${i.ticket}`;
+    if (!keep.has(slot) || i.retired > keep.get(slot).retired) keep.set(slot, i);
+  }
+  return [...keep.values()];
 }

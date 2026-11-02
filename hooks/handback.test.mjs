@@ -110,6 +110,21 @@ try {
   reset(); ledger(); finishedLine(30); result();
   ok('a hand-back with a Handoff AND an unread result is a reopen, not a retirement', (() => { const r = stop(); return r.code === 2 && r.out.includes('RESULT READY') && !r.out.includes('RETIRED WITH HANDOFF'); })());
 
+  ticket('doing', `## Notes\n\n### Handoff ${OLD}\n- Jobs: none\n- State: patch drafted\n- Next: submit it\n- Files: a.mjs\n`);
+  reset(); roster(row({ scope: 'claude-kit:patch-worker' }));
+  ok('a patch-worker (it owns its ticket through the broker) with a Handoff still asks for a successor', /RETIRED WITH HANDOFF/.test(stop().out));
+  const reader = { ts: at(MINUTE_MS), id: 'c3d4e5f6a7b8c9d0e', scope: 'claude-kit:researcher', model: 'x', status: 'done', task: 'read', tickets: [TICKET] };
+  roster(row({ scope: 'claude-kit:patch-worker' }), reader);
+  ok('control: a read-only researcher citing the ticket since is no successor, the obligation stays', stop().code === 2);
+  roster(row({ scope: 'claude-kit:patch-worker' }), { ...reader, scope: 'claude-kit:patch-worker', id: 'd4e5f6a7b8c9d0e1f', status: 'in-flight' });
+  ok('negative: a patch-worker dispatched since is a successor and clears it', stop().code === 0);
+
+  ticket('doing');
+  reset(); roster(row({ scope: 'claude-kit:patch-worker' }));
+  appendFileSync(join(broker, 'finished.log'), `${at(30 * MINUTE_MS)} ${JOB} landed agent=- ticket=${TICKET} landed=0123456789abcdef\n`);
+  const untagged = stop();
+  ok('a job finished before the broker tagged agents is attributed to the ticket\'s latest worker: RESULT READY, reopen it', untagged.code === 2 && untagged.out.includes(`RESULT READY: ${JOB}`) && untagged.out.includes(`reopen ${OLD}`));
+
   ticket('doing');
   roster(row({ scope: 'Explore' }));
   ok('negative: a read-only agent with an unread result creates no obligation', stop().code === 0);
