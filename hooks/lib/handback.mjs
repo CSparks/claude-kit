@@ -17,7 +17,8 @@
 //   brokerDir(root)                           -> <root>/target/broker, where the broker state lives
 //
 // Cleared by: an ack (SendMessage to the agent, `ack.mjs`, `resubmit.mjs`), a later dispatch citing the ticket, the
-// ticket reaching review/done. A job still queued or running is waiting, not a failure.
+// ticket reaching review/done, a handoff that owes nothing (Next says stop, or `ack.mjs --handoff <agent> --reason`).
+// A worker owes only the tickets its task label names (successor.mjs dispatchedTickets). A job still queued or running is waiting, not a failure.
 
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,7 +31,7 @@ import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
 import { ceilingFlag, hasHandoff } from './agent-context.mjs';
-import { CLOSED, openTicketStatus, recent, retiredAt, succeeded } from './successor.mjs';
+import { CLOSED, dispatchedTickets, handoffClosed, openTicketStatus, recent, retiredAt, succeeded } from './successor.mjs';
 
 const ENDED = new Set(['done', 'error', 'killed', 'stale']);
 const ABNORMAL = new Set(['error', 'killed', 'stale']);
@@ -90,7 +91,7 @@ function describe(item, row) {
     if (item.step === 'fresh-worker') return `JOB LOST: ${item.job}${ctx}, no kept copy: dispatch a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
     return `JOB LOST, UNRECOVERABLE: ${item.job} (agent ${row.id}) has no result, no kept copy and no ticket to rebuild from`;
   }
-  if (item.kind === 'successor') return `RETIRED WITH HANDOFF: ${item.ticket} (${row.id}) has open work and no dispatch has cited it: dispatch a successor briefed from the Handoff`;
+  if (item.kind === 'successor') return `RETIRED WITH HANDOFF: ${item.ticket} (${row.id}) has open work and no dispatch has cited it: dispatch a successor briefed from the Handoff, or if its Handoff shows nothing is owed: node "${ACK}" --handoff ${row.id} --reason "<why>"`;
   return `AGENT ${row.status.toUpperCase()}: ${row.id} left ${item.ticket} open with no Handoff: dispatch a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
 }
 
@@ -123,8 +124,8 @@ function jobItem(root, dir, rows, row, job, acks, nowMs, { sessionId, autoAck })
 
 function workItems(root, rows, row) {
   const out = [];
-  for (const ticket of row.tickets || []) {
-    if (!openTicket(root, ticket) || succeeded(root, rows, row, ticket)) continue;
+  for (const ticket of dispatchedTickets(row)) {
+    if (!openTicket(root, ticket) || succeeded(root, rows, row, ticket) || handoffClosed(root, ticket, row.id)) continue;
     const handoff = hasHandoff(ticketNotes(root, ticket), row.id);
     if (handoff) out.push({ kind: 'successor', step: 'successor', key: `successor:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
     else if (ABNORMAL.has(row.status)) out.push({ kind: 'dead', step: 'fresh-worker', key: `dead:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });

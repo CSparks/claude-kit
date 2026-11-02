@@ -354,6 +354,7 @@
 - KIT-T826 — stale D:/dev/.kit-verify-* scratch copies are never removed (8 present), stopProcessesUnder never matched Windows paths (JSON-escaped backsl (high)
 - KIT-T827 — successor gate / reconciler names a reopen (SendMessage) for an agent that is not resumable in this session (No transcript found for agent I (high)
 - KIT-T828 — deadlock: successor gate demands a patch-worker successor that dispatch-guard refuses on [paths: *] overlap with an in-flight worker; a bloc (high)
+- KIT-T830 — reconciler cannot close a handoff as nothing owed, and attributes a handoff to every ticket the brief cites (dirt-empire 2026-11-02, worker abda8e03945cd9b43 DE-T254/DE-T245) (high)
 - KIT-T074 — maintenance-gaps gets a drain path — nags without resolution train you to ignore them (medium)
 - KIT-T089 — Install + configure eslint in claude-kit and clear its ~40 hits (split from KIT-T074) (medium)
 - KIT-T098 — orient: foundational decision tier - always-surface project identity regardless of scope (medium)
