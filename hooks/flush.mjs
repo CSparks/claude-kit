@@ -19,6 +19,7 @@ import { gitRoot, adopted, git, payload, sessionMtimeMs, unboundedRoot } from '.
 import { missingCitations } from './session-citations.mjs';
 import { unresolvedAsks } from '../scripts/question-store.mjs';
 import { orphanShells, projectSlug, excludedIds, nagText, ORPHAN_AGE_MIN } from './orphan-shells.mjs';
+import { verifyOrphans } from './orphan-verify.mjs';
 
 // Cap the dead-citation list so a badly-drifted SESSION.md can't swamp the flush output.
 const CITATION_LIST_MAX = 8;
@@ -112,7 +113,8 @@ function unresolvedQuestionWarning(root, session) {
 function orphanShellWarning(root, session) {
   try {
     if (!session) return;
-    const list = orphanShells({ project: projectSlug(root), session, minAgeMin: ORPHAN_AGE_MIN, skip: excludedIds(root) });
+    const project = projectSlug(root);
+    const list = verifyOrphans(orphanShells({ project, session, minAgeMin: ORPHAN_AGE_MIN, skip: excludedIds(root) }), { project });
     if (list.length) process.stderr.write(nagText(list));
   } catch {
     /* advisory only */

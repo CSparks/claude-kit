@@ -31,3 +31,4 @@ Fix: hooks/lib/successor.mjs handoffClosed (Next says stop/none/nothing owed, or
 ## History
 - [2026-11-02 17:22] (created) bug — reconciler cannot close a handoff as nothing owed, and attributes a handoff to every ticket the brief cites (dirt-empire 2026-11-02, worker abda8e03945cd9b43 DE-T254/DE-T245)
 - [2026-11-02 17:22] (status) todo → review
+- [2026-11-02 17:23] (landed) beb8b5f Reconciler: a handoff closes as nothing owed (Next says stop, or ack.mjs --handoff records it on the ticket) and a worke

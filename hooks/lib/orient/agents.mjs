@@ -16,6 +16,7 @@ import { formatProgress, progressFor, readProgress } from '../../progress-store.
 import { formatAgentLine, statusOnlyAgents, unlabelledAgents } from '../agent-format.mjs';
 import { liveAgentLines, liveAgents, terminalAgentIds } from '../live-agents.mjs';
 import { ORPHAN_AGE_MIN, excludedIds, orphanLines, orphanShells, projectSlug } from '../../orphan-shells.mjs';
+import { verifyOrphans } from '../../orphan-verify.mjs';
 import { CODEX, LINE_MAX, clip } from './common.mjs';
 
 const UNLABELLED_SHOWN = 5;
@@ -86,7 +87,8 @@ export async function agentsSection(ctx) {
     /* cross-session agent view is best-effort */
   }
   try {
-    const orphans = orphanShells({ project: projectSlug(root), minAgeMin: ORPHAN_AGE_MIN, skip: excludedIds(root) });
+    const project = projectSlug(root);
+    const orphans = verifyOrphans(orphanShells({ project, minAgeMin: ORPHAN_AGE_MIN, skip: excludedIds(root) }), { project });
     if (orphans.length) out.push('', '--- In-flight agents: ORPHAN background shells (stop them with TaskStop) ---', ...orphanLines(orphans).map((l) => '  ' + l.replace('ORPHAN SHELLS:', 'ORPHAN')));
   } catch {
     /* orphan-shell scan is best-effort */

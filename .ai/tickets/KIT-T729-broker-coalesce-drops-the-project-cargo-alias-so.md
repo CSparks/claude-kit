@@ -60,3 +60,4 @@ Measurement supersedes the hypothesis above (jobs j-mvzhl93j-aa3kuj 269.7 s fail
 - [2026-10-30 21:58] (comment) criterion added: A -p crate that cannot reach the alias's --features pkg/feat builds alone, not with --workspace behind it (alias-closure.test.mjs, 3 tests)
 - [2026-10-30 21:59] (comment) ticked: A -p crate that cannot reach the alias's --features pkg/feat builds alone, not with --workspace behind it (alias-closure.test.mjs, 3 tests)
 - [2026-10-30 22:05] (landed) adcd3a8 broker: a -p crate the alias's --features pkg/feat cannot reach builds alone, not with --workspace behind it (rg-ui --li
+- [2026-11-02 17:23] (landed) beb8b5f Reconciler: a handoff closes as nothing owed (Next says stop, or ack.mjs --handoff records it on the ticket) and a worke

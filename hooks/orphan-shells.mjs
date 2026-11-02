@@ -6,14 +6,15 @@
 //   orphanShells({ project, session?, ids?, minAgeMin?, commands?, now?, base? }) -> [{ id, ageMin, command }]
 //   shellCommands(transcriptPath)  -> Map<taskId, command> of the background shells a transcript started,
 //                                     including a foreground call the harness moved to the background at its timeout
-//   orphanLines(list)              -> ['ORPHAN SHELLS: <id> <age> <first 80 chars of command>', ...]
+//   orphanLines(list)              -> ['ORPHAN SHELLS: <id> <age> <first 80 chars of command> | <owner>', ...]
+//   (hooks/orphan-verify.mjs drops the rows whose shell is provably gone and names the process of the rest)
 //   projectSlug(root)              -> the harness's directory name for a project root
 //
 // CLAUDE_KIT_TASKS_BASE overrides `<tmp>/claude` (tests). Check id: orphan-shells.
 
 import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { pathExcluded, excludeFooter } from './lib.mjs';
 
 export const CHECK_ID = 'orphan-shells';
@@ -69,7 +70,7 @@ export function orphanShells({ project, session, ids, minAgeMin = 0, commands = 
         const started = Math.min(st.birthtimeMs || st.mtimeMs, st.mtimeMs);
         const ageMin = Math.floor((now - started) / MS_PER_MIN);
         if (ageMin < minAgeMin || exited(file)) continue;
-        out.push({ id, ageMin, command: commands.get(id) || '(command unknown)' });
+        out.push({ id, ageMin, command: commands.get(id) || '(command unknown)', session: basename(dirname(dir)), tasksDir: dir, file });
       } catch { /* vanished or unreadable — skip */ }
     }
   }
@@ -103,7 +104,13 @@ export function shellCommands(transcriptPath) {
   return byTask;
 }
 
-export const orphanLines = (list) => list.map((o) => `ORPHAN SHELLS: ${o.id} ${o.ageMin}m ${o.command.replace(/\s+/g, ' ').trim().slice(0, COMMAND_CLIP)}`);
+// A row verifyOrphans checked names its process; one it could not check says so and names its output file.
+const ownerOf = (o) => {
+  if (o.pid) return ` | pid ${o.pid} (parent ${o.ppid}), session ${o.session}, ${String(o.cmdline).replace(/\s+/g, ' ').slice(0, COMMAND_CLIP)}`;
+  return o.unverified ? ` | unverified: no pid known, session ${o.session}, output ${o.file}` : '';
+};
+
+export const orphanLines = (list) => list.map((o) => `ORPHAN SHELLS: ${o.id} ${o.ageMin}m ${o.command.replace(/\s+/g, ' ').trim().slice(0, COMMAND_CLIP)}${ownerOf(o)}`);
 
 /** Predicate for orphanShells: a task id the project excluded under the orphan-shells check. */
 export const excludedIds = (root) => (id) => pathExcluded(root, CHECK_ID, `${id}.output`);
