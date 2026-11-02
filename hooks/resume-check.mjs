@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // PreToolUse(SendMessage) — a message to an existing agent resumes it without creating a row, so
-// the row keeps the label of its original dispatch (KIT-T461). Two checks on the target's roster row:
+// the row keeps the label of its original dispatch (KIT-T461). It also acknowledges the agent's finished broker jobs, so
+// the hand-back reconciler stops listing them (KIT-T822). Two checks on the target's roster row:
 //   - no model: warn, so an unlabelled agent is named at the moment it is woken (KIT-T461).
 //   - context past the ceiling (KIT-D116): BLOCK the resume, because every call re-sends the whole
 //     context. The one message allowed is the handoff request, marked `[write-handoff]`;
@@ -10,6 +11,8 @@
 import { gitRoot, adopted, payload, readAgents, pathExcluded, excludeFooter } from './lib.mjs';
 import { modelDisplay } from './model-tag.mjs';
 import { WRITE_HANDOFF, ceilingFlag } from './lib/agent-context.mjs';
+import { brokerDir } from './lib/handback.mjs';
+import { ackAgent } from '../scripts/broker/finished-ack.mjs';
 
 const CHECK_ID = 'agent-context-ceiling';
 const OVERRIDE = /\[resume-over-ceiling:\s*[^\]\s][^\]]*\]/i;
@@ -34,6 +37,7 @@ async function main() {
       process.stderr.write(`BLOCKED: resuming ${row.id} (${row.scope || '?'}), a past-ceiling agent.\n${flag.trim()}\nBrief a fresh agent from the ticket and its Notes after the handoff. To resume anyway: [resume-over-ceiling: <reason>].\n\n${excludeFooter(CHECK_ID)}\n`);
       process.exit(2);
     }
+    ackAgent(brokerDir(root), target.trim());
   } catch {
     /* fail-open */
   }

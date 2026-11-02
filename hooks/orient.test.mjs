@@ -58,11 +58,11 @@ try {
     writeFileSync(join(o, '.ai', 'agents.jsonl'), rows.map((x) => JSON.stringify(x)).join('\n') + '\n');
     git(['add', '-A'], o);
     const r = hook('orient.mjs', {}, o);
-    ok('orient KIT-T718: the retired agent is listed on its open ticket with the handoff lines', r.out.includes('T-901: agent-retired-1') && r.out.includes('Next: draft fw3') && r.out.includes('State: fw2 queued green'));
-    ok('orient KIT-T718: a ticket already in review is not listed', !r.out.includes('T-902: agent-retired-1'));
+    ok('orient KIT-T718: the retired agent is listed on its open ticket with the handoff lines', r.out.includes('RETIRED WITH HANDOFF: T-901 (agent-retired-1)') && r.out.includes('Next: draft fw3') && r.out.includes('State: fw2 queued green'));
+    ok('orient KIT-T718: a ticket already in review is not listed', !r.out.includes('T-902 (agent-retired-1)'));
     const later = { ts: new Date(Date.now() + MS_PER_MINUTE).toISOString(), id: 'agent-successor', status: 'in-flight', scope: 'p:implementer', tickets: ['T-901'] };
     writeFileSync(join(o, '.ai', 'agents.jsonl'), [...rows, later].map((x) => JSON.stringify(x)).join('\n') + '\n');
-    ok('orient KIT-T718: a dispatch citing the ticket after the retirement clears the warning', !hook('orient.mjs', {}, o).out.includes('RETIRED AGENT, OPEN WORK'));
+    ok('orient KIT-T718: a dispatch citing the ticket after the retirement clears the warning', !hook('orient.mjs', {}, o).out.includes('ENDED WORKERS, OPEN WORK'));
   }
 
   // --- directives without a test are listed (KIT-T554) ---------------------------

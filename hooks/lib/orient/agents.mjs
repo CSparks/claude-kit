@@ -2,13 +2,15 @@
 // every live agent on the machine (KIT-T461), orphan background shells (KIT-T455) and the broker's lands (KIT-T276).
 // Each part is best-effort.
 //
-// A retired agent that left a Handoff block on a ticket still open, with no dispatch since, is listed with its handoff
-// (KIT-T718): "a fresh agent takes over" dispatches nothing.
+// Work an ended worker left open is listed with its recovery step (KIT-T718, KIT-T822): a finished job to reopen, a lost
+// job to resubmit, a Handoff or a dead agent to succeed. "A fresh agent takes over" dispatches nothing.
 //
 //   agentsSection(ctx)
 
 import { AGENT_STALE_MS, partitionAgents, projectAiDirs, readAgents } from '../../lib.mjs';
-import { handoffLines, pendingSuccessors } from '../successor.mjs';
+import { handoffLines } from '../successor.mjs';
+import { brokerDir, reconcileHandbacks } from '../handback.mjs';
+import { noteAttempts } from '../handback-attempts.mjs';
 import { formatProgress, progressFor, readProgress } from '../../progress-store.mjs';
 import { formatAgentLine, statusOnlyAgents, unlabelledAgents } from '../agent-format.mjs';
 import { liveAgentLines, liveAgents, terminalAgentIds } from '../live-agents.mjs';
@@ -58,12 +60,13 @@ function rosterSection({ out, root }) {
 
 function successorSection({ out, root }) {
   try {
-    const pending = pendingSuccessors(root, readAgents(root));
-    if (!pending.length) return;
-    out.push('', '--- RETIRED AGENT, OPEN WORK, NO SUCCESSOR (dispatch a fresh agent citing the ticket; KIT-T718) ---');
-    for (const { row, ticket } of pending) {
-      out.push(`  ${ticket}: ${row.id} (${row.scope || '?'}) retired with a Handoff; no dispatch has cited ${ticket} since`);
-      for (const line of handoffLines(root, ticket, row.id)) out.push(`    ${clip(line, LINE_MAX)}`);
+    const items = reconcileHandbacks(root, readAgents(root));
+    if (!items.length) return;
+    noteAttempts(brokerDir(root), items);
+    out.push('', '--- ENDED WORKERS, OPEN WORK: take each recovery step, no maintainer input needed (KIT-T718, KIT-T822, KIT-D130) ---');
+    for (const item of items) {
+      out.push(`  ${item.ticket || item.job}: ${clip(item.text, LINE_MAX)}`);
+      if (item.kind === 'successor') for (const line of handoffLines(root, item.ticket, item.agent)) out.push(`    ${clip(line, LINE_MAX)}`);
     }
   } catch {
     /* successor view is best-effort */

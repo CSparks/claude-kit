@@ -13,7 +13,7 @@ import { hasHandoff } from './agent-context.mjs';
 import { readOnlyRow } from '../dispatch-readonly.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
 
-const CLOSED = new Set(['review', 'done']);
+export const CLOSED = new Set(['review', 'done']);
 const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const STATUS_LINE = /^status:[ \t]*(\S+)/m;
 
@@ -26,9 +26,9 @@ export function openTicketStatus(root, id) {
   return m ? m[1] : null;
 }
 
-const retiredAt = (row) => String(row.ts || row.firstSeen || '');
-const recent = (row, nowMs) => nowMs - Date.parse(retiredAt(row)) <= WINDOW_MS;
-const succeeded = (rows, row, ticket) => rows.some((r) => r.id !== row.id && (r.tickets || []).includes(ticket) && String(r.firstSeen || r.ts || '') >= retiredAt(row));
+export const retiredAt = (row) => String(row.ts || row.firstSeen || '');
+export const recent = (row, nowMs) => nowMs - Date.parse(retiredAt(row)) <= WINDOW_MS;
+export const succeeded = (rows, row, ticket) => rows.some((r) => r.id !== row.id && (r.tickets || []).includes(ticket) && String(r.firstSeen || r.ts || '') >= retiredAt(row));
 
 export function pendingSuccessors(root, rows, { nowMs = Date.now() } = {}) {
   const out = [];

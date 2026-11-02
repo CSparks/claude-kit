@@ -37,7 +37,8 @@ import { binaryEnvelope } from './binary-flag.mjs';
 import { laneOfRepo, repoByName, withLane } from './config.mjs';
 import { ensureQueuedLanes, IDLE_EXIT_MIN } from './ensure.mjs';
 import { announce, selfCheck } from './health.mjs';
-import { STATUS, writeJob, writeResult } from './result.mjs';
+import { STATUS, newJobId, writeJob, writeResult } from './result.mjs';
+import { recordSubmission } from './submissions.mjs';
 import { withdrawJob } from './withdraw.mjs';
 import { buildPatchJob, refusalLines } from './submit-lib.mjs';
 import { submitUsageProblem } from './submit-usage.mjs';
@@ -81,7 +82,9 @@ if (rejected) {
   console.log(JSON.stringify(writeResult(laneCfg, rejected), null, 2));
   process.exit(1);
 }
-const queuedJob = writeJob(laneCfg, out.job);
+const toQueue = { ...out.job, id: out.job.id || newJobId(), submittedAt: new Date().toISOString() };
+recordSubmission(laneCfg, toQueue);
+const queuedJob = writeJob(laneCfg, toQueue);
 console.log(queuedJob.id);
 if (typeof flags.revises === 'string') {
   const gone = withdrawJob(laneCfg, flags.revises, { status: STATUS.SUPERSEDED, message: `superseded by ${queuedJob.id}` });
