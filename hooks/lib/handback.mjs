@@ -3,13 +3,17 @@
 // the broker's submission ledger and kept job copies (scripts/broker/submissions.mjs), finished.log, finished.ack,
 // and the ticket Notes. From that alone it names the next recovery step per ended writer:
 //
-//   result-ready  a finished job nobody picked up         -> reopen the agent (or a successor when it is past the ceiling)
+//   result-ready  a finished job nobody picked up         -> reopen the agent when its transcript is reachable from the asking
+//                                                            session; else ack a landed result (the reconciler acks it itself
+//                                                            once the sha is on main and in the ticket), else a fresh worker
 //   resubmit      a job that left the queue with no result -> node resubmit.mjs <job> (its kept copy exists)
 //   fresh-worker  a lost job with no kept copy, or a dead agent with no handoff -> brief a fresh worker from the ticket and git
 //   successor     a Handoff block on an open ticket        -> dispatch a successor citing the ticket
 //   unrecoverable a lost job with no kept copy and no ticket -> nothing to rebuild from; surfaced once
+//   queued        a successor the dispatch guard held behind an in-flight worker (handback-queued.mjs) -> accepted until that
+//                 worker ends, then 'dispatch-queued' with the held brief
 //
-//   reconcileHandbacks(root, rows, { nowMs }) -> [{ kind, key, step, agent, scope, ticket, job, verdict, landed, purged, text }]
+//   reconcileHandbacks(root, rows, { nowMs, sessionId, autoAck }) -> [{ kind, key, step, agent, scope, ticket, job, verdict, landed, purged, text }]
 //   brokerDir(root)                           -> <root>/target/broker, where the broker state lives
 //
 // Cleared by: an ack (SendMessage to the agent, `ack.mjs`, `resubmit.mjs`), a later dispatch citing the ticket, the
@@ -19,7 +23,9 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ownsWork } from '../dispatch-readonly.mjs';
-import { readAcks, sameAgent } from '../../scripts/broker/finished-ack.mjs';
+import { ackJobs, readAcks, sameAgent } from '../../scripts/broker/finished-ack.mjs';
+import { landedOnMain, resumable } from './handback-landed.mjs';
+import { applyQueued } from './handback-queued.mjs';
 import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
@@ -31,6 +37,9 @@ const ABNORMAL = new Set(['error', 'killed', 'stale']);
 const LOST_GRACE_MS = 2 * 60 * 1000;
 const SHA_SHOWN = 8;
 const RESUBMIT = fileURLToPath(new URL('../../scripts/broker/resubmit.mjs', import.meta.url));
+const ACK = fileURLToPath(new URL('../../scripts/broker/ack.mjs', import.meta.url));
+const LANDED = 'landed';
+const AUTO_ACK = 'auto:landed-on-main';
 
 export const brokerDir = (root) => join(root, 'target', 'broker');
 
@@ -71,8 +80,10 @@ function describe(item, row) {
   if (item.kind === 'result-ready') {
     const landed = item.landed ? ` (landed ${item.landed.slice(0, SHA_SHOWN)})` : '';
     const purged = item.purged ? ' [result file purged; finished.log holds the verdict]' : '';
-    const how = ceilingFlag(row) ? `dispatch a fresh successor citing ${item.ticket || 'the job'}, briefed from the Handoff` : `SendMessage ${row.id} to finish from its Handoff (acks the job)`;
-    return `RESULT READY: ${item.job} ${item.verdict}${landed}${ctx}, reopen ${row.id}${purged}: ${how}`;
+    const lead = `RESULT READY: ${item.job} ${item.verdict}${landed}${ctx}`;
+    if (item.step === 'ack') return `${lead}${purged}: agent ${row.id} is not resumable here; verify ${item.landed.slice(0, SHA_SHOWN)} is on main and recorded in ${item.ticket || 'the ticket'}, then node "${ACK}" ${item.job}`;
+    if (item.step === 'fresh-worker') return `${lead}${purged}: agent ${row.id} is not resumable here; dispatch a fresh worker citing ${item.ticket || 'the job'}, briefed from its Handoff`;
+    return `${lead}, reopen ${row.id}${purged}: SendMessage ${row.id} to finish from its Handoff (acks the job)`;
   }
   if (item.kind === 'job-lost') {
     if (item.step === 'resubmit') return `JOB LOST: ${item.job}${ctx} left the queue with no result (agent ${row.id} ended); kept copy exists: node "${RESUBMIT}" ${item.job}`;
@@ -83,14 +94,26 @@ function describe(item, row) {
   return `AGENT ${row.status.toUpperCase()}: ${row.id} left ${item.ticket} open with no Handoff: dispatch a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
 }
 
-function jobItem(root, dir, rows, row, job, acks, nowMs) {
+// Reopen needs a transcript SendMessage can reach; without one, a landed result is acknowledged and anything else
+// goes to a fresh worker.
+const readyStep = (fin, canReopen) => {
+  if (canReopen) return 'reopen';
+  return fin.verdict === LANDED && fin.landed ? 'ack' : 'fresh-worker';
+};
+
+function jobItem(root, dir, rows, row, job, acks, nowMs, { sessionId, autoAck }) {
   const since = job.fin ? job.fin.ts : job.submittedAt;
   if (acks.has(job.id) || (job.ticket && (!openTicket(root, job.ticket) || succeeded(root, rows, row, job.ticket, since)))) return null;
   const base = { agent: row.id, scope: row.scope, ticket: job.ticket, job: job.id };
   if (job.fin) {
     const unread = ABNORMAL.has(row.status) || job.fin.ts > retiredAt(row);
     if (!unread) return null;
-    return { ...base, kind: 'result-ready', step: 'reopen', key: `result-ready:${job.id}`, verdict: job.fin.verdict, landed: job.fin.landed, purged: !inLane(dir, 'results', job.id) };
+    if (job.fin.verdict === LANDED && autoAck && landedOnMain(root, job.ticket, job.fin.landed)) {
+      ackJobs(dir, [job.id], AUTO_ACK);
+      return null;
+    }
+    const step = readyStep(job.fin, resumable(row, sessionId) && !ceilingFlag(row));
+    return { ...base, kind: 'result-ready', step, key: `result-ready:${job.id}`, verdict: job.fin.verdict, landed: job.fin.landed, purged: !inLane(dir, 'results', job.id) };
   }
   if (inLane(dir, 'queue', job.id) || inLane(dir, 'results', job.id)) return null;
   if (nowMs - Date.parse(job.submittedAt) < LOST_GRACE_MS) return null;
@@ -109,7 +132,7 @@ function workItems(root, rows, row) {
   return out;
 }
 
-export function reconcileHandbacks(root, rows, { nowMs = Date.now() } = {}) {
+export function reconcileHandbacks(root, rows, { nowMs = Date.now(), sessionId = '', autoAck = true } = {}) {
   const dir = brokerDir(root);
   const finished = readFinished(dir);
   const acks = readAcks(dir);
@@ -120,11 +143,11 @@ export function reconcileHandbacks(root, rows, { nowMs = Date.now() } = {}) {
     if (!ENDED.has(row.status) || !recent(row, nowMs) || !ownsWork(root, row)) continue;
     const jobs = jobsOf(row, ledger, finished, claims.get(row.id));
     const waiting = jobs.some((j) => !j.fin && (inLane(dir, 'queue', j.id) || inLane(dir, 'results', j.id)));
-    let found = jobs.map((j) => jobItem(root, dir, rows, row, j, acks, nowMs)).filter(Boolean);
+    let found = jobs.map((j) => jobItem(root, dir, rows, row, j, acks, nowMs, { sessionId, autoAck })).filter(Boolean);
     if (!found.length && !waiting) found = workItems(root, rows, row);
     for (const item of found) items.push({ ...item, text: describe(item, row), retired: retiredAt(row) });
   }
-  return latestPerTicket(items);
+  return applyQueued(root, rows, latestPerTicket(items));
 }
 
 // One open-work item per ticket and kind: a ticket's earlier retired agents are superseded by its latest.

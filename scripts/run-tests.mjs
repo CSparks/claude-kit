@@ -1,5 +1,5 @@
 // run-tests.mjs — `npm test` entry (KIT-T467, KIT-T570). Runs every tracked *.test.mjs as its own
-// `node <file>` on a pool of KIT_TEST_WORKERS (default 8), longest first by the last run's times,
+// `node <file>` on a pool of KIT_TEST_WORKERS (default half the cores, bounded by MIN_WORKERS and MAX_WORKERS), longest first by the last run's times,
 // each file with private DB, code-index, registry, turn-state and temp dirs (isolate.mjs) so no suite
 // touches the maintainer's live stores or another file's. A failed file reruns once, alone: a pass
 // is reported as FLAKE and does not fail the run. Files in default-state.mjs run alone afterwards. A file over KIT_TEST_MAX_FILE_S (default 0 = off; the target is 60)
@@ -8,11 +8,13 @@
 // Budget (KIT-D104: no routine operation over 5 minutes): the run takes the files the change reaches (select.mjs),
 // then those run longest ago, until the estimate fills KIT_TEST_BUDGET_S (default 200); the rest are listed as
 // deferred and rotate in on later runs. --full, KIT_TEST_FULL=1 or --only runs the whole selection.
+// --require-reached (KIT_TEST_REQUIRE_REACHED=1, what a publish sets) refuses to run when any file the change reaches does not fit
+// the budget: the files it gates on are all run or the run is refused, never silently deferred (KIT-T825).
 //
-//   node scripts/run-tests.mjs [--root <dir>] [--only <substring>] [--full] [--budget <seconds>] [--since <sha>]
+//   node scripts/run-tests.mjs [--root <dir>] [--only <substring>] [--full] [--budget <seconds>] [--since <sha>] [--require-reached]
 
 import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpus, tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_STATE_TESTS } from './test-runner/default-state.mjs';
@@ -24,13 +26,16 @@ import { reach, changedFiles, planRun } from './test-runner/select.mjs';
 import { longestFirst, readRan, readTimes, slowFiles, slowest, writeRan, writeTimes } from './test-runner/times.mjs';
 
 const SLOWEST_SHOWN = 10;
-const DEFAULT_WORKERS = 8;
+const MIN_WORKERS = 8;
+const MAX_WORKERS = 16;
+const DEFAULT_WORKERS = Math.min(MAX_WORKERS, Math.max(MIN_WORKERS, Math.floor(cpus().length / 2)));
 const DEFAULT_MAX_FILE_S = 0;
 const MS_PER_S = 1000;
 const flag = (name) => { const i = process.argv.indexOf(name); return i === -1 ? undefined : process.argv[i + 1]; };
 const root = resolve(flag('--root') || join(dirname(fileURLToPath(import.meta.url)), '..'));
 const timesFile = process.env.KIT_TEST_TIMES || join(root, '.cache', 'test-times.json');
 const only = flag('--only');
+const requireReached = process.argv.includes('--require-reached') || process.env.KIT_TEST_REQUIRE_REACHED === '1';
 const full = process.argv.includes('--full') || process.env.KIT_TEST_FULL === '1' || !!only;
 const DEFAULT_BUDGET_S = 200;
 const budgetMs = (Number(flag('--budget') || process.env.KIT_TEST_BUDGET_S) || DEFAULT_BUDGET_S) * 1000;
@@ -53,6 +58,10 @@ if (!full) {
   const plan = planRun({ tests: all, reached, times, ranAt: readRan(ranFile), budgetMs, workers });
   chosen = plan.run;
   const owed = plan.deferred.filter((f) => reached.has(f));
+  if (requireReached && owed.length) {
+    console.log(`REFUSED: ${owed.length} of the ${reached.size} files this change reaches do not fit the ${budgetMs / MS_PER_S}s budget (estimate ${(plan.estimateMs / MS_PER_S).toFixed(0)}s), so the run would gate on untested code: ${owed.slice(0, 12).join(', ')}${owed.length > 12 ? ', ...' : ''}. Raise --budget or split the change.`);
+    process.exit(1);
+  }
   console.log(`budget ${budgetMs / MS_PER_S}s: running ${plan.run.length} of ${all.length} files (estimate ${(plan.estimateMs / MS_PER_S).toFixed(0)}s; ${changed.length} changed paths reach ${reached.size} tests); ${plan.deferred.length} deferred, ${owed.length} of them reached by the change${owed.length ? `: ${owed.slice(0, 12).join(', ')}${owed.length > 12 ? ', ...' : ''}` : ''}`);
 }
 const files = longestFirst(chosen, times);

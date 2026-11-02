@@ -5,6 +5,7 @@
 //                                               read-only agent other than a patch-worker hands nothing over) whose ticket is still open, carries that row's `Handoff <id>`
 //                                               block, and has no later dispatch citing it
 //   openTicketStatus(root, id)               -> the live ticket's status, or null (no live file: archived or unknown)
+//   ticketText(root, id)                     -> the live ticket file's text, or null
 //   handoffLines(root, ticket, agentId)      -> the Jobs:, State:, Next:, Files: lines of that agent's Handoff block
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -17,12 +18,15 @@ export const CLOSED = new Set(['review', 'done']);
 const WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const STATUS_LINE = /^status:[ \t]*(\S+)/m;
 
-export function openTicketStatus(root, id) {
+export function ticketText(root, id) {
   const dir = join(root, '.ai', 'tickets');
   if (!existsSync(dir)) return null;
   const file = readdirSync(dir).find((f) => f.startsWith(`${id}-`) && f.endsWith('.md'));
-  if (!file) return null;
-  const m = STATUS_LINE.exec(readFileSync(join(dir, file), 'utf8'));
+  return file ? readFileSync(join(dir, file), 'utf8') : null;
+}
+
+export function openTicketStatus(root, id) {
+  const m = STATUS_LINE.exec(ticketText(root, id) || '');
   return m ? m[1] : null;
 }
 

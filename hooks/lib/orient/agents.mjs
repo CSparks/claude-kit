@@ -11,6 +11,7 @@ import { AGENT_STALE_MS, partitionAgents, projectAiDirs, readAgents } from '../.
 import { handoffLines } from '../successor.mjs';
 import { brokerDir, reconcileHandbacks } from '../handback.mjs';
 import { noteAttempts } from '../handback-attempts.mjs';
+import { QUEUED } from '../handback-queued.mjs';
 import { formatProgress, progressFor, readProgress } from '../../progress-store.mjs';
 import { formatAgentLine, statusOnlyAgents, unlabelledAgents } from '../agent-format.mjs';
 import { liveAgentLines, liveAgents, terminalAgentIds } from '../live-agents.mjs';
@@ -62,7 +63,7 @@ function successorSection({ out, root }) {
   try {
     const items = reconcileHandbacks(root, readAgents(root));
     if (!items.length) return;
-    noteAttempts(brokerDir(root), items);
+    noteAttempts(brokerDir(root), items.filter((i) => i.step !== QUEUED));
     out.push('', '--- ENDED WORKERS, OPEN WORK: take each recovery step, no maintainer input needed (KIT-T718, KIT-T822, KIT-D130) ---');
     for (const item of items) {
       out.push(`  ${item.ticket || item.job}: ${clip(item.text, LINE_MAX)}`);

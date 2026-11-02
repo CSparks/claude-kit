@@ -6,13 +6,14 @@
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, realpathSync, rmSync, utimesSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { publishRuntime, currentRuntime } from './runtime-publish.mjs';
-import { gitOrThrow } from './runtime-publish-guard.mjs';
+import { CHILD_OPTIONS, alive, gitOrThrow, stopProcessesUnder, sweepScratch } from './runtime-publish-guard.mjs';
 import { liveUsers, pinRuntime } from './runtime-pin.mjs';
 import { referencedRuntimes } from './runtime-refs.mjs';
 
 const BS = String.fromCharCode(92);
+const STOP_SETTLE_MS = 500;
 const publish = (o) => publishRuntime({ graceHours: 0, lines: [], ...o });
 
 let pass = 0;
@@ -149,6 +150,26 @@ ok('keep prunes older sha directories once nothing pins them', shaDirs().length 
   ok('a git failure carries git stderr', /not a git repository|fatal/i.test(gitMessage));
   const scratchParent = dirname(repo);
   ok('no .kit-verify scratch export stays beside the repo after the publishes', !readdirSync(scratchParent).some((n) => n.startsWith('.kit-verify-')));
+
+  ok('publish children take windowsHide, so a detached parent console cannot kill them', CHILD_OPTIONS.windowsHide === true);
+  const DEAD_PID = 2147483646;
+  const sweepParent = join(tmp, 'sweep');
+  for (const name of [`.kit-verify-abc1234-${DEAD_PID}`, `.kit-verify-def5678-${process.pid}`, '.kit-verify-notes', 'keep-me']) mkdirSync(join(sweepParent, name), { recursive: true });
+  const removed = sweepScratch(sweepParent);
+  ok('sweepScratch removes the copy of a dead publish', removed.includes(`.kit-verify-abc1234-${DEAD_PID}`) && !existsSync(join(sweepParent, `.kit-verify-abc1234-${DEAD_PID}`)));
+  ok('negative control: a copy whose publish is alive, a non-matching name and other dirs stay', ['.kit-verify-def5678-' + process.pid, '.kit-verify-notes', 'keep-me'].every((n) => existsSync(join(sweepParent, n))));
+  mkdirSync(join(scratchParent, `.kit-verify-0000000-${DEAD_PID}`), { recursive: true });
+  publish({ repo, runtimeRoot, verify: () => {} });
+  ok('a publish sweeps the copies earlier dead publishes left beside the repo', !existsSync(join(scratchParent, `.kit-verify-0000000-${DEAD_PID}`)));
+  const held = join(tmp, 'held-dir');
+  mkdirSync(held, { recursive: true });
+  const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)', held], { stdio: 'ignore', windowsHide: true });
+  const bystander = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)', join(tmp, 'other-dir')], { stdio: 'ignore', windowsHide: true });
+  stopProcessesUnder(held);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, STOP_SETTLE_MS);
+  ok('stopProcessesUnder ends a process whose command line names the directory (Windows path, backslashes intact)', !alive(holder.pid));
+  ok('negative control: a process naming another directory keeps running', alive(bystander.pid));
+  bystander.kill();
 }
 
 const before = currentRuntime(runtimeRoot);

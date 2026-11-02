@@ -105,6 +105,39 @@ test('the pool never runs more than `workers` at once and starts items in the gi
   assert.deepEqual(started, [1, 2, 3, 4, 5]);
 });
 
+const SLOW_FILE_MS = 100000;
+
+function reachedFixture() {
+  const root = fixtureRoot({
+    'lib.mjs': 'export const v = 1;',
+    'a.test.mjs': "import './lib.mjs';",
+    'b.test.mjs': "import './lib.mjs';",
+  });
+  execFileSync('git', ['init', '-q'], { cwd: root });
+  execFileSync('git', ['add', '-A'], { cwd: root });
+  writeFileSync(join(root, 'times.json'), JSON.stringify({ files: { 'a.test.mjs': SLOW_FILE_MS, 'b.test.mjs': SLOW_FILE_MS } }));
+  return root;
+}
+
+test('--require-reached refuses a run that would defer a file the change reaches, and names it (KIT-T825)', () => {
+  const root = reachedFixture();
+  const env = { KIT_TEST_WORKERS: '1', KIT_TEST_CHANGED: 'lib.mjs', KIT_TEST_BUDGET_S: '1' };
+  const refused = runner(root, ['--require-reached'], env);
+  assert.equal(refused.status, 1, refused.stdout);
+  assert.match(refused.stdout, /REFUSED: 1 of the 2 files this change reaches do not fit the 1s budget/);
+  assert.match(refused.stdout, /\.test\.mjs/);
+  assert.doesNotMatch(refused.stdout, /^ok /m, 'nothing ran');
+});
+
+test('negative control: without the flag the same run defers the file and passes; with a budget that fits, the flag passes', () => {
+  const root = reachedFixture();
+  const env = { KIT_TEST_WORKERS: '1', KIT_TEST_CHANGED: 'lib.mjs', KIT_TEST_BUDGET_S: '1' };
+  assert.equal(runner(root, [], env).status, 0);
+  const fits = runner(root, ['--require-reached'], { ...env, KIT_TEST_BUDGET_S: '300' });
+  assert.equal(fits.status, 0, fits.stdout);
+  assert.match(fits.stdout, /0 of them reached by the change/);
+});
+
 test('a file that fails once and passes alone is reported as FLAKE and does not fail the run', () => {
   const marker = join(mkdtempSync(join(tmpdir(), 'runner-flake-')), 'seen');
   const root = fixtureRoot({ 'flaky.test.mjs': `const fs = process.getBuiltinModule('fs'); const m = ${JSON.stringify(marker)}; if (!fs.existsSync(m)) { fs.writeFileSync(m, ''); process.exit(1); }` });

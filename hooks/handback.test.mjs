@@ -4,7 +4,9 @@
 // Run: node hooks/handback.test.mjs
 
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { adopted, cleanup, hook, reporter } from './test-harness.mjs';
 import { resubmitJob } from '../scripts/broker/submissions.mjs';
 
@@ -40,13 +42,25 @@ try {
   const prompt = (sid) => hook('handback-directive.mjs', { hook_event_name: 'UserPromptSubmit', session_id: sid || `p${RUN}-${n++}`, prompt: 'go' }, d);
   const reopen = () => hook('resume-check.mjs', { hook_event_name: 'PreToolUse', tool_name: 'SendMessage', tool_input: { to: OLD, message: 'continue' } }, d);
 
+  const resumableRow = (sid, extra = {}) => {
+    const transcript = join(d, 'sessions', sid, 'tasks', `${OLD}.output`);
+    mkdirSync(dirname(transcript), { recursive: true });
+    writeFileSync(transcript, '');
+    return row({ outputFile: transcript, ...extra });
+  };
+  const stopResumable = (extra) => {
+    const sid = `s${RUN}-${n++}`;
+    roster(resumableRow(sid, extra));
+    return stop(sid);
+  };
+
   ticket('doing');
   reset(); roster(row()); ledger(); finishedLine(30); result();
-  const ready = stop();
+  const ready = stopResumable();
   ok('normal hand-back: a finished job nobody picked up blocks with RESULT READY and the agent to reopen', ready.code === 2 && ready.out.includes(`RESULT READY: ${JOB} landed (landed 01234567) for ${TICKET}, reopen ${OLD}`) && /NEXT STEP reopen/.test(ready.out));
   ok('the same prompt surfaces the step as context, once per set', prompt(`same-${RUN}`).out.includes(`RESULT READY: ${JOB}`) && prompt(`same-${RUN}`).out.trim() === '');
   ok('orient lists the same step under ENDED WORKERS', /ENDED WORKERS, OPEN WORK[\s\S]*RESULT READY/.test(hook('orient.mjs', {}, d).out));
-  const failed = stop();
+  const failed = stopResumable();
   ok('surfaced earlier and still not done: the gate names the failing step and the count', failed.code === 2 && /FAILED STEP reopen: surfaced \d+x/.test(failed.out));
 
   ok('negative: reopening the agent with a SendMessage acknowledges its job and clears the step', reopen().code === 0 && stop().code === 0);
@@ -122,8 +136,32 @@ try {
   ticket('doing');
   reset(); roster(row({ scope: 'claude-kit:patch-worker' }));
   appendFileSync(join(broker, 'finished.log'), `${at(30 * MINUTE_MS)} ${JOB} landed agent=- ticket=${TICKET} landed=0123456789abcdef\n`);
-  const untagged = stop();
+  const untagged = stopResumable({ scope: 'claude-kit:patch-worker' });
   ok('a job finished before the broker tagged agents is attributed to the ticket\'s latest worker: RESULT READY, reopen it', untagged.code === 2 && untagged.out.includes(`RESULT READY: ${JOB}`) && untagged.out.includes(`reopen ${OLD}`));
+
+  reset(); roster(row()); ledger(); finishedLine(30); result();
+  const stranded = stop();
+  ok('an agent from an earlier session is never told to reopen: a landed result asks to verify the sha and ack it', stranded.code === 2 && /NEXT STEP ack/.test(stranded.out) && /not resumable here; verify 01234567 is on main/.test(stranded.out) && !/, reopen /.test(stranded.out));
+  reset(); roster(row()); ledger(); finishedLine(30, 'passed'); result();
+  const unfinished = stop();
+  ok('a non-resumable agent whose job only passed (work remains) gets a fresh worker briefed from its Handoff', unfinished.code === 2 && /NEXT STEP fresh-worker/.test(unfinished.out) && /not resumable here; dispatch a fresh worker citing KIT-T900/.test(unfinished.out));
+  roster(resumableRow(`gone-${RUN}`));
+  ok('control: a transcript from another session is still not reachable from this one', /(NEXT|FAILED) STEP fresh-worker/.test(stop().out));
+
+  const git = (...args) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', '-C', d, ...args], { encoding: 'utf8' }).trim();
+  git('commit', '-q', '--allow-empty', '-m', 'landed work');
+  const sha = git('rev-parse', 'HEAD');
+  const landedLine = () => appendFileSync(join(broker, 'finished.log'), `${at(30 * MINUTE_MS)} ${JOB} landed agent=${OLD} ticket=${TICKET} landed=${sha}\n`);
+  reset(); roster(row()); ledger(); landedLine(); result();
+  ticket('doing', `## Notes\n\nlanded ${sha.slice(0, 7)}\n`);
+  ok('a landed sha that is on main and recorded in the ticket is acknowledged by the reconciler: nothing blocks', stop().code === 0 && readFileSync(join(broker, 'finished.ack'), 'utf8').includes(JOB));
+  reset(); ledger(); landedLine(); result();
+  ticket('doing', '## Notes\n\nnothing recorded\n');
+  ok('control: on main but not recorded in the ticket is left to verify by hand', /NEXT STEP ack/.test(stop().out));
+  reset(); ledger(); appendFileSync(join(broker, 'finished.log'), `${at(30 * MINUTE_MS)} ${JOB} landed agent=${OLD} ticket=${TICKET} landed=${'ab'.repeat(20)}\n`); result();
+  ticket('doing', `## Notes\n\nlanded ${'ab'.repeat(20).slice(0, 7)}\n`);
+  ok('control: recorded in the ticket but not on main is left to verify by hand', /NEXT STEP ack/.test(stop().out));
+  ticket('doing');
 
   ticket('doing');
   roster(row({ scope: 'Explore' }));

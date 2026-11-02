@@ -8,6 +8,7 @@ import { firstSighting } from './block-once.mjs';
 import { adopted, gitRoot, pathExcluded, payload, readAgents } from './lib.mjs';
 import { brokerDir, reconcileHandbacks } from './lib/handback.mjs';
 import { noteAttempts } from './lib/handback-attempts.mjs';
+import { QUEUED } from './lib/handback-queued.mjs';
 
 const CHECK_ID = 'successor';
 
@@ -15,10 +16,10 @@ try {
   const p = await payload();
   const root = gitRoot();
   if (!adopted(root)) process.exit(0);
-  const items = reconcileHandbacks(root, readAgents(root)).filter((i) => !pathExcluded(root, CHECK_ID, i.ticket || i.job));
+  const items = reconcileHandbacks(root, readAgents(root), { sessionId: p.session_id }).filter((i) => !pathExcluded(root, CHECK_ID, i.ticket || i.job));
   if (!items.length) process.exit(0);
-  if (!firstSighting(`handback-prompt-${p.session_id || 'nosession'}`, items.map((i) => i.key).join(','))) process.exit(0);
-  noteAttempts(brokerDir(root), items);
+  if (!firstSighting(`handback-prompt-${p.session_id || 'nosession'}`, items.map((i) => `${i.key}:${i.step}`).join(','))) process.exit(0);
+  noteAttempts(brokerDir(root), items.filter((i) => i.step !== QUEUED));
   process.stdout.write(`Worker hand-backs to resume (no maintainer input needed; KIT-D130):\n${items.map((i) => `  ${i.text}`).join('\n')}\n`);
 } catch {
   /* the reconciler never wedges a prompt */

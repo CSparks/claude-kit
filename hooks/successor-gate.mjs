@@ -11,6 +11,7 @@ import { firstSighting } from './block-once.mjs';
 import { adopted, excludeFooter, gitRoot, pathExcluded, payload, readAgents } from './lib.mjs';
 import { reconcileHandbacks, brokerDir } from './lib/handback.mjs';
 import { noteAttempts, readAttempts } from './lib/handback-attempts.mjs';
+import { QUEUED } from './lib/handback-queued.mjs';
 
 const CHECK_ID = 'successor';
 const UNRECOVERABLE = 'unrecoverable';
@@ -27,12 +28,12 @@ try {
   if (p.stop_hook_active) process.exit(0);
   const root = gitRoot();
   if (!adopted(root)) process.exit(0);
-  const items = reconcileHandbacks(root, readAgents(root)).filter((i) => !pathExcluded(root, CHECK_ID, i.ticket || i.job));
+  const items = reconcileHandbacks(root, readAgents(root), { sessionId: p.session_id }).filter((i) => i.step !== QUEUED && !pathExcluded(root, CHECK_ID, i.ticket || i.job));
   if (!items.length) process.exit(0);
   const dir = brokerDir(root);
   const attempts = readAttempts(dir);
   const lines = items.map((i) => lineOf(i, attempts));
-  if (!firstSighting(`successor-${p.session_id || 'nosession'}`, items.map((i) => i.key).join(','))) process.exit(0);
+  if (!firstSighting(`successor-${p.session_id || 'nosession'}`, items.map((i) => `${i.key}:${i.step}`).join(','))) process.exit(0);
   noteAttempts(dir, items);
   process.stderr.write(`
 BLOCKED: ${items.length} ended worker(s) left work open; the recovery step is below (KIT-T718, KIT-T822):

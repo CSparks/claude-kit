@@ -33,13 +33,14 @@ import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
 import { ESCALATION_CHECK, escalationBlock } from './dispatch-escalation.mjs';
 import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loaded.mjs';
 import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage, brokerConfig } from './dispatch-broker.mjs';
-import { WORKER_CHECK, workerAdvice, workerBlock } from './dispatch-worker.mjs';
+import { WORKER_CHECK, overlapOnlyBlocker, workerAdvice, workerBlock } from './dispatch-worker.mjs';
+import { queueDispatch } from './lib/queued-dispatch.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
 import { BRIEF_CHECK, briefBlock } from './dispatch-brief.mjs';
-import { CEILING_CHECK, HANDOFF_CHECK, ceilingWarning, handoffBlock } from './dispatch-context.mjs';
+import { CEILING_CHECK, HANDOFF_CHECK, ceilingWarning, handoffBlock, ticketsCited } from './dispatch-context.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
 import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';
@@ -105,7 +106,8 @@ try {
     if (ceiling) console.error(ceiling);
     process.exit(0);
   }
-  console.error(blocks.join('\n'));
+  const queued = blocks.length === 1 ? queueBehindOverlap(root, input, prompt, p) : null;
+  console.error([...blocks, ...(queued ? [queued] : [])].join('\n'));
   process.exit(2);
 } catch {
   process.exit(0);
@@ -186,11 +188,24 @@ function workerTree(root, input) {
   return { tree, cfg: brokerConfig(tree) };
 }
 
+function livePatchWorkers(root, tree) {
+  return liveAgents(root, Date.now(), tree).filter((r) => /(?:^|:)patch-worker$/i.test(String(r.scope || '')));
+}
+
 function workerCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, WORKER_CHECK, root)) return null;
   const { tree, cfg } = workerTree(root, input);
-  const live = liveAgents(root, Date.now(), tree).filter((r) => /(?:^|:)patch-worker$/i.test(String(r.scope || '')));
-  return workerBlock({ tree, input, prompt, live, cfg, escaped: MAINTAINER_PARALLEL.test(prompt), footer: excludeFooter(WORKER_CHECK) });
+  return workerBlock({ tree, input, prompt, live: livePatchWorkers(root, tree), cfg, escaped: MAINTAINER_PARALLEL.test(prompt), footer: excludeFooter(WORKER_CHECK) });
+}
+
+// A dispatch refused ONLY for overlapping an in-flight worker's [paths:] waits behind it as a durable row (KIT-T828).
+function queueBehindOverlap(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, WORKER_CHECK, root)) return null;
+  const { tree, cfg } = workerTree(root, input);
+  const blocker = overlapOnlyBlocker({ tree, input, prompt, live: livePatchWorkers(root, tree), cfg, escaped: MAINTAINER_PARALLEL.test(prompt) });
+  if (!blocker) return null;
+  const id = queueDispatch(root, { tickets: ticketsCited(prompt), blockedBy: blocker.id, scope: String(input.subagent_type || ''), brief: prompt });
+  return `QUEUED ${id} behind in-flight worker ${blocker.id} (.ai/queued-dispatch.jsonl): the brief is held and the successor gate accepts it until that worker ends; orient and the next prompt then say to dispatch it.`;
 }
 
 function workerAdviceText(root, input, prompt, p) {

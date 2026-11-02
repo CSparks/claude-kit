@@ -4,8 +4,8 @@
 // its threshold: fresh = silent, stale = nag. Run: node hooks/housekeeping.test.mjs
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -207,6 +207,22 @@ try {
       reviewTicket(growNone, 'KIT-T501');
       s = hook('housekeeping.mjs', { hook_event_name: 'Stop' }, growNone, nenv);
       ok('housekeeping Stop: uat=none stays silent about review growth (KIT-T062)', s.code === 0 && !s.out.includes('Review queue GREW'));
+    }
+
+    // dead publish scratch copies beside the claude-kit repo are removed at session start (KIT-T826)
+    {
+      const DEAD_PID = 2147483646;
+      const kitRepo = project('required');
+      mkdirSync(join(kitRepo, 'scripts'), { recursive: true });
+      writeFileSync(join(kitRepo, 'scripts', 'runtime-publish.mjs'), '');
+      const deadCopy = join(dirname(kitRepo), `.kit-verify-abc1234-${DEAD_PID}`);
+      mkdirSync(deadCopy, { recursive: true });
+      const sweepEnv = { ...home, CLAUDE_KIT_TURN_STATE: tmpDir('kit-turn-') };
+      const swept = hook('housekeeping.mjs', {}, kitRepo, sweepEnv);
+      ok('housekeeping: a dead publish copy beside the kit repo is removed and reported (KIT-T826)', !existsSync(deadCopy) && /Removed 1 dead publish scratch copy/.test(swept.out));
+      mkdirSync(deadCopy, { recursive: true });
+      hook('housekeeping.mjs', {}, project('required'), sweepEnv);
+      ok('negative control: a repo that is not the kit leaves the copy alone', existsSync(deadCopy));
     }
 
     // stale `doing` detector: the scanner reads the `updated:` frontmatter (KIT-T028)

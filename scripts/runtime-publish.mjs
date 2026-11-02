@@ -21,7 +21,7 @@ import { liveUsers } from './runtime-pin.mjs';
 import { installedPlugin, pluginDrift } from './plugin-drift.mjs';
 import { heldRuntimes } from './runtime-holders.mjs';
 import { referencedRuntimes } from './runtime-refs.mjs';
-import { gitOrThrow, stopProcessesUnder, withPublishLock } from './runtime-publish-guard.mjs';
+import { CHILD_OPTIONS, gitOrThrow, stopProcessesUnder, sweepScratch, withPublishLock } from './runtime-publish-guard.mjs';
 
 const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
@@ -32,6 +32,7 @@ const LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
 const ARCHIVE_MAX_BYTES = 1 << 30;
 const SCRATCH_RM_RETRIES = 10;
 const SCRATCH_RM_DELAY_MS = 300;
+const PUBLISH_BUDGET_S = 140; // the suite share of the 180 s foreground window a harness gives one command, export and publish steps included
 
 const link = (target, path) => symlinkSync(target, path, LINK_TYPE);
 
@@ -41,9 +42,9 @@ export function currentRuntime(runtimeRoot) {
 }
 
 function exportHead(repo, dest) {
-  const tar = execFileSync('git', ['-C', repo, 'archive', '--format=tar', 'HEAD'], { maxBuffer: ARCHIVE_MAX_BYTES });
+  const tar = execFileSync('git', ['-C', repo, 'archive', '--format=tar', 'HEAD'], { maxBuffer: ARCHIVE_MAX_BYTES, ...CHILD_OPTIONS });
   mkdirSync(dest, { recursive: true });
-  const r = spawnSync('tar', ['-x'], { cwd: dest, input: tar });
+  const r = spawnSync('tar', ['-x'], { cwd: dest, input: tar, ...CHILD_OPTIONS });
   if (r.status !== 0) throw new Error(`tar extract failed: ${r.stderr}`);
 }
 
@@ -87,7 +88,9 @@ function linkModules(repo, dest) {
 
 /** Export HEAD into a scratch dir beside the repo: outside the OS temp dir and any git tree, as the suite expects (own empty cache), run `verify(dir)` there, then delete it; a throw aborts the publish (KIT-T510). */
 function verifyHead(repo, runtimeRoot, sha, verify) {
-  const scratch = join(dirname(resolve(repo)), `.kit-verify-${sha}-${process.pid}`);
+  const parent = dirname(resolve(repo));
+  const scratch = join(parent, `.kit-verify-${sha}-${process.pid}`);
+  sweepScratch(parent);
   try {
     exportHead(repo, scratch);
     initGit(scratch, sha);
@@ -96,6 +99,7 @@ function verifyHead(repo, runtimeRoot, sha, verify) {
   } finally {
     stopProcessesUnder(scratch);
     rmSync(scratch, { recursive: true, force: true, maxRetries: SCRATCH_RM_RETRIES, retryDelay: SCRATCH_RM_DELAY_MS });
+    sweepScratch(parent);
   }
 }
 
@@ -105,7 +109,7 @@ export function publishRuntime({ runtimeRoot = defaultRuntimeRoot(), ...options 
 }
 
 function publishLocked({ repo, runtimeRoot, keep = DEFAULT_KEEP, graceHours = DEFAULT_GRACE_HOURS, projects, verify, lines }) {
-  const sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim();
+  const sha = execFileSync('git', ['-C', repo, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8', ...CHILD_OPTIONS }).trim();
   mkdirSync(runtimeRoot, { recursive: true });
   const dir = join(runtimeRoot, sha);
   if (verify) verifyHead(repo, runtimeRoot, sha, verify);
@@ -131,7 +135,7 @@ function publishLocked({ repo, runtimeRoot, keep = DEFAULT_KEEP, graceHours = DE
 function changedSincePublished(repo, runtimeRoot) {
   const published = basename(currentRuntime(runtimeRoot));
   if (!SHA_DIR.test(published)) return undefined;
-  try { return execFileSync('git', ['-C', repo, 'diff', '--name-only', published, 'HEAD'], { encoding: 'utf8' }).trim(); } catch { return undefined; }
+  try { return execFileSync('git', ['-C', repo, 'diff', '--name-only', published, 'HEAD'], { encoding: 'utf8', ...CHILD_OPTIONS }).trim(); } catch { return undefined; }
 }
 
 // The kit suite on the exported HEAD under the 5-minute budget (KIT-D104): the files the publish's change reaches,
@@ -139,8 +143,8 @@ function changedSincePublished(repo, runtimeRoot) {
 function suiteOnExport(dir, changed) {
   const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
   const timesFile = join(dirname(fileURLToPath(import.meta.url)), '..', '.cache', 'test-times.json');
-  const env = { ...process.env, KIT_TEST_TIMES: timesFile, ...(changed === undefined ? {} : { KIT_TEST_CHANGED: changed }) };
-  const r = spawnSync(npm, ['test'], { cwd: dir, stdio: 'inherit', shell: process.platform === 'win32', env });
+  const env = { KIT_TEST_BUDGET_S: String(PUBLISH_BUDGET_S), ...process.env, KIT_TEST_TIMES: timesFile, KIT_TEST_REQUIRE_REACHED: '1', ...(changed === undefined ? {} : { KIT_TEST_CHANGED: changed }) };
+  const r = spawnSync(npm, ['test'], { cwd: dir, stdio: 'inherit', shell: process.platform === 'win32', env, ...CHILD_OPTIONS });
   if (r.status !== 0) throw new Error(`the suite is red on exported HEAD (exit ${r.status}); current did not move`);
 }
 

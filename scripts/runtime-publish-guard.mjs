@@ -6,8 +6,12 @@
 //   stopProcessesUnder(dir)          -> stops every process whose command line names `dir` (a q-server a
 //     test run left in an export), so the export can be deleted
 //   gitOrThrow(dir, args)            -> runs git in `dir`; a failure throws with git's own stderr
+//   CHILD_OPTIONS                    -> spawn options every publish child takes: windowsHide gives the child a console of its
+//     own, so it survives the harness detaching the parent's console (exit 3221225794, 0xC0000142)
+//   sweepScratch(parent, { isAlive }) -> removes the `.kit-verify-<sha>-<pid>` copies in `parent` whose publish is dead;
+//     returns the names removed
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -15,10 +19,30 @@ import { spawnSync } from 'node:child_process';
 const LOCK = 'publish.lock';
 const TAKEOVER_ATTEMPTS = 2;
 const STDERR_SHOWN = 600;
+const SCRATCH = /^\.kit-verify-[0-9a-f]+-(\d+)$/;
+const SCRATCH_RM_RETRIES = 10;
+const SCRATCH_RM_DELAY_MS = 300;
 
-const alive = (pid) => {
+export const CHILD_OPTIONS = { windowsHide: true };
+
+export const alive = (pid) => {
   try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
 };
+
+export function sweepScratch(parent, { isAlive = alive } = {}) {
+  if (!existsSync(parent)) return [];
+  const removed = [];
+  for (const name of readdirSync(parent)) {
+    const m = SCRATCH.exec(name);
+    if (!m || isAlive(Number(m[1]))) continue;
+    try {
+      stopProcessesUnder(join(parent, name));
+      rmSync(join(parent, name), { recursive: true, force: true, maxRetries: SCRATCH_RM_RETRIES, retryDelay: SCRATCH_RM_DELAY_MS });
+      removed.push(name);
+    } catch { /* a copy still held is swept on the next run */ }
+  }
+  return removed;
+}
 
 const holderOf = (path) => {
   try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; }
@@ -49,15 +73,15 @@ export function withPublishLock(runtimeRoot, fn) {
   }
 }
 
-const WIN_STOP = (dir) => `$d = ${JSON.stringify(dir)}; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne ${process.pid} -and $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.IndexOf($d, [StringComparison]::OrdinalIgnoreCase) -ge 0 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+const WIN_STOP = (dir) => `$d = '${String(dir).replace(/'/g, "''")}'; Get-CimInstance Win32_Process | Where-Object { $_.ProcessId -ne ${process.pid} -and $_.ProcessId -ne $PID -and $_.CommandLine -and $_.CommandLine.IndexOf($d, [StringComparison]::OrdinalIgnoreCase) -ge 0 } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
 
 export function stopProcessesUnder(dir) {
-  if (process.platform === 'win32') spawnSync('powershell', ['-NoProfile', '-Command', WIN_STOP(dir)], { stdio: 'ignore' });
+  if (process.platform === 'win32') spawnSync('powershell', ['-NoProfile', '-Command', WIN_STOP(dir)], { stdio: 'ignore', ...CHILD_OPTIONS });
   else spawnSync('pkill', ['-f', dir], { stdio: 'ignore' });
 }
 
 export function gitOrThrow(dir, args) {
-  const r = spawnSync('git', ['-c', 'user.email=publish@kit', '-c', 'user.name=publish', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], { cwd: dir, encoding: 'utf8' });
+  const r = spawnSync('git', ['-c', 'user.email=publish@kit', '-c', 'user.name=publish', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', ...args], { cwd: dir, encoding: 'utf8', ...CHILD_OPTIONS });
   if (r.status !== 0) throw new Error(`git ${args[0]} failed in ${dir} (exit ${r.status ?? r.error?.message}): ${String(r.stderr || r.stdout || '').trim().slice(0, STDERR_SHOWN)}`);
   return r.stdout;
 }

@@ -8,6 +8,7 @@
 //
 //   workerBlock({ tree, input, prompt, live, cfg, escaped, footer }) -> block message | null
 //   workerAdvice({ input, prompt, cfg })                              -> advisory text | null
+//   overlapOnlyBlocker({ tree, input, prompt, live, cfg, escaped })   -> the in-flight worker a refusal waits on, when overlap is its only cause
 //   overlaps(a, b)                                                    -> do two path lists touch the same file or directory
 //
 // Escape: the maintainer's `[maintainer-asked-parallel: <words>]` (passed in as `escaped`).
@@ -38,6 +39,14 @@ export function overlaps(a, b) {
 export const workerPaths = (prompt, tree) => declaredPaths(prompt, tree) || (/\[paths:\s*\*\s*\]/i.test(String(prompt || '')) ? ['*'] : null);
 
 const isWorker = (input) => PATCH_WORKER.test(String(input.subagent_type || input.agent_type || '').trim());
+
+/** The in-flight worker whose paths overlap the brief's when that overlap is the ONLY thing wrong with the dispatch (a free slot, paths declared); else null. */
+export function overlapOnlyBlocker({ tree, input, prompt, live, cfg, escaped }) {
+  if (!cfg || !isWorker(input) || escaped) return null;
+  const mine = workerPaths(prompt, tree);
+  if (!mine || live.length >= (cfg.writerCap || DEFAULT_WRITER_CAP)) return null;
+  return live.find((r) => overlaps(mine, r.paths)) || null;
+}
 
 export function workerBlock({ tree, input, prompt, live, cfg, escaped, footer }) {
   if (!cfg || !isWorker(input) || escaped) return null;

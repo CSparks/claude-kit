@@ -8,8 +8,9 @@
 // machine-specific is hardcoded (this kit is public).
 
 import { statSync, existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import { sweepScratch } from '../scripts/runtime-publish-guard.mjs';
 import { installedPluginRoot, isDevLinked, checkInstalledDrift } from '../scripts/agent-pins.mjs';
 import { docReviewAge, repoHasSource } from './lib/doc-review.mjs';
 import { buildTreeLine, sweepStatusLines } from './lib/build-tree.mjs';
@@ -102,6 +103,16 @@ function agentDriftLine(root) {
     `AGENT PIN DRIFT: the installed claude-kit copy disagrees with source — ${shown}${more}. ` +
     `Dispatches on those agent types inherit the session model. Resync: node <kit>/scripts/dev-link.mjs (or /plugin update claude-kit).`
   );
+}
+
+// KIT-T826 — `.kit-verify-<sha>-<pid>` copies a killed publish left beside the claude-kit repo; only that repo holds them.
+function sweptPublishCopies(root) {
+  if (!existsSync(join(root, 'scripts', 'runtime-publish.mjs'))) return [];
+  try {
+    return sweepScratch(dirname(root));
+  } catch {
+    return [];
+  }
 }
 
 // KIT-T220 — this env var overrides the Agent-tool `model` param AND every agent frontmatter
@@ -305,6 +316,8 @@ try {
     // own `rem done` command; capped so a reminder backlog can't swamp the block.
     const drift = agentDriftLine(root);
     if (drift) reminders.push(drift);
+    const swept = sweptPublishCopies(root);
+    if (swept.length) reminders.push(`Removed ${swept.length} dead publish scratch cop${swept.length === 1 ? 'y' : 'ies'} beside the repo (${swept.slice(0, DRIFT_LIST_MAX).join(', ')}).`);
     const rem = scanReminders(root);
     for (const r of rem.due.slice(0, REMINDER_LIST_MAX)) reminders.push(reminderLine(r));
     if (rem.due.length > REMINDER_LIST_MAX) {
