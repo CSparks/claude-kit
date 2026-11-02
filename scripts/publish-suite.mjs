@@ -55,7 +55,7 @@ export function followupSuite(dir, files) {
 export function launchFollowup(script, runtimeRoot, sha, files) {
   recordFollowup(runtimeRoot, { sha, files });
   const log = openSync(join(runtimeRoot, FOLLOWUP_LOG), 'w');
-  const child = spawn(process.execPath, [script, '--followup', sha], { detached: true, stdio: ['ignore', log, log], ...CHILD_OPTIONS });
+  const child = spawn(process.execPath, [script, '--followup', sha, '--runtime', runtimeRoot], { detached: true, stdio: ['ignore', log, log], ...CHILD_OPTIONS });
   child.unref();
   claimFollowup(runtimeRoot, child.pid);
   return child.pid;

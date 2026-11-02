@@ -3,10 +3,11 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { launchFollowup } from './publish-suite.mjs';
 import { claimFollowup, finishFollowup, followupBlocker, followupFiles, followupLine, readFollowup, recordFollowup } from './publish-followup.mjs';
 
 const SCRIPT = join(import.meta.dirname, 'runtime-publish.mjs');
@@ -60,6 +61,21 @@ test('a re-run that passes clears a failed record', () => {
   finishFollowup(root, { failed: [FILES[0]] });
   finishFollowup(root, { failed: [] });
   assert.equal(followupBlocker(root, { isAlive: DEAD }), '');
+});
+
+test('launchFollowup starts the runner detached with the sha and the runtime root, and records the runner as pending (KIT-T839)', async () => {
+  const root = runtime();
+  const argvFile = join(root, 'argv.json');
+  const script = join(root, 'fake-runner.mjs');
+  writeFileSync(script, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(argvFile)}, JSON.stringify(process.argv.slice(2)));`);
+  const pid = launchFollowup(script, root, 'abc1234', FILES);
+  const record = readFollowup(root);
+  assert.equal(record.state, 'pending');
+  assert.equal(record.pid, pid);
+  assert.deepEqual(record.files, FILES);
+  const deadline = Date.now() + 10_000;
+  while (!existsSync(argvFile) && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
+  assert.deepEqual(JSON.parse(readFileSync(argvFile, 'utf8')), ['--followup', 'abc1234', '--runtime', root]);
 });
 
 test('npm run publish:runtime refuses before touching anything while a follow-up is failed (end to end)', () => {
