@@ -49,3 +49,4 @@ Orient split (37355ea, by-concern files under hooks/lib/orient, output identical
 - [2026-10-31 00:44] (landed) 37355ea orient: split the 630-line script into by-concern section files under hooks/lib/orient (notices, worktree, agents, recor
 - [2026-10-31 00:46] (status) review → review
 - [2026-10-31 00:46] (landed) b83d356 orient: a retired agent that left a Handoff block on a ticket still open, with no dispatch since, is listed with its Job
+- [2026-11-02 16:57] (landed) 67f94f6 KIT-T718 Notes: Handoff ad0b866e39b3b3615 (publish fixes T823-T828 in code, publish pending) [no-test: ticket store only
