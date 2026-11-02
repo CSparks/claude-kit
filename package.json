@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "publish:runtime": "node scripts/runtime-publish.mjs",
+    "publish:followup": "node scripts/runtime-publish.mjs --followup",
     "start": "npm run ui:build && node server/index.mjs",
     "api": "node server/index.mjs",
     "ui": "npm run dev --prefix ui",

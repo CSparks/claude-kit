@@ -6,6 +6,8 @@
 //   npm run publish:runtime        # exports HEAD, runs npm test there, then publishes: the ONLY way `current` moves.
 //                                  # The working tree is never tested or published (KIT-T510).
 //   node scripts/runtime-publish.mjs [--runtime <dir>] [--keep N]   # refuses outside that npm script
+//   npm run publish:followup       # runs the owed remainder of a two-phase publish (publish-followup.mjs) and records the result;
+//                                  # a failed or unfinished remainder refuses the next publish until this passes.
 //
 // Layout: <runtime>/<sha>/ (immutable `git archive HEAD`), <runtime>/current -> <sha> (junction),
 // <runtime>/cache (the shared query cache, linked in as <sha>/.cache), node_modules linked from the
@@ -22,6 +24,8 @@ import { installedPlugin, pluginDrift } from './plugin-drift.mjs';
 import { heldRuntimes } from './runtime-holders.mjs';
 import { referencedRuntimes } from './runtime-refs.mjs';
 import { CHILD_OPTIONS, gitOrThrow, stopProcessesUnder, sweepScratch, withPublishLock } from './runtime-publish-guard.mjs';
+import { claimFollowup, finishFollowup, followupBlocker, followupFiles, readFollowup } from './publish-followup.mjs';
+import { followupSuite, launchFollowup, publishSuite } from './publish-suite.mjs';
 
 const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
@@ -32,7 +36,6 @@ const LINK_TYPE = process.platform === 'win32' ? 'junction' : 'dir';
 const ARCHIVE_MAX_BYTES = 1 << 30;
 const SCRATCH_RM_RETRIES = 10;
 const SCRATCH_RM_DELAY_MS = 300;
-const PUBLISH_BUDGET_S = 140; // the suite share of the 180 s foreground window a harness gives one command, export and publish steps included
 
 const link = (target, path) => symlinkSync(target, path, LINK_TYPE);
 
@@ -41,8 +44,8 @@ export function currentRuntime(runtimeRoot) {
   try { return realpathSync(join(runtimeRoot, 'current')); } catch { return ''; }
 }
 
-function exportHead(repo, dest) {
-  const tar = execFileSync('git', ['-C', repo, 'archive', '--format=tar', 'HEAD'], { maxBuffer: ARCHIVE_MAX_BYTES, ...CHILD_OPTIONS });
+function exportHead(repo, dest, ref = 'HEAD') {
+  const tar = execFileSync('git', ['-C', repo, 'archive', '--format=tar', ref], { maxBuffer: ARCHIVE_MAX_BYTES, ...CHILD_OPTIONS });
   mkdirSync(dest, { recursive: true });
   const r = spawnSync('tar', ['-x'], { cwd: dest, input: tar, ...CHILD_OPTIONS });
   if (r.status !== 0) throw new Error(`tar extract failed: ${r.stderr}`);
@@ -87,12 +90,12 @@ function linkModules(repo, dest) {
 }
 
 /** Export HEAD into a scratch dir beside the repo: outside the OS temp dir and any git tree, as the suite expects (own empty cache), run `verify(dir)` there, then delete it; a throw aborts the publish (KIT-T510). */
-function verifyHead(repo, runtimeRoot, sha, verify) {
+function verifyHead(repo, runtimeRoot, sha, verify, ref = 'HEAD') {
   const parent = dirname(resolve(repo));
   const scratch = join(parent, `.kit-verify-${sha}-${process.pid}`);
   sweepScratch(parent);
   try {
-    exportHead(repo, scratch);
+    exportHead(repo, scratch, ref);
     initGit(scratch, sha);
     linkModules(repo, scratch);
     verify(scratch);
@@ -138,28 +141,49 @@ function changedSincePublished(repo, runtimeRoot) {
   try { return execFileSync('git', ['-C', repo, 'diff', '--name-only', published, 'HEAD'], { encoding: 'utf8', ...CHILD_OPTIONS }).trim(); } catch { return undefined; }
 }
 
-// The kit suite on the exported HEAD under the 5-minute budget (KIT-D104): the files the publish's change reaches,
-// then the files run longest ago; the rest rotate in on later runs. Same npm script a writer runs.
-function suiteOnExport(dir, changed) {
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const timesFile = join(dirname(fileURLToPath(import.meta.url)), '..', '.cache', 'test-times.json');
-  const env = { KIT_TEST_BUDGET_S: String(PUBLISH_BUDGET_S), ...process.env, KIT_TEST_TIMES: timesFile, KIT_TEST_REQUIRE_REACHED: '1', ...(changed === undefined ? {} : { KIT_TEST_CHANGED: changed }) };
-  const r = spawnSync(npm, ['test'], { cwd: dir, stdio: 'inherit', shell: process.platform === 'win32', env, ...CHILD_OPTIONS });
-  if (r.status !== 0) throw new Error(`the suite is red on exported HEAD (exit ${r.status}); current did not move`);
+const SELF = fileURLToPath(import.meta.url);
+
+// Two-phase publish (KIT-T839): the nearest reached test files that fit the budget gate this publish; the reached
+// files that did not fit run in a detached follow-up whose result gates the NEXT publish and shows at orient.
+function publishMain(repo, runtimeRoot, keep) {
+  const blocker = followupBlocker(runtimeRoot);
+  if (blocker) throw new Error(`refusing to publish: ${blocker}`);
+  let owed = [];
+  const r = publishRuntime({ repo, runtimeRoot, keep, verify: (dir) => { owed = publishSuite(dir, { changed: changedSincePublished(repo, runtimeRoot) }); } });
+  process.stdout.write(`runtime: ${r.sha} -> ${r.current}\nrun kit scripts from ${r.current}/scripts/ (q.mjs, t.mjs, cap.mjs)\n`);
+  if (owed.length) {
+    const pid = launchFollowup(SELF, runtimeRoot, r.sha, owed);
+    process.stdout.write(`follow-up: ${owed.length} test file(s) the change reaches did not fit the publish budget; they run in pid ${pid} (log ${join(runtimeRoot, 'publish-followup.log')}). A failure blocks the next publish and shows at orient.\n`);
+  }
+  const drift = pluginDrift({ repo, installed: installedPlugin() });
+  if (drift.length) process.stderr.write(`runtime-publish: ${drift.length} agent/skill/command/hook file(s) changed since the plugin cache was copied, under the same plugin.json version, so sessions do not see them. Bump .claude-plugin/plugin.json version, then restart sessions: ${drift.slice(0, 8).join(', ')}${drift.length > 8 ? ', ...' : ''}\n`);
+}
+
+// Runs the recorded remainder (the failed files of the last attempt, else all) on an export of `ref` and records the outcome.
+function followupMain(repo, runtimeRoot, ref) {
+  const record = readFollowup(runtimeRoot);
+  if (!record) throw new Error('no publish follow-up is recorded');
+  claimFollowup(runtimeRoot, process.pid);
+  const sha = ref || gitOrThrow(repo, ['rev-parse', '--short', 'HEAD']).trim();
+  let failed = [];
+  verifyHead(repo, runtimeRoot, sha, (dir) => { failed = followupSuite(dir, followupFiles(record)); }, ref || 'HEAD');
+  finishFollowup(runtimeRoot, { failed });
+  process.stdout.write(failed.length ? `follow-up FAILED: ${failed.join(', ')}\n` : `follow-up passed: ${followupFiles(record).length} file(s)\n`);
+  if (failed.length) process.exitCode = 1;
 }
 
 if (isMain(import.meta.url)) {
   const arg = (flag) => { const i = process.argv.indexOf(flag); return i === -1 ? undefined : process.argv[i + 1]; };
-  const repo = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-  if (process.env.npm_lifecycle_event !== PUBLISH_SCRIPT) {
+  const repo = resolve(dirname(SELF), '..');
+  const runtimeRoot = arg('--runtime') || defaultRuntimeRoot();
+  const followup = process.argv.includes('--followup');
+  if (!followup && process.env.npm_lifecycle_event !== PUBLISH_SCRIPT) {
     process.stderr.write('runtime-publish: refusing - run `npm run ' + PUBLISH_SCRIPT + '`, which tests the committed HEAD before `current` moves.\n');
     process.exit(1);
   }
   try {
-    const r = publishRuntime({ repo, runtimeRoot: arg('--runtime') || defaultRuntimeRoot(), keep: Number(arg('--keep')) || DEFAULT_KEEP, verify: (dir) => suiteOnExport(dir, changedSincePublished(repo, arg('--runtime') || defaultRuntimeRoot())) });
-    process.stdout.write(`runtime: ${r.sha} -> ${r.current}\nrun kit scripts from ${r.current}/scripts/ (q.mjs, t.mjs, cap.mjs)\n`);
-    const drift = pluginDrift({ repo, installed: installedPlugin() });
-    if (drift.length) process.stderr.write(`runtime-publish: ${drift.length} agent/skill/command/hook file(s) changed since the plugin cache was copied, under the same plugin.json version, so sessions do not see them. Bump .claude-plugin/plugin.json version, then restart sessions: ${drift.slice(0, 8).join(', ')}${drift.length > 8 ? ', ...' : ''}\n`);
+    if (followup) followupMain(repo, runtimeRoot, arg('--followup')?.startsWith('--') ? undefined : arg('--followup'));
+    else publishMain(repo, runtimeRoot, Number(arg('--keep')) || DEFAULT_KEEP);
   } catch (e) {
     process.stderr.write(`runtime-publish: ${e.message}\n`);
     process.exit(1);

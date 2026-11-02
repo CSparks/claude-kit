@@ -41,6 +41,14 @@ export async function notices({ out, root }) {
   } catch {
     /* broker health is best-effort */
   }
+  try {
+    const { runtimeRoot } = await import('../../../scripts/runtime-path.mjs');
+    const { followupLine } = await import('../../../scripts/publish-followup.mjs');
+    const line = followupLine(runtimeRoot());
+    if (line) out.push(line);
+  } catch {
+    /* the publish follow-up line is best-effort */
+  }
   // A project-level dispatch: block is ignored (KIT-D079); the capability table's evidence dates expire (KIT-D080).
   try {
     const { dispatchDrift } = await import('../../../scripts/dispatch-ladder.mjs');

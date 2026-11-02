@@ -13,7 +13,8 @@ import { isolatedEnv } from './isolate.mjs';
 import { runPool } from './pool.mjs';
 import { runFile } from './run-file.mjs';
 import { planRun } from './select.mjs';
-import { longestFirst, readTimes, slowest, writeTimes } from './times.mjs';
+import { longestFirst, readStamps, readTimes, slowest, staleFiles, trustedTimes, writeTimes } from './times.mjs';
+import { defaultWorkers } from './workers.mjs';
 
 const KIT = join(import.meta.dirname, '..', '..');
 const RUNNER = join(KIT, 'scripts', 'run-tests.mjs');
@@ -144,7 +145,7 @@ function reachedFixture() {
   });
   execFileSync('git', ['init', '-q'], { cwd: root });
   execFileSync('git', ['add', '-A'], { cwd: root });
-  writeFileSync(join(root, 'times.json'), JSON.stringify({ files: { 'a.test.mjs': SLOW_FILE_MS, 'b.test.mjs': SLOW_FILE_MS } }));
+  writeTimes(join(root, 'times.json'), [{ file: 'a.test.mjs', ms: SLOW_FILE_MS }, { file: 'b.test.mjs', ms: SLOW_FILE_MS }]);
   return root;
 }
 
@@ -165,6 +166,66 @@ test('negative control: without the flag the same run defers the file and passes
   const fits = runner(root, ['--require-reached'], { ...env, KIT_TEST_BUDGET_S: '300' });
   assert.equal(fits.status, 0, fits.stdout);
   assert.match(fits.stdout, /0 of them reached by the change/);
+});
+
+test('--owed-file runs the nearest reached files that fit and writes the rest as the owed remainder instead of refusing (KIT-T839)', () => {
+  const root = reachedFixture();
+  const owedPath = join(root, 'owed.json');
+  const env = { KIT_TEST_WORKERS: '1', KIT_TEST_CHANGED: 'lib.mjs', KIT_TEST_BUDGET_S: '150' };
+  const r = runner(root, ['--require-reached', '--owed-file', owedPath], env);
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.stdout, /running 1 of 2 files/);
+  const owed = JSON.parse(readFileSync(owedPath, 'utf8'));
+  assert.equal(owed.length, 1);
+  assert.doesNotMatch(r.stdout, new RegExp(`^ok .*${owed[0].replace('.', '\\.')}`, 'm'), 'the owed file did not run');
+  const fits = runner(root, ['--owed-file', owedPath], { ...env, KIT_TEST_BUDGET_S: '300' });
+  assert.deepEqual(JSON.parse(readFileSync(owedPath, 'utf8')), [], 'negative control: a budget that fits owes nothing');
+  assert.equal(fits.status, 0);
+});
+
+test('--files runs exactly the listed files and --failed-file names the ones that failed', () => {
+  const root = fixtureRoot({ 'a.test.mjs': '', 'b.test.mjs': 'process.exit(4);', 'c.test.mjs': 'process.exit(5);' });
+  const listPath = join(root, 'list.json');
+  const failedPath = join(root, 'failed.json');
+  writeFileSync(listPath, JSON.stringify(['a.test.mjs', 'b.test.mjs']));
+  const r = runner(root, ['--files', listPath, '--failed-file', failedPath]);
+  assert.equal(r.status, 1);
+  assert.deepEqual(JSON.parse(readFileSync(failedPath, 'utf8')), ['b.test.mjs']);
+  assert.doesNotMatch(r.stdout, /c\.test\.mjs/, 'c was not listed');
+});
+
+const DAY_MS = 24 * 3600 * 1000;
+
+test('a stale time record is not trusted, is planned as unmeasured, and is rewritten fresh when its file runs (KIT-T839)', () => {
+  const now = Date.now();
+  const file = join(mkdtempSync(join(tmpdir(), 'times-stale-')), 'times.json');
+  writeTimes(file, [{ file: 'old', ms: 900_000 }], now - 30 * DAY_MS);
+  writeTimes(file, [{ file: 'new', ms: 5000 }], now);
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), files: { ...readTimes(file), unstamped: 77 } }));
+  assert.deepEqual(trustedTimes(readTimes(file), readStamps(file), now), { new: 5000 }, 'a record past a week, and one with no stamp, are dropped');
+  assert.deepEqual(staleFiles(readTimes(file), readStamps(file), now).sort(), ['old', 'unstamped']);
+  assert.deepEqual(staleFiles(readTimes(file), readStamps(file), now + 1000), ['old', 'unstamped'], 'negative control: a fresh record stays trusted a moment later');
+
+  const root = fixtureRoot({ 'old.test.mjs': '', 'new.test.mjs': '' });
+  writeTimes(join(root, 'times.json'), [{ file: 'old.test.mjs', ms: 900_000 }], now - 30 * DAY_MS);
+  const planned = runner(root, [], { KIT_TEST_CHANGED: '' });
+  assert.match(planned.stdout, /1 stale time records planned as unmeasured/);
+  assert.match(planned.stdout, /^ok .*old\.test\.mjs/m);
+  const rewritten = readTimes(join(root, 'times.json'));
+  assert.ok(rewritten['old.test.mjs'] < 60_000, 'the 900 s record is replaced by the measured time');
+  assert.ok(readStamps(join(root, 'times.json'))['old.test.mjs'] > now - DAY_MS);
+  assert.equal(staleFiles(rewritten, readStamps(join(root, 'times.json'))).length, 0);
+});
+
+test('planRun: a file with no trusted time is planned before measured files outside the reach', () => {
+  const plan = planRun({ tests: ['measured', 'unmeasured'], reached: new Map(), times: { measured: 1000 }, ranAt: { measured: 0, unmeasured: 99 }, budgetMs: 5_000, workers: 1 });
+  assert.equal(plan.run[0], 'unmeasured');
+  const control = planRun({ tests: ['measured', 'other'], reached: new Map(), times: { measured: 1000, other: 1000 }, ranAt: { measured: 0, other: 99 }, budgetMs: 5_000, workers: 1 });
+  assert.equal(control.run[0], 'measured', 'negative control: two measured files keep the oldest-run order');
+});
+
+test('defaultWorkers is half the cores within 4 and 16', () => {
+  assert.deepEqual([2, 8, 32, 128].map((cores) => defaultWorkers(cores)), [4, 4, 16, 16]);
 });
 
 test('a file that fails once and passes alone is reported as FLAKE and does not fail the run', () => {

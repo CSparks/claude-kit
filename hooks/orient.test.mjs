@@ -4,6 +4,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+import { finishFollowup, recordFollowup } from '../scripts/publish-followup.mjs';
 
 import {
   adopted, ageFile, cleanup, fixtureKit, git, hook, isoDaysAgo, project, reporter, repo, tmpDir, TMP_REG,
@@ -188,6 +189,21 @@ try {
     ok('orient KIT-T071: lineage does not dump all relation details inline', !r.out.includes('[engine] rapid-game'));
     ok('orient KIT-T071: SESSION does not dump all 80 lines', !r.out.includes('## Step 80:'));
     ok('orient KIT-T071: ROADMAP does not dump all 60 items', !r.out.includes('item 56:'));
+  }
+
+  // --- the result of a two-phase publish's follow-up shows at orient (KIT-T839) ---------
+  {
+    const o = adopted(false);
+    const runtime = tmpDir('orient-runtime-');
+    const quiet = hook('orient.mjs', {}, o, { CLAUDE_KIT_RUNTIME: runtime });
+    ok('orient KIT-T839: no follow-up record, no follow-up line', !quiet.out.includes('PUBLISH FOLLOW-UP'));
+    recordFollowup(runtime, { sha: 'abc1234', files: ['scripts/a.test.mjs', 'scripts/b.test.mjs'], pid: 1 });
+    finishFollowup(runtime, { failed: ['scripts/b.test.mjs'] });
+    const failed = hook('orient.mjs', {}, o, { CLAUDE_KIT_RUNTIME: runtime });
+    ok('orient KIT-T839: a failed follow-up is shown as blocking the next publish', failed.out.includes('!! PUBLISH FOLLOW-UP FAILED (blocks the next publish): scripts/b.test.mjs'));
+    finishFollowup(runtime, { failed: [] });
+    const passed = hook('orient.mjs', {}, o, { CLAUDE_KIT_RUNTIME: runtime });
+    ok('orient KIT-T839: a passed follow-up is shown without the alarm', passed.out.includes('PUBLISH FOLLOW-UP passed') && !passed.out.includes('!! PUBLISH FOLLOW-UP'));
   }
 } finally {
   cleanup();

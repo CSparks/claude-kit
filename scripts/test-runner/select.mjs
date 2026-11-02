@@ -77,9 +77,10 @@ export function reach(root, tests, changed) {
 
 export function planRun({ tests, reached, times, ranAt = {}, budgetMs, workers }) {
   const cost = (t) => Math.min(times[t] ?? UNKNOWN_MS, FILE_COST_CAP_MS);
+  const unmeasured = (t) => (times[t] === undefined ? 0 : 1);
   const order = [
     ...tests.filter((t) => reached.has(t)).sort((a, b) => reached.get(a) - reached.get(b) || cost(a) - cost(b)),
-    ...tests.filter((t) => !reached.has(t)).sort((a, b) => (ranAt[a] ?? 0) - (ranAt[b] ?? 0) || cost(a) - cost(b)),
+    ...tests.filter((t) => !reached.has(t)).sort((a, b) => unmeasured(a) - unmeasured(b) || (ranAt[a] ?? 0) - (ranAt[b] ?? 0) || cost(a) - cost(b)),
   ];
   const lanes = Array.from({ length: Math.max(1, workers) }, () => 0);
   const run = [];
