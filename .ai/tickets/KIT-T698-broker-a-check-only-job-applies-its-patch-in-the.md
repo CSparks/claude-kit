@@ -34,3 +34,4 @@ Built: check-tree.mjs (broker-owned git worktree per repo under target/broker/ch
 - [2026-10-29 14:59] (created) bug — broker: a check-only job applies its patch in the maintainer's live checkout, so a hand cargo r compiles patched code (dirt-empire 2026-10-2
 - [2026-11-02 15:08] (status) todo → review
 - [2026-11-02 15:08] (comment) @claude: (fixed) d96774d; check-tree 12 passed (check-tree, check-tree-train, check-tree-sub); runtime 533bf36 contains it
+- [2026-11-02 15:08] (landed) 88699b3 KIT-T698 to review: fix landed in d96774d, 12 check-tree tests pass [no-test: ticket store only] (implements KIT-T698)
