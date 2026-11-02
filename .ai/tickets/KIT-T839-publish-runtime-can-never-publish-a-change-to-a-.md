@@ -38,3 +38,4 @@ Fixed in a8a1455, the commits after it, and runtime bde80d4 (published). (1) Tim
 - [2026-11-02 21:11] (landed) 350f8e8 A budgeted run re-checks the clock at each start and skips a file that would end past budget x 1.25; a skipped reached f
 - [2026-11-02 21:16] (landed) bde80d4 The detached follow-up runner gets the runtime root; launch test; publish-followup 7 passed (implements KIT-T839)
 - [2026-11-02 21:16] (status) todo → review
+- [2026-11-02 21:17] (landed) 59bc419 KIT-T839 to review: notes with measured wall times [no-test: ticket store only] (implements KIT-T839)
