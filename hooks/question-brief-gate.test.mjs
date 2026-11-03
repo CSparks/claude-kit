@@ -3,9 +3,10 @@
 // message, a question restating his words, and the ignore file are each exercised, with controls.
 // Run: node hooks/question-brief-gate.test.mjs
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
+import { ENV, HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 
 const { ok, done } = reporter('question-brief-gate');
 const OPTIONS = [
@@ -69,6 +70,25 @@ try {
   ok('an unreadable transcript fails open', ask(join(dir, 'missing.jsonl')).code === 0);
   ok('garbage stdin fails open', hook('question-brief-gate.mjs', 'not json', repoDir).code === 0);
   ok('another tool is ignored', hook('question-brief-gate.mjs', { tool_name: 'Bash', tool_input: { questions: QUESTIONS }, transcript_path: transcript(SETTLED, 'x') }, repoDir).code === 0);
+
+  const CALL_ID = 'toolu_01LAGGED';
+  const LAG_MS = 700;
+  const askWhileFlushing = (laggedProse) => new Promise((resolve) => {
+    const file = transcript(SETTLED, 'Checking the daemon log first.');
+    const child = spawn(process.execPath, [join(HOOKS, 'question-brief-gate.mjs')], { cwd: repoDir, env: ENV });
+    let out = '';
+    child.stderr.on('data', (d) => { out += d; });
+    child.on('close', (code) => resolve({ code, out }));
+    child.stdin.end(JSON.stringify({ tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions: QUESTIONS }, transcript_path: file }));
+    setTimeout(() => appendFileSync(file, `\n${line('assistant', [{ type: 'text', text: laggedProse }])}\n${line('assistant', [{ type: 'tool_use', id: CALL_ID, name: 'AskUserQuestion', input: {} }])}`), LAG_MS);
+  });
+  const lagged = await askWhileFlushing(FULL_BRIEF);
+  ok('the reply text flushed after the hook started is counted (the call waits for its own tool_use entry)', lagged.code === 0);
+  const laggedThin = await askWhileFlushing('- pick a limit');
+  ok('control: a thin brief flushed late is still blocked', laggedThin.code === 2 && laggedThin.out.includes('- length:'));
+  const started = Date.now();
+  const noId = ask(transcript(SETTLED, FULL_BRIEF));
+  ok('control: a payload with no tool_use_id reads at once', noId.code === 0 && Date.now() - started < LAG_MS * 4);
 
   const thinFile = transcript(SETTLED, 'short');
   writeFileSync(join(repoDir, '.claude-kit-ignore.yaml'), 'question-brief:\n  - "**"\n');

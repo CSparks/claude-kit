@@ -4,8 +4,22 @@
 //     lastUser  the newest maintainer message (tool results, harness notices, compaction summaries and meta entries skipped), '' when none
 //     prose     every assistant text block after it, oldest first, joined by blank lines
 //   null when the file cannot be read.
+//
+//   turnTextForCall(file, toolUseId) -> Promise<same>
+//     A PreToolUse hook runs while the transcript writer is still behind: the text block of the reply the call
+//     sits in can be unflushed. The transcript is ordered, so once it holds the call's own tool_use entry every
+//     earlier block of the reply is in it. This waits up to SETTLE_MS for that entry, then reads; with no id
+//     (or none appearing) it reads at once.
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+
+const SETTLE_MS = 3000;
+const POLL_MS = 100;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const holdsCall = (file, toolUseId) => {
+  try { return readFileSync(file, 'utf8').includes(toolUseId); } catch { return false; }
+};
 
 const NOTICE = /^\s*(?:<task-notification\b|<system-reminder\b|\[SYSTEM NOTIFICATION\b|Stop hook feedback:)/i;
 const COMPACT = /^\s*This session is being continued from a previous conversation that ran out of context\b/;
@@ -36,4 +50,11 @@ export function turnText(file) {
     }
   }
   return { lastUser: '', prose: prose.join('\n\n') };
+}
+
+export async function turnTextForCall(file, toolUseId) {
+  if (toolUseId && existsSync(file)) {
+    for (let waited = 0; waited < SETTLE_MS && !holdsCall(file, toolUseId); waited += POLL_MS) await sleep(POLL_MS);
+  }
+  return turnText(file);
 }
