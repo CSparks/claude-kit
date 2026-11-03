@@ -41,13 +41,22 @@ try {
 
   ok('a full brief after a settled message passes', ask(transcript(SETTLED, FULL_BRIEF)).code === 0);
 
+  const padded = (text) => `${text}\n\n${'The broker daemon beats every second while a command runs and the waiters poll it. '.repeat(10)}`;
+  const withDecision = (line) => FULL_BRIEF.replace(/^Decision:[^\n]*/, line);
+  const labelled = (line) => ask(transcript(SETTLED, padded(withDecision(line))));
+  ok('a bullet "- decision: what is being decided is ..., needed now because ..." is accepted',
+    labelled('- decision: what is being decided is how long the broker may stay silent before a waiter replaces it, needed now because a land job sat queued for six minutes.').code === 0);
+  ok('a plain "Decision: <statement>" line with no why-now phrase is accepted',
+    labelled('Decision: the waiter replaces a silent broker after a fixed number of minutes.').code === 0);
+  ok('a bold label "**Decision:** ..." is accepted', labelled('**Decision:** the waiter replaces a silent broker after a fixed number of minutes.').code === 0);
+  const noDecision = withDecision('The broker went quiet for six minutes on the dirt-empire log.').replace('Option Three', 'Option A').replace('I recommend', 'I advise');
+  ok('control: prose with no decision statement at all is still blocked', ask(transcript(SETTLED, padded(noDecision))).out.includes('- decision:'));
   const thin = ask(transcript(SETTLED, '- the daemon stalled\n- pick a limit'));
   ok('two bullets are blocked', thin.code === 2);
   ok('the block names every part the brief lacks and both exclusion surfaces',
     ['length', 'decision', 'evidence', 'options', 'recommendation', 'not asked'].every((p) => thin.out.includes(`- ${p}:`)) && thin.out.includes('question-brief') && thin.out.includes('.claude-kit-ignore.yaml'));
 
   const without = (pattern) => FULL_BRIEF.split('\n\n').filter((p) => !pattern.test(p)).join('\n\n');
-  const padded = (text) => `${text}\n\n${'The broker daemon beats every second while a command runs and the waiters poll it. '.repeat(10)}`;
   const missing = (pattern, part) => { const r = ask(transcript(SETTLED, padded(without(pattern)))); return r.code === 2 && r.out.includes(`- ${part}:`); };
   ok('no evidence sources is blocked', missing(/^Evidence/, 'evidence'));
   ok('no recommendation reason is blocked', missing(/^I recommend/, 'recommendation'));

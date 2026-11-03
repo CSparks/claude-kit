@@ -10,8 +10,18 @@ import { stems } from './stems.mjs';
 const MIN_WORDS = 120;
 const MIN_SOURCES = 2;
 const SOURCE = /(?:[\w.-]+[\\/])+[\w.-]+|\b[A-Z][A-Z0-9]+-[TDQ]\d{1,4}\b|\b[0-9a-f]{7,40}\b|\b[\w-]+\.(?:mjs|js|ts|rs|md|json|ya?ml|toml|cpp|h)\b(?::\d+)?|https?:\/\/\S+/g;
-const DECISION = /\b(?:decision|deciding|decide|choosing|the choice)\b/i;
-const WHY_NOW = /\bwhy now\b|\bblocks?\b|\bblocking\b|\bwaiting on\b|\bneeded (?:now|before|to)\b|\bbefore (?:i|we|the)\b|\bso that\b/i;
+const DECISION = /\b(?:decision|decid(?:e|es|ed|ing)|choosing|the choice)\b/i;
+const WHY_NOW = /\bwhy now\b|\bblocks?\b|\bblocking\b|\bwaiting on\b|\bneeded\b|\bbefore (?:i|we|the)\b|\bso that\b|\bbecause\b/i;
+const DECISION_LINE = /^[ \t>*_-]*(?:\*\*|__)?decision(?:\*\*|__)?[ \t]*[:—-](?:\*\*|__)?[ \t]*(\S[^\n]*)$/im;
+const MIN_DECISION_LINE_WORDS = 6;
+
+// A plainly labelled `Decision:` line that states something is the decision statement; otherwise the prose must say
+// what is being decided and why it is needed now.
+function decisionStated(text) {
+  const labelled = DECISION_LINE.exec(text);
+  if (labelled && labelled[1].split(/\s+/).length >= MIN_DECISION_LINE_WORDS) return true;
+  return DECISION.test(text) && WHY_NOW.test(text);
+}
 const CONSEQUENCE = /\b(?:costs?|risks?|means|leaves?|results? in|would|will|breaks?|saves?|keeps?|drops?|adds?|removes?|changes?)\b/gi;
 const RECOMMEND = /\brecommend\w*\b[^\n]{0,300}?\b(?:because|since|reason|so that|as it|which)\b/i;
 const NOT_ASKED = /\b(?:not (?:being )?asked|not asking|not deciding|out of scope|already settled|settled|stays? (?:open|as is)|left open|not part of)\b/i;
@@ -45,7 +55,7 @@ export function briefProblems(prose, questions) {
   const unnamed = unnamedOptions(text, questions);
   const missing = [];
   if (words < MIN_WORDS) missing.push({ part: 'length', wanted: `a brief of at least ${MIN_WORDS} words (this reply's prose has ${words}): the options cannot carry the context` });
-  if (!DECISION.test(text) || !WHY_NOW.test(text)) missing.push({ part: 'decision', wanted: STANDARD.decision });
+  if (!decisionStated(text)) missing.push({ part: 'decision', wanted: STANDARD.decision });
   if (sources < MIN_SOURCES) missing.push({ part: 'evidence', wanted: `${STANDARD.evidence}; found ${sources}` });
   if (unnamed.length) missing.push({ part: 'options', wanted: `${STANDARD.options}; not named in the brief: ${unnamed.map((l) => `"${l}"`).join(', ')}` });
   else if ((text.match(CONSEQUENCE) || []).length < labels.length) missing.push({ part: 'options', wanted: `${STANDARD.options}; fewer consequence statements than options (${labels.length})` });
