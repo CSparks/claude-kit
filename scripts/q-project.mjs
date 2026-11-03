@@ -26,6 +26,9 @@ export function projectScope(name, table = projectTable()) {
   return hit.key.toUpperCase();
 }
 
+/** Does `name` name a registered project (registry name or id key)? */
+export const knownProject = (name, table = projectTable()) => !!matchProject(table, name);
+
 /** The checkout directory of the registered project `name` names; throws on an unknown or repo-less project. */
 export function projectRepo(name, table = projectTable(), registry = readRegistry()) {
   const hit = matchProject(table, name);

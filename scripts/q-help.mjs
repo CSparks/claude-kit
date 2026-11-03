@@ -3,6 +3,7 @@
 
 import { CONFIRMATION_DAYS } from './q-inbox.mjs';
 import { DEFAULT_DAYS as RECENT_DAYS } from './q-recent.mjs';
+import { MS_PER_SECOND, SCAN_BUDGET_MS } from './q-scan-dir.mjs';
 
 const CONTINUATION = /^\s{3,}\S/;
 
@@ -39,7 +40,11 @@ export const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <qu
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
                               --path crates/sim  --not-path <glob|dir> (repeatable; drops matches)
                               --glob <glob> (-g, --include; repeatable; keeps only matching paths; !glob drops)  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
+                              --test | --not-test  keep only test files (tests/ dirs, test_x, x_test, x.test.*, x.spec.*) | drop them
                               --project <name>  search that registered project's checkout (name or id key), e.g. the kit's scripts
+                              --repo <project|dir>  --project, or --dir when it is a directory (bare --repo = the cwd repo, a no-op)
+                              --dir <path>  another tree: inside a git work tree it is answered from that checkout's index (paths absolute);
+                              logs, build output and plain directories are scanned on demand, stopping after ${SCAN_BUDGET_MS / MS_PER_SECOND} s with a notice
                               --registry <crate-version|crate>  search one dependency crate's source (cargo registry or a vendor dir), paths absolute;
                               a bare crate resolves to the one version Cargo.lock pins, e.g. q code force --registry rapier3d-0.25.1 --lang rust
   sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P] [--not-path G] [--glob G] [--registry <crate>]

@@ -3,12 +3,13 @@
 // VERIFIED against the file text held in the index (current after every refresh), so an answer
 // is exactly what grep would print: the trigram table only narrows candidate files. Flags: see QUERY_HELP in q.mjs.
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { extractSymbols, langOfToken } from './code-index-extract.mjs';
-import { basename, isAbsolute, relative, resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
-import { projectRepo } from './q-project.mjs';
-import { dirIndex, scanSummary } from './q-scan-dir.mjs';
+import { scanSummary } from './q-scan-dir.mjs';
+import { isAbsolutePath, resolveTarget, scansOnDemand } from './q-code-target.mjs';
+import { isTestPath } from './q-test-path.mjs';
 import { uncheckedFrameworks } from './q-framework.mjs';
 import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 import { grepPattern } from './q-grep-pattern.mjs';
@@ -23,14 +24,14 @@ const GAP = '\u0000';
 const DEFAULT_KINDS = ['code', 'doc', 'config'];
 const ALL_KINDS = [...DEFAULT_KINDS, 'ticket'];
 const TYPE_RANK = { fn: 0, struct: 1, enum: 1, trait: 1, class: 1, type: 1, const: 2, var: 2, macro: 2, mod: 3, impl: 4, use: 5, heading: 6, section: 6 };
-const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--not-path', '--glob', '-g', '--include', '--type', '--limit', '--project', '--dir', '-C', '-A', '-B']);
+const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--not-path', '--glob', '-g', '--include', '--type', '--limit', '--project', '--dir', '--repo', '-C', '-A', '-B']);
 
 // grep habits whose behaviour q has always: line numbers are shown, the walk is recursive, paths are printed.
 const GREP_NOOP_FLAGS = new Set(['-n', '--line-number', '-r', '-R', '--recursive', '-H', '--with-filename', '--no-heading', '--color=never', '-s']);
 
 const GLOB_FLAGS = new Set(['--glob', '-g', '--include']);
 const ATTACHED_COUNT = /^-([ABC])(\d+)$/;
-const ATTACHED_VALUE = /^(--(?:kind|lang|path|not-path|glob|include|type|limit|project|dir))=(.*)$/;
+const ATTACHED_VALUE = /^(--(?:kind|lang|path|not-path|glob|include|type|limit|project|dir|repo))=(.*)$/;
 
 const cleanPath = (v) => v.replace(/\\/g, '/').replace(/^\.\//, '');
 
@@ -51,6 +52,7 @@ export function parseCodeArgs(rawArgs) {
   for (let i = 0; i < args.length; i++) {
     const a = String(args[i]);
     if (a === '--' && i + 1 < args.length) words.push(String(args[++i]));
+    else if (a === '--repo' && String(args[i + 1] ?? '-').startsWith('-')) continue;
     else if (VALUE_FLAGS.has(a)) {
       const v = args[++i];
       if (a === '--kind') flags.kinds = String(v).split(',');
@@ -61,6 +63,7 @@ export function parseCodeArgs(rawArgs) {
       else if (GLOB_FLAGS.has(a)) addGlob(flags, String(v));
       else if (a === '--project') flags.project = String(v);
       else if (a === '--dir') flags.dir = String(v);
+      else if (a === '--repo') flags.repo = String(v);
       else if (a === '--limit') flags.limit = Number(v);
       else if (a === '-C') { flags.before = Number(v) || 0; flags.after = Number(v) || 0; }
       else if (a === '-A') flags.after = Number(v) || 0;
@@ -68,6 +71,8 @@ export function parseCodeArgs(rawArgs) {
     } else if (a === '--regex' || a === '-E') flags.regex = true;
     else if (a === '-i') flags.ignoreCase = true;
     else if (a === '-w') flags.word = true;
+    else if (a === '--test' || a === '--tests') flags.tests = 'only';
+    else if (a === '--not-test' || a === '--not-tests') flags.tests = 'none';
     else if (a === '--fuzzy') flags.fuzzy = true;
     else if (a === '--exact') flags.fuzzy = false;
     else if (a === '-l') flags.filesOnly = true;
@@ -79,20 +84,6 @@ export function parseCodeArgs(rawArgs) {
   }
   const text = words.join(' ');
   return { text: flags.regex ? grepPattern(text) : text, flags };
-}
-
-const isAbsolutePath = (path) => isAbsolute(path) || /^[A-Za-z]:\//.test(path);
-
-// `--path D:/dev/repo/crates/x` names the same place as `--path crates/x` from inside the repo.
-function repoRelative(root, path) {
-  if (!isAbsolutePath(path)) return path;
-  const rel = relative(root, path).replace(/\\/g, '/');
-  return rel.startsWith('..') || isAbsolute(rel) ? path : rel;
-}
-
-// An absolute `--path` outside the repo is a directory the index does not cover: scan it as `--dir` (KIT-T707).
-function outsideIndex(flags, root) {
-  return flags.dir === undefined && flags.path && isAbsolutePath(flags.path) && repoRelative(root, flags.path) === flags.path;
 }
 
 const escapeRe = (s) =>s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -208,7 +199,8 @@ const excluder = (flags) => {
   const globs = flags.globs || [];
   const drops = [...flags.notPaths.map(pathTest), ...globs.filter((g) => g.startsWith('!')).map((g) => globTest(g.slice(1)))];
   const keeps = globs.filter((g) => !g.startsWith('!')).map(globTest);
-  return (rel) => drops.some((t) => t(rel)) || (keeps.length > 0 && !keeps.some((t) => t(rel)));
+  const wrongTestness = (rel) => (flags.tests === 'only' && !isTestPath(rel)) || (flags.tests === 'none' && isTestPath(rel));
+  return (rel) => drops.some((t) => t(rel)) || wrongTestness(rel) || (keeps.length > 0 && !keeps.some((t) => t(rel)));
 };
 
 const memFilter = (files, flags, kinds) => {
@@ -463,31 +455,25 @@ export async function codeVerbRows(cmd, args, root, refresh = refreshIndex) {
 // The index holds the repo's tracked and unignored files: a dependency tree fetched into a gitignored build
 // directory, or one installed outside the repo (JUCE under C:/JUCE), is searched with --dir or an absolute --path.
 function outsideIndexHint(args) {
-  const named = args.includes('--dir') || args.some((a) => isAbsolutePath(a));
+  const named = ['--dir', '--repo', '--project'].some((f) => args.includes(f)) || args.some((a) => isAbsolutePath(a));
   return named ? [] : [{ loc: '', text: 'NOT searched: gitignored build directories and trees outside the repo are not indexed; search one with --dir <path> or an absolute --path <dir> (q scans it on demand), never grep' }];
 }
 
 async function answerRows(cmd, args, root, refresh) {
   const { text, flags } = parseCodeArgs(args);
   if (flags.unknown.length) return unknownFlagRows(cmd, args, flags.unknown, root);
-  if (flags.project !== undefined) {
-    root = projectRepo(flags.project);
-    refresh = refreshIndex;
-  }
-  if (outsideIndex(flags, root)) {
-    if (!existsSync(flags.path)) return [{ loc: '', text: `q --path ${flags.path}: outside the index and not found on disk` }];
-    flags.dir = flags.path;
-    flags.path = undefined;
-  }
-  let scanned = null;
-  if (flags.dir !== undefined) {
-    scanned = dirIndex(flags.dir);
-    refresh = async () => scanned;
-    root = flags.dir;
-  }
-  if (flags.path) flags.path = repoRelative(root, flags.path);
-  const rows = await verbRows(cmd, text, flags, root, refresh);
-  return scanned && !rows.some((r) => r.loc) ? [...rows, { loc: '', text: scanSummary(flags.dir, scanned) }] : rows;
+  const target = await resolveTarget(flags, root, refresh);
+  if (target.error) return [{ loc: '', text: target.error }];
+  flags.path = target.path;
+  const found = await verbRows(cmd, text, flags, target.root, target.refresh);
+  const rows = target.prefix ? found.map((r) => (r.loc ? { ...r, loc: `${target.prefix}/${r.loc}` } : r)) : found;
+  const note = target.scanned && (target.scanned.truncated || !rows.some((r) => r.loc));
+  return note ? [...rows, { loc: '', text: scanSummary(target.dir, target.scanned) }] : rows;
+}
+
+/** Do these args leave the cwd repo (`--dir`, `--repo`, an outside `--path`)? The resident server leaves that to the caller's own process. */
+export function answersElsewhere(args, root) {
+  return scansOnDemand(parseCodeArgs(args).flags, root);
 }
 
 function verbRows(cmd, text, flags, root, refresh) {
