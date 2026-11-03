@@ -69,21 +69,36 @@ export function isSuiteShaped(cmd, suite) {
 
 const inWorkspace = (dir) => (dir ? `cd ${dir} && ` : '');
 
+// Crates the project's `suite` runs whole (`cargo test -p game`): that run is the suite, which belongs to the suite cadence.
+function suiteCrates(suite) {
+  const crates = new Set();
+  for (const cmd of suite.filter(unfilteredTest)) {
+    const toks = String(cmd).trim().split(/\s+/);
+    toks.forEach((t, i) => { if (t === '-p' || t === '--package') crates.add(toks[i + 1]); });
+  }
+  return crates;
+}
+
 // Workspace crates that depend, through the workspace's Cargo.lock, on a touched crate: their whole test run follows the touched
 // crate's mapped targets (KIT-D110). One command per workspace names every dependent, so cargo unifies features once and
 // compiles each shared crate once; a command per crate gave each its own feature set and recompiled the shared crates (KIT-T801).
-// A workspace without a lock yields none.
+// A workspace without a lock yields none. A dependent the project's `suite` runs whole is not in the command: its full run
+// is the suite (nightly), and a landing that ran it would exceed the five-minute ceiling (KIT-D104); it is returned as `deferred`.
 function dependentTests(cfg, cwd, sel) {
-  const out = [];
+  const commands = [];
+  const deferred = [];
+  const wholeSuite = suiteCrates(cfg.suite || []);
   const byWorkspace = new Map();
   for (const [name, ws] of sel.workspaces) byWorkspace.set(ws, [...(byWorkspace.get(ws) || []), name]);
   for (const [ws, names] of byWorkspace) {
     const lock = readLock(join(cwd, ws, 'Cargo.lock'));
     if (!lock) continue;
-    const deps = [...dependentsOf(lock, names)].filter((dep) => !names.includes(dep) && !sel.crates.has(dep) && (lock.get(dep) || {}).local);
-    if (deps.length) out.push(`${inWorkspace(ws)}${cfg.affected.test} ${deps.map((dep) => `-p ${dep}`).join(' ')}`);
+    const all = [...dependentsOf(lock, names)].filter((dep) => !names.includes(dep) && !sel.crates.has(dep) && (lock.get(dep) || {}).local);
+    const deps = all.filter((dep) => !wholeSuite.has(dep));
+    deferred.push(...all.filter((dep) => wholeSuite.has(dep)));
+    if (deps.length) commands.push(`${inWorkspace(ws)}${cfg.affected.test} ${deps.map((dep) => `-p ${dep}`).join(' ')}`);
   }
-  return out;
+  return { commands, deferred };
 }
 
 // One crate's mapped tests: the plain targets in one command, and each folded binary's module filters in a command of
@@ -106,9 +121,9 @@ export function landGate(cfg, cwd, job, files) {
   const given = Array.isArray(job.commands) && job.commands.length ? job.commands : [];
   const dropped = given.filter((c) => isSuiteShaped(c, cfg.suite));
   const kept = given.filter((c) => !dropped.includes(c));
-  const dependents = cfg.affected.dependents ? dependentTests(cfg, cwd, sel) : [];
-  if (kept.length && !cfg.affected.mandatory) return { commands: withConformance(cfg, [...new Set([cfg.affected.check, ...kept, ...dependents])], files), selection: { reasons: [], dropped, explicit: true } };
+  const { commands: dependents, deferred: deferredDependents } = cfg.affected.dependents ? dependentTests(cfg, cwd, sel) : { commands: [], deferred: [] };
+  if (kept.length && !cfg.affected.mandatory) return { commands: withConformance(cfg, [...new Set([cfg.affected.check, ...kept, ...dependents])], files), selection: { reasons: [], dropped, explicit: true, deferredDependents } };
   const tests = [...sel.crates].filter(([, specs]) => specs.size).flatMap(([name, specs]) => crateTests(cfg, sel.workspaces.get(name), name, specs));
   const commands = withConformance(cfg, [...new Set([cfg.affected.check, ...tests, ...dependents, ...kept])], files);
-  return { commands, selection: { reasons: sel.reasons, dropped } };
+  return { commands, selection: { reasons: sel.reasons, dropped, deferredDependents } };
 }

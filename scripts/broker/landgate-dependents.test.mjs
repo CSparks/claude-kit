@@ -62,6 +62,22 @@ test('a job that names its own --test commands still runs the dependents of the 
   } finally { cleanup(dir); }
 });
 
+test('a dependent the project suite runs whole is left to the suite cadence, in a job with its own --test list and without (KIT-D104)', () => {
+  const dir = layout();
+  try {
+    const suite = { ...cfg(true), suite: ['cargo test --offline -p top'] };
+    const own = ['cargo test -p base --test unit'];
+    const explicit = landGate(suite, dir, { commands: own }, files('crates/base/src/lib.rs'));
+    assert.deepEqual(explicit.commands, ['CHECK', ...own, 'cargo test -p mid']);
+    assert.deepEqual(explicit.selection.deferredDependents, ['top']);
+    const mapped = landGate(suite, dir, { commands: [] }, files('crates/base/src/lib.rs'));
+    assert.deepEqual(mapped.commands, ['CHECK', 'cargo test -p base --lib', 'cargo test -p mid']);
+    assert.deepEqual(mapped.selection.deferredDependents, ['top']);
+    const filtered = { ...cfg(true), suite: ['cargo test -p top --test slow'] };
+    assert.deepEqual(landGate(filtered, dir, { commands: [] }, files('crates/base/src/lib.rs')).commands, ['CHECK', 'cargo test -p base --lib', 'cargo test -p mid -p top'], 'control: a filtered suite command is not a whole-crate run');
+  } finally { cleanup(dir); }
+});
+
 test('negative controls: dependents off, a leaf crate and a registry dependent add nothing', () => {
   const dir = layout();
   try {
