@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // PreToolUse + PostToolUse (Bash|PowerShell) — catches a hand write of source by its EFFECT (KIT-T706,
-// KIT-D117). Pre snapshots the repo's dirty files; Post diffs the snapshot. A hand-authored source file the
+// KIT-D117). Pre snapshots the repo's dirty files and HEAD (a HEAD move, as a broker landing makes, is no write of the call); Post diffs the snapshot. A hand-authored source file the
 // call created, changed or deleted joins the session's hand-write ledger, and commit-gate refuses it until
 // Edit or Write re-saves it (pre-write judges length, comments and literals there). The call's command is
 // never parsed to find the write; only a generator command (git, a build tool, a formatter, a kit verb) is
@@ -8,7 +8,7 @@
 
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { clearTurnState, readTurnState, writeTurnState } from './lib/turn-state.mjs';
-import { snapshotDirty, handWrittenSources } from './lib/shell-snapshot.mjs';
+import { snapshotDirty, handWrittenSources, headOf } from './lib/shell-snapshot.mjs';
 import { addHandWrites } from './lib/hand-writes.mjs';
 
 const CHECK = 'source-shell-write';
@@ -24,7 +24,7 @@ try {
   const isPost = p.hook_event_name === 'PostToolUse' || (p.hook_event_name === undefined && p.tool_response !== undefined);
 
   if (!isPost) {
-    writeTurnState(root, { files: snapshotDirty(root) }, slot);
+    writeTurnState(root, { files: snapshotDirty(root), head: headOf(root) }, slot);
     process.exit(0);
   }
 
@@ -32,7 +32,7 @@ try {
   clearTurnState(root, slot);
   if (!before) process.exit(0);
   const command = String((p.tool_input && p.tool_input.command) || '');
-  const written = handWrittenSources(root, before.files || {}, command).filter((rel) => !pathExcluded(root, CHECK, rel));
+  const written = handWrittenSources(root, before.files || {}, command, before.head || '').filter((rel) => !pathExcluded(root, CHECK, rel));
   if (written.length) {
     addHandWrites(root, sid, written);
     const shown = written.slice(0, SHOWN_MAX);

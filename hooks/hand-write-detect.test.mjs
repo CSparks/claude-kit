@@ -127,6 +127,26 @@ try {
   const toNull = call(piped, 'S11', 'cat src/b.mjs 2>/dev/null | head -1 > src/a.mjs', () => rewrite(piped, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
   ok('KIT-T735 control: a benign redirect does not hide a real file redirect', toNull.status === 2);
 
+  const land = (d, files) => {
+    for (const [rel, text] of Object.entries(files)) writeFileSync(join(d, rel), text);
+    git(['add', '-A'], d);
+    git(['commit', '-q', '-m', 'landing'], d);
+  };
+  const landed = fresh();
+  writeFileSync(join(landed, 'src', 'a.mjs'), 'export const a = 5;\n');
+  writeFileSync(join(landed, 'src', 'b.mjs'), 'export const b = 5;\n');
+  const viaLanding = call(landed, 'S13', 'node scratch.js', () => land(landed, { 'src/a.mjs': 'export const a = 7;\n', 'src/b.mjs': 'export const b = 7;\n' }));
+  ok('KIT-T849: files a HEAD move committed during a call are the landing\'s, not the call\'s', viaLanding.status === 0 && !viaLanding.stderr.includes('HAND WRITE'));
+  ok('KIT-T849: a later commit is not refused for the landing\'s files', !commit(landed, 'S13', ['src/a.mjs']).out.includes('KIT-T706'));
+
+  const mixed = fresh();
+  writeFileSync(join(mixed, 'src', 'b.mjs'), 'export const b = 5;\n');
+  const viaMixed = call(mixed, 'S14', 'node scratch.js', () => {
+    land(mixed, { 'src/b.mjs': 'export const b = 7;\n' });
+    rewrite(mixed, "fs.writeFileSync(p, 'export const a = 9;\\n')");
+  });
+  ok('KIT-T849 control: a hand write during a call that also saw a HEAD move is still flagged, the landed file is not', viaMixed.status === 2 && viaMixed.stderr.includes('src/a.mjs') && !viaMixed.stderr.includes('src/b.mjs'));
+
   const gone = fresh();
   call(gone, 'S8', 'node scratch.js', () => rewrite(gone, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
   call(gone, 'S8', 'rm src/a.mjs', () => rewrite(gone, 'fs.unlinkSync(p)'));

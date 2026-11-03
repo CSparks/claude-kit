@@ -2,8 +2,10 @@
 // taken before the call and compared after it. Nothing is parsed to find a write, so every sink and path
 // form is seen alike.
 //   snapshotDirty(root) -> { [relPath]: signature }          capped at ENTRIES_MAX paths
-//   changedSince(root, before) -> paths the call created, modified, deleted or reverted
-//   handWrittenSources(root, before, command) -> created or changed hand-authored source paths still on disk;
+//   headOf(root) -> the commit HEAD names, '' outside a repo
+//   changedSince(root, before, headBefore) -> paths the call created, modified, deleted or reverted; a path a
+//     HEAD move since headBefore committed (a broker landing) and that is clean now is the landing's, not the call's
+//   handWrittenSources(root, before, command, headBefore) -> created or changed hand-authored source paths still on disk;
 //     a deleted path is no write (nothing is left to re-save), and [] when every segment of the command is a
 //     generator (git, a build tool, a formatter, a kit verb, a broker client script) or a reader with no file
 //     redirect (cat, grep, head): its output is no hand write, and a change that landed meanwhile (a broker
@@ -63,10 +65,20 @@ export function snapshotDirty(root) {
   return snap;
 }
 
-export function changedSince(root, before) {
+export const headOf = (root) => git(['rev-parse', '--verify', '-q', 'HEAD'], root).trim();
+
+const landedSince = (root, headBefore) => {
+  const now = headOf(root);
+  if (!headBefore || !now || now === headBefore) return new Set();
+  return new Set(git(['diff', '--name-only', '-z', headBefore, now], root).split('\0').filter(Boolean));
+};
+
+export function changedSince(root, before, headBefore = '') {
   const after = snapshotDirty(root);
+  const landed = landedSince(root, headBefore);
   const rels = new Set([...Object.keys(after), ...Object.keys(before)]);
-  return [...rels].filter((rel) => (after[rel] ?? signature(root, rel)) !== (before[rel] ?? null));
+  return [...rels].filter((rel) => !(landed.has(rel) && !(rel in after))
+    && (after[rel] ?? signature(root, rel)) !== (before[rel] ?? null));
 }
 
 const leaderOf = (text) => {
@@ -90,7 +102,7 @@ function isGeneratorCommand(command) {
   });
 }
 
-export function handWrittenSources(root, before, command) {
+export function handWrittenSources(root, before, command, headBefore = '') {
   if (isGeneratorCommand(command)) return [];
-  return changedSince(root, before).filter((rel) => isSourcePath(rel) && signature(root, rel) !== GONE);
+  return changedSince(root, before, headBefore).filter((rel) => isSourcePath(rel) && signature(root, rel) !== GONE);
 }
