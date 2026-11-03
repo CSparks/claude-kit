@@ -37,11 +37,12 @@ export const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <qu
   show <id>                   print one item in full (ticket, decision, note, question) from any store
   code <text> [filters]       SEARCH CODE/DOCS/CONFIG/TICKETS (the grep replacement): ranked, compact, verified
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
-                              --path crates/sim  --not-path <glob|dir> (repeatable; drops matches)  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
+                              --path crates/sim  --not-path <glob|dir> (repeatable; drops matches)
+                              --glob <glob> (-g, --include; repeatable; keeps only matching paths; !glob drops)  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
                               --project <name>  search that registered project's checkout (name or id key), e.g. the kit's scripts
                               --registry <crate-version|crate>  search one dependency crate's source (cargo registry or a vendor dir), paths absolute;
                               a bare crate resolves to the one version Cargo.lock pins, e.g. q code force --registry rapier3d-0.25.1 --lang rust
-  sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P] [--not-path G] [--registry <crate>]
+  sym [<name>] [--type fn,struct,impl,use,mod,…] [--fuzzy] [--lang L] [--path P] [--not-path G] [--glob G] [--registry <crate>]
                               definitions, impls, uses and the mod tree (Rust, WGSL, JS/TS, Python, md, toml; Cargo.lock pins as type package, version in the scope column)
   file <substring|glob> [--not-path G]
                               find files by path across the repo and its framework submodule

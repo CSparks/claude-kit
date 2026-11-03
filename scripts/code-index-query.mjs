@@ -23,13 +23,19 @@ const GAP = '\u0000';
 const DEFAULT_KINDS = ['code', 'doc', 'config'];
 const ALL_KINDS = [...DEFAULT_KINDS, 'ticket'];
 const TYPE_RANK = { fn: 0, struct: 1, enum: 1, trait: 1, class: 1, type: 1, const: 2, var: 2, macro: 2, mod: 3, impl: 4, use: 5, heading: 6, section: 6 };
-const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--not-path', '--type', '--limit', '--project', '--dir', '-C', '-A', '-B']);
+const VALUE_FLAGS = new Set(['--kind', '--lang', '--path', '--not-path', '--glob', '-g', '--include', '--type', '--limit', '--project', '--dir', '-C', '-A', '-B']);
 
 // grep habits whose behaviour q has always: line numbers are shown, the walk is recursive, paths are printed.
 const GREP_NOOP_FLAGS = new Set(['-n', '--line-number', '-r', '-R', '--recursive', '-H', '--with-filename', '--no-heading', '--color=never', '-s']);
 
+const GLOB_FLAGS = new Set(['--glob', '-g', '--include']);
 const ATTACHED_COUNT = /^-([ABC])(\d+)$/;
-const ATTACHED_VALUE = /^(--(?:kind|lang|path|not-path|type|limit|project|dir))=(.*)$/;
+const ATTACHED_VALUE = /^(--(?:kind|lang|path|not-path|glob|include|type|limit|project|dir))=(.*)$/;
+
+const cleanPath = (v) => v.replace(/\\/g, '/').replace(/^\.\//, '');
+
+// --glob keeps only matching paths (rg -g); a leading `!` drops the matches instead.
+const addGlob = (flags, v) => flags.globs.push(v.startsWith('!') ? `!${cleanPath(v.slice(1))}` : cleanPath(v));
 
 // `-B2` and `--lang=rust` mean `-B 2` and `--lang rust`, as in grep.
 const splitAttached = (args) => args.flatMap((a) => {
@@ -40,7 +46,7 @@ const splitAttached = (args) => args.flatMap((a) => {
 /** Split argv-style tokens into { text, flags }. A lone `--` makes the next token search text even when it starts with `-` (`q code -- --capture`). */
 export function parseCodeArgs(rawArgs) {
   const args = splitAttached(rawArgs);
-  const flags = { before: 0, after: 0, limit: DEFAULT_LIMIT, kinds: null, types: null, notPaths: [], unknown: [] };
+  const flags = { before: 0, after: 0, limit: DEFAULT_LIMIT, kinds: null, types: null, notPaths: [], globs: [], unknown: [] };
   const words = [];
   for (let i = 0; i < args.length; i++) {
     const a = String(args[i]);
@@ -50,8 +56,9 @@ export function parseCodeArgs(rawArgs) {
       if (a === '--kind') flags.kinds = String(v).split(',');
       else if (a === '--type') flags.types = String(v).split(',');
       else if (a === '--lang') flags.langs = String(v).split(',').map(langOfToken);
-      else if (a === '--path') flags.path = String(v).replace(/\\/g, '/').replace(/^\.\//, '');
-      else if (a === '--not-path') flags.notPaths.push(String(v).replace(/\\/g, '/').replace(/^\.\//, ''));
+      else if (a === '--path') flags.path = cleanPath(String(v));
+      else if (a === '--not-path') flags.notPaths.push(cleanPath(String(v)));
+      else if (GLOB_FLAGS.has(a)) addGlob(flags, String(v));
       else if (a === '--project') flags.project = String(v);
       else if (a === '--dir') flags.dir = String(v);
       else if (a === '--limit') flags.limit = Number(v);
@@ -189,16 +196,19 @@ function sqlFilters(flags, kinds) {
   return { where, params };
 }
 
-// --not-path drops a path: a glob (`**/tests/**`, `*_test.rs`; a glob with no `/` also matches the file name) or a plain directory/file prefix.
+// A path pattern: a glob (`**/tests/**`, `*_test.rs`; a glob with no `/` also matches the file name) or a plain directory/file prefix.
+const globTest = (p) => {
+  const re = globToRegExp(p);
+  return (rel) => re.test(rel) || (!p.includes('/') && re.test(rel.slice(rel.lastIndexOf('/') + 1)));
+};
+const pathTest = (p) => (/[*?]/.test(p) ? globTest(p) : (rel) => rel === p || rel.startsWith(dirPrefix(p)));
+
+// Drops a path matching any --not-path or `!` --glob, or matching none of the positive --globs when any is given.
 const excluder = (flags) => {
-  const tests = flags.notPaths.map((p) => {
-    if (/[*?]/.test(p)) {
-      const re = globToRegExp(p);
-      return (rel) => re.test(rel) || (!p.includes('/') && re.test(rel.slice(rel.lastIndexOf('/') + 1)));
-    }
-    return (rel) => rel === p || rel.startsWith(dirPrefix(p));
-  });
-  return (rel) => tests.some((t) => t(rel));
+  const globs = flags.globs || [];
+  const drops = [...flags.notPaths.map(pathTest), ...globs.filter((g) => g.startsWith('!')).map((g) => globTest(g.slice(1)))];
+  const keeps = globs.filter((g) => !g.startsWith('!')).map(globTest);
+  return (rel) => drops.some((t) => t(rel)) || (keeps.length > 0 && !keeps.some((t) => t(rel)));
 };
 
 const memFilter = (files, flags, kinds) => {

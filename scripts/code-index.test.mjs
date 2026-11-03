@@ -207,6 +207,20 @@ await test('--not-path drops globs and directories from code, sym and file; repe
   assert.deepEqual(locs(await rows('file', ['terrain', '--not-path', '*.wgsl'])), [], 'file honours a basename glob');
 });
 
+await test('--glob keeps only matching paths in code and sym; repeatable, -g and --include alias it, ! negates (KIT-T843)', async () => {
+  const all = locs(await rows('code', ['camp']));
+  const sim = all.filter((l) => l.startsWith('src/sim.rs'));
+  assert.ok(sim.length && sim.length < all.length, 'baseline has src/sim.rs and other hits');
+  assert.deepEqual(locs(await rows('code', ['camp', '--glob', 'sim.rs'])), sim, 'a basename glob keeps matching files');
+  assert.deepEqual(locs(await rows('code', ['camp', '--glob', '**/sim.rs'])), sim, 'a path glob keeps matching files');
+  assert.deepEqual(locs(await rows('code', ['camp', '--glob=*.rs', '--path', 'src'])), all.filter((l) => l.startsWith('src/')), '--glob=VALUE composes with --path');
+  assert.deepEqual(locs(await rows('code', ['camp', '-g', '*.rs', '--include', '*.toml'])).sort(), all.filter((l) => /\.(rs|toml):/.test(l)).sort(), 'globs are alternatives; -g and --include alias --glob');
+  assert.deepEqual(locs(await rows('code', ['camp', '--glob', '!sim.rs'])), all.filter((l) => !l.startsWith('src/sim.rs')), 'a leading ! drops the match');
+  assert.deepEqual(locs(await rows('code', ['camp', '--glob', '*.nothing'])), [], 'a glob matching no file yields no hits');
+  assert.equal(parseCodeArgs(['x', '--glob', '*.mjs']).flags.unknown.length, 0, '--glob is a known flag');
+  assert.deepEqual((await rows('sym', ['--type', 'trait', '--glob', 'lib.rs'])).map((r) => r.name), ['Wake'], 'sym honours --glob');
+});
+
 await test('unknown flag is reported, not silently ignored', async () => {
   process.env.CLAUDE_KIT_BUG_STORE = 'off';
   const r = await rows('code', ['camp', '--bogus']);
