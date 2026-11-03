@@ -9,19 +9,16 @@
 
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { itemTitle } from './lib/item-title.mjs';
+import { stems } from './lib/stems.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
 const CHECK_ID = 'ids-described';
 const ID = /\b[A-Z][A-Z0-9]+-[TDQ]\d{1,4}\b/g;
-const WORD = /[a-z]{5,}/g;
 const MIN_HITS = 2;
-const STEM_CHARS = 5;
 const MAX_TITLE_SHOWN = 90;
-const STOPWORDS = new Set(['about', 'above', 'after', 'again', 'being', 'before', 'could', 'every', 'their', 'there', 'these', 'those', 'which', 'while', 'would', 'where', 'should', 'other', 'still']);
 
 const optionText = (o) => `${o?.label || ''} ${o?.description || ''}`;
 const questionText = (q) => [q?.header, q?.question, ...(Array.isArray(q?.options) ? q.options.map(optionText) : [])].filter(Boolean).join(' ');
-const stems = (text) => new Set((String(text).toLowerCase().match(WORD) || []).filter((w) => !STOPWORDS.has(w)).map((w) => w.slice(0, STEM_CHARS)));
 
 function undescribed(root, q) {
   const text = questionText(q);
