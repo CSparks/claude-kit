@@ -4,9 +4,12 @@
 //
 //   movedPaths(repoDir, fromSha, toSha) -> paths changed between the two commits, a moved submodule pin expanded to the
 //                                          paths changed inside it (prefixed with the submodule's path); [] when unknown
+//   cachedMoved(file)                  -> the same, remembered on disk per commit pair, beating the daemon's heartbeat on a miss
 
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from './git.mjs';
+import { pulse } from './stall.mjs';
 
 const GITLINK = '160000';
 const RAW = /^:(\d+) (\d+) ([0-9a-f]+) ([0-9a-f]+) \S+\t(.+)$/;
@@ -24,4 +27,28 @@ export function movedPaths(repoDir, fromSha, toSha) {
     else paths.push(path);
   }
   return paths;
+}
+
+const readCache = (file) => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return {}; } };
+
+/**
+ * `movedPaths` memoised in `file`: a commit pair never changes, so each pair costs one git diff for the life of the
+ * lane. A miss beats the daemon's heartbeat; `save()` keeps only the pairs asked for since the cache was opened.
+ *   cachedMoved(file) -> { moved(repoDir, fromSha, toSha), save() }
+ */
+export function cachedMoved(file) {
+  const known = readCache(file);
+  const used = {};
+  const moved = (repoDir, fromSha, toSha) => {
+    if (!fromSha || !toSha || fromSha === toSha) return [];
+    const key = [repoDir, fromSha, toSha].join('\0');
+    if (!known[key]) { pulse(); known[key] = movedPaths(repoDir, fromSha, toSha); }
+    used[key] = known[key];
+    return used[key];
+  };
+  const save = () => {
+    if (JSON.stringify(used) === JSON.stringify(readCache(file))) return;
+    try { writeFileSync(file, JSON.stringify(used)); } catch { /* the cache is best effort */ }
+  };
+  return { moved, save };
 }

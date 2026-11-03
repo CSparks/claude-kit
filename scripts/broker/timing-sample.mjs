@@ -12,14 +12,14 @@
 //
 //   sampleOf(members, { project, lane, bases }) -> { id, project, lane, at, turnaroundMs, jobs, entries, cache }
 //   samplesFromResults(results, ctx)         -> samples, the members of one train counted once
-//   laneSamples(cfg)                         -> samples of one lane's result files
+//   laneSamples(cfg)                         -> samples of one lane's result files (the base movement between jobs is cached on disk)
 
 import { basename, join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { commandSplit } from './metrics.mjs';
 import { loadResults, submittedAt } from './stats.mjs';
 import { cratesOf, targetsOf } from './timing-cmd.mjs';
-import { movedPaths } from './timing-moved.mjs';
+import { cachedMoved } from './timing-moved.mjs';
 import { diffPaths, reachBases } from './timing-reach.mjs';
 import { wasteOf } from './timing-waste.mjs';
 
@@ -27,6 +27,7 @@ export const PHASE = 'phase';
 export const CRATE = 'crate';
 export const TEST = 'test';
 export const QUEUE = 'queue';
+const MOVED_CACHE = 'moved-cache.json';
 const TEST_COMMAND = /\bcargo\b.*\b(?:test|t|nextest)\b/;
 
 const LOG_OWNER = /^(j-[0-9a-z]+-[0-9a-z]+)-/;
@@ -96,6 +97,9 @@ export const laneName = (cfg) => cfg.lane || 'root';
 export function laneSamples(cfg) {
   const bases = reachBases(cfg);
   const repoDir = (result) => join(cfg.root, cfg.repos.find((r) => r.name === result.repo)?.path || '.');
-  const movedBetween = (prev, cur) => (prev.repo === cur.repo ? movedPaths(repoDir(cur), prev.base, cur.base) : []);
-  return samplesFromResults(loadResults(brokerPaths(cfg).results), { project: basename(cfg.root), lane: laneName(cfg), bases, movedBetween });
+  const { moved, save } = cachedMoved(join(brokerPaths(cfg).home, MOVED_CACHE));
+  const movedBetween = (prev, cur) => (prev.repo === cur.repo ? moved(repoDir(cur), prev.base, cur.base) : []);
+  const samples = samplesFromResults(loadResults(brokerPaths(cfg).results), { project: basename(cfg.root), lane: laneName(cfg), bases, movedBetween });
+  save();
+  return samples;
 }

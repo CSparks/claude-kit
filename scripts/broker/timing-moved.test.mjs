@@ -3,9 +3,10 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { movedPaths } from './timing-moved.mjs';
+import { cachedMoved, movedPaths } from './timing-moved.mjs';
+import { setPulse } from './stall.mjs';
 import { cleanup, g, makeRepo, tempDir } from './testkit.mjs';
 
 const commit = (dir, files, message) => {
@@ -40,4 +41,29 @@ test('a moved submodule pin becomes the paths that changed inside the submodule'
     const after = g(['rev-parse', 'HEAD'], top).trim();
     assert.deepEqual(movedPaths(top, before, after), ['fw/rust/core/rg-a/src/lib.rs']);
   } finally { cleanup(top); cleanup(sub); }
+});
+
+test('cachedMoved asks git once per commit pair, beats the heartbeat on a miss, and keeps only the pairs asked for', () => {
+  const dir = makeRepo(tempDir('moved-cache-'));
+  const file = join(dir, '.git', 'moved-cache.json');
+  const beats = [];
+  setPulse(() => beats.push(1));
+  try {
+    const a = g(['rev-parse', 'HEAD'], dir).trim();
+    const b = commit(dir, { 'crates/a/src/lib.rs': 'x' }, 'one file');
+    const first = cachedMoved(file);
+    assert.deepEqual(first.moved(dir, a, b), ['crates/a/src/lib.rs']);
+    first.save();
+    assert.equal(beats.length, 1, 'a miss beats the heartbeat');
+    const second = cachedMoved(file);
+    assert.deepEqual(second.moved(join(dir, 'not-a-repo'), a, b), [], 'another repo dir is another key');
+    assert.deepEqual(second.moved(dir, a, b), ['crates/a/src/lib.rs'], 'a known pair is read from the file, git is not asked');
+    second.save();
+    assert.equal(Object.keys(JSON.parse(readFileSync(file, 'utf8'))).length, 2);
+    const third = cachedMoved(file);
+    third.moved(dir, a, b);
+    third.save();
+    assert.equal(Object.keys(JSON.parse(readFileSync(file, 'utf8'))).length, 1, 'a pair no longer asked for is dropped');
+    assert.deepEqual(third.moved(dir, b, b), []);
+  } finally { setPulse(null); cleanup(dir); }
 });

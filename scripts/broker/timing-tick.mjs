@@ -8,9 +8,10 @@
 //   3. comments "left the top" on the own tickets of blockers that dropped out.
 // Nothing here stops, kills or refuses a job: a long job is data, waste is the target.
 //
-//   timingTick(rootCfg, { now, everyMs, windowMs, topN, roll, comment }) -> { events, filed, left, lanes } | null (not due)
+//   timingTick(rootCfg, { now, everyMs, windowMs, topN, roll, comment }) -> { events, filed, left, lanes } | null (not due, or a
+//     job is queued on this daemon's lane: the tick runs synchronously, so it waits for an empty queue)
 //   NO_FILING_ENV                                  -> set by the testkit: a fixture never files into the real kit store
-//   materialSinks(rootCfg, lanes, { now, windowMs, topN }) -> the ranked rows worth listing (no lever working on them, material)
+//   materialSinks(rootCfg, lanes, { now, windowMs, topN, samples }) -> the ranked rows worth listing (no lever working on them, material)
 //   laneShape(project, lane)                     -> the dedup shape of a lane's rolling ticket
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -21,6 +22,8 @@ import { brokerPaths, laneConfigs, withLane } from './config.mjs';
 import { correctingIds, selfCorrect } from './timing-correct.mjs';
 import { DEFAULT_TOP, DEFAULT_WINDOW_MS, blockerId, isMaterial, profile } from './timing-profile.mjs';
 import { checkoutSamples, describe } from './timing-report.mjs';
+import { laneSamples } from './timing-sample.mjs';
+import { listQueue } from './result.mjs';
 
 export const NO_FILING_ENV = 'CLAUDE_KIT_NO_BUG_FILING';
 export const TICK_EVERY_MS = 3600000;
@@ -43,9 +46,9 @@ export function laneBody(project, lane, rows) {
 
 const byLane = (rows) => rows.reduce((m, row) => m.set(`${row.project}|${row.lane}`, [...(m.get(`${row.project}|${row.lane}`) || []), row]), new Map());
 
-export function materialSinks(rootCfg, lanes, { now, windowMs, topN }) {
+export function materialSinks(rootCfg, lanes, { now, windowMs, topN, samples = checkoutSamples(rootCfg) }) {
   const skip = new Set(lanes.flatMap(correctingIds));
-  return profile(checkoutSamples(rootCfg), { now, windowMs, topN }).top.filter((row) => !skip.has(blockerId(row)) && isMaterial(row));
+  return profile(samples, { now, windowMs, topN }).top.filter((row) => !skip.has(blockerId(row)) && isMaterial(row));
 }
 
 export function timingTick(rootCfg, { now = Date.now(), everyMs = TICK_EVERY_MS, windowMs = DEFAULT_WINDOW_MS, topN = DEFAULT_TOP, roll, comment } = {}) {
@@ -53,10 +56,11 @@ export function timingTick(rootCfg, { now = Date.now(), everyMs = TICK_EVERY_MS,
   const post = roll || (filing ? rollKitQueueTicket : quiet);
   const note = comment || (filing ? commentKitBug : quiet);
   const state = readState(rootCfg);
-  if (now - state.at < everyMs) return null;
+  if (now - state.at < everyMs || listQueue(rootCfg).length) return null;
   const lanes = laneConfigs(withLane(rootCfg, null));
-  const events = lanes.flatMap((lane) => selfCorrect(lane, { now, windowMs }));
-  const top = materialSinks(rootCfg, lanes, { now, windowMs, topN });
+  const samples = lanes.map((lane) => laneSamples(lane));
+  const events = lanes.flatMap((lane, i) => selfCorrect(lane, { now, windowMs, samples: samples[i] }));
+  const top = materialSinks(rootCfg, lanes, { now, windowMs, topN, samples: samples.flat() });
   const laneRows = byLane(top);
   const rolled = { ...(state.lanes || {}) };
   for (const key of new Set([...laneRows.keys(), ...Object.keys(rolled)])) {

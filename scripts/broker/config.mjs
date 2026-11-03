@@ -13,7 +13,7 @@
 //     poll_ms: 2000                                # daemon queue poll interval
 //     coalesce_ms: 2000                            # a drain waits until the queue has been quiet this long (0 starts at once), so
 //                                                    # back-to-back submits form one train; capped at 5x this from the oldest job
-//     stall_kill_s: 600                            # wait/submit kill a daemon silent this long (default 600; 0 never kills)
+//     stall_kill_s: 180                            # wait/submit kill a daemon silent this long (default 180; 0 never kills)
 //     writer_cap: 3                                # most patch-worker agents in flight per checkout (dispatch-worker.mjs)
 //     command_timeout_multiple: 4                  # a job command is killed past this multiple of its longest passing run (command-limit.mjs)
 //     command_timeout_floor_s: 600                 # ... but never before this many seconds; 0 turns the timeout off

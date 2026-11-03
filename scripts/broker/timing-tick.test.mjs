@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { tunedBaselineBudgetMs, tunedBatchWindowMs } from './timing-tuning.mjs';
 import { timingTick } from './timing-tick.mjs';
 import { blockersReport } from './timing-report.mjs';
+import { ensureDirs, removeJob, writeJob } from './result.mjs';
 import { cleanup, tempDir } from './testkit.mjs';
 
 const S = 1000;
@@ -46,6 +47,20 @@ test('a lane whose top blocker is the slot queue gets the batch window; the queu
     assert.ok(rec.calls.length > 0 && !/phase queue/.test(sinks(rec)), 'the queue has a lever on it, so it is not listed');
     assert.match(sinks(rec), /crate a in /, 'what no lever works on is listed');
     assert.equal(timingTick(cfg, { now: T + 1000, ...rec }), null, 'not due again within the cadence');
+  } finally { cleanup(root); }
+});
+
+test('the tick leaves a queued job alone: it runs only once the queue is empty, and is then still due', () => {
+  const { root, cfg } = fixture();
+  try {
+    history(cfg);
+    ensureDirs(cfg);
+    writeJob(cfg, { id: 'j-1-a', repo: 'r', ops: [] });
+    const rec = recorder();
+    assert.equal(timingTick(cfg, { now: T, ...rec }), null, 'a queued job is not made to wait for the tick');
+    assert.deepEqual(rec.calls, []);
+    removeJob(cfg, 'j-1-a');
+    assert.ok(timingTick(cfg, { now: T, ...rec }), 'the empty queue lets the due tick run');
   } finally { cleanup(root); }
 });
 

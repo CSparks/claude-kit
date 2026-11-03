@@ -10,7 +10,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { dependentsOf, readLock } from './cargo-lock.mjs';
+import { dependentsOf, readLockMemo } from './cargo-lock.mjs';
 import { cratesOf } from './timing-cmd.mjs';
 
 const RUST_PATH = /\.(?:rs|toml)$|Cargo\.lock$/;
@@ -34,7 +34,7 @@ function crateAt(file, bases) {
 function locksAbove(dir) {
   const locks = [];
   for (let d = dir; ; d = dirname(d)) {
-    const lock = readLock(join(d, 'Cargo.lock'));
+    const lock = readLockMemo(join(d, 'Cargo.lock'));
     if (lock) locks.push(lock);
     if (dirname(d) === d) return locks;
   }

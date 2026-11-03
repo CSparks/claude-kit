@@ -22,7 +22,7 @@ import { liveHolder } from './lock.mjs';
 import { listQueue } from './result.mjs';
 
 export const STALL_MS = 2 * 60 * 1000;
-export const RESTART_MS = 10 * 60 * 1000;
+export const RESTART_MS = 3 * 60 * 1000;
 const PULSE_EVERY_MS = 1000;
 const MS_PER_S = 1000;
 export const LAND_PHASES = new Set(['commit', 'pre-push gate', 'rebase', 'reverify', 'push', 'pin', 'resume']);

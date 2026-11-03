@@ -37,6 +37,23 @@ test('a live holder whose beat is older than STALL_MS with jobs queued is STALLE
   } finally { s.done(); }
 });
 
+test('with the default limit, a holder silent for 4 minutes with a job queued is replaced; one silent for 2.5 minutes is not', () => {
+  const s = fixture();
+  const FOUR_MIN_MS = 4 * 60 * 1000;
+  try {
+    ensureDirs(s.cfg);
+    holdLock(s);
+    heartbeat(s.cfg);
+    writeJob(s.cfg, { id: 'j-1-a', repo: 'app', ops: [] });
+    const killed = [];
+    ageBeat(s, STALL_MS + 30_000);
+    assert.equal(restartIfWedged(s.cfg, s.root, { kill: (pid) => killed.push(pid), spawner: () => {} }), false);
+    ageBeat(s, FOUR_MIN_MS);
+    assert.equal(restartIfWedged(s.cfg, s.root, { kill: (pid) => killed.push(pid), spawner: () => {} }), true);
+    assert.deepEqual(killed, [process.pid]);
+  } finally { s.done(); }
+});
+
 test('negative: a fresh beat, an empty queue, or no lock holder is not a stall', () => {
   const s = fixture();
   try {
