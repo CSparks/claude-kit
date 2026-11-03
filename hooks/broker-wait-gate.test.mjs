@@ -106,7 +106,7 @@ try {
   const s = tag(`node ${BROKER}/submit.mjs --root D:/x --ticket T-1`);
   ok('a subagent submit gets --agent <id> right after the script', s.input?.command === `node ${BROKER}/submit.mjs --agent a1b2c3d4e5f6a7b8c --root D:/x --ticket T-1`);
   const w = tag(`node ${BROKER}/wait.mjs j-1-a --root D:/x`);
-  ok('a subagent wait gets --agent and --timeout 280', /wait\.mjs --agent a1b2c3d4e5f6a7b8c --timeout 280 j-1-a/.test(w.input?.command));
+  ok('a subagent wait gets --agent and --timeout 280', /wait\.mjs --agent a1b2c3d4e5f6a7b8c --timeout 280 --tool-timeout 290 j-1-a/.test(w.input?.command));
   ok('the wait gets a Bash timeout under 5 minutes that outlasts the wait', w.input?.timeout === 290000);
   ok('negative: a wait that names its --timeout keeps it', /--timeout 120\b/.test(tag(`node ${BROKER}/wait.mjs j-1-a --timeout 120`).input?.command) && !/--timeout 280/.test(tag(`node ${BROKER}/wait.mjs j-1-a --timeout 120`).input?.command));
   ok('negative: the main thread is untouched', tag(`node ${BROKER}/submit.mjs --root D:/x`, {}, {}).input === null);

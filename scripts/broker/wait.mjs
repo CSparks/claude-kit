@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 // wait.mjs — block on a job's result with a bounded poll, print it, and exit with the job's
 // status so a worker's turn is never left stopped on a background task. exit 0 = passed or landed;
-// 1 = failed/stale/gate/conflict/dirty; 2 = timed out (the job is still queued or running: wait again). A result older than the job's current
+// 1 = failed/stale/gate/conflict/dirty; 2 = timed out, killed or crashed while the job is still queued or running: wait again, never a failing code (KIT-T851). A result older than the job's current
 // inflight run is a previous attempt's and is not final. The last stdout line is `wait: <id> <state> (exit N)` (KIT-T840).
 //
 // A heartbeat line (heartbeat.mjs: queue position, or running time and command) goes to stderr
 // every --heartbeat seconds (default 60; 0 = off).
 //
-// USE: node wait.mjs <id> --root <build-checkout> [--timeout <s>] [--poll <ms>] [--grace-ms <ms>] [--heartbeat <s>]
+// USE: node wait.mjs <id> --root <build-checkout> [--timeout <s>] [--tool-timeout <s>] [--poll <ms>] [--grace-ms <ms>] [--heartbeat <s>]
 // exit 3 = the id is unknown (not queued, running or resulted). A --root naming a submodule maps to its lane (root-map.mjs).
+// (--tool-timeout: the Bash call's own timeout; wait ends itself 10 s before it, default 120 s, so --timeout is cut to fit)
 // (--grace-ms: how long no broker may be seen before wait says so; default 10000, a restart's gap)
 
 import { parseFlags, loadCfg } from './cli.mjs';
@@ -27,11 +28,9 @@ import { restartIfWedged } from './stall.mjs';
 import { holdAge, holdLine, holdReport } from './hand-hold.mjs';
 import { subagentRefusal } from './agent.mjs';
 import { heartbeatKey, repeatPrinter } from './collapse-repeats.mjs';
+import { armWaitGuard } from './wait-guard.mjs';
+import { waitWindow } from './wait-limits.mjs';
 
-// A foreground Bash call with no timeout argument is killed at 120 s (exit 137, no output): the default
-// ends the wait first, with exit 2 and the queue position. A longer wait names --timeout (up to 540) and
-// runs with the Bash tool's timeout raised to 600000, or in the background.
-const DEFAULT_TIMEOUT_S = 100;
 const DEFAULT_HEARTBEAT_S = 60;
 const EXIT = { OK: 0, NOT_OK: 1, RUNNING: 2, UNKNOWN: 3 };
 const flags = parseFlags(process.argv.slice(2));
@@ -50,7 +49,9 @@ if (!id) {
 const refusal = subagentRefusal('wait', flags);
 if (refusal) { console.error(`wait: ${refusal}`); process.exit(2); }
 const { root, cfg: rootCfg } = loadCfg(flags);
-const timeoutMs = (Number(flags.timeout) || DEFAULT_TIMEOUT_S) * 1000;
+const window = waitWindow(flags);
+const timeoutMs = window.seconds * 1000;
+if (window.clamped) console.error(`wait: --timeout ${window.asked} cut to ${window.seconds} s to end inside the Bash call's window; pass --tool-timeout <s> with a matching Bash timeout for longer`);
 const pollMs = Number(flags.poll) || rootCfg.pollMs;
 const graceMs = flags['grace-ms'] === undefined ? NO_BROKER_GRACE_MS : Number(flags['grace-ms']);
 const beatMs = (flags.heartbeat === undefined ? DEFAULT_HEARTBEAT_S : Number(flags.heartbeat)) * 1000;
@@ -67,6 +68,7 @@ if (!known(laneCfgFor(rootCfg, id))) {
   finish('UNKNOWN JOB', EXIT.UNKNOWN);
 }
 
+const disarm = armWaitGuard(() => finish('STILL RUNNING', EXIT.RUNNING));
 const deadline = Date.now() + timeoutMs;
 let warned = false;
 let missingSince = null;
@@ -76,6 +78,7 @@ while (Date.now() < deadline) {
   const cfg = laneCfgFor(rootCfg, id);
   const result = readResult(cfg, id);
   if (result && isCurrentResult(cfg, result)) {
+    disarm();
     beats.flush();
     printResult(result);
     const hold = result.status === STATUS.DIRTY ? holdReport(cfg) : null;

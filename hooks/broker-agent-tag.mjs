@@ -25,12 +25,14 @@ try {
   const named = calls.find((c) => c.script === 'wait')?.words;
   const waitS = named && named.includes('--timeout') ? Number(named[named.indexOf('--timeout') + 1]) || DEFAULT_WAIT_S : DEFAULT_WAIT_S;
   const waits = calls.some((c) => c.script === 'wait');
+  const toolMs = Math.min(waitS * 1000 + TOOL_SLACK_MS, MAX_TOOL_TIMEOUT_MS - TOOL_SLACK_MS);
   const tagged = command.replace(CALL, (all, head, script) => {
     const agentFlag = /--agent\b/.test(command) ? '' : ` --agent ${agent}`;
     const timeoutFlag = script === 'wait' && !/--timeout\b/.test(command) ? ` --timeout ${DEFAULT_WAIT_S}` : '';
-    return `${head}${agentFlag}${timeoutFlag}`;
+    const toolFlag = script === 'wait' && !/--tool-timeout\b/.test(command) ? ` --tool-timeout ${toolMs / 1000}` : '';
+    return `${head}${agentFlag}${timeoutFlag}${toolFlag}`;
   });
-  const timeout = waits ? { timeout: Math.min(waitS * 1000 + TOOL_SLACK_MS, MAX_TOOL_TIMEOUT_MS - TOOL_SLACK_MS) } : {};
+  const timeout = waits ? { timeout: toolMs } : {};
   if (tagged === command && !waits) process.exit(0);
   process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input, command: tagged, ...timeout } } }));
 } catch { /* fail-open: an untagged call still runs */ }
