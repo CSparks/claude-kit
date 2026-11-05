@@ -12,7 +12,7 @@ import {
 import { recordTurnWrite, recordSubmoduleActivity } from './turn-writes.mjs';
 import { handEditWarning } from './lib/broker-hand-edit.mjs';
 import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
-import { FILE_HARD, FILE_SOFT } from './lib/limits.mjs';
+import { FILE_HARD, FILE_SOFT, fileLengthVerdict } from './lib/limits.mjs';
 import { commentFindings } from './lib/comment-gate.mjs';
 import { storeWriteViolation } from './lib/store-write-gate.mjs';
 import { scratchOnlyViolation } from './lib/scratch-only.mjs';
@@ -500,11 +500,22 @@ if (sqlStr.length) warns.push({ id: 'sql-injection', msg: 'POSSIBLE string-built
 // an Edit's fragment. Every other check stays fragment-scoped: they are line-keyed at the
 // diff, and re-scanning whole files would block an unrelated edit on pre-existing
 // violations.
+//
+// An edit to a file already over the hard limit passes when it adds at most
+// OVERSIZED_NET_GROWTH_ALLOWED net lines (KIT-T857); `preEditLength` is the on-disk size.
+function preEditLength() {
+  try {
+    return readFileSync(file, 'utf8').replace(/\r\n/g, '\n').split('\n').length;
+  } catch {
+    return 0;
+  }
+}
 
 if (!excludedFile('file-length')) {
   const len = postEdit().text.split('\n').length;
-  if (len > FILE_HARD) viols.push({ id: 'file-length', msg: `File length ${len} exceeds hard limit ${FILE_HARD} — split into cohesive modules.` });
-  else if (len > FILE_SOFT) warns.push({ id: 'file-length', msg: `File length ${len} exceeds soft limit ${FILE_SOFT} — consider splitting.` });
+  const verdict = fileLengthVerdict(preEditLength(), len);
+  if (verdict === 'block') viols.push({ id: 'file-length', msg: `File length ${len} exceeds hard limit ${FILE_HARD} — split into cohesive modules.` });
+  else if (verdict === 'warn') warns.push({ id: 'file-length', msg: `File length ${len} exceeds soft limit ${FILE_SOFT} — consider splitting.` });
 }
 
 finish(viols, warns);

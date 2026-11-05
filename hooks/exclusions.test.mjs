@@ -122,8 +122,19 @@ try {
   const lenRepo = makeRepo(null);
   const huge = join(lenRepo, 'src', 'other', 'huge.ts');
   writeFileSync(huge, 'const a = someCall();\n'.repeat(700));
-  expect('file-length: a small Edit onto an over-limit file BLOCKS',
-    runEdit(lenRepo, huge, 'const a = someCall();\n', 'const a = someCall();\nconst b = someCall();\n'), 2);
+  // KIT-T857: an oversized file takes an edit that does not grow it or adds <= 3 net lines.
+  const line = 'const a = someCall();\n';
+  const grow = (n) => line + 'const b = someCall();\n'.repeat(n);
+  expect('file-length: oversized file, net +1 line is allowed', runEdit(lenRepo, huge, line, grow(1)), 0);
+  expect('file-length: oversized file, net +3 lines is allowed', runEdit(lenRepo, huge, line, grow(3)), 0);
+  expect('file-length: oversized file, net +4 lines BLOCKS', runEdit(lenRepo, huge, line, grow(4)), 2);
+  expect('file-length: oversized file, net 0 (rewrite in place) is allowed',
+    runEdit(lenRepo, huge, line, 'const c = someCall();\n'), 0);
+  expect('file-length: oversized file, shrinking edit is allowed', runEdit(lenRepo, huge, line + line, line), 0);
+
+  const edge = join(lenRepo, 'src', 'other', 'edge.ts');
+  writeFileSync(edge, line.repeat(599));
+  expect('file-length: under -> over the hard limit BLOCKS even by +1', runEdit(lenRepo, edge, line, grow(1)), 2);
 
   const small = join(lenRepo, 'src', 'other', 'small.ts');
   writeFileSync(small, 'const a = someCall();\n'.repeat(10));
