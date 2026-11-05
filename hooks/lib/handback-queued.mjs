@@ -13,11 +13,17 @@ const DISPATCHABLE_STEPS = new Set(['successor', 'fresh-worker']);
 const ENDED = new Set(['done', 'error', 'killed', 'stale', 'collected', 'merged']);
 const BRIEF_SHOWN = 400;
 
+// The newest row for the ticket queued after the item's agent retired; an older row belongs to an earlier handoff and
+// was consumed by the dispatch that followed it.
+const liveRow = (queued, item) => queued
+  .filter((row) => (row.tickets || []).includes(item.ticket) && String(row.ts || '') >= String(item.retired || ''))
+  .sort((a, b) => String(b.ts).localeCompare(String(a.ts)))[0];
+
 export function applyQueued(root, rows, items) {
   const queued = readQueued(root);
   if (!queued.length) return items;
   return items.map((item) => {
-    const q = item.ticket && DISPATCHABLE_STEPS.has(item.step) ? queued.find((row) => (row.tickets || []).includes(item.ticket)) : null;
+    const q = item.ticket && DISPATCHABLE_STEPS.has(item.step) ? liveRow(queued, item) : null;
     if (!q) return item;
     const blocker = rows.find((r) => r.id === q.blockedBy);
     if (blocker && !ENDED.has(blocker.status)) {

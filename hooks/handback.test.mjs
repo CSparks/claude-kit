@@ -58,7 +58,7 @@ try {
   reset(); roster(row()); ledger(); finishedLine(30); result();
   const ready = stopResumable();
   ok('normal hand-back: a finished job nobody picked up blocks with RESULT READY and the agent to reopen', ready.code === 2 && ready.out.includes(`RESULT READY: ${JOB} landed (landed 01234567) for ${TICKET}, reopen ${OLD}`) && /NEXT STEP reopen/.test(ready.out));
-  ok('the same prompt surfaces the step as context, once per set', prompt(`same-${RUN}`).out.includes(`RESULT READY: ${JOB}`) && prompt(`same-${RUN}`).out.trim() === '');
+  ok('an open step is surfaced as context on every prompt until it is taken (KIT-T855)', prompt(`same-${RUN}`).out.includes(`RESULT READY: ${JOB}`) && prompt(`same-${RUN}`).out.includes(`RESULT READY: ${JOB}`));
   ok('orient lists the same step under ENDED WORKERS', /ENDED WORKERS, OPEN WORK[\s\S]*RESULT READY/.test(hook('orient.mjs', {}, d).out));
   const failed = stopResumable();
   ok('surfaced earlier and still not done: the gate names the failing step and the count', failed.code === 2 && /FAILED STEP reopen: surfaced \d+x/.test(failed.out));

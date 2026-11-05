@@ -2,14 +2,14 @@
 // Stop — the SUCCESSOR gate (KIT-T718, KIT-T822). Work a worker left open when it ended any way (hand-back, crash, usage
 // limit, killed session) is recovered by the reconciler (lib/handback.mjs): a ready result -> reopen, a lost job ->
 // resubmit or a fresh worker, a Handoff or a dead agent -> a successor. orient and the UserPromptSubmit hook surface each
-// step; this gate blocks ONCE per distinct set only for what is still open, naming the step that did not happen
-// (surfaced earlier and still open), the step not yet taken (first surfacing), or the case the reconciler cannot
-// rebuild. `stop_hook_active` allows; fails open on any error.
+// step; this gate blocks at every stop for what is still open, naming the step that did not happen (surfaced earlier
+// and still open) or the step not yet taken (first surfacing). A case the reconciler cannot rebuild blocks once per
+// session. `stop_hook_active` allows; fails open on any error.
 // Check-id: successor (path glob matched against the ticket id).
 
 import { firstSighting } from './block-once.mjs';
 import { adopted, excludeFooter, gitRoot, pathExcluded, payload, readAgents } from './lib.mjs';
-import { reconcileHandbacks, brokerDir } from './lib/handback.mjs';
+import { reconcileHandbacks, brokerDir, needsAction } from './lib/handback.mjs';
 import { noteAttempts, readAttempts } from './lib/handback-attempts.mjs';
 import { QUEUED } from './lib/handback-queued.mjs';
 
@@ -33,7 +33,8 @@ try {
   const dir = brokerDir(root);
   const attempts = readAttempts(dir);
   const lines = items.map((i) => lineOf(i, attempts));
-  if (!firstSighting(`successor-${p.session_id || 'nosession'}`, items.map((i) => `${i.key}:${i.step}`).join(','))) process.exit(0);
+  const seenBefore = !firstSighting(`successor-${p.session_id || 'nosession'}`, items.map((i) => `${i.key}:${i.step}`).join(','));
+  if (seenBefore && !items.some(needsAction)) process.exit(0);
   noteAttempts(dir, items);
   process.stderr.write(`
 BLOCKED: ${items.length} ended worker(s) left work open; the recovery step is below (KIT-T718, KIT-T822):

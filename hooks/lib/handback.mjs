@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { ownsWork } from '../dispatch-readonly.mjs';
 import { ackJobs, readAcks, sameAgent } from '../../scripts/broker/finished-ack.mjs';
 import { landedOnMain, resumable } from './handback-landed.mjs';
-import { applyQueued } from './handback-queued.mjs';
+import { applyQueued, QUEUED } from './handback-queued.mjs';
 import { SILENT_MS, reopenState } from './reopened.mjs';
 import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
@@ -46,6 +46,10 @@ const LANDED = 'landed';
 const AUTO_ACK = 'auto:landed-on-main';
 
 export const brokerDir = (root) => join(root, 'target', 'broker');
+
+// A step the orchestrator can take now. 'queued' (held behind a running worker) and 'unrecoverable' (nothing to rebuild
+// from) are surfaced once; every other step is surfaced again at each stop and prompt until it is taken (KIT-T855).
+export const needsAction = (item) => item.step !== QUEUED && item.step !== 'unrecoverable';
 
 function lanes(dir) {
   const lanesDir = join(dir, 'lanes');

@@ -37,7 +37,8 @@ try {
   const sid = `repeat-${RUN}`;
   const first = stop({ session_id: sid });
   const second = stop({ session_id: sid });
-  ok('the same finding blocks once, then lets the stop through', first.code === 2 && second.code === 0);
+  ok('an obligation still open blocks every later stop, not once per session (KIT-T855)', first.code === 2 && second.code === 2);
+  ok('the stop that follows a block (stop_hook_active) goes through, so a block never loops', stop({ session_id: sid, stop_hook_active: true }).code === 0);
 
   roster(retired(), successor);
   ok('negative: a later dispatch citing the ticket clears it', stop().code === 0);

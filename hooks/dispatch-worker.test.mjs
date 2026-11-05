@@ -92,9 +92,14 @@ try {
   check('guard: a brief refused only for overlap exits 2 and says it is QUEUED behind the blocker', refused.code === 2 && /QUEUED q-w1-DE-T254 behind in-flight worker w1/.test(refused.err), refused.err.slice(0, 300));
   const held = stop();
   check('gate: the queued successor satisfies the Stop while the blocker is in flight', held.status === 0, held.stderr.slice(0, 200));
+  const DIRECTIVE = fileURLToPath(new URL('./handback-directive.mjs', import.meta.url));
+  const prompt = (sid) => spawnSync(process.execPath, [DIRECTIVE], { cwd: gated, input: JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: sid }), encoding: 'utf8' }).stdout;
+  const sid = `t855-${process.pid}-${Date.now()}`;
+  check('prompt: a set held behind a running worker prints once per session', /QUEUED/.test(prompt(sid)) && prompt(sid) === '');
   appendFileSync(join(gated, '.ai', 'agents.jsonl'), `${JSON.stringify({ ts: new Date().toISOString(), id: 'w1', status: 'done', source: 'subagentstop' })}\n`);
   const ready = stop();
   check('gate: once the blocker ends it says to dispatch the queued successor now, with the held brief', ready.status === 2 && /DISPATCH QUEUED SUCCESSOR NOW: DE-T254/.test(ready.stderr) && /continue DE-T254/.test(ready.stderr), ready.stderr.slice(0, 300));
+  check('gate and prompt: the ready successor is named again at every later stop and prompt', stop().status === 2 && /DISPATCH QUEUED SUCCESSOR NOW/.test(prompt(sid)) && /DISPATCH QUEUED SUCCESSOR NOW/.test(prompt(sid)));
   const capped = brokeredRepo([liveRow('w1', ['a.rs']), liveRow('w2', ['b.rs']), liveRow('w3', ['c.rs'])]); repos.push(capped);
   dispatch(capped, 'edit DE-T254 [paths: a.rs]');
   check('negative control: a refusal that is not overlap-only (the cap) queues nothing', !existsSync(join(capped, '.ai', 'queued-dispatch.jsonl')));
