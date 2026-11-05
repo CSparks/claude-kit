@@ -80,18 +80,37 @@ try {
   ok('garbage stdin fails open', hook('question-brief-gate.mjs', 'not json', repoDir).code === 0);
   ok('another tool is ignored', hook('question-brief-gate.mjs', { tool_name: 'Bash', tool_input: { questions: QUESTIONS }, transcript_path: transcript(SETTLED, 'x') }, repoDir).code === 0);
 
-  const realShape = (replyBlocks) => {
+  const toolResult = line('user', [{ type: 'tool_result', tool_use_id: 'toolu_01EARLIER', content: 'ok' }]);
+  const realShape = (replyBlocks, earlier = []) => {
     const file = join(dir, `t${n++}.jsonl`);
     const entries = replyBlocks.map((block) => line('assistant', [block]));
-    writeFileSync(file, [line('user', SETTLED), ...entries, line('assistant', [{ type: 'tool_use', id: 'toolu_01SHAPE', name: 'AskUserQuestion', input: {} }])].join('\n'));
+    writeFileSync(file, [line('user', SETTLED), ...earlier, ...entries, line('assistant', [{ type: 'tool_use', id: 'toolu_01SHAPE', name: 'AskUserQuestion', input: {} }])].join('\n'));
     return file;
   };
   const thought = { type: 'thinking', thinking: 'I need you to pick a limit; I recommend three minutes.', signature: 'sig' };
+  const NO_TEXT = 'has no text block';
   const noText = ask(realShape([thought]));
-  ok('a reply of only a thinking block and the call is blocked, and the block says no text block was written',
-    noText.code === 2 && noText.out.includes('prose has 0') && noText.out.includes('No text block'));
+  ok('a reply of only a thinking block and the call is blocked, and the block says the reply has no text block',
+    noText.code === 2 && noText.out.includes('prose has 0') && noText.out.includes(NO_TEXT));
   ok('control: a thinking block, then the brief as a text block, then the call passes', ask(realShape([thought, { type: 'text', text: FULL_BRIEF }])).code === 0);
-  ok('control: a thin brief that is text gets no "no text block" note', !ask(transcript(SETTLED, 'pick a limit')).out.includes('No text block'));
+  ok('control: a thin brief that is text gets no "no text block" note', !ask(transcript(SETTLED, 'pick a limit')).out.includes(NO_TEXT));
+
+  const earlierStatus = [line('assistant', [{ type: 'text', text: 'Decision: the broker limit, needed now because a job queued. See KIT-T845 and scripts/broker/stall.mjs for the timeline, which I checked before this.' }]), toolResult];
+  const earlierOnly = ask(realShape([thought], earlierStatus));
+  ok('text from an earlier reply is counted, but a call whose own reply has no text block is told so',
+    earlierOnly.code === 2 && !earlierOnly.out.includes('prose has 0') && earlierOnly.out.includes(NO_TEXT));
+  ok('control: the same earlier text with a text block in the call\'s own reply carries no such note',
+    !ask(realShape([thought, { type: 'text', text: 'pick a limit' }], earlierStatus)).out.includes(NO_TEXT));
+
+  const sectioned = [
+    'Decision: how long the broker may stay silent before a waiter replaces it, needed now because a land job sat queued for six minutes behind a hung daemon.',
+    'Evidence: scripts/broker/stall.mjs holds the limit at ten minutes, and target/broker/logs/daemon-35624.log shows no beat for six minutes; KIT-T845 has the timeline.',
+    'Options: take Three minutes, which replaces the daemon at once and costs a restart if a long step never beats; or the Ten minutes limit, which keeps today\'s value and leaves a queued job waiting.',
+    'Recommendation: three minutes, because a wedged daemon was the only thing holding the queue and the restart restores the tree from the journal.',
+    'Not asked: the tick fix itself, which is already settled and shipped.',
+  ].join('\n');
+  ok('a brief with section labels and options named loosely (stems, not the verbatim label) passes',
+    ask(realShape([thought, { type: 'text', text: `${sectioned}\n\n${'The broker daemon beats every second while a command runs and the waiters poll it. '.repeat(3)}` }])).code === 0);
 
   const CALL_ID = 'toolu_01LAGGED';
   const LAG_MS = 700;

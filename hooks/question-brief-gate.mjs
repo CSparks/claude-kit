@@ -22,13 +22,13 @@ const READY_CHECK = 'question-ready';
 const enabled = (root, check) => !root || !pathExcluded(root, check, root);
 const lines = (problems) => problems.map((p) => `  - ${p.part}: ${p.wanted}`);
 
-const NO_TEXT = 'No text block follows the maintainer\'s last message: a thinking block or the questionnaire itself is not prose, and the maintainer sees neither. Write the brief as a normal message first, then call the tool.';
+const NO_TEXT = 'The reply carrying this call has no text block: a thinking block or the questionnaire itself is not prose, and the maintainer sees neither. Write the brief as a normal message in the same reply, before the call. (Counted instead: text from earlier replies this turn.)';
 
-function blockMessage(brief, ready, prose) {
+function blockMessage(brief, ready, replyHasText) {
   return [
     'BLOCKED: this questionnaire is not ready to send (KIT-D129, KIT-T846).',
     ...(ready.length ? ['', 'The topic is not ready to ask:', ...lines(ready), '  Discuss it in prose first; ask once it has converged and the choice is his.'] : []),
-    ...(brief.length ? ['', 'The brief before the questionnaire is too thin. The options cannot carry the context, so the prose must:', ...(prose.trim() ? [] : [`  ${NO_TEXT}`]), ...lines(brief), '', 'A brief holds:', ...BRIEF_STANDARD.map((s) => `  * ${s}`)] : []),
+    ...(brief.length ? ['', 'The brief before the questionnaire is too thin. The options cannot carry the context, so the prose must:', ...(replyHasText ? [] : [`  ${NO_TEXT}`]), ...lines(brief), '', 'A brief holds:', ...BRIEF_STANDARD.map((s) => `  * ${s}`)] : []),
     '',
     ...(ready.length ? [excludeFooter(READY_CHECK)] : []),
     ...(brief.length ? [excludeFooter(BRIEF_CHECK)] : []),
@@ -45,7 +45,7 @@ try {
   const ready = enabled(root, READY_CHECK) ? readinessProblems(turn.lastUser, questions) : [];
   const brief = enabled(root, BRIEF_CHECK) ? briefProblems(turn.prose, questions) : [];
   if (ready.length || brief.length) {
-    process.stderr.write(blockMessage(brief, ready, turn.prose));
+    process.stderr.write(blockMessage(brief, ready, turn.replyHasText));
     process.exit(2);
   }
 } catch {

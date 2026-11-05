@@ -1,8 +1,9 @@
 // turn-text.mjs — the newest maintainer message and the assistant text after it, read from a transcript file.
 //
-//   turnText(file) -> { lastUser, prose } | null
-//     lastUser  the newest maintainer message (tool results, harness notices, compaction summaries and meta entries skipped), '' when none
-//     prose     every assistant text block after it, oldest first, joined by blank lines
+//   turnText(file) -> { lastUser, prose, replyHasText } | null
+//     lastUser      the newest maintainer message (tool results, harness notices, compaction summaries and meta entries skipped), '' when none
+//     prose         every assistant text block after it, oldest first, joined by blank lines
+//     replyHasText  the newest reply (the assistant entries after the last tool result or user entry) holds a text block
 //   null when the file cannot be read.
 //
 //   turnTextForCall(file, toolUseId) -> Promise<same>
@@ -36,6 +37,9 @@ export function turnText(file) {
   let lines;
   try { lines = readFileSync(file, 'utf8').split('\n').filter(Boolean); } catch { return null; }
   const prose = [];
+  let inReply = true;
+  let replyHasText = false;
+  const result = (lastUser) => ({ lastUser, prose: prose.join('\n\n'), replyHasText });
   for (let i = lines.length - 1; i >= 0; i--) {
     let entry;
     try { entry = JSON.parse(lines[i]); } catch { continue; }
@@ -44,12 +48,14 @@ export function turnText(file) {
     if (role === 'assistant') {
       const text = textOf(content).trim();
       if (text) prose.unshift(text);
-    } else if (role === 'user' && !isToolResult(content)) {
+      if (text && inReply) replyHasText = true;
+    } else if (role === 'user') {
+      inReply = false;
       const text = textOf(content).trim();
-      if (text && !isHarness(entry, text)) return { lastUser: text, prose: prose.join('\n\n') };
+      if (!isToolResult(content) && text && !isHarness(entry, text)) return result(text);
     }
   }
-  return { lastUser: '', prose: prose.join('\n\n') };
+  return result('');
 }
 
 export async function turnTextForCall(file, toolUseId) {
