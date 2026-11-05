@@ -180,7 +180,7 @@ try {
 
     ok('orient KIT-T071: output is within the token budget (≤1200 tokens)', r.out.length <= BUDGET_CHARS);
     ok('orient KIT-T071: ORIENTATION header is present', /ORIENTATION/.test(r.out));
-    ok('orient KIT-D132: every session states it needs a bill of work, that a clear or resume forgets prior asks, and that OPEN lists are not orders', /BILL OF WORK REQUIRED/.test(r.out) && /dictates a bill of work or signs off/.test(r.out) && /After a clear or resume you remember no prior ask/.test(r.out) && /never orders to dispatch/.test(r.out) && !/pull and dispatch/.test(r.out));
+    ok('orient KIT-D132: every session states it needs a bill of work, that a clear or resume forgets prior asks, and that OPEN lists are not orders', /BILL OF WORK REQUIRED/.test(r.out) && /dictates or signs off a bill of work/.test(r.out) && /After a clear or resume you remember no prior ask/.test(r.out) && /never orders to dispatch/.test(r.out) && !/pull and dispatch/.test(r.out));
     ok('orient KIT-T071: SESSION resume gist is present (first lines)', r.out.includes('## Step 1:'));
     ok('orient KIT-T071: SESSION full pointer is present', r.out.includes('read .ai/SESSION.md'));
     ok('orient KIT-T071: ROADMAP gist is present (milestone header)', r.out.includes('## Milestone 1'));
