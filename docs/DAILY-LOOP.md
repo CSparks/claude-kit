@@ -35,8 +35,8 @@ criteria to the native task list, executes ticking boxes, then sets `review` (or
 `done` when `config.uat: none`) and summarizes. When you say it works, Claude closes it
 (human-only on projects with `uat: required`).
 
-Between tickets Claude pulls the next item itself via the drain rules — you don't
-have to ask. Or call `/drain` explicitly to pull the next item.
+Between tickets Claude stops and shows the next candidates per the drain rules; nothing
+starts until you sign it into the bill of work (KIT-D132). Call `/drain` to list the candidates.
 
 ## Decisions
 ```

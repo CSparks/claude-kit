@@ -1,7 +1,7 @@
 {
   "name": "claude-kit",
-  "version": "0.1.31",
-  "description": "A repeatable, context-durable workflow for Claude Code and Codex: capture fast, defer by default, drain automatically, and preserve working state across compaction.",
+  "version": "0.1.32",
+  "description": "A repeatable, context-durable workflow for Claude Code and Codex: capture fast, defer by default, surface the queue for the maintainer's signed bill of work, and preserve working state across compaction.",
   "author": {
     "name": "Chris Sparks",
     "url": "https://github.com/CSparks"
@@ -36,7 +36,7 @@
     "defaultPrompt": [
       "Prime me on this project's durable work state.",
       "Triage captured items into the project backlog.",
-      "Drain the next ready item and carry it to review."
+      "List the next ready items as candidates for my bill of work."
     ],
     "brandColor": "#D97706"
   }
