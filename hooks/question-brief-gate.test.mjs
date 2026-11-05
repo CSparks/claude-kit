@@ -80,6 +80,19 @@ try {
   ok('garbage stdin fails open', hook('question-brief-gate.mjs', 'not json', repoDir).code === 0);
   ok('another tool is ignored', hook('question-brief-gate.mjs', { tool_name: 'Bash', tool_input: { questions: QUESTIONS }, transcript_path: transcript(SETTLED, 'x') }, repoDir).code === 0);
 
+  const realShape = (replyBlocks) => {
+    const file = join(dir, `t${n++}.jsonl`);
+    const entries = replyBlocks.map((block) => line('assistant', [block]));
+    writeFileSync(file, [line('user', SETTLED), ...entries, line('assistant', [{ type: 'tool_use', id: 'toolu_01SHAPE', name: 'AskUserQuestion', input: {} }])].join('\n'));
+    return file;
+  };
+  const thought = { type: 'thinking', thinking: 'I need you to pick a limit; I recommend three minutes.', signature: 'sig' };
+  const noText = ask(realShape([thought]));
+  ok('a reply of only a thinking block and the call is blocked, and the block says no text block was written',
+    noText.code === 2 && noText.out.includes('prose has 0') && noText.out.includes('No text block'));
+  ok('control: a thinking block, then the brief as a text block, then the call passes', ask(realShape([thought, { type: 'text', text: FULL_BRIEF }])).code === 0);
+  ok('control: a thin brief that is text gets no "no text block" note', !ask(transcript(SETTLED, 'pick a limit')).out.includes('No text block'));
+
   const CALL_ID = 'toolu_01LAGGED';
   const LAG_MS = 700;
   const askWhileFlushing = (laggedProse) => new Promise((resolve) => {
