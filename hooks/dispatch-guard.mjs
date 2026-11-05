@@ -205,7 +205,7 @@ function queueBehindOverlap(root, input, prompt, p) {
   const blocker = overlapOnlyBlocker({ tree, input, prompt, live: livePatchWorkers(root, tree), cfg, escaped: MAINTAINER_PARALLEL.test(prompt) });
   if (!blocker) return null;
   const id = queueDispatch(root, { tickets: ticketsCited(prompt), blockedBy: blocker.id, scope: String(input.subagent_type || ''), brief: prompt });
-  return `QUEUED ${id} behind in-flight worker ${blocker.id} (.ai/queued-dispatch.jsonl): the brief is held and the successor gate accepts it until that worker ends; orient and the next prompt then say to dispatch it.`;
+  return `QUEUED ${id} behind in-flight worker ${blocker.id} (.ai/queued-dispatch.jsonl): the brief is held. When that worker ends, orient lists it as OPEN for the maintainer, who decides whether it runs (KIT-D132).`;
 }
 
 function workerAdviceText(root, input, prompt, p) {

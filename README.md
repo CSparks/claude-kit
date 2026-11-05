@@ -35,7 +35,7 @@ round it off and a fresh session resumes cold.
    blocks a second session from re-asking what another already asked (`[re-ask: <reason>]` overrides).
 4. **Work** a ticket: `/work KIT-T001` → restate acceptance criteria → confirm
    scope → execute, ticking boxes.
-5. **Drain** keeps going between tickets without being asked.
+5. **Drain** shows the next candidates between tickets; the maintainer's bill of work decides what runs.
 6. **Flush** before any compact/clear writes state to `.ai/SESSION.md`.
 7. **Recurring obligations** ("cut a weekly release so CI caches stay warm")
    live in `.ai/reminders/` — `rem add "..." --every 7`. SessionStart surfaces

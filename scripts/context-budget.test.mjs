@@ -61,7 +61,7 @@ try {
   ok('record stamps the review date', lastReviewed() === '2026-10-10');
 
   const run = hook('housekeeping.mjs', { hook_event_name: 'SessionStart' }, lean.root, { CLAUDE_KIT_BUDGET_STAMP: join(tmpDir('cb-none-'), 'none.json'), ...homeEnv(lean.home) });
-  ok('a never-run review is a dispatch directive, not a nag', /WEEKLY CONTEXT-BUDGET REVIEW DUE \(never run\)/.test(run.out) && /DISPATCH NOW/.test(run.out) && /\[job: wiring\]/.test(run.out) && /25k/.test(run.out));
+  ok('a never-run review is an OPEN notice awaiting a bill of work, not a dispatch order', /WEEKLY CONTEXT-BUDGET REVIEW DUE \(never run\)/.test(run.out) && /OPEN, awaiting a bill of work/.test(run.out) && !/DISPATCH NOW/.test(run.out) && /\[job: wiring\]/.test(run.out) && /25k/.test(run.out));
   const stampNow = join(tmpDir('cb-now-'), 'now.json');
   process.env.CLAUDE_KIT_BUDGET_STAMP = stampNow;
   record([leanProject]);

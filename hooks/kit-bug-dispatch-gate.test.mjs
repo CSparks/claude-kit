@@ -1,5 +1,6 @@
-// kit-bug-dispatch-gate (KIT-T699): a high/critical kit ticket seen this session with no Agent call naming
-// it blocks the Stop once; a dispatch, a low priority, an unseen id and stop_hook_active all pass.
+// kit-bug-dispatch-gate (KIT-T699, KIT-D132): a high/critical kit ticket seen this session with no Agent call naming it
+// makes the Stop print one OPEN notice and exit 0 (it never blocks and never orders a dispatch); a dispatch, a low
+// priority, an unseen id and stop_hook_active print nothing.
 // Run: node hooks/kit-bug-dispatch-gate.test.mjs
 
 import { copyFileSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
@@ -8,6 +9,9 @@ import { ROOT, HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-ha
 
 const RUN = `${process.pid}-${Date.now()}`;
 const { ok, done } = reporter('kit-bug-dispatch-gate');
+const NOTICE = /OPEN, awaiting a bill of work/;
+const noticed = (r) => r.code === 0 && NOTICE.test(r.out);
+const quiet = (r) => r.code === 0 && !NOTICE.test(r.out);
 const store = tmpDir('kit-dispatch-store-');
 mkdirSync(join(store, '.ai', 'tickets'), { recursive: true });
 copyFileSync(join(ROOT, '.ai', 'config.yml'), join(store, '.ai', 'config.yml'));
@@ -47,41 +51,42 @@ try {
   const stop = (file, extra = {}) => hook('kit-bug-dispatch-gate.mjs', { hook_event_name: 'Stop', session_id: `s${RUN}-${n++}`, transcript_path: file, ...extra }, d, { CLAUDE_KIT_BUG_STORE: store });
 
   const seen = stop(transcript(say('filed KIT-T801 and KIT-T802 just now')));
-  ok('high and critical tickets seen with no dispatch block the stop and name both', seen.code === 2 && /KIT-T801/.test(seen.out) && /KIT-T802/.test(seen.out) && /dispatch/i.test(seen.out) && /kit-bug-dispatch/.test(seen.out));
-  ok('negative: a low-priority ticket alone does not block', stop(transcript(say('filed KIT-T803'))).code === 0);
-  ok('negative: a ticket never mentioned this session does not block', stop(transcript(say('nothing relevant'))).code === 0);
-  ok('negative: an Agent call naming the id clears it', stop(transcript(say('KIT-T801'), agent('fix KIT-T801 in the claude-kit checkout'))).code === 0);
+  ok('high and critical tickets seen with no dispatch print the OPEN notice naming both and exit 0', noticed(seen) && /KIT-T801/.test(seen.out) && /KIT-T802/.test(seen.out) && /kit-bug-dispatch/.test(seen.out));
+  ok('the notice orders nothing: no BLOCKED, no "Dispatch the standing kit agent", a bill of work is named', !/BLOCKED|Dispatch the standing kit agent/.test(seen.out) && /bill of work/.test(seen.out) && /Relay this to the maintainer/.test(seen.out));
+  ok('negative: a low-priority ticket alone prints nothing', quiet(stop(transcript(say('filed KIT-T803')))));
+  ok('negative: a ticket never mentioned this session prints nothing', quiet(stop(transcript(say('nothing relevant')))));
+  ok('negative: an Agent call naming the id clears it', quiet(stop(transcript(say('KIT-T801'), agent('fix KIT-T801 in the claude-kit checkout')))));
   const message = (text) => ({ message: { content: [{ type: 'tool_use', name: 'SendMessage', input: { to: 'kit-agent', message: text } }] } });
-  ok('negative: a SendMessage to the standing kit agent naming the id clears it (KIT-T736)', stop(transcript(say('KIT-T801'), message('next: KIT-T801 in the claude-kit checkout'))).code === 0);
-  ok('KIT-T736 control: a SendMessage naming a different id leaves the ticket blocked', stop(transcript(say('KIT-T801'), message('next: KIT-T802'))).code === 2);
-  ok('only the undispatched id is named when one of two is dispatched', (() => { const r = stop(transcript(say('KIT-T801 KIT-T802'), agent('KIT-T801 please'))); return r.code === 2 && /KIT-T802/.test(r.out) && !/KIT-T801 \[/.test(r.out); })());
-  ok('KIT-T768: a ticket another session\'s live kit agent holds (doing, touched lately) does not block', stop(transcript(say('KIT-T804 is with the kit agent'))).code === 0);
-  ok('KIT-T768 control: a doing ticket untouched for hours belongs to a dead agent and blocks', (() => { const r = stop(transcript(say('KIT-T805'))); return r.code === 2 && /KIT-T805/.test(r.out); })());
+  ok('negative: a SendMessage to the standing kit agent naming the id clears it (KIT-T736)', quiet(stop(transcript(say('KIT-T801'), message('next: KIT-T801 in the claude-kit checkout')))));
+  ok('KIT-T736 control: a SendMessage naming a different id leaves the ticket noticed', noticed(stop(transcript(say('KIT-T801'), message('next: KIT-T802')))));
+  ok('only the undispatched id is named when one of two is dispatched', (() => { const r = stop(transcript(say('KIT-T801 KIT-T802'), agent('KIT-T801 please'))); return noticed(r) && /KIT-T802/.test(r.out) && !/KIT-T801 \[/.test(r.out); })());
+  ok('KIT-T768: a ticket another session\'s live kit agent holds (doing, touched lately) is not listed', quiet(stop(transcript(say('KIT-T804 is with the kit agent')))));
+  ok('KIT-T768 control: a doing ticket untouched for hours belongs to a dead agent and is listed', (() => { const r = stop(transcript(say('KIT-T805'))); return noticed(r) && /KIT-T805/.test(r.out); })());
   const viaRegistry = (file) => hook('kit-bug-dispatch-gate.mjs', { hook_event_name: 'Stop', session_id: `s${RUN}-${n++}`, transcript_path: file }, d, { CLAUDE_KIT_REGISTRY: registry });
-  ok('KIT-T793: from a project root with no KIT tickets the kit store is found through the registry and a live claim there does not block', viaRegistry(transcript(say('KIT-T804 is held'))).code === 0);
-  ok('KIT-T793 control: through the registry the same store still blocks a doing ticket untouched for hours', (() => { const r = viaRegistry(transcript(say('KIT-T805'))); return r.code === 2 && /KIT-T805/.test(r.out); })());
-  ok('KIT-D121: a high ticket labelled kit-queue (the broker\'s rolling time sinks) belongs to the kit agent\'s queue and does not block', stop(transcript(say('KIT-T809 time sinks'))).code === 0);
-  ok('KIT-D121 control: the same ticket without the queue label blocks', stop(transcript(say('KIT-T801'))).code === 2);
-  ok('KIT-T793: a ticket in review, done or superseded never blocks', stop(transcript(say('KIT-T806 KIT-T807 KIT-T808'))).code === 0);
+  ok('KIT-T793: from a project root with no KIT tickets the kit store is found through the registry and a live claim there is not listed', quiet(viaRegistry(transcript(say('KIT-T804 is held')))));
+  ok('KIT-T793 control: through the registry the same store still lists a doing ticket untouched for hours', (() => { const r = viaRegistry(transcript(say('KIT-T805'))); return noticed(r) && /KIT-T805/.test(r.out); })());
+  ok('KIT-D121: a high ticket labelled kit-queue (the broker\'s rolling time sinks) belongs to the kit agent\'s queue and is not listed', quiet(stop(transcript(say('KIT-T809 time sinks')))));
+  ok('KIT-D121 control: the same ticket without the queue label is listed', noticed(stop(transcript(say('KIT-T801')))));
+  ok('KIT-T793: a ticket in review, done or superseded is never listed', quiet(stop(transcript(say('KIT-T806 KIT-T807 KIT-T808')))));
   const handoff = (text, hoursAgo) => ({ timestamp: new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString(), message: { content: [{ type: 'tool_use', name: 'SendMessage', input: { to: 'infra-09', message: text } }] } });
-  ok('KIT-T800: from a non-kit root, a SendMessage to the session holding the checkout, naming the id, clears it', viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T801', 0.5))).code === 0);
-  ok('KIT-T800 control: a hand-off naming a different id leaves the ticket blocked', viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T802', 0.5))).code === 2);
-  ok('KIT-T800 control: a hand-off older than the 4 h claim window with no claim lapses and blocks', (() => { const r = viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T801', 5))); return r.code === 2 && /SendMessage/.test(r.out); })());
-  ok('KIT-T800: a lapsed hand-off does not reopen a ticket the holder claimed', viaRegistry(transcript(say('KIT-T804'), handoff('please take KIT-T804', 5))).code === 0);
-  ok('KIT-T809: from a non-kit root, bare T### ids in a hand-off that names a full KIT-T id clear every listed ticket', viaRegistry(transcript(say('KIT-T801 KIT-T802'), handoff('take KIT-T803, T801 and T802 now', 0.5))).code === 0);
-  ok('KIT-T809 control: a bare id not listed in the hand-off stays blocked', viaRegistry(transcript(say('KIT-T801 KIT-T802'), handoff('take KIT-T803, T801', 0.5))).code === 2);
-  ok('KIT-T809 control: bare ids in a message naming no full id resolve to nothing', viaRegistry(transcript(say('KIT-T801'), handoff('take T801', 0.5))).code === 2);
-  ok('stop_hook_active allows', stop(transcript(say('KIT-T801')), { stop_hook_active: true }).code === 0);
+  ok('KIT-T800: from a non-kit root, a SendMessage to the session holding the checkout, naming the id, clears it', quiet(viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T801', 0.5)))));
+  ok('KIT-T800 control: a hand-off naming a different id leaves the ticket noticed', noticed(viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T802', 0.5)))));
+  ok('KIT-T800 control: a hand-off older than the 4 h claim window with no claim lapses and is listed again', noticed(viaRegistry(transcript(say('KIT-T801'), handoff('please take KIT-T801', 5)))));
+  ok('KIT-T800: a lapsed hand-off does not reopen a ticket the holder claimed', quiet(viaRegistry(transcript(say('KIT-T804'), handoff('please take KIT-T804', 5)))));
+  ok('KIT-T809: from a non-kit root, bare T### ids in a hand-off that names a full KIT-T id clear every listed ticket', quiet(viaRegistry(transcript(say('KIT-T801 KIT-T802'), handoff('take KIT-T803, T801 and T802 now', 0.5)))));
+  ok('KIT-T809 control: a bare id not listed in the hand-off stays noticed', noticed(viaRegistry(transcript(say('KIT-T801 KIT-T802'), handoff('take KIT-T803, T801', 0.5)))));
+  ok('KIT-T809 control: bare ids in a message naming no full id resolve to nothing', noticed(viaRegistry(transcript(say('KIT-T801'), handoff('take T801', 0.5)))));
+  ok('stop_hook_active prints nothing', quiet(stop(transcript(say('KIT-T801')), { stop_hook_active: true })));
 
   const file = transcript(say('KIT-T802 again'));
   const sid = `repeat-${RUN}`;
   const first = hook('kit-bug-dispatch-gate.mjs', { hook_event_name: 'Stop', session_id: sid, transcript_path: file }, d, { CLAUDE_KIT_BUG_STORE: store });
   const second = hook('kit-bug-dispatch-gate.mjs', { hook_event_name: 'Stop', session_id: sid, transcript_path: file }, d, { CLAUDE_KIT_BUG_STORE: store });
-  ok('the same finding blocks once, then lets the stop through', first.code === 2 && second.code === 0);
+  ok('the same finding is noticed once per session, then not repeated', noticed(first) && quiet(second));
 
   writeFileSync(join(d, '.claude-kit-ignore.yaml'), 'kit-bug-dispatch:\n  - "KIT-T801"\n');
-  ok('.claude-kit-ignore.yaml glob over the ticket id excludes it', stop(transcript(say('KIT-T801'))).code === 0);
-  ok('fail-open on a missing transcript', stop('/no/such/file.jsonl').code === 0);
+  ok('.claude-kit-ignore.yaml glob over the ticket id excludes it', quiet(stop(transcript(say('KIT-T801')))));
+  ok('fail-open on a missing transcript', quiet(stop('/no/such/file.jsonl')));
   ok('wired into the Stop list', JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8')).hooks.Stop.some((e) => e.hooks.some((h) => h.command.includes('kit-bug-dispatch-gate.mjs'))));
 } finally {
   cleanup();

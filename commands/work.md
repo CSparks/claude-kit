@@ -2,8 +2,10 @@
 description: Pick up a ticket — restate acceptance criteria, confirm scope, then execute
 argument-hint: <ticket-id>
 ---
-If no ticket id is given, do NOT guess one — tell the maintainer to use `/drain` (auto-pull
-the next item) and stop. With an id, work exactly that ONE ticket and stop at `review`.
+If no ticket id is given, do NOT guess one — tell the maintainer to use `/drain` (it lists
+candidates for his bill of work) and stop. With an id, work exactly that ONE ticket and stop at
+`review`. A ticket the maintainer has not named or signed into the bill (KIT-D132) is raised to
+him, not worked.
 
 STRUCTURED mutations go through the `t` CLI (KIT-T075), never hand-edited frontmatter: status
 flips (`t status <id> <state>`) and criterion ticks (`t tick <id> <ordinal|match>`) — each

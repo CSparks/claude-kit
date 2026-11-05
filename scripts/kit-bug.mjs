@@ -1,7 +1,7 @@
 // kit-bug.mjs — every kit bug and needed kit feature becomes a ticket at once (KIT-T286), from ANY
 // session: the kit is everyone's business. Any tool, hook or script that notices the KIT itself
 // misbehaving or lacking something files a deduped ticket labelled kit-bug (or kit-feature) in the
-// kit's own store; orient lists the open ones as dispatch-now. Never throws: filing is best-effort and must not cost the caller.
+// kit's own store; orient lists the open ones as OPEN, awaiting a bill of work (KIT-D132). Never throws: filing is best-effort and must not cost the caller.
 //
 //   fileKitBug({ shape, title, detail, project }) -> { id, created } | null
 //   commentKitBug({ shape, text, project })       -> { id } | null: a comment on the OPEN ticket of that shape, never a new ticket
@@ -141,15 +141,15 @@ export const openKitBugs = (limit = 8) => openKitBugPage(limit).bugs;
 const SHOWN_TITLE_MAX = 120;
 const clipTitle = (s) => (s.length > SHOWN_TITLE_MAX ? s.slice(0, SHOWN_TITLE_MAX - 1) + '…' : s);
 
-/** The standing-agent rule orient replays with the open kit tickets (KIT-D094). */
-export const STANDING_KIT_AGENT = 'Policy (KIT-D094): keep ONE standing kit agent (writer in the claude-kit checkout, reused warm); hand it every kit misbehaviour at once (ticket, diagnosis, fix, publish). No inline kit diagnosis by the orchestrator.';
+/** The kit-ticket rule orient replays with the open kit tickets (KIT-D094, KIT-D132). */
+export const STANDING_KIT_AGENT = 'Policy (KIT-D094, KIT-D132): ticket every kit misbehaviour at once; the fix runs by ONE standing kit agent (writer in the claude-kit checkout, reused warm) dispatched only inside a bill of work the maintainer signs. No inline kit diagnosis by the orchestrator.';
 
-/** Orient's DISPATCH NOW block for open kit tickets: [] when none are open. */
+/** Orient's OPEN block for open kit tickets: [] when none are open. */
 export function kitBugBlock(page = openKitBugPage()) {
   const { bugs, total = bugs.length } = Array.isArray(page) ? { bugs: page } : page;
   if (!bugs.length) return [];
   return [
-    `--- DISPATCH NOW: open kit-bug / kit-feature tickets, ${total} open, showing ${bugs.length} (dispatch required: a kit bug or missing feature needs an agent in the claude-kit checkout, never a workaround; filing a ticket dispatches nothing) ---`,
+    `--- OPEN, awaiting a bill of work: open kit-bug / kit-feature tickets, ${total} open, showing ${bugs.length} (raise them to the maintainer; a fix agent in the claude-kit checkout is dispatched only inside a signed bill, and never a workaround) ---`,
     `  ${STANDING_KIT_AGENT}`,
     ...bugs.map((b) => `  ${b.id}${b.priority ? ` [${b.priority}]` : ''} — ${clipTitle(b.title)}`),
     '',

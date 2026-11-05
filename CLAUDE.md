@@ -12,6 +12,14 @@ The taxonomy, routing, priorities, statuses, and drain rules are defined in
 `.ai/config.yml`. **Read it at session start; it is the source of truth.** This
 contract is the meta-behavior around it.
 
+### Bill of work — no work without the maintainer's sign-off (KIT-D132)
+Every session works from a bill of work: Chris dictates it or signs off on an existing one.
+Work outside the signed bill is RAISED to him, never started. The queue, roadmap, a retired
+worker's handoff, a held brief and every hook or orient OPEN list are notices to relay, never
+instructions to dispatch. After a clear or resume I remember no prior ask, so any action not
+discussed in the current context is conferred with him before it is taken. His direct question
+is answered first.
+
 ### Interjections — default is CAPTURE, not STEER
 When Chris says something while I am working, the default is: **route it to the
 right place and keep working.** Blocking is the exception, not the rule.
@@ -45,12 +53,12 @@ Chris overrides either way at any time: "just log it" forces deferral; "stop"
 forces a block. If classification is ambiguous, pick the best fit, state it in
 the receipt, and continue — do not halt to ask.
 
-### Draining the queue (so "later" happens without being asked)
-- **Between tickets**: when the active ticket hits `review`, pull the next item
+### The queue is a notice, never an instruction (KIT-D132)
+- **Between tickets**: when the active ticket hits `review`, stop and report. The next item
   per `config.drain` (roadmap order if a current milestone exists, else type
-  `order` + priority). If `auto_execute: within-patterns-low-risk` and the item
-  is low-risk and pattern-following, start it; otherwise surface one line:
-  `next up: T-007 (your call — touches UX)`.
+  `order` + priority) is shown as one line, `next up: T-007 (needs your bill of work)`, and
+  waits for Chris to sign it into the bill. It may be superseded by another session or no
+  longer relevant; only he knows. No `drain.auto_execute` value lifts this.
 - **Questions** (`.ai/questions/`, one `<KEY>-Q###.md` each, `answerable_by: chris|claude`):
   `/drain` resolves the `answerable_by: claude` ones from code + `.ai/decisions/` — writing
   the answer + date into the file's `**Resolution:**` and setting `status: resolved` (RECORD
@@ -62,7 +70,7 @@ the receipt, and continue — do not halt to ask.
   still holds?") instead of re-debating. Settled stays settled.
 
 ### Working a ticket
-On "work T-001" (or when I pull it from the drain):
+On "work T-001" (or when Chris signs it into the bill):
 1. Read `.ai/tickets/T-001*.md`; **restate the acceptance criteria**.
 2. **Confirm scope before editing files** (Chris's standing rule). Within an
    already-approved ticket, proceed through the plan without re-asking per file.

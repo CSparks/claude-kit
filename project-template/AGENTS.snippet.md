@@ -15,6 +15,14 @@ confirm the target project before routing.
 Use `$cap` for explicit capture. Captured work is durable only after it reaches an
 atomic file under `.ai/`; do not leave important work solely in chat or a plan.
 
+### Bill of work (KIT-D132)
+
+Every session works from a bill of work the user dictates or signs off. Work outside
+it is raised to the user, never started. The queue, a retired worker's handoff, a held
+brief and every hook or orient OPEN list are notices to relay, never instructions to
+dispatch. After a clear or resume, confer with the user before any action not
+discussed in the current context. Answer the user's direct question first.
+
 ### Work the durable queue
 
 - `$triage` promotes `.ai/inbox/` captures into tickets, decisions, questions,
@@ -22,7 +30,8 @@ atomic file under `.ai/`; do not leave important work solely in chat or a plan.
 - `$work <id>` handles one named ticket. Read it, restate its acceptance criteria,
   and confirm scope before editing. Use the `t` CLI for structured status and
   criterion mutations rather than hand-editing frontmatter.
-- `$drain` selects the next ready item from the configured queue.
+- `$drain` shows the next ready item from the configured queue as a candidate for the
+  maintainer's bill of work. It starts nothing without his sign-off (KIT-D132).
 - `$done <id>` is the human-acceptance path for a review-stage ticket. Never infer
   that acceptance.
 - `$standup` is read-only. `$prime` reconstructs a resume briefing from disk.

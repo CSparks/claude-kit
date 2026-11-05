@@ -1,7 +1,7 @@
 // handback-queued.mjs — a successor dispatch the guard queued behind an in-flight worker (KIT-T828, hooks/lib/queued-dispatch.mjs)
 // changes the step the reconciler names for its ticket:
-//   blocker still in flight -> step 'queued': the obligation is held, so the Stop gate accepts it
-//   blocker ended           -> step 'dispatch-queued': the held brief is ready to dispatch now
+//   blocker still in flight -> step 'queued': the brief is held behind the running worker
+//   blocker ended           -> step 'dispatch-queued': the brief is still held; the maintainer's bill decides whether it runs
 //
 //   applyQueued(root, rows, items) -> items with the steps above for tickets that have a queued row
 
@@ -27,8 +27,8 @@ export function applyQueued(root, rows, items) {
     if (!q) return item;
     const blocker = rows.find((r) => r.id === q.blockedBy);
     if (blocker && !ENDED.has(blocker.status)) {
-      return { ...item, step: QUEUED, text: `QUEUED: ${item.ticket} waits behind in-flight worker ${q.blockedBy} (brief held as ${q.id}); dispatch it when that worker ends` };
+      return { ...item, step: QUEUED, text: `QUEUED: ${item.ticket} waits behind in-flight worker ${q.blockedBy} (brief held as ${q.id})` };
     }
-    return { ...item, step: DISPATCH_QUEUED, text: `DISPATCH QUEUED SUCCESSOR NOW: ${item.ticket} was held behind ${q.blockedBy}, which has ended. Held brief (${q.id}): ${String(q.brief).slice(0, BRIEF_SHOWN)}` };
+    return { ...item, step: DISPATCH_QUEUED, text: `HELD BRIEF: ${item.ticket} was queued behind ${q.blockedBy}, which has ended. Held brief (${q.id}): ${String(q.brief).slice(0, BRIEF_SHOWN)}. It may be stale or superseded: the maintainer decides whether it runs` };
   });
 }

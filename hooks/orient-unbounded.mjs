@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { payload } from './lib/stdin.mjs';
 import { unboundedRoot } from './lib/unbounded.mjs';
 import { readIdentity, writeIdentity } from './lib/session-identity.mjs';
+import { BILL_HEADER, billOfWorkLines } from './lib/bill-of-work.mjs';
 
 const TOPICS_SHOWN = 5;
 const SESSION_SHORT = 8;
@@ -50,6 +51,8 @@ export async function orientUnbounded() {
       ? `topic: ${id.topic}   (change it any time: cap topic <slug>)`
       : 'topic: NONE SET — run `cap topic <slug>` before capturing, or items land unlabelled',
     `open captures: ${openCaptures(aiDir)}   [q inbox]`,
+    BILL_HEADER,
+    ...billOfWorkLines(),
   ];
   const topics = await topicLine(root);
   if (topics) lines.push(topics);

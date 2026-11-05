@@ -51,14 +51,14 @@ try {
   ok('the research note carries the per-job capability section', /## Capability per job/.test(readFileSync(r.research, 'utf8')) && /\| wiring \|/.test(readFileSync(r.research, 'utf8')));
 
   const text = autoReviewDirective({ title: 'WEEKLY X', age: 9, job: 'research', brief: 'do it.', receipt: 'done' });
-  ok('the directive orders a dispatch, names the job and the exception rule', /DISPATCH NOW/.test(text) && /\[job: research\]/.test(text) && /ONLY an exception/.test(text) && /9d since/.test(text));
+  ok('the review is an OPEN notice awaiting a bill of work, names the job and the exception rule, and orders no dispatch', /OPEN, awaiting a bill of work/.test(text) && !/DISPATCH NOW/.test(text) && /\[job: research\]/.test(text) && /raises only exceptions/.test(text) && /9d since/.test(text));
   ok('a never-run review reads never run', /never run/.test(autoReviewDirective({ title: 'T', age: Infinity, job: 'wiring', brief: 'b', receipt: 'r' })));
 
   const stale = fixtureKit(isoDaysAgo(9));
   mkdirSync(join(stale, '.ai'), { recursive: true });
   writeFileSync(join(stale, '.ai', 'model-lineup.json'), JSON.stringify({ refreshed: isoDaysAgo(9), models: ['claude-opus-5-5'] }));
   const out = hook('housekeeping.mjs', { hook_event_name: 'SessionStart' }, stale, { CLAUDE_KIT_LADDER_ROOT: stale, ...homeEnv(quietHome()) });
-  ok('housekeeping prints the weekly reassessment as a dispatch directive', /WEEKLY MODEL REASSESSMENT DUE \(9d/.test(out.out) && /DISPATCH NOW/.test(out.out) && !/MODEL REFRESH DUE/.test(out.out));
+  ok('housekeeping prints the weekly reassessment as an OPEN notice', /WEEKLY MODEL REASSESSMENT DUE \(9d/.test(out.out) && /OPEN, awaiting a bill of work/.test(out.out) && !/DISPATCH NOW/.test(out.out) && !/MODEL REFRESH DUE/.test(out.out));
   ok('the directive orders the graded capability note before the refresh', /models-capability-<date>\.md/.test(out.out) && /Basis/.test(out.out));
 
   const lineupFresh = fixtureKit(isoDaysAgo(9));

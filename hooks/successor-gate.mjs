@@ -1,48 +1,28 @@
 #!/usr/bin/env node
-// Stop — the SUCCESSOR gate (KIT-T718, KIT-T822). Work a worker left open when it ended any way (hand-back, crash, usage
-// limit, killed session) is recovered by the reconciler (lib/handback.mjs): a ready result -> reopen, a lost job ->
-// resubmit or a fresh worker, a Handoff or a dead agent -> a successor. orient and the UserPromptSubmit hook surface each
-// step; this gate blocks at every stop for what is still open, naming the step that did not happen (surfaced earlier
-// and still open) or the step not yet taken (first surfacing). A case the reconciler cannot rebuild blocks once per
-// session. `stop_hook_active` allows; fails open on any error.
+// Stop — the OPEN-WORK notice for ended workers (KIT-T718, KIT-T822, KIT-D132). Work a worker left open when it ended any
+// way (hand-back, crash, usage limit, killed session) is listed by the reconciler (lib/handback.mjs). This hook never
+// blocks a turn and never tells the model to dispatch: it prints one plain OPEN notice per distinct set, per session, for
+// the model to relay to the maintainer, whose signed bill of work decides whether any of it runs. Fails open.
 // Check-id: successor (path glob matched against the ticket id).
 
 import { firstSighting } from './block-once.mjs';
 import { adopted, excludeFooter, gitRoot, pathExcluded, payload, readAgents } from './lib.mjs';
-import { reconcileHandbacks, brokerDir, needsAction } from './lib/handback.mjs';
-import { noteAttempts, readAttempts } from './lib/handback-attempts.mjs';
-import { QUEUED } from './lib/handback-queued.mjs';
+import { reconcileHandbacks } from './lib/handback.mjs';
+import { openNotice } from './lib/bill-of-work.mjs';
 
 const CHECK_ID = 'successor';
-const UNRECOVERABLE = 'unrecoverable';
-
-const lineOf = (item, attempts) => {
-  const seen = attempts.get(item.key);
-  if (item.step === UNRECOVERABLE) return `  CANNOT RECOVER (${item.step}): ${item.text}`;
-  if (seen) return `  FAILED STEP ${item.step}: surfaced ${seen.count}x since ${seen.first}, not done. ${item.text}`;
-  return `  NEXT STEP ${item.step}: ${item.text}`;
-};
 
 try {
   const p = await payload();
   if (p.stop_hook_active) process.exit(0);
   const root = gitRoot();
   if (!adopted(root)) process.exit(0);
-  const items = reconcileHandbacks(root, readAgents(root), { sessionId: p.session_id }).filter((i) => i.step !== QUEUED && !pathExcluded(root, CHECK_ID, i.ticket || i.job));
+  const items = reconcileHandbacks(root, readAgents(root), { sessionId: p.session_id }).filter((i) => !pathExcluded(root, CHECK_ID, i.ticket || i.job));
   if (!items.length) process.exit(0);
-  const dir = brokerDir(root);
-  const attempts = readAttempts(dir);
-  const lines = items.map((i) => lineOf(i, attempts));
-  const seenBefore = !firstSighting(`successor-${p.session_id || 'nosession'}`, items.map((i) => `${i.key}:${i.step}`).join(','));
-  if (seenBefore && !items.some(needsAction)) process.exit(0);
-  noteAttempts(dir, items);
-  process.stderr.write(`
-BLOCKED: ${items.length} ended worker(s) left work open; the recovery step is below (KIT-T718, KIT-T822):
-${lines.join('\n')}
-Take each step (Agent / SendMessage / the command shown), then stop again. No maintainer input is needed (KIT-D130).
-${excludeFooter(CHECK_ID)}`);
-  process.exit(2);
+  if (!firstSighting(`successor-${p.session_id || 'nosession'}`, items.map((i) => `${i.key}:${i.step}`).join(','))) process.exit(0);
+  const facts = items.map((i) => `  ${i.text}`);
+  process.stderr.write(`\n${openNotice(facts, `${items.length} ended worker(s) left work open (KIT-D132).`)}\n${excludeFooter(CHECK_ID)}`);
 } catch {
-  /* a gate never wedges a stop on its own error */
+  /* a notice never wedges a stop on its own error */
 }
 process.exit(0);

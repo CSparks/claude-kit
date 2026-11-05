@@ -76,6 +76,7 @@ try {
   const orient = hook('orient.mjs', { hook_event_name: 'SessionStart', session_id: 'sess-aaaa-1111' }, cwd, s.env);
   ok('orient orients an unbounded session instead of no-op\'ing', orient.code === 0 && /UNBOUNDED SESSION/.test(orient.out));
   ok('orient asks for a topic when none is set', /NONE SET/.test(orient.out));
+  ok('KIT-D132: an unbounded session also states the bill-of-work and confer-after-clear rules', /BILL OF WORK REQUIRED/.test(orient.out) && /After a clear or resume you remember no prior ask/.test(orient.out));
   ok('a new session id clears the previous session\'s topic', JSON.parse(readFileSync(join(s.ai, '.session'), 'utf8')).topic === '');
   ok('the session id is persisted for the CLIs', JSON.parse(readFileSync(join(s.ai, '.session'), 'utf8')).session === 'sess-aaaa-1111');
 

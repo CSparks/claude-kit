@@ -1,15 +1,18 @@
 #!/usr/bin/env node
-// Stop — the KIT-BUG DISPATCH gate (KIT-T699). Filing a kit bug dispatches nothing: a high or critical kit
-// ticket this session filed or saw (its id is in the transcript) while no Agent call (or SendMessage to the standing
-// kit agent or the session holding the checkout, inside the claim window) names that id sits open, and the next session meets it again. A ticket `doing` and touched within the
-// claim window (kit-bug.mjs) is held by a live kit agent of any session and never counts as open (KIT-T768). Blocks the stop ONCE per distinct set of such ids, naming
-// them and the dispatch required. A ticket labelled kit-queue (the broker's rolling time-sink tickets) belongs to the kit agent's queue and never counts. `stop_hook_active` allows; fails open on any error.
+// Stop — the OPEN KIT-TICKET notice (KIT-T699, KIT-D132). Filing a kit bug dispatches nothing, and neither does this hook:
+// a high or critical kit ticket this session filed or saw (its id is in the transcript) while no Agent call (or
+// SendMessage to the standing kit agent or the session holding the checkout, inside the claim window) names that id sits
+// open. A ticket `doing` and touched within the claim window (kit-bug.mjs) is held by a live kit agent of any session and
+// never counts as open (KIT-T768). Prints one OPEN notice ONCE per distinct set of such ids and exits 0; the fix agent runs
+// only inside a bill of work the maintainer signs. A ticket labelled kit-queue (the broker's rolling time-sink tickets)
+// never counts. `stop_hook_active` allows; fails open on any error.
 // Check-id: kit-bug-dispatch (path glob matched against the ticket id).
 
 import { readFileSync } from 'node:fs';
 import { firstSighting } from './block-once.mjs';
 import { gitRoot, pathExcluded, payload, excludeFooter } from './lib.mjs';
 import { openKitBugPage, CLAIM_TTL_MS } from '../scripts/kit-bug.mjs';
+import { openNotice } from './lib/bill-of-work.mjs';
 
 const CHECK_ID = 'kit-bug-dispatch';
 const URGENT = new Set(['critical', 'high']);
@@ -56,14 +59,9 @@ try {
     .filter((b) => URGENT.has(b.priority) && !b.queued && new RegExp(`\\b${b.id}\\b`).test(transcript) && !dispatched.includes(b.id) && !pathExcluded(root, CHECK_ID, b.id));
   if (!open.length) process.exit(0);
   if (!firstSighting(`kit-bug-dispatch-${p.session_id || 'nosession'}`, open.map((b) => b.id).join(','))) process.exit(0);
-  process.stderr.write(`
-BLOCKED: ${open.length} high/critical kit ticket(s) seen this session have no agent dispatched (filing a ticket dispatches nothing):
-${open.map((b) => `  ${b.id} [${b.priority}] ${b.title.slice(0, 100)}`).join('\n')}
-Dispatch the standing kit agent in the claude-kit checkout with the ticket id in the brief (Agent call), then stop again.
-If another session's kit agent already holds the checkout (KIT-D123), SendMessage it (or its session) naming the ticket id instead: that hand-off holds until the holder claims the ticket and lapses after 4 h with no claim.
-${excludeFooter(CHECK_ID)}`);
-  process.exit(2);
+  const facts = open.map((b) => `  ${b.id} [${b.priority}] ${b.title.slice(0, 100)}`);
+  process.stderr.write(`\n${openNotice(facts, `${open.length} high/critical kit ticket(s) seen this session have no fix agent; the ticket is filed, nothing is dispatched (KIT-D132).`)}\n${excludeFooter(CHECK_ID)}`);
 } catch {
-  /* a gate never wedges a stop on its own error */
+  /* a notice never wedges a stop on its own error */
 }
 process.exit(0);

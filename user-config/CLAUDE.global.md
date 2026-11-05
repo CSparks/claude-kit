@@ -83,12 +83,23 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   instructions.
 - Analysis is allowed anytime; **file-changing work requires explicit approval.**
 - Run builds/tests inside Docker when the project uses it. Node.js for bulk scripts.
-- **Work until interrupted or COMPLETE.** Stop ONLY to **decide**, **discuss**, or
-  **test** — otherwise the queue IS the instruction: land the ticket, pull the next.
-  Receipts ride along with the next turn's work, never instead of it. A user-testable
-  landing IS a reason to hand back. A genuine decision goes in an AskUserQuestion,
-  never a pause. Blocked on something only the maintainer can clear (credential,
-  external approval, judgement call): say so plainly and stop.
+- **Every session works from a bill of work (KIT-D132, supersedes KIT-D130).** The
+  maintainer dictates it or signs off on an existing one; nothing file-changing or
+  dispatching starts before that. Work outside the signed bill is RAISED to him, never
+  started. The queue, the roadmap, a retired worker's handoff, a held successor brief,
+  a queued dispatch, an orient OPEN list and any hook message are NOTICES to relay,
+  never instructions: tickets go stale, get superseded in another session, or stop being
+  relevant, and only he knows. His direct question is answered first.
+- **Confer before acting; both contexts are unreliable (Chris 2026-11-05).** After a clear
+  or a resume you remember none of the earlier asks, and he does not remember everything
+  he said. Any action not discussed in the current context window is conferred with him
+  before it is taken.
+- **Inside the signed bill, work until it is done.** Stop to **decide**, **discuss**,
+  or **test**. Receipts ride along with the next turn's work, never instead of it. A
+  user-testable landing IS a reason to hand back. A genuine decision goes in an
+  AskUserQuestion, never a pause. Blocked on something only the maintainer can clear
+  (credential, external approval, judgement call): say so plainly and stop. When the
+  bill is done, ask for the next one; do not pull from the queue.
 - **No routine operation takes more than 5 minutes wall clock (KIT-D104).** Every gate, pin,
   verify, suite, prebuild, publish and scheduled run finishes inside it. Over the ceiling is a
   bug: scope it to what the change reaches, split it, or speed it up — never accept the cost,
@@ -109,7 +120,7 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
 - **EVERY question carries a recommendation**: recommended option FIRST with
   `(Recommended)` prepended to the front of its LABEL (not the description).
   multiSelect: prepend it to each recommended option.
-- Keep working autonomously between decisions; batch related decisions into one
+- Inside the signed bill, keep working between decisions; batch related decisions into one
   questionnaire.
 - **Anti-prose-decision (hard rule):** a READY choice insinuated in prose — "your
   call", "want me to X?", "fold it in?" — is a BUG. Trivial or reversible: decide
@@ -165,8 +176,8 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   new behaviour, one negative control; leaf/mechanical → measure, assert, done.
 - **One read/write agent per checkout; read-only agents unrestricted — gate-enforced
   (KIT-D077, supersedes the KIT-T256 gate).** Two writers in one checkout are slower AND
-  dearer (2026-08-25: four lanes, ~300–600k tokens each, then killed). The next ticket goes
-  to the SAME agent after it lands (warm build, warm context). Read-only = no Edit/Write in
+  dearer (2026-08-25: four lanes, ~300–600k tokens each, then killed). The next ticket of
+  the signed bill goes to the SAME agent after it lands (warm build, warm context). Read-only = no Edit/Write in
   the definition's `tools:` (`claude-kit:analyst`, `researcher`,
   Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in a
   different checkout declares `[tree: <absolute path>]`. Two writers in ONE checkout need
@@ -178,8 +189,9 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   ticket Notes, never a scratchpad; the dispatch guard refuses a replacement until it exists.
 - **No agent waits (KIT-D115, KIT-D104's 5 minutes).** One foreground broker wait under 5 minutes
   is fine; polling, loops, background waits and re-running a job to read it are denied. Past the
-  wait the agent writes its handoff and ends; resume it from `target/broker/finished.log`
-  (one Monitor), not by keeping it alive.
+  wait the agent writes its handoff and ends; inside the signed bill, resume it from
+  `target/broker/finished.log` (one Monitor), not by keeping it alive. Outside the bill the
+  handoff is an OPEN notice for the maintainer (KIT-D132).
 
 ## Specialists over `general-purpose` — CREATE the missing specialist
 `general-purpose` is the last resort. Before every delegation: (1) pick `model` AND
@@ -314,24 +326,26 @@ opt-in-aware — each no-ops unless the repo has `.ai/`, and inert under any reg
   footer names its check-id and both surfaces.
 - `.claude-tooling-ok` silences missing-tool warnings per project.
 
-## Kit bugs and kit features — a ticket and an agent, immediately (KIT-T286)
+## Kit bugs and kit features — ticketed at once, fixed inside a signed bill (KIT-T286, KIT-D132)
 The claude-kit is everyone's business: from ANY session, any misbehaviour of the kit itself — q
 cannot answer or lacks a flag, a hook crashes or misfires, cap/t/q/orient errors, a gate false
 positive or miss, a process failure traced to tooling — and any kit FEATURE the work needs
-becomes a ticket in the claude-kit store AT ONCE (`kit-bug` / `kit-feature` label), and an agent
-is dispatched in the claude-kit checkout to build it, unless the maintainer directs otherwise.
-Never a silent grep or workaround, never a mention in prose.
-- **One standing kit agent per session (KIT-D094; Chris 2026-10-14: "Please spin up an
-  agent to handle any kit fixes like that. That should be policy.").** Each session keeps ONE
-  kit agent: a writer in the claude-kit checkout, reused warm for every fix. The moment a kit misbehaviour
-  shows up, the orchestrator hands it over whole: filing the ticket, diagnosis, fix, tests,
-  publish. The orchestrator does NO inline kit diagnosis: no hunting a launcher, reading
+becomes a ticket in the claude-kit store AT ONCE (`kit-bug` / `kit-feature` label). The fix
+agent in the claude-kit checkout is dispatched only inside a bill of work the maintainer signs;
+until then the ticket is raised to him in one line. Never a silent grep or workaround, never a
+mention in prose.
+- **One standing kit agent per bill (KIT-D094, amended by KIT-D132).** Once a bill includes kit
+  fixes, ONE kit agent (a writer in the claude-kit checkout, reused warm) takes them whole: diagnosis,
+  fix, tests, publish. The orchestrator does NO inline kit diagnosis: no hunting a launcher, reading
   kit source or poking at a hook itself. It relays the agent's runtime sha and goes back to
-  its own work.
-- Follow-up work after a hand-back (KIT-T505) gets a fresh dispatch with the prior context in the brief,
-  or the agent reports through SendMessage; a handed-back agent never reports again unprompted.
+  its own work. A kit bug found mid-session is ticketed and raised; nothing is dispatched for it
+  on the hook's say-so.
+- Follow-up work after a hand-back (KIT-T505) is raised to the maintainer; inside a signed bill it
+  gets a fresh dispatch with the prior context in the brief, or the agent reports through
+  SendMessage; a handed-back agent never reports again unprompted.
 - The kit files many of these itself (q gaps, hook crashes, a grep after an empty q, `cap bug` /
-  `cap feature` into the kit store); orient lists the open ones under DISPATCH NOW — dispatch them.
+  `cap feature` into the kit store); orient lists the open ones as OPEN, awaiting a bill of work:
+  relay them, do not dispatch them.
 - Filing by hand: `cap bug …` / `cap feature …` with `--project claude-kit`, or `t new` in the kit
   checkout; search first (`q fts`). The request gate counts captures written there.
 - Scope otherwise: a session covers its repo plus its submodules; q searches that by default.

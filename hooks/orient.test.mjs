@@ -19,7 +19,7 @@ const MS_PER_MINUTE = 60 * 1000;
 const MS_PER_HOUR = 60 * MS_PER_MINUTE;
 const STALE_DOING_HOURS = 4; // past the hook's 2 h threshold
 const FRESH_MINUTES = 10;
-const TOKEN_BUDGET = 1250; // was 1200; orient grew past it with the models line, measured 1220
+const TOKEN_BUDGET = 1400; // ceiling for one orientation, bill-of-work block included
 const CHARS_PER_TOKEN = 3; // conservative char-per-token bound for the budget assertion
 const SESSION_LINES = 80; // well beyond the gist cap
 const ROADMAP_ITEMS = 56;
@@ -63,7 +63,8 @@ try {
     ok('orient KIT-T718: a ticket already in review is not listed', !r.out.includes('T-902 (agent-retired-1)'));
     const later = { ts: new Date(Date.now() + MS_PER_MINUTE).toISOString(), id: 'agent-successor', status: 'in-flight', scope: 'p:implementer', tickets: ['T-901'] };
     writeFileSync(join(o, '.ai', 'agents.jsonl'), [...rows, later].map((x) => JSON.stringify(x)).join('\n') + '\n');
-    ok('orient KIT-T718: a dispatch citing the ticket after the retirement clears the warning', !hook('orient.mjs', {}, o).out.includes('ENDED WORKERS, OPEN WORK'));
+    ok('orient KIT-T718: a dispatch citing the ticket after the retirement clears the warning', !hook('orient.mjs', {}, o).out.includes('ended workers left work open'));
+    ok('orient KIT-D132: the open handoff is listed under OPEN, awaiting a bill of work, with no order to dispatch', /OPEN, awaiting a bill of work: ended workers left work open/.test(r.out) && !/DISPATCH NOW|no maintainer input/.test(r.out));
   }
 
   // --- directives without a test are listed (KIT-T554) ---------------------------
@@ -179,6 +180,7 @@ try {
 
     ok('orient KIT-T071: output is within the token budget (≤1200 tokens)', r.out.length <= BUDGET_CHARS);
     ok('orient KIT-T071: ORIENTATION header is present', /ORIENTATION/.test(r.out));
+    ok('orient KIT-D132: every session states it needs a bill of work, that a clear or resume forgets prior asks, and that OPEN lists are not orders', /BILL OF WORK REQUIRED/.test(r.out) && /dictates a bill of work or signs off/.test(r.out) && /After a clear or resume you remember no prior ask/.test(r.out) && /never orders to dispatch/.test(r.out) && !/pull and dispatch/.test(r.out));
     ok('orient KIT-T071: SESSION resume gist is present (first lines)', r.out.includes('## Step 1:'));
     ok('orient KIT-T071: SESSION full pointer is present', r.out.includes('read .ai/SESSION.md'));
     ok('orient KIT-T071: ROADMAP gist is present (milestone header)', r.out.includes('## Milestone 1'));

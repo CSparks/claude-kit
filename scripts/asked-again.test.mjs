@@ -80,13 +80,14 @@ await test('askedAgainOpen lists asked>=2 open tickets, not closed or once-asked
   assert.ok(top.asked >= 2);
 });
 
-await test('orient prints asked Nx under DISPATCH NOW', () => {
+await test('orient prints asked Nx under OPEN, awaiting a bill of work', () => {
   const r = spawnSync(process.execPath, [join(KIT, 'hooks', 'orient.mjs')], {
     cwd: store, encoding: 'utf8', input: '{}',
     env: { ...process.env, CLAUDE_KIT_TURN_STATE: tmpDir('asked-turn-') },
   });
   const out = `${r.stdout}${r.stderr}`;
-  assert.match(out, /tickets asked for again/);
+  assert.match(out, /OPEN, awaiting a bill of work: tickets asked for again/);
+  assert.doesNotMatch(out, /DISPATCH NOW/);
   assert.match(out, /asked \d+x/);
 });
 

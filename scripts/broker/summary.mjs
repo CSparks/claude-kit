@@ -13,6 +13,7 @@ import { listQueue } from './result.mjs';
 import { submittedAt } from './stats.mjs';
 import { rollupLine } from './metrics.mjs';
 import { liveLine } from './live-patch.mjs';
+import { AWAITING_BILL } from '../../hooks/lib/bill-of-work.mjs';
 
 const MAX_LANDS = 10;
 const MAX_DEFERRED = 4; // deferred failures listed inline; each can run to hundreds of characters
@@ -38,8 +39,8 @@ export function brokerLive(cfg) {
 const posix = (p) => String(p).split('\\').join('/');
 
 /**
- * Orient's DISPATCH NOW block when jobs wait and no daemon is alive: nothing moves the queue until
- * someone starts one. [] otherwise, or when the operator paused the queue.
+ * Orient's OPEN block when jobs wait and no daemon is alive: nothing moves the queue until
+ * someone starts one, and starting one is for the maintainer's bill. [] otherwise, or when the operator paused the queue.
  */
 export function noDaemonBlock(root, now = Date.now()) {
   return laneConfigs(readBrokerConfig(root)).flatMap((cfg) => laneNoDaemon(cfg, root, now));
@@ -52,8 +53,8 @@ function laneNoDaemon(cfg, root, now) {
   const oldest = Math.round((now - Math.min(...queued.map((j) => submittedAt(j.id)).filter(Number.isFinite))) / MS_PER_MIN);
   const script = posix(join(import.meta.dirname, 'broker.mjs'));
   return [
-    `--- DISPATCH NOW: ${queued.length} broker job(s) queued${cfg.lane ? ` in the ${cfg.lane} queue` : ''}, no daemon running (oldest waiting ${oldest} min) ---`,
-    `  start one now: node ${script} --root ${posix(root)}${cfg.lane ? ` --lane ${cfg.lane}` : ''} --log auto   (any submit or wait also starts one)`,
+    `--- OPEN, ${AWAITING_BILL}: ${queued.length} broker job(s) queued${cfg.lane ? ` in the ${cfg.lane} queue` : ''}, no daemon running (oldest waiting ${oldest} min) ---`,
+    `  tell the maintainer; if he signs it, start one: node ${script} --root ${posix(root)}${cfg.lane ? ` --lane ${cfg.lane}` : ''} --log auto   (any submit or wait also starts one)`,
     '',
   ];
 }

@@ -2,16 +2,15 @@
 // every live agent on the machine (KIT-T461), orphan background shells (KIT-T455) and the broker's lands (KIT-T276).
 // Each part is best-effort.
 //
-// Work an ended worker left open is listed with its recovery step (KIT-T718, KIT-T822): a finished job to reopen, a lost
-// job to resubmit, a Handoff or a dead agent to succeed. "A fresh agent takes over" dispatches nothing.
+// Work an ended worker left open is listed as an OPEN notice (KIT-T718, KIT-T822, KIT-D132): a finished job, a lost
+// job, a Handoff or a dead agent. It is awaiting the maintainer's bill of work; nothing is dispatched or reopened for it.
 //
 //   agentsSection(ctx)
 
 import { AGENT_STALE_MS, partitionAgents, projectAiDirs, readAgents } from '../../lib.mjs';
 import { handoffLines } from '../successor.mjs';
-import { brokerDir, reconcileHandbacks } from '../handback.mjs';
-import { noteAttempts } from '../handback-attempts.mjs';
-import { QUEUED } from '../handback-queued.mjs';
+import { reconcileHandbacks } from '../handback.mjs';
+import { AWAITING_BILL } from '../bill-of-work.mjs';
 import { formatProgress, progressFor, readProgress } from '../../progress-store.mjs';
 import { formatAgentLine, statusOnlyAgents, unlabelledAgents } from '../agent-format.mjs';
 import { liveAgentLines, liveAgents, terminalAgentIds } from '../live-agents.mjs';
@@ -33,7 +32,7 @@ function rosterSection({ out, root }) {
     const joined = new Set();
     if (!(inFlight.length || finished.length || live.length)) return;
     out.push('');
-    out.push('--- In-flight agents (DELEGATED work — reattach or reconcile) ---');
+    out.push('--- In-flight agents (delegated work; report its state to the maintainer, reattach only inside a signed bill) ---');
     const staleMin = Math.round(AGENT_STALE_MS / MS_PER_MIN);
     const unlabelled = unlabelledAgents(roster);
     if (unlabelled.length) out.push(`!! ${unlabelled.length} agent row(s) carry no model (KIT-T403): ${unlabelled.slice(0, UNLABELLED_SHOWN).map((r) => r.id).join(', ')} — shown as [model?]`);
@@ -45,7 +44,7 @@ function rosterSection({ out, root }) {
       if (running) joined.add(running);
       // An agent mid-compile is BUSY, not uncollected: the live line outranks the age heuristic (KIT-T178).
       const reattach = CODEX ? '/agents or the agent output' : 'TaskList/output';
-      const flag = staleIds.has(r.id) && !running ? ` !! UNCOLLECTED (>${staleMin}m, no completion recorded — reattach via ${reattach} or reconcile)` : '';
+      const flag = staleIds.has(r.id) && !running ? ` !! UNCOLLECTED (>${staleMin}m, no completion recorded — tell the maintainer; ${reattach} only inside a signed bill)` : '';
       const busy = running ? ` — running: ${formatProgress(running, now)}` : '';
       out.push(lineOf(r) + busy + flag);
     }
@@ -64,8 +63,7 @@ function successorSection({ out, root }) {
   try {
     const items = reconcileHandbacks(root, readAgents(root));
     if (!items.length) return;
-    noteAttempts(brokerDir(root), items.filter((i) => i.step !== QUEUED));
-    out.push('', '--- ENDED WORKERS, OPEN WORK: take each recovery step, no maintainer input needed (KIT-T718, KIT-T822, KIT-D130) ---');
+    out.push('', `--- OPEN, ${AWAITING_BILL}: ended workers left work open (notice only; relay it, dispatch and reopen nothing; KIT-D132) ---`);
     for (const item of items) {
       out.push(`  ${item.ticket || item.job}: ${clip(item.text, LINE_MAX)}`);
       if (item.kind === 'successor') for (const line of handoffLines(root, item.ticket, item.agent)) out.push(`    ${clip(line, LINE_MAX)}`);

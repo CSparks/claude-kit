@@ -1,17 +1,18 @@
-// handback.mjs — the reconciler for worker work left open when a worker ends (KIT-T822, KIT-D115, KIT-D130).
+// handback.mjs — the reconciler for worker work left open when a worker ends (KIT-T822, KIT-D115, KIT-D132).
 // Every end mode (hand-back, crash, usage limit, context end, killed session) leaves durable state: the roster row,
 // the broker's submission ledger and kept job copies (scripts/broker/submissions.mjs), finished.log, finished.ack,
-// and the ticket Notes. From that alone it names the next recovery step per ended writer:
+// and the ticket Notes. From that alone it names what is open per ended writer. Each item is a NOTICE for the
+// maintainer: nothing here dispatches, reopens or resumes (KIT-D132); the step is what the maintainer's signed bill could take.
 //
 //   result-ready  a finished job nobody picked up         -> reopen the agent when its transcript is reachable from the asking
 //                                                            session; else ack a landed result (the reconciler acks it itself
 //                                                            once the sha is on main and in the ticket), else a fresh worker
 //   resubmit      a job that left the queue with no result -> node resubmit.mjs <job> (its kept copy exists)
-//   fresh-worker  a lost job with no kept copy, or a dead agent with no handoff -> brief a fresh worker from the ticket and git
-//   successor     a Handoff block on an open ticket        -> dispatch a successor citing the ticket
-//   unrecoverable a lost job with no kept copy and no ticket -> nothing to rebuild from; surfaced once
-//   queued        a successor the dispatch guard held behind an in-flight worker (handback-queued.mjs) -> accepted until that
-//                 worker ends, then 'dispatch-queued' with the held brief
+//   fresh-worker  a lost job with no kept copy, or a dead agent with no handoff -> a fresh worker briefed from the ticket and git
+//   successor     a Handoff block on an open ticket        -> a successor citing the ticket
+//   unrecoverable a lost job with no kept copy and no ticket -> nothing to rebuild from
+//   queued        a successor the dispatch guard held behind an in-flight worker (handback-queued.mjs) -> held; 'dispatch-queued'
+//                 once that worker ends, the held brief still waits for the bill
 //
 //   reconcileHandbacks(root, rows, { nowMs, sessionId, autoAck }) -> [{ kind, key, step, agent, scope, ticket, job, verdict, landed, purged, text }]
 //   brokerDir(root)                           -> <root>/target/broker, where the broker state lives
@@ -27,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 import { ownsWork } from '../dispatch-readonly.mjs';
 import { ackJobs, readAcks, sameAgent } from '../../scripts/broker/finished-ack.mjs';
 import { landedOnMain, resumable } from './handback-landed.mjs';
-import { applyQueued, QUEUED } from './handback-queued.mjs';
+import { applyQueued } from './handback-queued.mjs';
 import { SILENT_MS, reopenState } from './reopened.mjs';
 import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
@@ -46,10 +47,6 @@ const LANDED = 'landed';
 const AUTO_ACK = 'auto:landed-on-main';
 
 export const brokerDir = (root) => join(root, 'target', 'broker');
-
-// A step the orchestrator can take now. 'queued' (held behind a running worker) and 'unrecoverable' (nothing to rebuild
-// from) are surfaced once; every other step is surfaced again at each stop and prompt until it is taken (KIT-T855).
-export const needsAction = (item) => item.step !== QUEUED && item.step !== 'unrecoverable';
 
 function lanes(dir) {
   const lanesDir = join(dir, 'lanes');
@@ -88,19 +85,20 @@ function describe(item, row) {
   if (item.kind === 'result-ready') {
     const landed = item.landed ? ` (landed ${item.landed.slice(0, SHA_SHOWN)})` : '';
     const purged = item.purged ? ' [result file purged; finished.log holds the verdict]' : '';
-    const lead = `RESULT READY: ${item.job} ${item.verdict}${landed}${ctx}`;
-    if (item.step === 'ack') return `${lead}${purged}: agent ${row.id} is not resumable here; verify ${item.landed.slice(0, SHA_SHOWN)} is on main and recorded in ${item.ticket || 'the ticket'}, then node "${ACK}" ${item.job}`;
-    if (item.step === 'fresh-worker') return `${lead}${purged}: agent ${row.id} is not resumable here; dispatch a fresh worker citing ${item.ticket || 'the job'}, briefed from its Handoff`;
-    return `${lead}, reopen ${row.id}${purged}: SendMessage ${row.id} to finish from its Handoff (acks the job)`;
+    const lead = `RESULT READY: ${item.job} ${item.verdict}${landed}${ctx}${purged}; agent ${row.id} finished it`;
+    const signed = 'If the maintainer signs it:';
+    if (item.step === 'ack') return `${lead} and is not resumable here. ${signed} verify ${item.landed.slice(0, SHA_SHOWN)} is on main and recorded in ${item.ticket || 'the ticket'}, then node "${ACK}" ${item.job}`;
+    if (item.step === 'fresh-worker') return `${lead} and is not resumable here. ${signed} a fresh worker citing ${item.ticket || 'the job'}, briefed from its Handoff`;
+    return `${lead}. ${signed} SendMessage ${row.id} to finish from its Handoff (acks the job)`;
   }
   if (item.kind === 'job-lost') {
-    if (item.step === 'resubmit') return `JOB LOST: ${item.job}${ctx} left the queue with no result (agent ${row.id} ended); kept copy exists: node "${RESUBMIT}" ${item.job}`;
-    if (item.step === 'fresh-worker') return `JOB LOST: ${item.job}${ctx}, no kept copy: dispatch a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
+    if (item.step === 'resubmit') return `JOB LOST: ${item.job}${ctx} left the queue with no result (agent ${row.id} ended); a kept copy exists. If the maintainer signs it: node "${RESUBMIT}" ${item.job}`;
+    if (item.step === 'fresh-worker') return `JOB LOST: ${item.job}${ctx}, no kept copy (agent ${row.id} ended). If the maintainer signs it: a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
     return `JOB LOST, UNRECOVERABLE: ${item.job} (agent ${row.id}) has no result, no kept copy and no ticket to rebuild from`;
   }
-  if (item.kind === 'reopened') return `REOPENED, SILENT: ${item.ticket} (${row.id}) was resumed by SendMessage and has written nothing for ${SILENT_MS / MS_PER_MIN} min: SendMessage ${row.id} again, or dispatch a fresh worker citing ${item.ticket}, briefed from its Handoff`;
-  if (item.kind === 'successor') return `RETIRED WITH HANDOFF: ${item.ticket} (${row.id}) has open work and no dispatch has cited it: dispatch a successor briefed from the Handoff, or if its Handoff shows nothing is owed: node "${ACK}" --handoff ${row.id} --reason "<why>"`;
-  return `AGENT ${row.status.toUpperCase()}: ${row.id} left ${item.ticket} open with no Handoff: dispatch a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
+  if (item.kind === 'reopened') return `REOPENED, SILENT: ${item.ticket} (${row.id}) was resumed by SendMessage and has written nothing for ${SILENT_MS / MS_PER_MIN} min`;
+  if (item.kind === 'successor') return `RETIRED WITH HANDOFF: ${item.ticket} (${row.id}) has open work and no dispatch has cited it. The ticket may be superseded or stale: the maintainer decides. If its Handoff shows nothing is owed: node "${ACK}" --handoff ${row.id} --reason "<why>"`;
+  return `AGENT ${row.status.toUpperCase()}: ${row.id} left ${item.ticket} open with no Handoff. The ticket may be superseded or stale: the maintainer decides`;
 }
 
 // Reopen needs a transcript SendMessage can reach; without one, a landed result is acknowledged and anything else

@@ -1,6 +1,6 @@
 ---
 name: drain
-description: Select and execute the next ready claude-kit backlog item according to .ai/config.yml. Use when the user asks to drain the queue, keep going, pull the next task, or work the backlog without naming a ticket.
+description: List the next ready claude-kit backlog items according to .ai/config.yml as candidates for the maintainer's bill of work; starts nothing without his sign-off. Use when the user asks what is next, or asks to drain the queue, keep going, or work the backlog without naming a ticket.
 ---
 
 # Drain the work queue

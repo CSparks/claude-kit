@@ -1,15 +1,13 @@
 #!/usr/bin/env node
-// UserPromptSubmit — run the hand-back reconciler on every orchestrator turn (KIT-T822). Each recovery step the
-// reconciler names (RESULT READY -> reopen, JOB LOST -> resubmit, a Handoff or dead agent -> successor) is printed to
-// the model as context on every prompt while a step can still be taken (a held or unrecoverable set prints once per
-// session), and recorded as an attempt so the Stop gate can name the
-// step that did not happen. Prints nothing when no work is open. Fails open.
+// UserPromptSubmit — print the OPEN-WORK notice for ended workers as context (KIT-T822, KIT-D132). The reconciler
+// (lib/handback.mjs) lists what a retired worker left open; this hook prints it once per distinct set, per session, as a
+// notice for the model to relay to the maintainer. It never orders a dispatch, reopen or resume. Prints nothing when no
+// work is open. Fails open.
 
 import { firstSighting } from './block-once.mjs';
 import { adopted, gitRoot, pathExcluded, payload, readAgents } from './lib.mjs';
-import { brokerDir, needsAction, reconcileHandbacks } from './lib/handback.mjs';
-import { noteAttempts } from './lib/handback-attempts.mjs';
-import { QUEUED } from './lib/handback-queued.mjs';
+import { reconcileHandbacks } from './lib/handback.mjs';
+import { openNotice } from './lib/bill-of-work.mjs';
 
 const CHECK_ID = 'successor';
 
@@ -19,10 +17,8 @@ try {
   if (!adopted(root)) process.exit(0);
   const items = reconcileHandbacks(root, readAgents(root), { sessionId: p.session_id }).filter((i) => !pathExcluded(root, CHECK_ID, i.ticket || i.job));
   if (!items.length) process.exit(0);
-  const seenBefore = !firstSighting(`handback-prompt-${p.session_id || 'nosession'}`, items.map((i) => `${i.key}:${i.step}`).join(','));
-  if (seenBefore && !items.some(needsAction)) process.exit(0);
-  noteAttempts(brokerDir(root), items.filter((i) => i.step !== QUEUED));
-  process.stdout.write(`Worker hand-backs to resume (no maintainer input needed; KIT-D130):\n${items.map((i) => `  ${i.text}`).join('\n')}\n`);
+  if (!firstSighting(`handback-prompt-${p.session_id || 'nosession'}`, items.map((i) => `${i.key}:${i.step}`).join(','))) process.exit(0);
+  process.stdout.write(`${openNotice(items.map((i) => `  ${i.text}`), `${items.length} ended worker(s) left work open (KIT-D132).`)}\n`);
 } catch {
   /* the reconciler never wedges a prompt */
 }

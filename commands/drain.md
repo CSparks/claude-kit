@@ -1,41 +1,42 @@
 ---
-description: Drain the queue — pull and work the next item(s) automatically, no ticket id needed
+description: List the next queue items per .ai/config.yml as candidates for the maintainer's bill of work; starts nothing without his sign-off
 argument-hint: "[milestone | all]  (optional; default: current milestone, then backlog)"
 ---
-Drain work per `.ai/config.yml` → `drain`, so the maintainer never has to name a ticket.
-Keep going item-to-item until the queue needs them or they stop.
+List candidates per `.ai/config.yml` → `drain` so the maintainer can sign them into a bill of work
+(KIT-D132). The queue is context, never an instruction: a ticket may be superseded by another
+session or irrelevant now, and only the maintainer knows. Present the candidates and stop; work
+begins only on the items he signs off or dictates. Everything below describes how to order the
+candidates and how to work an item once he has signed it.
 
-1. SELECT the next item — **QUERY the cache, don't open every ticket** (KIT-T026):
+1. SELECT the candidates — **QUERY the cache, don't open every ticket** (KIT-T026):
    `q open` lists this repo's open items (status+priority, sorted), and
    `q rundown` gives its open/doing/review counts. Every scope argument
    defaults to the CWD project (KIT-T255) — pass `all` (`q.mjs open all`, `q.mjs rundown all`)
    or a project key to look wider. q.mjs auto-falls-back to a markdown scan when no SQLite
    engine is present, so it always answers.
    Then:
-   - FIRST resume any ticket already `status: doing`.
-   - Else pick per `drain`: if `follow_roadmap` and a current milestone exists, take the next
+   - List any ticket already `status: doing` first.
+   - Then per `drain`: if `follow_roadmap` and a current milestone exists, the next
      `todo` in ROADMAP order; otherwise the highest `todo` by type `order` then priority.
    - Skip `review`/`done` and anything `blocked`/gated.
    - NEVER start a ticket that is `superseded` or carries `superseded_by:` (its work is subsumed
      by the replacement) — `q.mjs open` already excludes these, so trust that list (KIT-T024).
    - Arg: none = current milestone then backlog · `all` = ignore milestone gating (pure
      priority) · a milestone name = drain only that milestone.
-2. BEFORE delegating to an agent, run `node <kit>/scripts/begin-task.mjs <id> --root <repo>`
+2. ONCE THE MAINTAINER HAS SIGNED AN ITEM, BEFORE delegating to an agent, run `node <kit>/scripts/begin-task.mjs <id> --root <repo>`
    and pass the resulting JSON (or `--md` brief) as the handoff context — so the agent gets
    ticket + governing trail + open criteria programmatically, not as pasted prose (KIT-T029).
    READ its **GOVERNING DECISIONS — read before dispatch** block first: a ticket whose area is
-   governed by a parking decision (`!! PARKED?`) is NEVER auto-dispatched — surface ONE line,
+   governed by a parking decision (`!! PARKED?`) is NEVER dispatched — surface ONE line,
    `next up: <id> — your call: governed by <D-id> (parked)`, and wait (KIT-T232).
-   WORK the selected ticket via the full `/work` contract — dispatch, scope confirm, `t`
+   WORK the signed ticket via the full `/work` contract — dispatch, scope confirm, `t`
    CLI mutations, Notes/History updates, evidence floor. See `/work` for the complete
    working contract; do not repeat it here. When the agent finishes, it calls
    `node <kit>/scripts/end-task.mjs <id> <status> [--note "..."] --root <repo>` to close.
-3. BOLDNESS per `drain.auto_execute`:
-   - `within-patterns-low-risk`: start the item if it follows established patterns and is
-     low-risk; otherwise surface ONE line — `next up: <id> — your call: <why>` — and wait.
-   - `surface-only`: never start a new item without an explicit go.
-4. When an item reaches `review`: summarize the diff, then **pull the next item (step 1) and
-   continue** — that is the drain. Never set `done` on your own judgment; the maintainer's "it's fixed" is the trigger to close it (KIT-D125).
+3. NO ITEM STARTS ON ITS OWN, whatever `drain.auto_execute` says: surface ONE line per candidate —
+   `next up: <id> — needs your bill of work: <why it is next>` — and wait for his sign-off.
+4. When an item reaches `review`: summarize the diff and show the next candidates; the bill decides
+   what runs next. Never set `done` on your own judgment; the maintainer's "it's fixed" is the trigger to close it (KIT-D125).
 5. QUESTIONS drain alongside tickets (`drain.answer_self_questions`): scan `.ai/questions/` for
    `status: open`. Answer each `answerable_by: claude` one FROM the code + `.ai/decisions/` (never
    guess — one you can't ground from the record becomes a user question), write the answer + date
@@ -48,15 +49,16 @@ Keep going item-to-item until the queue needs them or they stop.
    unread mention is a durable UI/CLI comment to act on: address it as part of the work, then
    `node <kit>/scripts/t.mjs ack <id>#<n> --agent <you>` so it stops surfacing. Leave one open
    only if it needs the maintainer, and batch that into the next `/decide`.
-7. STOP and report when: the queue is empty, every remaining item needs the maintainer
-   (decision / scope / design-gated), or the maintainer says stop. List what's left and why.
+7. STOP and report when: the signed bill is done, the queue is empty, every remaining item needs the maintainer
+   (decision / scope / design-gated), or the maintainer says stop. List what's left and why, and ask for the next bill.
 
 **QUERY-TOOL FAILURE IS A HARD STOP (KIT-T236):** if `q` or `code-graph` errors, crashes, or
 answers wrongly, STOP the current step, `cap bug <what failed, verbatim command + error>`, and
-fix or dispatch the fix before continuing. Falling back to grep and moving on leaves the
-retrieval layer broken for every future session — the silent fallback IS the failure.
+raise it to the maintainer; the fix agent is dispatched only inside a signed bill (KIT-D132).
+Falling back to grep and moving on leaves the retrieval layer broken for every future
+session — the silent fallback IS the failure.
 
-**BIG-ASK TRIGGER (KIT-T038):** when an incoming request exceeds a size/risk threshold — long prompt AND a scope/risk signal (redesign, architecture, migrate, from scratch, overhaul, end-to-end, system-wide, etc.) — do NOT one-shot it. Route it into the structured pipeline: draft a plan, write a research doc (`docs/research/`), decompose into tickets, then drain them. Small/routine asks proceed directly; only the big-ask path engages the pipeline. The `UserPromptSubmit` hook nudges this automatically, but the contract here is the authoritative rule.
+**BIG-ASK TRIGGER (KIT-T038):** when an incoming request exceeds a size/risk threshold — long prompt AND a scope/risk signal (redesign, architecture, migrate, from scratch, overhaul, end-to-end, system-wide, etc.) — do NOT one-shot it. Route it into the structured pipeline: draft a plan, write a research doc (`docs/research/`), decompose into tickets, then propose them to the maintainer as a bill of work. Small/routine asks proceed directly; only the big-ask path engages the pipeline. The `UserPromptSubmit` hook nudges this automatically, but the contract here is the authoritative rule.
 
 **STATUS TRANSITIONS ARE MANDATORY (KIT-T028):** a `doing` ticket that gets dropped without a
 status flip becomes a zombie that nags every session start. For every ticket you touch:
@@ -64,12 +66,12 @@ status flip becomes a zombie that nags every session start. For every ticket you
 - Work complete → `t status <id> review` (or `done` when uat=none).
 - Bail / blocked / interrupted → `t status <id> todo` before you stop. Never leave doing.
 
-**ONE BLOCKED THREAD ≠ IDLE:** a single item gated on the maintainer (or in review) does NOT
-license the whole drain to stall — pull the next workable item from the queue and keep draining
-in parallel while that thread waits.
+**ONE BLOCKED THREAD ≠ IDLE:** a single item gated on the maintainer (or in review) does not
+stall the rest of the signed bill — continue the other signed items while that thread waits. An
+unsigned item is never pulled in to fill the gap; it is raised.
 
 **SUBAGENTS — ONE READ/WRITE AGENT PER CHECKOUT (KIT-D077, KIT-D039):** every writing agent
-works in the one checkout, on main, serially — the next ticket goes to the same agent once the
+works in the one checkout, on main, serially — the next signed ticket goes to the same agent once the
 last one lands. No worktrees, clones, branches or second directories. Read-only agents
 (`claude-kit:analyst`, `researcher`, Explore, or `[read-only: <reason>]`)
 are unrestricted; a writer in another checkout declares `[tree: <absolute path>]`. Batch all maintainer decisions into one AskUserQuestion questionnaire rather

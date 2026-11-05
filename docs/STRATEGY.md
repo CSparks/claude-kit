@@ -71,11 +71,13 @@ choose per project by editing config — not by switching tools.
 
 ## Driving "later" without you
 
-A backlog nobody drains is a graveyard. The drain runs on Claude's action:
+A backlog nobody looks at is a graveyard, and a backlog worked blind is worse: a ticket may
+be superseded in another session. The drain surfaces; the maintainer's bill of work decides
+(KIT-D132):
 
-- **Between tickets** — on `review`, pull the next item (roadmap order, else
-  type-order + priority). Low-risk + pattern-following → start it; else surface
-  one line and move on. No idle waiting.
+- **Between tickets** — on `review`, stop and show the next candidates (roadmap order, else
+  type-order + priority) as one-line "next up" items. Nothing starts until the
+  maintainer signs it into the bill.
 - **Questions** — answer the code-answerable ones and log them; batch Chris-only
   questions for natural breaks, never as interruptions.
 - **Regressions** — priority-bumped, surfaced proactively.

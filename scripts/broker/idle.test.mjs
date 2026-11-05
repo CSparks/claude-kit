@@ -52,14 +52,14 @@ test('negative control: with autostart off the same wait never starts a daemon a
   } finally { s.done(); }
 });
 
-test('orient: jobs queued with no daemon is a DISPATCH NOW block naming the start command; paused or empty is silent', () => {
+test('orient: jobs queued with no daemon is an OPEN block naming the start command for the maintainer to sign; paused or empty is silent', () => {
   const s = fixture();
   try {
     assert.deepEqual(noDaemonBlock(s.root), [], 'no broker home yet');
     queue(s);
     queue(s);
     const block = noDaemonBlock(s.root);
-    assert.match(block[0], /^--- DISPATCH NOW: 2 broker job\(s\) queued, no daemon running \(oldest waiting \d+ min\) ---$/);
+    assert.match(block[0], /^--- OPEN, awaiting a bill of work: 2 broker job\(s\) queued, no daemon running \(oldest waiting \d+ min\) ---$/);
     assert.match(block[1], /broker\.mjs --root .* --log auto/);
     pause(s.cfg);
     assert.deepEqual(noDaemonBlock(s.root), [], 'an operator pause is not a dead queue');

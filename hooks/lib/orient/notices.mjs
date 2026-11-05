@@ -1,14 +1,16 @@
-// notices.mjs — the top of orientation: the retrieval ritual, then every machine-level warning and dispatch-now list
-// (broker health, drift, devices, kit bugs, idle queues, repeat asks, concerns, directives), each best-effort (KIT-T071).
+// notices.mjs — the top of orientation: the bill-of-work rule (KIT-D132) and the retrieval ritual, then every machine-level
+// warning and OPEN list (broker health, drift, devices, kit bugs, idle queues, repeat asks, concerns, directives), each
+// best-effort (KIT-T071).
 //
-//   header(ctx)            starts the output with the title, the repo and the retrieval ritual
-//   notices(ctx)           pushes the warnings and dispatch-now lists
+//   header(ctx)            starts the output with the title, the repo, the bill-of-work rule and the retrieval ritual
+//   notices(ctx)           pushes the warnings and OPEN lists
 //   identity(ctx, views)   pushes foundational decisions, framework contracts, promotions and the doc tree; returns the foundational list
 
 import { pathExcluded, payload, projectName } from '../../lib.mjs';
 import { frameworkSection } from '../frameworks.mjs';
 import { promotionLines } from '../../../scripts/decision-promotion.mjs';
 import { adoptedDocTree, trunkMap } from '../../../scripts/doc-tree.mjs';
+import { AWAITING_BILL, BILL_HEADER, billOfWorkLines } from '../bill-of-work.mjs';
 import { clip } from './common.mjs';
 
 const REPEAT_ASKS_SHOWN = 8;
@@ -19,6 +21,7 @@ export function header({ out, root }) {
   out.push('=== PROJECT ORIENTATION (on-disk record — trust over any summary or your memory) ===');
   out.push(`Repo: ${root}`);
   out.push('');
+  out.push(BILL_HEADER, ...billOfWorkLines(), '');
   // The retrieval ritual sits at the TOP: a tool list trailing 300 lines of content does not change behaviour.
   out.push('--- RETRIEVAL FIRST (before proposing/designing/claiming ANYTHING) ---');
   out.push('  q fts <nouns>        already settled/filed? SEARCH before you design — relitigation is a process failure');
@@ -91,7 +94,7 @@ export async function notices({ out, root }) {
     const { askedAgainOpen } = await import('../../../scripts/asked-again.mjs');
     const repeats = askedAgainOpen(root);
     if (repeats.length) {
-      out.push('--- DISPATCH NOW: tickets asked for again (a repeat ask outranks the queue) ---');
+      out.push(`--- OPEN, ${AWAITING_BILL}: tickets asked for again (raise to the maintainer; a repeat ask is not a signed bill) ---`);
       for (const r of repeats.slice(0, REPEAT_ASKS_SHOWN)) out.push(`  ${r.id} — asked ${r.asked}x — ${clip(r.title, 100)}`);
       out.push('');
     }
