@@ -16,6 +16,8 @@ import { linkFailure, recoverLink } from './link-recover.mjs';
 import { LOCK_BACKOFF_MS, fileLockFailure, holdersOf, lockNote } from './file-lock.mjs';
 import { killTree, trackChild, untrackChild } from './children.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
+import { foreignBuilds, governedPids, listProcesses, summarize, waitForQuiet } from './build-contention.mjs';
+import { isCargoBuild } from './cargo-subs.mjs';
 import { enterBuild } from './build-guard.mjs';
 import { FINGERPRINT_ENV } from './fingerprint-log.mjs';
 
@@ -56,20 +58,25 @@ export function runCancellable(cmd, opts, hooks) {
   return { ...run, durationMs, recovered: notes.join('; ') };
 }
 
-// The command waits for its machine-wide build slot (build-slot.mjs) and its target dir's guard (build-guard.mjs) before it
-// starts; the slot queue time is reported as `slotWaitMs`. A cancel during either wait runs nothing and leaves an empty log,
-// so a reader of `logPath` never finds it missing.
+// The command waits for its machine-wide build slot (build-slot.mjs), for foreign cargo builds to finish
+// (build-contention.mjs) and for its target dir's guard (build-guard.mjs) before it starts; the first two waits are
+// reported as `slotWaitMs`, the foreign builds seen as `contendedBy` (sampled again at a timeout kill). A cancel during
+// any wait runs nothing and leaves an empty log, so a reader of `logPath` never finds it missing.
 function runOnce(cmd, opts, hooks) {
   const composed = composeCommand(cmd, { jobs: opts.jobs, testThreads: opts.testThreads, cwd: opts.cwd });
   const slot = acquireBuildSlot(composed, { jobs: opts.jobs, label: String(cmd).trim(), shouldCancel: hooks.shouldCancel });
+  const quiet = slot.cancelled || !isCargoBuild(composed) ? { waitedMs: 0, contendedBy: [] } : waitForQuiet({ shouldCancel: hooks.shouldCancel });
+  const waitedMs = slot.waitedMs + quiet.waitedMs;
   const guard = slot.cancelled ? null : enterBuild(composed, { cwd: opts.cwd, targetDir: opts.targetDir, shouldCancel: hooks.shouldCancel });
   if (!guard || guard.cancelled) {
     slot.release();
     writeFileSync(opts.logPath, '');
-    return { cmd: String(cmd).trim(), composed, exit: 1, durationMs: 0, slotWaitMs: slot.waitedMs, logTail: [], cancelled: true };
+    return { cmd: String(cmd).trim(), composed, exit: 1, durationMs: 0, slotWaitMs: waitedMs, logTail: [], cancelled: true };
   }
   try {
-    return { ...runInSlot(cmd, composed, opts, hooks), slotWaitMs: slot.waitedMs };
+    const run = runInSlot(cmd, composed, opts, hooks);
+    const contendedBy = run.timedOut ? summarize(foreignBuilds(listProcesses(), governedPids())) : quiet.contendedBy;
+    return { ...run, slotWaitMs: waitedMs, ...(contendedBy.length ? { contendedBy } : {}) };
   } finally { guard.release(); slot.release(); }
 }
 

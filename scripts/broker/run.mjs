@@ -23,6 +23,7 @@ import { enterBuild } from './build-guard.mjs';
 import { FINGERPRINT_ENV, harvestDirty } from './fingerprint-log.mjs';
 
 const LOG_TAIL_LINES = 60;
+const contentionText = (builds) => (builds && builds.length ? `; foreign cargo builds shared the machine: ${builds.join('; ')}` : '');
 const TEST_SUBS = new Set(['test', 't']);
 
 const BUILD_ONLY_FLAGS = new Set(['--no-run']);
@@ -75,7 +76,7 @@ function execute(cmd, { cwd, targetDir, logPath, jobs, testThreads }) {
     const { cancelled, timedOut, ...r } = runCancellable(cmd, { cwd, targetDir, logPath, jobs, testThreads, timeoutMs: limitMs }, { shouldCancel });
     if (cancelled && !asked) stopNowExit();
     const aborted = cancelled ? { kind: 'cancel', ids: asked, message: 'cancelled by the operator while running' }
-      : timedOut ? { kind: 'timeout', message: `timed out: the command ran ${durationText(r.durationMs)}, past its limit of ${durationText(limitMs)}; its process tree was killed` } : null;
+      : timedOut ? { kind: 'timeout', message: `timed out: the command ran ${durationText(r.durationMs)}, past its limit of ${durationText(limitMs)}; its process tree was killed${contentionText(r.contendedBy)}` } : null;
     if (!aborted) return r;
     appendFileSync(logPath, `\n[broker] ${aborted.message}\n`);
     return { ...r, logTail: tail(logPath), aborted };

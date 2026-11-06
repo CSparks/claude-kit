@@ -1,0 +1,42 @@
+// build-contention-run.test.mjs — runCancellable holds a cargo build until a foreign cargo build ends and reports
+// the wait as slotWaitMs and the foreign build as contendedBy (KIT-T873, KIT-T874).
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { copyFileSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runCancellable } from './run-cancellable.mjs';
+
+const FOREIGN_MS = 1500;
+const WAIT_MS = 4000;
+const WINDOWS = process.platform === 'win32';
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+// A node binary named `cargo` running a script named `check`: its command line reads `cargo check`.
+function foreignCargo(dir) {
+  const exe = join(dir, WINDOWS ? 'cargo.exe' : 'cargo');
+  if (WINDOWS) copyFileSync(process.execPath, exe); else symlinkSync(process.execPath, exe);
+  writeFileSync(join(dir, 'check'), `setTimeout(() => {}, ${FOREIGN_MS});`);
+  const child = spawn(exe, ['check'], { cwd: dir, stdio: 'ignore', windowsHide: true });
+  return child;
+}
+
+test('a cargo command waits out a foreign cargo build and names it', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'contention-run-'));
+  process.env.CLAUDE_KIT_BUILD_SLOT_DIR = join(dir, 'slots');
+  process.env.CLAUDE_KIT_CONTENTION_WAIT_MS = String(WAIT_MS);
+  const foreign = foreignCargo(dir);
+  try {
+    sleep(400);
+    const r = runCancellable('cargo check --manifest-path nowhere/Cargo.toml', { cwd: dir, targetDir: join(dir, 'target'), logPath: join(dir, 'run.log'), jobs: 2 }, { shouldCancel: () => false, pollMs: 50 });
+    assert.ok(r.slotWaitMs >= FOREIGN_MS / 2, `waited ${r.slotWaitMs} ms for the foreign build`);
+    assert.ok(r.contendedBy && r.contendedBy.length > 0, 'the foreign builds seen are reported');
+  } finally {
+    foreign.kill();
+    delete process.env.CLAUDE_KIT_BUILD_SLOT_DIR;
+    delete process.env.CLAUDE_KIT_CONTENTION_WAIT_MS;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
