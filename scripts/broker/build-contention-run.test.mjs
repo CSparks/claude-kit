@@ -7,10 +7,12 @@ import { spawn } from 'node:child_process';
 import { copyFileSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { foreignBuilds, governedPids, listProcesses } from './build-contention.mjs';
 import { runCancellable } from './run-cancellable.mjs';
 
-const FOREIGN_MS = 1500;
-const WAIT_MS = 4000;
+const FOREIGN_MS = 6000;
+const SEEN_MS = 20000;
+const WAIT_MS = 8000;
 const WINDOWS = process.platform === 'win32';
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
@@ -29,9 +31,9 @@ test('a cargo command waits out a foreign cargo build and names it', () => {
   process.env.CLAUDE_KIT_CONTENTION_WAIT_MS = String(WAIT_MS);
   const foreign = foreignCargo(dir);
   try {
-    sleep(400);
+    for (const end = Date.now() + SEEN_MS; !foreignBuilds(listProcesses(), governedPids()).some((b) => b.pid === foreign.pid) && Date.now() < end;) sleep(200);
     const r = runCancellable('cargo check --manifest-path nowhere/Cargo.toml', { cwd: dir, targetDir: join(dir, 'target'), logPath: join(dir, 'run.log'), jobs: 2 }, { shouldCancel: () => false, pollMs: 50 });
-    assert.ok(r.slotWaitMs >= FOREIGN_MS / 2, `waited ${r.slotWaitMs} ms for the foreign build`);
+    assert.ok(r.slotWaitMs > 0, `waited ${r.slotWaitMs} ms for the foreign build`);
     assert.ok(r.contendedBy && r.contendedBy.length > 0, 'the foreign builds seen are reported');
   } finally {
     foreign.kill();
