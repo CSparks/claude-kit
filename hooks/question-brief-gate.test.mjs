@@ -32,7 +32,7 @@ const transcript = (user, prose) => {
   return file;
 };
 const repoDir = adopted(false);
-const ask = (file, questions = QUESTIONS) => hook('question-brief-gate.mjs', { tool_name: 'AskUserQuestion', tool_input: { questions }, ...(file ? { transcript_path: file } : {}) }, repoDir);
+const ask = (file, questions = QUESTIONS, toolUseId) => hook('question-brief-gate.mjs', { tool_name: 'AskUserQuestion', tool_input: { questions }, ...(toolUseId ? { tool_use_id: toolUseId } : {}), ...(file ? { transcript_path: file } : {}) }, repoDir);
 const SETTLED = 'Good, go with the shorter limit. Ask me which one.';
 
 try {
@@ -130,6 +130,48 @@ try {
   const started = Date.now();
   const noId = ask(transcript(SETTLED, FULL_BRIEF));
   ok('control: a payload with no tool_use_id reads at once', noId.code === 0 && Date.now() - started < LAG_MS * 4);
+
+  const RADAR_QUESTIONS = [
+    { question: 'Which way should the radar rotate?', header: 'Radar view', multiSelect: false, options: [{ label: '(Recommended) Heading-up', description: 'ahead is the top' }, { label: 'North-up', description: 'the map stays fixed' }] },
+    { question: 'Which shape should the radar be?', header: 'Radar shape', multiSelect: false, options: [{ label: '(Recommended) Round dial', description: 'rim ticks' }, { label: 'Square panel', description: 'reuses the map panel' }] },
+  ];
+  const RADAR_BRIEF = [
+    'Decision: how the Free Ride radar rotates and what shape it takes, needed now because the HUD landing cannot start without both.',
+    'Evidence: readouts.rs:10-19 shows Free Ride has no HUD yet, and rg_ui::paint::dial in crates/rg-ui/src/paint/dial.rs already draws a round bearing dial; DE-T295 holds the plan.',
+    'Heading-up keeps ahead at the top, which matches the chase camera, and costs an N tick to keep north findable. North-up leaves the map fixed, which suits learning the world, and needs mental rotation in a chase view.',
+    'A Round dial puts beyond-range ticks on the rim at the true bearing, so the nearest direction always shows. A Square panel reuses the existing map panel, and gives less of a radar feel.',
+    'I recommend Heading-up and the Round dial because both match the chase view and reuse tested framework parts.',
+    'Not being asked: the range menu row and the distance caption, which stay open for later landings.',
+  ].join('\n\n');
+  const sameReply = (blocks) => {
+    const file = join(dir, `t${n++}.jsonl`);
+    const call = { type: 'tool_use', id: 'toolu_01RADAR', name: 'AskUserQuestion', input: { questions: RADAR_QUESTIONS } };
+    writeFileSync(file, [line('user', SETTLED), ...[...blocks, call].map((block) => line('assistant', [block]))].join('\n'));
+    return file;
+  };
+  const radar = (file) => ask(file, RADAR_QUESTIONS, 'toolu_01RADAR');
+  ok('a thinking block, the full brief as a text block and the call in one reply passes, with recommended markers on the labels',
+    radar(sameReply([thought, { type: 'text', text: RADAR_BRIEF }])).code === 0);
+  const RADAR_THIN = 'Heading-up or North-up, Round dial or Square panel: pick.';
+  const thinRadar = radar(sameReply([thought, { type: 'text', text: RADAR_THIN }]));
+  ok('control: a one-line text brief naming the options is blocked, and is not told the reply has no text block',
+    thinRadar.code === 2 && thinRadar.out.includes('- length:') && !thinRadar.out.includes(NO_TEXT));
+  const unnamedShape = radar(sameReply([thought, { type: 'text', text: RADAR_BRIEF.replace(/Square panel|map panel/g, 'other shape') }]));
+  ok('control: a full brief that never names an option is blocked for that option', unnamedShape.code === 2 && unnamedShape.out.includes('"Square panel"'));
+  const seenNoText = radar(sameReply([thought]));
+  ok('control: the call is in the transcript with no text block in its reply: the block says so', seenNoText.code === 2 && seenNoText.out.includes(NO_TEXT));
+
+  const UNFLUSHED = 'has not reached the transcript';
+  const unflushedReply = (earlierProse) => {
+    const file = join(dir, `t${n++}.jsonl`);
+    writeFileSync(file, [line('user', SETTLED), line('assistant', [{ type: 'text', text: earlierProse }])].join('\n'));
+    return file;
+  };
+  const unflushed = radar(unflushedReply('Checking the radar plan first.'));
+  ok('a call whose own reply is not in the transcript yet is blocked without claiming the reply has no text block, and is told to resend',
+    unflushed.code === 2 && unflushed.out.includes(UNFLUSHED) && unflushed.out.includes('unchanged') && !unflushed.out.includes(NO_TEXT));
+  ok('control: the resend, with the brief now an earlier reply of the turn, passes', radar(unflushedReply(RADAR_BRIEF)).code === 0);
+  ok('control: an unflushed reply after a thin earlier text is still blocked on the missing parts', unflushed.out.includes('- length:') && unflushed.out.includes('- evidence:'));
 
   const thinFile = transcript(SETTLED, 'short');
   writeFileSync(join(repoDir, '.claude-kit-ignore.yaml'), 'question-brief:\n  - "**"\n');

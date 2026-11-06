@@ -6,11 +6,12 @@
 //     replyHasText  the newest reply (the assistant entries after the last tool result or user entry) holds a text block
 //   null when the file cannot be read.
 //
-//   turnTextForCall(file, toolUseId) -> Promise<same>
-//     A PreToolUse hook runs while the transcript writer is still behind: the text block of the reply the call
-//     sits in can be unflushed. The transcript is ordered, so once it holds the call's own tool_use entry every
-//     earlier block of the reply is in it. This waits up to SETTLE_MS for that entry, then reads; with no id
-//     (or none appearing) it reads at once.
+//   turnTextForCall(file, toolUseId) -> Promise<same + replyUnflushed>
+//     A PreToolUse hook runs while the transcript writer is still behind: the reply the call sits in can be
+//     unflushed. The transcript is ordered, so once it holds the call's own tool_use entry every earlier block of
+//     the reply is in it. This waits up to SETTLE_MS for that entry, then reads; with no id it reads at once.
+//     replyUnflushed  an id was given and its entry never appeared: the call's own reply is not in what was read,
+//                     so replyHasText and prose describe earlier replies only.
 
 import { existsSync, readFileSync } from 'node:fs';
 
@@ -59,8 +60,11 @@ export function turnText(file) {
 }
 
 export async function turnTextForCall(file, toolUseId) {
+  let replyUnflushed = false;
   if (toolUseId && existsSync(file)) {
     for (let waited = 0; waited < SETTLE_MS && !holdsCall(file, toolUseId); waited += POLL_MS) await sleep(POLL_MS);
+    replyUnflushed = !holdsCall(file, toolUseId);
   }
-  return turnText(file);
+  const turn = turnText(file);
+  return turn && { ...turn, replyUnflushed };
 }
