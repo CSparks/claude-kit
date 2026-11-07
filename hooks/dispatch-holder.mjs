@@ -12,8 +12,18 @@ import { HOLDER_WINDOW_MS, beatHolder, liveHolders } from './lib/checkout-holder
 export const HOLDER_CHECK = 'checkout-holder';
 const MS_PER_MIN = 60 * 1000;
 
-export function registerWriter({ tree, session, label, now = Date.now() }) {
-  beatHolder({ tree, session, label, now });
+export function registerWriter({ tree, session, label, origin, now = Date.now() }) {
+  beatHolder({ tree, session, label, origin, now });
+}
+
+function describeHolder(h, now) {
+  const from = h.origin ? `from ${h.origin}` : 'origin unknown (entry has no recorded project)';
+  const agent = h.agent ? `agent ${h.agent}${h.label ? ` (${h.label})` : ''}` : h.label || 'no agent recorded';
+  const roster = h.origin ? `; its agent roster: ${h.origin}/.ai/agents.jsonl` : '';
+  return [
+    `    • session ${h.session} ${from}, ${agent}, last write ${Math.round((now - h.beatAt) / MS_PER_MIN)} min ago`,
+    `      entry: ${h.file}${roster}`,
+  ];
 }
 
 export function holderBlock({ tree, session, footer, now = Date.now() }) {
@@ -22,7 +32,13 @@ export function holderBlock({ tree, session, footer, now = Date.now() }) {
   return [
     `BLOCKED: another session holds this checkout with a live writer (KIT-T811, KIT-D123).`,
     `  tree: ${tree}`,
-    ...others.map((h) => `    • session ${h.session}${h.label ? ` (${h.label})` : ''}, last write ${Math.round((now - h.beatAt) / MS_PER_MIN)} min ago`),
+    ...others.flatMap((h) => describeHolder(h, now)),
+    '',
+    'Where this comes from: the machine-wide holder registry records a session when its writer is dispatched into this',
+    'checkout or its Write/Edit lands on a source file in it (store .ai/ files never count). "from" is the repo that session',
+    'itself works in.',
+    `Stale? A hold lapses ${HOLDER_WINDOW_MS / MS_PER_MIN} min after the last write or when its agent stops. If that agent is dead, delete the`,
+    'entry file above (rm it) to clear the hold now; the check re-registers on the holder\'s next write.',
     '',
     'A second writer shares that session\'s HEAD and index: it polls half-written files and its commit sweeps the',
     'other\'s edits into the wrong change.',

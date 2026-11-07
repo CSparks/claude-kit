@@ -4,8 +4,9 @@
 // dispatch and every Write/Edit in the tree beat the holder's heartbeat; a holder silent for HOLDER_WINDOW_MS,
 // or released when its agent stops, no longer holds.
 //
-//   beatHolder({ tree, session, label, agent, now })  -> record/refresh session's hold on the checkout
-//   liveHolders(tree, now)                           -> [{ tree, session, label, agent, since, beatAt }] inside the window
+//   beatHolder({ tree, session, label, agent, origin, now }) -> record/refresh session's hold on the checkout; origin is the
+//                                                    repo the session itself works in
+//   liveHolders(tree, now)                           -> [{ tree, session, label, agent, origin, since, beatAt, file }] inside the window
 //   releaseTree(tree, session)                       -> drop that session's hold (a synchronous writer finished)
 //   releaseAgent(agent)                              -> drop every hold whose last writer was that agent (SubagentStop)
 //   HOLDER_WINDOW_MS, holdersDir()                   -> CLAUDE_KIT_HOLDERS_DIR overrides the directory (tests)
@@ -28,13 +29,13 @@ function readEntry(file) {
   try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
 }
 
-export function beatHolder({ tree, session, label = '', agent = '', now = Date.now() }) {
+export function beatHolder({ tree, session, label = '', agent = '', origin = '', now = Date.now() }) {
   try {
     if (!tree || !session) return;
     const file = entryFile(tree, session);
     const prev = readEntry(file);
     mkdirSync(treeDir(tree), { recursive: true });
-    writeFileSync(file, JSON.stringify({ tree, session, label: label || prev?.label || '', agent: agent || prev?.agent || '', since: prev?.since || now, beatAt: now }));
+    writeFileSync(file, JSON.stringify({ tree, session, label: label || prev?.label || '', agent: agent || prev?.agent || '', origin: origin || prev?.origin || '', since: prev?.since || now, beatAt: now }));
   } catch {
     /* a heartbeat never breaks the tool call that carried it */
   }
@@ -48,7 +49,7 @@ export function liveHolders(tree, now = Date.now()) {
       const entry = readEntry(file);
       if (!entry) return [];
       if (now - entry.beatAt >= PRUNE_AFTER_MS) { rmSync(file, { force: true }); return []; }
-      return now - entry.beatAt < HOLDER_WINDOW_MS ? [entry] : [];
+      return now - entry.beatAt < HOLDER_WINDOW_MS ? [{ ...entry, file }] : [];
     });
   } catch {
     return [];

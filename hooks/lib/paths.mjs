@@ -86,6 +86,10 @@ export const VENDORED = /\/(node_modules|vendor|\.venv|venv|dist|build|target|\.
 // duplicated verbatim in pre-write and lint).
 export const LOCKFILES = /(\.lock|\.sum)$|(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|uv\.lock)$/;
 
+// A path inside a project's .ai workflow store (tickets, decisions, rosters), absolute or repo-relative: record-keeping,
+// never source a writer is changing.
+export const isStorePath = (p) => /(?:^|\/)\.ai\//.test(String(p).replace(/\\/g, '/'));
+
 // Lowercased extension of a path's basename, '' when none.
 export function fileExt(p) {
   const b = basename(String(p).replace(/\\/g, '/'));

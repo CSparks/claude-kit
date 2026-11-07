@@ -353,7 +353,7 @@ function holderBlockFor(root, input, prompt, p) {
 
 function registerWriterDispatch(root, input, prompt, p) {
   if (!p.tool_input || !p.session_id || !writerDispatch(root, input, prompt)) return;
-  registerWriter({ tree: dispatchTargetRoot(root, input), session: p.session_id, label: label(input) });
+  registerWriter({ tree: dispatchTargetRoot(root, input), session: p.session_id, label: label(input), origin: root });
 }
 
 // --- broker-owned-tree (KIT-T276) ---------------------------------------------

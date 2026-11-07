@@ -1,7 +1,7 @@
 // foreign-tree-edits (KIT-T407): a writer dispatch into a checkout whose tracked source is
 // already modified by someone this session cannot account for. The session's writes ledger
 // (turn-writes.mjs) attributes edits; a live roster writer is the shared-tree check's business.
-import { git } from './lib.mjs';
+import { git, isStorePath } from './lib.mjs';
 import { sessionWrites } from './turn-writes.mjs';
 
 export const FOREIGN_TREE_CHECK = 'foreign-tree-edits';
@@ -16,7 +16,7 @@ export function dirtyTrackedSource(tree) {
       const p = l.slice('XY '.length);
       return (p.includes(' -> ') ? p.split(' -> ').pop() : p).replace(/^"|"$/g, '');
     })
-    .filter((p) => !p.startsWith('.ai/') && !p.includes('/.ai/'));
+    .filter((p) => !isStorePath(p));
 }
 
 // Dirty paths this session did not write. [] without a session id: unattributable, fail open.
@@ -34,6 +34,8 @@ export function foreignTreeMessage({ agent, tree, files, footer }) {
     ...shown.map((f) => `    ${f}`),
     ...(files.length > shown.length ? [`    +${files.length - shown.length} more`] : []),
     '',
+    'Attributed by git status minus this session\'s write ledger: another project\'s session or agent edited these files in',
+    'this checkout (`git diff --stat` lists them; the holder registry names that session when it is live).',
     'A writer dispatched here would share those edits and can commit them under its own message (596d1fc).',
     'Fix: wait for the other session to commit, or dispatch a READ-ONLY agent type; if the edits are',
     'known and safe: include [foreign-edits-ok: <reason>] in the prompt.',
