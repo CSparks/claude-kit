@@ -38,6 +38,8 @@ try {
   ok('control: a brief with no recommendation at all is blocked', blockedOn(ask(withRecommendation('')), 'recommendation'));
   ok('control: "recommend" with no reason anywhere is blocked',
     blockedOn(ask(withRecommendation('I recommend the first one.\n\nThe second is also fine.')), 'recommendation'));
+  ok('control: with lettered options, a reason that opens with the article "A" and names no option is blocked',
+    blockedOn(ask(NEEDS_SIGN_OFF_BRIEF.replace(/\*\*Recommendation\.\*\*[^\n]*/, '**Recommendation.** A restart costs little. It keeps the queue moving and nothing else changes.'), NEEDS_SIGN_OFF_QUESTIONS), 'recommendation'));
   ok('control: a "Needs your sign-off" label with a stub body does not satisfy the decision',
     blockedOn(ask(NEEDS_SIGN_OFF_BRIEF.replace(/\*\*Needs your sign-off\.\*\*[^\n]*/, '**Needs your sign-off.** Please.'), NEEDS_SIGN_OFF_QUESTIONS), 'decision'));
 

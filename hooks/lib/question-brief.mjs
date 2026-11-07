@@ -54,10 +54,10 @@ function decisionStated(text) {
   return DECISION.test(text) && WHY_NOW.test(text);
 }
 
-// An option labelled "A: ..." is picked by its key: "Take A", "Option B", or a body that opens with the key.
+// An option labelled "A: ..." is picked by its key after a picking verb: "Take A", "Option B".
 const pickedByKey = (body, label) => {
   const key = /^(?:[A-Z]|\d{1,2})(?=[:.)])/.exec(label)?.[0];
-  return !!key && new RegExp(`(?:^|\\b(?:[Tt]ake|[Pp]ick|[Cc]hoose|[Gg]o with|[Uu]se|[Oo]ption|[Cc]hoice)\\s+)${key}\\b`).test(body);
+  return !!key && new RegExp(`\\b(?:[Tt]ake|[Pp]ick|[Cc]hoose|[Gg]o with|[Uu]se|[Oo]ption|[Cc]hoice)\\s+${key}\\b`).test(body);
 };
 
 // '' when the recommendation names its reason; else what the brief lacks. A Recommendation section passes when its first
