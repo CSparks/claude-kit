@@ -2,7 +2,7 @@
 id: KIT-T879
 title: Machine-wide build controller (KIT-D135): the broker gates concurrent builds across ALL workspaces, not only writers inside one repo. 2026-1
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:
 labels: [kit-feature]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-07T17:17:11Z
-updated: 2026-11-07T17:17:11Z
+updated: 2026-11-07T18:13:35Z
 ---
 
 ## Description
@@ -56,3 +56,5 @@ Chris 2026-11-07: 'ANd that needs to be across ALL projects. Rust or C++' then '
 - [2026-11-07 17:59] (comment) ticked: A running game cuts the budget and lowers build priority
 - [2026-11-07 17:59] (comment) ticked: builds prints who holds cores and who waits
 - [2026-11-07 17:59] (comment) ticked: Project settings over the budget are reported, never edited
+- [2026-11-07 18:05] (landed) 9826963 tickets: KIT-T879 acceptance ticked, measured numbers and gaps in Notes [no-test: ticket store only] (implements KIT-T87
+- [2026-11-07 18:13] (status) todo → review
