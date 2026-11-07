@@ -7,7 +7,8 @@
 // set only fills in for a job with none, or a suite-shaped one, unless `affected.mandatory` is set); the compile
 // check of every target runs first either way, so a landing cannot break a target its commands do not build (KIT-T677).
 // The test run of every dependent of a touched crate follows in both cases, so a landing cannot break a crate downstream of
-// the one its commands name (KIT-T719). A crate in a
+// the one its commands name (KIT-T719); a submodule's own dependents are left to its pre-push check and the nightly suite (KIT-T860).
+// A crate in a
 // nested workspace (a submodule's `rust/`) is tested with `cd <workspace> &&` in front.
 //
 // `landGate(cfg, cwd, job, files)` (the plan's Map path → { text }, text null = deleted) → null (run the job's commands as given) or
@@ -69,6 +70,9 @@ export function isSuiteShaped(cmd, suite) {
 
 const inWorkspace = (dir) => (dir ? `cd ${dir} && ` : '');
 
+const trimmed = (p) => String(p).replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
+const inSubmodule = (cfg, ws) => (cfg.repos || []).some((r) => r.submodule && (trimmed(ws) === trimmed(r.path) || trimmed(ws).startsWith(`${trimmed(r.path)}/`)));
+
 // Crates the project's `suite` runs whole (`cargo test -p game`): that run is the suite, which belongs to the suite cadence.
 function suiteCrates(suite) {
   const crates = new Set();
@@ -84,6 +88,9 @@ function suiteCrates(suite) {
 // compiles each shared crate once; a command per crate gave each its own feature set and recompiled the shared crates (KIT-T801).
 // A workspace without a lock yields none. A dependent the project's `suite` runs whole is not in the command: its full run
 // is the suite (nightly), and a landing that ran it would exceed the five-minute ceiling (KIT-D104); it is returned as `deferred`.
+// A workspace inside a submodule (a linked landing from the consumer) contributes no command: its dependents unify features apart
+// from the job's own command and recompile the framework cold (KIT-T860); the submodule half is gated by its own pre-push
+// check (linked.mjs) and its dependents run on the nightly suite, so they are `deferred` too.
 function dependentTests(cfg, cwd, sel) {
   const commands = [];
   const deferred = [];
@@ -93,9 +100,10 @@ function dependentTests(cfg, cwd, sel) {
   for (const [ws, names] of byWorkspace) {
     const lock = readLock(join(cwd, ws, 'Cargo.lock'));
     if (!lock) continue;
+    const submodule = inSubmodule(cfg, ws);
     const all = [...dependentsOf(lock, names)].filter((dep) => !names.includes(dep) && !sel.crates.has(dep) && (lock.get(dep) || {}).local);
-    const deps = all.filter((dep) => !wholeSuite.has(dep));
-    deferred.push(...all.filter((dep) => wholeSuite.has(dep)));
+    const deps = all.filter((dep) => !wholeSuite.has(dep) && !submodule);
+    deferred.push(...all.filter((dep) => !deps.includes(dep)));
     if (deps.length) commands.push(`${inWorkspace(ws)}${cfg.affected.test} ${deps.map((dep) => `-p ${dep}`).join(' ')}`);
   }
   return { commands, deferred };
