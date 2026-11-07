@@ -1,86 +1,65 @@
-// build-slot.mjs — machine-wide build slots (KIT-D105, KIT-T622). Each broker sizes `cargo -j` for the whole
-// machine (jobs.mjs), so brokers of different checkouts running at once multiply that: a dirt-empire
-// test job linking 8 executables took 167-221 s beside a long stiletto build and 10-20 s with the
-// machine to itself, and a gate hook died with a V8 abort at a 7 MB heap when the pagefile ran out.
-// Every cargo build-shaped broker command therefore takes a slot first. The machine has
-// floor(auto jobs / this command's jobs) slots (one on a box where `-j` already fills it), granted
-// in arrival order, shared by every checkout through one directory under the user's `.claude`.
+// build-slot.mjs — the machine-wide build budget (KIT-D105, KIT-T622, KIT-D135). Every Rust build from every
+// project, agent and tool takes cores from ONE budget: the physical cores minus the reserve (build-budget.mjs),
+// less the cores a running game or UAT session keeps. Builds that do not fit queue in arrival order; only the head
+// of the queue is admitted, so a large build is never starved by small ones. Holds and tickets live in one directory
+// under the user's `.claude` shared by every checkout (build-slot-store.mjs).
 //
-//   acquireBuildSlot(cmd, { jobs, label, force, shouldCancel, machine, pollMs })
-//     -> { cancelled, waitedMs, holder, release() }
-//   `cmd` that is not cargo build-shaped (and not `force`) gets a no-op slot at once. While queued the
-//   call beats the daemon's heartbeat (pulse) and polls `shouldCancel()`; `holder` names the slot
-//   owner it first waited on. CLAUDE_KIT_BUILD_SLOT_DIR moves the directory (tests).
+//   acquireBuildSlot(cmd, { jobs, label, force, elastic, cwd, shouldCancel, probes, pollMs })
+//     -> { cancelled, waitedMs, holder, granted, release() }
+//   `jobs` is the cores the build asks for (clamped to the budget). `elastic` builds start on whatever is free once
+//   MIN_ELASTIC_GRANT cores are, `granted` says how many they got; a fixed build (the broker's composed `-j`) waits for
+//   all of `jobs`. `cmd` that is not cargo build-shaped (and not `force`) gets a no-op slot at once. While queued the
+//   call beats the daemon's heartbeat (pulse) and polls `shouldCancel()`; `holder` names the hold it first waited on.
+//   `probes` = { physicalCores, commitFreeBytes, gameRunning } replaces the OS readings (tests).
 
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { homedir, hostname, availableParallelism, totalmem } from 'node:os';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { autoJobs } from './jobs.mjs';
 import { isCargoBuild } from './cargo-subs.mjs';
+import { grantFor } from './build-grant.mjs';
+import { commitFreeBytes } from './build-probes.mjs';
+import { SLOT_PREFIX, limits, liveHolds, liveTickets, queueDir, slotDir } from './build-slot-store.mjs';
 import { pulse } from './stall.mjs';
+
+export { slotDir };
 
 const POLL_MS = 500;
 const TICKET_WIDTH = 15;
 const RADIX = 36;
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-export const slotDir = () => process.env.CLAUDE_KIT_BUILD_SLOT_DIR || join(homedir(), '.claude', 'claude-kit-build-slots');
+const NO_SLOT = { cancelled: false, waitedMs: 0, holder: null, granted: 0, release() {} };
 
-export const slotCount = (jobs, machine = { cores: availableParallelism(), memBytes: totalmem() }) => Math.max(1, Math.floor(autoJobs(machine) / Math.max(1, Number(jobs) || 1)));
-
-const alive = (rec) => {
-  if (!rec || rec.host !== hostname() || !Number.isInteger(rec.pid)) return false;
-  try { process.kill(rec.pid, 0); return true; } catch (e) { return !!e && e.code === 'EPERM'; }
-};
-
-const readRec = (path) => { try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; } };
-
-// Tickets in arrival order; a ticket whose process is gone is dropped.
-function liveTickets(queue) {
-  const names = [];
-  for (const name of readdirSync(queue).sort()) {
-    if (alive(readRec(join(queue, name)))) names.push(name);
-    else rmSync(join(queue, name), { force: true });
-  }
-  return names;
-}
-
-function takeSlot(dir, count, record) {
-  for (let i = 0; i < count; i++) {
-    const path = join(dir, `slot-${i}`);
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try { writeFileSync(path, JSON.stringify(record), { flag: 'wx' }); return path; } catch (e) {
-        if (e.code !== 'EEXIST') throw e;
-        if (alive(readRec(path))) break;
-        rmSync(path, { force: true });
-      }
-    }
-  }
-  return null;
-}
-
-const NO_SLOT = { cancelled: false, waitedMs: 0, holder: null, release() {} };
-
-export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false, shouldCancel = () => false, machine, pollMs = POLL_MS } = {}) {
+export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false, elastic = false, cwd = process.cwd(), shouldCancel = () => false, probes = {}, pollMs = POLL_MS } = {}) {
   if (!force && !isCargoBuild(cmd)) return NO_SLOT;
   const dir = slotDir();
-  const queue = join(dir, 'queue');
+  const queue = queueDir(dir);
   mkdirSync(queue, { recursive: true });
-  const record = { pid: process.pid, host: hostname(), label, ts: new Date().toISOString() };
-  const ticket = `${Date.now().toString().padStart(TICKET_WIDTH, '0')}-${process.pid}-${Math.random().toString(RADIX).slice(2, 8)}`;
-  writeFileSync(join(queue, ticket), JSON.stringify(record));
-  const count = slotCount(jobs, machine);
+  const record = { pid: process.pid, host: hostname(), label, cwd, jobs: Math.max(1, Number(jobs) || 1), ts: new Date().toISOString() };
+  const name = `${Date.now().toString().padStart(TICKET_WIDTH, '0')}-${process.pid}-${Math.random().toString(RADIX).slice(2, 8)}`;
+  const ticketPath = join(queue, name);
+  writeFileSync(ticketPath, JSON.stringify({ ...record, elastic }));
   const started = Date.now();
   let holder = null;
   for (;;) {
-    const mine = liveTickets(queue).indexOf(ticket);
-    const path = mine !== -1 && mine < count ? takeSlot(dir, count, record) : null;
-    if (path) {
-      return { cancelled: false, waitedMs: Date.now() - started, holder, release() { rmSync(path, { force: true }); rmSync(join(queue, ticket), { force: true }); } };
+    const { budget } = limits(probes);
+    const head = liveTickets(queue)[0] === name;
+    const holds = liveHolds(dir);
+    if (head) {
+      const free = probes.commitFreeBytes ? probes.commitFreeBytes() : holds.length ? commitFreeBytes() : null;
+      const granted = grantFor({ requested: jobs, elastic, budget, held: holds, commitFreeBytes: free ?? Infinity });
+      if (granted) return hold(dir, name, ticketPath, { ...record, jobs: granted }, started, holder);
     }
-    if (shouldCancel()) { rmSync(join(queue, ticket), { force: true }); return { ...NO_SLOT, cancelled: true, waitedMs: Date.now() - started }; }
-    holder ??= readRec(join(dir, 'slot-0'))?.label ?? null;
+    if (shouldCancel()) { rmSync(ticketPath, { force: true }); return { ...NO_SLOT, cancelled: true, waitedMs: Date.now() - started }; }
+    holder ??= holds[0]?.label ?? null;
     pulse();
     sleep(pollMs);
   }
+}
+
+function hold(dir, name, ticketPath, record, started, holder) {
+  const path = join(dir, `${SLOT_PREFIX}${name}`);
+  writeFileSync(path, JSON.stringify(record));
+  rmSync(ticketPath, { force: true });
+  return { cancelled: false, waitedMs: Date.now() - started, holder, granted: record.jobs, release() { rmSync(path, { force: true }); } };
 }

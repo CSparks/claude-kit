@@ -1,0 +1,3 @@
+#!/bin/sh
+# Who is building on this machine, how many cores each holds, who waits (KIT-D135). `builds --audit` adds project settings over the budget.
+exec node "$(dirname "$0")/../scripts/broker/build-status.mjs" "$@"

@@ -16,6 +16,7 @@ import { linkFailure, recoverLink } from './link-recover.mjs';
 import { LOCK_BACKOFF_MS, fileLockFailure, holdersOf, lockNote } from './file-lock.mjs';
 import { killTree, trackChild, untrackChild } from './children.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
+import { fitCommand, heldEnv, requestedCores } from './build-env.mjs';
 import { foreignBuilds, governedPids, listProcesses, summarize, waitForQuiet } from './build-contention.mjs';
 import { isCargoBuild } from './cargo-subs.mjs';
 import { enterBuild } from './build-guard.mjs';
@@ -63,8 +64,9 @@ export function runCancellable(cmd, opts, hooks) {
 // reported as `slotWaitMs`, the foreign builds seen as `contendedBy` (sampled again at a timeout kill). A cancel during
 // any wait runs nothing and leaves an empty log, so a reader of `logPath` never finds it missing.
 function runOnce(cmd, opts, hooks) {
-  const composed = composeCommand(cmd, { jobs: opts.jobs, testThreads: opts.testThreads, cwd: opts.cwd });
-  const slot = acquireBuildSlot(composed, { jobs: opts.jobs, label: String(cmd).trim(), shouldCancel: hooks.shouldCancel });
+  const asked = composeCommand(cmd, { jobs: opts.jobs, testThreads: opts.testThreads, cwd: opts.cwd });
+  const slot = acquireBuildSlot(asked, { jobs: requestedCores(asked, opts.jobs), label: String(cmd).trim(), cwd: opts.cwd, shouldCancel: hooks.shouldCancel });
+  const composed = fitCommand(asked, slot.granted);
   const quiet = slot.cancelled || !isCargoBuild(composed) ? { waitedMs: 0, contendedBy: [] } : waitForQuiet({ shouldCancel: hooks.shouldCancel });
   const waitedMs = slot.waitedMs + quiet.waitedMs;
   const guard = slot.cancelled ? null : enterBuild(composed, { cwd: opts.cwd, targetDir: opts.targetDir, shouldCancel: hooks.shouldCancel });
@@ -74,13 +76,13 @@ function runOnce(cmd, opts, hooks) {
     return { cmd: String(cmd).trim(), composed, exit: 1, durationMs: 0, slotWaitMs: waitedMs, logTail: [], cancelled: true };
   }
   try {
-    const run = runInSlot(cmd, composed, opts, hooks);
+    const run = runInSlot(cmd, composed, opts, hooks, slot.granted);
     const contendedBy = run.timedOut ? summarize(foreignBuilds(listProcesses(), governedPids())) : quiet.contendedBy;
     return { ...run, slotWaitMs: waitedMs, ...(contendedBy.length ? { contendedBy } : {}) };
   } finally { guard.release(); slot.release(); }
 }
 
-function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0 }, { shouldCancel, pollMs = DEFAULT_POLL_MS }) {
+function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0 }, { shouldCancel, pollMs = DEFAULT_POLL_MS }, granted) {
   const marker = `${logPath}.exit`;
   rmSync(marker, { force: true });
   const fd = openSync(logPath, 'w');
@@ -89,7 +91,7 @@ function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0 }, { 
   try {
     child = spawn(process.execPath, [CHILD, marker, composed], {
       cwd, windowsHide: true, detached: process.platform !== 'win32', stdio: ['ignore', fd, fd],
-      env: { ...FINGERPRINT_ENV, ...process.env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: targetDir },
+      env: { ...FINGERPRINT_ENV, ...process.env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: targetDir, ...(granted ? heldEnv(process.env, granted) : {}) },
     });
     child.unref();
   } finally { closeSync(fd); }

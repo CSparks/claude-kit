@@ -93,6 +93,10 @@ export function tempDir(prefix = 'broker-') {
 // Build slots are machine-wide: a test's pre-push gate would queue behind a real build on the
 // box. Each test process gets its own slot directory, which its children inherit.
 process.env.CLAUDE_KIT_BUILD_SLOT_DIR ??= tempDir('broker-slots-');
+// The budget reads the OS (cores, free commit, running games); a test gets fixed readings and a private config file.
+process.env.CLAUDE_KIT_BUILD_BUDGET_FILE ??= join(tempDir('broker-budget-'), 'budget.json');
+process.env.CLAUDE_KIT_PHYSICAL_CORES ??= '16';
+process.env.CLAUDE_KIT_GAME_RUNNING ??= '0';
 process.env.CLAUDE_KIT_NO_BUG_FILING = '1';
 
 // A repo on `main` with target/ gitignored (so the broker's own control files never dirty it)

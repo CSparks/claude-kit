@@ -24,9 +24,12 @@ const EXEMPT = {
 
 const brokerModules = () => readdirSync(DIR).filter((f) => f.endsWith('.mjs') && !f.endsWith('.test.mjs') && !(f in EXEMPT));
 
-// KIT-D105: the machine build slot is the one cross-directory wait. Exactly the two lines that name
-// its directory (the homedir import and the slotDir definition) may leave the checkout.
-const SLOT_EXCEPTION = { 'build-slot.mjs': [/^import \{ homedir,/, /^export const slotDir = /] };
+// KIT-D105, KIT-D135: the machine build budget is the one cross-directory state. Exactly the lines that name its
+// directory and its config file (the homedir import and the path definition, in two modules) may leave the checkout.
+const SLOT_EXCEPTION = {
+  'build-slot-store.mjs': [/^import \{ homedir,/, /^export const slotDir = /],
+  'build-budget.mjs': [/^import \{ availableParallelism, homedir,/, /^export const budgetConfigPath = /],
+};
 
 const outsideHits = (modules, allowed = {}) => {
   const hits = [];
@@ -43,17 +46,20 @@ test('no broker module builds a lock, queue or state path outside the checkout, 
   assert.deepEqual(outsideHits(brokerModules(), SLOT_EXCEPTION), []);
 });
 
-test('the slot exception is exactly build-slot.mjs and its directory lines, nothing wider', () => {
-  assert.deepEqual(Object.keys(SLOT_EXCEPTION), ['build-slot.mjs']);
-  const lines = new Set(outsideHits(['build-slot.mjs']).map((h) => h.split(':')[1]));
-  assert.equal(lines.size, SLOT_EXCEPTION['build-slot.mjs'].length, 'without the exception the slot module hits only its two directory lines');
-  assert.deepEqual(outsideHits(brokerModules().filter((f) => f !== 'build-slot.mjs')), [], 'every other module has no exception');
+test('the slot exception is exactly the budget modules and their directory lines, nothing wider', () => {
+  const excepted = Object.keys(SLOT_EXCEPTION);
+  assert.deepEqual(excepted, ['build-slot-store.mjs', 'build-budget.mjs']);
+  for (const f of excepted) {
+    const lines = new Set(outsideHits([f]).map((h) => h.split(':')[1]));
+    assert.equal(lines.size, SLOT_EXCEPTION[f].length, `without the exception ${f} hits only its directory lines`);
+  }
+  assert.deepEqual(outsideHits(brokerModules().filter((f) => !excepted.includes(f))), [], 'every other module has no exception');
 });
 
 test('negative control: a second path outside the checkout in the slot module is flagged', () => {
   const extra = "const state = join(homedir(), '.claude', 'other-state');";
   assert.ok(OUTSIDE_CHECKOUT.some((re) => re.test(extra)));
-  assert.ok(!SLOT_EXCEPTION['build-slot.mjs'].some((re) => re.test(extra)));
+  assert.ok(!Object.values(SLOT_EXCEPTION).flat().some((re) => re.test(extra)));
 });
 
 test('negative control: the scan flags a machine-wide lock directory', () => {

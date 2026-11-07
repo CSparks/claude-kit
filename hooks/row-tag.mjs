@@ -7,7 +7,8 @@
 // The owner is whoever's transcript the payload carries: the main thread, or a subagent's own
 // sidechain (`.../subagents/agent-<id>.jsonl`), whose sibling `.meta.json` names the model when no
 // assistant turn exists yet. An owner whose model cannot be resolved is tagged `[model?]`: a row is
-// never untagged. Emits updatedInput only (no permissionDecision), so no gate is weakened.
+// never untagged. A background command that runs cargo also gets the build-budget shims on PATH (build-wrap.mjs,
+// KIT-D135), in the same updatedInput. Emits updatedInput only (no permissionDecision), so no gate is weakened.
 // Fail-open: a throw exits 0 untouched.
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -15,6 +16,7 @@ import { basename, dirname, join } from 'node:path';
 import { payload } from './lib.mjs';
 import { latestAssistantModel, modelDisplay, stripModelTag } from './model-tag.mjs';
 import { MODEL_UNKNOWN } from './lib/agent-format.mjs';
+import { shimmedCommand } from './lib/build-wrap.mjs';
 
 const ROW_TOOLS = new Set(['Bash', 'PowerShell', 'Monitor']);
 const LABEL_MAX = 60;
@@ -31,9 +33,10 @@ async function main() {
   const display = modelDisplay(ownerModel(p));
   const tag = display ? `[${display}]` : MODEL_UNKNOWN;
   const label = `${tag} ${stripModelTag(description)}`;
-  if (label === input.description) process.exit(0);
+  const wrapped = p.tool_name === 'Monitor' ? null : shimmedCommand(input.command, p.tool_name);
+  if (label === input.description && !wrapped) process.exit(0);
   process.stdout.write(JSON.stringify({
-    hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input, description: label } },
+    hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input, description: label, ...(wrapped ? { command: wrapped } : {}) } },
   }));
   process.exit(0);
 }

@@ -1,0 +1,3 @@
+#!/bin/sh
+# Build-budget shim (KIT-D135): puts cargo-nextest under the machine build budget.
+exec node "$(dirname "$0")/../../scripts/broker/build-run.mjs" cargo-nextest "$@"

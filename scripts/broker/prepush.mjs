@@ -18,12 +18,13 @@ import { runPulsing } from './run-pulsing.mjs';
 import { tail } from './run.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
 import { enterBuild } from './build-guard.mjs';
+import { heldEnv } from './build-env.mjs';
 
 const ZERO = '0'.repeat(40);
 
-export function buildEnv(cfg) {
+export function buildEnv(cfg, granted) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
-  return { ...env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: cfg.targetDir, CARGO_BUILD_JOBS: String(cfg.jobs), ...(cfg.testThreads ? { NEXTEST_TEST_THREADS: String(cfg.testThreads) } : {}) };
+  return { ...env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: cfg.targetDir, CARGO_BUILD_JOBS: String(cfg.jobs), ...(cfg.testThreads ? { NEXTEST_TEST_THREADS: String(cfg.testThreads) } : {}), ...(granted ? heldEnv(env, granted) : {}) };
 }
 
 export function runPrePush(cfg, cwd, remote, branch, logPath) {
@@ -36,7 +37,7 @@ export function runPrePush(cfg, cwd, remote, branch, logPath) {
   const slot = acquireBuildSlot('pre-push gate', { jobs: cfg.jobs, label: `pre-push gate ${cwd}`, force: true });
   const guard = enterBuild('pre-push gate', { cwd, targetDir: cfg.targetDir, force: true });
   try {
-    exit = holdLocks(cwd, () => runPulsing(['git', 'hook', 'run', '--ignore-missing', `--to-stdin=${stdin}`, 'pre-push', '--', remote, url], { cwd, env: buildEnv(cfg), logPath }).status);
+    exit = holdLocks(cwd, () => runPulsing(['git', 'hook', 'run', '--ignore-missing', `--to-stdin=${stdin}`, 'pre-push', '--', remote, url], { cwd, env: buildEnv(cfg, slot.granted), logPath }).status);
   } finally {
     guard.release();
     slot.release();

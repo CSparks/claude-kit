@@ -2,6 +2,7 @@
 //
 //   brokerCalls(command) -> [{ script: 'submit'|'wait'|'watch'|'broker', words: [...], sub }]
 //   usesCargo(command)   -> does any segment run `cargo`
+//   usesTool(command, re) -> does any segment's command word match `re`
 //
 // A call is a segment whose command word is `node`/a path to one of the broker scripts (after env
 // assignments and loop keywords such as `do`); `sub` is the first positional word after `broker.mjs`. A shell wrapper
@@ -51,13 +52,18 @@ export function brokerCalls(command, depth = 0) {
   return out;
 }
 
-export function usesCargo(command, depth = 0) {
+const CARGO = /^cargo(?:\.exe)?$/i;
+
+// True when any segment's command word matches `tool`, a shell wrapper's quoted argument included.
+export function usesTool(command, tool, depth = 0) {
   for (const { text } of segments(String(command || ''))) {
     const ws = words(text);
     const lead = ws.find((w) => !ENV_ASSIGN.test(w));
     if (!lead) continue;
-    if (/^cargo(?:\.exe)?$/i.test(base(lead))) return true;
-    if (depth < WRAP_DEPTH && WRAPPER.test(base(lead)) && ws.some((w) => /^["']/.test(w) && w.length > 2 && usesCargo(unquote(w), depth + 1))) return true;
+    if (tool.test(base(lead))) return true;
+    if (depth < WRAP_DEPTH && WRAPPER.test(base(lead)) && ws.some((w) => /^["']/.test(w) && w.length > 2 && usesTool(unquote(w), tool, depth + 1))) return true;
   }
   return false;
 }
+
+export const usesCargo = (command) => usesTool(command, CARGO);

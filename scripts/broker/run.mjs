@@ -20,6 +20,7 @@ import { packageScoped, runsNextest } from './alias.mjs';
 import { CARGO_BUILD_SUBS } from './cargo-subs.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
 import { enterBuild } from './build-guard.mjs';
+import { fitCommand, heldEnv, requestedCores } from './build-env.mjs';
 import { FINGERPRINT_ENV, harvestDirty } from './fingerprint-log.mjs';
 
 const LOG_TAIL_LINES = 60;
@@ -81,8 +82,9 @@ function execute(cmd, { cwd, targetDir, logPath, jobs, testThreads }) {
     appendFileSync(logPath, `\n[broker] ${aborted.message}\n`);
     return { ...r, logTail: tail(logPath), aborted };
   }
-  const composed = composeCommand(cmd, { jobs, testThreads, cwd });
-  const slot = acquireBuildSlot(composed, { jobs, label: String(cmd).trim() });
+  const asked = composeCommand(cmd, { jobs, testThreads, cwd });
+  const slot = acquireBuildSlot(asked, { jobs: requestedCores(asked, jobs), label: String(cmd).trim(), cwd });
+  const composed = fitCommand(asked, slot.granted);
   const guard = enterBuild(composed, { cwd, targetDir });
   const fd = openSync(logPath, 'w');
   const started = Date.now();
@@ -93,7 +95,7 @@ function execute(cmd, { cwd, targetDir, logPath, jobs, testThreads }) {
       shell: true,
       windowsHide: true,
       stdio: ['ignore', fd, fd],
-      env: { ...FINGERPRINT_ENV, ...process.env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: targetDir, ...(jobs ? { CARGO_BUILD_JOBS: String(jobs) } : {}) },
+      env: { ...FINGERPRINT_ENV, ...process.env, PYTHONDONTWRITEBYTECODE: '1', CARGO_TARGET_DIR: targetDir, ...(jobs ? { CARGO_BUILD_JOBS: String(jobs) } : {}), ...(slot.granted ? heldEnv(process.env, slot.granted) : {}) },
     });
     code = r.status == null ? 1 : r.status;
   } finally {
