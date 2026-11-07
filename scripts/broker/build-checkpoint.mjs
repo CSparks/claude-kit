@@ -9,6 +9,8 @@
 //     poll(elapsedMs) -> null between checks; at a check -> { line, stop } with `stop` set (a reason) when the command stalled.
 //   A budget under the interval is the interval, so a project's short limit still ends a silent hang at that limit.
 //   Past `limitMs` a command that prints nothing and runs no compiler is stopped too (a hung test holds no lane, KIT-T676).
+//   A command blocked on cargo's file lock (another cargo build holds the target dir) is contended, not stalled: it waits
+//   until its budget, then stops with the lock named.
 //   A process list that cannot be read never stops a command on CPU alone.
 //   CLAUDE_KIT_CHECKPOINT_MS=<ms> moves the interval (tests).
 
@@ -27,12 +29,18 @@ const MIN_CPU_MS = 50;
 const CPU_SHARE = 0.02;
 const HALF = 2;
 
-const phaseText = (p) => (p.phase === 'compiling' ? `compiling ${p.crates.join(', ')} (${p.compiled} crates compiled so far)` : p.phase === 'testing' ? `running ${p.target}` : 'no cargo output yet');
+const PHASE_TEXT = {
+  compiling: (p) => `compiling ${p.crates.join(', ')} (${p.compiled} crates compiled so far)`,
+  testing: (p) => `running ${p.target}`,
+  waiting: (p) => `waiting for the file lock on ${p.lock}, held by another cargo build`,
+  starting: () => 'no cargo output yet',
+};
 
-function warmthText(historyMs, elapsedMs) {
-  if (!historyMs) return 'cold: no passing run of this command on record, so no estimate';
+function warmthText(historyMs, elapsedMs, registry) {
+  const rebuilt = registry ? `; ${registry} registry crates rebuilt, a cold dependency build` : '';
+  if (!historyMs) return `cold: no passing run of this command on record, so no estimate${rebuilt}`;
   const last = `warm: the last passing run took ${durationText(historyMs)}`;
-  return elapsedMs > historyMs ? `${last}, this run is past it` : `${last}, about ${durationText(historyMs - elapsedMs)} left`;
+  return `${elapsedMs > historyMs ? `${last}, this run is past it` : `${last}, about ${durationText(historyMs - elapsedMs)} left`}${rebuilt}`;
 }
 
 const rivalsText = (rivals) => (rivals.length ? `slow because other cargo builds share the machine: ${rivals.join('; ')}` : 'no other cargo build is running');
@@ -52,10 +60,11 @@ export function checkpointWatch({ logPath, pid, limitMs, historyMs = 0, interval
     return { at, rows, tree, observed: tree.length > 0, cpu: cpuByPid(tree), ...logWindow(logPath) };
   };
   const every = limitMs ? Math.min(intervalMs, limitMs) : intervalMs;
+  clearNote(logPath);
   let before = { at: 0, size: 0, cpu: new Map(), baseline: false };
   let nth = 1;
 
-  function verdict(now) {
+  function verdict(now, phase) {
     const grew = now.size - before.size;
     const span = now.at - before.at;
     const gain = now.observed ? cpuGain(before.cpu, now.tree) : 0;
@@ -63,7 +72,8 @@ export function checkpointWatch({ logPath, pid, limitMs, historyMs = 0, interval
     const beyond = now.at >= limitMs;
     const idle = grew <= 0;
     let stop = null;
-    if (idle && (now.observed ? !cpuOk : beyond)) stop = `no log output and no CPU in the build tree for ${durationText(span)}`;
+    if (idle && phase.phase === 'waiting') stop = beyond ? `past its ${durationText(limitMs)} budget still waiting for the file lock on ${phase.lock}` : null;
+    else if (idle && (now.observed ? !cpuOk : beyond)) stop = `no log output and no CPU in the build tree for ${durationText(span)}`;
     else if (idle && beyond && now.observed && !now.tree.some(isCompiler)) stop = `past its ${durationText(limitMs)} budget with no log output and no compiler running (a hung test)`;
     return { grew, gain, stop };
   }
@@ -73,8 +83,9 @@ export function checkpointWatch({ logPath, pid, limitMs, historyMs = 0, interval
       if (!before.baseline && elapsedMs >= every / HALF) before = { ...sample(elapsedMs), baseline: true };
       if (elapsedMs < nth * every) return null;
       const now = sample(elapsedMs);
-      const { grew, gain, stop } = verdict(now);
-      const where = `${durationText(nth * every)} check: ${phaseText(logPhase(now.text))}; ${warmthText(historyMs, elapsedMs)}; ${rivalsText(summarize(foreignBuilds(now.rows, own())))}`;
+      const phase = logPhase(now.text);
+      const { grew, gain, stop } = verdict(now, phase);
+      const where = `${durationText(nth * every)} check: ${PHASE_TEXT[phase.phase](phase)}; ${warmthText(historyMs, elapsedMs, phase.registry)}; ${rivalsText(summarize(foreignBuilds(now.rows, own())))}`;
       const line = stop ? `${where}; STALLED, stopping the build: ${stop}` : `${where}; progressing (log +${Math.max(0, grew)} B, CPU +${durationText(gain)}), continuing`;
       say(line);
       before = { ...now, baseline: true };

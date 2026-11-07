@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,13 +16,15 @@ const WAIT_MS = 8000;
 const WINDOWS = process.platform === 'win32';
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-// A node binary named `cargo` running a script named `check`: its command line reads `cargo check`.
+// A node binary named `cargo` running a script named `check`: its command line reads `cargo check`. A launcher that exits
+// starts it, so it is not a child of this process (a child would be governed, not foreign): { pid, kill() }.
 function foreignCargo(dir) {
   const exe = join(dir, WINDOWS ? 'cargo.exe' : 'cargo');
   if (WINDOWS) copyFileSync(process.execPath, exe); else symlinkSync(process.execPath, exe);
   writeFileSync(join(dir, 'check'), `setTimeout(() => {}, ${FOREIGN_MS});`);
-  const child = spawn(exe, ['check'], { cwd: dir, stdio: 'ignore', windowsHide: true });
-  return child;
+  const launcher = `const c = require('node:child_process').spawn(${JSON.stringify(exe)}, ['check'], { cwd: ${JSON.stringify(dir)}, stdio: 'ignore', windowsHide: true, detached: true }); console.log(c.pid); c.unref();`;
+  const pid = Number(spawnSync(process.execPath, ['-e', launcher], { encoding: 'utf8', windowsHide: true }).stdout);
+  return { pid, kill: () => { try { process.kill(pid); } catch { /* already finished */ } } };
 }
 
 test('a cargo command waits out a foreign cargo build and names it', () => {

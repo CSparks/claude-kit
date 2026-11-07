@@ -89,6 +89,42 @@ test('past its budget a command that prints nothing and runs no compiler is a hu
   } finally { hung.done(); building.done(); early.done(); }
 });
 
+const LOCK_LOG = `${CARGO_LOG}    Blocking waiting for file lock on build directory\n`;
+
+test('a command blocked on cargo\'s file lock is contended: not stopped inside its budget, stopped past it with the lock named', () => {
+  const inside = harness({ text: LOCK_LOG, limitMs: 60000, foreign: [FOREIGN] });
+  const past = harness({ text: LOCK_LOG, limitMs: 1500 });
+  try {
+    inside.at(HALF);
+    const check = inside.at(INTERVAL);
+    assert.equal(check.stop, undefined);
+    assert.match(check.line, /waiting for the file lock on build directory, held by another cargo build/);
+    assert.match(check.line, /pid 900 cargo check --workspace/);
+    past.at(HALF);
+    past.at(INTERVAL);
+    assert.equal(past.at(2 * INTERVAL).stop, 'past its 2 s budget still waiting for the file lock on build directory');
+  } finally { inside.done(); past.done(); }
+});
+
+test('control: a lock line cargo has moved past, or no lock line at all, is judged as before', () => {
+  const moved = harness({ text: `${LOCK_LOG}   Compiling rg-shader-kit v0.1.0\n`, limitMs: 60000 });
+  const silent = harness({ text: CARGO_LOG, limitMs: 60000 });
+  try {
+    moved.at(HALF);
+    assert.match(moved.at(INTERVAL).stop, /no log output and no CPU/, 'compiling again, then silent and idle: stalled');
+    silent.at(HALF);
+    assert.match(silent.at(INTERVAL).stop, /no log output and no CPU/);
+  } finally { moved.done(); silent.done(); }
+});
+
+test('registry crates rebuilt are reported as a cold dependency build even when the command has history', () => {
+  const h = harness({ text: CARGO_LOG, cpu: (t) => t * 5, historyMs: 4000 });
+  try {
+    h.at(HALF);
+    assert.match(h.at(INTERVAL).line, /warm: the last passing run took 4 s, about 3 s left; 1 registry crates rebuilt, a cold dependency build/);
+  } finally { h.done(); }
+});
+
 test('a process list that cannot be read never stops a command on CPU alone, but a silent one past its budget stops', () => {
   const h = harness({ shape: [], limitMs: 1500 });
   try {
