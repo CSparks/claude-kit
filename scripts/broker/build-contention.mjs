@@ -7,7 +7,7 @@
 // (inside the slot, outside the command's time limit) once the decision is amended.
 //
 //   foreignBuilds(procs, ownPids) -> [{ pid, name, cmd }]   cargo build roots and parentless rustc not under `ownPids`
-//   listProcesses() -> [{ pid, ppid, name, cmd }]           every process on this machine
+//   listProcesses() -> [{ pid, ppid, name, cpuMs, cmd }]    every process on this machine, with the CPU time it has used
 //   waitForQuiet({ ownPids?, shouldCancel?, maxWaitMs?, pollMs?, list? }) -> { waitedMs, quiet, contendedBy: [summary] }
 //     one sample, then waits while foreign builds run until `maxWaitMs` (default: the env value, else 0 = sample only)
 //   describe(build) -> "pid 123 cargo check --workspace"
@@ -26,14 +26,17 @@ const MAX_NAMED = 4;
 const CARGO_FAMILY = /^(cargo|rustc|rustdoc|clippy-driver)(\.exe)?$/i;
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
+const HUNDRED_NS_PER_MS = 10000;
+const CPU_100NS = '($_.UserModeTime + $_.KernelModeTime)';
+
 const WINDOWS_LIST = [
   '-NoProfile', '-Command',
-  'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId)`t$($_.ParentProcessId)`t$($_.Name)`t$($_.CommandLine)" }',
+  `Get-CimInstance Win32_Process | ForEach-Object { "$($_.ProcessId)\`t$($_.ParentProcessId)\`t$($_.Name)\`t$([long](${CPU_100NS} / ${HUNDRED_NS_PER_MS}))\`t$($_.CommandLine)" }`,
 ];
 
 const parseRow = (line) => {
-  const [pid, ppid, name, ...rest] = line.split('\t');
-  return { pid: Number(pid), ppid: Number(ppid), name: name || '', cmd: rest.join('\t') };
+  const [pid, ppid, name, cpu, ...rest] = line.split('\t');
+  return { pid: Number(pid), ppid: Number(ppid), name: name || '', cpuMs: Number(cpu) || 0, cmd: rest.join('\t') };
 };
 
 export function listProcesses() {
@@ -41,10 +44,10 @@ export function listProcesses() {
     if (process.platform === 'win32') {
       return execFileSync('powershell', WINDOWS_LIST, { encoding: 'utf8', windowsHide: true }).split(/\r?\n/).filter(Boolean).map(parseRow);
     }
-    const out = execFileSync('ps', ['-axo', 'pid=,ppid=,comm=,args='], { encoding: 'utf8' });
+    const out = execFileSync('ps', ['-axo', 'pid=,ppid=,comm=,cputime=,args='], { encoding: 'utf8' });
     return out.split('\n').filter(Boolean).map((l) => {
-      const [pid, ppid, comm, ...args] = l.trim().split(/\s+/);
-      return { pid: Number(pid), ppid: Number(ppid), name: comm.split('/').pop(), cmd: args.join(' ') };
+      const [pid, ppid, comm, cpu, ...args] = l.trim().split(/\s+/);
+      return { pid: Number(pid), ppid: Number(ppid), name: comm.split('/').pop(), cpuMs: psCpuMs(cpu), cmd: args.join(' ') };
     });
   } catch { return []; }
 }

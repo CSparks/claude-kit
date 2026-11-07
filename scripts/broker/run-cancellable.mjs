@@ -6,6 +6,8 @@
 // `runCancellable(cmd, { cwd, targetDir, logPath, jobs }, { shouldCancel, pollMs })`
 //   -> the runCommand result plus `cancelled: boolean`. `opts.timeoutMs` (0 = none) kills the tree when the
 //   command has run that long (the slot wait is not counted); the result then has `timedOut: true`.
+//   With `opts.checkpoint` ({ historyMs?, intervalMs? }, build-checkpoint.mjs) `timeoutMs` is a budget, not a kill: the
+//   command is checked every interval, runs on while it progresses and is stopped only when stalled (`stalled: <reason>`).
 
 import { spawn } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -16,6 +18,7 @@ import { linkFailure, recoverLink } from './link-recover.mjs';
 import { LOCK_BACKOFF_MS, fileLockFailure, holdersOf, lockNote } from './file-lock.mjs';
 import { killTree, trackChild, untrackChild } from './children.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
+import { checkpointWatch } from './build-checkpoint.mjs';
 import { fitCommand, heldEnv, requestedCores } from './build-env.mjs';
 import { foreignBuilds, governedPids, listProcesses, summarize, waitForQuiet } from './build-contention.mjs';
 import { isCargoBuild } from './cargo-subs.mjs';
@@ -82,10 +85,11 @@ function runOnce(cmd, opts, hooks) {
   } finally { guard.release(); slot.release(); }
 }
 
-function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0 }, { shouldCancel, pollMs = DEFAULT_POLL_MS }, granted) {
+function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0, checkpoint }, { shouldCancel, pollMs = DEFAULT_POLL_MS }, granted) {
   const marker = `${logPath}.exit`;
   rmSync(marker, { force: true });
-  const fd = openSync(logPath, 'w');
+  writeFileSync(logPath, '');
+  const fd = openSync(logPath, 'a');
   const started = Date.now();
   let child;
   try {
@@ -96,16 +100,20 @@ function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0 }, { 
     child.unref();
   } finally { closeSync(fd); }
   trackChild({ pid: child.pid, marker, logPath, cmd });
+  const watch = checkpoint && timeoutMs ? checkpointWatch({ logPath, pid: child.pid, limitMs: timeoutMs, ...checkpoint }) : null;
   let cancelled = false;
   let timedOut = false;
+  let stalled = '';
   while (!existsSync(marker)) {
     if (shouldCancel()) { cancelled = true; killTree(child.pid); break; }
-    if (timeoutMs && Date.now() - started > timeoutMs) { timedOut = true; killTree(child.pid); break; }
+    if (watch) stalled = watch.poll(Date.now() - started)?.stop || '';
+    if (stalled || (!watch && timeoutMs && Date.now() - started > timeoutMs)) { timedOut = true; killTree(child.pid); break; }
     pulse();
     sleep(pollMs);
   }
+  if (watch) watch.close();
   untrackChild(child.pid);
   const exit = cancelled || timedOut ? 1 : Number(readFileSync(marker, 'utf8')) || 0;
   rmSync(marker, { force: true });
-  return { cmd: String(cmd).trim(), composed, exit, durationMs: Date.now() - started, logTail: tail(logPath), cancelled, ...(timedOut ? { timedOut } : {}) };
+  return { cmd: String(cmd).trim(), composed, exit, durationMs: Date.now() - started, logTail: tail(logPath), cancelled, ...(timedOut ? { timedOut } : {}), ...(stalled ? { stalled } : {}) };
 }

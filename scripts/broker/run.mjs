@@ -13,7 +13,7 @@ import { appendFileSync, openSync, closeSync, readFileSync, existsSync } from 'n
 import { runCancellable } from './run-cancellable.mjs';
 import { pulseActive } from './stall.mjs';
 import { stopNowCheck, stopNowExit } from './stop-now.mjs';
-import { limitFor, operatorCancel } from './run-abort.mjs';
+import { historyFor, limitFor, operatorCancel } from './run-abort.mjs';
 import { durationText } from './command-limit.mjs';
 import { diagnose } from './diagnose.mjs';
 import { packageScoped, runsNextest } from './alias.mjs';
@@ -25,6 +25,9 @@ import { FINGERPRINT_ENV, harvestDirty } from './fingerprint-log.mjs';
 
 const LOG_TAIL_LINES = 60;
 const contentionText = (builds) => (builds && builds.length ? `; foreign cargo builds shared the machine: ${builds.join('; ')}` : '');
+const timeoutMessage = (r, limitMs) => (r.stalled
+  ? `timed out: stalled, ${r.stalled}, after ${durationText(r.durationMs)}; its process tree was killed${contentionText(r.contendedBy)}`
+  : `timed out: the command ran ${durationText(r.durationMs)}, past its limit of ${durationText(limitMs)}; its process tree was killed${contentionText(r.contendedBy)}`);
 const TEST_SUBS = new Set(['test', 't']);
 
 const BUILD_ONLY_FLAGS = new Set(['--no-run']);
@@ -74,10 +77,10 @@ function execute(cmd, { cwd, targetDir, logPath, jobs, testThreads }) {
     let asked = null;
     const limitMs = limitFor(cmd);
     const shouldCancel = () => stopNowCheck() || !!(asked = asked || operatorCancel());
-    const { cancelled, timedOut, ...r } = runCancellable(cmd, { cwd, targetDir, logPath, jobs, testThreads, timeoutMs: limitMs }, { shouldCancel });
+    const { cancelled, timedOut, ...r } = runCancellable(cmd, { cwd, targetDir, logPath, jobs, testThreads, timeoutMs: limitMs, checkpoint: { historyMs: historyFor(cmd) } }, { shouldCancel });
     if (cancelled && !asked) stopNowExit();
     const aborted = cancelled ? { kind: 'cancel', ids: asked, message: 'cancelled by the operator while running' }
-      : timedOut ? { kind: 'timeout', message: `timed out: the command ran ${durationText(r.durationMs)}, past its limit of ${durationText(limitMs)}; its process tree was killed${contentionText(r.contendedBy)}` } : null;
+      : timedOut ? { kind: 'timeout', message: timeoutMessage(r, limitMs) } : null;
     if (!aborted) return r;
     appendFileSync(logPath, `\n[broker] ${aborted.message}\n`);
     return { ...r, logTail: tail(logPath), aborted };

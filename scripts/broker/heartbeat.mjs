@@ -1,12 +1,15 @@
 // heartbeat.mjs — one line saying where a waited-on job is (KIT-T483), so a worker blocked in
 // wait.mjs shows progress instead of a silent timer: its queue position and the job ahead, or
 // how long it has been running and which of its commands is on, or which landing phase it is in
-// (commit, pre-push gate, rebase, reverify, push, pin) and for how long.
+// (commit, pre-push gate, rebase, reverify, push, pin) and for how long. A command past a build checkpoint
+// (build-checkpoint.mjs) appends its latest checkpoint line: what is building, why it is slow, whether it progresses.
 //
 // `heartbeatLine(cfg, id, now?)` → a line, or null once the job is neither queued nor in flight.
 
 import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
+import { readNote } from './build-note.mjs';
 import { inflightHas, readInflight } from './preimage.mjs';
 import { listQueue } from './result.mjs';
 import { readPhase } from './phase.mjs';
@@ -29,7 +32,8 @@ export function heartbeatLine(cfg, id, now = Date.now()) {
     const ph = readPhase(cfg);
     if (ph && ph.id === inflight.id && ph.phase !== 'run') return `wait: ${id} running${train} ${secs}s, phase ${ph.phase} for ${Math.round((now - Date.parse(ph.since)) / MS_PER_SEC)}s`;
     const n = runningCommand(cfg, inflight.id);
-    return `wait: ${id} running${train} ${secs}s${n >= 0 ? `, on command ${n + 1}` : ', applying'}`;
+    const note = n >= 0 ? readNote(join(brokerPaths(cfg).logs, `${inflight.id}-${n}.log`)) : '';
+    return `wait: ${id} running${train} ${secs}s${n >= 0 ? `, on command ${n + 1}` : ', applying'}${note ? `; ${note}` : ''}`;
   }
   const queue = listQueue(cfg);
   const at = queue.findIndex((j) => j.id === id);
