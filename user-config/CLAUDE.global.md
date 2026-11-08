@@ -237,8 +237,9 @@ A comment exists only to tell a reader what a block of code does. (KIT-D078)
   asks for one. Never silently park work anywhere but main.
 - **Never flip the branch in place** — stay on main. The branch-guard hook (KIT-T082)
   hard-blocks.
-- **Never run repo-mutating cleanup in the maintainer's LIVE checkout (KIT-T226)** —
-  hand them the command.
+- **Git work in the maintainer's checkout is routine (KIT-D140)** — conflicts, restoring
+  drift, stash, reset. Be careful and never lose code: save work first (stash or patch)
+  and say where. Never refuse a git operation because the checkout is "live".
 - **Local = draft** (messy WIP OK). **PR/main = publish** (clean, logical,
   buildable).
 - **Upstream contributions to repos we don't own:** read the target's contribution + AI
