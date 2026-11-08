@@ -12,7 +12,7 @@
 
 import { payload, gitRoot, pathExcluded, excludeFooter } from './lib.mjs';
 import { turnTextForCall } from './lib/turn-text.mjs';
-import { BRIEF_STANDARD, briefProblems } from './lib/question-brief.mjs';
+import { BRIEF_STANDARD, briefProblems, wordCount } from './lib/question-brief.mjs';
 import { readinessProblems } from './lib/question-ready.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
@@ -23,9 +23,14 @@ const enabled = (root, check) => !root || !pathExcluded(root, check, root);
 const lines = (problems) => problems.map((p) => `  - ${p.part}: ${p.wanted}`);
 
 const NO_TEXT = 'The reply carrying this call has no text block: a thinking block or the questionnaire itself is not prose, and the maintainer sees neither. Write the brief as a normal message in the same reply, before the call. (Counted instead: text from earlier replies this turn.)';
-const UNFLUSHED = 'This reply has not reached the transcript yet, so a brief written in it could not be read; only earlier replies this turn were counted. If the brief is a text message in this reply, send the same questionnaire again unchanged: the transcript then holds that message. Otherwise write the brief as a normal message before the call.';
+const UNFLUSHED = 'Claude Code writes a reply to the transcript only after hooks have run, so text sent in the same reply as this call cannot be read; only earlier replies this turn were counted. A brief sent in this reply is read once the identical call is resent. A brief sent in an earlier reply was read in full: the parts below are what it lacks, and resending changes nothing until a text message adds them.';
+const LEAD_CHARS = 80;
 
-const replyNote = (turn) => (turn.replyUnflushed ? UNFLUSHED : turn.replyHasText ? '' : NO_TEXT);
+const counted = (turn) => {
+  const lead = turn.newestProse.replace(/\s+/g, ' ').slice(0, LEAD_CHARS);
+  return lead ? `Counted: ${wordCount(turn.prose)} words of text from this turn; the newest block begins "${lead}".` : 'Counted: no text from this turn.';
+};
+const replyNote = (turn) => [turn.replyUnflushed ? UNFLUSHED : turn.replyHasText ? '' : NO_TEXT, counted(turn)].filter(Boolean).join(' ');
 
 function blockMessage(brief, ready, turn) {
   const note = replyNote(turn);

@@ -91,14 +91,14 @@ try {
   const NO_TEXT = 'has no text block';
   const noText = ask(realShape([thought]));
   ok('a reply of only a thinking block and the call is blocked, and the block says the reply has no text block',
-    noText.code === 2 && noText.out.includes('prose has 0') && noText.out.includes(NO_TEXT));
+    noText.code === 2 && noText.out.includes('counted from this turn has 0') && noText.out.includes(NO_TEXT));
   ok('control: a thinking block, then the brief as a text block, then the call passes', ask(realShape([thought, { type: 'text', text: FULL_BRIEF }])).code === 0);
   ok('control: a thin brief that is text gets no "no text block" note', !ask(transcript(SETTLED, 'pick a limit')).out.includes(NO_TEXT));
 
   const earlierStatus = [line('assistant', [{ type: 'text', text: 'Decision: the broker limit, needed now because a job queued. See KIT-T845 and scripts/broker/stall.mjs for the timeline, which I checked before this.' }]), toolResult];
   const earlierOnly = ask(realShape([thought], earlierStatus));
   ok('text from an earlier reply is counted, but a call whose own reply has no text block is told so',
-    earlierOnly.code === 2 && !earlierOnly.out.includes('prose has 0') && earlierOnly.out.includes(NO_TEXT));
+    earlierOnly.code === 2 && !earlierOnly.out.includes('counted from this turn has 0') && earlierOnly.out.includes(NO_TEXT));
   ok('control: the same earlier text with a text block in the call\'s own reply carries no such note',
     !ask(realShape([thought, { type: 'text', text: 'pick a limit' }], earlierStatus)).out.includes(NO_TEXT));
 
@@ -161,7 +161,7 @@ try {
   const seenNoText = radar(sameReply([thought]));
   ok('control: the call is in the transcript with no text block in its reply: the block says so', seenNoText.code === 2 && seenNoText.out.includes(NO_TEXT));
 
-  const UNFLUSHED = 'has not reached the transcript';
+  const UNFLUSHED = 'only after hooks have run';
   const unflushedReply = (earlierProse) => {
     const file = join(dir, `t${n++}.jsonl`);
     writeFileSync(file, [line('user', SETTLED), line('assistant', [{ type: 'text', text: earlierProse }])].join('\n'));
@@ -169,7 +169,7 @@ try {
   };
   const unflushed = radar(unflushedReply('Checking the radar plan first.'));
   ok('a call whose own reply is not in the transcript yet is blocked without claiming the reply has no text block, and is told to resend',
-    unflushed.code === 2 && unflushed.out.includes(UNFLUSHED) && unflushed.out.includes('unchanged') && !unflushed.out.includes(NO_TEXT));
+    unflushed.code === 2 && unflushed.out.includes(UNFLUSHED) && unflushed.out.includes('identical call is resent') && !unflushed.out.includes(NO_TEXT));
   ok('control: the resend, with the brief now an earlier reply of the turn, passes', radar(unflushedReply(RADAR_BRIEF)).code === 0);
   ok('control: an unflushed reply after a thin earlier text is still blocked on the missing parts', unflushed.out.includes('- length:') && unflushed.out.includes('- evidence:'));
 

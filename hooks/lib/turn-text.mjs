@@ -1,8 +1,9 @@
 // turn-text.mjs — the newest maintainer message and the assistant text after it, read from a transcript file.
 //
-//   turnText(file) -> { lastUser, prose, replyHasText } | null
+//   turnText(file) -> { lastUser, prose, newestProse, replyHasText } | null
 //     lastUser      the newest maintainer message (tool results, harness notices, compaction summaries and meta entries skipped), '' when none
 //     prose         every assistant text block after it, oldest first, joined by blank lines
+//     newestProse   the newest of those text blocks, '' when none
 //     replyHasText  the newest reply (the assistant entries after the last tool result or user entry) holds a text block
 //   null when the file cannot be read.
 //
@@ -23,7 +24,7 @@ const holdsCall = (file, toolUseId) => {
   try { return readFileSync(file, 'utf8').includes(toolUseId); } catch { return false; }
 };
 
-const NOTICE = /^\s*(?:<task-notification\b|<system-reminder\b|\[SYSTEM NOTIFICATION\b|Stop hook feedback:)/i;
+const NOTICE = /^\s*(?:<task-notification\b|<system-reminder\b|<local-command-(?:stdout|caveat)\b|\[SYSTEM NOTIFICATION\b|Stop hook feedback:)/i;
 const COMPACT = /^\s*This session is being continued from a previous conversation that ran out of context\b/;
 
 const textOf = (content) => {
@@ -40,7 +41,7 @@ export function turnText(file) {
   const prose = [];
   let inReply = true;
   let replyHasText = false;
-  const result = (lastUser) => ({ lastUser, prose: prose.join('\n\n'), replyHasText });
+  const result = (lastUser) => ({ lastUser, prose: prose.join('\n\n'), newestProse: prose.at(-1) || '', replyHasText });
   for (let i = lines.length - 1; i >= 0; i--) {
     let entry;
     try { entry = JSON.parse(lines[i]); } catch { continue; }

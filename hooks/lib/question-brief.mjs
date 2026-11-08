@@ -34,7 +34,7 @@ const STANDARD = {
 };
 export const BRIEF_STANDARD = Object.values(STANDARD);
 
-const wordCount = (text) => String(text).split(/\s+/).filter(Boolean).length;
+export const wordCount = (text) => String(text).split(/\s+/).filter(Boolean).length;
 const optionLabels = (questions) => questions.flatMap((q) => (Array.isArray(q?.options) ? q.options : [])).map((o) => String(o?.label || '').replace(OPTION_MARKER, '').trim()).filter(Boolean);
 
 const namedIn = (said, label) => {
@@ -82,7 +82,7 @@ export function briefProblems(prose, questions) {
   const unnamed = unnamedOptions(text, questions);
   const recommendation = recommendationGap(text, questions);
   const missing = [];
-  if (words < MIN_WORDS) missing.push({ part: 'length', wanted: `a brief of at least ${MIN_WORDS} words (this reply's prose has ${words}): the options cannot carry the context` });
+  if (words < MIN_WORDS) missing.push({ part: 'length', wanted: `a brief of at least ${MIN_WORDS} words (the text counted from this turn has ${words}): the options cannot carry the context` });
   if (!decisionStated(text)) missing.push({ part: 'decision', wanted: STANDARD.decision });
   if (sources < MIN_SOURCES) missing.push({ part: 'evidence', wanted: `${STANDARD.evidence}; found ${sources}` });
   if (unnamed.length) missing.push({ part: 'options', wanted: `${STANDARD.options}; not named in the brief: ${unnamed.map((l) => `"${l}"`).join(', ')}` });
