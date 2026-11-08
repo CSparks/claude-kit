@@ -64,6 +64,11 @@ Diagnosis 2026-11-08 (kit agent; replayed the real transcripts da28715f and 39a9
 DECISION FOR THE MAINTAINER (not implemented): the first call of every questionnaire with a same-reply brief is blocked once. (A) keep it: one resend, now with an accurate message. (B) accept a first call whose own reply is not on disk and audit afterwards in PostToolUse or the next PreToolUse: loosens the gate, needs his word. (C) judge only the AskUserQuestion input: satisfies neither KIT-D129 nor KIT-D136 (the brief must sit above the questionnaire in the scrollback), so at best a complement. (D) change the protocol: brief as text, then one cheap tool call, then the questionnaire; no block, no gate change. Recommended: D, falling back to A.
 Also seen, not changed: RECOMMEND in lib/question-brief.mjs accepts any "recommend" followed within 300 characters by because/since/which/why, so a brief that merely mentions the word passes the recommendation part (the real da28715f brief does).
 Tests run: question-brief-turn 16, question-brief-gate 41, question-brief-sections 14, all passed. Code commit 5dc5ef8.
+Handoff kit-agent-T881 (claude-kit implementer, 2026-11-08):
+- Jobs: KIT-T881 diagnosis, message and turn-reader fix, tests; committed 5dc5ef8 and 7210d3a, pushed, runtime 7210d3a published (publish:runtime exit 0; one follow-up test file runs in the background, log in claude-kit-runtime/publish-followup.log).
+- State: status todo. Criterion "Same-reply brief unreadable at PreToolUse" is open on the maintainer's decision (A/B/C/D in the Diagnosis note). Live hook in a real session not verified.
+- Next: the maintainer picks A-D; if D, add the cheap-tool-call protocol to the base CLAUDE.md question rule; if B, a decision first. Optionally tighten RECOMMEND (see Diagnosis note).
+- Files: hooks/lib/turn-text.mjs, hooks/lib/question-brief.mjs, hooks/question-brief-gate.mjs, hooks/question-brief-gate.test.mjs, hooks/question-brief-turn.test.mjs, hooks/question-brief-real-fixtures.mjs.
 
 ## History
 - [2026-11-07 17:26] (created) bug — question-brief hook (KIT-T846) blocks AskUserQuestion even when a 200-word brief (decision, evidence, options, recommendation, not-asked) wa
@@ -90,3 +95,4 @@ Tests run: question-brief-turn 16, question-brief-gate 41, question-brief-sectio
 - [2026-11-08 16:55] (comment) ticked: A block caused by the call's own reply being absent from the transcript says so, quotes the text it did count (word count and the newest block's first words), and says when a resend changes nothing (hooks/question-brief-turn.test.mjs)
 - [2026-11-08 16:55] (comment) ticked: The real groovegrid brief (da28715f) is read in full on resend and blocked only on the Decision and option sentences it never contains; with those written it passes, with and without (Recommended) markers, bold markers and commas in labels; mutation checks on the marker strip and the harness-output filter each fail a test
 - [2026-11-08 16:55] (comment) ticked: Harness output (local-command-stdout/caveat) between the brief and the call no longer cuts the turn
+- [2026-11-08 16:55] (landed) 7210d3a tickets: KIT-T881 diagnosis (same-reply brief never on disk at PreToolUse; the real briefs lacked a Decision and option 
