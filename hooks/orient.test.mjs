@@ -178,8 +178,9 @@ try {
     // A fresh capability table: the STALE-models line is clock-driven and must not decide the budget.
     const r = hook('orient.mjs', {}, tb, { CLAUDE_KIT_LADDER_ROOT: fixtureKit(isoDaysAgo(0)) });
 
-    ok(`orient KIT-T071: output is within the token budget (≤1200 tokens): ${r.out.length} of ${BUDGET_CHARS} chars`, r.out.length <= BUDGET_CHARS);
-    if (r.out.length > BUDGET_CHARS) console.log(r.out.split('\n').map((l) => `   | ${l}`).join('\n'));
+    // The Repo: line is the test's own temp path, whose length depends on where the suite runs.
+    const content = r.out.replace(/^Repo: .*\n/m, '');
+    ok(`orient KIT-T071: output is within the token budget (≤1200 tokens): ${content.length} of ${BUDGET_CHARS} chars`, content.length <= BUDGET_CHARS);
     ok('orient KIT-T071: ORIENTATION header is present', /ORIENTATION/.test(r.out));
     ok('orient KIT-D132: every session states it needs a bill of work, that a clear or resume forgets prior asks, and that OPEN lists are not orders', /BILL OF WORK REQUIRED/.test(r.out) && /dictates or signs off a bill of work/.test(r.out) && /After a clear or resume you remember no prior ask/.test(r.out) && /never orders to dispatch/.test(r.out) && !/pull and dispatch/.test(r.out));
     ok('orient KIT-T071: SESSION resume gist is present (first lines)', r.out.includes('## Step 1:'));
