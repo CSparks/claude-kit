@@ -26,6 +26,8 @@ const GENERATORS = /^(?:git|cargo|rustc|rustfmt|clippy-driver|npm|npx|pnpm|yarn|
 // Commands that only read or print: with no redirect into a file they cannot write source, so a change
 // that lands during the call is another writer's.
 const READERS = /^(?:cat|head|tail|less|more|wc|ls|stat|file|diff|cmp|grep|egrep|fgrep|rg|ag|ack|sort|uniq|cut|tr|echo|printf|pwd|date|sleep|which|whoami|tasklist)$/i;
+const SED_IN_PLACE = /\s(?:--in-place\b|-[A-Za-z]*i)/;
+const isReader = (leader, text) => READERS.test(leader) || (/^sed$/i.test(leader) && !SED_IN_PLACE.test(text));
 const BROKER_CLIENT = /^(?:submit|wait|watch|broker)\.mjs$/i;
 const BENIGN_REDIRECT = /\d?>&\d|&?\d?>>?\s*\/dev\/null/g;
 const QUOTED = /"[^"]*"|'[^']*'/g;
@@ -93,7 +95,7 @@ function isGeneratorCommand(command) {
   return segs.every(({ text }) => {
     if (!text.trim()) return true;
     const leader = leaderOf(text);
-    if (GENERATORS.test(leader) || KIT_TOOL.test(leader) || (!redirects && READERS.test(leader))) return true;
+    if (GENERATORS.test(leader) || KIT_TOOL.test(leader) || (!redirects && isReader(leader, text))) return true;
     if (!/^node$/i.test(leader)) return false;
     return text.split(/\s+/).some((w) => {
       const name = w.replace(/^["']|["']$/g, '').replace(/.*[\\/]/, '');

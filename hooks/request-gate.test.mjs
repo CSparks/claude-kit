@@ -63,6 +63,18 @@ function expect(name, actual, wanted) {
   const tx = writeTranscript(d, 'can you add a questionnaire command', '→ KIT-T009 filed (todo). Done.', new Date().toISOString());
   expect('allows when reply has a receipt', run(d, { transcript_path: tx }).code, 0);
 }
+// 2b. the receipt sits in a narration block (the commentary Claude Code records as a signed thinking block) -> ALLOW
+{
+  const d = makeRepo();
+  const signature = Buffer.concat([Buffer.from([8, 4, 18, 32]), Buffer.from('B\tnarration'), Buffer.from('payload')]).toString('base64');
+  const file = join(d, 'narration.jsonl');
+  const entry = (type, content, extra = {}) => JSON.stringify({ type, message: { role: type, content }, ...extra });
+  const lines = (blocks) => [entry('user', 'can you add a questionnaire command', { timestamp: new Date().toISOString() }), entry('assistant', blocks)].join('\n') + '\n';
+  writeFileSync(file, lines([{ type: 'thinking', thinking: '→ KIT-T009 filed (todo). Done.', signature }]));
+  expect('allows when the receipt is in a narration block', run(d, { transcript_path: file }).code, 0);
+  writeFileSync(file, lines([{ type: 'thinking', thinking: '→ KIT-T009 filed (todo). Done.', signature: 'c2ln' }]));
+  expect('blocks when the same words sit in private thinking', run(d, { transcript_path: file }).code, 2);
+}
 // 3. request signal + [no-capture] dismissal -> ALLOW
 {
   const d = makeRepo();

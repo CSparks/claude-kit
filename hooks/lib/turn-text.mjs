@@ -19,6 +19,7 @@
 //                     so replyHasText and prose describe earlier replies only.
 
 import { existsSync, readFileSync } from 'node:fs';
+import { assistantTextOf } from './assistant-text.mjs';
 
 const SETTLE_MS = 3000;
 const POLL_MS = 100;
@@ -35,17 +36,6 @@ const textOf = (content) => {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
   return content.filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n');
-};
-const NARRATION_SIGNATURE = 'narration';
-const isNarration = (b) => b.type === 'thinking' && typeof b.thinking === 'string' && b.thinking.trim() !== ''
-  && Buffer.from(String(b.signature || ''), 'base64').toString('latin1').includes(NARRATION_SIGNATURE);
-const assistantTextOf = (content) => {
-  if (!Array.isArray(content)) return textOf(content);
-  return content
-    .filter((b) => b && (b.type === 'text' || isNarration(b)))
-    .map((b) => (b.type === 'text' ? b.text : b.thinking))
-    .filter((t) => typeof t === 'string')
-    .join('\n');
 };
 const isToolResult = (content) => Array.isArray(content) && content.some((b) => b && b.type === 'tool_result');
 const isHarness = (entry, text) => entry.isMeta === true || entry.isCompactSummary === true || NOTICE.test(text) || COMPACT.test(text);

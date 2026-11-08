@@ -7,6 +7,7 @@
 //     ambiguous: the quoting could not be split and the command holds a write token (KIT-T705)
 //   isSourcePath(path, tempDir) -> boolean   a hand-authored source path (not temp, build output or a vendored tree)
 
+import { existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { FS_WRITE, readTempScript, scanShellWrites } from './shell-write-scan.mjs';
 import { writeCallTargets } from './shell-write-target.mjs';
@@ -14,17 +15,34 @@ import { writeCallTargets } from './shell-write-target.mjs';
 const SOURCE_EXT = 'rs|js|mjs|cjs|jsx|ts|tsx|vue|svelte|py|go|java|kt|swift|c|h|cc|cpp|hpp|cs|rb|php|sh|bash|ps1|lua|sql|wgsl|glsl|rhai|css|scss';
 const SOURCE_FILE = new RegExp(`\\.(?:${SOURCE_EXT})$`, 'i');
 const QUOTED_SOURCE = new RegExp(`['"\`]([^'"\`\\s]+\\.(?:${SOURCE_EXT}))['"\`]`, 'gi');
+const MODULE_SPECIFIER = /\b(?:from|import|require)\s*\(?\s*(['"`])[^'"`\n]*\1/g;
 const GENERATED_DIR = /(?:^|\/)(?:target|node_modules|dist|build|\.git)\//;
 const DEVICE = /^\/dev\//;
 
 export const AMBIGUOUS_PATH = '(ambiguous quoting)';
 
-const slashed =(p) => String(p).replace(/\\/g, '/');
+const slashed = (p) => String(p).replace(/\\/g, '/');
+const SHORT_NAME = /~\d/;
+
+// A Windows 8.3 short path (C:/Users/CHRISS~1/...) names the same file as its long form: expand it through its nearest
+// existing ancestor so a temp or scratchpad path is recognised whichever way it is spelled.
+function expandShortNames(p) {
+  if (!SHORT_NAME.test(p)) return p;
+  let head = p;
+  const tail = [];
+  while (head && !existsSync(head)) {
+    const cut = head.lastIndexOf('/');
+    if (cut <= 0) return p;
+    tail.unshift(head.slice(cut + 1));
+    head = head.slice(0, cut);
+  }
+  try { return [slashed(realpathSync.native(head)), ...tail].join('/'); } catch { return p; }
+}
 
 export function isSourcePath(path, tempDir = tmpdir()) {
-  const p = slashed(path);
+  const p = expandShortNames(slashed(path));
   if (!SOURCE_FILE.test(p) || GENERATED_DIR.test(p) || DEVICE.test(p)) return false;
-  const temp = slashed(tempDir).toLowerCase();
+  const temp = expandShortNames(slashed(tempDir)).toLowerCase();
   return !(p.toLowerCase().startsWith(`${temp}/`) || /^\/tmp\//.test(p));
 }
 
@@ -34,7 +52,7 @@ export function shellSourceWrite(command, { readScript = readTempScript, tempDir
     if (!FS_WRITE.test(code)) return null;
     const targets = writeCallTargets(code);
     if (targets) return targets.map(hit).find(Boolean) || null;
-    for (const m of code.matchAll(QUOTED_SOURCE)) { const h = hit(m[1]); if (h) return h; }
+    for (const m of code.replace(MODULE_SPECIFIER, ' ').matchAll(QUOTED_SOURCE)) { const h = hit(m[1]); if (h) return h; }
     return null;
   };
   return scanShellWrites(command, { hit, codeHit, readScript, ambiguous: () => ({ path: AMBIGUOUS_PATH, ambiguous: true }) });

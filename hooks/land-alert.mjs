@@ -19,6 +19,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { assistantTextOf } from './lib/assistant-text.mjs';
 import {
   gitRoot, adopted, payload, git, wipSummary, remoteCommitUrl, ID_CITE_SRC, readTurnState, writeTurnState,
 } from './lib.mjs';
@@ -223,7 +224,7 @@ function parseTranscript(file) {
     const role = e?.type || e?.message?.role;
     const content = e?.message?.content;
     if (!lastAssistant && role === 'assistant') {
-      lastAssistant = extractText(content);
+      lastAssistant = assistantTextOf(content);
       continue;
     }
     if (!turnStartMs && role === 'user' && e?.isMeta !== true && !isToolResult(content)) {

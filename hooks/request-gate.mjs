@@ -26,6 +26,7 @@ import {
   projectAiDirs,
 } from './lib.mjs';
 import { frameworkStores } from '../scripts/q-framework.mjs';
+import { assistantTextOf } from './lib/assistant-text.mjs';
 import { resolve } from 'node:path';
 
 // Built-in defaults — overridable/extendable via `capture.signals` in .ai/config.yml.
@@ -124,7 +125,7 @@ function parseTranscript(file) {
     const role = e?.type || e?.message?.role;
     const content = e?.message?.content;
     if (role === 'assistant' && !userResolved) {
-      const text = extractText(content);
+      const text = assistantTextOf(content);
       lastAssistant ||= text;
       sinceUser.push(text);
       if (Array.isArray(content)) for (const b of content) if (b && b.type === 'tool_use' && typeof b.input?.command === 'string') commands.push(b.input.command);

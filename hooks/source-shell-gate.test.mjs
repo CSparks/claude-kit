@@ -78,6 +78,7 @@ try {
     ['node -e replacing text read from a source file', `node -e "console.log(require('fs').readFileSync('src/lib.rs','utf8').replace(/a/,'b'))"`],
     ['python reading a source file', `python -c "print(open('src/lib.rs').read())"`],
     ['python opening a file whose name starts with a mode letter', `python -c "print(open('a.rs').read())"`],
+    ['sed -i on a temp file whose script text names source paths (KIT-T901)', `sed -i 's#hooks/lib/a.mjs#file:///D:/x/hooks/lib/a.mjs#' ${join(tmpdir(), 'scratch.mjs').replace(/\\/g, '/')}`],
     ['node -e writing a data file', `node -e "require('fs').writeFileSync('out.json','{}')"`],
     ['node -e writing a temp file named .rs', `node -e "require('fs').writeFileSync('/tmp/x.rs','x')"`],
     ['a broker patch submit heredoc', "node scripts/broker/submit.mjs --land <<'EOF'\n*** write src/new.rs\nfn a() {}\nEOF"],
@@ -112,7 +113,21 @@ try {
   check('KIT-T792 control: a write whose target cannot be resolved keeps the whole-script rule and blocks', blocked(`node ${script}`));
   writeFileSync(script, `${reader.slice(0, -1).join('\n')}\nfs.writeFileSync(dir + "a.patch", env);\nfs.rmSync(tree + "crates/app/src/cell_draw.rs");\n`);
   check('KIT-T792 control: one scratchpad write does not excuse a second write to a source path', blocked(`node ${script}`));
+  const importing = ["import { turnText } from 'file:///D:/app/hooks/lib/turn-text.mjs';", "import('./lib/other.mjs');", "const sink = require('../x/y.js');", 'const out = process.argv[2];', "fs.writeFileSync(out, 'x');"];
+  writeFileSync(script, `${importing.join('\n')}\n`);
+  check('KIT-T901: a script that imports source modules and writes to a variable path passes: an import specifier is no write target', !blocked(`node ${script}`), run(`node ${script}`).stderr.slice(0, 120));
+  writeFileSync(script, `${importing.join('\n')}\nfs.writeFileSync('src/lib.rs', 'x');\nfs.writeFileSync(out, 'y');\n`);
+  check('KIT-T901 control: the same script writing a quoted source path still blocks', blocked(`node ${script}`));
   rmSync(script, { force: true });
+
+  const shortTemp = process.platform === 'win32'
+    ? spawnSync('cmd', ['/d', '/c', `for %I in ("${tmpdir()}") do @echo %~sI`], { encoding: 'utf8', windowsVerbatimArguments: true }).stdout.trim().replace(/\\/g, '/')
+    : '';
+  if (shortTemp.includes('~')) {
+    check('KIT-T901: a temp path spelled with 8.3 short names is not source', !isSourcePath(`${shortTemp}/scratch.mjs`), shortTemp);
+    check('KIT-T901: a sed -i on a file under the short-named temp dir passes', !blocked(`sed -i 's/a/b/' ${shortTemp}/scratch.mjs`), run(`sed -i 's/a/b/' ${shortTemp}/scratch.mjs`).stderr.slice(0, 160));
+    check('KIT-T901 control: a short-name spelling of a repo source path is still source', isSourcePath(`${shortTemp.replace(/\/[^/]*$/, '')}/zz-not-temp/scratch.mjs`));
+  }
 
   check('shellSourceWrite names the path it found', shellSourceWrite('rm src\\lib.rs')?.path === 'src/lib.rs');
   check('isSourcePath: temp, build output, vendored and data paths are not source', !isSourcePath('/tmp/a.rs') && !isSourcePath('target/a.rs') && !isSourcePath('node_modules/x/a.js') && !isSourcePath('a.json') && isSourcePath('crates/a.rs'));
