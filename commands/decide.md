@@ -16,7 +16,20 @@ Resolve the maintainer's PENDING decisions as a structured questionnaire — nev
    (`q show <id>`) inside the last 7 days with no Resolution was put to the maintainer by another
    live session: read that session's answer instead of asking again (the `reask-gate` hook blocks
    the re-ask; `[re-ask: <reason>]` in the question text overrides it).
-2. **Present** via the **AskUserQuestion** tool — one question per decision, concrete options
+2. **⛔ Brief first, or the question-brief gate blocks (KIT-D129, KIT-D142, KIT-D146).** The gate
+   cannot read text in the same reply as the AskUserQuestion call. Every time:
+   (a) ONE text message with the whole brief — a second message is not read;
+   (b) one cheap tool call (`git log -1 --format=%h`);
+   (c) AskUserQuestion in the NEXT reply.
+   The brief, in these exact shapes (bold headers and colon lists fail):
+   - at least 120 words;
+   - `Decision: <what is being decided>, needed now because <why>.`
+   - `Evidence: <what you checked>` with at least 2 sources (path, KIT-T###/KIT-D### id, sha, file:line);
+   - one plain sentence per option, starting with its label exactly as written:
+     `<Option label> <does what> and costs <what>.` — every option of every question;
+   - `Recommendation: <option label>, because <reason>.`
+   - `Not asked: <what this leaves open>.`
+3. **Present** via the **AskUserQuestion** tool — one question per decision, concrete options
    from the source. **Every question MUST carry a recommendation**: the recommended option goes
    FIRST and its **label is prefixed `(Recommended)`** (front of the label — e.g.
    `"(Recommended) Resume X"` — not the description, or it isn't seen). Batch up to the tool's
@@ -24,13 +37,13 @@ Resolve the maintainer's PENDING decisions as a structured questionnaire — nev
    The `reask-gate` hook stamps `(asked) <this session>` on every open question file the
    questionnaire restates as it fires; keep the question text the file's own wording (plain words,
    no ids). `t ask <id> --session <name>` stamps one by hand for an out-of-band ask.
-3. **Record** each answer as an atomic file in `.ai/decisions/`. Allocate the id with the
+4. **Record** each answer as an atomic file in `.ai/decisions/`. Allocate the id with the
    next-ID allocator — `node <claude-kit>/scripts/next-id.mjs decisions` (or
    `$CLAUDE_PLUGIN_ROOT/scripts/next-id.mjs`); NEVER hand-pick one. Capture: the decision, the
    chosen option, the why, the source doc/question, and the date. Honor an "Other"/free-text
    answer verbatim. For a `.ai/questions/` source, write the answer the same turn:
    `t resolve <Q-id> "<answer>"` (Resolution line + `status: resolved`).
-4. **Receipt** per `config.receipts` — one line per recorded decision (e.g.
+5. **Receipt** per `config.receipts` — one line per recorded decision (e.g.
    `→ HOD-D007 recorded (chose B)`).
-5. Leave the source doc's recommendation text intact; **never edit ROADMAP**. If an answer
+6. Leave the source doc's recommendation text intact; **never edit ROADMAP**. If an answer
    contradicts the doc's recommendation, record the answer verbatim and note the divergence.

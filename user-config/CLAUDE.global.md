@@ -127,6 +127,26 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   yourself and report. Genuinely the maintainer's: AskUserQuestion. Open discussion
   is exempt — there, prose questions ARE the medium.
 
+## ⛔ QUESTIONNAIRE PROTOCOL — follow EXACTLY or the question-brief gate blocks (KIT-D129, KIT-D142, KIT-D146)
+The gate cannot read text in the same reply as the AskUserQuestion call. Three steps, every time:
+1. **ONE text message** holding the whole brief (all six parts below; a second message is not read).
+2. **One cheap tool call** (e.g. `git log -1 --format=%h`) so the brief reaches the transcript.
+3. **AskUserQuestion in the NEXT reply.**
+
+The brief, in these exact shapes (the gate parses them; bold headers and colon lists fail):
+- At least **120 words**.
+- `Decision: <what is being decided>, needed now because <why>.`
+- `Evidence: <what you checked>` — at least 2 sources (path, KIT-T###/KIT-D### id, sha, file:line).
+- **One plain sentence per option, starting with its label exactly as written:**
+  `<Option label> <does what> and costs <what>.` — every option of every question.
+- `Recommendation: <option label>, because <reason>.`
+- `Not asked: <what this leaves open>.`
+
+## ⛔ A gate block from a failed protocol = write the protocol HERE, same turn (KIT-D146)
+When a gate blocks because a protocol was not followed, the session that hit it writes that
+protocol into this file (or the owning command/skill), in the exact shape the gate parses, the
+same turn. A protocol that lives only in a block message or a decision file is a defect.
+
 # SUBAGENT DISPATCH — one capability table, one home
 - Agent definitions carry NO `model:` line (KIT-D080). The orchestrator picks the model on
   EVERY dispatch from the kit's **capability table** (`.ai/config.yml → dispatch.jobs`: job
