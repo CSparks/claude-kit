@@ -2,7 +2,7 @@
 id: KIT-T881
 title: question-brief hook (KIT-T846) blocks AskUserQuestion even when a 200-word brief (decision, evidence, options, recommendation, not-asked) wa
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-07T17:26:09Z
-updated: 2026-11-08T16:54:02Z
+updated: 2026-11-08T23:06:31Z
 ---
 
 ## Description
@@ -27,7 +27,8 @@ first seen in groovegrid. Filed automatically (KIT-T286): every kit bug is a tic
 - [x] A block caused by the call's own reply being absent from the transcript says so, quotes the text it did count (word count and the newest block's first words), and says when a resend changes nothing (hooks/question-brief-turn.test.mjs)
 - [x] The real groovegrid brief (da28715f) is read in full on resend and blocked only on the Decision and option sentences it never contains; with those written it passes, with and without (Recommended) markers, bold markers and commas in labels; mutation checks on the marker strip and the harness-output filter each fail a test
 - [x] Harness output (local-command-stdout/caveat) between the brief and the call no longer cuts the turn
-- [ ] Same-reply brief unreadable at PreToolUse (Claude Code writes the reply after hooks run): maintainer decision recorded in Notes
+- [x] Same-reply brief unreadable at PreToolUse (Claude Code writes the reply after hooks run): maintainer decision recorded in Notes
+- [x] KIT-D152: a PostToolUse and Stop audit judges the summary after the call (advisory, exit 0; Stop only as backstop), the pre-call brief block and 3 s wait are gone, audits are recorded once per call and misses counted per session and project for orient (hooks/question-brief-audit.test.mjs, real groovegrid replays, mutation checks)
 
 ## Plan
 1.
@@ -95,6 +96,24 @@ Handoff kit-agent-T881 (second round, 2026-11-08):
 - State: KIT-T881 stays todo on the maintainer's choice (B needs his word). Another writer holds uncommitted edits in hooks/question-brief-gate.mjs, hooks/lib/turn-text.mjs, hooks/lib/question-brief.mjs and new gate-protocol/question-text/labels files; not touched here, question-brief-gate tests fail on that tree.
 - Next: on his pick of B, add a PostToolUse (AskUserQuestion) and Stop audit using briefProblems, pass a call whose own reply is unflushed, shorten the 3 s settle wait; then publish.
 - Files: hooks/decision-gate.mjs, hooks/decision-gate.test.mjs, scripts/decision-governs.mjs.
+Implementation 2026-11-08 of KIT-D152 (post-hoc audit; the maintainer chose it and approved the loosening). Commit bd800de.
+Built:
+- hooks/question-brief-audit.mjs: PostToolUse (AskUserQuestion|request_user_input) judges the prose before the call (lib/question-audit.mjs, the existing briefProblems plus the questionnaire-text fallback) and reports a thin summary as hookSpecificOutput.additionalContext, exit 0, nothing on stderr. The same hook on Stop is the backstop: it audits this turn's questionnaires not yet recorded and blocks the stop (exit 2) only for a thin one; silent when PostToolUse already audited, on stop_hook_active, and for calls from earlier turns.
+- Only the blocks before the call's own entry are read (turnText beforeToolUseId): text written after the call never rescues a thin summary. A call whose entry is not in the transcript yet is neither judged nor recorded (Stop picks it up).
+- hooks/lib/question-audits.mjs records every audited call (pass or miss) in <claude home>/claude-kit-state/question-audits.jsonl (newest 2000 lines); misses are counted per session and project; orient prints one line (THIN QUESTIONNAIRE SUMMARIES (N in 7 days): session xN) from hooks/lib/orient/brief-misses.mjs.
+- Pre-call: hooks/question-brief-gate.mjs keeps only the readiness check (question-ready: exploring maintainer message, question restating his words), which reads the maintainer's message already on disk. The brief block, turnTextForCall, the 3 s settle wait and replyUnflushed are gone; nothing else is kept for the brief. File name kept so running sessions still load it.
+- q gates question and commands/decide.md now say: summary then questionnaire, no step between; the audit reports a thin one.
+Verified facts (item 3):
+1. Does PostToolUse additionalContext reach the model for AskUserQuestion: NOT verified live. Claude Code does record a hook_additional_context attachment type (159 SessionStart entries, one PostToolUse:Edit entry, which is Claude Code's own formatter notice, not a kit hook); no kit PostToolUse hook has ever emitted additionalContext, and none has ever matched AskUserQuestion, so no transcript can show it. If it does not reach the model, the Stop backstop still reports the miss (Stop exit 2 feedback is delivered: request-gate uses it).
+2. Terminal appearance: an exit-2 PostToolUse hook renders a full "PostToolUse:<tool> hook blocking error" block (11 in the transcripts), the big error the maintainer dislikes, so the audit never exits 2 on PostToolUse; additionalContext is the advisory channel. How Claude Code displays an additionalContext attachment in the terminal is not verified. A Stop block does show as Stop hook feedback.
+Live check for a fresh session (hooks.json is read at session start): send a thin questionnaire; the transcript should hold an attachment hook_additional_context with hookName PostToolUse:AskUserQuestion; with a sound summary there is none; no Stop hook feedback entry should follow when PostToolUse worked.
+Transition gap: running sessions get the new pre-call script after publish (brief block gone) but keep their old hooks.json until restart, so they have no brief audit until they restart.
+Tests: question-brief-audit 21, question-brief-gate 15, question-brief-turn 16, question-brief-narration 8, question-brief-labels 15, question-brief-sections 14, gate-protocol 35, decision-gate 15, orient 39, compat-run 12, all passed. Replays: da28715f entries 1816 and 482 (and their summaries) are not reported, entry 144's status report is reported on decision and options. Mutations: removing the before-call slice fails 2 tests, removing the dedupe fails 4, restoring a 3 s wait before the readiness read fails the timing test.
+Handoff kit-agent-T881 (third round, 2026-11-08):
+- Jobs: KIT-D152 implemented (bd800de): PostToolUse and Stop audit, no pre-call brief block, no settle wait, audit record and orient line. Runtime bd800de published (publish:runtime exit 0; 24 reached test files run in the follow-up, log claude-kit-runtime/publish-followup.log; a failure there blocks the next publish).
+- State: KIT-T881 in review. Not verified live: that PostToolUse additionalContext reaches the model for AskUserQuestion and how the terminal shows it; the live check is in the Implementation note. Running sessions need a restart to pick up the new hooks.json wiring.
+- Next: in a fresh session send a thin and a sound questionnaire and read the transcript for hook_additional_context PostToolUse:AskUserQuestion; if it is absent, the Stop backstop is the only channel and the decision needs a revisit. Optionally tighten RECOMMEND in lib/question-brief.mjs (accepts any "recommend ... because/which" within 300 characters).
+- Files: hooks/question-brief-audit.mjs, hooks/lib/question-audit.mjs, hooks/lib/question-audits.mjs, hooks/lib/orient/brief-misses.mjs, hooks/lib/turn-text.mjs, hooks/question-brief-gate.mjs, hooks/hooks.json, hooks/lib/gate-protocol.mjs, hooks/question-audit-harness.mjs, tests question-brief-audit/turn/gate/labels/narration/sections.
 
 ## History
 - [2026-11-07 17:26] (created) bug — question-brief hook (KIT-T846) blocks AskUserQuestion even when a 200-word brief (decision, evidence, options, recommendation, not-asked) wa
@@ -126,3 +145,9 @@ Handoff kit-agent-T881 (second round, 2026-11-08):
 - [2026-11-08 17:15] (comment) @claude: Chris 2026-11-08 chose, via questionnaire, protocol D: brief, one cheap tool call, then the questionnaire in a new reply (full comment #5 in ## Notes)
 - [2026-11-08 18:05] (comment) @claude: Still failing on runtime 7210d3a (claude-kit session 2026-11-08 ~11:45): followed KIT-D142 exactly (brief, cheap Bash ca (full comment #6 in ## Notes)
 - [2026-11-08 21:56] (comment) @claude: Chris 2026-11-08: "The process should be Summary to inform the questionnaire, then the questionnaire." The cheap-tool-ca (full comment #7 in ## Notes)
+- [2026-11-08 22:06] (landed) 297838d tickets: KIT-T907 root cause and fix, KIT-T881 investigation for KIT-D151 with decision options, KIT-T906 checked [no-te
+- [2026-11-08 22:58] (landed) bd800de question-brief: the summary above a questionnaire is audited after the call (PostToolUse advisory, Stop backstop), no pr
+- [2026-11-08 23:06] (comment) criterion added: KIT-D152: a PostToolUse and Stop audit judges the summary after the call (advisory, exit 0; Stop only as backstop), the pre-call brief block and 3 s wait are gone, audits are recorded once per call and misses counted per session and project for orient (hooks/question-brief-audit.test.mjs, real groovegrid replays, mutation checks)
+- [2026-11-08 23:06] (comment) ticked: KIT-D152: a PostToolUse and Stop audit judges the summary after the call (advisory, exit 0; Stop only as backstop), the pre-call brief block and 3 s wait are gone, audits are recorded once per call and misses counted per session and project for orient (hooks/question-brief-audit.test.mjs, real groovegrid replays, mutation checks)
+- [2026-11-08 23:06] (comment) ticked: Same-reply brief unreadable at PreToolUse (Claude Code writes the reply after hooks run): maintainer decision recorded in Notes
+- [2026-11-08 23:06] (status) todo → review
