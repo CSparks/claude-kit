@@ -2,7 +2,7 @@
 id: KIT-T893
 title: question-brief-gate counts 0 turn text when the brief was sent in an earlier reply that also carried the failing AskUserQuestion call; 3 res
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-08T17:50:35Z
-updated: 2026-11-08T17:50:35Z
+updated: 2026-11-08T18:47:53Z
 ---
 
 ## Description
@@ -34,3 +34,5 @@ Root cause (from the stiletto-2349 11b75d60 transcript, entries 430/442/447): Cl
 - [2026-11-08 17:50] (created) bug — question-brief-gate counts 0 turn text when the brief was sent in an earlier reply that also carried the failing AskUserQuestion call; 3 res
 - [2026-11-08 18:45] (comment) criterion added: every assistant text and narration block since the last real maintainer message is counted, including narration blocks preceding Bash calls and turns opened by a task notification (hooks/question-brief-narration.test.mjs 8 passed)
 - [2026-11-08 18:45] (comment) ticked: every assistant text and narration block since the last real maintainer message is counted, including narration blocks preceding Bash calls and turns opened by a task notification (hooks/question-brief-narration.test.mjs 8 passed)
+- [2026-11-08 18:45] (landed) d81ed6d question-brief-gate: narration blocks (thinking blocks signed narration, the commentary the maintainer sees between tool
+- [2026-11-08 18:47] (status) todo → review
