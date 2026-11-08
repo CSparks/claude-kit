@@ -174,6 +174,7 @@ function unlabelledBlock(root, input, p) {
     excludeFooter(LADDER_CHECK),
   ].join('\n');
 }
+
 // --- dispatch-label (KIT-T897) ---------------------------------------------------
 // The standalone dispatch-label hook blocks a call that fails this check alone; when this guard blocks for another
 // cause it lists these problems too, so one rejection carries every requirement whichever hook's message is shown.
@@ -182,7 +183,6 @@ function labelCheck(root, input, p) {
   const problems = labelProblems(root, input, p);
   return problems.length ? labelBlockText(problems) : null;
 }
-
 
 // --- dispatch-job (KIT-T419) ------------------------------------------------------
 function jobCheck(root, input, prompt, p) {
