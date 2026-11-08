@@ -57,7 +57,7 @@ export const GATES = {
       { check: RECOMMENDATION_CHECK, wants: [`every question marks its recommended option on the LABEL with ${RECOMMENDED_MARKER} as the prefix (a suffix for request_user_input), and a single-select recommendation is the first option; the description never carries it`], tokens: [] },
       { check: REASK_CHECK, wants: [`no question another session asked and left unresolved within ${REASK_WINDOW_DAYS} days`], tokens: [T.reAsk] },
       { check: IDS_CHECK, wants: [`a ticket, decision or question id comes with at least ${IDS_MIN_HITS} distinctive words of its title`], tokens: [] },
-      { check: BRIEF_CHECK, wants: [`prose of at least ${BRIEF_MIN_WORDS} words in an earlier reply of the turn (text or narration; one cheap tool call between the brief and the questionnaire):`, ...BRIEF_STANDARD], tokens: [] },
+      { check: BRIEF_CHECK, wants: [`a brief of at least ${BRIEF_MIN_WORDS} words in TEXT blocks of an earlier reply of the turn (one cheap tool call between the brief and the questionnaire); narration blocks are platform summaries that drop the labelled lines and cannot carry exact labels. OR the same brief in the questionnaire's own question text ("Decision:", "Evidence:", "Recommendation:", "Not asked:" each opening a line; evidence as file paths or shas, not ids), which is always read:`, ...BRIEF_STANDARD], tokens: [] },
       { check: READY_CHECK, wants: READINESS_STANDARD, tokens: [] },
     ],
   },

@@ -4,11 +4,13 @@
 //   maintainer between tool calls as a thinking block whose signature names "narration" and whose text is filled;
 //   ordinary thinking blocks carry an empty text and are never prose.
 //
-//   turnText(file) -> { lastUser, prose, newestProse, replyHasText } | null
+//   turnText(file) -> { lastUser, prose, newestProse, blocks, replyHasText } | null
 //     lastUser      the newest maintainer message (tool results, harness notices, compaction summaries and meta entries skipped), '' when none
 //     prose         every assistant text or narration block after it, oldest first, joined by blank lines
 //     newestProse   the newest of those blocks, '' when none
-//     replyHasText  the newest reply (the assistant entries after the last tool result or user entry) holds one
+//     blocks        those blocks, oldest first: [{ kind: 'text' | 'narration', text }]
+//     replyHasText  the newest reply (the assistant entries after the last tool result or user entry) holds a TEXT
+//                   block; narration alone is a platform summary of commentary, not a reply the maintainer read
 //   null when the file cannot be read.
 //
 //   turnTextForCall(file, toolUseId) -> Promise<same + replyUnflushed>
@@ -19,7 +21,7 @@
 //                     so replyHasText and prose describe earlier replies only.
 
 import { existsSync, readFileSync } from 'node:fs';
-import { assistantTextOf } from './assistant-text.mjs';
+import { assistantBlocksOf } from './assistant-text.mjs';
 
 const SETTLE_MS = 3000;
 const POLL_MS = 100;
@@ -43,19 +45,19 @@ const isHarness = (entry, text) => entry.isMeta === true || entry.isCompactSumma
 export function turnText(file) {
   let lines;
   try { lines = readFileSync(file, 'utf8').split('\n').filter(Boolean); } catch { return null; }
-  const prose = [];
+  const blocks = [];
   let inReply = true;
   let replyHasText = false;
-  const result = (lastUser) => ({ lastUser, prose: prose.join('\n\n'), newestProse: prose.at(-1) || '', replyHasText });
+  const result = (lastUser) => ({ lastUser, prose: blocks.map((b) => b.text).join('\n\n'), newestProse: blocks.at(-1)?.text || '', blocks, replyHasText });
   for (let i = lines.length - 1; i >= 0; i--) {
     let entry;
     try { entry = JSON.parse(lines[i]); } catch { continue; }
     const role = entry?.type || entry?.message?.role;
     const content = entry?.message?.content;
     if (role === 'assistant') {
-      const text = assistantTextOf(content).trim();
-      if (text) prose.unshift(text);
-      if (text && inReply) replyHasText = true;
+      const entryBlocks = assistantBlocksOf(content).map((b) => ({ kind: b.kind, text: b.text.trim() })).filter((b) => b.text);
+      blocks.unshift(...entryBlocks);
+      if (inReply && entryBlocks.some((b) => b.kind === 'text')) replyHasText = true;
     } else if (role === 'user') {
       inReply = false;
       const text = textOf(content).trim();

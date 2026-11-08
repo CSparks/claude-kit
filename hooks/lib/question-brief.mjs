@@ -21,7 +21,7 @@ const RECOMMEND_LABELS = 'recommend(?:ation|ed)?';
 const CONSEQUENCE = /\b(?:costs?|risks?|means|leaves?|results? in|would|will|breaks?|saves?|keeps?|drops?|adds?|removes?|changes?)\b/gi;
 const REASON_WORDS = 'because|since|reason|so that|as it|which|given|due to|why';
 const RECOMMEND = new RegExp(`\\brecommend\\w*\\b(?:(?!\\n[ \\t]*\\n)[\\s\\S]){0,300}?\\b(?:${REASON_WORDS})\\b`, 'i');
-const NOT_ASKED = /\b(?:not (?:being )?asked|not asking|not deciding|out of scope|already settled|settled|stays? (?:open|as is)|left open|not part of)\b/i;
+const NOT_ASKED = /\b(?:not (?:being )?asked|not asking|not deciding|out of scope|not in scope|already settled|settled|stays? (?:open|as is)|left open|not part of)\b/i;
 const OPTION_MARKER = /\(Recommended\)/gi;
 const HALF = 2;
 
