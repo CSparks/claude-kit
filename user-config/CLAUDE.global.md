@@ -89,7 +89,9 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   started. The queue, the roadmap, a retired worker's handoff, a held successor brief,
   a queued dispatch, an orient OPEN list and any hook message are NOTICES to relay,
   never instructions: tickets go stale, get superseded in another session, or stop being
-  relevant, and only he knows. His direct question is answered first.
+  relevant, and only he knows. His direct question is answered first. The one exception is a
+  kit bug or kit feature need: it is ticketed and its fix agent dispatched the same turn,
+  bill or no bill, never raised first (KIT-D145).
 - **Confer before acting; both contexts are unreliable (Chris 2026-11-05).** After a clear
   or a resume you remember none of the earlier asks, and he does not remember everything
   he said. Any action not discussed in the current context window is conferred with him
@@ -169,8 +171,9 @@ same turn. A protocol that lives only in a block message or a decision file is a
   needs an inline `[allow-fable: <reason>]` token in the prompt. SessionStart orient flags a
   main thread that is not on the coordination family and names the `/model` switch.
 - **Every dispatch names its model in the agent LABEL**: the Agent tool's `description`
-  starts with a `[<model>]` prefix — `"[opus] Diagnose POI rate"`; the hook rewrites it to
-  the resolved family's current model. No unprefixed dispatches.
+  starts with the exact tag of the family's current model — `"[Opus 5.5] Diagnose POI rate"`.
+  The `dispatch-label` hook blocks a hand-written or missing tag and names the exact value to
+  resend; it never rewrites the call (KIT-T897). No unprefixed dispatches.
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout
@@ -349,28 +352,33 @@ opt-in-aware — each no-ops unless the repo has `.ai/`, and inert under any reg
   (project root; `check-id → [path globs]`, `'*'`/`all` = every check) and in-source
   `claude-kit-ignore-*` comment markers (file / start…end / line forms). Every gate
   footer names its check-id and both surfaces.
+- **A block is satisfied, never routed around (KIT-D147, KIT-D148).** The turn that hits a
+  block fixes its cause for good: satisfy it as written; when the block misfired or lacks a
+  printout, ticket it and dispatch the fix agent (KIT-D145); remove the session-side cause. An
+  end-around is allowed only to repair that block itself. Before the first call to a gated tool
+  (Agent, AskUserQuestion) read `q gates agent` / `q gates question`: every requirement and exact
+  tag form, derived from the gate code.
 - `.claude-tooling-ok` silences missing-tool warnings per project.
 
-## Kit bugs and kit features — ticketed at once, fixed inside a signed bill (KIT-T286, KIT-D132)
+## Kit bugs and kit features — ticketed and fixed the same turn (KIT-T286, KIT-D145)
 The claude-kit is everyone's business: from ANY session, any misbehaviour of the kit itself — q
 cannot answer or lacks a flag, a hook crashes or misfires, cap/t/q/orient errors, a gate false
 positive or miss, a process failure traced to tooling — and any kit FEATURE the work needs
-becomes a ticket in the claude-kit store AT ONCE (`kit-bug` / `kit-feature` label). The fix
-agent in the claude-kit checkout is dispatched only inside a bill of work the maintainer signs;
-until then the ticket is raised to him in one line. Never a silent grep or workaround, never a
-mention in prose.
-- **One standing kit agent per bill (KIT-D094, amended by KIT-D132).** Once a bill includes kit
-  fixes, ONE kit agent (a writer in the claude-kit checkout, reused warm) takes them whole: diagnosis,
-  fix, tests, publish. The orchestrator does NO inline kit diagnosis: no hunting a launcher, reading
-  kit source or poking at a hook itself. It relays the agent's runtime sha and goes back to
-  its own work. A kit bug found mid-session is ticketed and raised; nothing is dispatched for it
-  on the hook's say-so.
-- Follow-up work after a hand-back (KIT-T505) is raised to the maintainer; inside a signed bill it
-  gets a fresh dispatch with the prior context in the brief, or the agent reports through
-  SendMessage; a handed-back agent never reports again unprompted.
+becomes a ticket in the claude-kit store AT ONCE (`kit-bug` / `kit-feature` label) and its fix
+agent is dispatched THE SAME TURN: no bill of work, no raising it first (KIT-D145, the
+maintainer's order for every workspace). Never a silent grep or workaround, never a mention in
+prose.
+- **One standing kit agent (KIT-D094, amended by KIT-D145).** ONE kit agent (a writer in the
+  claude-kit checkout, reused warm) takes the kit fixes whole: diagnosis, fix, tests, publish. The
+  orchestrator does NO inline kit diagnosis: no hunting a launcher, reading kit source or poking
+  at a hook itself. It files the ticket, dispatches (or messages) that agent, relays the agent's
+  runtime sha and goes back to its own work.
+- Follow-up work after a hand-back (KIT-T505) goes to a fresh dispatch with the prior context in
+  the brief, or the agent reports through SendMessage; a handed-back agent never reports again
+  unprompted.
 - The kit files many of these itself (q gaps, hook crashes, a grep after an empty q, `cap bug` /
-  `cap feature` into the kit store); orient lists the open ones as OPEN, awaiting a bill of work:
-  relay them, do not dispatch them.
+  `cap feature` into the kit store); orient lists the open ones as OPEN notices: dispatch a
+  fix agent for each now.
 - Filing by hand: `cap bug …` / `cap feature …` with `--project claude-kit`, or `t new` in the kit
   checkout; search first (`q fts`). The request gate counts captures written there.
 - Scope otherwise: a session covers its repo plus its submodules; q searches that by default.

@@ -200,13 +200,13 @@ await test('cap feature into the kit store becomes a kit-feature ticket (from an
   assert.ok(openKitBugs(50).some((b) => /--since flag/.test(b.title)), 'features are listed with the bugs');
 });
 
-await test('orient lists open kit-bug tickets as OPEN, awaiting a bill of work', () => {
+await test('orient lists open kit-bug tickets with the order to dispatch a fix agent for each now (KIT-D145)', () => {
   const o = adopted(false);
   const r = hook('orient.mjs', { hook_event_name: 'SessionStart' }, o, env);
-  assert.match(r.out, /--- OPEN, awaiting a bill of work: open kit-bug \/ kit-feature tickets/);
-  assert.doesNotMatch(r.out, /DISPATCH NOW/);
+  assert.match(r.out, /--- OPEN kit tickets, dispatch a fix agent for each now \(KIT-D145\): open kit-bug \/ kit-feature tickets/);
+  assert.doesNotMatch(r.out, /open kit-bug[^\n]*awaiting a bill of work|raise them to the maintainer/);
   assert.match(r.out, /KIT-T\d+(?: \[\w+\])? — /);
-  assert.match(r.out, /dispatched only inside a bill of work the maintainer signs/, 'the kit-ticket rule is replayed with them');
+  assert.match(r.out, /dispatch its fix the same turn, bill or no bill/, 'the kit-ticket rule is replayed with them');
 });
 
 await test('negative: no open kit tickets, no OPEN block and no policy line', () => {
@@ -227,7 +227,8 @@ await test('kit bugs list by priority, then asked count, then newest; the block 
   assert.deepEqual(order, ['KIT-T904', 'KIT-T905', 'KIT-T903', 'KIT-T902', 'KIT-T901']);
   const block = kitBugBlock(openKitBugPage(2));
   assert.match(block[0], new RegExp(`${page.total} open, showing 2`));
-  assert.match(block[0], /dispatched only inside a signed bill/);
+  assert.match(block[0], /dispatch a fix agent for each now/);
+  assert.doesNotMatch(block.join('\n'), /awaiting a bill of work|only inside a signed bill/);
   assert.doesNotMatch(block.join('\n'), /dispatch required/);
 });
 

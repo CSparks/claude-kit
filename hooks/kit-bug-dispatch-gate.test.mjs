@@ -9,7 +9,7 @@ import { ROOT, HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-ha
 
 const RUN = `${process.pid}-${Date.now()}`;
 const { ok, done } = reporter('kit-bug-dispatch-gate');
-const NOTICE = /OPEN, awaiting a bill of work/;
+const NOTICE = /OPEN kit tickets, dispatch a fix agent for each now \(KIT-D145\)/;
 const noticed = (r) => r.code === 0 && NOTICE.test(r.out);
 const quiet = (r) => r.code === 0 && !NOTICE.test(r.out);
 const store = tmpDir('kit-dispatch-store-');
@@ -52,7 +52,7 @@ try {
 
   const seen = stop(transcript(say('filed KIT-T801 and KIT-T802 just now')));
   ok('high and critical tickets seen with no dispatch print the OPEN notice naming both and exit 0', noticed(seen) && /KIT-T801/.test(seen.out) && /KIT-T802/.test(seen.out) && /kit-bug-dispatch/.test(seen.out));
-  ok('the notice orders nothing: no BLOCKED, no "Dispatch the standing kit agent", a bill of work is named', !/BLOCKED|Dispatch the standing kit agent/.test(seen.out) && /bill of work/.test(seen.out) && /Relay this to the maintainer/.test(seen.out));
+  ok('the notice orders the dispatch now and never blocks or waits for a bill (KIT-D145)', !/BLOCKED|awaiting a bill of work|until he signs/.test(seen.out) && /Dispatch the standing kit agent for each now/.test(seen.out));
   ok('negative: a low-priority ticket alone prints nothing', quiet(stop(transcript(say('filed KIT-T803')))));
   ok('negative: a ticket never mentioned this session prints nothing', quiet(stop(transcript(say('nothing relevant')))));
   ok('negative: an Agent call naming the id clears it', quiet(stop(transcript(say('KIT-T801'), agent('fix KIT-T801 in the claude-kit checkout')))));

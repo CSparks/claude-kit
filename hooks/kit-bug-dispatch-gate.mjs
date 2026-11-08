@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Stop — the OPEN KIT-TICKET notice (KIT-T699, KIT-D132). Filing a kit bug dispatches nothing, and neither does this hook:
+// Stop — the OPEN KIT-TICKET notice (KIT-T699, KIT-D145). Filing a kit bug dispatches nothing, and neither does this hook; it tells the session to:
 // a high or critical kit ticket this session filed or saw (its id is in the transcript) while no Agent call (or
 // SendMessage to the standing kit agent or the session holding the checkout, inside the claim window) names that id sits
 // open. A ticket `doing` and touched within the claim window (kit-bug.mjs) is held by a live kit agent of any session and
-// never counts as open (KIT-T768). Prints one OPEN notice ONCE per distinct set of such ids and exits 0; the fix agent runs
-// only inside a bill of work the maintainer signs. A ticket labelled kit-queue (the broker's rolling time-sink tickets)
+// never counts as open (KIT-T768). Prints one OPEN notice ONCE per distinct set of such ids and exits 0, ordering the
+// fix agent's dispatch now. A ticket labelled kit-queue (the broker's rolling time-sink tickets)
 // never counts. `stop_hook_active` allows; fails open on any error.
 // Check-id: kit-bug-dispatch (path glob matched against the ticket id).
 
@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { firstSighting } from './block-once.mjs';
 import { gitRoot, pathExcluded, payload, excludeFooter } from './lib.mjs';
 import { openKitBugPage, CLAIM_TTL_MS } from '../scripts/kit-bug.mjs';
-import { openNotice } from './lib/bill-of-work.mjs';
+import { kitTicketNotice } from './lib/bill-of-work.mjs';
 
 const CHECK_ID = 'kit-bug-dispatch';
 const URGENT = new Set(['critical', 'high']);
@@ -60,7 +60,7 @@ try {
   if (!open.length) process.exit(0);
   if (!firstSighting(`kit-bug-dispatch-${p.session_id || 'nosession'}`, open.map((b) => b.id).join(','))) process.exit(0);
   const facts = open.map((b) => `  ${b.id} [${b.priority}] ${b.title.slice(0, 100)}`);
-  process.stderr.write(`\n${openNotice(facts, `${open.length} high/critical kit ticket(s) seen this session have no fix agent; the ticket is filed, nothing is dispatched (KIT-D132).`)}\n${excludeFooter(CHECK_ID)}`);
+  process.stderr.write(`\n${kitTicketNotice(facts, `${open.length} high/critical kit ticket(s) seen this session have no fix agent.`)}\n${excludeFooter(CHECK_ID)}`);
 } catch {
   /* a notice never wedges a stop on its own error */
 }

@@ -54,7 +54,7 @@ candidates and how to work an item once he has signed it.
 
 **QUERY-TOOL FAILURE IS A HARD STOP (KIT-T236):** if `q` or `code-graph` errors, crashes, or
 answers wrongly, STOP the current step, `cap bug <what failed, verbatim command + error>`, and
-raise it to the maintainer; the fix agent is dispatched only inside a signed bill (KIT-D132).
+dispatch the kit fix agent for it the same turn (KIT-D145).
 Falling back to grep and moving on leaves the retrieval layer broken for every future
 session — the silent fallback IS the failure.
 

@@ -16,7 +16,7 @@ import { clip } from './common.mjs';
 const REPEAT_ASKS_SHOWN = 8;
 const DIRECTIVES_SHOWN = 5;
 const PAYLOAD_WAIT_MS = 500;
-const GATES_LINE = 'GATES: q gates agent|question (read before first use, KIT-D147)';
+const GATES_LINE = 'GATES: q gates agent|question (read before use, KIT-D147)';
 
 export function header({ out, root }) {
   out.push('=== PROJECT ORIENTATION (on-disk record — trust over any summary or your memory) ===');
@@ -32,7 +32,7 @@ export function header({ out, root }) {
   out.push('  q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [-C 2] [--kind code|doc|config|ticket] [-l] [--limit 0]');
   out.push('  q sym <name> [--type fn,struct,impl,use,mod]   definitions, impls, uses, mod tree');
   out.push('  q file <glob>                                   find files by path');
-  out.push('  q cannot do it? file it: cap feature "q: <what is missing>" --project claude-kit (never grep silently)');
+  out.push('  q cannot do it? cap feature "q: <gap>" --project claude-kit (never grep silently)');
   out.push('  Adoption ledger: <framework>/docs/CHOICES.toml — cite the row before naming any crate alternative.');
   out.push('  An empty/failed query is "NOT CHECKED", never "does not exist".');
   out.push('');
