@@ -3,7 +3,8 @@
 //   readDecisions(root)                  -> [{ id, file, title, summary, hit }] the in-force decisions of `<root>/.ai/decisions/`
 //   governingDecisions(text, decisions)  -> the decisions whose title shares MIN_TITLE_SHARED distinctive words with
 //                                           `text`, or whose title, summary and Decision paragraph share MIN_BODY_SHARED
-//                                           (best first, at most MAX_SHOWN)
+//                                           (best first, at most MAX_SHOWN): candidates to show, never proof
+//   restatedDecisions(text, decisions)   -> the decisions whose entire title `text` repeats: the question is already decided
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,6 +15,7 @@ import { decisionHit } from './q-decision-hit.mjs';
 const MIN_TITLE_SHARED = 2;
 const MIN_BODY_SHARED = 4;
 const MAX_SHOWN = 3;
+const MIN_RESTATED_WORDS = 3;
 const RETIRED = new Set(['superseded', 'rejected', 'retired', 'reversed', 'withdrawn']);
 
 export function readDecisions(root) {
@@ -32,6 +34,16 @@ export function readDecisions(root) {
 }
 
 const shared = (mine, theirs) => [...mine].filter((w) => theirs.has(w)).length;
+
+// The decisions whose whole title (MIN_RESTATED_WORDS or more distinctive words) the asked text repeats: the
+// questionnaire restates what is already decided. `text` is the question and header words, never the options.
+export function restatedDecisions(text, decisions) {
+  const mine = words(text);
+  return decisions.filter((d) => {
+    const title = words(d.title);
+    return title.size >= MIN_RESTATED_WORDS && shared(mine, title) === title.size;
+  });
+}
 
 export function governingDecisions(text, decisions) {
   const mine = words(text);
