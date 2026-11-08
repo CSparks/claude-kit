@@ -17,7 +17,7 @@ import { orphanRows } from './provenance.mjs';
 import { recentFallback } from './q-recent.mjs';
 import { topicIndex, topicItems } from './q-topics.mjs';
 import { frameworkStores, searchScopes } from './q-framework.mjs';
-import { parseOpenArgs } from './q-open-args.mjs';
+import { parseOpenArgs, withLimit } from './q-open-args.mjs';
 import {
   OPEN, FTS_LIMIT, MIN_TERM_LEN, ALNUM_TERM, SUMMARY_CLIP,
   parseSimilar, splitFts, requireStore, requireScope, defaultScope, resolveScope, formatId,
@@ -35,11 +35,11 @@ export function fallback(cmd, args, root) {
   const scopeOf = (tok) => resolveScope(tok, root);
   switch (cmd) {
     case 'open': {
-      const { scopeTok, statuses } = parseOpenArgs(args);
+      const { scopeTok, statuses, limit } = parseOpenArgs(args);
       const scope = scopeOf(scopeTok);
-      return items.filter((i) => statuses.includes(i.status) && !i.archived && !isSuperseded(i) && (!scope || i.scope === scope))
+      return withLimit(items.filter((i) => statuses.includes(i.status) && !i.archived && !isSuperseded(i) && (!scope || i.scope === scope))
         .map((i) => ({ id: i.id, type: i.type, status: i.status, priority: i.priority, title: i.title }))
-        .sort(compareOpen);
+        .sort(compareOpen), limit);
     }
     case 'children':
       return items.filter((i) => i.parent === args[0]).map((i) => ({ id: i.id, type: i.type, status: i.status, title: i.title }));

@@ -8,7 +8,7 @@ import { SCOPED_VERBS } from './q-scope-flag.mjs';
 const GLOBAL_FLAGS = new Set(['--json', '--no-db', '--root', '--topic', '--help']);
 const VERB_FLAGS = {
   fts: ['--scope', '--project', '--limit', '--any'], inbox: ['--older-than'], confirmations: ['--older-than'], similar: ['--store', '--scopes'],
-  sessions: ['--project'], recent: [], open: ['--status'], trail: [], orphans: [], rundown: [], governing: [], drift: [], mentions: [],
+  sessions: ['--project'], recent: [], open: ['--status', '--limit'], trail: [], orphans: [], rundown: [], governing: [], drift: [], mentions: [],
   children: [], backlinks: [], 'by-commit': [], 'doc-trail': [], topics: [], topic: [], 'next-id': [], regressions: [],
   supersedes: [], integrity: [], verify: [], session: [], said: [], show: [], sql: [],
 };

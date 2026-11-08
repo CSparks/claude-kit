@@ -44,11 +44,31 @@ await test('open --status rejects values outside todo|doing|review', async () =>
   await assert.rejects(open(['--status', 'done']), /--status takes todo\|doing\|review/);
 });
 
-await test('CLI accepts the flag and --help documents it', () => {
+for (const noDb of [false, true]) {
+  await test(`open --limit keeps the first N rows, 0 keeps all (${noDb ? 'scan' : 'cache'}) (KIT-T904)`, async () => {
+    assert.equal((await open(['--limit', '2'], noDb)).length, 2);
+    assert.equal((await open(['--limit=1'], noDb)).length, 1);
+    assert.equal((await open(['--limit', '0'], noDb)).length, 3);
+    assert.equal((await open(['--limit', '9'], noDb)).length, 3);
+    assert.deepEqual(await open(['FQO', '--limit', '2', '--status', 'todo,doing'], noDb).then((r) => r.length), 2, 'the count is never taken for the scope token');
+  });
+}
+
+await test('open --limit rejects a value that is no count (KIT-T904)', async () => {
+  await assert.rejects(open(['--limit', 'many']), /--limit takes a count/);
+  await assert.rejects(open(['--limit', '-1']), /--limit takes a count/);
+});
+
+await test('CLI accepts the flags, an unknown flag still errors, --help documents them', () => {
   const env = { ...process.env, CLAUDE_PLUGIN_ROOT: join(tmp, 'plugin') };
   const q = (args) => spawnSync(process.execPath, [join(import.meta.dirname, 'q.mjs'), ...args], { encoding: 'utf8', env });
   assert.equal(q(['--root', root, '--no-db', 'open', '--status', 'todo']).status, 0);
-  assert.match(q(['--help']).stdout, /open \[scope\] \[--status/);
+  const limited = q(['--root', root, '--no-db', 'open', '--limit', '0']);
+  assert.equal(limited.status, 0);
+  assert.doesNotMatch(limited.stderr, /does not take/);
+  assert.equal(q(['--root', root, '--no-db', 'open', '--limit', '2', '--json']).stdout.match(/FQO-T00\d/g).length, 2);
+  assert.match(q(['--root', root, '--no-db', 'open', '--bogus']).stderr, /'open' does not take --bogus/);
+  assert.match(q(['--help']).stdout, /open \[scope\] \[--status[^\n]*\[--limit N\]/);
 });
 
 rmSync(tmp, { recursive: true, force: true });

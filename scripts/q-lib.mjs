@@ -49,7 +49,7 @@ import { withLockRetry, lockTimeoutMs } from './q-lock.mjs';
 import { hydrate, defaultDbPath, hydrationSources, isRegisteredStore, isSharedDb } from './hydrate-db.mjs';
 import { readIdConfig, statStoreFiles } from './id-utils.mjs';
 import { fallback } from './q-fallback.mjs';
-import { parseOpenArgs } from './q-open-args.mjs';
+import { parseOpenArgs, withLimit } from './q-open-args.mjs';
 import { parseInboxArgs, inboxRows, CONFIRMATION_DAYS } from './q-inbox.mjs';
 import {
   OPEN, FTS_LIMIT, ftsOrQuery, ftsMatchQuery, ftsAnyQuery, parseSimilar, splitFts, requireStore, requireScope, formatId,
@@ -205,15 +205,15 @@ function cannedQueries(root) {
     // any non-archived ticket carrying a `superseded_by` pointer is out — so a forgotten
     // status flip can't leak a retired duplicate back into the drain.
     open: (db, ...args) => {
-      const { scopeTok, statuses } = parseOpenArgs(args);
+      const { scopeTok, statuses, limit } = parseOpenArgs(args);
       const scope = scopeOf(scopeTok);
-      return db.all(
+      return withLimit(db.all(
         `SELECT i.id, i.type, i.status, i.priority, i.title FROM items i
          WHERE i.status IN (${statuses.map(() => '?').join(',')}) AND i.archived = 0
            AND i.status <> 'superseded'
            AND NOT EXISTS (SELECT 1 FROM links l WHERE l.from_id = i.id AND l.rel = 'superseded_by')
            ${scope ? 'AND i.scope = ?' : ''}`,
-        scope ? [...statuses, scope] : [...statuses]).sort(compareOpen);
+        scope ? [...statuses, scope] : [...statuses]).sort(compareOpen), limit);
     },
 
     // The untriaged capture queue (KIT-T238) — the first-class verb the store-grep gate

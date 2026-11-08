@@ -16,8 +16,8 @@ export const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <qu
   is every project. Applies to: open, inbox, confirmations, orphans, rundown, recent,
   regressions, supersedes, verify, and fts's --scope.
 
-  open [scope] [--status todo|doing|review[,…]]
-                              open items (todo|doing|review); --status narrows them
+  open [scope] [--status todo|doing|review[,…]] [--limit N]
+                              open items (todo|doing|review); --status narrows them; --limit N keeps the first N (0 = all)
   inbox [scope] [--older-than Nd]
                               untriaged captures — id, age, scope, type, file path
   confirmations [scope]       captures aged past the confirmation threshold
