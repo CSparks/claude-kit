@@ -28,7 +28,6 @@ import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispat
 import { readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
 import { ladderRoot } from '../scripts/dispatch-ladder.mjs';
 import { capabilityStatus } from '../scripts/model-lineup.mjs';
-import { FOREIGN_TREE_CHECK, FOREIGN_TREE_OK, foreignEdits, foreignTreeMessage } from './dispatch-foreign.mjs';
 import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
 import { ESCALATION_CHECK, escalationBlock } from './dispatch-escalation.mjs';
 import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loaded.mjs';
@@ -88,7 +87,6 @@ try {
     sharedTreeBlock(root, input, prompt),
     holderBlockFor(root, input, prompt, p),
     brokerOwnedBlock(root, input, prompt),
-    foreignTreeBlock(root, input, prompt, p),
     workerCheck(root, input, prompt, p),
     lessonsCheck(root, input, prompt, p),
     conformanceCheck(root, input, prompt, p),
@@ -366,19 +364,6 @@ function brokerOwnedBlock(root, input, prompt) {
   const tree = dispatchTargetRoot(root, input);
   const live = blockingLane(prompt, tree);
   return live ? brokerOwnedMessage({ agent: label(input), tree, ...live, footer: excludeFooter(BROKER_OWNED_CHECK) }) : null;
-}
-
-// --- foreign-tree-edits (KIT-T407) ---------------------------------------------
-// A writer into a tree already dirty with edits this session did not make. Roster writers in
-// flight are shared-tree-dispatch's business and are skipped here.
-function foreignTreeBlock(root, input, prompt, p) {
-  if (isWorktreeIsolation(input.isolation) || MAINTAINER_PARALLEL.test(prompt) || FOREIGN_TREE_OK.test(prompt)) return null;
-  if (readOnlyDispatch(root, label(input), prompt)) return null;
-  if (pathExcluded(root, FOREIGN_TREE_CHECK, root)) return null;
-  const tree = dispatchTargetRoot(root, input);
-  if (liveAgents(root, Date.now(), tree).some((r) => !readOnlyRow(root, r))) return null;
-  const files = foreignEdits(tree, p.session_id);
-  return files.length ? foreignTreeMessage({ agent: label(input), tree, files, footer: excludeFooter(FOREIGN_TREE_CHECK) }) : null;
 }
 
 // Does the brief name a checkout that is a git WORKTREE? A worktree's .git is a FILE whose

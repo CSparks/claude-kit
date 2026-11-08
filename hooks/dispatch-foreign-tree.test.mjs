@@ -1,45 +1,44 @@
-// foreign-tree-edits (KIT-T407): a writer dispatch into a tree dirty with edits this session never made is blocked; a
-// read-only dispatch, an attributed edit, a store-only change and the escape pass.
+// Uncommitted files are never a writer (KIT-T894): a writer dispatch into a tree with modified tracked source is allowed
+// unless the holder registry shows another live writer there; a stale holder and the maintainer's own edits pass.
 // Run: node hooks/dispatch-foreign-tree.test.mjs
 
-import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
-import { expect, finish, makeRepo, runRaw } from './dispatch-guard-harness.mjs';
+import { expect, finish, gitTop, makeRepo, runRaw } from './dispatch-guard-harness.mjs';
 
-const stateDir = mkdtempSync(join(tmpdir(), 'dg-state-'));
-process.env.CLAUDE_KIT_TURN_STATE = stateDir;
+const MS_PER_MIN = 60 * 1000;
+const STALE_MIN = 20;
+const freshRegistry = () => { process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'dg-holders-')); };
+freshRegistry();
+const { beatHolder } = await import('./lib/checkout-holder.mjs');
 const tree = makeRepo();
 const git = (...a) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: tree, stdio: 'ignore' });
 writeFileSync(join(tree, 'src.js'), 'export const a = 1;\n');
-writeFileSync(join(tree, '.ai', 'T1.md'), 'x\n');
 git('add', '-A');
 git('commit', '-qm', 'init');
+writeFileSync(join(tree, 'src.js'), 'export const a = 2;\n');
+
 const send = (sid, input) => runRaw(tree, JSON.stringify({ tool_name: 'Agent', session_id: sid, tool_input: { model: 'sonnet', ...input, prompt: `${input.prompt} [job: fix]` } }));
 const writer = { subagent_type: 'general-purpose', prompt: 'x' };
+const holdBy = (session, now = Date.now()) => beatHolder({ tree: gitTop(tree), session, label: 'claude-kit:agent', now });
 
-writeFileSync(join(tree, '.ai', 'T1.md'), 'changed\n');
-expect('store-only edits do not block a writer dispatch', send('S1', writer).code, 0);
+expect('dirty tracked source with an empty registry: the writer dispatch is allowed', send('SB', writer).code, 0);
 
-writeFileSync(join(tree, 'src.js'), 'export const a = 2;\n');
-const blocked = send('S1', writer);
-expect('foreign edit to tracked source blocks a writer dispatch', blocked.code, 2);
-expect('the block names the file and says a second writer is in the tree', /src\.js/.test(blocked.err) && /second writer/.test(blocked.err) ? 0 : 1, 0);
-expect('a read-only agent type is allowed into the dirty tree', send('S1', { subagent_type: 'claude-kit:researcher', prompt: 'x' }).code, 0);
-expect('[read-only: reason] on a writer type is allowed', send('S1', { ...writer, prompt: 'x [read-only: audit]' }).code, 0);
-expect('[foreign-edits-ok: reason] lifts the block', send('S1', { ...writer, prompt: 'x [foreign-edits-ok: known wip]' }).code, 0);
-expect('an unidentified session fails open', runRaw(tree, JSON.stringify({ tool_name: 'Agent', tool_input: { model: 'sonnet', ...writer, prompt: 'x [job: fix]' } })).code, 0);
+freshRegistry();
+holdBy('SA');
+const blocked = send('SB', writer);
+expect('dirty tree with another session\'s live writer: blocked', blocked.code, 2);
+expect('the block names the holder and keeps the check-id footer', /session SA/.test(blocked.err) && /checkout-holder/.test(blocked.err) ? 1 : 0, 1);
+expect('[foreign-edits-ok: reason] never lifts a live holder\'s block', send('SB', { ...writer, prompt: 'x [foreign-edits-ok: known wip]' }).code, 2);
+expect('the holder\'s own session is allowed back in', send('SA', writer).code, 0);
 
-spawnSync(process.execPath, [fileURLToPath(new URL('./pre-write.mjs', import.meta.url))], {
-  cwd: tree, encoding: 'utf8',
-  input: JSON.stringify({ session_id: 'S1', tool_input: { file_path: join(tree, 'src.js'), content: 'export const a = 2;\n' } }),
-});
-expect('an edit this session wrote is attributable: writer allowed', send('S1', writer).code, 0);
-process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'dg-holders-'));
-expect('the same edit stays foreign to another session', send('S2', writer).code, 2);
-rmSync(stateDir, { recursive: true, force: true });
-delete process.env.CLAUDE_KIT_TURN_STATE;
+freshRegistry();
+holdBy('SA', Date.now() - STALE_MIN * MS_PER_MIN);
+expect('a stale holder does not block a dirty tree', send('SB', writer).code, 0);
+
+freshRegistry();
+expect('[foreign-edits-ok: reason] with an empty registry is allowed', send('SB', { ...writer, prompt: 'x [foreign-edits-ok: known wip]' }).code, 0);
 
 finish();
