@@ -72,7 +72,7 @@
       },
       {
         "matcher": "Task|Agent",
-        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/activity-tag.mjs\"" }]
+        "hooks": [{ "type": "command", "command": "node \"$HOME/.claude/hooks/dispatch-label.mjs\"" }]
       },
       {
         "matcher": "Bash|PowerShell|Monitor",

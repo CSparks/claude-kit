@@ -8,8 +8,8 @@
 //   jobBlock({ root, input, prompt, footer }) -> block message | null (dispatch-guard check `dispatch-job`)
 //
 // A dispatch with no job, an unknown job, or an explicit model outside the row's families is
-// blocked. An explicit model passes with `[model-override: <reason>]`; a dispatch naming no model
-// takes the row's family (activity-tag fills it in).
+// blocked. An explicit model passes with `[model-override: <reason>]`; a dispatch naming a job but no model
+// must pass the row's family (dispatch-label names it).
 
 import { readLadder } from '../scripts/dispatch-ladder.mjs';
 import { familyOf } from '../scripts/dispatch-outcomes.mjs';

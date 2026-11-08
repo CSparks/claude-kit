@@ -3,9 +3,8 @@
 //      date suffixes, minor versions, unknown verbatim.
 //   2. resolution: explicit model -> agent-definition pin -> session model from the transcript.
 //   3. tag: replaces a stale model tag, idempotent, an author's own bracket survives, strip is the inverse.
-//   4. the hook: rewrites description via hookSpecificOutput.updatedInput, emits NO
-//      permissionDecision (so it can never weaken dispatch-guard on the same event), and
-//      fails open on garbage / unadopted / model-less dispatches.
+//   4. the dispatch-label hook: blocks a description without the model tag and names the form to resend; it
+//      never rewrites the call and fails open on garbage / model-less dispatches.
 //   5. roster: the dispatch row records the model; the task label does not double the tag.
 //   6. orient: in-flight and finished lines render `(scope [Opus 5.5])`, and a pre-T179 row
 //      without a model renders exactly as it always did.
@@ -23,7 +22,7 @@ import { recordAgent, agentsPath, readAgents } from './lib.mjs';
 import { modelDisplay, resolveDispatchModel, tagDescription, stripModelTag, pinnedModel, latestAssistantModel } from './model-tag.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const HOOK = join(HERE, 'activity-tag.mjs');
+const HOOK = join(HERE, 'dispatch-label.mjs');
 const ROSTER = join(HERE, 'agent-roster.mjs');
 const ORIENT = join(HERE, 'orient.mjs');
 const ROOT = join(HERE, '..');
@@ -60,13 +59,6 @@ function hook(hookPath, payload, cwd, raw) {
   const input = raw === undefined ? JSON.stringify(payload) : raw;
   const r = spawnSync(process.execPath, [hookPath], { input, cwd, encoding: 'utf8', env: ENV });
   return { code: r.status, out: r.stdout || '', err: r.stderr || '' };
-}
-
-// The hook's JSON verdict, or null when it declined to say anything (the fail-open shape).
-function verdict(res) {
-  const text = res.out.trim();
-  if (!text) return null;
-  try { return JSON.parse(text); } catch { return 'UNPARSEABLE'; }
 }
 
 function agentDef(dir, name, body) {
@@ -173,60 +165,31 @@ try {
     ok('strip: round-trips with tag', stripModelTag(tagDescription('Build CRX-T024', 'Opus 5')) === 'Build CRX-T024');
   }
 
-  // ===== 4. the hook — the activity-line rewrite ============================
+  // ===== 4. the label requirement (dispatch-label) ==========================
   {
     const d = makeRepo();
     const res = hook(HOOK, dispatch({ description: 'Build CRX-T024 admin foundation', subagent_type: 'general-purpose', model: 'opus', prompt: 'the brief' }), d);
-    const v = verdict(res);
-    ok('hook: exits 0 (a cosmetic rewrite never gates)', res.code === 0);
-    ok('hook: the activity line carries the model tag',
-      v && v.hookSpecificOutput.updatedInput.description === '[Opus 5.5] Build CRX-T024 admin foundation');
-    ok('hook: names the PreToolUse event the contract expects',
-      v && v.hookSpecificOutput.hookEventName === 'PreToolUse');
-    // updatedInput is a FULL replacement of tool_input — dropping a field would silently
-    // rewrite the dispatch itself, which is the one thing a cosmetic hook must never do.
-    ok('hook: updatedInput preserves every other input field',
-      v && v.hookSpecificOutput.updatedInput.subagent_type === 'general-purpose'
-        && v.hookSpecificOutput.updatedInput.model === 'opus'
-        && v.hookSpecificOutput.updatedInput.prompt === 'the brief');
-    // dispatch-guard blocks on this SAME event; an "allow" here could promote its deny.
-    ok('hook: emits NO permissionDecision (cannot weaken dispatch-guard)',
-      v && !('permissionDecision' in v.hookSpecificOutput));
-
-    ok('hook: an already-tagged description is left alone (no output)',
-      verdict(hook(HOOK, dispatch({ description: '[Opus 5.5] Build CRX-T024', model: 'opus' }), d)) === null);
-    ok('hook: an indeterminate model says nothing rather than guessing',
-      verdict(hook(HOOK, dispatch({ description: 'Build CRX-T024', subagent_type: 'general-purpose' }), d)) === null);
-    ok('hook: a dispatch with no description is a no-op',
-      verdict(hook(HOOK, dispatch({ model: 'opus', prompt: 'no description here' }), d)) === null);
-    ok('hook: a blank description is a no-op',
-      verdict(hook(HOOK, dispatch({ description: '   ', model: 'opus' }), d)) === null);
+    ok('hook: an untagged description is blocked with the exact form to resend',
+      res.code === 2 && res.err.includes('resend description as "[Opus 5.5] Build CRX-T024 admin foundation"'));
+    ok('hook: nothing is written to stdout, so no updatedInput and no permissionDecision', res.out === '');
+    ok('hook: an already-tagged description passes untouched',
+      hook(HOOK, dispatch({ description: '[Opus 5.5] Build CRX-T024', model: 'opus' }), d).code === 0);
 
     const pinned = makeRepo();
     agentDef(pinned, 'proj-splitter', '---\nname: proj-splitter\nmodel: haiku\n---\n');
-    const pv = verdict(hook(HOOK, dispatch({ description: 'Split the KIT-T179 monolith', subagent_type: 'proj-splitter' }), pinned));
-    ok('hook: a definition-pinned agent is tagged from its frontmatter',
-      pv && pv.hookSpecificOutput.updatedInput.description === '[Haiku 5.5] Split the KIT-T179 monolith');
-    const kv = verdict(hook(HOOK, dispatch({ description: 'Research the KIT-T179 surface', subagent_type: 'claude-kit:researcher', model: 'sonnet' }), pinned));
-    ok('hook: a shipped kit agent dispatched on a family is tagged with the current model of that family',
-      kv && kv.hookSpecificOutput.updatedInput.description === '[Sonnet 5.5] Research the KIT-T179 surface');
+    ok('hook: a definition-pinned agent is held to its frontmatter model',
+      hook(HOOK, dispatch({ description: 'Split the KIT-T179 monolith', subagent_type: 'proj-splitter' }), pinned).err.includes('"[Haiku 5.5] Split the KIT-T179 monolith"'));
+    ok('hook: a shipped kit agent dispatched on a family is held to the current model of that family',
+      hook(HOOK, dispatch({ description: 'Research the KIT-T179 surface', subagent_type: 'claude-kit:researcher', model: 'sonnet' }), pinned).err.includes('"[Sonnet 5.5] Research the KIT-T179 surface"'));
 
     const sess = makeRepo();
     const tp = transcript(sess, 'claude-fable-5');
-    const sv = verdict(hook(HOOK, dispatch({ description: 'Plan the epic', subagent_type: 'general-purpose' }, { transcript_path: tp }), sess));
-    ok('hook: an inherited session model is tagged as what it will actually cost',
-      sv && sv.hookSpecificOutput.updatedInput.description === '[Fable 5] Plan the epic');
-
-    // FAIL-OPEN: never a block; the tag applies in an unadopted repo too (KIT-T337).
-    const un = makeRepo({ adopt: false });
-    const unres = hook(HOOK, dispatch({ description: 'Build it', model: 'opus' }), un);
-    ok('hook: tags in an unadopted repo', unres.code === 0 && verdict(unres).hookSpecificOutput.updatedInput.description === '[Opus 5.5] Build it');
-    const bad = hook(HOOK, null, d, '{not json at all');
-    ok('hook: fails open on malformed stdin', bad.code === 0 && verdict(bad) === null);
-    const empty = hook(HOOK, null, d, '');
-    ok('hook: fails open on empty stdin', empty.code === 0 && verdict(empty) === null);
-    const wrong = hook(HOOK, { hook_event_name: 'PreToolUse', tool_input: 'not an object' }, d);
-    ok('hook: fails open on a wrong-shaped tool_input', wrong.code === 0 && verdict(wrong) === null);
+    ok('hook: an inherited session model is held to what it will actually cost',
+      hook(HOOK, dispatch({ description: 'Plan the epic', subagent_type: 'general-purpose' }, { transcript_path: tp }), sess).err.includes('"[Fable 5] Plan the epic"'));
+    ok('hook: holds an unadopted repo to the same form', hook(HOOK, dispatch({ description: 'Build it', model: 'opus' }), makeRepo({ adopt: false })).code === 2);
+    ok('hook: fails open on malformed stdin', hook(HOOK, null, d, '{not json at all').code === 0);
+    ok('hook: fails open on empty stdin', hook(HOOK, null, d, '').code === 0);
+    ok('hook: fails open on a wrong-shaped tool_input', hook(HOOK, { hook_event_name: 'PreToolUse', tool_input: 'not an object' }, d).code === 0);
   }
 
   // ===== 5. the roster row ==================================================
@@ -309,9 +272,9 @@ try {
       const entry = wiring.hooks.PreToolUse.find((e) => e.hooks.some((h) => h.command.includes(needle)));
       return !!entry && /\bTask\b/.test(entry.matcher) && /\bAgent\b/.test(entry.matcher);
     };
-    ok('wiring: the plugin registers activity-tag on Task|Agent', registers('hooks/hooks.json', 'activity-tag'));
+    ok('wiring: the plugin registers dispatch-label on Task|Agent', registers('hooks/hooks.json', 'dispatch-label'));
     ok('wiring: the bootstrap settings register it too (KIT-T069 parity)',
-      registers('user-config/settings.recommended.json', 'activity-tag'));
+      registers('user-config/settings.recommended.json', 'dispatch-label'));
   }
 
   console.log(`\nmodel-tag: ${pass} passed, ${fail} failed`);

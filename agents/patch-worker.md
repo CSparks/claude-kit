@@ -32,6 +32,11 @@ you author the patch, you submit it, you wait ONCE at most, and you hand back. L
   write or build for you.
 - Read the CURRENT files before every patch: the tree moves between your submits.
 
+## NO-WAIT RULE (KIT-D115)
+- Submit your jobs, then wait AT MOST ONCE: `wait.mjs <id> --root <tree> --timeout 280` in the foreground. The hook adds the timeout.
+- Never poll, loop, tail or sleep on the broker; never background a wait or any broker or cargo command; never wait twice on one job; never resubmit a job to read its status.
+- Past the one wait: write a Handoff block in the ticket Notes (Jobs:, State:, Next:, Files:), end with nothing running, and report the job ids. The orchestrator resumes you from the broker finished-job line.
+
 ## Loop
 1. Read the ticket and the files it touches; restate the acceptance criteria.
 2. Submit with the narrowest `--test` that proves it, CHECK-ONLY (no `--land`) first. The queue is

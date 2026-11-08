@@ -50,7 +50,7 @@ the tool payload from stdin, decides, and exits (`exit 2` = block, `0` = allow).
 | `Stop` | successor-gate | **`successor-gate`** — a notice, never a block (exit 0): prints ONE OPEN notice per distinct set, per session, for work an ended WRITER left open (read-only agents never): a finished broker job unread (`RESULT READY`), a lost job, a `Handoff <id>` on an open ticket with no later dispatch citing it, a crashed/killed agent with no Handoff, a held brief. The model relays it to the maintainer; nothing is dispatched or reopened until he signs a bill of work (KIT-T718, KIT-T822, KIT-D132; reconciler `hooks/lib/handback.mjs`, wording `hooks/lib/bill-of-work.mjs`). Check-id `successor`. |
 | `UserPromptSubmit` | handback-directive | **`handback-directive`** — runs the same reconciler and prints the open set as an OPEN notice, once per distinct set per session, for the model to relay; orient lists it too. It never orders a dispatch (KIT-D132). A SendMessage to the agent (resume-check) or `scripts/broker/ack.mjs` acknowledges the jobs (KIT-T822). |
 | `PreToolUse` (Task\|Agent) | dispatch-guard | Gate the three dispatch shapes that burn money (KIT-T151/KIT-T176) — see **Dispatch checks** below. Blocks; fail-open; escapes are inline prompt tokens. |
-| `PreToolUse` (Task\|Agent) | activity-tag | Put the MODEL on the delegation's activity line (KIT-T179): `general-purpose  [Opus 5] Build CRX-T024 …`. See **Model tags** below. Never gates — it rewrites `description` and nothing else. |
+| `PreToolUse` (Task\|Agent) | dispatch-label | Every delegation names its model on the call (KIT-T179, KIT-T897): the capability table's family when a job is named, and a description that starts `[Opus 5.5] …`. See **Model tags** below. Blocks with the exact value to resend; it never rewrites the call. |
 | `PreToolUse` (Bash\|PowerShell\|Monitor) | row-tag | Every task row carries its owner's model (KIT-T461): a background shell or Monitor gets `[Opus 5.5] <description>` from the main thread's or the subagent's own transcript (`.meta.json` fallback), `[model?]` when unresolvable. Rewrites `description` only. |
 | `PreToolUse` (Workflow) | workflow-gate | Block a Workflow script whose `agent()` calls lack `model:` or a `label:` starting with a `[Model]` tag (KIT-T461); escape `[allow-unlabelled-workflow: reason]`. A workflow's agents fire no Agent PreToolUse, so the script is the only place to enforce it. |
 | `PreToolUse` (SendMessage) | resume-check | Warn when a message resumes an agent whose roster row carries no model (KIT-T461). BLOCKS a resume of an agent past the context ceiling (`dispatch.context_ceiling_tokens`, KIT-D116) unless the message carries `[write-handoff]` (the handoff request) or `[resume-over-ceiling: <reason>]`; check-id `agent-context-ceiling`. |
@@ -78,17 +78,17 @@ fail open on a malformed payload or an unreadable file.
 | `cold-worktree-build` | ANY worktree dispatch — `isolation: "worktree"` or a hand-made worktree named in the brief — in any adopted repo (KIT-T176, KIT-D074). Every project keeps ONE checkout on main; a provisioned `CARGO_TARGET_DIR` does not lift it. Fix: drop the isolation and run in the main checkout, one writing agent at a time. | `[maintainer-asked-worktree: <his words>]` in the prompt |
 | `shared-tree-dispatch` | A second READ/WRITE dispatch into a checkout that already has one (KIT-D077; tree-scoped by KIT-T177). Read-only dispatches never count and are never blocked: built-in Explore/Plan/claude-code-guide, a definition whose `tools:` grants no Edit/Write/NotebookEdit/MultiEdit and no `*` (plugin, project, user), or `[read-only: <reason>]` in the prompt (logged as `readOnly` on the roster row). Unknown and all-tools types are writers. The checkout is `[tree: <absolute path>]` in the prompt, else a repo root the brief names, else the session's; the count reads non-terminal `.ai/agents.jsonl` rows younger than 2h with the same `targetRoot`, not `isolation: worktree`. A pre-KIT-T177 row has no `targetRoot` and counts. | `[maintainer-asked-parallel: <his words>]` in the prompt |
 
-## Model tags (`activity-tag` + `model-tag.mjs`, KIT-T179)
+## Model tags (`dispatch-label` + `model-tag.mjs`, KIT-T179, KIT-T897)
 A delegation's model decides what it costs, and it was invisible everywhere the delegation was
 watched — the native activity line reads `general-purpose  Build CRX-T024 admin foundation`,
 with no tier in it, so a mis-tiered or silently-inherited dispatch looks exactly like a correct
-one until the bill lands. `activity-tag` rewrites the line to
-`general-purpose  [Opus 5] Build CRX-T024 admin foundation`, and the same tag rides the roster
+one until the bill lands. `dispatch-label` requires the description to read
+`[Opus 5] Build CRX-T024 admin foundation`, so the line shows it, and the same tag rides the roster
 into orient and the `shared-tree-dispatch` block message.
 
 - **Resolution** (`model-tag.mjs`, the one implementation — `dispatch-guard` imports it):
   explicit `model` on the call (a family) → a project-local definition's `model:` line (kit agents
-  carry none) → the session model from the transcript. Indeterminate resolves to `''` and NOTHING is tagged; a guessed
+  carry none) → the session model from the transcript. Indeterminate resolves to `''` and nothing is required; a guessed
   tier would be worse than no tier.
 - **Display names are derived, never tabled** (KIT-T337): `claude-opus-5-5` -> `Opus 5.5`,
   `claude-haiku-4-5-20251001` -> `Haiku 4.5`; provider prefixes and date suffixes are ignored. The
@@ -96,18 +96,15 @@ into orient and the `shared-tree-dispatch` block message.
   so a retargeted alias is one config line. An unknown value passes through **verbatim**.
 - **One form on every dispatch**: adopted, unadopted or no repo, either tool name, background or
   not. A leading model tag the caller wrote (`[opus]`, `[claude-opus-5-5]`, `[local-qwen]`, a stale
-  `[Opus 5]`) is replaced by the resolved model's tag. `model: inherit` in a definition resolves to
-  the session model. Not hookable: SendMessage resumes and Workflow `agent()` calls (no Agent
-  PreToolUse event). Test per path: `hooks/activity-tag.test.mjs`.
-- **Mechanism**: `hookSpecificOutput.updatedInput` — "an object with the same shape as
-  `tool_input`, replacing the tool's arguments before it runs" (verified against
-  code.claude.com/docs/en/hooks §"PreToolUse decision control", 2026-08-05). It is a FULL
-  replacement, so the hook spreads the original input.
-- **It cannot weaken `dispatch-guard`**, which fires on the same event: `activity-tag` emits no
-  `permissionDecision` at all, and omitting the field is documented as equivalent to `defer`.
-- Idempotent (never stacks `[Opus 5] [Opus 5]`), leaves an author's own non-model bracket prefix
-  (`[CRX-T024] …`) intact, and `agent-roster` strips the tag back off before storing the task
-  label so the roster keeps model and task in separate fields.
+  `[Opus 5]`) is blocked, and the block names the resolved model's tag to resend. `model: inherit` in a
+  definition resolves to the session model. Not hookable: SendMessage resumes and Workflow `agent()` calls (no Agent
+  PreToolUse event). Test per path: `hooks/dispatch-label.test.mjs`.
+- **Never a rewrite** (KIT-T897): a hook that changes a call after review makes auto mode's classifier refuse the
+  call and its sibling calls, so the hook blocks (exit 2) and prints the exact value. The no-wait rule of a
+  patch-worker lives in `agents/patch-worker.md`, not in an appended prompt.
+- A call already in the form passes untouched; an author's own non-model bracket prefix (`[CRX-T024] …`) stays
+  after the tag, and `agent-roster` strips the tag back off before storing the task label so the roster keeps
+  model and task in separate fields.
 
 ## Subagent progress (`progress`, KIT-T178)
 A subagent running `cargo build` streams nothing: the tool call is one opaque block, and the

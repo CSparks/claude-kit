@@ -1,6 +1,6 @@
 // The context ceiling and the handoff that retires an agent (KIT-D116): the flag on a past-ceiling agent, the
 // blocked resume, the handoff request that passes, the dispatch refused until the handoff is in the ticket Notes,
-// the SubagentStop retire line, and the no-wait rule appended to a patch-worker brief (KIT-D115).
+// the SubagentStop retire line, and the no-wait rule in the patch-worker definition (KIT-D115).
 // Run: node hooks/agent-context.test.mjs
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -8,7 +8,6 @@ import { join } from 'node:path';
 import { adopted, cleanup, fixtureKit, hook, isoDaysAgo, reporter } from './test-harness.mjs';
 import { ceilingFlag, contextCeiling, handoffRequest, hasHandoff } from './lib/agent-context.mjs';
 import { formatAgentLine } from './lib/agent-format.mjs';
-import { NO_WAIT_MARK, isPatchWorker, withNoWaitRule } from './dispatch-nowait.mjs';
 
 const { ok, done } = reporter('agent-context');
 const KIT = fixtureKit(isoDaysAgo(0));
@@ -97,13 +96,10 @@ try {
   writeFileSync(small, JSON.stringify({ type: 'assistant', timestamp: new Date().toISOString(), message: { id: 'm1', model: 'claude-sonnet-5-5', usage: { input_tokens: 10, output_tokens: 5 }, content: [] } }) + '\n');
   ok('negative: SubagentStop is silent for an agent under the ceiling', !/RETIRE/.test(hook('agent-roster.mjs', { hook_event_name: 'SubagentStop', agent_id: NEW, agent_transcript_path: small }, d, { CLAUDE_KIT_LADDER_ROOT: KIT }).out));
 
-  // the no-wait rule on a patch-worker brief
-  ok('a patch-worker brief gets the no-wait rule once', withNoWaitRule({ subagent_type: 'claude-kit:patch-worker', prompt: 'fix it' })?.prompt.includes(NO_WAIT_MARK));
-  ok('negative: a brief that already carries it is left alone', withNoWaitRule({ subagent_type: 'patch-worker', prompt: `x\n${NO_WAIT_MARK}` }) === null);
-  ok('negative: another agent type gets no rule', withNoWaitRule({ subagent_type: 'implementer', prompt: 'x' }) === null && !isPatchWorker({ subagent_type: 'implementer' }));
-  const tagged = hook('activity-tag.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'claude-kit:patch-worker', model: 'sonnet', description: 'patch DE-T1', prompt: 'do it' } }, d, { CLAUDE_KIT_LADDER_ROOT: KIT });
-  ok('activity-tag emits the rule in updatedInput for a patch-worker dispatch', tagged.code === 0 && tagged.out.includes(NO_WAIT_MARK));
-  ok('negative: activity-tag adds no rule to another agent', !hook('activity-tag.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'implementer', model: 'sonnet', description: 'x', prompt: 'do it' } }, d, { CLAUDE_KIT_LADDER_ROOT: KIT }).out.includes(NO_WAIT_MARK));
+  // the no-wait rule lives in the patch-worker definition; no hook writes it into a brief
+  const definition = readFileSync(join(import.meta.dirname, '..', 'agents', 'patch-worker.md'), 'utf8');
+  ok('the patch-worker definition carries the no-wait rule (KIT-D115)', definition.includes('NO-WAIT RULE (KIT-D115)') && definition.includes('wait.mjs <id> --root <tree> --timeout 280') && definition.includes('wait AT MOST ONCE'));
+  ok('the definition carries the handoff step the rule ends in', definition.includes('Past the one wait: write a Handoff block'));
 } finally {
   cleanup();
 }

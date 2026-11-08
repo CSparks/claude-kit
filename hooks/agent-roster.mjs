@@ -62,9 +62,8 @@ function recordDispatch(root, p) {
       resp.agent_id, resp.agentId, resp.task_id, resp.taskId, resp.id,
       inp.agent_id, inp.task_id,
     ) || `agent-${Date.now().toString(36)}`;
-    // activity-tag.mjs has already rewritten `description` to carry `[Opus 5] …` by the time this
-    // PostToolUse fires, so strip it back off: the model belongs in its own field, not doubled
-    // into the task label (KIT-T179).
+    // dispatch-label.mjs requires `description` to carry `[Opus 5] …`, so strip it back off: the model
+    // belongs in its own field, not doubled into the task label (KIT-T179).
     const task = clip(stripModelTag(firstString(inp.description, inp.task, inp.title, inp.prompt, inp.message)) || '(no description)', TASK_LABEL_MAX);
     const scope = firstString(inp.subagent_type, inp.agent_type, inp.subagentType, inp.task_name, inp.type) || 'general';
     const background = isBackground(inp);
