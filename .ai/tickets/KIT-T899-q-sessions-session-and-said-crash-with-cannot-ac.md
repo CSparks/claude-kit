@@ -2,7 +2,7 @@
 id: KIT-T899
 title: q sessions, session and said crash with 'Cannot access args before initialization': q-lib.mjs uses args in the sessions branch before its const declaration
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-08T19:03:42Z
-updated: 2026-11-08T19:03:42Z
+updated: 2026-11-08T19:53:16Z
 ---
 
 ## Description
@@ -31,3 +31,5 @@ Checked as possible duplicates and judged different work (--not-dup): KIT-T100
 - [2026-11-08 19:03] (created) bug — q sessions, session and said crash with 'Cannot access args before initialization': q-lib.mjs uses args in the sessions branch before its const declaration
 - [2026-11-08 19:13] (comment) criterion added: q sessions/session/said run without a use-before-initialisation crash (hooks/gate-protocol.test.mjs q said check)
 - [2026-11-08 19:13] (comment) ticked: q sessions/session/said run without a use-before-initialisation crash (hooks/gate-protocol.test.mjs q said check)
+- [2026-11-08 19:13] (landed) 9b8867c q gates agent|question prints every requirement and exact tag form from the gate code (gate-tokens, question-checks, gat
+- [2026-11-08 19:53] (status) todo → review

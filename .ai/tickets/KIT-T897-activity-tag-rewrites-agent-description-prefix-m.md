@@ -2,7 +2,7 @@
 id: KIT-T897
 title: activity-tag rewrites Agent description prefix, model and prompt through updatedInput; auto mode's classifier refuses the call and its sibling calls (stiletto-2349 2026-11-08, KIT-D145/D147)
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-08T18:51:36Z
-updated: 2026-11-08T18:51:36Z
+updated: 2026-11-08T19:53:13Z
 ---
 
 ## Description
@@ -32,3 +32,6 @@ Evidence: 74 classifier refusals 'a hook changed this call's input after auto mo
 - [2026-11-08 18:51] (created) bug — activity-tag rewrites Agent description prefix, model and prompt through updatedInput; auto mode's classifier refuses the call and its sibling calls (stiletto-2349 2026-11-08, KIT-D145/D147)
 - [2026-11-08 18:57] (comment) criterion added: a non-canonical Agent description prefix or a missing model is BLOCKED with the exact value to resend; a canonical call passes untouched; no hook returns updatedInput for Agent (hooks/dispatch-label.test.mjs 34 passed)
 - [2026-11-08 18:57] (comment) ticked: a non-canonical Agent description prefix or a missing model is BLOCKED with the exact value to resend; a canonical call passes untouched; no hook returns updatedInput for Agent (hooks/dispatch-label.test.mjs 34 passed)
+- [2026-11-08 18:57] (landed) 4151aa1 dispatch-label replaces activity-tag: a dispatch with a non-canonical description prefix or no table model is BLOCKED wi
+- [2026-11-08 19:38] (landed) 9c8ceef plugin 0.1.34: sessions pick up the dispatch-label hook registration and the rewritten kit-bug rules (implements KIT-T89
+- [2026-11-08 19:53] (status) todo → review

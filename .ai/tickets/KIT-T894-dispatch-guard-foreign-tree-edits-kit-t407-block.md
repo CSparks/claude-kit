@@ -2,7 +2,7 @@
 id: KIT-T894
 title: dispatch-guard foreign-tree-edits (KIT-T407) blocks a writer dispatch when the only dirty files are the maintainer's own uncommitted edits a
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-08T18:02:29Z
-updated: 2026-11-08T18:02:29Z
+updated: 2026-11-08T19:53:20Z
 ---
 
 ## Description
@@ -39,3 +39,6 @@ Directive 2 applied under the maintainer's own order (KIT-D145, 2026-11-08): use
 - [2026-11-08 18:08] (landed) 6d31de3 dispatch-guard: uncommitted files are never a writer; drop the foreign-tree-edits file-attribution check, the holder reg
 - [2026-11-08 19:22] (comment) criterion added: base CLAUDE.md source: kit bug or feature is ticketed and its fix agent dispatched the same turn (KIT-D145); orient and the Stop notice say dispatch now, not 'awaiting a bill of work' (scripts/kit-bug.test.mjs, hooks/kit-bug-dispatch-gate.test.mjs 27, orient 39)
 - [2026-11-08 19:22] (comment) ticked: base CLAUDE.md source: kit bug or feature is ticketed and its fix agent dispatched the same turn (KIT-D145); orient and the Stop notice say dispatch now, not 'awaiting a bill of work' (scripts/kit-bug.test.mjs, hooks/kit-bug-dispatch-gate.test.mjs 27, orient 39)
+- [2026-11-08 19:23] (landed) 85f15d7 base CLAUDE.md and orient: a kit bug or feature is ticketed and its fix agent dispatched the same turn, no bill (kit-bug
+- [2026-11-08 19:38] (landed) 9c8ceef plugin 0.1.34: sessions pick up the dispatch-label hook registration and the rewritten kit-bug rules (implements KIT-T89
+- [2026-11-08 19:53] (status) todo → review

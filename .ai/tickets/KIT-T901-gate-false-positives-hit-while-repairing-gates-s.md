@@ -2,7 +2,7 @@
 id: KIT-T901
 title: gate false positives hit while repairing gates: source-shell-gate read a script import specifier as a write target and missed Windows 8.3 short temp paths; hand-write-detect flagged a git rename chained with sed -n readers; narration blocks were invisible to turn-text readers
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-08T19:31:26Z
-updated: 2026-11-08T19:31:26Z
+updated: 2026-11-08T19:53:17Z
 ---
 
 ## Description
@@ -32,3 +32,5 @@ Also from the KIT-D147 audit: request-gate and land-alert kept a text-only extra
 - [2026-11-08 19:31] (created) bug — gate false positives hit while repairing gates: source-shell-gate read a script import specifier as a write target and missed Windows 8.3 short temp paths; hand-write-detect flagged a git rename chained with sed -n readers; narration blocks were invisible to turn-text readers
 - [2026-11-08 19:31] (comment) criterion added: import specifiers and Windows 8.3 temp paths no longer trip source-shell-gate; git rename chained with sed -n readers no longer trips hand-write-detect (source-shell-gate 136 passed, hand-write-detect 49 passed)
 - [2026-11-08 19:31] (comment) ticked: import specifiers and Windows 8.3 temp paths no longer trip source-shell-gate; git rename chained with sed -n readers no longer trips hand-write-detect (source-shell-gate 136 passed, hand-write-detect 49 passed)
+- [2026-11-08 19:34] (landed) 9abce45 gates read their input correctly: source-shell-gate ignores import specifiers and 8.3 temp paths, hand-write-detect trea
+- [2026-11-08 19:53] (status) todo → review

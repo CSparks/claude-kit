@@ -2,7 +2,7 @@
 id: KIT-T898
 title: q gates <agent|question>: print every requirement and exact accepted tag form of a gate, derived from the gate code; orient identity line points at it (KIT-D147)
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:
 labels: []
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-08T18:51:37Z
-updated: 2026-11-08T18:51:37Z
+updated: 2026-11-08T19:53:14Z
 ---
 
 ## Description
@@ -32,3 +32,7 @@ Single sources: hooks/lib/gate-tokens.mjs (every tag: name, form, meaning, patte
 - [2026-11-08 18:51] (created) feature — q gates <agent|question>: print every requirement and exact accepted tag form of a gate, derived from the gate code; orient identity line points at it (KIT-D147)
 - [2026-11-08 19:13] (comment) criterion added: q gates agent|question prints every requirement and exact tag form from the gate code; orient identity block points at it; each gate lists all failed requirements on the first rejection (hooks/gate-protocol.test.mjs 33 passed, question-gate 4b)
 - [2026-11-08 19:13] (comment) ticked: q gates agent|question prints every requirement and exact tag form from the gate code; orient identity block points at it; each gate lists all failed requirements on the first rejection (hooks/gate-protocol.test.mjs 33 passed, question-gate 4b)
+- [2026-11-08 19:13] (landed) 9b8867c q gates agent|question prints every requirement and exact tag form from the gate code (gate-tokens, question-checks, gat
+- [2026-11-08 19:49] (landed) 9e260f8 orient budget test prints its length and, over budget, the whole output [no-log: test diagnostics for the KIT-T071 budge
+- [2026-11-08 19:52] (landed) b6d47e6 orient budget test measures the content, not the length of the test's own temp path (published suite failed 4239 vs 4200
+- [2026-11-08 19:53] (status) todo → review
