@@ -13,23 +13,14 @@
 //                   block; narration alone is a platform summary of commentary, not a reply the maintainer read
 //   null when the file cannot be read.
 //
-//   turnTextForCall(file, toolUseId) -> Promise<same + replyUnflushed>
-//     A PreToolUse hook runs while the transcript writer is still behind: the reply the call sits in can be
-//     unflushed. The transcript is ordered, so once it holds the call's own tool_use entry every earlier block of
-//     the reply is in it. This waits up to SETTLE_MS for that entry, then reads; with no id it reads at once.
-//     replyUnflushed  an id was given and its entry never appeared: the call's own reply is not in what was read,
-//                     so replyHasText and prose describe earlier replies only.
+//   turnText(file, { beforeToolUseId }) reads only what precedes the entry holding that tool call: the text a call
+//   was made after, never text written later. Null when the file is unreadable or the call is not in it (a PreToolUse
+//   hook runs before Claude Code writes the call's own reply).
+//
+//   turnCalls(file, toolNames) -> [{ id, name, input }] the calls of those tools made in the current turn, oldest first.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { assistantBlocksOf } from './assistant-text.mjs';
-
-const SETTLE_MS = 3000;
-const POLL_MS = 100;
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-const holdsCall = (file, toolUseId) => {
-  try { return readFileSync(file, 'utf8').includes(toolUseId); } catch { return false; }
-};
 
 const NOTICE = /^\s*(?:<task-notification\b|<system-reminder\b|<local-command-(?:stdout|caveat)\b|\[SYSTEM NOTIFICATION\b|Stop hook feedback:)/i;
 const COMPACT = /^\s*This session is being continued from a previous conversation that ran out of context\b/;
@@ -42,9 +33,21 @@ const textOf = (content) => {
 const isToolResult = (content) => Array.isArray(content) && content.some((b) => b && b.type === 'tool_result');
 const isHarness = (entry, text) => entry.isMeta === true || entry.isCompactSummary === true || NOTICE.test(text) || COMPACT.test(text);
 
-export function turnText(file) {
-  let lines;
-  try { lines = readFileSync(file, 'utf8').split('\n').filter(Boolean); } catch { return null; }
+const toolUses = (entry) => (entry?.type === 'assistant' && Array.isArray(entry.message?.content) ? entry.message.content.filter((b) => b?.type === 'tool_use') : []);
+const parsed = (line) => { try { return JSON.parse(line); } catch { return null; } };
+
+function readLines(file) {
+  try { return readFileSync(file, 'utf8').split('\n').filter(Boolean); } catch { return null; }
+}
+
+export function turnText(file, { beforeToolUseId } = {}) {
+  let lines = readLines(file);
+  if (!lines) return null;
+  if (beforeToolUseId) {
+    const at = lines.findIndex((l) => l.includes(beforeToolUseId) && toolUses(parsed(l)).some((b) => b.id === beforeToolUseId));
+    if (at === -1) return null;
+    lines = lines.slice(0, at);
+  }
   const blocks = [];
   let inReply = true;
   let replyHasText = false;
@@ -67,12 +70,19 @@ export function turnText(file) {
   return result('');
 }
 
-export async function turnTextForCall(file, toolUseId) {
-  let replyUnflushed = false;
-  if (toolUseId && existsSync(file)) {
-    for (let waited = 0; waited < SETTLE_MS && !holdsCall(file, toolUseId); waited += POLL_MS) await sleep(POLL_MS);
-    replyUnflushed = !holdsCall(file, toolUseId);
+export function turnCalls(file, toolNames) {
+  const lines = readLines(file);
+  if (!lines) return [];
+  const calls = [];
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const entry = parsed(lines[i]);
+    if (!entry) continue;
+    const content = entry.message?.content;
+    if (entry.type === 'user' && !isToolResult(content)) {
+      const text = textOf(content).trim();
+      if (text && !isHarness(entry, text)) break;
+    }
+    calls.unshift(...toolUses(entry).filter((b) => toolNames.has(b.name)).map((b) => ({ id: b.id, name: b.name, input: b.input })));
   }
-  const turn = turnText(file);
-  return turn && { ...turn, replyUnflushed };
+  return calls;
 }

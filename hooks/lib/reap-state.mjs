@@ -11,7 +11,7 @@ import { join } from 'node:path';
 
 const DIR_MODE = 0o700;
 
-function stateDir() {
+export function stateDir() {
   const dir = process.env.CLAUDE_KIT_REAP_STAMP_DIR || join(process.env.CLAUDE_HOME || join(homedir(), '.claude'), 'claude-kit-state');
   mkdirSync(dir, { recursive: true, mode: DIR_MODE });
   return dir;

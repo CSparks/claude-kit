@@ -12,6 +12,7 @@ import { adopted, gitRoot, projectName } from './lib.mjs';
 import { fitOrientation } from './lib/orient-budget.mjs';
 import { cacheDir } from './lib/stat-cache.mjs';
 import { agentsSection } from './lib/orient/agents.mjs';
+import { briefMissesSection } from './lib/orient/brief-misses.mjs';
 import { CODEX, firstExisting } from './lib/orient/common.mjs';
 import { decisionViews, kitDecisionsSection, recentSection, standingSection } from './lib/orient/decisions.mjs';
 import { header, identity, notices } from './lib/orient/notices.mjs';
@@ -63,6 +64,7 @@ await kitDecisionsSection(ctx);
 await openWorkSection(ctx);
 await mentionsSection(ctx);
 zombiesSection(ctx);
+briefMissesSection(ctx);
 lineageSection(ctx);
 await governsSection(ctx, { changedPaths, standing, foundational });
 

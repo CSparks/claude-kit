@@ -52,12 +52,12 @@ export const GATES = {
   },
   question: {
     title: 'AskUserQuestion / request_user_input',
-    hooks: ['question-gate', 'reask-gate', 'ids-described-gate', 'question-brief-gate'],
+    hooks: ['question-gate', 'reask-gate', 'ids-described-gate', 'question-brief-gate (readiness)', 'question-brief-audit (after the call)'],
     checks: [
       { check: RECOMMENDATION_CHECK, wants: [`every question marks its recommended option on the LABEL with ${RECOMMENDED_MARKER} as the prefix (a suffix for request_user_input), and a single-select recommendation is the first option; the description never carries it`], tokens: [] },
       { check: REASK_CHECK, wants: [`no question another session asked and left unresolved within ${REASK_WINDOW_DAYS} days`], tokens: [T.reAsk] },
       { check: IDS_CHECK, wants: [`a ticket, decision or question id comes with at least ${IDS_MIN_HITS} distinctive words of its title`], tokens: [] },
-      { check: BRIEF_CHECK, wants: [`a brief of at least ${BRIEF_MIN_WORDS} words in TEXT blocks of an earlier reply of the turn (one cheap tool call between the brief and the questionnaire); narration blocks are platform summaries that drop the labelled lines and cannot carry exact labels. OR the same brief in the questionnaire's own question text ("Decision:", "Evidence:", "Recommendation:", "Not asked:" each opening a line; evidence as file paths or shas, not ids), which is always read:`, ...BRIEF_STANDARD], tokens: [] },
+      { check: BRIEF_CHECK, wants: [`summary then questionnaire, no step between (KIT-D152): a brief of at least ${BRIEF_MIN_WORDS} words in TEXT blocks of the turn, written before the call; narration blocks are platform summaries that drop the labelled lines and cannot carry exact labels. OR the same brief in the questionnaire's own question text ("Decision:", "Evidence:", "Recommendation:", "Not asked:" each opening a line; evidence as file paths or shas, not ids), which is always read. Judged AFTER the call by a PostToolUse audit (Stop is the backstop): a thin summary is reported to you with what to write, and you re-ask:`, ...BRIEF_STANDARD], tokens: [] },
       { check: READY_CHECK, wants: READINESS_STANDARD, tokens: [] },
     ],
   },

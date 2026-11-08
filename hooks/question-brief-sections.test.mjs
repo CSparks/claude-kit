@@ -5,19 +5,21 @@
 
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
+import { adopted, cleanup, reporter, tmpDir } from './test-harness.mjs';
+import { auditAsk } from './question-audit-harness.mjs';
 import { NEEDS_SIGN_OFF_BRIEF, NEEDS_SIGN_OFF_QUESTIONS, SIGN_OFF_BRIEF, SIGN_OFF_QUESTIONS, SIGN_OFF_WRAPPED } from './question-brief-fixtures.mjs';
 
 const { ok, done } = reporter('question-brief-sections');
 const dir = tmpDir('question-brief-sections-');
 const repoDir = adopted(false);
 const SETTLED = 'Good, go with it. Ask me which one.';
+const CALL_ID = 'toolu_01SECT';
 let n = 0;
 const line = (type, content) => JSON.stringify({ type, message: { role: type, content } });
 const ask = (prose, questions = SIGN_OFF_QUESTIONS) => {
   const file = join(dir, `t${n++}.jsonl`);
-  writeFileSync(file, [line('user', SETTLED), line('assistant', [{ type: 'text', text: prose }])].join('\n'));
-  return hook('question-brief-gate.mjs', { tool_name: 'AskUserQuestion', tool_input: { questions }, transcript_path: file }, repoDir);
+  writeFileSync(file, [line('user', SETTLED), line('assistant', [{ type: 'text', text: prose }]), line('assistant', [{ type: 'tool_use', id: CALL_ID, name: 'AskUserQuestion', input: {} }])].join('\n'));
+  return auditAsk({ tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions }, transcript_path: file }, repoDir);
 };
 const withRecommendation = (text) => SIGN_OFF_BRIEF.replace(/\*\*Recommendation\.\*\*[^\n]*/, text);
 const blockedOn = (r, part) => r.code === 2 && r.out.includes(`- ${part}:`);

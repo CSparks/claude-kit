@@ -75,8 +75,9 @@ try {
   const entry = (type, content) => JSON.stringify({ type, message: { role: type, content } });
   writeFileSync(file, [entry('user', 'Should we maybe change the radar?'), entry('assistant', [{ type: 'text', text: 'Short note.' }]), entry('assistant', [{ type: 'tool_use', id: 'toolu_01G', name: 'AskUserQuestion', input: {} }])].join('\n'));
   const ask = hook('question-brief-gate.mjs', { tool_name: 'AskUserQuestion', tool_use_id: 'toolu_01G', tool_input: { questions: REAL_QUESTIONS }, transcript_path: file }, repo);
-  ok('a questionnaire failing readiness and the brief is rejected once with both sections',
-    ask.code === 2 && ask.out.includes('- exploring:') && ['length', 'decision', 'evidence', 'options', 'recommendation', 'not asked'].every((p) => ask.out.includes(`- ${p}:`)));
+  ok('a questionnaire failing readiness is rejected before the call; the summary is judged after it', ask.code === 2 && ask.out.includes('- exploring:') && !ask.out.includes('- length:'));
+  const audit = hook('question-brief-audit.mjs', { hook_event_name: 'PostToolUse', tool_name: 'AskUserQuestion', tool_use_id: 'toolu_01G', tool_input: { questions: REAL_QUESTIONS }, transcript_path: file }, repo, { CLAUDE_KIT_REAP_STAMP_DIR: tmpDir('audit-state-') });
+  ok('the audit then reports every part the thin summary lacks', ['length', 'decision', 'evidence', 'options', 'recommendation', 'not asked'].every((p) => audit.out.includes(`- ${p}:`)));
   const note = ask.out.includes('q gates question');
   ok('the question rejection points at q gates question', note);
 

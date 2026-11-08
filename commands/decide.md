@@ -16,11 +16,9 @@ Resolve the maintainer's PENDING decisions as a structured questionnaire — nev
    (`q show <id>`) inside the last 7 days with no Resolution was put to the maintainer by another
    live session: read that session's answer instead of asking again (the `reask-gate` hook blocks
    the re-ask; `[re-ask: <reason>]` in the question text overrides it).
-2. **⛔ Brief first, or the question-brief gate blocks (KIT-D129, KIT-D142, KIT-D146).** The gate
-   cannot read text in the same reply as the AskUserQuestion call. Every time:
-   (a) ONE text message with the whole brief — a second message is not read;
-   (b) one cheap tool call (`git log -1 --format=%h`);
-   (c) AskUserQuestion in the NEXT reply.
+2. **Summary first, then the questionnaire (KIT-D129, KIT-D151, KIT-D152).** Write the whole brief as a
+   text message, then send AskUserQuestion; nothing between them. A PostToolUse audit judges the
+   brief after the call and tells you what to add if it is thin; then you re-ask.
    The brief, in these exact shapes (bold headers and colon lists fail):
    - at least 120 words;
    - `Decision: <what is being decided>, needed now because <why>.`

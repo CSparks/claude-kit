@@ -7,6 +7,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
+import { auditAsk } from './question-audit-harness.mjs';
 import { turnText } from './lib/turn-text.mjs';
 import { gateText } from './lib/gate-protocol.mjs';
 
@@ -59,7 +60,10 @@ const OPTION_LIST = [
 const BARE = [{ question: QUESTION, header: 'Mine edits', multiSelect: false, options: OPTION_LIST }];
 const inQuestion = (...sections) => [{ question: brief(...sections), header: 'Mine edits', multiSelect: false, options: OPTION_LIST }];
 
-const ask = (file, questions, name = 'question-brief-gate.mjs') => hook(name, { tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions }, transcript_path: file }, repoDir);
+const ask = (file, questions, siblingHook) => {
+  const payload = { tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions }, transcript_path: file };
+  return siblingHook ? hook(siblingHook, payload, repoDir) : auditAsk(payload, repoDir);
+};
 const storedAsText = (value) => transcript(entry('user', ASKED), reply(text(value), bash), result, reply(call));
 const storedAsNarration = (value) => transcript(entry('user', ASKED), reply(narration(value), bash), result, reply(call));
 
@@ -94,9 +98,9 @@ try {
   ok('the same questionnaire also passes the recommendation and ids-described gates', sibling.every((code) => code === 0));
 
   const noRecommendation = ask(storedAsNarration(SUMMARY), inQuestion(DECISION, EVIDENCE, NOT_ASKED));
-  ok('control: a question text without a Recommendation line is blocked and lists what it lacks', noRecommendation.code === 2 && /Read that way it lacks\n\s+[^\n]*recommendation/.test(noRecommendation.out));
+  ok('control: a question text without a Recommendation line is blocked and lists what it lacks', noRecommendation.code === 2 && /own text lacks [^\n]*recommendation/.test(noRecommendation.out));
   const shortQuestion = ask(storedAsNarration(SUMMARY), BARE);
-  ok('control: the (Recommended) label marker with a bare question text leaves the recommendation lacking', /Read that way it lacks\n\s+[^\n]*recommendation/.test(shortQuestion.out));
+  ok('control: the (Recommended) label marker with a bare question text leaves the recommendation lacking', /own text lacks [^\n]*recommendation/.test(shortQuestion.out));
 
   const protocol = gateText('question');
   ok('q gates question says the brief must be a text block and that narration cannot carry labels', protocol.includes('TEXT blocks') && protocol.includes('narration blocks are platform summaries') && !protocol.includes('(text or narration;'));

@@ -5,7 +5,8 @@
 
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
+import { adopted, cleanup, reporter, tmpDir } from './test-harness.mjs';
+import { auditAsk } from './question-audit-harness.mjs';
 import { REAL_FIXED_BRIEF, REAL_QUESTIONS } from './question-brief-real-fixtures.mjs';
 
 const { ok, done } = reporter('question-brief-narration');
@@ -35,7 +36,7 @@ const transcript = (...lines) => {
   writeFileSync(file, lines.flat().join('\n'));
   return file;
 };
-const ask = (file) => hook('question-brief-gate.mjs', { tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions: REAL_QUESTIONS }, transcript_path: file }, repoDir);
+const ask = (file) => auditAsk({ tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions: REAL_QUESTIONS }, transcript_path: file }, repoDir);
 const [first, ...rest] = REAL_FIXED_BRIEF.split('\n\n');
 const pieces = [first, ...rest];
 const perReplyBrief = () => pieces.flatMap((piece, i) => [reply(narration(piece), bash(`toolu_${i}`)), result(`toolu_${i}`)]);
@@ -45,11 +46,12 @@ try {
   ok('brief spread over narration blocks that each precede a Bash call, after a task notification and a hand-back, passes', all.code === 0);
 
   const newest = ask(transcript(entry('user', SETTLED), reply(text('Still blocked: the other session holds the tree.')), result('toolu_x'), ...perReplyBrief().slice(0, 2), reply(call)));
-  ok('control: only the first two pieces after an earlier text block is blocked, and the quoted newest block is the narration, not the earlier text',
-    newest.code === 2 && !newest.out.includes('begins "Still blocked'));
+  ok('control: only the first two pieces after an earlier text block is reported thin, and the blocks read end with the narration',
+    newest.code === 2 && newest.out.includes('[narration]') && newest.out.trimEnd().split('\n').some((l) => l.includes('[text] "Still blocked')));
 
   const heldBack = ask(transcript(entry('user', SETTLED), reply(text('Still blocked: the other session holds the tree.')), result('toolu_x'), reply(narration(first), bash('toolu_y')), result('toolu_y'), reply(call)));
-  ok('the newest narration block is the one the block message quotes', heldBack.code === 2 && heldBack.out.includes(`begins "${first.replace(/\s+/g, ' ').slice(0, 20)}`));
+  ok('the narration block is listed among the blocks read, and the message says the newest block was narration', heldBack.code === 2
+    && heldBack.out.includes(`[narration] "${first.replace(/\s+/g, ' ').slice(0, 20)}`) && heldBack.out.includes('newest block read was narration'));
 
   const sameReply = ask(transcript(entry('user', SETTLED), reply(narration(REAL_FIXED_BRIEF), call)));
   ok('a narration block in the same reply as the call counts', sameReply.code === 0);

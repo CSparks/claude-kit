@@ -1,5 +1,5 @@
 // question-checks — the check ids and thresholds of the questionnaire gates, defined once. The gates
-// (question-gate, reask-gate, ids-described-gate, question-brief-gate) import them and `q gates question` prints them
+// (question-gate, reask-gate, ids-described-gate, question-brief-gate, question-brief-audit) import them and `q gates question` prints them
 // (hooks/lib/gate-protocol.mjs), so the printout cannot drift from what a gate enforces (KIT-T898).
 
 export const BRIEF_CHECK = 'question-brief';

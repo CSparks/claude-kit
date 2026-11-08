@@ -145,6 +145,10 @@
       {
         "matcher": "mcp__.*context7",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" context7-ledger.mjs" }]
+      },
+      {
+        "matcher": "AskUserQuestion|request_user_input",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" question-brief-audit.mjs" }]
       }
     ],
     "UserPromptSubmit": [
@@ -191,6 +195,7 @@
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" flush.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" sync-data.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" request-gate.mjs" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" question-brief-audit.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" code-graph.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" hydrate-cache.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" kit-bug-dispatch-gate.mjs" },
