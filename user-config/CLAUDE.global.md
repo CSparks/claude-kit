@@ -240,6 +240,10 @@ A comment exists only to tell a reader what a block of code does. (KIT-D078)
 - **Git work in the maintainer's checkout is routine (KIT-D140)** — conflicts, restoring
   drift, stash, reset. Be careful and never lose code: save work first (stash or patch)
   and say where. Never refuse a git operation because the checkout is "live".
+- **Every session in a rapid-game project starts by pulling and pinning the framework's
+  latest main (KIT-D141)** — merge any local framework changes, resolve conflicts as normal
+  merge work and RAISE every conflict or breaking change to the maintainer. Absorb breaking
+  changes; never stay on an old pin to dodge one.
 - **Local = draft** (messy WIP OK). **PR/main = publish** (clean, logical,
   buildable).
 - **Upstream contributions to repos we don't own:** read the target's contribution + AI
