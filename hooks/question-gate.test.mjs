@@ -99,6 +99,21 @@ expect('compliant single-select passes', run({ questions: [recFirst] }).code, 0)
   expectIncludes('rec-not-first message flags ordering', r.err, 'not FIRST');
 }
 
+// 4b) several non-compliant questions → ONE block names every one of them
+{
+  const bad = (header, options) => ({ question: 'Pick a path.', header, multiSelect: false, options });
+  const r = run({
+    questions: [
+      bad('First bad', [{ label: 'Keep /a', description: 'Recommended — clearer.' }, { label: 'Keep /b', description: 'other' }]),
+      bad('Second bad', [{ label: 'Option A', description: 'does A' }, { label: '(Recommended) Option B', description: 'does B' }]),
+      bad('Third bad', [{ label: 'Option A', description: 'does A' }, { label: 'Option B', description: 'does B' }]),
+    ],
+  });
+  expect('three bad questions block', r.code, 2);
+  for (const header of ['First bad', 'Second bad', 'Third bad']) expectIncludes(`the one block names "${header}"`, r.err, `"${header}"`);
+  expectIncludes('the one block points at q gates question', r.err, 'q gates question');
+}
+
 // 5) compliant multiSelect PASSES — each recommended option marked on its LABEL, order relaxed
 {
   const r = run({

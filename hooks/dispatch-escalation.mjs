@@ -20,9 +20,10 @@ import { readLadder } from '../scripts/dispatch-ladder.mjs';
 import { familyOf } from '../scripts/dispatch-outcomes.mjs';
 import { dispatchJob } from './dispatch-job.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 export const ESCALATION_CHECK = 'dispatch-escalation';
-const ESCALATE_TOKEN = /\[escalate:\s*([^\]\s][^\]]*)\]/i;
+const ESCALATE_TOKEN = TOKENS.escalate.pattern;
 const TICKET_ID = /\b[A-Z][A-Z0-9]*-T\d{1,4}\b/g;
 const COST_RANK = { haiku: 0, sonnet: 1, opus: 2, fable: 3 };
 const REGRESSION_ONLY_JOB = 'forensic';

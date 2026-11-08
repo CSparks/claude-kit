@@ -20,8 +20,9 @@ import { lastContextTokens } from '../agent-outcome.mjs';
 import { breakdownLine } from './context-breakdown.mjs';
 import { readOnlyRow } from '../dispatch-readonly.mjs';
 import { ownedTickets, ticketMeta, ticketStore } from './ticket-store.mjs';
+import { TOKENS } from './gate-tokens.mjs';
 
-export const WRITE_HANDOFF = /\[write-handoff\]/i;
+export const WRITE_HANDOFF = TOKENS.writeHandoff.pattern;
 const HANDOFF_LABELS = ['Jobs', 'State', 'Next', 'Files'];
 const ID_PREFIX_CHARS = 8;
 const TOKENS_PER_K = 1000;

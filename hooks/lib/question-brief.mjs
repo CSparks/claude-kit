@@ -33,6 +33,7 @@ const STANDARD = {
   notAsked: 'not asked: write "Not asked: <what this leaves open or already treats as settled>."',
 };
 export const BRIEF_STANDARD = Object.values(STANDARD);
+export const BRIEF_MIN_WORDS = MIN_WORDS;
 
 export const wordCount = (text) => String(text).split(/\s+/).filter(Boolean).length;
 const optionLabels = (questions) => questions.flatMap((q) => (Array.isArray(q?.options) ? q.options : [])).map((o) => String(o?.label || '').replace(OPTION_MARKER, '').trim()).filter(Boolean);

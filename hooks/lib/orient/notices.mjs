@@ -16,6 +16,7 @@ import { clip } from './common.mjs';
 const REPEAT_ASKS_SHOWN = 8;
 const DIRECTIVES_SHOWN = 5;
 const PAYLOAD_WAIT_MS = 500;
+const GATES_LINE = 'GATES: q gates agent|question (read before first use, KIT-D147)';
 
 export function header({ out, root }) {
   out.push('=== PROJECT ORIENTATION (on-disk record — trust over any summary or your memory) ===');
@@ -122,6 +123,7 @@ export async function notices({ out, root }) {
 }
 
 export function identity({ out, root }, views) {
+  out.push(GATES_LINE);
   const foundational = views.foundationalDecisions();
   if (foundational.length) {
     out.push('--- PROJECT IDENTITY (foundational — ALWAYS true; this is what the project IS; cite, never contradict) ---');

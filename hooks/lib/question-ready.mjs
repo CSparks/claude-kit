@@ -16,6 +16,11 @@ const TAIL_CHARS = 240;
 
 const askText = (q) => [q?.header, q?.question].filter(Boolean).join(' ');
 
+export const READINESS_STANDARD = [
+  'exploring: the newest maintainer message is not a question or a floated idea; answer those in prose and let the discussion converge, ask once the choice is his (a message that says "ask me" or invokes /decide invites the questionnaire)',
+  `stated: no question restates what his newest message already says (${Math.round(STATED_SHARE * 100)}% of a question's words, at least ${MIN_STATED_STEMS}); act on his words`,
+];
+
 function statedQuestions(lastUser, questions) {
   const said = stems(lastUser);
   return questions.filter((q) => {

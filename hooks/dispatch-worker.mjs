@@ -14,6 +14,7 @@
 // Escape: the maintainer's `[maintainer-asked-parallel: <words>]` (passed in as `escaped`).
 
 import { declaredPaths } from './dispatch-broker.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 export const WORKER_CHECK = 'patch-worker-discipline';
 const PATCH_WORKER = /(?:^|:)patch-worker$/i;
@@ -36,7 +37,7 @@ export function overlaps(a, b) {
 }
 
 /** The paths a brief declares (`[paths: *]` = ['*']), or null when it declares none. */
-export const workerPaths = (prompt, tree) => declaredPaths(prompt, tree) || (/\[paths:\s*\*\s*\]/i.test(String(prompt || '')) ? ['*'] : null);
+export const workerPaths = (prompt, tree) => declaredPaths(prompt, tree) || (TOKENS.pathsUnknown.pattern.test(String(prompt || '')) ? ['*'] : null);
 
 const isWorker = (input) => PATCH_WORKER.test(String(input.subagent_type || input.agent_type || '').trim());
 

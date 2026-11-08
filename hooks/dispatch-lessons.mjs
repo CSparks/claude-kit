@@ -11,9 +11,10 @@
 import { frameworksFor } from './lib/frameworks.mjs';
 import { ledgerFiles, lessonIds } from './lib/lessons.mjs';
 import { readOnlyDispatch } from './dispatch-readonly.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 export const LESSONS_CHECK = 'lessons-checked';
-const TOKEN = /\[lessons-checked:\s*([^\]]*)\]/i;
+const TOKEN = TOKENS.lessonsChecked.pattern;
 const NONE_APPLY = /^none apply\b[:\s-]*\S/i;
 const ID = /\bL-[A-Z]\d+\b/g;
 const WORK = /\b(?:render(?:ing|er)?|shaders?|wgsl|meshes|mesh|instanc(?:e|es|ing)|draw calls?|shadows?|lighting|lods?|textures?|materials?|bakes?|baking|assets?|glb|scatter|chunks?|streaming|frame time|fps|profil(?:e|ing)|performance|perf|cpu cost|gpu|culling)\b/i;

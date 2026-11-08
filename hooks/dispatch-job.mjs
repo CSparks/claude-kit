@@ -15,9 +15,10 @@ import { readLadder } from '../scripts/dispatch-ladder.mjs';
 import { familyOf } from '../scripts/dispatch-outcomes.mjs';
 import { definitionJob } from './model-tag.mjs';
 import { declaredJob } from './agent-outcome.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 export const JOB_CHECK = 'dispatch-job';
-const OVERRIDE_TOKEN = /\[model-override:\s*([^\]\s][^\]]*)\]/i;
+const OVERRIDE_TOKEN = TOKENS.modelOverride.pattern;
 const CLAUDE_FAMILIES = new Set(['fable', 'opus', 'sonnet', 'haiku']);
 
 export function dispatchJob(root, input = {}) {

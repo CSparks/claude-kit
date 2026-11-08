@@ -43,15 +43,14 @@ import { CEILING_CHECK, HANDOFF_CHECK, ceilingWarning, handoffBlock, ticketsCite
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
 import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
+import { LADDER_CHECK, COLD_BUILD_CHECK, SHARED_TREE_CHECK } from './lib/gate-protocol.mjs';
 
-const LADDER_CHECK = 'dispatch-ladder';
-const COLD_BUILD_CHECK = 'cold-worktree-build';
-const SHARED_TREE_CHECK = 'shared-tree-dispatch';
 const STALE_TABLE_CHECK = 'capability-table-stale';
 // The only escapes are the maintainer's own words, quoted (KIT-D074). An agent cannot grant itself
 // a worktree or a second writer; an empty token does not count.
-const MAINTAINER_PARALLEL = /\[maintainer-asked-parallel:\s*[^\]\s][^\]]*\]/i;
-const MAINTAINER_WORKTREE = /\[maintainer-asked-worktree:\s*[^\]\s][^\]]*\]/i;
+const MAINTAINER_PARALLEL = TOKENS.maintainerParallel.pattern;
+const MAINTAINER_WORKTREE = TOKENS.maintainerWorktree.pattern;
 // An in-flight roster row older than this is treated as abandoned, not as a live colleague: the
 // harness cannot always report a background agent's completion, so an uncollected row would
 // otherwise wedge every later dispatch in the repo.
@@ -105,7 +104,7 @@ try {
     process.exit(0);
   }
   const queued = blocks.length === 1 ? queueBehindOverlap(root, input, prompt, p) : null;
-  console.error([...blocks, ...(queued ? [queued] : [])].join('\n'));
+  console.error([...blocks, ...(queued ? [queued] : []), 'Every requirement and tag form of a dispatch, before you resend: q gates agent'].join('\n'));
   process.exit(2);
 } catch {
   process.exit(0);
@@ -127,7 +126,7 @@ try {
 function ladderBlock(root, input, prompt, p) {
   if (pathExcluded(root, LADDER_CHECK, root)) return null;
   const escaped =
-    /\[allow-fable\b/i.test(prompt) ||
+    TOKENS.allowFable.pattern.test(prompt) ||
     /^(1|true|yes)$/i.test(process.env.CLAUDE_KIT_ALLOW_FABLE || '');
   if (escaped) return null;
   if (input.model) return null; // an explicit model IS the choice — any tier, fable included

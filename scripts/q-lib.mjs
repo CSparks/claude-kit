@@ -452,7 +452,12 @@ async function main() {
   // own module + its own sessions.db (machine-local, transcript-derived), NOT the work cache.
   if (cmd === 'sessions' || cmd === 'session' || cmd === 'said') {
     const { runSessions } = await import('./q-sessions.mjs');
-    process.exit(await runSessions(cmd, args, { json }));
+    process.exit(await runSessions(cmd, rawArgs, { json }));
+  }
+
+  if (cmd === 'gates') {
+    const { runGates } = await import('./q-gates.mjs');
+    process.exit(runGates(rawArgs));
   }
 
   const args = scopeFlagToPositional(cmd, rawArgs);

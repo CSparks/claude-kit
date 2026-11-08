@@ -15,10 +15,11 @@
 // harness reports as totalTokens; `outputTokens` sums output across every turn. Never throws.
 
 import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 const MAX_TRANSCRIPT_BYTES = 64 * 1024 * 1024;
 const TAIL_BYTES = 256 * 1024;
-const JOB_TOKEN = /\[job:\s*([\w-]+)\s*\]/i;
+const JOB_TOKEN = TOKENS.job.pattern;
 
 export function declaredJob(prompt) {
   const m = String(prompt || '').match(JOB_TOKEN);

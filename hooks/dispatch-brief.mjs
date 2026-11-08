@@ -7,11 +7,12 @@
 import { readOnlyDispatch } from './dispatch-readonly.mjs';
 import { ticketsCited } from './dispatch-context.mjs';
 import { ticketMeta } from './lib/ticket-store.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 export const BRIEF_CHECK = 'brief-grounded';
 const CHECKED_TYPES = new Set(['feature', 'request']);
-const WORDS = /\[maintainer-words:\s*[^\]\s][^\]]*\]/i;
-const REUSES = /\[reuses:\s*[^\]\s][^\]]*\]/i;
+const WORDS = TOKENS.maintainerWords.pattern;
+const REUSES = TOKENS.reuses.pattern;
 const VARIANT = /\b(?:variants?|class(?:es)?|modes?|kinds?|types?|flavou?rs?|versions?|another|extra|additional|more|higher|lower|bigger|smaller|faster|slower|like|same|similar|also)\b/i;
 const TITLE_CHARS = 80;
 

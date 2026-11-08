@@ -12,12 +12,12 @@ import { writeFileSync } from 'node:fs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { readQuestions } from '../scripts/question-store.mjs';
 import { askedEntries, isOpenQuestion, resolutionText, questionMatches, citesId, stampAsk } from '../scripts/question-asks.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
+import { REASK_CHECK as CHECK_ID, REASK_WINDOW_DAYS as ASK_WINDOW_DAYS } from './lib/question-checks.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
-const CHECK_ID = 'reask-gate';
-const ASK_WINDOW_DAYS = 7;
 const MS_PER_DAY = 86400000;
-const OVERRIDE = /\[re-ask:\s*[^\]]+\]/i;
+const OVERRIDE = TOKENS.reAsk.pattern;
 
 const textOf = (q) => [q?.header, q?.question, ...(Array.isArray(q?.options) ? q.options.map((o) => `${o?.label || ''} ${o?.description || ''}`) : [])].filter(Boolean).join(' ');
 const askText = (q) => [q?.header, q?.question].filter(Boolean).join(' ');

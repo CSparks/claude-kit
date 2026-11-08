@@ -27,9 +27,10 @@
 // gate must never wedge the tool call (HOOK CONTRACT).
 
 import { payload } from './lib.mjs';
+import { RECOMMENDED_MARKER } from './lib/question-checks.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
-const MARKER = '(Recommended)';
+const MARKER = RECOMMENDED_MARKER;
 let activeTool = 'AskUserQuestion';
 let markerAtEnd = false;
 const rule = () =>
@@ -55,6 +56,7 @@ try {
   const questions = (p.tool_input && p.tool_input.questions) || [];
   if (!Array.isArray(questions) || questions.length === 0) process.exit(0); // nothing to judge → allow
 
+  const problems = [];
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i] || {};
     const options = Array.isArray(q.options) ? q.options : [];
@@ -66,56 +68,49 @@ try {
     // (a) no recommendation on any LABEL — the marker is absent or hiding in a description.
     if (recIndexes.length === 0) {
       const inDescription = options.some((o) => DESC_MENTION.test(String((o && o.description) || '')));
-      block(name, inDescription ? markerInDescriptionMsg(name) : noRecommendationMsg(name));
-    }
-
-    // (b) the recommended option must be FIRST — single-select only. multiSelect may carry
-    // several recommended options anywhere (the contract marks each LABEL, not their order).
-    if (!q.multiSelect && recIndexes[0] !== 0) {
-      block(name, recNotFirstMsg(name, options[0]));
+      problems.push(...(inDescription ? markerInDescriptionMsg(name) : noRecommendationMsg(name)));
+    } else if (!q.multiSelect && recIndexes[0] !== 0) {
+      // (b) the recommended option must be FIRST — single-select only. multiSelect may carry
+      // several recommended options anywhere (the contract marks each LABEL, not their order).
+      problems.push(...recNotFirstMsg(name, options[0]));
     }
   }
 
+  if (problems.length) {
+    process.stderr.write([
+      '', `BLOCKED: non-compliant ${activeTool} (KIT-T086).`, `  Rule: ${rule()}.`, '',
+      ...problems, ...example(), 'Every requirement of a questionnaire, before you resend: q gates question', '',
+    ].join('\n'));
+    process.exit(2);
+  }
   process.exit(0); // every question compliant
 } catch {
   process.exit(0); // fail-open per HOOK CONTRACT
 }
 
-function block(name, body) {
-  process.stderr.write(body);
-  process.exit(2);
-}
-
-function header(name) {
-  return ['', `BLOCKED: non-compliant ${activeTool} (KIT-T086) — "${name}".`, `  Rule: ${rule()}.`, ''];
-}
-
 function markerInDescriptionMsg(name) {
   return [
-    ...header(name),
-    `The word "Recommended" appears in an option DESCRIPTION, but no option LABEL ${markerAtEnd ? 'ends' : 'starts'} with`,
+    `"${name}": the word "Recommended" appears in an option DESCRIPTION, but no option LABEL ${markerAtEnd ? 'ends' : 'starts'} with`,
     `"${MARKER}" — so the marker renders nowhere and the recommendation is invisible. Move it to`,
-    'the LABEL of the option you recommend, and put that option FIRST:',
-    ...example(),
-  ].join('\n');
+    'the LABEL of the option you recommend, and put that option FIRST.',
+    '',
+  ];
 }
 
 function noRecommendationMsg(name) {
   return [
-    ...header(name),
-    `No option carries a recommendation. EVERY question needs one: ${markerAtEnd ? 'suffix' : 'prefix'} the recommended`,
+    `"${name}": No option carries a recommendation. EVERY question needs one: ${markerAtEnd ? 'suffix' : 'prefix'} the recommended`,
     `option's LABEL with "${MARKER}" and list it FIRST.`,
-    ...example(),
-  ].join('\n');
+    '',
+  ];
 }
 
 function recNotFirstMsg(name, firstOpt) {
   return [
-    ...header(name),
-    `An option is marked "${MARKER}" but it is not FIRST (first is "${label(firstOpt)}").`,
+    `"${name}": An option is marked "${MARKER}" but it is not FIRST (first is "${label(firstOpt)}").`,
     'Reorder so the recommended option leads.',
-    ...example(),
-  ].join('\n');
+    '',
+  ];
 }
 
 function example() {

@@ -11,9 +11,10 @@
 import { frameworksFor } from './lib/frameworks.mjs';
 import { readOnlyDispatch } from './dispatch-readonly.mjs';
 import { lessonsWork } from './dispatch-lessons.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 export const CONFORMANCE_CHECK = 'conformance-named';
-const NOT_AFFECTED = /\[conformance:\s*not affected\b[:\s-]*\S[^\]]*\]/i;
+const NOT_AFFECTED = TOKENS.conformanceNotAffected.pattern;
 const PATCH_WORKER = /(?:^|:)patch-worker$/i;
 
 export function conformanceBlock({ root, input, prompt, footer, frameworks = frameworksFor(root) }) {

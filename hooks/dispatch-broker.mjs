@@ -13,6 +13,7 @@ import { brokerPaths, laneConfigs, withLane, readBrokerConfig } from '../scripts
 import { hasTrackedCargo } from '../scripts/broker/cargo-scope.mjs';
 import { isBuildInput } from '../scripts/broker/build-globs.mjs';
 import { includeTargets } from '../scripts/broker/build-inputs.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 export const BROKER_OWNED_CHECK = 'broker-owned-tree';
 
@@ -47,7 +48,7 @@ export function liveBroker(tree) {
   return cfg ? liveLock(withLane(cfg, null)) : null;
 }
 
-const PATHS_TOKEN = /\[paths:\s*([^\]]+)\]/i;
+const PATHS_TOKEN = TOKENS.paths.pattern;
 
 // The repo-relative paths a brief declares with `[paths: a, b]`, or null when it declares none.
 export function declaredPaths(prompt, tree) {

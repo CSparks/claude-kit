@@ -10,10 +10,11 @@
 // Unknown types and all-tools definitions are writers.
 
 import { definitionTools } from './model-tag.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 const WRITE_TOOLS = /^(Edit|Write|NotebookEdit|MultiEdit)$/i;
 const BUILTIN_READ_ONLY = new Set(['explore', 'plan', 'claude-code-guide', 'patch-worker']);
-const READ_ONLY_TOKEN = /\[read-only:\s*([^\]\s][^\]]*)\]/i;
+const READ_ONLY_TOKEN = TOKENS.readOnly.pattern;
 
 // The reason a dispatcher gave for treating a writer-capable type as read-only, or ''.
 export function declaredReadOnly(prompt) {

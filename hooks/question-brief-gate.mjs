@@ -14,10 +14,9 @@ import { payload, gitRoot, pathExcluded, excludeFooter } from './lib.mjs';
 import { turnTextForCall } from './lib/turn-text.mjs';
 import { BRIEF_STANDARD, briefProblems, wordCount } from './lib/question-brief.mjs';
 import { readinessProblems } from './lib/question-ready.mjs';
+import { BRIEF_CHECK, READY_CHECK } from './lib/question-checks.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
-const BRIEF_CHECK = 'question-brief';
-const READY_CHECK = 'question-ready';
 
 const enabled = (root, check) => !root || !pathExcluded(root, check, root);
 const lines = (problems) => problems.map((p) => `  - ${p.part}: ${p.wanted}`);
@@ -39,6 +38,7 @@ function blockMessage(brief, ready, turn) {
     ...(ready.length ? ['', 'The topic is not ready to ask:', ...lines(ready), '  Discuss it in prose first; ask once it has converged and the choice is his.'] : []),
     ...(brief.length ? ['', 'The brief before the questionnaire is too thin. The options cannot carry the context, so the prose must:', ...(note ? [`  ${note}`] : []), ...lines(brief), '', 'A brief holds:', ...BRIEF_STANDARD.map((s) => `  * ${s}`)] : []),
     '',
+    'Every requirement of a questionnaire, before you resend: q gates question',
     ...(ready.length ? [excludeFooter(READY_CHECK)] : []),
     ...(brief.length ? [excludeFooter(BRIEF_CHECK)] : []),
   ].join('\n');

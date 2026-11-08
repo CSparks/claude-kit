@@ -11,6 +11,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitRoot } from './lib.mjs';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 // A brief names its target repo as an absolute path, quoted (`D:\dev\claude-kit`) or bare. Quoted
 // is tried first because a checkout under a spaced path ("D:\my repos\app") survives only quoted.
@@ -64,7 +65,7 @@ function normalizeTree(p) {
 
 // `[tree: <absolute path>]` — the dispatcher's declaration of the checkout the agent writes in.
 function treeToken(input) {
-  const m = String(input?.prompt ?? input?.message ?? '').match(/\[tree:\s*([^\]]+)\]/i);
+  const m = String(input?.prompt ?? input?.message ?? '').match(TOKENS.tree.pattern);
   const path = m ? m[1].trim().replace(/^["'`]|["'`]$/g, '') : '';
   return ABSOLUTE.test(path) ? path : '';
 }

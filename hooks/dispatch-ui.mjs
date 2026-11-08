@@ -9,9 +9,10 @@
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { TOKENS } from './lib/gate-tokens.mjs';
 
 export const UI_CHECK = 'ui-framework-first';
-const CHECKED = /\[ui-framework-checked:\s*[^\]\s][^\]]*\]/i;
+const CHECKED = TOKENS.uiFrameworkChecked.pattern;
 const UI_NOUN = /\b(?:hud|ui|menu|menus|screen|screens|panel|widget|overlay)\b/i;
 const UI_SIZING = /\b(?:px|pixels?|font[- ]size|val::px|ppu|layout|margin|padding|gap|anchor|scale|resolution|safe area)\b/i;
 const UI_SIZING_NO_LAYOUT = /\b(?:px|pixels?|font[- ]size|val::px|ppu|margin|padding|gap|anchor|scale|resolution|safe area)\b/i;

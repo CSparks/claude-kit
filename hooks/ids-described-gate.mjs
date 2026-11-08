@@ -10,11 +10,10 @@
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { itemTitle } from './lib/item-title.mjs';
 import { stems } from './lib/stems.mjs';
+import { IDS_CHECK as CHECK_ID, IDS_MIN_HITS as MIN_HITS } from './lib/question-checks.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
-const CHECK_ID = 'ids-described';
 const ID = /\b[A-Z][A-Z0-9]+-[TDQ]\d{1,4}\b/g;
-const MIN_HITS = 2;
 const MAX_TITLE_SHOWN = 90;
 
 const optionText = (o) => `${o?.label || ''} ${o?.description || ''}`;
