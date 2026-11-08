@@ -1,8 +1,9 @@
 // runtime-publish-guard.mjs — what keeps one publish from damaging another (KIT-T737).
 //
-//   withPublishLock(runtimeRoot, fn) -> fn()'s result; one publish per runtime directory: a live holder
-//     makes this call throw naming its pid, a dead holder's lock is taken over, and the lock is released
-//     when fn returns or throws
+//   withPublishLock(runtimeRoot, fn) -> fn()'s result; one publish per runtime directory. The lock records the
+//     holder's pid, command line, working directory and parent pid. A live holder makes this call throw naming
+//     them and its age; a holder whose pid is dead, or reused by a process that is not a publish, is taken over
+//     by this call; the lock is released when fn returns or throws
 //   stopProcessesUnder(dir | dirs)   -> one process scan stops every process whose command line names a directory (a q-server a
 //     test run left in an export), so the export can be deleted
 //   gitOrThrow(dir, args)            -> runs git in `dir`; a failure throws with git's own stderr
@@ -15,8 +16,11 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { processInfo } from './process-info.mjs';
 
 const LOCK = 'publish.lock';
+const PUBLISH_COMMAND = /publish/i;
+const MS_PER_MINUTE = 60000;
 const TAKEOVER_ATTEMPTS = 2;
 const STDERR_SHOWN = 600;
 const SCRATCH = /^\.kit-verify-[0-9a-f]+-(\d+)$/;
@@ -51,20 +55,43 @@ const holderOf = (path) => {
   try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; }
 };
 
+const ownRecord = () => ({ pid: process.pid, host: hostname(), since: new Date().toISOString(), cwd: process.cwd(), command: process.argv.slice(1).join(' '), parentPid: process.ppid });
+
+// A holder is live while its pid answers and, when the process scan can read it, the process still runs a publish
+// (a dead publisher's pid reused by an unrelated process does not hold the lock).
+function liveHolder(holder) {
+  if (!holder || holder.host !== hostname() || !Number.isInteger(holder.pid) || !alive(holder.pid)) return null;
+  const info = processInfo(holder.pid);
+  return !info || PUBLISH_COMMAND.test(info.command) ? { info } : null;
+}
+
+function refusal(path, holder, { info }) {
+  const minutes = Math.round((Date.now() - Date.parse(holder.since)) / MS_PER_MINUTE);
+  const parentPid = info?.parentPid ?? holder.parentPid;
+  const parent = Number.isInteger(parentPid) ? processInfo(parentPid) : null;
+  const facts = [
+    `pid ${holder.pid}`,
+    `since ${holder.since}${Number.isFinite(minutes) ? `, ${minutes} min ago` : ''}`,
+    `command "${info?.command ?? holder.command ?? 'unknown'}"`,
+    ...(holder.cwd ? [`started in ${holder.cwd}`] : []),
+    ...(Number.isInteger(parentPid) ? [`parent pid ${parentPid}${parent ? ` "${parent.command}"` : ''}`] : []),
+  ];
+  return `another publish holds ${path} (${facts.join('; ')}); wait for it to finish`;
+}
+
 export function withPublishLock(runtimeRoot, fn) {
   mkdirSync(runtimeRoot, { recursive: true });
   const path = join(runtimeRoot, LOCK);
   let taken = false;
   for (let attempt = 0; attempt < TAKEOVER_ATTEMPTS && !taken; attempt++) {
     try {
-      writeFileSync(path, JSON.stringify({ pid: process.pid, host: hostname(), since: new Date().toISOString() }), { flag: 'wx' });
+      writeFileSync(path, JSON.stringify(ownRecord()), { flag: 'wx' });
       taken = true;
     } catch (e) {
       if (e.code !== 'EEXIST') throw e;
       const holder = holderOf(path);
-      if (holder && holder.host === hostname() && Number.isInteger(holder.pid) && alive(holder.pid)) {
-        throw new Error(`another publish holds ${path} (pid ${holder.pid}, since ${holder.since}); wait for it to finish`);
-      }
+      const live = liveHolder(holder);
+      if (live) throw new Error(refusal(path, holder, live));
       rmSync(path, { force: true });
     }
   }

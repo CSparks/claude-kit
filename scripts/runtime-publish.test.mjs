@@ -9,6 +9,7 @@ import { basename, dirname, join } from 'node:path';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { publishRuntime, currentRuntime } from './runtime-publish.mjs';
 import { CHILD_OPTIONS, alive, gitOrThrow, stopProcessesUnder, sweepScratch } from './runtime-publish-guard.mjs';
+import { processInfo } from './process-info.mjs';
 import { liveUsers, pinRuntime } from './runtime-pin.mjs';
 import { referencedRuntimes } from './runtime-refs.mjs';
 
@@ -156,6 +157,19 @@ ok('keep prunes older sha directories once nothing pins them', shaDirs().length 
   const again = publish({ repo, runtimeRoot });
   ok('negative control: a dead holder is taken over and the publish runs', Boolean(again.sha) && currentRuntime(runtimeRoot) === realpathSync(again.dir));
   ok('the lock is released after a publish, ok or red', !existsSync(lock));
+  // KIT-T908: the refusal names whose publish holds the lock.
+  const MINUTES_AGO = 7;
+  const sevenMinutesAgo = new Date(Date.now() - MINUTES_AGO * 60000).toISOString();
+  writeFileSync(lock, JSON.stringify({ pid: process.pid, host: hostname(), since: sevenMinutesAgo, cwd: join(tmp, 'other-project'), command: 'recorded-command', parentPid: process.ppid }));
+  let named = '';
+  try { publish({ repo, runtimeRoot }); } catch (e) { named = e.message; }
+  ok('a refusal names the holder command line, age, project directory and parent', named.includes('runtime-publish.test.mjs') && named.includes(`${MINUTES_AGO} min ago`) && named.includes(`started in ${join(tmp, 'other-project')}`) && named.includes(`parent pid ${process.ppid}`));
+  const reused = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore', ...CHILD_OPTIONS });
+  writeFileSync(lock, JSON.stringify({ pid: reused.pid, host: hostname(), since: sevenMinutesAgo }));
+  const taken = publish({ repo, runtimeRoot });
+  reused.kill();
+  ok('a lock whose pid is alive but runs something other than a publish is taken over by the publisher', Boolean(taken.sha) && !existsSync(lock));
+  ok('control: processInfo reads this process command line and parent', processInfo(process.pid)?.command.includes('runtime-publish.test.mjs') && processInfo(process.pid)?.parentPid === process.ppid);
   try { publish({ repo, runtimeRoot, verify: () => { throw new Error('red'); } }); } catch { /* red */ }
   ok('the lock is released after a red publish', !existsSync(lock));
   const notRepo = join(tmp, 'plain');
