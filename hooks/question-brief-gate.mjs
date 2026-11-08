@@ -22,7 +22,7 @@ const READY_CHECK = 'question-ready';
 const enabled = (root, check) => !root || !pathExcluded(root, check, root);
 const lines = (problems) => problems.map((p) => `  - ${p.part}: ${p.wanted}`);
 
-const NO_TEXT = 'The reply carrying this call has no text block: a thinking block or the questionnaire itself is not prose, and the maintainer sees neither. Write the brief as a normal message in the same reply, before the call. (Counted instead: text from earlier replies this turn.)';
+const NO_TEXT = 'The reply carrying this call has no text block: private thinking or the questionnaire itself is not prose, and the maintainer sees neither. Write the brief as a normal message in the same reply, before the call. (Counted instead: text from earlier replies this turn.)';
 const UNFLUSHED = 'Claude Code writes a reply to the transcript only after hooks have run, so text sent in the same reply as this call cannot be read; only earlier replies this turn were counted. A brief sent in this reply is read once the identical call is resent. A brief sent in an earlier reply was read in full: the parts below are what it lacks, and resending changes nothing until a text message adds them.';
 const LEAD_CHARS = 80;
 

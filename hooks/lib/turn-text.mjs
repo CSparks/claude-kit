@@ -1,10 +1,14 @@
 // turn-text.mjs — the newest maintainer message and the assistant text after it, read from a transcript file.
 //
+//   Assistant prose is every text block plus every narration block: Claude Code records the commentary it shows the
+//   maintainer between tool calls as a thinking block whose signature names "narration" and whose text is filled;
+//   ordinary thinking blocks carry an empty text and are never prose.
+//
 //   turnText(file) -> { lastUser, prose, newestProse, replyHasText } | null
 //     lastUser      the newest maintainer message (tool results, harness notices, compaction summaries and meta entries skipped), '' when none
-//     prose         every assistant text block after it, oldest first, joined by blank lines
-//     newestProse   the newest of those text blocks, '' when none
-//     replyHasText  the newest reply (the assistant entries after the last tool result or user entry) holds a text block
+//     prose         every assistant text or narration block after it, oldest first, joined by blank lines
+//     newestProse   the newest of those blocks, '' when none
+//     replyHasText  the newest reply (the assistant entries after the last tool result or user entry) holds one
 //   null when the file cannot be read.
 //
 //   turnTextForCall(file, toolUseId) -> Promise<same + replyUnflushed>
@@ -32,6 +36,17 @@ const textOf = (content) => {
   if (!Array.isArray(content)) return '';
   return content.filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n');
 };
+const NARRATION_SIGNATURE = 'narration';
+const isNarration = (b) => b.type === 'thinking' && typeof b.thinking === 'string' && b.thinking.trim() !== ''
+  && Buffer.from(String(b.signature || ''), 'base64').toString('latin1').includes(NARRATION_SIGNATURE);
+const assistantTextOf = (content) => {
+  if (!Array.isArray(content)) return textOf(content);
+  return content
+    .filter((b) => b && (b.type === 'text' || isNarration(b)))
+    .map((b) => (b.type === 'text' ? b.text : b.thinking))
+    .filter((t) => typeof t === 'string')
+    .join('\n');
+};
 const isToolResult = (content) => Array.isArray(content) && content.some((b) => b && b.type === 'tool_result');
 const isHarness = (entry, text) => entry.isMeta === true || entry.isCompactSummary === true || NOTICE.test(text) || COMPACT.test(text);
 
@@ -48,7 +63,7 @@ export function turnText(file) {
     const role = entry?.type || entry?.message?.role;
     const content = entry?.message?.content;
     if (role === 'assistant') {
-      const text = textOf(content).trim();
+      const text = assistantTextOf(content).trim();
       if (text) prose.unshift(text);
       if (text && inReply) replyHasText = true;
     } else if (role === 'user') {
