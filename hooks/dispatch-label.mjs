@@ -4,22 +4,18 @@
 //
 // The call is never rewritten: a hook that changes a call after review makes auto mode's classifier refuse it. The
 // block names every field to change and its exact value; a call already in the canonical form passes untouched.
-// Applies in every repo, adopted or not. Fails open on any error.
+// Applies in every repo, adopted or not; dispatch-guard repeats these problems inside its own block (KIT-T898).
+// Fails open on any error.
 
 import { payload, gitRoot } from './lib.mjs';
-import { LABEL_CHECK, labelProblems } from './lib/dispatch-label.mjs';
+import { labelBlockText, labelProblems } from './lib/dispatch-label.mjs';
 
 try {
   const p = await payload();
   if (p.tool_input && typeof p.tool_input === 'object') {
     const problems = labelProblems(gitRoot(), p.tool_input, p);
     if (problems.length) {
-      process.stderr.write([
-        `BLOCKED: this delegation is not in the canonical form (${LABEL_CHECK}, KIT-T897). Change every field below, then resend once:`,
-        ...problems.map((x) => `  - ${x.part}: ${x.wanted}`),
-        '',
-        'The hook never rewrites a call. Every requirement of a dispatch: q gates agent',
-      ].join('\n'));
+      process.stderr.write(`${labelBlockText(problems)}Every requirement of a dispatch, before you resend: q gates agent`);
       process.exit(2);
     }
   }

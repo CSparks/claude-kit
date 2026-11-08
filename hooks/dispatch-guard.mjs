@@ -45,6 +45,7 @@ import { CEILING_CHECK, HANDOFF_CHECK, ceilingWarning, handoffBlock, ticketsCite
 import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 import { LADDER_CHECK, COLD_BUILD_CHECK, SHARED_TREE_CHECK } from './lib/gate-protocol.mjs';
+import { labelBlockText, labelProblems } from './lib/dispatch-label.mjs';
 
 const STALE_TABLE_CHECK = 'capability-table-stale';
 // The only escapes are the maintainer's own words, quoted (KIT-D074). An agent cannot grant itself
@@ -104,7 +105,8 @@ try {
     process.exit(0);
   }
   const queued = blocks.length === 1 ? queueBehindOverlap(root, input, prompt, p) : null;
-  console.error([...blocks, ...(queued ? [queued] : []), 'Every requirement and tag form of a dispatch, before you resend: q gates agent'].join('\n'));
+  const label = labelCheck(root, input, p);
+  console.error([...blocks, ...(label ? [label] : []), ...(queued ? [queued] : []), 'Every requirement and tag form of a dispatch, before you resend: q gates agent'].join('\n'));
   process.exit(2);
 } catch {
   process.exit(0);
@@ -172,6 +174,15 @@ function unlabelledBlock(root, input, p) {
     excludeFooter(LADDER_CHECK),
   ].join('\n');
 }
+// --- dispatch-label (KIT-T897) ---------------------------------------------------
+// The standalone dispatch-label hook blocks a call that fails this check alone; when this guard blocks for another
+// cause it lists these problems too, so one rejection carries every requirement whichever hook's message is shown.
+function labelCheck(root, input, p) {
+  if (!p.tool_input) return null;
+  const problems = labelProblems(root, input, p);
+  return problems.length ? labelBlockText(problems) : null;
+}
+
 
 // --- dispatch-job (KIT-T419) ------------------------------------------------------
 function jobCheck(root, input, prompt, p) {

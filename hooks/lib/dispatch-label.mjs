@@ -25,6 +25,13 @@ function tableFamily(root, input) {
   return row ? jobFamilies(row)[0] || '' : '';
 }
 
+export const labelBlockText = (problems) => [
+  `BLOCKED: this delegation is not in the canonical form (${LABEL_CHECK}, KIT-T897). Change every field below, then resend once:`,
+  ...problems.map((x) => `  - ${x.part}: ${x.wanted}`),
+  'The hook never rewrites a call.',
+  '',
+].join('\n');
+
 export function labelProblems(root, input, p) {
   const problems = [];
   const family = tableFamily(root, input);

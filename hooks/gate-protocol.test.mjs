@@ -65,8 +65,11 @@ try {
   ok('orient points at q gates in the identity block', orient.out.includes('q gates agent|question'));
 
   const repo = adopted(false);
-  const twoWrong = hook('dispatch-guard.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'general-purpose', model: 'sonnet', isolation: 'worktree', description: '[Sonnet 5.5] x', prompt: 'do a thing' } }, repo);
-  ok('a dispatch with no job and a worktree is rejected once with both causes', twoWrong.code === 2 && twoWrong.out.includes('names no job') && twoWrong.out.includes('worktree / separate-checkout'));
+  const twoWrong = hook('dispatch-guard.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'general-purpose', model: 'sonnet', isolation: 'worktree', description: 'x', prompt: 'do a thing' } }, repo);
+  ok('a dispatch with no job, a worktree and an untagged description is rejected once with every cause',
+    twoWrong.code === 2 && twoWrong.out.includes('names no job') && twoWrong.out.includes('worktree / separate-checkout') && twoWrong.out.includes('resend description as "[Sonnet 5.5] x"'));
+  const labelOnly = hook('dispatch-guard.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'general-purpose', model: 'sonnet', description: 'x', prompt: 'do a thing [job: fix]' } }, repo);
+  ok('a label-only problem is the dispatch-label hook\'s block, not the guard\'s', labelOnly.code === 0);
 
   const file = join(dir, 'turn.jsonl');
   const entry = (type, content) => JSON.stringify({ type, message: { role: type, content } });
