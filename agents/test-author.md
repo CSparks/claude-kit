@@ -52,3 +52,6 @@ framework submodule — code in every language, docs, configs, tickets — and a
 - `q sym <name> [--type fn,struct,impl,use,mod]` · `q file <glob>` · `q fts <terms>` (work items) · `q show <id>`
 - If q cannot do what you need, that is a kit bug or feature: `cap feature "q: <what is missing>" --project claude-kit`
   (a ticket the kit team builds) — never fall back to grep silently.
+
+## Hook blocks — triage first (KIT-D154)
+On ANY hook block, your next reply says which it was. Process failure (you broke a rule the gate enforces): ticket the root cause and a prevention that stops the recurrence. Kit bug (the gate misfired, missed or printed too little): `cap bug "<what>" --project claude-kit`, ticket and fix agent the same turn (KIT-D145). Never retry or route around the block.

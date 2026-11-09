@@ -66,3 +66,6 @@ Cost is per tool call, so a wait is ONE call and one read of the result.
 - Run a long build or test in one Bash call with the max timeout, or with `run_in_background` and wait for the completion notification.
 - Pipe the output through a filter that keeps only failures, panics, assertion lines and the `test result` totals.
 - Never poll an output file, never sleep-loop, and never re-run a whole suite to see one test: run that test by name.
+
+## Hook blocks — triage first (KIT-D154)
+On ANY hook block, your next reply says which it was. Process failure (you broke a rule the gate enforces): ticket the root cause and a prevention that stops the recurrence. Kit bug (the gate misfired, missed or printed too little): `cap bug "<what>" --project claude-kit`, ticket and fix agent the same turn (KIT-D145). Never retry or route around the block.

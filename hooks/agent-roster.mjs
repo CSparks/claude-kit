@@ -13,6 +13,7 @@
 // block a delegation; the worst case is a missing/extra roster row the orchestrator reconciles.
 
 import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, ID_CITE_SRC } from './lib.mjs';
+import { triageFooter } from './lib/block-triage.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { declaredReadOnly } from './dispatch-readonly.mjs';
 import { workerPaths } from './dispatch-worker.mjs';
@@ -77,7 +78,7 @@ function recordDispatch(root, p) {
     const model = rowModel(root, inp, p);
     if (!model || !isKnownModel(model)) {
       process.stderr.write(`BLOCKED: agent roster refused an unlabelled row for ${id} (${scope}): ${model ? `unknown model "${model}"` : 'no resolvable model'} (KIT-T403). Re-dispatch with an explicit model:'sonnet'|'opus'|'haiku'|'fable'.
-`);
+${triageFooter()}`);
       return false;
     }
     const outputFile = firstString(resp.output_file, resp.outputFile, resp.output_path, resp.outputPath, resp.transcript_path);

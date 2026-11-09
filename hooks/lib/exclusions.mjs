@@ -10,6 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { TRIAGE_LINE } from './block-triage.mjs';
 
 const IGNORE_FILE = '.claude-kit-ignore.yaml';
 
@@ -134,7 +135,7 @@ export function markerExcludedLines(source, checkId) {
 // Uniform "how to exclude" footer appended to every gate's block/warn message, so a false
 // positive always has an obvious, documented escape. Names the CHECK-ID and shows BOTH
 // surfaces (the YAML snippet and the in-source marker). One definition → every gate is
-// consistent.
+// consistent. Ends with the block-triage line (KIT-D154), so every gate that prints this carries it.
 export function excludeFooter(checkId) {
   return [
     '',
@@ -147,6 +148,8 @@ export function excludeFooter(checkId) {
     `      ...excluded lines...`,
     `      // claude-kit-ignore-end`,
     `    (or // claude-kit-ignore-file ${checkId} | // claude-kit-ignore-line ${checkId} | trailing // claude-kit-ignore ${checkId})`,
+    '',
+    TRIAGE_LINE,
     '',
   ].join('\n');
 }

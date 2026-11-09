@@ -17,6 +17,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitRoot, adopted, git, payload, sessionMtimeMs, unboundedRoot } from './lib.mjs';
 import { missingCitations } from './session-citations.mjs';
+import { triageFooter } from './lib/block-triage.mjs';
 import { unresolvedAsks } from '../scripts/question-store.mjs';
 import { orphanShells, projectSlug, excludedIds, nagText, ORPHAN_AGE_MIN } from './orphan-shells.mjs';
 import { verifyOrphans } from './orphan-verify.mjs';
@@ -168,7 +169,7 @@ function stopAnchorNudge(root, p) {
 
   process.stderr.write(
     `⚠ SESSION.md is the resume anchor and wasn't updated this turn, but ${work} landed.\n` +
-    `Flush the anchor with t session "<state + next steps>" (or --file <draft>): it adds a dated line and deletes nothing. Never --replace unless the draft is the complete anchor. Then stop.\n`,
+    `Flush the anchor with t session "<state + next steps>" (or --file <draft>): it adds a dated line and deletes nothing. Never --replace unless the draft is the complete anchor. Then stop.\n${triageFooter()}`,
   );
   process.exit(2);                                 // block-once (rigid) — same ratchet as request-gate
 }

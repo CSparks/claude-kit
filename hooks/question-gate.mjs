@@ -27,6 +27,7 @@
 // gate must never wedge the tool call (HOOK CONTRACT).
 
 import { payload } from './lib.mjs';
+import { triageFooter } from './lib/block-triage.mjs';
 import { RECOMMENDED_MARKER } from './lib/question-checks.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
@@ -79,7 +80,7 @@ try {
   if (problems.length) {
     process.stderr.write([
       '', `BLOCKED: non-compliant ${activeTool} (KIT-T086).`, `  Rule: ${rule()}.`, '',
-      ...problems, ...example(), 'Every requirement of a questionnaire, before you resend: q gates question', '',
+      ...problems, ...example(), 'Every requirement of a questionnaire, before you resend: q gates question', triageFooter(),
     ].join('\n'));
     process.exit(2);
   }

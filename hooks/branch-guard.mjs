@@ -14,6 +14,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { payload, git, gitRoot, adopted } from './lib.mjs';
 import { classifyGitSegment, tokenize } from './lib/branch-ops.mjs';
+import { triageFooter } from './lib/block-triage.mjs';
 import { AMBIGUOUS_MESSAGE, cdTarget, segments, toPath } from './lib/shell-segments.mjs';
 
 const ESCAPE = /\[maintainer-asked-branch:\s*[^\]\s][^\]]*\]/i;
@@ -79,7 +80,7 @@ function blockMessage(op) {
     '',
     'Only if the maintainer explicitly asked for this, quote him in the command:',
     '  [maintainer-asked-branch: <his words>]',
-    '',
+    triageFooter(),
   ].join('\n');
 }
 
@@ -91,7 +92,7 @@ try {
   if (segments(command).ambiguous) {
     const here = gitRoot();
     if (!here || adopted(here)) {
-      process.stderr.write(`\nBLOCKED: a git command that may switch, branch or clone cannot be judged (KIT-D039). ${AMBIGUOUS_MESSAGE}\n`);
+      process.stderr.write(`\nBLOCKED: a git command that may switch, branch or clone cannot be judged (KIT-D039). ${AMBIGUOUS_MESSAGE}\n${triageFooter()}`);
       process.exit(2);
     }
     process.exit(0);

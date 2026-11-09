@@ -7,6 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import { payload } from './lib.mjs';
+import { triageFooter } from './lib/block-triage.mjs';
 import { lintWorkflowScript, WORKFLOW_ESCAPE } from './lib/workflow-lint.mjs';
 
 const SHOWN = 8;
@@ -30,7 +31,7 @@ async function main() {
     problems.length > SHOWN ? `  ... and ${problems.length - SHOWN} more` : '',
     "Pass model: 'sonnet'|'opus'|'haiku'|'fable' (the capability table's family for the job) and label: '[Sonnet 5.5] what it does' on each call.",
     'Deliberate exception: put [allow-unlabelled-workflow: <reason>] in the script.',
-  ].filter(Boolean).join('\n') + '\n');
+  ].filter(Boolean).join('\n') + `\n${triageFooter()}`);
   process.exit(2);
 }
 

@@ -9,13 +9,14 @@
 
 import { payload, gitRoot } from './lib.mjs';
 import { labelBlockText, labelProblems } from './lib/dispatch-label.mjs';
+import { triageFooter } from './lib/block-triage.mjs';
 
 try {
   const p = await payload();
   if (p.tool_input && typeof p.tool_input === 'object') {
     const problems = labelProblems(gitRoot(), p.tool_input, p);
     if (problems.length) {
-      process.stderr.write(`${labelBlockText(problems)}Every requirement of a dispatch, before you resend: q gates agent`);
+      process.stderr.write(`${labelBlockText(problems)}Every requirement of a dispatch, before you resend: q gates agent\n${triageFooter()}`);
       process.exit(2);
     }
   }

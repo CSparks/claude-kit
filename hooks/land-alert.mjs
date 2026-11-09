@@ -20,6 +20,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { assistantTextOf } from './lib/assistant-text.mjs';
+import { triageFooter } from './lib/block-triage.mjs';
 import {
   gitRoot, adopted, payload, git, wipSummary, remoteCommitUrl, ID_CITE_SRC, readTurnState, writeTurnState,
 } from './lib.mjs';
@@ -112,7 +113,7 @@ async function main() {
   }
 
   recordAlerted(root, head, pushed);
-  process.stderr.write(renderAlert(root, landed, pushed, hasLanding, hasTest));
+  process.stderr.write(renderAlert(root, landed, pushed, hasLanding, hasTest) + triageFooter());
   process.exit(2); // block-once (rigid) — the same ratchet as request-gate / flush
 }
 

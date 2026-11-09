@@ -7,6 +7,7 @@
 import { gitRoot, git, gitTry, centralDataRoot } from './lib.mjs';
 import { dataProjectPathspec } from './data-repo.mjs';
 import { clearSighting, firstSighting } from './block-once.mjs';
+import { triageFooter } from './lib/block-triage.mjs';
 
 const proj = gitRoot();
 if (!proj) process.exit(0);
@@ -53,7 +54,7 @@ try {
     if (regressionGaps.length) lines.push(`  REGRESSION INCOMPLETE -> ${regressionRemedy(regressionGaps)}`);
     const finding = lines.join('\n');
     if (firstSighting(proj, finding)) {
-      process.stderr.write(`${finding}\n\nFix the flagged item(s) then retry.\n\n`);
+      process.stderr.write(`${finding}\n\nFix the flagged item(s) then retry.\n${triageFooter()}`);
       process.exit(2);
     }
     process.stderr.write('[sync-data] WARNING: the same id integrity finding as the last block is still unresolved — NOT committing (no re-block until it changes).\n');
