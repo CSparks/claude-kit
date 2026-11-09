@@ -23,6 +23,7 @@ import { brokerPaths } from './config.mjs';
 import { recordRun } from './red-run.mjs';
 import { recordFinished } from './finished-log.mjs';
 import { recordStaleEnvelope } from './stale-envelope.mjs';
+import { sweepLogs } from './log-sweep.mjs';
 
 export const STATUS = { PASSED: 'passed', FAILED: 'failed', DIRTY: 'dirty', STALE: 'stale', GATE: 'gate', LANDED: 'landed', CONFLICT: 'conflict', SUPERSEDED: 'superseded', CANCELLED: 'cancelled', MEASURED: 'measured', BUILD_ERROR: 'compile-error' };
 
@@ -31,6 +32,7 @@ export const REPEAT_PHASE = 'submit-repeat';
 export function ensureDirs(cfg) {
   const p = brokerPaths(cfg);
   for (const d of [p.home, p.queue, p.results, p.logs]) mkdirSync(d, { recursive: true });
+  sweepLogs(p);
   return p;
 }
 

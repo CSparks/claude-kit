@@ -16,7 +16,7 @@
 //   precheckJob(cfg, job, repo, { run?, prepare?, busy?, pause? }) -> a failed-result object to write, or null when the job may queue
 
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { prepareCheckTree } from './check-tree.mjs';
 import { brokerPaths } from './config.mjs';
 import { UNLOCATED, diagnose } from './diagnose.mjs';
@@ -103,7 +103,8 @@ function cargoChecks(cfg, job, { home, tree, target, cold, run, submodule, repoP
   for (const [i, cmd] of stages.entries()) {
     const left = deadline - Date.now();
     if (left <= 0) return null;
-    const log = join(home, `${KIND}-${job.id}${i ? '-full' : ''}.log`);
+    const log = join(brokerPaths(cfg).logs, `${KIND}-${job.id}${i ? '-full' : ''}.log`);
+    mkdirSync(dirname(log), { recursive: true });
     const r = run(cmd, { cwd: tree.cwd, targetDir: target, logPath: log, jobs: cfg.jobs, timeoutMs: left }, { shouldCancel: () => Date.now() > deadline });
     const errors = r.exit === 0 ? {} : diagnose(readLog(log)).errors;
     if (Object.keys(errors).some((file) => file !== UNLOCATED)) {
