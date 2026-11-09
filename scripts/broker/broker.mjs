@@ -20,7 +20,7 @@
 // Start it with background Bash; a second start while one is live exits 1 (restart is idempotent).
 
 import { parseFlags, loadCfg } from './cli.mjs';
-import { clearStop, isPaused, pause, resume, stopNowRequested, stopRequested } from './control.mjs';
+import { clearStop, pause, resume, stopNowRequested, stopRequested } from './control.mjs';
 import { deferredLines } from './deferred.mjs';
 import { announce, healthLine, selfCheck } from './health.mjs';
 import { dirtNotice, holdAge, holdLine, holdReport } from './hand-hold.mjs';
@@ -28,7 +28,8 @@ import { acquireLock, heartbeat, releaseLock } from './lock.mjs';
 import { recoverInflight } from './preimage.mjs';
 import { recoverUnderLock } from './recover.mjs';
 import { processOnce } from './queue.mjs';
-import { STATUS, ensureDirs, listMeasure, listQueue } from './result.mjs';
+import { idleExpired, workPending } from './idle-clock.mjs';
+import { STATUS, ensureDirs } from './result.mjs';
 import { suiteLine } from './suite.mjs';
 import { pinRuntime, runtimeTag } from '../runtime-pin.mjs';
 import { publishedSwap } from './runtime-swap.mjs';
@@ -251,8 +252,8 @@ const tick = () => {
   const { processed, coalescing } = drain();
   const swap = publishedSwap();
   if (swap) restartFromCurrent(`runtime ${runtimeTag()} superseded by published ${swap}`);
-  if (processed.length || listQueue(cfg).length || listMeasure(cfg).length || isPaused(cfg)) lastWork = Date.now();
-  if (idleMs && Date.now() - lastWork > idleMs) stop(`idle for ${flags['idle-exit']} min, exiting`);
+  if (workPending(cfg, processed)) lastWork = Date.now();
+  if (idleExpired({ idleMs, lastWork })) stop(`idle for ${flags['idle-exit']} min, exiting`);
   setTimeout(tick, coalescing ? Math.min(pollMs, coalescing) : pollMs);
 };
 tick();
