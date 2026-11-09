@@ -135,9 +135,15 @@ try {
 
   // KIT-T888: another session's Edit or Write landing during a non-generator call is that tool's write.
   const otherEdit = (d, rel, text) => {
-    spawnHook('pre-write.mjs', { session_id: 'OTHER', tool_input: { file_path: join(d, rel), content: text } }, d);
+    const input = { session_id: 'OTHER', tool_input: { file_path: join(d, rel), content: text } };
+    spawnHook('pre-write.mjs', input, d);
     writeFileSync(join(d, rel), text);
+    spawnHook('tool-write-record.mjs', { ...input, hook_event_name: 'PostToolUse', tool_response: {} }, d);
   };
+  process.env.CLAUDE_KIT_TURN_STATE = state;
+  const { recordTurnWrite } = await import('./turn-writes.mjs');
+  const { recordToolWrite } = await import('./lib/tool-writes.mjs');
+  const { gitRoot } = await import('./lib.mjs');
   const concurrent = fresh();
   const viaOther = call(concurrent, 'S15', 'node scratch.js', () => otherEdit(concurrent, 'src/a.mjs', 'export const a = 9;\n'));
   ok('KIT-T888: another session\'s Edit during a non-generator call is not blamed on the call', viaOther.status === 0 && !viaOther.stderr.includes('HAND WRITE'));
@@ -152,6 +158,33 @@ try {
   otherEdit(staleEdit, 'src/a.mjs', 'export const a = 7;\n');
   const afterEdit = call(staleEdit, 'S17', 'node scratch.js', () => rewrite(staleEdit, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
   ok('KIT-T888 control: an Edit recorded BEFORE the call does not excuse a hand write during it', afterEdit.status === 2 && afterEdit.stderr.includes('src/a.mjs'));
+
+  // The ledger is state any process of the user can write: a shell call that forges an entry must not buy its own exemption.
+  const forgedTurn = fresh();
+  const viaForgedTurn = call(forgedTurn, 'S18', 'node scratch.js', () => {
+    rewrite(forgedTurn, "fs.writeFileSync(p, 'export const a = 9;\\n')");
+    recordTurnWrite(gitRoot(forgedTurn), join(forgedTurn, 'src', 'a.mjs'), 'OTHER');
+  });
+  ok('KIT-T888 exploit: a shell-forged pre-write turn-ledger entry does not exempt a hand write', viaForgedTurn.status === 2 && viaForgedTurn.stderr.includes('src/a.mjs'));
+  const forgedHash = fresh();
+  const viaForgedHash = call(forgedHash, 'S19', 'node scratch.js', () => {
+    rewrite(forgedHash, "fs.writeFileSync(p, 'export const a = 9;\\n')");
+    recordToolWrite(gitRoot(forgedHash), 'src/a.mjs', 'not-the-content-hash');
+  });
+  ok('KIT-T888 exploit: an accepted-writes entry whose hash is not the file\'s content does not exempt', viaForgedHash.status === 2 && viaForgedHash.stderr.includes('src/a.mjs'));
+  const { contentHashOf } = await import('./lib/shell-snapshot.mjs');
+  const proven = fresh();
+  const viaProven = call(proven, 'S21', 'node scratch.js', () => {
+    rewrite(proven, "fs.writeFileSync(p, 'export const a = 9;\\n')");
+    recordToolWrite(gitRoot(proven), 'src/a.mjs', contentHashOf(proven, 'src/a.mjs'));
+  });
+  ok('KIT-T888 keying control: an accepted-writes entry with the right hash does exempt, so the forged cases above reach the ledger', viaProven.status === 0);
+  const overwritten = fresh();
+  const viaOverwrite = call(overwritten, 'S20', 'node scratch.js', () => {
+    otherEdit(overwritten, 'src/a.mjs', 'export const a = 7;\n');
+    rewrite(overwritten, "fs.writeFileSync(p, 'export const a = 9;\\n')");
+  });
+  ok('KIT-T888 control: a shell rewrite AFTER another writer\'s Edit changes the content, so the exemption lapses and it is flagged', viaOverwrite.status === 2 && viaOverwrite.stderr.includes('src/a.mjs'));
 
   const land = (d, files) => {
     for (const [rel, text] of Object.entries(files)) writeFileSync(join(d, rel), text);

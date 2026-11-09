@@ -42,6 +42,16 @@ const contentHash = (path, size) => {
   try { return size <= HASH_MAX_BYTES ? createHash('sha1').update(readFileSync(path)).digest('hex') : ''; } catch { return ''; }
 };
 
+/** The content hash of `rel` as it sits on disk now, '' when it is missing or too large to hash. */
+export const contentHashOf = (root, rel) => {
+  try {
+    const path = join(root, rel);
+    return contentHash(path, statSync(path).size);
+  } catch {
+    return '';
+  }
+};
+
 const signature = (root, rel) => {
   try {
     const path = join(root, rel);
