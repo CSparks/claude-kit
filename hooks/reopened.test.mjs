@@ -43,7 +43,8 @@ try {
   resume(OTHER, `finish ${TICKET}`);
   ok('negative: a SendMessage to a different agent does not take the handoff over', noticed(stop()));
   resume(AGENT, 'please continue, thanks');
-  ok('negative: a SendMessage that names no ticket does not take it over', noticed(stop()));
+  ok('KIT-T912: a SendMessage that names no ticket takes over the tickets the agent was dispatched for', quiet(stop()));
+  reset();
   resume(AGENT, `please look at ${ELSE_TICKET}`);
   ok('negative: a SendMessage naming a different ticket does not take it over', noticed(stop()));
 

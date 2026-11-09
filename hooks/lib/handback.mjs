@@ -54,12 +54,17 @@ function lanes(dir) {
 }
 const inLane = (dir, sub, job) => lanes(dir).some((d) => existsSync(join(d, sub, `${job}.json`)));
 
-// A finished line with no agent (a job submitted before the broker tagged them) belongs to the latest work-owning
-// row citing its ticket that started before the job finished.
-function untaggedClaims(root, rows, finished) {
+// The agent that submitted a finished job: the finished line's own tag, else the submission ledger's.
+const submitters = (ledger) => new Map(ledger.map((s) => [s.id, s.agent || null]));
+const agentOf = (f, byJob) => f.agent || byJob.get(f.job) || null;
+
+// A finished line with no agent and no ledger row (a job submitted before the broker recorded submissions) belongs to
+// the latest work-owning row citing its ticket that started before the job finished. A job the ledger holds with no
+// agent was submitted by the main thread and belongs to no worker.
+function untaggedClaims(root, rows, finished, byJob) {
   const claims = new Map();
   for (const f of finished) {
-    if (f.agent || !f.ticket) continue;
+    if (agentOf(f, byJob) || byJob.has(f.job) || !f.ticket) continue;
     const owners = rows.filter((r) => ownsWork(root, r) && (r.tickets || []).includes(f.ticket) && String(r.firstSeen || r.ts) <= f.ts);
     const owner = owners.sort((a, b) => String(b.firstSeen).localeCompare(String(a.firstSeen)))[0];
     if (owner) claims.set(owner.id, [...(claims.get(owner.id) || []), f]);
@@ -67,11 +72,11 @@ function untaggedClaims(root, rows, finished) {
   return claims;
 }
 
-function jobsOf(row, ledger, finished, claimed = []) {
+function jobsOf(row, ledger, finished, byJob, claimed = []) {
   const jobs = new Map();
   for (const f of claimed) jobs.set(f.job, { id: f.job, ticket: f.ticket, fin: f });
   for (const s of ledger) if (sameAgent(s.agent, row.id)) jobs.set(s.id, { id: s.id, ticket: s.ticket, submittedAt: s.submittedAt });
-  for (const f of finished) if (sameAgent(f.agent, row.id)) jobs.set(f.job, { ...jobs.get(f.job), id: f.job, ticket: jobs.get(f.job)?.ticket || f.ticket, fin: f });
+  for (const f of finished) if (sameAgent(agentOf(f, byJob), row.id)) jobs.set(f.job, { ...jobs.get(f.job), id: f.job, ticket: jobs.get(f.job)?.ticket || f.ticket, fin: f });
   return [...jobs.values()];
 }
 
@@ -128,10 +133,16 @@ function jobItem(root, dir, rows, row, job, acks, nowMs, { sessionId, autoAck })
   return { ...base, kind: 'job-lost', step, key: `job-lost:${job.id}` };
 }
 
-function workItems(root, rows, row, nowMs) {
+// Tickets with a submitted job still queued or running, whoever submitted it: their work is in progress.
+function liveTickets(dir, ledger, finished) {
+  const done = new Set(finished.map((f) => f.job));
+  return new Set(ledger.filter((s) => s.ticket && !done.has(s.id) && (inLane(dir, 'queue', s.id) || inLane(dir, 'results', s.id))).map((s) => s.ticket));
+}
+
+function workItems(root, rows, row, nowMs, live) {
   const out = [];
   for (const ticket of dispatchedTickets(row)) {
-    if (!openTicket(root, ticket) || succeeded(root, rows, row, ticket) || handoffClosed(root, ticket, row.id)) continue;
+    if (live.has(ticket) || !openTicket(root, ticket) || succeeded(root, rows, row, ticket) || handoffClosed(root, ticket, row.id)) continue;
     const handoff = hasHandoff(ticketNotes(root, ticket), row.id);
     const reopened = handoff || ABNORMAL.has(row.status) ? reopenState(root, row, ticket, { nowMs, since: retiredAt(row) }) : null;
     if (reopened === 'active') continue;
@@ -147,14 +158,16 @@ export function reconcileHandbacks(root, rows, { nowMs = Date.now(), sessionId =
   const finished = readFinished(dir);
   const acks = readAcks(dir);
   const ledger = readSubmissions(dir);
-  const claims = untaggedClaims(root, rows, finished);
+  const byJob = submitters(ledger);
+  const claims = untaggedClaims(root, rows, finished, byJob);
+  const live = liveTickets(dir, ledger, finished);
   const items = [];
   for (const row of rows) {
     if (!ENDED.has(row.status) || !recent(row, nowMs) || !ownsWork(root, row)) continue;
-    const jobs = jobsOf(row, ledger, finished, claims.get(row.id));
+    const jobs = jobsOf(row, ledger, finished, byJob, claims.get(row.id));
     const waiting = jobs.some((j) => !j.fin && (inLane(dir, 'queue', j.id) || inLane(dir, 'results', j.id)));
     let found = jobs.map((j) => jobItem(root, dir, rows, row, j, acks, nowMs, { sessionId, autoAck })).filter(Boolean);
-    if (!found.length && !waiting) found = workItems(root, rows, row, nowMs);
+    if (!found.length && !waiting) found = workItems(root, rows, row, nowMs, live);
     for (const item of found) items.push({ ...item, text: describe(item, row), retired: retiredAt(row) });
   }
   return applyQueued(root, rows, latestPerTicket(items));

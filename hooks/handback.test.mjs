@@ -68,6 +68,7 @@ try {
   ok('orient lists the same item under OPEN, awaiting a bill of work', /OPEN, awaiting a bill of work: ended workers[\s\S]*RESULT READY/.test(hook('orient.mjs', {}, d).out));
 
   ok('negative: reopening the agent with a SendMessage acknowledges its job and clears the item', reopen().code === 0 && silent(stop()));
+  rmSync(join(d, '.ai', 'reopened.jsonl'), { force: true });
 
   reset(); ledger(); finishedLine(30); result();
   ok('control: without the reopen the same state is still listed', noticed(stop()));
@@ -124,6 +125,14 @@ try {
   ok('negative control: a worker that ended normally with no Handoff and no job leaves nothing open', silent(stop()));
   ticket('doing', `## Notes\n\n### Handoff ${OLD}\n- Jobs: none\n- State: patch drafted\n- Next: submit it\n- Files: a.mjs\n`);
   ok('a Handoff on an open ticket with no job is listed as RETIRED WITH HANDOFF', /RETIRED WITH HANDOFF/.test(stop().out));
+  reopen();
+  ok('KIT-T912: a SendMessage that names no ticket still takes over the tickets the agent was dispatched for', silent(stop()));
+  rmSync(join(d, '.ai', 'reopened.jsonl'), { force: true });
+  ok('KIT-T912 control: without the resume the same Handoff is listed again', /RETIRED WITH HANDOFF/.test(stop().out));
+  reset(); ledger({ agent: null, submittedAt: at(5 * MINUTE_MS) }); writeFileSync(join(broker, 'queue', `${JOB}.json`), '{}');
+  ok('KIT-T912: a live broker job for the ticket means its work is in progress: no retirement is listed', silent(stop()));
+  reset();
+  ok('KIT-T912 control: with the job gone the Handoff is listed', /RETIRED WITH HANDOFF/.test(stop().out));
 
   reset(); ledger(); finishedLine(30); result();
   ok('a hand-back with a Handoff AND an unread result is listed as the result, not a retirement', (() => { const r = stop(); return noticed(r) && r.out.includes('RESULT READY') && !r.out.includes('RETIRED WITH HANDOFF'); })());
@@ -142,6 +151,14 @@ try {
   appendFileSync(join(broker, 'finished.log'), `${at(30 * MINUTE_MS)} ${JOB} landed agent=- ticket=${TICKET} landed=0123456789abcdef\n`);
   const untagged = stopResumable({ scope: 'claude-kit:patch-worker' });
   ok('a job finished before the broker tagged agents is attributed to the ticket\'s latest worker: RESULT READY, agent named', noticed(untagged) && untagged.out.includes(`RESULT READY: ${JOB}`) && untagged.out.includes(OLD));
+
+  reset(); roster(row({ scope: 'claude-kit:patch-worker' })); ledger({ agent: null }); finishedLine(30, 'landed', '-');
+  ok('KIT-T909: a finished job the ledger holds with no agent was a main-thread submit and is listed against no worker', silent(stop()));
+  reset(); ledger(); finishedLine(30, 'landed', '-');
+  const bySubmitter = stopResumable({ scope: 'claude-kit:patch-worker' });
+  ok('KIT-T909 control: a finished line with no agent is attributed to the agent the ledger names', noticed(bySubmitter) && bySubmitter.out.includes(`RESULT READY: ${JOB}`) && bySubmitter.out.includes(OLD));
+  reset(); roster(row({ scope: 'claude-kit:patch-worker' })); ledger({ agent: 'zzzzzzzzzzzzzzzzz' }); finishedLine(30, 'landed', '-');
+  ok('KIT-T909 control: a job the ledger gives to another agent is not this worker\'s', silent(stop()));
 
   reset(); roster(row()); ledger(); finishedLine(30); result();
   const stranded = stop();
