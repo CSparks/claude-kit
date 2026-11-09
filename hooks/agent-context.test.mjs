@@ -74,6 +74,12 @@ try {
   ok('negative: an agent working in another checkout owns no ticket of this store', dispatch('Continue KIT-T903').code === 0);
   ok('a writer working in this checkout with no handoff still blocks', dispatch('Continue KIT-T904').code === 2);
 
+  // a read-only dispatch replaces no writer (KIT-T918)
+  const as = (type, prompt) => hook('dispatch-guard.mjs', { tool_name: 'Agent', tool_input: { subagent_type: type, model: 'sonnet', description: 'x', prompt: `${prompt} [job: fix] [model-override: fixture] [escalate: fixture]` } }, d, { CLAUDE_KIT_LADDER_ROOT: KIT });
+  ok('a read-only agent type (Plan) citing a writer\'s ticket passes', as('Plan', 'Design from KIT-T904').code === 0);
+  ok('a writer type tagged [read-only: reason] citing it passes', as('general-purpose', 'Read KIT-T904 [read-only: design only]').code === 0);
+  ok('negative: the same writer dispatch untagged still blocks', as('general-purpose', 'Continue KIT-T904').code === 2);
+
   // only open tickets need the handoff (KIT-T818)
   const withStatus = (t, status, notes = 'nothing yet\n') => writeFileSync(join(d, '.ai', 'tickets', `${t}-thing.md`), `---\nid: ${t}\nstatus: ${status}\n---\n\n## Notes\n\n${notes}`);
   withStatus('KIT-T904', 'review');

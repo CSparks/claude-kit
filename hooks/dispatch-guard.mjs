@@ -25,7 +25,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, partitionAgents } from './lib.mjs';
 import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
-import { readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
+import { declaredReadOnly, ownsWork, readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
 import { ladderRoot } from '../scripts/dispatch-ladder.mjs';
 import { capabilityStatus } from '../scripts/model-lineup.mjs';
 import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
@@ -92,7 +92,7 @@ try {
     conformanceCheck(root, input, prompt, p),
     uiCheck(root, input, prompt, p),
     briefCheck(root, input, prompt, p),
-    handoffCheck(root, prompt, p),
+    handoffCheck(root, input, prompt, p),
   ].filter(Boolean);
   if (!blocks.length) {
     registerWriterDispatch(root, input, prompt, p);
@@ -247,8 +247,10 @@ function briefCheck(root, input, prompt, p) {
 }
 
 // --- handoff-before-replace (KIT-D116) --------------------------------------------
-function handoffCheck(root, prompt, p) {
+// A read-only dispatch replaces no writer; only a dispatch owning ticket work takes one over.
+function handoffCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, HANDOFF_CHECK, root)) return null;
+  if (!ownsWork(root, { scope: label(input), readOnly: declaredReadOnly(prompt) })) return null;
   return handoffBlock({ root, prompt, footer: excludeFooter(HANDOFF_CHECK) });
 }
 
