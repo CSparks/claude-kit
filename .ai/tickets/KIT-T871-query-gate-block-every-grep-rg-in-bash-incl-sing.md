@@ -32,3 +32,6 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 - [2026-11-09 23:14] (status) todo → superseded (by KIT-T919)
 - [2026-11-09 23:14] (unlink) superseded_by KIT-T919; status superseded → todo
 - [2026-11-09 23:15] (status) todo → review
+- [2026-11-09 23:49] (comment) @kit-agent: Built (5d08f44): store item searches, globs and item reads piped into a search block, naming q show/q inbox/Read. Remain (full comment #1 in ## Notes)
+### comment #1 [2026-11-09 23:49] @kit-agent
+Built (5d08f44): store item searches, globs and item reads piped into a search block, naming q show/q inbox/Read. Remaining: block pipe and single-file grep outside the item store (KIT-D134 full scope) and the same-turn end-around detector. KIT-T919 closed as its duplicate.

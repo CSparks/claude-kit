@@ -1,6 +1,6 @@
 {
   "name": "claude-kit",
-  "version": "0.1.34",
+  "version": "0.1.35",
   "description": "A repeatable, context-durable workflow for Claude Code and Codex: capture fast, defer by default, surface the queue for the maintainer's signed bill of work, and preserve working state across compaction.",
   "author": {
     "name": "Chris Sparks",

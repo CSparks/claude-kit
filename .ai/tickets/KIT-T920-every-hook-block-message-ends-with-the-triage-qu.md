@@ -30,3 +30,5 @@ first seen in groovegrid. Filed automatically (KIT-T286): every kit bug is a tic
 ## History
 - [2026-11-09 23:06] (created) feature — Every hook block message ends with the triage question 'process failure or kit bug?' (process failure: name the prevention; kit bug: ticket
 - [2026-11-09 23:29] (status) todo → review
+- [2026-11-09 23:30] (landed) f53b948 block triage as a global principle: KIT-D154 (every agent says "process failure or kit bug?" on any hook block); the lin
+- [2026-11-09 23:49] (comment) @kit-agent: Plugin 0.1.35 bump needed for the agent-definition triage section and the tool-write-record hook wiring to reach sessions (plugin cache refresh).
