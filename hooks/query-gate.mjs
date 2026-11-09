@@ -11,7 +11,8 @@
 //   - a recursive / tree-wide source search (discovery) -> BLOCK, hand back code-graph
 //
 // ALLOWED (the maintainer's rule — grep is fine when you know exactly where + what):
-//   - a targeted grep of a SPECIFIC named file
+//   - a targeted grep of a SPECIFIC named non-store file, or a config/state file under .ai
+//   - a plain read (cat, head, sed line range) of ONE named store item file (the Read tool's case)
 //   - piped filtering of a command's OUTPUT (`q sql ... | grep x`, `git log | grep y`)
 //
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fail-open on any error.
@@ -20,6 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
 import { commandLeads } from './lib/command-leads.mjs';
+import { hasGlob, isItemPath, isPatternSearch, itemEquivalent } from './lib/store-search.mjs';
 import { indexEquivalent } from './lib/index-answerable.mjs';
 import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
@@ -122,10 +124,12 @@ async function main() {
     process.stderr.write(`\nBLOCKED: a search command cannot be judged (retrieval gate). ${AMBIGUOUS_MESSAGE}\n${excludeFooter('source-discovery')}`);
     process.exit(2);
   }
+  let feedsFromItem = false; // the previous segment read an item file, so a piped search filters it
   for (const { text, after } of parts) {
     const c = text.trim();
     if (!c) continue;
-    const verdict = judge(c, after === '|');
+    const verdict = (after === '|' && feedsFromItem && leadsSearch(c)) ? { id: 'store-grep', msg: storeMsg(c) } : judge(c, after === '|');
+    feedsFromItem = readsItemFile(c);
     if (verdict) {
       // KIT-T051 exclusion: a path glob under the verdict's check-id in
       // .claude-kit-ignore.yaml lets a command through (e.g. allow grepping a generated
@@ -137,6 +141,12 @@ async function main() {
     }
   }
   process.exit(0);
+}
+
+function readsItemFile(c) {
+  const tok = c.split(/\s+/).filter(Boolean);
+  const tool = (tok[0] || '').replace(/.*[\\/]/, '').toLowerCase();
+  return (READ.test(tool) || tool === 'sed') && tok.slice(1).some((a) => STORE.test(a) && isItemPath(a));
 }
 
 // True iff any path-ish argument in the command is excluded from `id` by a config glob.
@@ -196,8 +206,11 @@ function judge(c, piped = false) {
     const storeFiles = positionals.filter((a) => STORE.test(a) && FILEISH.test(a));
     // ONE specific named file (no find, no recursion) — read/grep it directly; q can't return its raw
     // form. Discovery (find, recursion, a store dir, a glob, or >1 concrete file) stays q's to answer.
-    const oneNamedFile = !isFind && !RECURSIVE_FLAG.test(c) && storeFiles.length === 1;
-    if (!oneNamedFile) return { id: 'store-grep', msg: storeMsg(c) };
+    const oneNamedFile = !isFind && !RECURSIVE_FLAG.test(c) && storeFiles.length === 1 && !hasGlob(storeFiles[0]);
+    // A pattern search of an ITEM file is q's whatever the file count (KIT-T871, KIT-D134); a plain read passes.
+    const itemFile = positionals.find((a) => STORE.test(a) && isItemPath(a));
+    const searchesItem = itemFile && isPatternSearch(tool, tok.slice(gitGrep ? 2 : 1), gitGrep);
+    if (!oneNamedFile || searchesItem) return { id: 'store-grep', msg: storeMsg(c, itemFile) };
   }
 
   // RULE 2 — discovery search of the source tree belongs to the code graph.
@@ -243,16 +256,18 @@ function exactLine(c, verb) {
   return [`Exact equivalent:  node "${Q}" ${verb} ${quoted}${verb === 'code' ? '   (add --lang L --path P as needed)' : ''}`, ''];
 }
 
-function storeMsg(c) {
+function storeMsg(c, itemPath) {
+  const show = itemPath && itemEquivalent(itemPath, Q);
   return [
     '',
     'BLOCKED: searching the .ai work store with a text tool.',
     `  ${trunc(c)}`,
     '',
-    ...exactLine(c, 'fts'),
+    ...(show ? [`Exact equivalent:  ${show}`, ''] : exactLine(c, 'fts')),
     'Query the work graph instead — it knows the links/history a grep is blind to:',
     `  node "${Q}" governing <path>     # OPEN tickets/decisions governing a file`,
     `  node "${Q}" trail <id>           # walk UP an id to its governing decisions/origin`,
+    `  node "${Q}" show <id>            # one item, whole, by id`,
     `  node "${Q}" fts <terms...>       # full-text search title+body across stores`,
     `  node "${Q}" open [scope]         # open items (todo|doing|review)`,
     `  node "${Q}" inbox [scope]        # untriaged captures, with age + file path`,
@@ -263,8 +278,8 @@ function storeMsg(c) {
     'This gate is the enforcement, not memory. (Read the q output, not the files.)',
     'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it. Never',
     'silently fall back to grep (KIT-T236).',
-    'For ONE specific config/state file (e.g. config.yml, SESSION.md) read it directly with the Read',
-    'tool — q does not index those; it is for tickets/decisions/questions.',
+    'For ONE specific config/state file (e.g. config.yml, SESSION.md), or one item file read whole, use the',
+    'Read tool — q does not index config/state. A glob or a pattern search is q\'s, never a text tool.',
     '',
   ].join('\n');
 }

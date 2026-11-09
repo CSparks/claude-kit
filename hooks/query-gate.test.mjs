@@ -62,7 +62,28 @@ expect('allows find -name *.ts (filename lookup is Glob, not code-graph)', run(d
 expect('allows find over an ASSET dir (the lived FP: dead-ended to code-graph)', run(d, "find assets/meshes -name '*raider*'").code, 0);
 expect('allows cat of ONE named decision ITEM file (q has no raw shape/next-id)', run(d, 'cat .ai/decisions/HOD-D004.md').code, 0);
 expect('allows sed-paginate of ONE named ticket ITEM file', run(d, 'sed -n 1,5p .ai/tickets/KIT-T001.md').code, 0);
-expect('allows a single-file grep of a store item file (targeted, you know where)', run(d, 'grep uat .ai/tickets/KIT-T001.md').code, 0);
+// KIT-T871 / KIT-D134: a pattern search of an ITEM file is q's (q show / q fts), a glob is never one file,
+// and a plain read of one named file stays the Read-tool case. Config/state single-file greps still pass.
+expect('KIT-T871: blocks a single-file grep of a store item file (q show answers it)', run(d, 'grep uat .ai/tickets/KIT-T001.md').code, 2);
+expect('KIT-T919: blocks grep -n -i -A25 over a ticket glob', run(d, 'grep -n -i -A25 "Handoff" .ai/tickets/GG-T190*.md').code, 2);
+expect('KIT-T919: blocks grep -c over a ticket glob', run(d, 'grep -c "Handoff B2-lane-reuse" .ai/tickets/GG-T190*.md').code, 2);
+expect('KIT-T919: blocks sed -n over an inbox glob', run(d, 'sed -n 1,40p .ai/inbox/*2026-11-09-2142*').code, 2);
+expect('KIT-T871: blocks sed -n over a glob that ends in .md', run(d, 'sed -n 1,40p .ai/tickets/GG-T190*.md').code, 2);
+expect('KIT-T871: blocks a sed pattern search of one named item file', run(d, "sed -n '/Handoff/p' .ai/tickets/KIT-T001.md").code, 2);
+expect('KIT-T871: blocks an awk search of one named item file', run(d, "awk '/uat/' .ai/decisions/KIT-D001.md").code, 2);
+expect('KIT-T871: blocks cat of an item file piped into grep', run(d, 'cat .ai/tickets/KIT-T001.md | grep uat').code, 2);
+expect('KIT-T871: blocks sed -n range piped into grep', run(d, 'sed -n 1,40p .ai/tickets/KIT-T001.md | grep uat').code, 2);
+expect('KIT-T871: blocks Select-String over an item file', run(d, 'Select-String -Path .ai/tickets/KIT-T001.md -Pattern uat').code, 2);
+expect('KIT-T871 negative control: a plain cat of ONE named item file passes (Read-tool case)', run(d, 'cat .ai/tickets/KIT-T001.md').code, 0);
+expect('KIT-T871 negative control: a sed line-range read of ONE named item file passes', run(d, 'sed -n 1,40p .ai/tickets/KIT-T001.md').code, 0);
+expect('KIT-T871 negative control: a filter over git output naming "tickets" passes', run(d, 'git log | grep tickets').code, 0);
+expect('KIT-T871 negative control: a grep of a non-store notes dir passes', run(d, 'grep todo src/notes/api.md').code, 0);
+{
+  const idBlock = run(d, 'grep -c "Handoff" .ai/tickets/GG-T190*.md').err;
+  expect('KIT-T871: the block names q show for the item id', /q\.mjs" show GG-T190\b/.test(idBlock), true);
+  expect('KIT-T871: the block points a single file at the Read tool', /Read tool/.test(idBlock), true);
+  expect('KIT-T871: an inbox block names q inbox', /Exact equivalent:\s+node "[^"]+q\.mjs" inbox/.test(run(d, 'sed -n 1,40p .ai/inbox/*2026-11-09-2142*').err), true);
+}
 expect('allows a heredoc/redirect WRITE whose body names a store path (memory-file FP)',
   run(d, "cat >> memory.md <<'EOF'\nsee .ai/decisions/HOD-D004.md\nEOF").code, 0);
 expect('allows the ls+cat store-format lookup (the 4th over-block)',
