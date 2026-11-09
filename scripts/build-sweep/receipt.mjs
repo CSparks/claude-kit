@@ -61,6 +61,7 @@ export function formatReceipt(r, top = TOP_REPOS) {
   for (const [name, s] of repos) lines.push(`  ${name}: ${s.removed} item(s), ${gb(s.bytes)} GB`);
   if (r.unverified) lines.push(`  ${r.unverified} build dir(s) left alone: no cargo signature plus .fingerprint`);
   for (const u of r.unverifiedDirs || []) lines.push(`  unverified: ${u.dir} (${gb(u.bytes)} GB)`);
+  for (const h of r.held || []) lines.push(`  held: ${h.dir} ${gb(h.bytes)} GB${h.reason ? ` (${h.reason}${h.date ? `, ${h.date}` : ''})` : ''}`);
   for (const s of r.skipped) lines.push(`  skipped ${s.repo}: ${s.reason}`);
   return lines;
 }

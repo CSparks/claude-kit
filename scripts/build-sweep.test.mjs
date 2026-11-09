@@ -10,7 +10,8 @@ import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findBuildDirs } from './build-sweep/discover.mjs';
 import { parseName, staleItems } from './build-sweep/generations.mjs';
-import { lastReceipt } from './build-sweep/receipt.mjs';
+import { heldBy, readHolds } from './build-sweep/holds.mjs';
+import { formatReceipt, lastReceipt } from './build-sweep/receipt.mjs';
 import { launchdPlist, windowsRegisterScript } from './build-sweep/schedule.mjs';
 import { sweep } from './build-sweep/sweep.mjs';
 
@@ -286,6 +287,27 @@ ok('the untagged primary target is pruned: its older generation goes, the newest
 ok('the unverified dir is left alone and the receipt names it with its size', existsSync(join(stray, 'deps', `libserde-${H.a}.rlib`)) && untaggedReceipt.unverified === 1
   && untaggedReceipt.unverifiedDirs.length === 1 && untaggedReceipt.unverifiedDirs[0].dir === 'stray-build' && untaggedReceipt.unverifiedDirs[0].bytes > 0);
 rmSync(untagged, { recursive: true, force: true });
+
+// KIT-T911: a held build dir is never pruned and is reported with its size
+const heldRoot = mkdtempSync(join(tmpdir(), 'sweep-held-'));
+const heldTarget = join(heldRoot, 'proj', 'target', 'debug');
+put(join(heldRoot, 'proj', 'Cargo.toml'), 30);
+dep(heldTarget, 'serde', H.a, 20);
+dep(heldTarget, 'serde', H.b, 1);
+fingerprint(heldTarget, 'serde', H.a, 20);
+settleDirs(heldRoot);
+const holdFile = join(home, 'build-sweep-holds.txt');
+writeFileSync(holdFile, `# holds\n${join(heldRoot, 'proj', 'target')} | waiting on the maintainer | 2026-11-09\n`);
+same('readHolds parses path, reason and date and skips comments', readHolds(holdFile), [{ dir: join(heldRoot, 'proj', 'target'), reason: 'waiting on the maintainer', date: '2026-11-09' }]);
+ok('heldBy covers the held dir and what is under it, not a sibling', !!heldBy(join(heldRoot, 'proj', 'target', 'debug'), readHolds(holdFile)) && !heldBy(join(heldRoot, 'proj', 'target-x'), readHolds(holdFile)));
+const heldReceipt = sweep(heldRoot, { now: NOW, snapshot: { commands: [] } });
+ok('a held verified build dir is not pruned: both generations stay', existsSync(join(heldTarget, 'deps', `libserde-${H.a}.rlib`)) && existsSync(join(heldTarget, 'deps', `libserde-${H.b}.rlib`)) && heldReceipt.removed === 0);
+ok('the receipt reports it as held with its size, reason and date, and prints "held:"', heldReceipt.held.length === 1 && heldReceipt.held[0].bytes > 0 && heldReceipt.held[0].reason === 'waiting on the maintainer'
+  && formatReceipt(heldReceipt).some((l) => l.startsWith('  held: proj/target ')));
+rmSync(holdFile);
+const freeReceipt = sweep(heldRoot, { now: NOW, snapshot: { commands: [] } });
+ok('control: with the hold removed the same dir is pruned', !existsSync(join(heldTarget, 'deps', `libserde-${H.a}.rlib`)) && freeReceipt.held.length === 0);
+rmSync(heldRoot, { recursive: true, force: true });
 
 // scheduler artifacts
 const ps = windowsRegisterScript();

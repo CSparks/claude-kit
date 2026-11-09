@@ -6,12 +6,14 @@
 // generations in deps/, .fingerprint/, build/, incremental/ (the newest generation of each crate
 // always survives). A build dir that may be deleted whole (safety.mjs) and has had nothing
 // modified anywhere inside it for IDLE_DAYS goes whole. A repo with cargo running against it or a
-// live broker lock is skipped. Unverified build dirs are never touched; the receipt lists each with its size.
+// live broker lock is skipped. A build dir on the hold list (holds.mjs) is never touched and is reported as held with
+// its size. Unverified build dirs are never touched; the receipt lists each with its size.
 
 import { existsSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { allProfiles, findBuildDirs, sweepableProfiles } from './discover.mjs';
 import { processSnapshot, skipReason } from './guard.mjs';
+import { heldBy, readHolds } from './holds.mjs';
 import { planProfile, removeAll, touchedSince, treeSize } from './prune.mjs';
 import { wholeDirBlocker } from './safety.mjs';
 
@@ -27,6 +29,11 @@ const flatten = (b) => [b, ...b.lanes.flatMap(flatten)];
 
 function sweepBuild(b, ctx, tally, parent = null) {
   for (const lane of b.lanes) sweepBuild(lane, ctx, tally, b);
+  const hold = heldBy(b.dir, ctx.holds);
+  if (hold) {
+    ctx.receipt.held.push({ dir: relative(ctx.root, b.dir).split(sep).join('/') || b.dir, bytes: treeSize(b.dir), reason: hold.reason, date: hold.date });
+    return;
+  }
   if (!b.cargo) {
     ctx.receipt.unverified += 1;
     ctx.receipt.unverifiedDirs.push({ dir: relative(ctx.root, b.dir).split(sep).join('/') || b.dir, bytes: treeSize(b.dir) });
@@ -40,7 +47,7 @@ function sweepBuild(b, ctx, tally, parent = null) {
   for (const profile of sweepableProfiles(b)) tally(removeAll(planProfile(profile), ctx.dryRun), false);
 }
 
-export function sweep(root, { dryRun = false, now = Date.now(), snapshot = processSnapshot() } = {}) {
+export function sweep(root, { dryRun = false, now = Date.now(), snapshot = processSnapshot(), holds = readHolds() } = {}) {
   const builds = findBuildDirs(root);
   const byRepo = new Map();
   for (const b of builds) {
@@ -50,7 +57,7 @@ export function sweep(root, { dryRun = false, now = Date.now(), snapshot = proce
   const receipt = {
     at: new Date(now).toISOString(), root, dryRun, buildDirs: builds.flatMap(flatten).length,
     profiles: builds.reduce((n, b) => n + allProfiles(b).length, 0),
-    removed: 0, wholeDirs: 0, bytes: 0, failed: 0, unverified: 0, unverifiedDirs: [], repos: {}, skipped: [],
+    removed: 0, wholeDirs: 0, bytes: 0, failed: 0, unverified: 0, unverifiedDirs: [], held: [], repos: {}, skipped: [],
   };
   for (const [repo, list] of byRepo) {
     const reason = skipReason(repo, list, snapshot, root);
@@ -68,7 +75,7 @@ export function sweep(root, { dryRun = false, now = Date.now(), snapshot = proce
       receipt.failed += r.failed;
       if (whole) receipt.wholeDirs += r.count;
     };
-    for (const b of list) sweepBuild(b, { now, dryRun, root, receipt }, tally);
+    for (const b of list) sweepBuild(b, { now, dryRun, root, receipt, holds }, tally);
   }
   return receipt;
 }
