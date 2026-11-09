@@ -187,6 +187,28 @@ test('a compile error is never attributed', () => {
   } finally { s.done(); }
 });
 
+test('KIT-T913: a test the job names in its own command is never foreign, even when it is red without the patch', () => {
+  const s = fixture();
+  try {
+    const named = run(s, `${suite()} -- a_foreign`);
+    assert.equal(named.status, 'failed');
+    assert.deepEqual(named.commands[0].namedRed.map((f) => f.test), ['a_foreign']);
+    assert.equal(named.commands[0].foreign, undefined);
+    const lines = []; printResult(named, (l) => lines.push(l));
+    assert.ok(lines.some((l) => l.includes('still red (also red at HEAD)') && l.includes('a_foreign')));
+    assert.equal(run(s, suite()).status, 'passed', 'control: the same red test the job did not name stays foreign');
+  } finally { s.done(); }
+});
+
+test('KIT-T913: a job selecting a test binary owns every failure in it; a filter naming another test does not', () => {
+  const log = join(tempDir('attr-named-'), 'b.log');
+  writeFileSync(log, 'test a_foreign ... FAILED\n');
+  const attributed = (cmd) => attribute({ command: { cmd, ...diagnose(LIBTEST_FAILED_RUN) }, runBaseline: () => log });
+  assert.deepEqual([attributed('cargo test -p editor --test crossing_continuity').named.length, attributed('cargo test -p editor --test crossing_continuity').foreign.length], [1, 0]);
+  assert.deepEqual([attributed('cargo test -p editor -- other_test').named.length, attributed('cargo test -p editor -- other_test').foreign.length], [0, 1]);
+  assert.equal(attributed('cargo test -p editor').named.length, 0);
+});
+
 test('a dirty file the patch does not touch keeps its exact bytes through the baseline run', () => {
   const s = fixture();
   try {

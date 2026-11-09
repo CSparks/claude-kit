@@ -64,6 +64,15 @@ test('negative control: a passing command prints only its exit, metrics and log 
   });
 });
 
+test('KIT-T913: a named test red at HEAD prints "still red (also red at HEAD)" and its failure, not "foreign"', () => {
+  withLog(LOG, (log) => {
+    const lines = commandSummary({ ...failedCommand(log), namedRed: [{ test: 'beta::deep', reason: 'assertion failed' }] });
+    assert.ok(lines.some((l) => l.includes('still red (also red at HEAD): beta::deep')));
+    assert.ok(!lines.some((l) => l.includes('foreign')));
+    assert.ok(lines.some((l) => l.includes('failed test: beta::deep')));
+  });
+});
+
 test('panicLine is empty for a test the log does not mention', () => {
   assert.equal(panicLine(LOG.split('\n'), 'gamma'), '');
 });

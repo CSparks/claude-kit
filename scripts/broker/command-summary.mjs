@@ -34,6 +34,7 @@ export function panicLine(logLines, name) {
 export function commandSummary(c, { readLog = readText } = {}) {
   const out = [`  $ ${c.composed || c.cmd}  → exit ${c.exit} (${c.durationMs}ms)`];
   for (const f of c.foreign || []) out.push(`    foreign (also fails without the patch): ${f.test} — ${f.reason}`);
+  for (const f of c.namedRed || []) out.push(`    still red (also red at HEAD): ${f.test} — ${f.reason}`);
   if (c.unattributed) out.push(`    ${c.unattributed}`);
   for (const f of c.suspect || []) out.push(`    ${f.reason}: ${f.test}`);
   const logLines = c.log ? readLog(c.log).split(/\r?\n/) : [];

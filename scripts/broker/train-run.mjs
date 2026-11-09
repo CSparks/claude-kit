@@ -45,6 +45,10 @@ export function runTrainCommands(cfg, { id, repo, cwd, commands, nextLog, baseli
       entry.caused = attributed.caused;
       return { entries, failing: entry };
     }
+    if (attributed.named.length) {
+      entry.namedRed = attributed.named;
+      return { entries, failing: entry };
+    }
     entry.foreign = attributed.foreign;
     addDeferred(cfg, attributed.foreign.map((f) => ({ ...f, cmd: entry.cmd, repo, job: id, dirty: attributed.dirty, head: attributed.head })));
   }

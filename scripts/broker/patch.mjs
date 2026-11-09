@@ -64,6 +64,7 @@ function runCommands(cfg, job, cwd, hooks) {
     const attributed = hooks.baseline((run) => attribute({ command: entry, runBaseline: (cmd) => run(cmd, `${n}-base`) }));
     if (attributed && attributed.skipped) entry.unattributed = attributed.skipped;
     if (!attributed || attributed.skipped || attributed.caused.length) break;
+    if (attributed.named.length) { entry.namedRed = attributed.named; break; }
     entry.foreign = attributed.foreign;
     addDeferred(cfg, attributed.foreign.map((f) => ({ ...f, cmd: entry.cmd, repo: job.repo, job: job.id, dirty: attributed.dirty, head: attributed.head })));
   }

@@ -5,11 +5,13 @@
 // `baselineCommand(cmd, names)` builds the filtered command from the job's own: nextest gets
 // `-E "test(=a) or test(=b)"`, anything else the libtest form `-- --exact a b`. Double quotes
 // only — cmd.exe is the shell on Windows.
-// `attribute({ command, log, runBaseline })` → { foreign: [{ test, reason }], caused: [name] }
-// or null when the failure is not attributable (a build error, or no named tests).
+// `attribute({ command, log, runBaseline })` → { foreign: [{ test, reason }], named: [{ test, reason }], caused: [name] }
+// or null when the failure is not attributable (a build error, or no named tests). `named` holds the tests red at the
+// baseline too that the job's own command names (named-tests.mjs): they decide the job's verdict, never foreign.
 
 import { readFileSync } from 'node:fs';
 import { diagnose, testKey } from './diagnose.mjs';
+import { namedFailure } from './named-tests.mjs';
 
 // The job's own nextest filter is dropped: it may name a binary only the patch adds, which
 // nextest rejects at base, and the failed-test filter replaces it.
@@ -47,8 +49,10 @@ export function attribute({ command, runBaseline }) {
   const failedBase = keys(seen.failed);
   const passedBase = keys(seen.passed);
   if (failures.some((f) => !failedBase.has(testKey(f)) && !passedBase.has(testKey(f)))) return null;
+  const redAtBase = failures.filter((f) => failedBase.has(testKey(f))).map((f) => ({ ...f, reason: reasonFor(log, f.test) }));
   return {
-    foreign: failures.filter((f) => failedBase.has(testKey(f))).map((f) => ({ ...f, reason: reasonFor(log, f.test) })),
+    foreign: redAtBase.filter((f) => !namedFailure(command.cmd, f)),
+    named: redAtBase.filter((f) => namedFailure(command.cmd, f)),
     caused: failures.filter((f) => !failedBase.has(testKey(f))).map((f) => f.test),
   };
 }
