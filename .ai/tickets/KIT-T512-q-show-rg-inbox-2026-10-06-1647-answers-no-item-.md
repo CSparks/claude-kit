@@ -2,14 +2,14 @@
 id: KIT-T512
 title: q show RG-INBOX-2026-10-06-1647 answers 'no item' although q fts lists that id (inbox ids are listed but not showable; analyst a2d4a809, 202
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:
 labels: [kit-bug]
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T922
 created: 2026-10-15T15:29:30Z
 updated: 2026-10-15T15:29:30Z
 ---
@@ -29,3 +29,5 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 
 ## History
 - [2026-10-15 15:29] (created) bug — q show RG-INBOX-2026-10-06-1647 answers 'no item' although q fts lists that id (inbox ids are listed but not showable; analyst a2d4a809, 202
+- [2026-11-09 23:33] (status) todo → superseded (by KIT-T922)
+- [2026-11-09 23:33] (comment) @kit-agent: Duplicate of KIT-T922: q show now resolves the synthetic <KEY>-INBOX/-QUESTIONS ids the cache lists (full id or prefix).

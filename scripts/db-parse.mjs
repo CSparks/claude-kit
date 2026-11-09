@@ -62,7 +62,7 @@ const NUM_FROM_ID = (id) => {
 // collides with a real <SCOPE>-<TYPE><NUM> id (no trailing-number-only form; the store segment
 // is a word, not a single type letter). NUM_FROM_ID returns null for these (no counter), so
 // they never perturb next-id allocation.
-function synthId(scope, store, file) {
+export function synthId(scope, store, file) {
   const stem = basename(file, extname(file));
   return `${scope}-${store.toUpperCase()}-${stem}`;
 }

@@ -5,17 +5,27 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { hydrationSources } from './hydrate-db.mjs';
+import { synthId } from './db-parse.mjs';
+import { readIdConfig } from './id-utils.mjs';
 import { frameworkStores } from './q-framework.mjs';
 import { landedLine } from './landed.mjs';
 import { askedLabel } from './question-asks.mjs';
 
 const STORES = ['tickets', 'tickets/archive', 'decisions', 'notes', 'questions', 'inbox', 'epics'];
 
+// The id `q fts` lists for an id-less file (an inbox capture, a questions file): the cache's synthetic id.
+// `id` names it whole or as a prefix ending at a `-` boundary.
+const isSyntheticMatch = (key, store, name, id) => {
+  const synth = synthId(key || 'X', store.split('/')[0], name);
+  return synth === id || synth.startsWith(`${id}-`);
+};
+
 function findIn(aiDir, id) {
+  const { key } = readIdConfig(null, aiDir);
   for (const store of STORES) {
     let names;
     try { names = readdirSync(join(aiDir, store)); } catch { continue; }
-    const hit = names.find((n) => n.endsWith('.md') && (n === `${id}.md` || n.startsWith(`${id}-`)));
+    const hit = names.find((n) => n.endsWith('.md') && (n === `${id}.md` || n.startsWith(`${id}-`) || isSyntheticMatch(key, store, n, id)));
     if (hit) return join(aiDir, store, hit);
   }
   return null;
