@@ -133,6 +133,26 @@ try {
   const toNull = call(piped, 'S11', 'cat src/b.mjs 2>/dev/null | head -1 > src/a.mjs', () => rewrite(piped, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
   ok('KIT-T735 control: a benign redirect does not hide a real file redirect', toNull.status === 2);
 
+  // KIT-T888: another session's Edit or Write landing during a non-generator call is that tool's write.
+  const otherEdit = (d, rel, text) => {
+    spawnHook('pre-write.mjs', { session_id: 'OTHER', tool_input: { file_path: join(d, rel), content: text } }, d);
+    writeFileSync(join(d, rel), text);
+  };
+  const concurrent = fresh();
+  const viaOther = call(concurrent, 'S15', 'node scratch.js', () => otherEdit(concurrent, 'src/a.mjs', 'export const a = 9;\n'));
+  ok('KIT-T888: another session\'s Edit during a non-generator call is not blamed on the call', viaOther.status === 0 && !viaOther.stderr.includes('HAND WRITE'));
+  ok('KIT-T888: the call\'s session is not held to the other writer\'s file at commit', !commit(concurrent, 'S15', ['src/a.mjs']).out.includes('KIT-T706'));
+  const both = fresh();
+  const viaBoth = call(both, 'S16', 'node scratch.js', () => {
+    otherEdit(both, 'src/b.mjs', 'export const b = 9;\n');
+    rewrite(both, "fs.writeFileSync(p, 'export const a = 9;\\n')");
+  });
+  ok('KIT-T888 control: a true hand write beside a concurrent Edit is still flagged, the other writer\'s file is not', viaBoth.status === 2 && viaBoth.stderr.includes('src/a.mjs') && !viaBoth.stderr.includes('src/b.mjs'));
+  const staleEdit = fresh();
+  otherEdit(staleEdit, 'src/a.mjs', 'export const a = 7;\n');
+  const afterEdit = call(staleEdit, 'S17', 'node scratch.js', () => rewrite(staleEdit, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
+  ok('KIT-T888 control: an Edit recorded BEFORE the call does not excuse a hand write during it', afterEdit.status === 2 && afterEdit.stderr.includes('src/a.mjs'));
+
   const land = (d, files) => {
     for (const [rel, text] of Object.entries(files)) writeFileSync(join(d, rel), text);
     git(['add', '-A'], d);

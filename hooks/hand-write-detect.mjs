@@ -4,16 +4,17 @@
 // call created, changed or deleted joins the session's hand-write ledger, and commit-gate refuses it until
 // Edit or Write re-saves it (pre-write judges length, comments and literals there). The call's command is
 // never parsed to find the write; only a generator command (git, a build tool, a formatter, a kit verb) is
-// exempt. Check-id source-shell-write. Post exits 2 to show the message. No-ops on unadopted repos; fails open.
+// exempt, and so is a file an Edit or Write of any session recorded during the call: that is another writer's
+// concurrent edit, judged by pre-write, never the call's (KIT-T888). Check-id source-shell-write. Post exits 2 to show the message. No-ops on unadopted repos; fails open.
 
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { clearTurnState, readTurnState, writeTurnState } from './lib/turn-state.mjs';
 import { snapshotDirty, handWrittenSources, headOf } from './lib/shell-snapshot.mjs';
 import { addHandWrites } from './lib/hand-writes.mjs';
+import { turnWrites } from './turn-writes.mjs';
 
 const CHECK = 'source-shell-write';
-const SHOWN_MAX = 10;
-const slotOf = (sid, id) => `hwsnap-${String(sid).replace(/[^A-Za-z0-9_-]/g, '_')}-${String(id).replace(/[^A-Za-z0-9_-]/g, '_')}`;
+const SHOWN_MAX = 10;const slotOf = (sid, id) => `hwsnap-${String(sid).replace(/[^A-Za-z0-9_-]/g, '_')}-${String(id).replace(/[^A-Za-z0-9_-]/g, '_')}`;
 
 try {
   const p = await payload();
@@ -24,7 +25,7 @@ try {
   const isPost = p.hook_event_name === 'PostToolUse' || (p.hook_event_name === undefined && p.tool_response !== undefined);
 
   if (!isPost) {
-    writeTurnState(root, { files: snapshotDirty(root), head: headOf(root) }, slot);
+    writeTurnState(root, { files: snapshotDirty(root), head: headOf(root), ts: Date.now() }, slot);
     process.exit(0);
   }
 
@@ -32,7 +33,10 @@ try {
   clearTurnState(root, slot);
   if (!before) process.exit(0);
   const command = String((p.tool_input && p.tool_input.command) || '');
-  const written = handWrittenSources(root, before.files || {}, command, before.head || '').filter((rel) => !pathExcluded(root, CHECK, rel));
+  // A file an Edit or Write of any session recorded during the call is that tool's write (pre-write judged it), not the call's.
+  const toolWritten = turnWrites(root, before.ts || Date.now());
+  const written = handWrittenSources(root, before.files || {}, command, before.head || '')
+    .filter((rel) => !pathExcluded(root, CHECK, rel) && !toolWritten.has(rel));
   if (written.length) {
     addHandWrites(root, sid, written);
     const shown = written.slice(0, SHOWN_MAX);
