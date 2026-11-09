@@ -11,7 +11,8 @@
 
 import { gitRoot, adopted, payload, readAgents, pathExcluded, excludeFooter } from './lib.mjs';
 import { modelDisplay } from './model-tag.mjs';
-import { WRITE_HANDOFF, ceilingFlag } from './lib/agent-context.mjs';
+import { WRITE_HANDOFF, ceilingFlag, handoffCount } from './lib/agent-context.mjs';
+import { ticketNotes } from '../scripts/broker/red-run.mjs';
 import { brokerDir } from './lib/handback.mjs';
 import { ackAgent } from '../scripts/broker/finished-ack.mjs';
 import { ticketsCited } from './dispatch-context.mjs';
@@ -43,7 +44,9 @@ async function main() {
     }
     ackAgent(brokerDir(root), target.trim());
     const named = ticketsCited(message);
-    recordReopen(root, { agent: row?.id || target.trim(), tickets: named.length || !row ? named : dispatchedTickets(row) });
+    const tickets = named.length || !row ? named : dispatchedTickets(row);
+    const agent = row?.id || target.trim();
+    recordReopen(root, { agent, tickets, handoffs: Object.fromEntries(tickets.map((t) => [t, handoffCount(ticketNotes(root, t), agent)])) });
   } catch {
     /* fail-open */
   }

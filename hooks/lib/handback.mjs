@@ -20,7 +20,8 @@
 // Cleared by: an ack (SendMessage to the agent, `ack.mjs`, `resubmit.mjs`), a later dispatch citing the ticket, the
 // ticket reaching review/done, a handoff that owes nothing (Next says stop, or `ack.mjs --handoff <agent> --reason`).
 // A worker owes only the tickets its task label names (successor.mjs dispatchedTickets). A SendMessage that resumed the
-// worker and named the ticket (reopened.mjs) takes the handoff over; silence past SILENT_MS brings it back as 'reopened'. A job still queued or running is waiting, not a failure.
+// worker and named the ticket (reopened.mjs) takes the handoff over, and stays taken over after the resumed run retires
+// until the worker writes a newer Handoff block; silence past SILENT_MS brings it back as 'reopened'. A job still queued or running is waiting, not a failure.
 
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -29,11 +30,11 @@ import { ownsWork } from '../dispatch-readonly.mjs';
 import { ackJobs, readAcks, sameAgent } from '../../scripts/broker/finished-ack.mjs';
 import { landedOnMain, resumable } from './handback-landed.mjs';
 import { applyQueued } from './handback-queued.mjs';
-import { SILENT_MS, reopenState } from './reopened.mjs';
+import { SILENT_MS, reopenState, resumeCovers } from './reopened.mjs';
 import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
-import { ceilingFlag, hasHandoff } from './agent-context.mjs';
+import { ceilingFlag, handoffCount, hasHandoff } from './agent-context.mjs';
 import { CLOSED, dispatchedTickets, handoffClosed, openTicketStatus, recent, retiredAt, succeeded } from './successor.mjs';
 
 const ENDED = new Set(['done', 'error', 'killed', 'stale']);
@@ -143,7 +144,9 @@ function workItems(root, rows, row, nowMs, live) {
   const out = [];
   for (const ticket of dispatchedTickets(row)) {
     if (live.has(ticket) || !openTicket(root, ticket) || succeeded(root, rows, row, ticket) || handoffClosed(root, ticket, row.id)) continue;
-    const handoff = hasHandoff(ticketNotes(root, ticket), row.id);
+    const notes = ticketNotes(root, ticket);
+    const handoff = hasHandoff(notes, row.id);
+    if (handoff && resumeCovers(root, row, ticket, handoffCount(notes, row.id))) continue;
     const reopened = handoff || ABNORMAL.has(row.status) ? reopenState(root, row, ticket, { nowMs, since: retiredAt(row) }) : null;
     if (reopened === 'active') continue;
     if (reopened === 'silent') out.push({ kind: 'reopened', step: 'reopened-silent', key: `reopened:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });

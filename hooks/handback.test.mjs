@@ -134,6 +134,19 @@ try {
   reset();
   ok('KIT-T912 control: with the job gone the Handoff is listed', /RETIRED WITH HANDOFF/.test(stop().out));
 
+  const handoffBlock = (label) => `\n### Handoff ${OLD} (${label})\n- Jobs: none\n- State: patch drafted\n- Next: submit it\n- Files: a.mjs\n`;
+  const withHandoffs = (count) => ticket('doing', `## Notes\n${Array.from({ length: count }, (_, i) => handoffBlock(i + 1)).join('')}`);
+  withHandoffs(2);
+  reopen();
+  const retiredAgain = { ts: at(-MINUTE_MS) };
+  roster(row(retiredAgain));
+  ok('KIT-T912: the resumed run retiring again leaves the Handoff the resume took over unlisted', silent(stop()));
+  withHandoffs(3);
+  ok('KIT-T912 control: a newer Handoff block written by the resumed run is listed', /RETIRED WITH HANDOFF/.test(stop().out));
+  rmSync(join(d, '.ai', 'reopened.jsonl'), { force: true });
+  roster(row());
+  ticket('doing', `## Notes\n\n### Handoff ${OLD}\n- Jobs: none\n- State: patch drafted\n- Next: submit it\n- Files: a.mjs\n`);
+
   reset(); ledger(); finishedLine(30); result();
   ok('a hand-back with a Handoff AND an unread result is listed as the result, not a retirement', (() => { const r = stop(); return noticed(r) && r.out.includes('RESULT READY') && !r.out.includes('RETIRED WITH HANDOFF'); })());
 
