@@ -146,10 +146,10 @@ function workItems(root, rows, row, nowMs, live) {
     if (live.has(ticket) || !openTicket(root, ticket) || succeeded(root, rows, row, ticket) || handoffClosed(root, ticket, row.id)) continue;
     const notes = ticketNotes(root, ticket);
     const handoff = hasHandoff(notes, row.id);
-    if (handoff && resumeCovers(root, row, ticket, handoffCount(notes, row.id))) continue;
     const reopened = handoff || ABNORMAL.has(row.status) ? reopenState(root, row, ticket, { nowMs, since: retiredAt(row) }) : null;
     if (reopened === 'active') continue;
     if (reopened === 'silent') out.push({ kind: 'reopened', step: 'reopened-silent', key: `reopened:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
+    else if (handoff && resumeCovers(root, row, ticket, handoffCount(notes, row.id))) continue;
     else if (handoff) out.push({ kind: 'successor', step: 'successor', key: `successor:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
     else if (ABNORMAL.has(row.status)) out.push({ kind: 'dead', step: 'fresh-worker', key: `dead:${row.id}:${ticket}`, agent: row.id, scope: row.scope, ticket });
   }

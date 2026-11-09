@@ -62,6 +62,25 @@ try {
   reopenRows({ ts: at(40 * MIN_MS), agent: AGENT, tickets: [TICKET] });
   roster(retired({ ts: at(5 * MIN_MS) }));
   ok('after the resumed agent retires again, the normal handoff rule applies', noticed(stop()) && !/REOPENED/.test(stop().out));
+
+  const covering = { ts: at(40 * MIN_MS), agent: AGENT, tickets: [TICKET], handoffs: { [TICKET]: 1 } };
+  reopenRows(covering);
+  roster(retired());
+  touch(HOUR_MS);
+  const stillSilent = stop();
+  ok('KIT-T912: a resume that covers the Handoff does not hide a resumed agent that stays silent', noticed(stillSilent) && /REOPENED, SILENT/.test(stillSilent.out));
+
+  roster(retired({ ts: at(5 * MIN_MS) }));
+  ok('KIT-T912: the resumed run retiring again leaves the covered Handoff unlisted', quiet(stop()));
+
+  const oneLine = (label, files = ' Files: a.mjs') => `\n### Handoff ${AGENT} (${label}): Jobs: j-1-a (queued) State: waiting Next: read the result.${files}\n`;
+  const ticketFile = join(d, '.ai', 'tickets', `${TICKET}-thing.md`);
+  const withBlocks = (...blocks) => writeFileSync(ticketFile, `---\nid: ${TICKET}\nstatus: doing\n---\n\n## Notes\n${blocks.join('')}`);
+  withBlocks(oneLine(1), oneLine(2, ''));
+  reopenRows({ ...covering, handoffs: { [TICKET]: 2 } });
+  ok('KIT-T912: one-line Handoff blocks, the second without Files:, are both covered by a resume that saw two', quiet(stop()));
+  withBlocks(oneLine(1), oneLine(2, ''), oneLine(3, ''));
+  ok('KIT-T912: a third block, again without Files:, re-lists the Handoff', noticed(stop()));
 } finally {
   cleanup();
 }

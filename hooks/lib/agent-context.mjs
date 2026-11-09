@@ -8,7 +8,7 @@
 //   ceilingFlag(row)                 -> '' under the ceiling, else the one-line flag orient and the guards print, ending with what the
 //                                       context is made of (context-breakdown.mjs) when the row names its transcript (`transcript` or `outputFile`)
 //   handoffRequest(row)              -> the SendMessage text that asks a past-ceiling agent for its handoff
-//   handoffCount(notes, agentId)     -> how many such blocks the Notes carry for the agent
+//   handoffCount(notes, agentId)     -> how many Handoff headings the Notes carry for the agent, complete or not
 //   hasHandoff(notes, agentId)       -> does a ticket's Notes carry a `Handoff` block with Jobs:, State:, Next:, Files: whose heading
 //                                       names the agent or names no agent id
 //   missingHandoffs(root, rows, tickets) -> past-ceiling WRITER rows owning a todo or doing one of `tickets` (ticket-store.mjs) whose
@@ -60,17 +60,16 @@ const OPEN_STATUSES = new Set(['todo', 'doing', '']);
 const hasLabels = (block) => HANDOFF_LABELS.every((label) => new RegExp(String.raw`(?:^|[\s*.;])${label}\**[ \t]*:`, 'i').test(block));
 
 // A Handoff block counts for the agent when its heading carries the agent's id, or carries no agent id at all.
-export function handoffCount(notes, agentId) {
+function mineHeads(notes, agentId) {
   const text = String(notes || '');
   const prefix = String(agentId).slice(0, ID_PREFIX_CHARS);
   const heads = [...text.matchAll(HANDOFF_HEAD)];
-  return heads.filter((head, i) => {
-    const mine = head[0].includes(prefix) || !AGENT_ID_TOKEN.test(head[0]);
-    return mine && hasLabels(text.slice(head.index, heads[i + 1]?.index));
-  }).length;
+  return heads.map((head, i) => ({ complete: hasLabels(text.slice(head.index, heads[i + 1]?.index)), mine: head[0].includes(prefix) || !AGENT_ID_TOKEN.test(head[0]) })).filter((h) => h.mine);
 }
 
-export const hasHandoff = (notes, agentId) => handoffCount(notes, agentId) > 0;
+export const hasHandoff = (notes, agentId) => mineHeads(notes, agentId).some((h) => h.complete);
+
+export const handoffCount = (notes, agentId) => mineHeads(notes, agentId).length;
 
 const stillOpen = (root, ticket, table) => OPEN_STATUSES.has(ticketMeta(root, ticket, table)?.status ?? '');
 
