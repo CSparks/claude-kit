@@ -59,6 +59,15 @@ ok('the newest receipt wins', /removed 120 item/.test(sweepStatusLines()[0]) && 
 writeFileSync(join(home, 'build-sweep.log'), `${receipt(5)}\n`);
 ok('an old receipt warns the task is not firing', /BUILD SWEEP NOT FIRING.*5d ago/.test(sweepStatusLines()[0]));
 
+const GIB = 1024 ** 3;
+const withUnverified = (...dirs) => JSON.stringify({ ...JSON.parse(receipt(1)), unverified: dirs.length, unverifiedDirs: dirs });
+writeFileSync(join(home, 'build-sweep.log'), `${withUnverified({ dir: 'dirt-empire/target', bytes: 215 * GIB }, { dir: 'small/target', bytes: 1 * GIB })}\n`);
+const alerted = sweepStatusLines();
+ok('KIT-T911: an unverified build dir over the threshold is a loud alert with its size', alerted.length === 2 && /^BUILD DIR NEVER SWEPT: dirt-empire\/target holds 215\.00 GB/.test(alerted[1]));
+ok('KIT-T911 control: an unverified dir under the threshold is not alerted', !alerted.some((l) => l.includes('small/target')));
+writeFileSync(join(home, 'build-sweep.log'), `${receipt(1)}\n`);
+ok('KIT-T911 control: a receipt with no unverified dirs adds no alert', sweepStatusLines().length === 1);
+
 rmSync(home, { recursive: true, force: true });
 rmSync(repo, { recursive: true, force: true });
 console.log(`build-tree: ${passed} passed, 0 failed`);

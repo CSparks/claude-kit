@@ -5,6 +5,7 @@
 //   lastReceipt()        -> the newest logged receipt, or null
 //   formatReceipt(r, top)-> printable lines
 //   describeReceipt(r)   -> one human line (used by the hook)
+//   unverifiedAlerts(r)  -> alert lines for the unverified build dirs of r over UNVERIFIED_ALERT_BYTES (KIT-T911)
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -12,6 +13,7 @@ import { join } from 'node:path';
 
 const GIB = 1024 ** 3;
 const TOP_REPOS = 8;
+export const UNVERIFIED_ALERT_BYTES = 10 * GIB;
 
 export const sweepHome = () => process.env.CLAUDE_KIT_SWEEP_HOME || join(homedir(), '.claude');
 export const logPath = () => join(sweepHome(), 'build-sweep.log');
@@ -37,6 +39,14 @@ export function lastReceipt() {
   }
 }
 
+// One loud line per unverified build dir at or over UNVERIFIED_ALERT_BYTES: the sweep never prunes it, so its size is the
+// maintainer's to see.
+export function unverifiedAlerts(r) {
+  return (r?.unverifiedDirs || [])
+    .filter((u) => u.bytes >= UNVERIFIED_ALERT_BYTES)
+    .map((u) => `BUILD DIR NEVER SWEPT: ${u.dir} holds ${gb(u.bytes)} GB and has no cargo signature (CACHEDIR.TAG), so the nightly sweep leaves it alone. Check it, then clear or tag it by hand.`);
+}
+
 export function describeReceipt(r) {
   const skipped = r.skipped.length ? `; skipped ${r.skipped.length} repo(s)` : '';
   return `${r.at.slice(0, 10)}: scanned ${r.buildDirs} build dir(s), removed ${r.removed} item(s), freed ${gb(r.bytes)} GB${skipped}`;
@@ -50,6 +60,7 @@ export function formatReceipt(r, top = TOP_REPOS) {
   const repos = Object.entries(r.repos).sort((a, b) => b[1].bytes - a[1].bytes).slice(0, top);
   for (const [name, s] of repos) lines.push(`  ${name}: ${s.removed} item(s), ${gb(s.bytes)} GB`);
   if (r.unverified) lines.push(`  ${r.unverified} build dir(s) left alone: no cargo signature plus .fingerprint`);
+  for (const u of r.unverifiedDirs || []) lines.push(`  unverified: ${u.dir} (${gb(u.bytes)} GB)`);
   for (const s of r.skipped) lines.push(`  skipped ${s.repo}: ${s.reason}`);
   return lines;
 }

@@ -266,6 +266,27 @@ ok('dry run prints a receipt and logs nothing', dryCli.status === 0 && /dry run/
 process.env.CLAUDE_KIT_SWEEP_HOME = home;
 ok('lastReceipt reads the newest line', lastReceipt().root === root);
 
+// KIT-T911: an untagged primary target is verified; an untagged dir elsewhere stays unverified and is reported with its size
+const untagged = mkdtempSync(join(tmpdir(), 'sweep-untagged-'));
+const proj = join(untagged, 'proj');
+const projTarget = join(proj, 'target', 'debug');
+put(join(proj, 'Cargo.toml'), 30);
+dep(projTarget, 'serde', H.a, 20);
+dep(projTarget, 'serde', H.b, 1);
+fingerprint(projTarget, 'serde', H.a, 20);
+const stray = join(untagged, 'stray-build', 'debug');
+dep(stray, 'serde', H.a, 20);
+fingerprint(stray, 'serde', H.a, 20);
+settleDirs(untagged);
+const untaggedFound = findBuildDirs(untagged);
+ok('a primary target beside Cargo.toml with a .fingerprint and no CACHEDIR.TAG is verified', untaggedFound.find((b) => b.primary)?.cargo === true);
+ok('control: an untagged build dir that is not a primary target stays unverified', untaggedFound.find((b) => !b.primary)?.cargo === false);
+const untaggedReceipt = sweep(untagged, { now: NOW, snapshot: { commands: [] } });
+ok('the untagged primary target is pruned: its older generation goes, the newest stays', !existsSync(join(projTarget, 'deps', `libserde-${H.a}.rlib`)) && existsSync(join(projTarget, 'deps', `libserde-${H.b}.rlib`)));
+ok('the unverified dir is left alone and the receipt names it with its size', existsSync(join(stray, 'deps', `libserde-${H.a}.rlib`)) && untaggedReceipt.unverified === 1
+  && untaggedReceipt.unverifiedDirs.length === 1 && untaggedReceipt.unverifiedDirs[0].dir === 'stray-build' && untaggedReceipt.unverifiedDirs[0].bytes > 0);
+rmSync(untagged, { recursive: true, force: true });
+
 // scheduler artifacts
 const ps = windowsRegisterScript();
 ok('windows task runs at 03:30, on battery, catching missed runs', /03:30/.test(ps) && /AllowStartIfOnBatteries/.test(ps) && /StartWhenAvailable/.test(ps));

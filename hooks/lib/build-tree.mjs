@@ -1,7 +1,8 @@
 // build-tree.mjs — the SessionStart view of cargo build dirs (KIT-T273, KIT-T635).
 //
 //   buildTreeLine(root)  -> a one-line runaway warning for any build dir under root, else null
-//   sweepStatusLines()   -> the nightly sweep's last receipt, or a warning when it is not scheduled / not firing
+//   sweepStatusLines()   -> the nightly sweep's last receipt, or a warning when it is not scheduled / not firing, plus
+//                           one alert per unverified build dir the receipt lists over UNVERIFIED_ALERT_BYTES (KIT-T911)
 //
 // Cargo has no garbage collector: every rebuild leaves its predecessor in target/, and rustc prunes an
 // incremental session only on a clean finalize. The waste lives at any depth — submodule targets,
@@ -12,7 +13,7 @@
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { allProfiles, findBuildDirs } from '../../scripts/build-sweep/discover.mjs';
-import { describeReceipt, lastReceipt } from '../../scripts/build-sweep/receipt.mjs';
+import { describeReceipt, lastReceipt, unverifiedAlerts } from '../../scripts/build-sweep/receipt.mjs';
 import { isScheduled } from '../../scripts/build-sweep/schedule.mjs';
 import { cacheDir, pathKey } from './stat-cache.mjs';
 
@@ -106,8 +107,9 @@ export function sweepStatusLines() {
   const last = lastReceipt();
   if (!last) return ['Build sweep: scheduled, no run recorded yet.'];
   const age = Math.floor((Date.now() - Date.parse(last.at)) / MS_PER_DAY);
+  const alerts = unverifiedAlerts(last);
   if (age >= SWEEP_STALE_DAYS) {
-    return [`BUILD SWEEP NOT FIRING: last run ${describeReceipt(last)} (${age}d ago). Check the task, or run: node <kit>/scripts/build-sweep.mjs`];
+    return [`BUILD SWEEP NOT FIRING: last run ${describeReceipt(last)} (${age}d ago). Check the task, or run: node <kit>/scripts/build-sweep.mjs`, ...alerts];
   }
-  return [`Build sweep last run ${describeReceipt(last)}.`];
+  return [`Build sweep last run ${describeReceipt(last)}.`, ...alerts];
 }

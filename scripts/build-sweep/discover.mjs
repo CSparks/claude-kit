@@ -8,9 +8,10 @@
 // release, <triple>/<profile>); a child of a build dir that is itself a build dir is a broker
 // lane. A profile dir holds .fingerprint, deps or incremental.
 //
-// `cargo` is the verified flag: the CACHEDIR.TAG's first line is cargo's exact signature AND a
-// profile dir holds a .fingerprint. Only a verified build dir may be pruned or deleted, because a
-// marker file can be planted in source; the unverified ones are still listed for read-only nags.
+// `cargo` is the verified flag: a profile dir holds a .fingerprint AND either the CACHEDIR.TAG's first
+// line is cargo's exact signature or the dir is a primary target beside a Cargo.toml (a build dir
+// cargo made before it wrote tags carries none). Only a verified build dir may be pruned or deleted,
+// because a marker file can be planted in source; the unverified ones are still listed for read-only nags.
 // `primary` is <crate-root>/target outside a worktree: pruned, never deleted whole.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -72,7 +73,7 @@ function describe(dir, primary, depth) {
       if (lane) lanes.push(lane);
     }
   }
-  const cargo = hasCargoSignature(dir) && profiles.some(hasFingerprint);
+  const cargo = (primary || hasCargoSignature(dir)) && profiles.some(hasFingerprint);
   return { dir, primary, cargo, profiles, lanes };
 }
 
