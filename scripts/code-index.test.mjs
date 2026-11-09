@@ -236,6 +236,21 @@ await test('a lone -- makes the next token search text, and flags after it still
   assert.deepEqual(parseCodeArgs(['x', '--bogus']).flags.unknown, ['--bogus'], 'control: without -- an unknown flag is still reported');
 });
 
+await test('a dash-led token that is not flag-shaped is search text, so it files no gap (KIT-T923)', () => {
+  const dashed = parseCodeArgs(['-INBOX-|inboxId|INBOX-', '--regex']);
+  assert.equal(dashed.text.includes('inboxId'), true);
+  assert.deepEqual(dashed.flags.unknown, []);
+  assert.deepEqual(parseCodeArgs(['-a b']).flags.unknown, []);
+  assert.deepEqual(parseCodeArgs(['x', '-foo']).flags.unknown, ['-foo'], 'control: a flag-shaped unknown token is still reported');
+});
+
+await test('the unknown-flag answer tells how to search for text that starts with a dash (KIT-T923)', async () => {
+  process.env.CLAUDE_KIT_BUG_STORE = 'off';
+  const [row] = await rows('code', ['camp', '-foo']);
+  assert.match(row.text, /does not take -foo/);
+  assert.match(row.text, /q code -- <text>/);
+});
+
 await test('grep-style attached options: -B1 / -A1 / -C2 and --lang=wgsl equal their spaced forms (KIT-T303)', async () => {
   process.env.CLAUDE_KIT_BUG_STORE = 'off';
   const spaced = await rows('code', ['shade', '-B', '1', '--lang', 'wgsl']);

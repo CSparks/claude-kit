@@ -33,8 +33,9 @@ export function readRegistry() {
 // Every known project's .ai store directory, across ALL scopes — the cross-project
 // enumeration shared by survey (briefing) and the cache hydrator (KIT-T031). A project's
 // stores live either in its repo (<repo>/.ai) or in the central data root
-// (<dataRoot>/projects/<name>, which IS the .ai dir, not a parent of one); resolve to
-// whichever exists, preferring the repo. Returns { name, aiDir } per project with stores.
+// (<dataRoot>/projects/<name>, which IS the .ai dir, not a parent of one); resolve to the
+// one holding a config.yml, preferring the repo (a checkout .ai with agent rosters only is no store;
+// it is the last resort when neither holds a config). Returns { name, aiDir } per project with stores.
 // Best-effort: any unreadable entry is skipped, never thrown.
 export function projectAiDirs() {
   const reg = readRegistry();
@@ -54,8 +55,9 @@ export function projectAiDirs() {
     const repoAi = repo ? join(repo, '.ai') : null;
     const centralAi = reg.dataRoot ? join(reg.dataRoot, 'projects', name) : null;
     let aiDir = null;
-    if (repoAi && existsSync(repoAi)) aiDir = repoAi;
+    if (repoAi && existsSync(join(repoAi, 'config.yml'))) aiDir = repoAi;
     else if (centralAi && existsSync(join(centralAi, 'config.yml'))) aiDir = centralAi;
+    else if (repoAi && existsSync(repoAi)) aiDir = repoAi;
     if (aiDir) out.push({ name, aiDir });
   }
   return out;

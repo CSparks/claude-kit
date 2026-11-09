@@ -248,6 +248,35 @@ console.log('\ncap outside any repo names the projects it could capture into');
 
 
 // --------------------------------------------------------------------------
+// KIT-T925: a registered checkout whose .ai holds no config.yml (agent rosters only) is not the
+// project's store; the central data project is. A checkout .ai WITH a config.yml still wins.
+// --------------------------------------------------------------------------
+{
+  const creg = join(harness.tmpDir('kit-t925-'), 'r.json');
+  const cwdRepo = harness.repo();
+  const cfg = 'ids:\n  key: "RGM"\nclassifications:\n  bug:\n    routes_to: tickets\n';
+  const dataRoot = harness.tmpDir('kit-t925-data-');
+  const centralAi = join(dataRoot, 'projects', 'rapid-game');
+  mkdirSync(join(centralAi, 'inbox'), { recursive: true });
+  writeFileSync(join(centralAi, 'config.yml'), cfg);
+  const checkout = harness.tmpDir('kit-t925-checkout-');
+  mkdirSync(join(checkout, '.ai'), { recursive: true });
+  writeFileSync(join(checkout, '.ai', 'agents.jsonl'), '');
+  const own = harness.tmpDir('kit-t925-own-');
+  mkdirSync(join(own, '.ai', 'inbox'), { recursive: true });
+  writeFileSync(join(own, '.ai', 'config.yml'), cfg.replace('RGM', 'OWN'));
+  writeFileSync(creg, JSON.stringify({ dataRoot, projects: { 'rapid-game': checkout, 'own-store': own } }));
+  const capture = (args) => harness.script('cap.mjs', args, cwdRepo, { CLAUDE_KIT_REGISTRY: creg, CLAUDE_KIT_BUG_STORE: 'off' });
+  const md = (dir) => (existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.md')) : []);
+
+  let r = capture(['--project', 'rapid-game', 'bug', 'tuning reaches every game']);
+  ok('cap KIT-T925: --project names a checkout with a config-less .ai, the capture lands in the central project store',
+    r.code === 0 && md(join(centralAi, 'inbox')).length === 1 && md(join(checkout, '.ai', 'inbox')).length === 0);
+  r = capture(['--project', 'own-store', 'bug', 'a project-store capture']);
+  ok('cap KIT-T925 control: a checkout whose .ai has a config.yml is still the store', r.code === 0 && md(join(own, '.ai', 'inbox')).length === 1);
+}
+
+// --------------------------------------------------------------------------
 // KIT-T279: cap warns about likely duplicates in the project AND framework store
 // --------------------------------------------------------------------------
 console.log('\ncap dedup hint (project + adopted framework store)');

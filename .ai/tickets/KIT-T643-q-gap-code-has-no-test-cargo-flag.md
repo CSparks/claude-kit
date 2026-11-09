@@ -2,14 +2,14 @@
 id: KIT-T643
 title: q gap: 'code' has no --test "cargo flag
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:
 labels: [kit-bug]
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T923
 created: 2026-10-27T03:14:02Z
 updated: 2026-10-27T03:14:02Z
 ---
@@ -29,3 +29,5 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-10-27 03:14] (created) bug — q gap: 'code' has no --test "cargo flag
+- [2026-11-09 23:53] (status) todo → superseded (by KIT-T923)
+- [2026-11-09 23:53] (comment) @kit-agent: Duplicate of KIT-T923: a dash-led regex or multi-word pattern is search text now (no gap filed), and a flag-shaped unknown token prints the 'q code -- <text>' hint.

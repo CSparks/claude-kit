@@ -44,6 +44,9 @@ const splitAttached = (args) => args.flatMap((a) => {
   return m ? [m[1].startsWith('--') ? m[1] : `-${m[1]}`, m[2]] : [a];
 });
 
+// An option name (`-x`, `--name`, `--name=value`); a dash-led token with spaces or regex characters is search text.
+const FLAG_SHAPE = /^--?[A-Za-z][A-Za-z0-9-]*(?:=.*)?$/;
+
 /** Split argv-style tokens into { text, flags }. A lone `--` makes the next token search text even when it starts with `-` (`q code -- --capture`). */
 export function parseCodeArgs(rawArgs) {
   const args = splitAttached(rawArgs);
@@ -79,7 +82,7 @@ export function parseCodeArgs(rawArgs) {
     else if (a === '-o') flags.only = true;
     else if (a === '-c') flags.count = true;
     else if (GREP_NOOP_FLAGS.has(a)) continue;
-    else if (a.startsWith('-') && a.length > 1 && !/^-\d/.test(a)) flags.unknown.push(a);
+    else if (FLAG_SHAPE.test(a)) flags.unknown.push(a);
     else words.push(a);
   }
   const text = words.join(' ');
@@ -436,7 +439,7 @@ export async function ftsCodeDefs(queryText, root, refresh = refreshIndex) {
 async function unknownFlagRows(cmd, args, unknown, root) {
   const { reportGap } = await import('./q-gap.mjs');
   const gap = reportGap({ shape: `flag:${cmd}:${unknown[0]}`, title: `'${cmd}' has no ${unknown[0]} flag`, detail: `q ${cmd} ${args.join(' ')}`, project: basename(root) });
-  return [{ loc: '', text: `q ${cmd} does not take ${unknown.join(' ')}.${gap ? ` Filed as ${gap.id} (kit-bug) — do not fall back to grep.` : ''}` }];
+  return [{ loc: '', text: `q ${cmd} does not take ${unknown.join(' ')}.${gap ? ` Filed as ${gap.id} (kit-bug) — do not fall back to grep.` : ''} To search for text that starts with a dash: q code -- <text>.` }];
 }
 
 /**
