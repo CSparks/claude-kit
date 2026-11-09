@@ -1,15 +1,10 @@
-// question-text — a questionnaire's own words as one brief candidate (KIT-T906). Claude Code stores some commentary
-// as a platform-written narration summary that drops a brief's labelled lines; the questionnaire arrives in the
-// hook payload whole, so a brief written in the question field is always readable.
+// question-text — a questionnaire's own question fields as one summary candidate (KIT-D153). Claude Code stores some
+// commentary as a platform-written narration summary that can be lossy; the questionnaire arrives in the hook payload
+// whole, so a summary written in the question field is always readable. Option labels and descriptions are not
+// counted: they are the options, not the summary above them.
 //
-//   questionnaireText(questions) -> per question: its header and text, a blank line, then each option as
-//                                   "<label> <description>" (the "(Recommended)" marker is cut so the label alone
-//                                   never satisfies the recommendation check); questions separated by blank lines
+//   questionText(questions) -> each question's header and text, questions separated by blank lines
 
-import { RECOMMENDED_MARKER } from './question-checks.mjs';
+const questionBlock = (q) => [q?.header, q?.question].filter(Boolean).join('\n');
 
-const cut = (label) => String(label || '').replace(RECOMMENDED_MARKER, '').trim();
-const optionLine = (o) => `${cut(o?.label)} ${o?.description || ''}`.trim();
-const questionBlock = (q) => [[q?.header, q?.question].filter(Boolean).join('\n'), (Array.isArray(q?.options) ? q.options : []).map(optionLine).join('\n')].filter(Boolean).join('\n\n');
-
-export const questionnaireText = (questions) => (Array.isArray(questions) ? questions : []).map(questionBlock).filter(Boolean).join('\n\n');
+export const questionText = (questions) => (Array.isArray(questions) ? questions : []).map(questionBlock).filter(Boolean).join('\n\n');

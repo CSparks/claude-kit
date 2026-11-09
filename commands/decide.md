@@ -16,17 +16,10 @@ Resolve the maintainer's PENDING decisions as a structured questionnaire — nev
    (`q show <id>`) inside the last 7 days with no Resolution was put to the maintainer by another
    live session: read that session's answer instead of asking again (the `reask-gate` hook blocks
    the re-ask; `[re-ask: <reason>]` in the question text overrides it).
-2. **Summary first, then the questionnaire (KIT-D129, KIT-D151, KIT-D152).** Write the whole brief as a
-   text message, then send AskUserQuestion; nothing between them. A PostToolUse audit judges the
-   brief after the call and tells you what to add if it is thin; then you re-ask.
-   The brief, in these exact shapes (bold headers and colon lists fail):
-   - at least 120 words;
-   - `Decision: <what is being decided>, needed now because <why>.`
-   - `Evidence: <what you checked>` with at least 2 sources (path, KIT-T###/KIT-D### id, sha, file:line);
-   - one plain sentence per option, starting with its label exactly as written:
-     `<Option label> <does what> and costs <what>.` — every option of every question;
-   - `Recommendation: <option label>, because <reason>.`
-   - `Not asked: <what this leaves open>.`
+2. **Summary first, then the questionnaire (KIT-D153).** Write a plain summary (what is being
+   decided, what each option does and costs, your recommendation), then send AskUserQuestion. No
+   labels or sentence shapes are required. A PostToolUse audit checks that a summary came first
+   and tells you if not; then you re-ask.
 3. **Present** via the **AskUserQuestion** tool — one question per decision, concrete options
    from the source. **Every question MUST carry a recommendation**: the recommended option goes
    FIRST and its **label is prefixed `(Recommended)`** (front of the label — e.g.

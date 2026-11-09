@@ -1,13 +1,13 @@
-// question-brief-audit on transcripts shaped as Claude Code writes them (KIT-T881, KIT-D152): the summary and the
-// questionnaire in one reply, option labels with "(Recommended) " markers and commas, harness output between the
-// summary and the call, and a thin summary reported with what to write. The audit judges only what precedes the call.
-// Run: node hooks/question-brief-turn.test.mjs
+// question-brief-audit on transcripts shaped as Claude Code writes them (KIT-D153, KIT-T881, KIT-T906): the audit
+// judges only that a plain summary of reasonable length came before the questionnaire, whatever its wording, whether
+// stored as text, as a narration summary, or written in the question text. Run: node hooks/question-brief-turn.test.mjs
 
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { adopted, cleanup, reporter, tmpDir } from './test-harness.mjs';
+import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 import { auditAsk } from './question-audit-harness.mjs';
-import { REAL_BRIEF, REAL_FIXED_BRIEF, REAL_QUESTIONS } from './question-brief-real-fixtures.mjs';
+import { REAL_BRIEF, REAL_FIXED_BRIEF, REAL_QUESTIONS, SHORT_QUESTIONS } from './question-brief-real-fixtures.mjs';
+import { gateText } from './lib/gate-protocol.mjs';
 
 const { ok, done } = reporter('question-brief-turn');
 const dir = tmpDir('question-brief-turn-');
@@ -15,10 +15,16 @@ const repoDir = adopted(false);
 const CALL_ID = 'toolu_01TURN';
 const SETTLED = 'In the last session you were on a bill of work. Tell me where it stands.';
 const MARKER = '(Recommended) ';
+const NARRATION_MARK = 'narration';
+
+const PLAIN_SUMMARY = 'The gusset bolts test fails only with your twelve uncommitted mine script edits present, so the tree cannot be called green until you choose. Restoring the gusset bolts piece keeps your work and is what I would do, while reverting to HEAD throws the edits and the loot scrap change away.';
+const SHORT_QUESTION = SHORT_QUESTIONS;
 
 let n = 0;
 const entry = (type, content) => JSON.stringify({ type, message: { role: type, content } });
+const signature = (mark) => Buffer.concat([Buffer.from([8, 4, 18, 32]), Buffer.from(`B\t${mark}`), Buffer.from('payload')]).toString('base64');
 const text = (value) => ({ type: 'text', text: value });
+const narration = (value) => ({ type: 'thinking', thinking: value, signature: signature(NARRATION_MARK) });
 const thinking = { type: 'thinking', thinking: '', signature: 'sig' };
 const call = { type: 'tool_use', id: CALL_ID, name: 'AskUserQuestion', input: {} };
 const harnessOutput = entry('user', '<local-command-stdout>Advisor set to Opus 5.5</local-command-stdout>');
@@ -31,48 +37,43 @@ const transcript = (lines) => {
 };
 const assistant = (...blocks) => blocks.map((block) => entry('assistant', [block]));
 const ask = (file, questions = REAL_QUESTIONS) => auditAsk({ tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions }, transcript_path: file }, repoDir);
-const parts = (out) => ['length', 'decision', 'evidence', 'options', 'recommendation', 'not asked'].filter((p) => out.includes(`- ${p}:`));
-const withoutMarkers = REAL_QUESTIONS.map((q) => ({ ...q, options: q.options.map((o) => ({ ...o, label: o.label.replace(MARKER, '') })) }));
-const dropParagraph = (pattern) => REAL_FIXED_BRIEF.split('\n\n').filter((p) => !pattern.test(p)).join('\n\n');
 const sameReply = (brief) => transcript([...assistant(thinking, text(brief), call), answer]);
+const noSummary = () => transcript([...assistant(thinking, call), answer]);
 
 try {
-  const full = sameReply(REAL_FIXED_BRIEF);
-  ok('the summary and the call in one reply, summary complete: no advisory, with markers and commas in the labels', ask(full).code === 0);
-  ok('passes with the "(Recommended) " markers removed from the labels', ask(full, withoutMarkers).code === 0);
-  ok('passes with no bold markers in the brief', ask(sameReply(REAL_FIXED_BRIEF.replace(/\*\*/g, ''))).code === 0);
+  ok('a plain summary before the call passes', ask(sameReply(PLAIN_SUMMARY), SHORT_QUESTION).code === 0);
+  ok('a summary with no label, no source and no "recommend" or "because" still passes',
+    ask(sameReply(PLAIN_SUMMARY.replace(/recommend\w*|because/gi, 'say')), SHORT_QUESTION).code === 0);
+  ok('the real status report, which never used the old labels, passes', ask(sameReply(REAL_BRIEF)).code === 0);
+  ok('the labelled brief still passes', ask(sameReply(REAL_FIXED_BRIEF)).code === 0);
+  ok('passes with the "(Recommended) " markers removed from the labels',
+    ask(sameReply(PLAIN_SUMMARY), SHORT_QUESTION.map((q) => ({ ...q, options: q.options.map((o) => ({ ...o, label: o.label.replace(MARKER, '') })) }))).code === 0);
 
-  const thin = ask(sameReply(REAL_BRIEF));
-  ok('the real status report as the summary is reported, exit 0, naming exactly the Decision and the options it never states',
-    thin.code === 2 && parts(thin.out).join() === 'decision,options');
-  ok('the report names the unnamed labels with the "(Recommended) " marker and the comma gone',
-    thin.out.includes('"Sign all, in order"') && thin.out.includes('"Leave them, pass the token"') && !thin.out.includes(`"${MARKER}`));
-  ok('the report is advisory text, not a BLOCKED error, and tells the model to write the parts and re-ask',
-    !thin.out.includes('BLOCKED') && thin.out.includes('Question-brief audit') && thin.out.includes('re-ask'));
+  const none = ask(noSummary(), SHORT_QUESTION);
+  ok('no summary at all is reported as advisory text naming the summary, with the re-ask instruction',
+    none.code === 2 && none.out.includes('- summary:') && none.out.includes('re-ask') && none.out.includes('KIT-D153') && !none.out.includes('BLOCKED'));
+  ok('a one-line summary is reported', ask(sameReply('Sign all, in order, or leave them.'), SHORT_QUESTION).code === 2);
+  ok('the report asks for no label and no sentence shape', !/Decision:|Evidence:|Not asked:|Recommendation:/.test(none.out));
 
-  const marker = [{ ...REAL_QUESTIONS[0], options: [{ label: `${MARKER}Zebra`, description: 'an option the brief never describes' }] }];
-  const zebra = ask(full, marker);
-  ok('the marker is not part of the label: an option the brief never names is reported even though the brief says "recommendation"',
-    zebra.code === 2 && zebra.out.includes('"Zebra"'));
+  ok('a summary stored only as a narration block passes', ask(transcript([...assistant(narration(PLAIN_SUMMARY), call), answer]), SHORT_QUESTION).code === 0);
+  const inQuestion = [{ ...SHORT_QUESTION[0], question: `${PLAIN_SUMMARY} Which way do the mine edits go?` }];
+  ok('a summary written in the question text passes when the turn has none', ask(noSummary(), inQuestion).code === 0);
+  const longOptionsOnly = [{ ...SHORT_QUESTION[0], options: SHORT_QUESTION[0].options.map((o) => ({ ...o, description: PLAIN_SUMMARY })) }];
+  ok('control: long option descriptions are not a summary', ask(noSummary(), longOptionsOnly).code === 2);
 
   ok('harness output between the summary and the call does not cut the turn',
-    ask(transcript([...assistant(text(REAL_FIXED_BRIEF)), harnessOutput, ...assistant(thinking, call), answer])).code === 0);
-  ok('text written after the call never rescues a thin summary',
-    ask(transcript([...assistant(thinking, text(REAL_BRIEF), call), answer, ...assistant(text(REAL_FIXED_BRIEF))])).code === 2);
-  ok('a call that is not in the transcript yet is not audited', ask(transcript([...assistant(text(REAL_BRIEF))])).code === 0);
+    ask(transcript([...assistant(text(PLAIN_SUMMARY)), harnessOutput, ...assistant(thinking, call), answer]), SHORT_QUESTION).code === 0);
+  ok('text written after the call never rescues a missing summary',
+    ask(transcript([...assistant(thinking, call), answer, ...assistant(text(PLAIN_SUMMARY))]), SHORT_QUESTION).code === 2);
+  ok('a call that is not in the transcript yet is not audited', ask(transcript([...assistant(text('Short.'))])).code === 0);
 
-  const missing = (pattern, part) => {
-    const r = ask(sameReply(dropParagraph(pattern)));
-    return r.code === 2 && r.out.includes(`- ${part}:`);
-  };
-  ok('control: no Decision statement is reported with the line to write', missing(/^\*\*Decision/, 'decision'));
-  ok('control: no option sentences is reported with the labels', missing(/^\*\*Options/, 'options'));
-  const noRecommendation = ask(sameReply(dropParagraph(/^\*\*Recommendation/).replace(/recommend/gi, 'suggest')));
-  ok('control: no Recommendation is reported', noRecommendation.code === 2 && noRecommendation.out.includes('- recommendation:'));
-  ok('control: no Not asked line is reported', missing(/^\*\*Not asked/, 'not asked'));
-  const noSources = REAL_FIXED_BRIEF.replace(/[\w./{},:-]*[./\\][\w./{},:-]*|\b[A-Z]+-[TD]\d+\b|\b[0-9a-f]{7,}\b|\b\w+\.\w{1,3}\b/g, 'x');
-  ok('control: no sources is reported', ask(sameReply(noSources)).out.includes('- evidence:'));
-  ok('control: a thin summary is reported on length', ask(sameReply('Sign all, in order, or leave them.')).out.includes('- length:'));
+  const lastMarked = [{ ...SHORT_QUESTION[0], options: [{ label: 'Restore the piece', description: 'keeps your edits' }, { label: `${MARKER}Revert to HEAD`, description: 'drops them' }] }];
+  const mislabelled = hook('question-gate.mjs', { tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions: lastMarked } }, repoDir);
+  ok('the (Recommended)-first check still fails a question whose recommended option is not first', mislabelled.code === 2 && mislabelled.out.includes('not FIRST'));
+
+  const protocol = gateText('question');
+  ok('q gates question prints the one rule: summary first, then the questionnaire, with no label list',
+    protocol.includes('summary first, then the questionnaire') && protocol.includes('KIT-D153') && !protocol.includes('Decision:') && !protocol.includes('Not asked'));
 } finally {
   cleanup();
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // PostToolUse (AskUserQuestion|request_user_input) and Stop — the after-the-call audit of the summary above a
-// questionnaire (KIT-D152, KIT-D129, KIT-D136). Check id question-brief; fails open on any error.
+// questionnaire (KIT-D153, KIT-D152, KIT-D129). Check id question-brief; fails open on any error.
 //
 // PostToolUse  the call is on disk: judge the prose before it; a thin summary is reported as additionalContext
 //              (exit 0, an advisory line, never an error). A call whose entry is not in the transcript is left for Stop.

@@ -4,13 +4,11 @@
 //   maintainer between tool calls as a thinking block whose signature names "narration" and whose text is filled;
 //   ordinary thinking blocks carry an empty text and are never prose.
 //
-//   turnText(file) -> { lastUser, prose, newestProse, blocks, replyHasText } | null
+//   turnText(file) -> { lastUser, prose, newestProse, blocks } | null
 //     lastUser      the newest maintainer message (tool results, harness notices, compaction summaries and meta entries skipped), '' when none
 //     prose         every assistant text or narration block after it, oldest first, joined by blank lines
 //     newestProse   the newest of those blocks, '' when none
 //     blocks        those blocks, oldest first: [{ kind: 'text' | 'narration', text }]
-//     replyHasText  the newest reply (the assistant entries after the last tool result or user entry) holds a TEXT
-//                   block; narration alone is a platform summary of commentary, not a reply the maintainer read
 //   null when the file cannot be read.
 //
 //   turnText(file, { beforeToolUseId }) reads only what precedes the entry holding that tool call: the text a call
@@ -49,9 +47,7 @@ export function turnText(file, { beforeToolUseId } = {}) {
     lines = lines.slice(0, at);
   }
   const blocks = [];
-  let inReply = true;
-  let replyHasText = false;
-  const result = (lastUser) => ({ lastUser, prose: blocks.map((b) => b.text).join('\n\n'), newestProse: blocks.at(-1)?.text || '', blocks, replyHasText });
+  const result = (lastUser) => ({ lastUser, prose: blocks.map((b) => b.text).join('\n\n'), newestProse: blocks.at(-1)?.text || '', blocks });
   for (let i = lines.length - 1; i >= 0; i--) {
     let entry;
     try { entry = JSON.parse(lines[i]); } catch { continue; }
@@ -60,9 +56,7 @@ export function turnText(file, { beforeToolUseId } = {}) {
     if (role === 'assistant') {
       const entryBlocks = assistantBlocksOf(content).map((b) => ({ kind: b.kind, text: b.text.trim() })).filter((b) => b.text);
       blocks.unshift(...entryBlocks);
-      if (inReply && entryBlocks.some((b) => b.kind === 'text')) replyHasText = true;
     } else if (role === 'user') {
-      inReply = false;
       const text = textOf(content).trim();
       if (!isToolResult(content) && text && !isHarness(entry, text)) return result(text);
     }

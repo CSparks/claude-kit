@@ -1,6 +1,6 @@
 // gate-protocol — every requirement and accepted tag form of the gates a session meets before its first call to a
 // gated tool (KIT-T898, KIT-D147). `q gates <gate>` prints gateText(name); check ids come from the modules that
-// enforce them, tag forms from gate-tokens.mjs, the brief standard from question-brief.mjs.
+// enforce them, tag forms from gate-tokens.mjs, the summary rule from question-brief.mjs.
 //   GATES -> { agent, question }: { title, hooks, checks: [{ check, wants[], tokens[] }] }
 //   gateText(name) -> the printable protocol, or null for an unknown name;  gateNames() -> the gate names
 
@@ -17,7 +17,7 @@ import { LESSONS_CHECK } from '../dispatch-lessons.mjs';
 import { UI_CHECK } from '../dispatch-ui.mjs';
 import { WORKER_CHECK, DEFAULT_WRITER_CAP } from '../dispatch-worker.mjs';
 import { BRIEF_CHECK, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
-import { BRIEF_STANDARD, BRIEF_MIN_WORDS } from './question-brief.mjs';
+import { BRIEF_RULE } from './question-brief.mjs';
 import { READINESS_STANDARD } from './question-ready.mjs';
 
 export const LADDER_CHECK = 'dispatch-ladder';
@@ -57,7 +57,7 @@ export const GATES = {
       { check: RECOMMENDATION_CHECK, wants: [`every question marks its recommended option on the LABEL with ${RECOMMENDED_MARKER} as the prefix (a suffix for request_user_input), and a single-select recommendation is the first option; the description never carries it`], tokens: [] },
       { check: REASK_CHECK, wants: [`no question another session asked and left unresolved within ${REASK_WINDOW_DAYS} days`], tokens: [T.reAsk] },
       { check: IDS_CHECK, wants: [`a ticket, decision or question id comes with at least ${IDS_MIN_HITS} distinctive words of its title`], tokens: [] },
-      { check: BRIEF_CHECK, wants: [`summary then questionnaire, no step between (KIT-D152): a brief of at least ${BRIEF_MIN_WORDS} words in TEXT blocks of the turn, written before the call; narration blocks are platform summaries that drop the labelled lines and cannot carry exact labels. OR the same brief in the questionnaire's own question text ("Decision:", "Evidence:", "Recommendation:", "Not asked:" each opening a line; evidence as file paths or shas, not ids), which is always read. Judged AFTER the call by a PostToolUse audit (Stop is the backstop): a thin summary is reported to you with what to write, and you re-ask:`, ...BRIEF_STANDARD], tokens: [] },
+      { check: BRIEF_CHECK, wants: [`summary first, then the questionnaire (KIT-D153): ${BRIEF_RULE}. Text or narration of the turn before the call counts, as does the questionnaire's own question text; no wording or labels are required. Judged AFTER the call by a PostToolUse audit (Stop is the backstop): a missing summary is reported to you and you re-ask.`], tokens: [] },
       { check: READY_CHECK, wants: READINESS_STANDARD, tokens: [] },
     ],
   },

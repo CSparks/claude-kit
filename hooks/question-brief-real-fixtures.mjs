@@ -1,6 +1,22 @@
-// A real groovegrid brief and questionnaire, verbatim, for question-brief-turn.test.mjs (KIT-T881).
-//   REAL_BRIEF        a status report: no Decision statement, and none of the five option labels described
-//   REAL_FIXED_BRIEF  the same report with the Decision, Options and Recommendation sections added
+// A real groovegrid brief and questionnaire, verbatim, for the question-brief tests (KIT-T881, KIT-D153).
+//   REAL_BRIEF        a status report: a plain summary that uses none of the old labelled sections
+//   REAL_FIXED_BRIEF  the same report with Decision, Options and Recommendation sections added
+//   SHORT_QUESTIONS   a questionnaire whose question text is too short to carry a summary itself
+//   THIN_BRIEF        a summary far below the minimum length
+
+export const THIN_BRIEF = 'Pick one.';
+
+export const SHORT_QUESTIONS = [
+  {
+    question: 'Do you sign the bill?',
+    header: 'Bill',
+    multiSelect: false,
+    options: [
+      { label: '(Recommended) Sign all, in order', description: 'One implementer works the bill in order.' },
+      { label: 'Edit the bill first', description: 'You change scope before anything is dispatched.' },
+    ],
+  },
+];
 
 export const REAL_QUESTIONS = [
   {
