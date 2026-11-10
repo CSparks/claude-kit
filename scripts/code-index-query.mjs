@@ -13,6 +13,7 @@ import { isTestPath } from './q-test-path.mjs';
 import { uncheckedFrameworks } from './q-framework.mjs';
 import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 import { grepPattern } from './q-grep-pattern.mjs';
+import { addPath, strayPathRows } from './q-code-paths.mjs';
 
 export const DEFAULT_LIMIT = 40;
 const MIN_LITERAL = 3;
