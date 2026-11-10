@@ -27,6 +27,9 @@ check('naming the test in the brief passes', block(`${BRIEF}. Acceptance: ${TEST
 check('"not affected" with a reason passes; without one it does not', block(`${BRIEF} [conformance: not affected: gameplay rule only]`) === null
   && block(`${BRIEF} [conformance: not affected]`) !== null);
 check('non-rendering work passes', block('Rename the race result enum and update callers') === null);
+check('a brief naming the physics module path (src/streaming) passes (KIT-T955); a real streaming brief still blocks',
+  block('Make PhysicsWorld deterministic in rapid-game/rust/engine/rg-physics/src/streaming/world.rs') === null
+  && block('Make PhysicsWorld deterministic in rg-physics/src/streaming/world.rs and cut the chunk streaming stall') !== null);
 check('a framework that declares no conformance test is never asked', block(BRIEF, { frameworks: undeclared }) === null);
 check('a read-only researcher is never asked; a generic writer is', block(BRIEF, { type: 'claude-kit:researcher' }) === null
   && block(BRIEF, { type: 'general-purpose' }) !== null);

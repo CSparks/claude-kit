@@ -22,8 +22,11 @@ const ID = /\bL-[A-Z]\d+\b/g;
 const WORK = /\b(?:render(?:ing|er)?|shaders?|wgsl|meshes|mesh|instanc(?:e|es|ing)|draw calls?|shadows?|lighting|lods?|textures?|materials?|bakes?|baking|assets?|glb|scatter|chunks?|streaming|frame time|fps|profil(?:e|ing)|performance|perf|cpu cost|gpu|culling)\b/i;
 const PATCH_WORKER = /(?:^|:)patch-worker$/i;
 
+// A crate-internal module path (`.../src/streaming/**`) names code, not the work the brief is about.
+const CRATE_SRC_PATH = /\S*[\\/]src[\\/]\S*/g;
+
 export function lessonsWork(prompt) {
-  return WORK.test(String(prompt || ''));
+  return WORK.test(String(prompt || '').replace(CRATE_SRC_PATH, ' '));
 }
 
 export function lessonsBlock({ root, input, prompt, footer }) {

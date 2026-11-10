@@ -67,6 +67,10 @@ try {
     rmSync(kitTree, { recursive: true, force: true });
     rmSync(otherGame, { recursive: true, force: true });
   }
+  const PHYSICS = 'Make PhysicsWorld deterministic in rapid-game/rust/engine/rg-physics/src/streaming/world.rs and rapid-game\\rust\\engine\\rg-physics\\src\\streaming\\**';
+  check('a brief naming the physics module path (src/streaming) is not rendering work (KIT-T955)', !lessonsWork(PHYSICS) && block(withLedger, PHYSICS) === null);
+  check('negative control: a real streaming brief that also names a src path still blocks', lessonsWork(`${PHYSICS}. Cut the chunk streaming stall in the render path`) && block(withLedger, `${PHYSICS}. Cut the chunk streaming stall in the render path`) !== null);
+  check('negative control: the bare word streaming outside a crate path still counts', lessonsWork('streaming stalls on reveal') && lessonsWork('crates/rg-assets/streaming stall'));
   check('lessonsWork matches the four themes', ['shader cost', 'texture bake', 'chunk streaming', 'frame time'].every(lessonsWork) && !lessonsWork('fix the menu label'));
 } finally {
   rmSync(withLedger, { recursive: true, force: true });
