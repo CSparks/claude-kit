@@ -63,7 +63,10 @@ function recordSessionWrite(root, rel, sessionId) {
   const prev = readTurnState(root, slot) || {};
   const files = Array.isArray(prev.files) ? prev.files : [];
   if (!files.includes(rel)) files.push(rel);
-  writeTurnState(root, { files: files.slice(-SESSION_WRITES_MAX) }, slot);
+  const kept = files.slice(-SESSION_WRITES_MAX);
+  const at = Object.fromEntries(Object.entries(prev.at || {}).filter(([p]) => kept.includes(p)));
+  at[rel] = Date.now();
+  writeTurnState(root, { files: kept, at }, slot);
 }
 
 // Activity inside a submodule (a Write/Edit there, or a commit made in it) counts as this session
@@ -75,6 +78,12 @@ export function recordSubmoduleActivity(subRoot, sessionId) {
   if (!superRoot) return;
   const rel = repoRelative(superRoot, subRoot);
   if (rel) recordSessionWrite(superRoot, rel, sessionId);
+}
+
+// When this session last wrote each path, ms by repo-relative path; a path recorded before times were kept has none.
+export function sessionWriteTimes(root, sessionId) {
+  if (!sessionId) return {};
+  return (readTurnState(root, sessionSlot(sessionId)) || {}).at || {};
 }
 
 export function sessionWrites(root, sessionId) {

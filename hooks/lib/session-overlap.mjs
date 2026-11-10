@@ -11,10 +11,11 @@
 import { git } from './exec.mjs';
 import { liveHolders } from './checkout-holder.mjs';
 import { overlaps } from './path-overlap.mjs';
-import { sessionWrites } from '../turn-writes.mjs';
+import { sessionWriteTimes, sessionWrites } from '../turn-writes.mjs';
 
 const STORE_DIR = '.ai/';
-const MS_PER_MIN = 60 * 1000;
+const MS_PER_S = 1000;
+const MS_PER_MIN = 60 * MS_PER_S;
 const lines = (out) => String(out).split('\n').map((l) => l.trim()).filter(Boolean);
 
 // Of `files`, those with changes against HEAD or not tracked: git is asked about only these, never the whole tree.
@@ -23,6 +24,14 @@ function stillDirty(tree, files) {
   const changed = lines(git(['-c', 'core.quotepath=off', 'diff', '--name-only', 'HEAD', '--', ...files], tree));
   const untracked = lines(git(['-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard', '--', ...files], tree));
   return new Set([...changed, ...untracked]);
+}
+
+// Was the holder's write of `file` committed? A commit at or after the write (git time is whole seconds) holds that work, so
+// the dirt now on the file is whoever edited it next, never the holder.
+function committedSince(tree, file, wroteAt) {
+  if (!wroteAt) return false;
+  const seconds = Number(git(['log', '-1', '--format=%ct', '--', file], tree).trim());
+  return Number.isFinite(seconds) && seconds * MS_PER_S >= Math.floor(wroteAt / MS_PER_S) * MS_PER_S;
 }
 
 const named = (paths) => (paths || []).filter((p) => p && p !== '*' && !String(p).startsWith(STORE_DIR));
@@ -34,7 +43,8 @@ export function overlappingHolders({ tree, session, paths, now = Date.now() }) {
     const refused = new Set(holder.refused || []);
     const candidates = [...sessionWrites(tree, holder.session)].filter((f) => !refused.has(f) && overlaps(wanted, [f]));
     const dirty = stillDirty(tree, candidates);
-    const files = candidates.filter((f) => dirty.has(f));
+    const wrote = sessionWriteTimes(tree, holder.session);
+    const files = candidates.filter((f) => dirty.has(f) && !committedSince(tree, f, wrote[f]));
     return files.length ? [{ holder, files }] : [];
   });
 }
