@@ -14,7 +14,10 @@
 // `--from <inbox-id,...>` names the inbox notes the decision promotes (KIT-T938): each moves to inbox/triaged/
 // once the decision is written, and an unknown id refuses before an id is minted.
 //
-// `recordDecision(root, draftText, { from })` → { id, path, cleared }.
+// A decision that settles a framework concern in a game store is also mirrored into the framework store as an open ticket
+// (KIT-T943); the decision gains `promoted: <ticket>`.
+//
+// `recordDecision(root, draftText, { from })` → { id, path, cleared, mirrored?: { ticket, root }, mirrorError? }.
 
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -24,6 +27,8 @@ import { reserveId, reserveNextId } from './id-reserve.mjs';
 import { maxStoreNum, readIdConfig } from './id-utils.mjs';
 import { resolveInboxNotes } from '../hooks/lib/inbox-rulings.mjs';
 import { moveCapToTriaged } from './triage/write-item.mjs';
+import { mirrorDecision } from './framework-mirror.mjs';
+import { frameworkRoot } from '../hooks/lib/framework-scope.mjs';
 
 const SLUG_MAX = 64;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -58,6 +63,17 @@ function claimExactly(root, dir, wanted) {
   return wanted;
 }
 
+// A framework-scope decision becomes an open ticket in the framework store this turn (framework-mirror.mjs); a failed
+// mirror never loses the decision, it is reported.
+function mirrored(root, path) {
+  try {
+    const hit = mirrorDecision(root, path);
+    return hit ? { mirrored: { ticket: hit.ticket, root: frameworkRoot() } } : {};
+  } catch (e) {
+    return { mirrorError: e.message };
+  }
+}
+
 export function recordDecision(root, text, { from = [] } = {}) {
   const draft = parseDraft(text);
   const notes = resolveInboxNotes(root, from);
@@ -70,5 +86,5 @@ export function recordDecision(root, text, { from = [] } = {}) {
   const head = [`id: ${id}`, `title: ${draft.title}`, `summary: ${draft.summary}`, `date: ${date}`, `supersedes: ${draft.supersedes}`, `source: ${draft.source}`];
   writeFileSync(path, `---\n${head.join('\n')}\n---\n\n${draft.body}\n`);
   const cleared = notes.map((file) => moveCapToTriaged(join(root, '.ai'), join('inbox', file)));
-  return { id, path, cleared };
+  return { id, path, cleared, ...mirrored(root, path) };
 }

@@ -1,7 +1,8 @@
 // inbox-rulings — maintainer rulings resting in the inbox (KIT-T938); cap, flush, orient and the dispatch gate share it.
 // Promoted = the note left .ai/inbox/ (t decide --from, t triage or triage --apply moves it to inbox/triaged/).
 //   isRuling(text, user?)                  the capture quotes the maintainer: verbatim, ruling, directive, user said, a quoted sentence
-//   unpromotedRulings(root, { now, user }) -> [{ id, file, age, title, capturedMs, writtenMs }] oldest first; top-level inbox only
+//   unpromotedRulings(root, { now, user }) -> [{ id, file, days, age, title, capturedMs, writtenMs }] oldest first; top-level inbox only
+//                                            (days: age in days, null when unknown)
 //   pendingNotes(root)                     -> every un-triaged note file name in the inbox
 //   resolveInboxNotes(root, refs)         -> file names for ids, stems or unique prefixes; throws on an unknown or ambiguous ref
 //   rulingLines(rulings, { limit })        -> one line per ruling, then +N more
@@ -77,7 +78,8 @@ export function unpromotedRulings(root, { now = Date.now(), user = resolveUser()
       const text = readFileSync(join(dir, file), 'utf8');
       if (!isRuling(text, user)) continue;
       const writtenMs = statSync(join(dir, file)).mtimeMs;
-      out.push({ id: file.replace(/\.md$/, ''), file, age: ageLabel(ageDays(file, writtenMs, now)), title: firstLine(text).replace(TYPE_TAG, ''), capturedMs: captureStamp(file), writtenMs });
+      const days = ageDays(file, writtenMs, now);
+      out.push({ id: file.replace(/\.md$/, ''), file, days, age: ageLabel(days), title: firstLine(text).replace(TYPE_TAG, ''), capturedMs: captureStamp(file), writtenMs });
     } catch { /* an unreadable note is no finding */ }
   }
   return out.sort((a, b) => a.file.localeCompare(b.file));

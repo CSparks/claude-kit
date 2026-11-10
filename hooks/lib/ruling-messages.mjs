@@ -2,7 +2,8 @@
 // capture, at Stop, at orient and at a planner dispatch.
 //   rulingDemand(id)                 the cap receipt line for a note that quotes the maintainer
 //   stopBlock(fresh)                 the Stop block for rulings captured this turn (caller appends the triage footer)
-//   staleWarning(old)                the Stop/PreCompact warning for rulings older than this turn
+//   overdueBlock(overdue, days)      the Stop block for directives resting in the framework inbox past `days` (KIT-T943)
+//   staleWarning(old)               the Stop/PreCompact warning for rulings older than this turn
 //   orientBlock(rulings)             the SessionStart lines, [] when nothing waits
 //   planBlock(rulings, { agent })    the dispatch block for a planner that cites no inbox search (caller appends the footer)
 
@@ -23,6 +24,12 @@ export const stopBlock = (fresh) => [
   `BLOCKED: ${fresh.length} maintainer ruling(s) captured this turn still rest in the inbox (KIT-T938). The record is a decision, not a note:`,
   ...rulingLines(fresh),
   `Promote each now: write ${DRAFT_SHAPE}, then ${PROMOTE_COMMAND}. A note that is not a ruling clears with ${CLEAR_FALSE_MATCH}.`,
+].join('\n');
+
+export const overdueBlock = (overdue, days) => [
+  `BLOCKED: ${overdue.length} maintainer directive(s) have rested in the framework inbox for ${days}+ days without triage (KIT-T943). A framework directive left in the inbox is never built:`,
+  ...rulingLines(overdue, { limit: ORIENT_SHOWN }),
+  `Triage each now: promote with ${PROMOTE_COMMAND} and file the framework ticket it implies, or clear a note that is no directive with ${CLEAR_FALSE_MATCH}.`,
 ].join('\n');
 
 export const staleWarning = (old) => [
