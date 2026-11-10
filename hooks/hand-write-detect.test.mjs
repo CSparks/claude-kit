@@ -192,6 +192,44 @@ try {
   });
   ok('KIT-T888 control: a shell rewrite AFTER another writer\'s Edit changes the content, so the exemption lapses and it is flagged', viaOverwrite.status === 2 && viaOverwrite.stderr.includes('src/a.mjs'));
 
+  // KIT-T949: a session started before the PostToolUse recorder was wired never runs it; its Edit is known from pre-write alone.
+  const preOnlyEdit = (d, rel, oldString, newString, { lands = newString } = {}) => {
+    spawnHook('pre-write.mjs', { session_id: 'OTHER', tool_input: { file_path: join(d, rel), old_string: oldString, new_string: newString } }, d);
+    writeFileSync(join(d, rel), readFileSync(join(d, rel), 'utf8').replace(oldString, lands));
+  };
+  const preOnly = fresh();
+  const viaPreOnly = call(preOnly, 'S22', 'node scratch.js', () => preOnlyEdit(preOnly, 'src/a.mjs', 'a = 1', 'a = 9'));
+  ok('KIT-T949: an Edit seen only by pre-write, landing during a non-generator call, is not blamed on the call', viaPreOnly.status === 0 && !viaPreOnly.stderr.includes('HAND WRITE'));
+  const preOnlyWrite = fresh();
+  const viaPreOnlyWrite = call(preOnlyWrite, 'S23', 'node scratch.js', () => {
+    spawnHook('pre-write.mjs', { session_id: 'OTHER', tool_input: { file_path: join(preOnlyWrite, 'src', 'b.mjs'), content: 'export const b = 9;\n' } }, preOnlyWrite);
+    writeFileSync(join(preOnlyWrite, 'src', 'b.mjs'), 'export const b = 9;\n');
+  });
+  ok('KIT-T949: a Write seen only by pre-write is not blamed either', viaPreOnlyWrite.status === 0 && !viaPreOnlyWrite.stderr.includes('HAND WRITE'));
+  const preOnlyCrlf = fresh();
+  writeFileSync(join(preOnlyCrlf, 'src', 'a.mjs'), 'export const a = 1;\r\nexport const c = 3;\r\n');
+  git(['commit', '-qam', 'crlf'], preOnlyCrlf);
+  const viaPreOnlyCrlf = call(preOnlyCrlf, 'S24', 'node scratch.js', () => {
+    spawnHook('pre-write.mjs', { session_id: 'OTHER', tool_input: { file_path: join(preOnlyCrlf, 'src', 'a.mjs'), old_string: 'a = 1;\nexport', new_string: 'a = 9;\nexport' } }, preOnlyCrlf);
+    writeFileSync(join(preOnlyCrlf, 'src', 'a.mjs'), 'export const a = 9;\r\nexport const c = 3;\r\n');
+  });
+  ok('KIT-T949: an Edit of a CRLF file, matched through its LF payload, is not blamed on the call', viaPreOnlyCrlf.status === 0 && !viaPreOnlyCrlf.stderr.includes('HAND WRITE'));
+  const inFlight = fresh();
+  spawnHook('pre-write.mjs', { session_id: 'OTHER', tool_input: { file_path: join(inFlight, 'src', 'b.mjs'), old_string: 'b = 2', new_string: 'b = 9' } }, inFlight);
+  const viaInFlight = call(inFlight, 'S27', 'node scratch.js', () => writeFileSync(join(inFlight, 'src', 'b.mjs'), 'export const b = 9;\n'));
+  ok('KIT-T949: an Edit whose pre-write ran just before the call and whose write landed inside it is not blamed on the call', viaInFlight.status === 0 && !viaInFlight.stderr.includes('HAND WRITE'));
+  const preOnlyLate = fresh();
+  const viaPreOnlyLate = call(preOnlyLate, 'S25', 'node scratch.js', () => {
+    preOnlyEdit(preOnlyLate, 'src/a.mjs', 'a = 1', 'a = 9');
+    rewrite(preOnlyLate, "fs.writeFileSync(p, 'export const a = 8;\\n')");
+  });
+  ok('KIT-T949 control: a shell rewrite after the Edit changes the content, so the pre-write record no longer excuses it', viaPreOnlyLate.status === 2 && viaPreOnlyLate.stderr.includes('src/a.mjs'));
+  const preOnlyRefused = fresh();
+  const viaPreOnlyRefused = call(preOnlyRefused, 'S26', 'node scratch.js', () => {
+    preOnlyEdit(preOnlyRefused, 'src/a.mjs', 'a = 1', 'a = 9', { lands: 'a = 7' });
+  });
+  ok('KIT-T949 control: a change that is not the content the Edit asked for is a hand write', viaPreOnlyRefused.status === 2 && viaPreOnlyRefused.stderr.includes('src/a.mjs'));
+
   const land = (d, files) => {
     for (const [rel, text] of Object.entries(files)) writeFileSync(join(d, rel), text);
     git(['add', '-A'], d);

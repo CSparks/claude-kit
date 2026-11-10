@@ -54,6 +54,37 @@ try {
   r = gate(d, 'A');
   ok("a file another session's call wrote still blocks", r.code === 2 && r.out.includes('bs.js'), r.out.trim());
 
+  // KIT-T953: another session's Edit or Write landing inside this session's shell call is that session's file. Only
+  // pre-write runs for the writer: a session started before the PostToolUse recorder was wired never runs it (KIT-T949).
+  const toolEdit = (session, file, text) => {
+    spawnHook('pre-write.mjs', { session_id: session, tool_input: { file_path: join(d, file), content: text } }, d);
+    writeFileSync(join(d, file), text);
+  };
+  await sleep(CLOCK_GAP_MS);
+  shell(d, 'A', 'a3', () => {
+    nodeWrite(d, 'mine.js');
+    toolEdit('B', 'edited-by-b.js', 'export const b = 1;\n');
+  });
+  git(['reset', '-q'], d);
+  git(['add', 'edited-by-b.js'], d);
+  r = gate(d, 'A');
+  ok("KIT-T953: a file another session's Edit wrote during this call is not credited to this session", r.code === 2 && r.out.includes('edited-by-b.js'), r.out.trim());
+  r = gate(d, 'B');
+  ok('KIT-T953: the session that edited it commits it without [commit-foreign]', r.code === 0, r.out.trim());
+  git(['reset', '-q'], d);
+  git(['add', 'mine.js'], d);
+  r = gate(d, 'A');
+  ok("KIT-T953 control: a file this call wrote beside another session's Edit is still credited", r.code === 0, r.out.trim());
+
+  shell(d, 'A', 'a4', () => {
+    toolEdit('B', 'rewritten.js', 'export const b = 2;\n');
+    nodeWrite(d, 'rewritten.js');
+  });
+  git(['reset', '-q'], d);
+  git(['add', 'rewritten.js'], d);
+  r = gate(d, 'A');
+  ok("KIT-T953 control: a file this call rewrote after another session's Edit left it is credited", r.code === 0, r.out.trim());
+
   const un = repo();
   writeFileSync(join(un, 'x.js'), 'x\n');
   const before = readdirSync(state).length;

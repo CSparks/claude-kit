@@ -6,13 +6,17 @@
 // Pre stamps the call's start time; Post runs ONE `git status` and records every dirty path
 // whose mtime is at/after that stamp. A file changed outside any session call (another session,
 // the maintainer's editor) is never stamped and stays foreign. Parallel edits by another session
-// DURING this call are indistinguishable and count as ours (the accepted window).
+// DURING this call count as ours unless an Edit or Write tool left that exact content (the accepted-writes
+// ledger, KIT-T888): a tool's write is credited by pre-write to the session that made it, never to a shell
+// call it overlapped (KIT-T953).
 // No-ops on unadopted repos. Fails open on any error; never blocks.
 
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { payload, git, gitRoot, adopted, readTurnState, writeTurnState } from './lib.mjs';
 import { recordSessionPath } from './turn-writes.mjs';
+import { contentHashOf } from './lib/shell-snapshot.mjs';
+import { toolWriteProves } from './lib/tool-writes.mjs';
 
 const START_MAX_AGE_MS = 3600000;
 const STATUS_ENTRIES_MAX = 5000;
@@ -57,7 +61,8 @@ try {
   writeTurnState(root, { starts }, slot);
   for (const rel of dirtyPaths(git(['status', '--porcelain=v1', '-z', '--untracked-files=all'], root))) {
     try {
-      if (statSync(join(root, rel)).mtimeMs >= startedAt - CLOCK_SLACK_MS) recordSessionPath(root, rel, sid);
+      const touched = statSync(join(root, rel)).mtimeMs >= startedAt - CLOCK_SLACK_MS;
+      if (touched && !toolWriteProves(root, rel, startedAt, contentHashOf(root, rel))) recordSessionPath(root, rel, sid);
     } catch { /* vanished or unreadable: not recorded */ }
   }
 } catch {

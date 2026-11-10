@@ -9,7 +9,8 @@ import {
   payload, projectRoot, gitRootOfFile, pathExcluded, markerExcludedLines, excludeFooter, VENDORED, LOCKFILES, fileExt,
   loadWritePolicy, forbiddenBy, globToRegExp, relForGlob,
 } from './lib.mjs';
-import { recordTurnWrite, recordSubmoduleActivity } from './turn-writes.mjs';
+import { recordTurnWrite, recordSubmoduleActivity, repoRelative } from './turn-writes.mjs';
+import { recordPredictedWrite } from './lib/tool-writes.mjs';
 import { handEditWarning } from './lib/broker-hand-edit.mjs';
 import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 import { FILE_HARD, FILE_SOFT, fileLengthVerdict } from './lib/limits.mjs';
@@ -197,6 +198,7 @@ const ROOT = _gitRoot || projectRoot(dirname(file));
 if (_gitRoot && !process.env.CLAUDE_KIT_BROKER_GATE) {
   recordTurnWrite(_gitRoot, file, p.session_id);
   recordSubmoduleActivity(_gitRoot, p.session_id);
+  recordPredictedWrite(_gitRoot, repoRelative(_gitRoot, file), file, p.tool_input);
   const handEdit = handEditWarning(file, p.session_id);
   if (handEdit) process.stderr.write(handEdit);
 }
