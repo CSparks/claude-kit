@@ -39,8 +39,7 @@ export function nodeLoadedModules(args) {
     if (a === END_OF_OPTIONS || a === STDIN || !a.startsWith('-')) break;
     if (HARMLESS_VALUE_OPTIONS.has(a)) { i++; continue; }
     if (!loadsCode(a)) continue;
-    const inline = a.includes('=') || !/^-{1,2}[A-Za-z-]*r?$/.test(a) ? joinedValue(a) : '';
-    const value = inline && inline !== a ? inline : args[++i];
+    const value = attachedValue(a) || args[++i];
     if (value) loaded.push(value);
   }
   return loaded;
