@@ -5,7 +5,10 @@
 //
 //   citedPaths(text)            -> the repo-checkable path tokens (separator + extension; host/home paths excluded)
 //   missingCitations(root, text)-> those that don't resolve on disk, relative paths anchored at root;
-//                                  absolute paths outside root (another project's tree) are skipped
+//                                  absolute paths outside root (another project's tree) are skipped; a path
+//                                  some line calls stale/renamed/no longer existing is cleared wherever cited
+//                                  (a bare file name clears the path ending with it); dated entries past the
+//                                  newest ten are history and not checked
 
 import { existsSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
@@ -44,9 +47,10 @@ function outsideRoot(root, p) {
   return rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel);
 }
 
-// A line that calls a path stale, renamed or gone declares it history: the anchor already says so, and
-// `t session` only appends, so the warning must accept that sentence as the answer.
-const STALE_MARK = /\b(?:stale|no longer exists?|renam\w*|removed|deleted|moved|gone|historical|superseded|not re-anchored)\b/i;
+// A line that calls a path stale, renamed or no longer existing declares it history: the anchor already says so,
+// and `t session` only appends, so the warning must accept that sentence as the answer. A deliverable that "moved"
+// to a path that is absent is the lost deliverable the warning exists for, so moved/removed/gone do not clear.
+const STALE_MARK = /\b(?:stale|no longer exists?|renam\w*|not re-anchored|historical)\b/i;
 const BARE_FILE = /[\w-]+\.[A-Za-z0-9]{1,6}(?![\w])/g;
 const DATED_ENTRY = /^- \[\d{4}-\d{2}-\d{2}/;
 // Dated entries past the newest few are session history, not live anchors.

@@ -1,6 +1,6 @@
 ---
 id: KIT-D154
-title: Every agent triages every hook block as process failure or kit bug
+title: Every agent triages every hook block: process failure, kit bug, or known kit bug with the fix in progress
 summary: on any hook block each agent says in its next reply which of three it is: process failure (ticket root cause and prevention), kit bug (ticket and fix agent this turn), or known kit bug with the fix in progress (name the open ticket and its agent)
 date: 2026-11-09
 supersedes: 

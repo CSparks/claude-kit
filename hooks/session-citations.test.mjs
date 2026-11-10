@@ -18,7 +18,8 @@ const SIX = ['GroupPads/PadSettings/.old', 'tests/test_GroupPads.cpp', 'src/ui/t
 const L20 = '- [2026-11-07 16:26] 2026-11-07 GG-D049 recorded (amends GG-D048): collapsed Scene row center = horizontally scrolling scene list. Stale SESSION.md path citations (GroupPads/PadSettings/.old) pre-existing, untouched.';
 const L30 = '- [2026-11-04 23:48] 2026-11-04: GG-T159 landed 583862fd (src/state/GroupPads.*, tests/test_GroupPads.cpp, 4 cases green). Blocked: 17th-child guard awaits Chris on split.';
 const L234 = '2026-11-05: ec6b004e choke dropdown (src/ui/tracks/TrackPanelChoke.cpp) + audio-thread src/plugin/ChokeTable.h. Drum Group tests: tests/test_DrumGroup.cpp (test_GroupPads.cpp no longer exists). Open: choke with kits GG-T163.';
-const L236 = '2026-11-05: pad editor moved: src/ui/tracks/PadSettings.h/.cpp and PadSettings.h/.cpp are the old homes.';
+const L236 = '2026-11-05: 0e44f95a PadSettings (src/ui/tracks/PadSettings.h/.cpp) owns pad note + choke dropdowns, replacing the TrackPanel choke methods and the deleted TrackPanelChoke.cpp. drumgroup::setPadNote swaps with the owner; tests in tests/test_DrumGroup.cpp (36 assertions green). Two GrooveGrid.exe.old* files locked by running processes.';
+const L238 = '2026-11-05: GG-D042 recorded: Song Generator mode vs Scene mode. Stale SESSION.md citations to flag, not fixed: tests/test_GroupPads.cpp, src/ui/tracks/TrackPanelChoke.cpp, src/ui/tracks/PadSettings.h/.cpp (not on disk; PadSettings landed in 0e44f95a under a different path, unverified).';
 const L240 = '2026-11-05: GG-D042 clarified (Chris). Next unchanged: Bake questions to Chris. Stale citations (tests/test_GroupPads.cpp, TrackPanelChoke.cpp, PadSettings.h/.cpp) are other sessions\' Group Pads work, not re-anchored.';
 const L382 = '2026-11-05: exe still locked by 5 unkillable exit-hang processes; renamed exe to GrooveGrid.exe.stuck-exit-hang. GG-T182 note: recurring hang (earlier .old/.old2 renames).';
 
@@ -33,8 +34,10 @@ try {
   const missing = (text) => missingCitations(root, text);
   ok('control: with no stale marker all six paths are reported', SIX.every((p) => missing(anchor(...SIX.map((x) => `2026-11-05 note cites ${x}`))).includes(p)));
 
-  const whole = anchor(L20, L30, L234, L236, L240, L382);
-  ok('the groovegrid anchor (lines 20, 30, 234, 236, 240, 382) reports nothing', missing(whole).length === 0);
+  const whole = anchor(L20, L30, L234, L236, L238, L240, L382);
+  ok('the groovegrid anchor (lines 20, 30, 234, 236, 238, 240, 382) reports nothing', missing(whole).length === 0);
+  ok('control: a deliverable that "moved" to a path that is absent still warns', missing(anchor('2026-11-09: analyst report moved to docs/research/lost.md')).includes('docs/research/lost.md'));
+  ok('control: "removed" and "gone" do not clear a path either', ['removed', 'gone'].every((w) => missing(anchor(`2026-11-09: ${w} docs/research/lost.md`)).length === 1));
   ok('control: dropping the markers brings the six paths back', missing(anchor(L20.replace('Stale', 'Live'), L30, L234.replace('no longer exists', 'exists'), L236, L240.replace(/Stale/, 'Live'), L382.replace('renames', 'copies'))).length > 0);
 
   ok('a path another line declares stale is cleared wherever it is cited', missing(anchor('2026-11-09: wrote tests/missing/a.cpp', '2026-11-09: tests/missing/a.cpp is stale, dropped')).length === 0);

@@ -30,3 +30,7 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 ## History
 - [2026-11-09 23:59] (created) bug — flush dead-citation warning has no satisfiable action: SESSION.md cites paths that are gone inside dated history lines that already call the
 - [2026-11-10 00:00] (status) todo → review
+- [2026-11-10 00:00] (landed) 79a2c66 flush dead-citation warning is satisfiable: a line that calls a path stale, renamed, moved or gone clears it wherever it
+- [2026-11-10 00:12] (comment) @kit-agent: Narrowed the stale markers to stale, no longer exists, renam*, not re-anchored, historical (moved/removed/gone/deleted/s (full comment #1 in ## Notes)
+### comment #1 [2026-11-10 00:12] @kit-agent
+Narrowed the stale markers to stale, no longer exists, renam*, not re-anchored, historical (moved/removed/gone/deleted/superseded do not clear: a deliverable that moved to an absent path is the case the warning exists for); fixtures now use the real groovegrid lines 236 and 238.

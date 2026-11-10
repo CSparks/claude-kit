@@ -2,14 +2,14 @@
 id: KIT-T679
 title: q gap: 'code' has no -capture  flag
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:
 labels: [kit-bug]
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T923
 created: 2026-10-28T21:54:08Z
 updated: 2026-10-28T21:54:08Z
 ---
@@ -29,3 +29,5 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-10-28 21:54] (created) bug — q gap: 'code' has no -capture  flag
+- [2026-11-10 00:12] (status) todo → superseded (by KIT-T923)
+- [2026-11-10 00:12] (comment) @kit-agent: Duplicate of KIT-T923: a flag-shaped unknown token now prints the 'q code -- <text>' hint (KIT-T678 added the -- form).
