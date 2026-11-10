@@ -3,7 +3,7 @@ id: KIT-T360
 title: request-gate.mjs re-fires on the SAME already-routed user message at every subsequent Stop (stiletto 2026-09-04, three times for 'Go for…
 summary:               # OPTIONAL one-line gist — what a trail/brief shows instead of a clipped title
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -19,7 +19,7 @@ tier:                  # OPTIONAL dispatch firepower: light | standard | deep �
 model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pins the subagent model, beating tier.
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
-superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
+superseded_by: KIT-T927
 created: 2026-10-06T14:51:23.106Z
 updated: 2026-10-06T14:51:23.106Z
 ---
@@ -42,6 +42,8 @@ request-gate.mjs re-fires on the SAME already-routed user message at every subse
 ## Notes
 <!-- prose/narrative progress — free-form, direct-edit. Context, blockers, research,
      why a tradeoff was made. Append freely; no format enforced. -->
+### comment #1 [2026-11-10 00:06] @kit-agent
+Duplicate of KIT-T927: the gate now counts cap, t new/request/note/question/comment/criterion/decide, and a dispatch carrying the maintainer's words as routing, and never re-nudges a prompt an earlier Stop found routed.
 
 ## History
 <!-- structured event log — APPEND-ONLY, stamped by the `t` CLI (KIT-T075). One line per
@@ -54,3 +56,5 @@ request-gate.mjs re-fires on the SAME already-routed user message at every subse
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-11-10 00:06] (status) todo → superseded (by KIT-T927)
+- [2026-11-10 00:06] (comment) @kit-agent: Duplicate of KIT-T927: the gate now counts cap, t new/request/note/question/comment/criterion/decide, and a dispatch car (full comment #1 in ## Notes)

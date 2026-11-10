@@ -27,6 +27,7 @@ import {
 } from './lib.mjs';
 import { frameworkStores } from '../scripts/q-framework.mjs';
 import { assistantTextOf } from './lib/assistant-text.mjs';
+import { routedByCommand, routedByDispatch } from './lib/request-routing.mjs';
 import { resolve } from 'node:path';
 
 // Built-in defaults — overridable/extendable via `capture.signals` in .ai/config.yml.
@@ -66,6 +67,9 @@ const RECEIPT = new RegExp(
 const CAPTURE_STORES = ['inbox', 'decisions', 'requests', 'questions'];
 const NON_CAPTURE = /^(README|_TEMPLATE|INDEX|REGRESSIONS)\b/i;
 
+const ROUTED_SLOT = 'request-gate-routed'; // the prompts a Stop already found routed
+const ROUTED_KEYS_MAX = 50;
+
 main().catch(() => process.exit(0)); // any failure → allow the stop (fail-open)
 
 async function main() {
@@ -91,11 +95,19 @@ async function main() {
   const hit = cfg.signals.find((re) => re.test(lastUser));
   if (!hit) process.exit(0);                            // not request-shaped
 
-  if (RECEIPT.test(lastAssistant)) process.exit(0);                // routed/dismissed in any reply since the prompt
   const promptKey = `${turnStartMs}:${lastUser.slice(0, 200)}`;
+  const answered = (readTurnState(root, ROUTED_SLOT) || {}).keys || [];
+  if (answered.includes(promptKey)) process.exit(0);               // routed in an earlier Stop: never ask twice
+  const routed = RECEIPT.test(lastAssistant)                       // routed/dismissed in any reply since the prompt
+    || routedByCommand(parsed.commands || [])                      // cap, or a t verb that records an item or comment
+    || routedByDispatch(parsed.prompts || [], lastUser)            // a dispatch carrying the maintainer's words
+    || (turnStartMs && capturedSince(root, turnStartMs))           // captured to a store
+    || (turnStartMs && routedElsewhere(root, turnStartMs, parsed.commands || [])); // the kit, a framework or a store named in the turn
+  if (routed) {
+    writeTurnState(root, { keys: [...answered, promptKey].slice(-ROUTED_KEYS_MAX) }, ROUTED_SLOT);
+    process.exit(0);
+  }
   if ((readTurnState(root, 'request-gate-fired') || {}).key === promptKey) process.exit(0); // already nudged for this prompt
-  if (turnStartMs && capturedSince(root, turnStartMs)) process.exit(0); // captured to a store
-  if (turnStartMs && routedElsewhere(root, turnStartMs, parsed.commands || [])) process.exit(0); // routed into the kit, a framework or a store named in the turn
 
   writeTurnState(root, { key: promptKey }, 'request-gate-fired');
   const quote = lastUser.replace(/\s+/g, ' ').trim().slice(0, 120);
@@ -119,6 +131,7 @@ function parseTranscript(file) {
   let lastUser = null, lastAssistant = null, turnStartMs = 0, userResolved = false;
   const sinceUser = [];
   const commands = [];
+  const prompts = [];
   for (let i = lines.length - 1; i >= 0; i--) {
     let e;
     try { e = JSON.parse(lines[i]); } catch { continue; }
@@ -128,7 +141,13 @@ function parseTranscript(file) {
       const text = assistantTextOf(content);
       lastAssistant ||= text;
       sinceUser.push(text);
-      if (Array.isArray(content)) for (const b of content) if (b && b.type === 'tool_use' && typeof b.input?.command === 'string') commands.push(b.input.command);
+      if (Array.isArray(content)) {
+        for (const b of content) {
+          if (!b || b.type !== 'tool_use') continue;
+          if (typeof b.input?.command === 'string') commands.push(b.input.command);
+          if (/^(?:agent|task)$/i.test(b.name || '') && typeof b.input?.prompt === 'string') prompts.push(b.input.prompt);
+        }
+      }
       continue;
     }
     if (!userResolved && role === 'user' && !isToolResult(content) && e?.isMeta !== true) {
@@ -147,7 +166,7 @@ function parseTranscript(file) {
     }
     if (userResolved && lastAssistant) break;
   }
-  return { lastUser, lastAssistant, turnStartMs, sinceUser: sinceUser.join('\n'), commands };
+  return { lastUser, lastAssistant, turnStartMs, sinceUser: sinceUser.join('\n'), commands, prompts };
 }
 
 function extractText(content) {

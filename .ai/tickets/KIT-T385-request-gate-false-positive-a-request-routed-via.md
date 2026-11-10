@@ -2,14 +2,14 @@
 id: KIT-T385
 title: request-gate false positive: a request routed via 't criterion ST-T607 ...' plus 't comment ST-T607 ...' (stiletto 2026-10-07) still fired '
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:
 labels: [kit-bug]
 links: []
 files: []
 supersedes:
-superseded_by:
+superseded_by: KIT-T927
 created: 2026-10-07T18:10:26Z
 updated: 2026-10-07T18:10:26Z
 ---
@@ -29,3 +29,7 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 
 ## History
 - [2026-10-07 18:10] (created) bug — request-gate false positive: a request routed via 't criterion ST-T607 ...' plus 't comment ST-T607 ...' (stiletto 2026-10-07) still fired '
+- [2026-11-10 00:05] (status) todo → superseded (by KIT-T927)
+- [2026-11-10 00:05] (comment) @kit-agent: Duplicate of KIT-T927: the gate now counts cap, t new/request/note/question/comment/criterion/decide, and a dispatch car (full comment #1 in ## Notes)
+### comment #1 [2026-11-10 00:05] @kit-agent
+Duplicate of KIT-T927: the gate now counts cap, t new/request/note/question/comment/criterion/decide, and a dispatch carrying the maintainer's words as routing, and never re-nudges a prompt an earlier Stop found routed.
