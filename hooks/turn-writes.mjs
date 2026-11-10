@@ -64,9 +64,10 @@ function recordSessionWrite(root, rel, sessionId) {
   const files = Array.isArray(prev.files) ? prev.files : [];
   if (!files.includes(rel)) files.push(rel);
   const kept = files.slice(-SESSION_WRITES_MAX);
-  const at = Object.fromEntries(Object.entries(prev.at || {}).filter(([p]) => kept.includes(p)));
-  at[rel] = Date.now();
-  writeTurnState(root, { files: kept, at }, slot);
+  const heads = Object.fromEntries(Object.entries(prev.heads || {}).filter(([p]) => kept.includes(p)));
+  const head = git(['rev-parse', 'HEAD'], root).trim();
+  if (head) heads[rel] = head;
+  writeTurnState(root, { files: kept, heads }, slot);
 }
 
 // Activity inside a submodule (a Write/Edit there, or a commit made in it) counts as this session
@@ -80,10 +81,11 @@ export function recordSubmoduleActivity(subRoot, sessionId) {
   if (rel) recordSessionWrite(superRoot, rel, sessionId);
 }
 
-// When this session last wrote each path, ms by repo-relative path; a path recorded before times were kept has none.
-export function sessionWriteTimes(root, sessionId) {
+// The HEAD commit at this session's latest write of each path, by repo-relative path; a path recorded before heads
+// were kept, or in a repo with no commit, has none.
+export function sessionWriteHeads(root, sessionId) {
   if (!sessionId) return {};
-  return (readTurnState(root, sessionSlot(sessionId)) || {}).at || {};
+  return (readTurnState(root, sessionSlot(sessionId)) || {}).heads || {};
 }
 
 export function sessionWrites(root, sessionId) {

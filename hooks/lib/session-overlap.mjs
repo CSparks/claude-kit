@@ -11,11 +11,10 @@
 import { git } from './exec.mjs';
 import { liveHolders } from './checkout-holder.mjs';
 import { overlaps } from './path-overlap.mjs';
-import { sessionWriteTimes, sessionWrites } from '../turn-writes.mjs';
+import { sessionWriteHeads, sessionWrites } from '../turn-writes.mjs';
 
 const STORE_DIR = '.ai/';
-const MS_PER_S = 1000;
-const MS_PER_MIN = 60 * MS_PER_S;
+const MS_PER_MIN = 60 * 1000;
 const lines = (out) => String(out).split('\n').map((l) => l.trim()).filter(Boolean);
 
 // Of `files`, those with changes against HEAD or not tracked: git is asked about only these, never the whole tree.
@@ -26,12 +25,12 @@ function stillDirty(tree, files) {
   return new Set([...changed, ...untracked]);
 }
 
-// Was the holder's write of `file` committed? A commit at or after the write (git time is whole seconds) holds that work, so
-// the dirt now on the file is whoever edited it next, never the holder.
-function committedSince(tree, file, wroteAt) {
-  if (!wroteAt) return false;
-  const seconds = Number(git(['log', '-1', '--format=%ct', '--', file], tree).trim());
-  return Number.isFinite(seconds) && seconds * MS_PER_S >= Math.floor(wroteAt / MS_PER_S) * MS_PER_S;
+// Was the holder's write of `file` committed? Only when a commit that touches the file lies between the HEAD recorded at the
+// write and the current HEAD: graph order, never clock time, so a same-second commit made before the write releases nothing.
+// No recorded HEAD, or a recorded HEAD no longer behind this one (rebase, reset), is ambiguous and keeps the hold.
+function committedSince(tree, file, wroteAtHead) {
+  if (!wroteAtHead) return false;
+  return git(['rev-list', '-1', `${wroteAtHead}..HEAD`, '--', file], tree).trim() !== '';
 }
 
 const named = (paths) => (paths || []).filter((p) => p && p !== '*' && !String(p).startsWith(STORE_DIR));
@@ -43,7 +42,7 @@ export function overlappingHolders({ tree, session, paths, now = Date.now() }) {
     const refused = new Set(holder.refused || []);
     const candidates = [...sessionWrites(tree, holder.session)].filter((f) => !refused.has(f) && overlaps(wanted, [f]));
     const dirty = stillDirty(tree, candidates);
-    const wrote = sessionWriteTimes(tree, holder.session);
+    const wrote = sessionWriteHeads(tree, holder.session);
     const files = candidates.filter((f) => dirty.has(f) && !committedSince(tree, f, wrote[f]));
     return files.length ? [{ holder, files }] : [];
   });

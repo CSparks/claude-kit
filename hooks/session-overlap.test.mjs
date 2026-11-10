@@ -79,19 +79,17 @@ expect('kit: nor does it block SA\'s commit of that file', commitGate(kit, 'SA')
 git(kit, 'commit', '-qm', 'a again', '--', 'a.js');
 expect('kit: once SA committed, SB edits the file it was refused', edit('SB', kit, 'a.js').status, 0);
 
-const GIT_SECOND_MS = 1100;
-const waitPastSecond = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, GIT_SECOND_MS);
-
 freshRegistry();
 writeFileSync(join(kit, 'a.js'), 'export const x = 5;\n');
 holdBy(kit, 'SA', ['a.js']);
 git(kit, 'commit', '-qm', 'SA a', '--', 'a.js');
-waitPastSecond();
 writeFileSync(join(kit, 'a.js'), 'export const x = 6;\n');
 expect('kit edit: the holder committed the file and someone else dirtied it again: no longer the holder\'s, a second session edits it (KIT-T944)', edit('SB', kit, 'a.js').status, 0);
 expect('kit: a writer declaring that file is not blocked by the stale ledger either', dispatch(makeRepo(), 'SB', kit, 'a.js').code, 0);
 holdBy(kit, 'SA', ['a.js']);
-expect('negative control: the holder writing the file again after its commit is held to it', edit('SB', kit, 'a.js').status, 2);
+expect('negative control: the holder writing the file again right after a commit of it (same second) is held to it (KIT-T948)', edit('SB', kit, 'a.js').status, 2);
+git(kit, 'commit', '-qm', 'other file', '--', 'b.js');
+expect('negative control: a commit of another file moves HEAD and releases nothing', edit('SB', kit, 'a.js').status, 2);
 git(kit, 'commit', '-qm', 'SA a again', '--', 'a.js');
 
 freshRegistry();
