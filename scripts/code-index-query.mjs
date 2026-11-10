@@ -203,8 +203,9 @@ const excluder = (flags) => {
   const globs = flags.globs || [];
   const drops = [...flags.notPaths.map(pathTest), ...globs.filter((g) => g.startsWith('!')).map((g) => globTest(g.slice(1)))];
   const keeps = globs.filter((g) => !g.startsWith('!')).map(globTest);
+  const only = (flags.anyPaths || []).map(pathTest);
   const wrongTestness = (rel) => (flags.tests === 'only' && !isTestPath(rel)) || (flags.tests === 'none' && isTestPath(rel));
-  return (rel) => drops.some((t) => t(rel)) || wrongTestness(rel) || (keeps.length > 0 && !keeps.some((t) => t(rel)));
+  return (rel) => drops.some((t) => t(rel)) || wrongTestness(rel) || (keeps.length > 0 && !keeps.some((t) => t(rel))) || (only.length > 0 && !only.some((t) => t(rel)));
 };
 
 const memFilter = (files, flags, kinds) => {
