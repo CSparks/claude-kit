@@ -84,6 +84,7 @@ try {
     ['a scratch preload that writes a data file', `node -r ${dataWriter} app.mjs`],
     ['a data: URL that only logs', `node --import "data:text/javascript,console.log(1)" app.mjs`],
     ['a repo script', 'node app.mjs'],
+    ['a scratch file passed to a repo script as an argument', `node app.mjs ${writer}`],
   ];
   for (const [name, command] of LOADER_CONTROLS) passes_(name, command);
   check('control: a scratch script run plainly still blocks', !!shellSourceWrite(`node ${writer}`));
