@@ -29,6 +29,8 @@ first seen in stiletto-2349. Filed automatically (KIT-T286): every kit bug is a 
 
 ## Notes
 Landed 1dfe4e8; tests: hooks/session-overlap.test.mjs (same-second negative control) (negative controls included); standing kit agent adcd3ffd
+### comment #1 [2026-11-10 19:21] @claude
+Not touched this pass: session da28715f's kit agent has the holder-ledger redesign uncommitted in this checkout (hooks/lib/checkout-holder.mjs, hooks/lib/tool-writes.mjs, hooks/lib/live-claims.mjs, hooks/claim-release.test.mjs, hooks/commit-gate.mjs, hooks/dispatch-holder.mjs, hooks/holder-beat.mjs); its landed commit fce4d2c (KIT-T944) adds live-claims negative controls and covers the content-recorded-after-the-edit idea this ticket needs. Re-check the partial-commit criterion once those files are committed. Observed in this run: after any commit of a file, exactly ONE further Edit to it passes before the gate blames da28715f again (stale ledger, KIT-T944 residual); a file with N planned edits landed as N commits.
 
 ## History
 - [2026-11-10 17:43] (created) bug — Security review 2026-11-10 of kit commit 65c1e14 (KIT-D155): hooks/lib/session-overlap.mjs treats a file as committed when git log -1 --form
@@ -37,3 +39,4 @@ Landed 1dfe4e8; tests: hooks/session-overlap.test.mjs (same-second negative cont
 - [2026-11-10 18:15] (comment) criterion added: a holder that committed one hunk of a file and left another dirty keeps its hold (needs the written content recorded after the edit lands; the ledger records HEAD before it)
 - [2026-11-10 18:17] (status) review → todo
 - [2026-11-10 18:17] (comment) remaining after 1 landed commit(s): a holder that committed one hunk and left another dirty keeps its hold (needs the written content recorded after the edit lands)
+- [2026-11-10 19:21] (comment) @claude: Not touched this pass: session da28715f's kit agent has the holder-ledger redesign uncommitted in this checkout (hooks/l (full comment #1 in ## Notes)

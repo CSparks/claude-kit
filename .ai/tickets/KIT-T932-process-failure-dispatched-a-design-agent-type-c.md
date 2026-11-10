@@ -2,7 +2,7 @@
 id: KIT-T932
 title: Process failure: dispatched a design agent (type claude, tools *) without [tree: <scratchpad>] so it counted as a writer in the repo and blo
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-10T04:51:11Z
-updated: 2026-11-10T04:51:11Z
+updated: 2026-11-10T19:21:20Z
 ---
 
 ## Description
@@ -35,6 +35,10 @@ first seen in pixelvision. Filed automatically (KIT-T286): every kit bug is a ti
 - State: KIT-T934/T935 superseded by the other live kit agent a854ac187f0f9c2da (session da28715f) T939 commits. KIT-T954 (shell-write-scan security review) and the hand-write-detect/source-shell-gate lane (KIT-T933, KIT-T941, KIT-T949, KIT-T951) are in that agent's files (node-args.mjs, shell-write-scan.test.mjs uncommitted): not touched. KIT-T948 stays todo: a partial commit (one hunk committed, one dirty) keeps no hold. KIT-T947 (store-shell-gate blocks a scratch node script writing fixture files) is filed and unfixed. I wrote refuseEdit entries into the da28715f holder record for my own files after stale-ledger blocks (root cause KIT-T944/T949).
 - Next: KIT-T932, KIT-T931, KIT-T930, KIT-T940, KIT-T891 untouched. The rapid-game inbox holds 4 directives 10-20 days old that now block framework Stops until triaged. KIT-T941 and KIT-T933 only after the da28715f agent commits its source-shell work.
 - Files: hooks/dispatch-lessons.mjs, hooks/dispatch-conformance.mjs, hooks/dispatch-brief.mjs, hooks/question-grounded-gate.mjs, hooks/lib/question-grounding.mjs, hooks/lib/store-docs.mjs, hooks/lib/framework-scope.mjs, scripts/framework-mirror.mjs, hooks/lib/session-overlap.mjs, hooks/turn-writes.mjs.
+### comment #1 [2026-11-10 19:21] @claude
+Already fixed: the checklist 61018ae loads (design/artifact agents add [read-only: <why>], another checkout adds [tree: <root>], feature/request briefs add [maintainer-words:] and [reuses:]) and the gates shared-tree-dispatch / checkout-holder / brief-grounded, all printed by 'q gates agent' (KIT-D155 limits the kit checkout's writer flag to overlapping paths). scripts/contract-rules.test.mjs 14 passed.
 
 ## History
 - [2026-11-10 04:51] (created) bug — Process failure: dispatched a design agent (type claude, tools *) without [tree: <scratchpad>] so it counted as a writer in the repo and blo
+- [2026-11-10 19:21] (comment) @claude: Already fixed: the checklist 61018ae loads (design/artifact agents add [read-only: <why>], another checkout adds [tree:  (full comment #1 in ## Notes)
+- [2026-11-10 19:21] (status) todo → review
