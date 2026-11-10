@@ -17,7 +17,7 @@ import { LESSONS_CHECK } from '../dispatch-lessons.mjs';
 import { RULINGS_CHECK } from '../dispatch-rulings.mjs';
 import { UI_CHECK } from '../dispatch-ui.mjs';
 import { WORKER_CHECK, DEFAULT_WRITER_CAP } from '../dispatch-worker.mjs';
-import { BRIEF_CHECK, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
+import { BRIEF_CHECK, GROUNDED_CHECK, GROUNDED_MIN_SHARED, GROUNDED_MIN_TITLE, GROUNDED_MIN_WORD, GROUNDED_PER_OPTION, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
 import { BRIEF_RULE } from './question-brief.mjs';
 import { READINESS_STANDARD } from './question-ready.mjs';
 
@@ -54,11 +54,12 @@ export const GATES = {
   },
   question: {
     title: 'AskUserQuestion / request_user_input',
-    hooks: ['question-gate', 'reask-gate', 'ids-described-gate', 'question-brief-gate (readiness)', 'question-brief-audit (after the call)'],
+    hooks: ['question-gate', 'reask-gate', 'ids-described-gate', 'question-grounded-gate', 'question-brief-gate (readiness)', 'question-brief-audit (after the call)'],
     checks: [
       { check: RECOMMENDATION_CHECK, wants: [`every question marks its recommended option on the LABEL with ${RECOMMENDED_MARKER} as the prefix (a suffix for request_user_input), and a single-select recommendation is the first option; the description never carries it`], tokens: [] },
       { check: REASK_CHECK, wants: [`no question another session asked and left unresolved within ${REASK_WINDOW_DAYS} days`], tokens: [T.reAsk] },
       { check: IDS_CHECK, wants: [`a ticket, decision or question id comes with at least ${IDS_MIN_HITS} distinctive words of its title`], tokens: [] },
+      { check: GROUNDED_CHECK, wants: [`an option label is matched (words of ${GROUNDED_MIN_WORD}+ letters, stems, stopwords dropped) against the project's decisions and open tickets; a document sharing ${GROUNDED_MIN_SHARED}+ stems with the label, ${GROUNDED_MIN_TITLE}+ in its title (best ${GROUNDED_PER_OPTION} per option), must be cited by id with what it is in plain words, in the question text or an option description (the same-reply summary is unreadable before the call). Fails open on a store error.`], tokens: [T.optionsChecked] },
       { check: BRIEF_CHECK, wants: [`summary first, then the questionnaire (KIT-D153): ${BRIEF_RULE}. Text or narration of the turn before the call counts, as does the questionnaire's own question text; no wording or labels are required. Judged AFTER the call by a PostToolUse audit (Stop is the backstop): a missing summary is reported to you and you re-ask.`], tokens: [] },
       { check: READY_CHECK, wants: READINESS_STANDARD, tokens: [] },
     ],
