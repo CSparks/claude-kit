@@ -473,7 +473,8 @@ async function answerRows(cmd, args, root, refresh) {
   const found = await verbRows(cmd, text, flags, target.root, target.refresh);
   const rows = target.prefix ? found.map((r) => (r.loc ? { ...r, loc: `${target.prefix}/${r.loc}` } : r)) : found;
   const note = target.scanned && (target.scanned.truncated || !rows.some((r) => r.loc));
-  return note ? [...rows, { loc: '', text: scanSummary(target.dir, target.scanned) }] : rows;
+  const stray = rows.some((r) => r.loc) ? [] : strayPathRows(flags, target.root);
+  return note ? [...rows, ...stray, { loc: '', text: scanSummary(target.dir, target.scanned) }] : [...rows, ...stray];
 }
 
 /** Do these args leave the cwd repo (`--dir`, `--repo`, an outside `--path`)? The resident server leaves that to the caller's own process. */
