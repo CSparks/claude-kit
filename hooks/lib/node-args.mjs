@@ -25,6 +25,23 @@ export const isNodeInlineFlag = (arg) => INLINE_LONG.test(arg) || (COMBINED_SHOR
 
 const loadsCode = (arg) => CODE_LOADING_LONG.test(arg) || (!arg.startsWith('--') && CODE_LOADING_SHORT.test(arg));
 
+const joinedValue = (arg) => (arg.startsWith('--') ? arg.slice(arg.indexOf('=') + 1) : arg.slice(arg.indexOf('r') + 1));
+
+/** The modules (or env files) the options before the script load, joined or separate: node runs each before the script. */
+export function nodeLoadedModules(args) {
+  const loaded = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === END_OF_OPTIONS || a === STDIN || !a.startsWith('-')) break;
+    if (HARMLESS_VALUE_OPTIONS.has(a)) { i++; continue; }
+    if (!loadsCode(a)) continue;
+    const inline = a.includes('=') || !/^-{1,2}[A-Za-z-]*r?$/.test(a) ? joinedValue(a) : '';
+    const value = inline && inline !== a ? inline : args[++i];
+    if (value) loaded.push(value);
+  }
+  return loaded;
+}
+
 export function nodeScriptName(args) {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
