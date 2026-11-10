@@ -6,7 +6,8 @@
 //
 //   beatHolder({ tree, session, label, agent, origin, now }) -> record/refresh session's hold on the checkout; origin is the
 //                                                    repo the session itself works in
-//   liveHolders(tree, now)                           -> [{ tree, session, label, agent, origin, since, beatAt, file }] inside the window
+//   refuseEdit({ tree, session, path })              -> note a refused edit (session-overlap.mjs ignores it in the write ledger); beatHolder({ edited }) clears it
+//   liveHolders(tree, now)                          -> [{ tree, session, label, agent, origin, since, beatAt, file }] inside the window
 //   releaseTree(tree, session)                       -> drop that session's hold (a synchronous writer finished)
 //   releaseAgent(agent)                              -> drop every hold whose last writer was that agent (SubagentStop)
 //   HOLDER_WINDOW_MS, holdersDir()                   -> CLAUDE_KIT_HOLDERS_DIR overrides the directory (tests)
@@ -19,6 +20,7 @@ import { join } from 'node:path';
 export const HOLDER_WINDOW_MS = 15 * 60 * 1000;
 const PRUNE_AFTER_MS = 24 * 60 * 60 * 1000;
 const HASH_CHARS = 16;
+const MAX_REFUSED = 200;
 
 export const holdersDir = () => process.env.CLAUDE_KIT_HOLDERS_DIR || join(homedir(), '.claude', 'claude-kit-holders');
 const normTree = (tree) => String(tree || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
@@ -29,15 +31,30 @@ function readEntry(file) {
   try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
 }
 
-export function beatHolder({ tree, session, label = '', agent = '', origin = '', now = Date.now() }) {
+export function beatHolder({ tree, session, label = '', agent = '', origin = '', edited = '', now = Date.now() }) {
   try {
     if (!tree || !session) return;
     const file = entryFile(tree, session);
     const prev = readEntry(file);
     mkdirSync(treeDir(tree), { recursive: true });
-    writeFileSync(file, JSON.stringify({ tree, session, label: label || prev?.label || '', agent: agent || prev?.agent || '', origin: origin || prev?.origin || '', since: prev?.since || now, beatAt: now }));
+    const refused = (prev?.refused || []).filter((f) => f !== edited);
+    writeFileSync(file, JSON.stringify({ tree, session, label: label || prev?.label || '', agent: agent || prev?.agent || '', origin: origin || prev?.origin || '', since: prev?.since || now, beatAt: now, refused }));
   } catch {
     /* a heartbeat never breaks the tool call that carried it */
+  }
+}
+
+// An edit of `path` was refused for the session: the write ledger still lists it, but the session never changed it.
+export function refuseEdit({ tree, session, path, now = Date.now() }) {
+  try {
+    if (!tree || !session) return;
+    const file = entryFile(tree, session);
+    const prev = readEntry(file) || { tree, session, since: now, beatAt: now };
+    const refused = [...new Set([...(prev.refused || []), path])].slice(-MAX_REFUSED);
+    mkdirSync(treeDir(tree), { recursive: true });
+    writeFileSync(file, JSON.stringify({ ...prev, refused }));
+  } catch {
+    /* a refusal record never breaks the tool call that carried it */
   }
 }
 

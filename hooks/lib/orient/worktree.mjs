@@ -4,7 +4,8 @@
 //
 //   worktreeSection(ctx) -> { repos, wips, recentCommitLines }
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
+import { isKitCheckout } from '../kit-checkout.mjs';
 import { basename, join, resolve } from 'node:path';
 import { aheadBehind, centralDataRoot, fetchRepos, formatWip, git, projectName, readRegistry, recordProject, watchRepos, wipSummary } from '../../lib.mjs';
 import { memoryLinkCommand, unifyMemory } from '../../memory-link.mjs';
@@ -13,15 +14,12 @@ import { COMMITS, LINE_MAX, WIP_COMMITS_SHOWN, WIP_FILES_SHOWN, clip } from './c
 
 const FRESH_SUBJECT_MAX = 80;
 
-const isKitRepo = (r) => {
-  try { return JSON.parse(readFileSync(join(r, 'package.json'), 'utf8')).name === 'claude-kit'; } catch { return false; }
-};
 
 // An in-repo notebook while a central store IS registered is adopted locally but never centralized (KIT-T134).
 function centralBanners(root, dataRoot) {
   try {
     const regDataRoot = readRegistry().dataRoot;
-    if (dataRoot === null && regDataRoot && existsSync(join(root, '.ai')) && !isKitRepo(root)) {
+    if (dataRoot === null && regDataRoot && existsSync(join(root, '.ai')) && !isKitCheckout(root)) {
       return [`!! NOTEBOOK IN-REPO, NOT CENTRALIZED: a central store is registered (${regDataRoot}) but this project's .ai lives in-repo — invisible on other machines. Centralize it: node <kit>/scripts/reconcile-central.mjs (dry-run) then --execute ${projectName(root)}.`];
     }
   } catch {
@@ -49,7 +47,8 @@ export async function worktreeSection({ out, root }) {
   out.push(recentCommitLines.trim().split('\n').map((l) => clip(l, LINE_MAX)).join('\n'));
 
   // A commit landed minutes ago, before this session existed, is the signature of another live session (KIT-T225).
-  const fresh = recentCommits(root, ORIENT_WINDOW_MIN);
+  // Several live sessions in the claude-kit checkout are normal (KIT-D155), so it raises no such flag.
+  const fresh = isKitCheckout(root) ? [] : recentCommits(root, ORIENT_WINDOW_MIN);
   if (fresh.length) {
     out.push('');
     out.push(`!! FRESH COMMITS (last ${ORIENT_WINDOW_MIN} min) — MAY BE ANOTHER LIVE SESSION in this repo:`);

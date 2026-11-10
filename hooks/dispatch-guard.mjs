@@ -32,8 +32,10 @@ import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
 import { ESCALATION_CHECK, escalationBlock } from './dispatch-escalation.mjs';
 import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loaded.mjs';
 import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage, brokerConfig } from './dispatch-broker.mjs';
-import { WORKER_CHECK, overlapOnlyBlocker, workerAdvice, workerBlock } from './dispatch-worker.mjs';
+import { WORKER_CHECK, overlapOnlyBlocker, workerAdvice, workerBlock, workerPaths } from './dispatch-worker.mjs';
 import { queueDispatch } from './lib/queued-dispatch.mjs';
+import { isKitCheckout } from './lib/kit-checkout.mjs';
+import { sameFiles } from './lib/path-overlap.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
@@ -331,7 +333,8 @@ function sharedTreeBlock(root, input, prompt) {
   if (pathExcluded(root, SHARED_TREE_CHECK, root)) return null;
   const now = Date.now();
   const tree = dispatchTargetRoot(root, input);
-  const live = liveAgents(root, now, tree).filter((r) => !readOnlyRow(root, r));
+  const writers = liveAgents(root, now, tree).filter((r) => !readOnlyRow(root, r));
+  const live = isKitCheckout(tree) ? writers.filter((r) => sameFiles(workerPaths(prompt, tree), r.paths)) : writers;
   if (!live.length) return null;
 
   return [
@@ -358,7 +361,8 @@ function writerDispatch(root, input, prompt) {
 
 function holderBlockFor(root, input, prompt, p) {
   if (!p.tool_input || !p.session_id || !writerDispatch(root, input, prompt) || pathExcluded(root, HOLDER_CHECK, root)) return null;
-  return holderBlock({ tree: dispatchTargetRoot(root, input), session: p.session_id, footer: excludeFooter(HOLDER_CHECK) });
+  const tree = dispatchTargetRoot(root, input);
+  return holderBlock({ tree, session: p.session_id, paths: workerPaths(prompt, tree), footer: excludeFooter(HOLDER_CHECK) });
 }
 
 function registerWriterDispatch(root, input, prompt, p) {

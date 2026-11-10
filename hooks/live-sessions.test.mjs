@@ -77,6 +77,10 @@ function orient(cwd) {
   const fresh = seedRepo();
   ok('orient flags fresh commits as a possible other live session', /FRESH COMMITS/.test(orient(fresh)));
 
+  const kit = seedRepo();
+  writeFileSync(join(kit, 'package.json'), JSON.stringify({ name: 'claude-kit' }));
+  ok('orient raises no other-live-session flag in the claude-kit checkout (KIT-D155)', !/FRESH COMMITS/.test(orient(kit)));
+
   const stale = seedRepo({ stale: true });
   ok('orient stays quiet when nothing landed recently', !/FRESH COMMITS/.test(orient(stale)));
 }

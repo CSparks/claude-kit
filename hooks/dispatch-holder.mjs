@@ -4,10 +4,14 @@
 // writer another session started. The holder's own session, read-only agents and a stale holder pass.
 //
 //   HOLDER_CHECK                                   -> the check-id (ignore-file key)
-//   holderBlock({ tree, session, footer, now })    -> the block message, or null when no other session holds the tree
+//   holderBlock({ tree, session, footer, paths, now }) -> the block message, or null when no other session holds the tree.
+//                                                  In the claude-kit checkout (KIT-D155) several sessions are normal: it blocks only
+//                                                  when another live session has uncommitted changes to a file in `paths`.
 //   registerWriter({ tree, session, label, now })  -> record the allowed writer dispatch as the session's hold
 
 import { HOLDER_WINDOW_MS, beatHolder, liveHolders } from './lib/checkout-holder.mjs';
+import { isKitCheckout } from './lib/kit-checkout.mjs';
+import { overlapLines, overlappingHolders } from './lib/session-overlap.mjs';
 
 export const HOLDER_CHECK = 'checkout-holder';
 const MS_PER_MIN = 60 * 1000;
@@ -26,7 +30,23 @@ function describeHolder(h, now) {
   ];
 }
 
-export function holderBlock({ tree, session, footer, now = Date.now() }) {
+function overlapBlock({ tree, session, paths, footer, now }) {
+  const found = overlappingHolders({ tree, session, paths, now });
+  if (!found.length) return null;
+  return [
+    'BLOCKED: another live session has uncommitted changes to files this writer declares (KIT-D155).',
+    `  tree: ${tree}`,
+    ...overlapLines(found, now),
+    '',
+    'Two sessions writing one file lose work. Wait until that session commits those files, or declare [paths:] that avoid them.',
+    'Sessions on other files raise no flag here.',
+    '',
+    footer,
+  ].join('\n');
+}
+
+export function holderBlock({ tree, session, footer, paths, now = Date.now() }) {
+  if (isKitCheckout(tree)) return overlapBlock({ tree, session, paths, footer, now });
   const others = liveHolders(tree, now).filter((h) => h.session !== session);
   if (!others.length) return null;
   return [

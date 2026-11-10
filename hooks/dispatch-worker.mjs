@@ -15,6 +15,7 @@
 
 import { declaredPaths } from './dispatch-broker.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
+import { overlaps } from './lib/path-overlap.mjs';
 
 export const WORKER_CHECK = 'patch-worker-discipline';
 const PATCH_WORKER = /(?:^|:)patch-worker$/i;
@@ -27,14 +28,7 @@ export const TRAIN_RULES = [
   '  - patches touch disjoint files; check-only first, then --land; the queue is not a compiler.',
 ];
 
-const norm = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '');
-const touches = (a, b) => a === '*' || b === '*' || a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`);
-
-export function overlaps(a, b) {
-  const left = (a || []).map(norm);
-  const right = (b || []).map(norm);
-  return left.some((x) => right.some((y) => touches(x, y)));
-}
+export { overlaps };
 
 /** The paths a brief declares (`[paths: *]` = ['*']), or null when it declares none. */
 export const workerPaths = (prompt, tree) => declaredPaths(prompt, tree) || (TOKENS.pathsUnknown.pattern.test(String(prompt || '')) ? ['*'] : null);

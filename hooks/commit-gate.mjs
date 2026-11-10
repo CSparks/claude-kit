@@ -9,6 +9,8 @@ import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
+import { isKitCheckout } from './lib/kit-checkout.mjs';
+import { overlapLines, overlappingHolders } from './lib/session-overlap.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
@@ -195,16 +197,18 @@ try {
 if (!COMMIT_FOREIGN_ESCAPE.test(command)) {
   try {
     const judged = spec.mode === 'tree' ? uniq(lines(git(['-C', root, 'diff', '--cached', '--name-only']))) : changed;
-    const foreign = foreignPaths(root, judged, p.session_id).filter((f) => !pathExcluded(root, 'commit-foreign', f));
+    const kit = isKitCheckout(root);
+    const holders = kit ? overlappingHolders({ tree: root, session: p.session_id, paths: judged }) : [];
+    const foreign = (kit ? holders.flatMap((h) => h.files) : foreignPaths(root, judged, p.session_id)).filter((f) => !pathExcluded(root, 'commit-foreign', f));
     if (foreign.length) {
       const shown = foreign.slice(0, MAX_FOREIGN);
       process.stderr.write(
         [
           '',
-          `BLOCKED: ${foreign.length} path(s) in this commit were not written by this session (KIT-T407).`,
+          kit ? `BLOCKED: ${foreign.length} path(s) in this commit have uncommitted changes from another live session (KIT-D155).` : `BLOCKED: ${foreign.length} path(s) in this commit were not written by this session (KIT-T407).`,
           '',
-          ...shown.map((f) => `  ${f}`),
-          ...(foreign.length > shown.length ? [`  +${foreign.length - shown.length} more`] : []),
+          ...(kit ? overlapLines(holders) : shown.map((f) => `  ${f}`)),
+          ...(foreign.length > shown.length && !kit ? [`  +${foreign.length - shown.length} more`] : []),
           '',
           "Another session's work is in this tree; a directory-wide add would publish it under your message.",
           'Stage and commit only your own files by explicit path:',
