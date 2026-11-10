@@ -6,7 +6,8 @@
 import { payload, gitRootOfFile, adopted } from './lib.mjs';
 import { repoRelative } from './turn-writes.mjs';
 import { contentHashOf } from './lib/shell-snapshot.mjs';
-import { recordToolWrite } from './lib/tool-writes.mjs';
+import { recordToolWrite, writerId } from './lib/tool-writes.mjs';
+import { subagentId } from './lib/subagent-id.mjs';
 
 try {
   const p = await payload();
@@ -14,7 +15,7 @@ try {
   const root = file ? gitRootOfFile(file) : '';
   if (root && adopted(root)) {
     const rel = repoRelative(root, file);
-    if (rel) recordToolWrite(root, rel, contentHashOf(root, rel));
+    if (rel) recordToolWrite(root, rel, contentHashOf(root, rel), Date.now(), writerId(p.session_id, subagentId(p)));
   }
 } catch {
   /* a ledger never wedges a tool call */

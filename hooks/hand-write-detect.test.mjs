@@ -193,8 +193,11 @@ try {
   ok('KIT-T888 control: a shell rewrite AFTER another writer\'s Edit changes the content, so the exemption lapses and it is flagged', viaOverwrite.status === 2 && viaOverwrite.stderr.includes('src/a.mjs'));
 
   // KIT-T949: a session started before the PostToolUse recorder was wired never runs it; its Edit is known from pre-write alone.
-  const preOnlyEdit = (d, rel, oldString, newString, { lands = newString } = {}) => {
-    spawnHook('pre-write.mjs', { session_id: 'OTHER', tool_input: { file_path: join(d, rel), old_string: oldString, new_string: newString } }, d);
+  const FILE_HARD_PLUS = 700;
+  const CONFIRMED_AGE_MS = 1000;
+  const CONFIRMED_STALE_MS = 10000;
+  const preOnlyEdit = (d, rel, oldString, newString, { lands = newString, session = 'OTHER' } = {}) => {
+    spawnHook('pre-write.mjs', { session_id: session, tool_input: { file_path: join(d, rel), old_string: oldString, new_string: newString } }, d);
     writeFileSync(join(d, rel), readFileSync(join(d, rel), 'utf8').replace(oldString, lands));
   };
   const preOnly = fresh();
@@ -217,7 +220,29 @@ try {
   const inFlight = fresh();
   spawnHook('pre-write.mjs', { session_id: 'OTHER', tool_input: { file_path: join(inFlight, 'src', 'b.mjs'), old_string: 'b = 2', new_string: 'b = 9' } }, inFlight);
   const viaInFlight = call(inFlight, 'S27', 'node scratch.js', () => writeFileSync(join(inFlight, 'src', 'b.mjs'), 'export const b = 9;\n'));
-  ok('KIT-T949: an Edit whose pre-write ran just before the call and whose write landed inside it is not blamed on the call', viaInFlight.status === 0 && !viaInFlight.stderr.includes('HAND WRITE'));
+  ok('KIT-T949 control: an unconfirmed pre-write prediction made before the call began excuses nothing, however near', viaInFlight.status === 2 && viaInFlight.stderr.includes('src/b.mjs'));
+  const sameWriter = fresh();
+  const viaSameWriter = call(sameWriter, 'S28', 'node scratch.js', () => preOnlyEdit(sameWriter, 'src/a.mjs', 'a = 1', 'a = 9', { session: 'S28' }));
+  ok('KIT-T949 control: a prediction made by the call\'s own session never excuses the call', viaSameWriter.status === 2 && viaSameWriter.stderr.includes('src/a.mjs'));
+  const blocked = 'export const v = 1;\n'.repeat(FILE_HARD_PLUS);
+  const blockedWrite = fresh();
+  let blockedRun;
+  const viaBlocked = call(blockedWrite, 'S29', 'node scratch.js', () => {
+    blockedRun = spawnHook('pre-write.mjs', { session_id: 'OTHER', tool_input: { file_path: join(blockedWrite, 'src', 'big.mjs'), content: blocked } }, blockedWrite);
+    writeFileSync(join(blockedWrite, 'src', 'big.mjs'), blocked);
+  });
+  ok('KIT-T949 control: a write pre-write blocked leaves no prediction, so a shell call writing that content is a hand write', blockedRun.status === 2 && viaBlocked.status === 2 && viaBlocked.stderr.includes('src/big.mjs'));
+  const confirmedAt = (ageMs) => {
+    const d = fresh();
+    return call(d, 'S30', 'node scratch.js', () => {
+      writeFileSync(join(d, 'src', 'b.mjs'), 'export const b = 9;\n');
+      recordToolWrite(gitRoot(d), 'src/b.mjs', contentHashOf(d, 'src/b.mjs'), Date.now() - ageMs, 'OTHER|');
+    });
+  };
+  const viaConfirmed = confirmedAt(CONFIRMED_AGE_MS);
+  ok('KIT-T949: a PostToolUse-confirmed Edit recorded just before the call began, landing inside it, is not blamed on the call', viaConfirmed.status === 0 && !viaConfirmed.stderr.includes('HAND WRITE'));
+  const viaConfirmedOld = confirmedAt(CONFIRMED_STALE_MS);
+  ok('KIT-T949 control: a confirmed entry older than the slack excuses nothing', viaConfirmedOld.status === 2);
   const preOnlyLate = fresh();
   const viaPreOnlyLate = call(preOnlyLate, 'S25', 'node scratch.js', () => {
     preOnlyEdit(preOnlyLate, 'src/a.mjs', 'a = 1', 'a = 9');

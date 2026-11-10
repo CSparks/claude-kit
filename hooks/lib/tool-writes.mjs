@@ -3,18 +3,21 @@
 // file on disk still hashes to a ledger entry made after the call began, so a shell call that rewrote the file after
 // the tool did, or that merely names a path, still owns it.
 //
-// Two sources fill it. The PostToolUse recorder reads the hash off the landed file. pre-write also records the hash of
-// the content the tool is about to leave (KIT-T949): a session started before the recorder was wired never runs it, and
-// the kit's writers are such sessions. A prediction proves nothing unless the file lands with exactly that content, so a
-// write that was refused, or that a shell call changed afterwards, matches no entry.
+// Two sources fill it. The PostToolUse recorder reads the hash off the landed file: a confirmed entry. pre-write also
+// records the hash of the content the tool is about to leave (KIT-T949), only once every blocking check has passed:
+// a session started before the recorder was wired never runs it, and the kit's writers are such sessions. A
+// prediction is unconfirmed, so it gets no timing slack, and it proves nothing unless the file lands with exactly that
+// content, so a write that was refused, or that a shell call changed afterwards, matches no entry. An entry names the
+// writer (session and agent) and never exempts that writer's own shell call.
 //
 // Machine-local turn state shared by every session of the checkout, capped; every path fails open (a lost entry costs
 // a missing exemption, never a missed hand write).
 //
-//   recordToolWrite(root, rel, hash, now)                 -> add an entry
-//   recordPredictedWrite(root, rel, file, toolInput, now) -> add the entries for the content `toolInput` leaves in `file`
-//   toolWriteProves(root, rel, sinceMs, currentHash)      -> true when a tool left `currentHash` in `rel` since `sinceMs`
-//   predictedHashes(current, toolInput)                   -> hashes of the content an Edit or Write leaves ([] when unknown)
+//   writerId(session, agent)                                         -> the identity an entry carries ('' when unknown)
+//   recordToolWrite(root, rel, hash, now, writer)                    -> add a confirmed entry
+//   recordPredictedWrite(root, rel, file, toolInput, writer, now)    -> add the unconfirmed entries for the content `toolInput` leaves
+//   toolWriteProves(root, rel, sinceMs, currentHash, byWriter)       -> true when another writer's tool left `currentHash` in `rel` since `sinceMs`
+//   predictedHashes(current, toolInput)                              -> hashes of the content an Edit or Write leaves ([] when unknown)
 
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
@@ -23,24 +26,26 @@ import { readTurnState, writeTurnState } from './turn-state.mjs';
 const SLOT = 'toolwrites';
 const ENTRIES_MAX = 300;
 const HASH_MAX_BYTES = 1 << 20;
-const LAND_SLACK_MS = 5000;
+const CONFIRMED_SLACK_MS = 5000;
 
 const hashOf = (data) => createHash('sha1').update(data).digest('hex');
 const toLf = (s) => s.replace(/\r\n/g, '\n');
 const toCrlf = (s) => toLf(s).replace(/\n/g, '\r\n');
+
+export const writerId = (session, agent) => (session ? `${session}|${agent || ''}` : '');
 
 const entriesOf = (root) => {
   const state = readTurnState(root, SLOT) || {};
   return Array.isArray(state.entries) ? state.entries : [];
 };
 
-const addEntries = (root, hashes, rel, now) => {
-  const added = hashes.map((h) => ({ p: rel, h, ts: now }));
+const addEntries = (root, hashes, rel, now, writer, confirmed) => {
+  const added = hashes.map((h) => ({ p: rel, h, ts: now, w: writer, c: confirmed }));
   writeTurnState(root, { entries: [...entriesOf(root), ...added].slice(-ENTRIES_MAX) }, SLOT);
 };
 
-export function recordToolWrite(root, rel, hash, now = Date.now()) {
-  if (rel && hash) addEntries(root, [hash], rel, now);
+export function recordToolWrite(root, rel, hash, now = Date.now(), writer = '') {
+  if (rel && hash) addEntries(root, [hash], rel, now, writer, true);
 }
 
 // The text an Edit leaves, by index surgery so a `$&` in the replacement stays literal; null when old_string is absent.
@@ -62,18 +67,19 @@ export function predictedHashes(current, toolInput) {
   return [...new Set([hashOf(text), ...(current.includes('\r\n') ? [hashOf(toCrlf(text))] : [])])];
 }
 
-export function recordPredictedWrite(root, rel, file, toolInput, now = Date.now()) {
+export function recordPredictedWrite(root, rel, file, toolInput, writer = '', now = Date.now()) {
   try {
     if (!rel || !file) return;
     const isWrite = typeof (toolInput || {}).content === 'string';
     const current = isWrite || statSync(file).size > HASH_MAX_BYTES ? undefined : readFileSync(file, 'utf8');
     const hashes = predictedHashes(current, toolInput);
-    if (hashes.length) addEntries(root, hashes, rel, now);
+    if (hashes.length) addEntries(root, hashes, rel, now, writer, false);
   } catch {
     /* an unreadable or new file has no prediction */
   }
 }
 
-/** True when a tool wrote `rel` at or after `sinceMs` and the file's content `currentHash` is what the tool left. */
-export const toolWriteProves = (root, rel, sinceMs, currentHash) => Boolean(currentHash)
-  && entriesOf(root).some((e) => e && e.p === rel && e.h === currentHash && (e.ts || 0) >= sinceMs - LAND_SLACK_MS);
+/** True when a tool of a writer other than `byWriter` wrote `rel` at or after `sinceMs` and `currentHash` is what it left. */
+export const toolWriteProves = (root, rel, sinceMs, currentHash, byWriter = '') => Boolean(currentHash)
+  && entriesOf(root).some((e) => e && e.p === rel && e.h === currentHash && !(byWriter && e.w === byWriter)
+    && (e.ts || 0) >= sinceMs - (e.c ? CONFIRMED_SLACK_MS : 0));

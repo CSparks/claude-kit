@@ -16,7 +16,8 @@ import { join } from 'node:path';
 import { payload, git, gitRoot, adopted, readTurnState, writeTurnState } from './lib.mjs';
 import { recordSessionPath } from './turn-writes.mjs';
 import { contentHashOf } from './lib/shell-snapshot.mjs';
-import { toolWriteProves } from './lib/tool-writes.mjs';
+import { toolWriteProves, writerId } from './lib/tool-writes.mjs';
+import { subagentId } from './lib/subagent-id.mjs';
 
 const START_MAX_AGE_MS = 3600000;
 const STATUS_ENTRIES_MAX = 5000;
@@ -59,10 +60,11 @@ try {
   const startedAt = starts[key] ?? Math.min(now, ...Object.values(starts));
   delete starts[key];
   writeTurnState(root, { starts }, slot);
+  const caller = writerId(sid, subagentId(p));
   for (const rel of dirtyPaths(git(['status', '--porcelain=v1', '-z', '--untracked-files=all'], root))) {
     try {
       const touched = statSync(join(root, rel)).mtimeMs >= startedAt - CLOCK_SLACK_MS;
-      if (touched && !toolWriteProves(root, rel, startedAt, contentHashOf(root, rel))) recordSessionPath(root, rel, sid);
+      if (touched && !toolWriteProves(root, rel, startedAt, contentHashOf(root, rel), caller)) recordSessionPath(root, rel, sid);
     } catch { /* vanished or unreadable: not recorded */ }
   }
 } catch {
