@@ -29,12 +29,29 @@ function statedQuestions(lastUser, questions) {
   });
 }
 
-export function readinessProblems(lastUser, questions) {
+// A question mark in a yelled or profane message with no question word is anger, not a question to answer.
+const QUESTION_WORD = /\b(?:what|which|how|why|who|where|when|should|could|would|can you|is it|are we|do we|do you)\b/i;
+const PROFANE = /\b(?:fuck\w*|shit\w*|damn\w*|wtf|bullshit)\b/i;
+const SHOUTING_SHARE = 0.6;
+const MIN_SHOUTED_LETTERS = 8;
+
+function rhetorical(tail) {
+  if (QUESTION_WORD.test(tail)) return false;
+  const letters = tail.replace(/[^A-Za-z]/g, '');
+  const shouted = letters.length >= MIN_SHOUTED_LETTERS && letters.replace(/[^A-Z]/g, '').length / letters.length >= SHOUTING_SHARE;
+  return PROFANE.test(tail) || shouted;
+}
+
+const isExploring = (tail) => EXPLORING.test(rhetorical(tail) ? tail.replace(/\?/g, '') : tail);
+
+/** `answered`: an assistant prose reply already followed the message, so a question in it has its answer. */
+export function readinessProblems(lastUser, questions, { answered = false } = {}) {
   const said = String(lastUser || '').trim();
   if (!said) return [];
   const quote = said.replace(/\s+/g, ' ').slice(0, QUOTE_CHARS);
+  const tail = said.slice(-TAIL_CHARS).replace(/\s+/g, ' ');
   const missing = [];
-  if (EXPLORING.test(said.slice(-TAIL_CHARS)) && !INVITES.test(said)) missing.push({ part: 'exploring', wanted: `his newest message is a question or a floated idea ("${quote}"): answer it in prose and let the discussion reach a conclusion before asking` });
+  if (!answered && isExploring(said.slice(-TAIL_CHARS)) && !INVITES.test(said)) missing.push({ part: 'exploring', wanted: `his newest message ends in a question or a floated idea ("${tail}") and no prose reply has answered it: answer it in prose and let the discussion reach a conclusion before asking` });
   for (const q of statedQuestions(said, questions)) missing.push({ part: 'stated', wanted: `"${askText(q)}" restates what he already said ("${quote}"): act on his words, do not ask them back` });
   return missing;
 }

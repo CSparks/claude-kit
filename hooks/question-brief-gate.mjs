@@ -16,6 +16,7 @@ import { readinessProblems } from './lib/question-ready.mjs';
 import { READY_CHECK } from './lib/question-checks.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
+const ANSWER_MIN_WORDS = 20; // assistant prose after his message that counts as having answered it
 const enabled = (root, check) => !root || !pathExcluded(root, check, root);
 const lines = (problems) => problems.map((p) => `  - ${p.part}: ${p.wanted}`);
 
@@ -38,7 +39,8 @@ try {
   const questions = p.tool_input?.questions;
   const turn = p.transcript_path ? turnText(p.transcript_path) : null;
   if (!Array.isArray(questions) || !questions.length || !turn) process.exit(0);
-  const ready = enabled(gitRoot(), READY_CHECK) ? readinessProblems(turn.lastUser, questions) : [];
+  const answered = turn.prose.split(/\s+/).filter(Boolean).length >= ANSWER_MIN_WORDS;
+  const ready = enabled(gitRoot(), READY_CHECK) ? readinessProblems(turn.lastUser, questions, { answered }) : [];
   if (ready.length) {
     process.stderr.write(blockMessage(ready));
     process.exit(2);
