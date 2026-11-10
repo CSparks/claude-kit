@@ -124,6 +124,12 @@ try {
   const brokerRedirect = fresh();
   const viaWatch = call(brokerRedirect, 'S12', 'node /k/scripts/broker/watch.mjs > src/a.mjs', () => rewrite(brokerRedirect, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
   ok('KIT-T746 control: a broker client redirecting into a source file is still flagged', viaWatch.status === 2 && viaWatch.stderr.includes('src/a.mjs'));
+  const inlineNamingKitScript = fresh();
+  const viaInline = call(inlineNamingKitScript, 'S12b', `node -e "require('fs').writeFileSync('scripts/t.mjs','x')"`, () => rewrite(inlineNamingKitScript, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
+  ok('KIT-T939: node -e whose code names a kit script path is not a kit verb: the hand write is flagged', viaInline.status === 2 && viaInline.stderr.includes('src/a.mjs'));
+  const flaggedKit = fresh();
+  const viaFlaggedKit = call(flaggedKit, 'S12c', 'node --no-warnings /k/scripts/t.mjs status KIT-T1 done', () => rewrite(flaggedKit, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
+  ok('KIT-T939 control: a kit script run behind node flags is still a kit verb', viaFlaggedKit.status === 0 && !viaFlaggedKit.stderr.includes('HAND WRITE'));
   for (const [name, command] of [['sed -i', 'sed -i s/a/b/ src/a.mjs'], ['sed -ni', 'sed -ni 1p src/a.mjs'], ['sed --in-place', 'sed --in-place s/a/b/ src/a.mjs'], ['sed -n redirected', 'sed -n 1,2p src/b.mjs > src/a.mjs']]) {
     const e = fresh();
     const r = call(e, `S13${name}`, command, () => rewrite(e, "fs.writeFileSync(p, 'export const a = 9;\\n')"));

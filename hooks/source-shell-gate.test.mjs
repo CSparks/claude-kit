@@ -225,6 +225,33 @@ try {
   check('KIT-T705 negative control: node -e with escaped quotes and no write passes', !blocked('node -e "console.log(\\"x\\")"'));
   check('KIT-T705 negative control: an escaped quote around harmless text passes', !blocked('echo \\"hello\\" ; ls'));
   check('KIT-T705 negative control: a read behind an escaped quote passes', !blocked('grep \\" hooks/a.mjs ; echo \\"'));
+  const namingKit = [
+    ['KIT-T939: node -e rewriting scripts/t.mjs through fs.writeFileSync', `node -e "const fs=require('fs');fs.writeFileSync('scripts/t.mjs',fs.readFileSync('scripts/t.mjs','utf8').replace('a','b'))"`],
+    ['KIT-T939: node -e replacing then writing scripts/q.mjs', `node -e "const fs=require('fs');const p='scripts/q.mjs';let s=fs.readFileSync(p,'utf8');s=s.replace(/a/,'b');fs.writeFileSync(p,s)"`],
+    ['KIT-T939: node -p writing hooks/code-graph.mjs', `node -p "require('fs').writeFileSync('hooks/code-graph.mjs','x')"`],
+    ['KIT-T939: node flags then -e writing scripts/cap.mjs', `node --no-warnings -e "require('fs').writeFileSync('scripts/cap.mjs','x')"`],
+    ['KIT-T939: an ambiguous node -e writing scripts/t.mjs', `node -e "require(\\"fs\\").writeFileSync('scripts/t.mjs','x')"`],
+  ];
+  for (const [name, command] of namingKit) check(`${name} blocks on the first call`, blocked(command), run(command).stderr.slice(0, 100));
+  const kitReads = [
+    ['KIT-T934: q code --regex with escaped quotes and an arrow', 'q code --regex "fn \\w+\\(.*\\) -> \\"x\\"" --path src'],
+    ['KIT-T935: q code with a fat arrow and escaped quotes', 'q code --regex "=> \\"x\\"" --path src'],
+    ['KIT-T935: q code whose pattern holds rm and escaped quotes', 'q code "rm -rf \\"x\\"" -C 2'],
+    ['KIT-T935: q code whose pattern holds touch( and escaped quotes', 'q code --regex "touch\\(\\"a\\"\\)"'],
+    ['KIT-T935: q code whose pattern holds install and escaped quotes', 'q code "install \\"x\\""'],
+    ['KIT-T935: a q pipeline into head', 'q code --regex "-> \\"x\\"" --kind code | head -5'],
+    ['KIT-T935: a kit script run through node with escaped quotes', 'node "/k/scripts/q.mjs" code "a > \\"b\\""'],
+    ['KIT-T935: a kit script at a quoted path with a space, escaped quotes in the pattern', 'node "C:/Users/Chris Sparks/rt/scripts/q.mjs" code "a > \\"b\\" rm"'],
+    ['KIT-T935: q code with a fs write word in the pattern', 'q code "writeFileSync(\\"x\\"" -C 1'],
+  ];
+  for (const [name, command] of kitReads) check(`${name} passes`, !blocked(command), run(command).stderr.slice(0, 100));
+  const afterKit = [
+    ['KIT-T935 control: an escaped-quote q call followed by sed -i blocks', 'q code "a \\"b\\"" ; sed -i s/a/b/ hooks/a.mjs'],
+    ['KIT-T935 control: an escaped quote in the q pattern hiding a following rm blocks', 'q code \\" ; rm hooks/x.mjs ; echo \\"'],
+    ['KIT-T935 control: an escaped-quote q call piped into tee blocks', 'q code "a \\"b\\"" | tee hooks/x.mjs'],
+    ['KIT-T935 control: an escaped-quote q call then a node -e source write blocks', `q code "a \\"b\\"" && node -e "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+  ];
+  for (const [name, command] of afterKit) check(name, blocked(command), run(command).stderr.slice(0, 100));
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: repo, input: 'not json', encoding: 'utf8' }).status === 0);
 } finally {
   rmSync(repo, { recursive: true, force: true });

@@ -16,7 +16,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from './exec.mjs';
 import { isSourcePath } from './shell-source-write.mjs';
-import { KIT_TOOL } from './shell-write-scan.mjs';
+import { KIT_TOOL, nodeScriptName, shellArgs } from './shell-write-scan.mjs';
 import { segments } from './shell-segments.mjs';
 
 const ENTRIES_MAX = 5000;
@@ -107,10 +107,8 @@ function isGeneratorCommand(command) {
     const leader = leaderOf(text);
     if (GENERATORS.test(leader) || KIT_TOOL.test(leader) || (!redirects && isReader(leader, text))) return true;
     if (!/^node$/i.test(leader)) return false;
-    return text.split(/\s+/).some((w) => {
-      const name = w.replace(/^["']|["']$/g, '').replace(/.*[\\/]/, '');
-      return KIT_TOOL.test(name) || (!redirects && BROKER_CLIENT.test(name));
-    });
+    const script = nodeScriptName(shellArgs(text).filter((w) => !ENV_ASSIGN.test(w)).slice(1));
+    return KIT_TOOL.test(script) || (!redirects && BROKER_CLIENT.test(script));
   });
 }
 

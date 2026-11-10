@@ -14,7 +14,7 @@
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { segments } from './shell-segments.mjs';
+import { blindSegments, segments } from './shell-segments.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
@@ -43,6 +43,7 @@ const OPEN_FOR_WRITE = String.raw`\bopen\s*\([^)]*['"][rbtU]*[wax+][bt+]*['"]`;
 export const FS_WRITE = new RegExp(String.raw`\b(?:${WRITE_NAMES})\b|\.(?:${WRITE_CALLS})\s*\(|${PYTHON_MODULE_WRITE}|\bfs\s*\[|\.promises\b|${OPEN_FOR_WRITE}`);
 
 const nameOf = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
+const wordsIn = (text) => [...text.matchAll(WORD)].map((m) => ({ w: m[0], at: m.index }));
 
 function judgeTool(tool, rest, text, { hit, codeHit, readScript }) {
   const operands = rest.map((r) => r.w);
@@ -56,12 +57,33 @@ function judgeTool(tool, rest, text, { hit, codeHit, readScript }) {
   return script ? codeHit(readScript(script)) : null;
 }
 
+const ARG = /(?:"[^"]*"|'[^']*'|[^\s"'])+/g;
+
+/** Whitespace-split arguments with a quoted span kept whole and its quotes dropped. */
+export const shellArgs = (text) => [...String(text).matchAll(ARG)].map((m) => m[0].replace(/["']/g, '')).filter(Boolean);
+
+/** The script name `node [flags] <script> ...` runs: its first non-flag argument; '' under an inline flag (`node -e <code>` runs no script). */
+export function nodeScriptName(args) {
+  for (const a of args) {
+    if (INLINE_FLAG.test(a)) return '';
+    if (!a.startsWith('-')) return nameOf(a);
+  }
+  return '';
+}
+
+/** True when the segment runs a kit verb: `q ...` or `node [flags] <kit script> ...`, never `node -e <code>` whatever the code names. */
+export function kitLed(text) {
+  const args = shellArgs(text);
+  if (!args.length) return false;
+  const leader = nameOf(args[0]);
+  return /^node$/i.test(leader) ? KIT_TOOL.test(nodeScriptName(args.slice(1))) : KIT_TOOL.test(leader);
+}
+
 function judgeSegment(text, ctx) {
-  const words = [...text.matchAll(WORD)].map((m) => ({ w: m[0], at: m.index }));
+  const words = wordsIn(text);
   if (!words.length) return null;
   const leader = nameOf(words[0].w);
-  if (/^node$/i.test(leader) && words.some((x) => KIT_TOOL.test(x.w.replace(/.*[\\/]/, '')))) return null;
-  if (KIT_TOOL.test(leader) || /^git$/i.test(leader)) return null;
+  if (kitLed(text) || /^git$/i.test(leader)) return null;
 
   for (const m of text.matchAll(REDIRECT)) { const h = ctx.hit(m[2]); if (h) return h; }
   if (READER.test(leader)) return null;
@@ -86,8 +108,16 @@ const wordsOf = (...patterns) => patterns.map((p) => p.source.slice('^(?:'.lengt
 const WRITE_TOKEN = new RegExp(`\\b(?:${wordsOf(WRITING_CMD, COPY_CMD, IN_PLACE_TOOL)})\\b|>`, 'i');
 
 // With ambiguous quoting no segment can be trusted: a write-tool word, a `>` or a filesystem write call
-// anywhere in the command is a hit, and `ambiguous()` builds the gate's result for it.
-const ambiguousWrite = (text) => WRITE_TOKEN.test(text) || FS_WRITE.test(text);
+// anywhere in the command is a hit, and `ambiguous()` builds the gate's result for it. Pieces cut on every
+// operator, quoting ignored, that a kit verb leads are read-only searches and are not tested: a write token
+// in a `q` pattern is not a write, and a write behind an operator is its own piece and still tested.
+const ambiguousWrite = (text) => {
+  const rest = blindSegments(text)
+    .filter((s) => !kitLed(s.text))
+    .map((s) => s.text)
+    .join(' ; ');
+  return WRITE_TOKEN.test(rest) || FS_WRITE.test(rest);
+};
 
 export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous }) {
   const parts = segments(String(command || ''));
