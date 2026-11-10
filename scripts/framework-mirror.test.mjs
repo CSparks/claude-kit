@@ -114,12 +114,13 @@ test('backfill by id mirrors one recorded decision once; a second call finds it 
   } finally { w.done(); }
 });
 
-test('a framework store with no config is skipped without losing the decision', () => {
+test('a framework store with no id key reports the failed mirror and still keeps the decision', () => {
   const w = world();
   try {
     rmSync(join(w.framework, '.ai', 'config.yml'));
     const r = recordDecision(w.game, draft(FRAMEWORK_TITLE));
     assert.equal(r.mirrored, undefined);
+    assert.match(r.mirrorError, /no ids\.key/);
     assert.ok(readFileSync(r.path, 'utf8').includes(r.id));
   } finally { w.done(); }
 });

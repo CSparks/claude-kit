@@ -3,22 +3,21 @@
 // as an open ticket the same turn (KIT-T943), so the framework session sees and builds it instead of orient merely listing it
 // as unpromoted (KIT-D111). The decision gets `promoted: <ticket id>`, which clears the D111 flag.
 //
-//   mirrorDecision(root, decisionPath, { registry }) -> { ticket, path, aiDir } | null
-//     null when `root` is the framework store, the registry has no framework project, the decision is game-scope, or it
-//     already carries `promoted:`.
+//   mirrorDecision(root, decisionPath) -> { ticket, path, aiDir } | null
+//     null when `root` is the framework store, the machine registry has no framework project, the decision is game-scope,
+//     or it already carries `promoted:`. The ticket lands in the framework project's store directory (repo or central data root).
 //   node scripts/framework-mirror.mjs --root <game repo> --decision <id>   mirrors one recorded decision (backfill)
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classificationKeys } from './cap-routing.mjs';
 import { field, frontmatterBlock, splitFrontmatter } from './frontmatter.mjs';
-import { reserveNextId } from './id-reserve.mjs';
+import { reserveId } from './id-reserve.mjs';
 import { writeFromTemplate } from './triage/write-item.mjs';
-import { fileForId } from './id-utils.mjs';
+import { fileForId, maxStoreNum, readIdConfig } from './id-utils.mjs';
 import { projectName } from '../hooks/lib/paths.mjs';
-import { frameworkRoot, isFrameworkDecision, isFrameworkStore } from '../hooks/lib/framework-scope.mjs';
-import { readRegistry } from '../hooks/lib/registry.mjs';
+import { frameworkAiDir, isFrameworkDecision, isFrameworkStore } from '../hooks/lib/framework-scope.mjs';
 
 const TICKET_TYPES = ['task', 'chore', 'feature'];
 const BODY_CHARS = 1500;
@@ -54,15 +53,19 @@ function stampPromoted(path, ticket) {
   writeFileSync(path, text.replace(/^---\r?\n/, `---\npromoted: ${ticket}\n`));
 }
 
-export function mirrorDecision(root, decisionPath, { registry = readRegistry() } = {}) {
-  const framework = frameworkRoot(registry);
+function nextTicketId(aiDir) {
+  const { key, pad } = readIdConfig(aiDir, aiDir);
+  if (!key) throw new Error(`no ids.key in ${join(aiDir, 'config.yml')}`);
+  return reserveId({ root: aiDir, store: 'tickets', key, pad, floor: maxStoreNum(aiDir, 'tickets', aiDir) }).id;
+}
+
+export function mirrorDecision(root, decisionPath) {
+  const aiDir = frameworkAiDir();
   const text = readFileSync(decisionPath, 'utf8');
   const fm = frontmatterBlock(text);
   const meta = { id: field(fm, 'id'), title: field(fm, 'title') || '', summary: field(fm, 'summary') || '', date: field(fm, 'date') || '' };
-  if (!framework || !meta.id || field(fm, 'promoted') || isFrameworkStore(root, registry) || !isFrameworkDecision(meta)) return null;
-  const aiDir = join(framework, '.ai');
-  if (!existsSync(join(aiDir, 'config.yml'))) return null;
-  const ticket = reserveNextId(framework, 'tickets');
+  if (!aiDir || !meta.id || field(fm, 'promoted') || isFrameworkStore(root) || !isFrameworkDecision(meta)) return null;
+  const ticket = nextTicketId(aiDir);
   const rel = writeFromTemplate({
     aiDir, store: 'tickets', id: ticket, type: mirrorType(aiDir), priority: TICKET_PRIORITY, title: `Framework decision ${meta.id}: ${meta.title}`,
     links: [meta.id], text: ticketBody({ project: projectName(root), ...meta, path: decisionPath, body: splitFrontmatter(text)?.rest.trim() || '' }),
@@ -73,10 +76,10 @@ export function mirrorDecision(root, decisionPath, { registry = readRegistry() }
   return { ticket, path: file, aiDir };
 }
 
-export function mirrorById(root, id, opts) {
+export function mirrorById(root, id) {
   const file = fileForId(join(root, '.ai'), id);
   if (!file) throw new Error(`framework-mirror: no decision '${id}' in ${join(root, '.ai')}`);
-  return mirrorDecision(root, join(root, '.ai', file), opts);
+  return mirrorDecision(root, join(root, '.ai', file));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

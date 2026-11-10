@@ -466,10 +466,7 @@ async function main() {
     const r = recordDecision(root, readFileSync(flags.file, 'utf8'), { from: flags.from });
     await refresh(root);
     process.stdout.write(`decide: ${r.id} -> ${relative(root, r.path)}\n`);
-    if (r.mirrored) {
-      await refresh(r.mirrored.root);
-      process.stdout.write(`mirrored: ${r.id} -> ${r.mirrored.ticket} in the framework store (KIT-T943)\n`);
-    }
+    if (r.mirrored) process.stdout.write(`mirrored: ${r.id} -> ${r.mirrored.ticket} in the framework store (KIT-T943)\n`);
     if (r.mirrorError) process.stderr.write(`mirror failed (${r.mirrorError}): file the framework ticket by hand and add promoted: <id> to ${r.id}\n`);
     return;
   }

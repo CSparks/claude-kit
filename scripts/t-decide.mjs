@@ -17,7 +17,7 @@
 // A decision that settles a framework concern in a game store is also mirrored into the framework store as an open ticket
 // (KIT-T943); the decision gains `promoted: <ticket>`.
 //
-// `recordDecision(root, draftText, { from })` → { id, path, cleared, mirrored?: { ticket, root }, mirrorError? }.
+// `recordDecision(root, draftText, { from })` → { id, path, cleared, mirrored?: { ticket, aiDir }, mirrorError? }.
 
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,7 +28,6 @@ import { maxStoreNum, readIdConfig } from './id-utils.mjs';
 import { resolveInboxNotes } from '../hooks/lib/inbox-rulings.mjs';
 import { moveCapToTriaged } from './triage/write-item.mjs';
 import { mirrorDecision } from './framework-mirror.mjs';
-import { frameworkRoot } from '../hooks/lib/framework-scope.mjs';
 
 const SLUG_MAX = 64;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -68,7 +67,7 @@ function claimExactly(root, dir, wanted) {
 function mirrored(root, path) {
   try {
     const hit = mirrorDecision(root, path);
-    return hit ? { mirrored: { ticket: hit.ticket, root: frameworkRoot() } } : {};
+    return hit ? { mirrored: { ticket: hit.ticket, aiDir: hit.aiDir } } : {};
   } catch (e) {
     return { mirrorError: e.message };
   }

@@ -33,8 +33,9 @@ function turnTranscript() {
 }
 
 try {
-  const framework = adopted(false);
-  const game = adopted(false);
+  const keyed = (key) => { const repo = adopted(false); writeFileSync(join(repo, '.ai', 'config.yml'), `ids:\n  key: "${key}"\n`); return repo; };
+  const framework = keyed('RGX');
+  const game = keyed('GMX');
   const registry = (projects) => { const file = join(tmpDir('fds-reg-'), 'registry.json'); writeFileSync(file, JSON.stringify({ projects })); return file; };
   const withFramework = registry({ 'rapid-game': framework });
   const stop = (repo, extra = {}, reg = withFramework) =>
@@ -60,11 +61,14 @@ try {
   const youngRun = stop(framework);
   ok('negative control: a directive younger than the limit only warns', youngRun.code === 0 && /WARNING: 1 maintainer ruling/.test(youngRun.out));
 
-  const plain = adopted(false);
+  const plain = keyed('PLX');
   const plainStop = () => stop(plain, {}, registry({ 'rapid-game': plain }));
   seedInbox(plain, [note(CONFIRMATION_DAYS + OLD_EXTRA_DAYS, 'bug-login', NOT_RULINGS[0].text)]);
   ok('negative control: an old note that is no directive does not block', plainStop().code === 0);
   seedInbox(plain, [note(CONFIRMATION_DAYS + OLD_EXTRA_DAYS, 'directive-old', POLICY.text)]);
   ok('mutation check: the same store blocks once an old directive joins the plain note', plainStop().code === 2);
+  const submodule = keyed('RGX');
+  seedInbox(submodule, [POLICY]);
+  ok('another checkout of the framework store (same id key, other path) blocks too', stop(submodule).code === 2);
 } finally { cleanup(); }
 done();
