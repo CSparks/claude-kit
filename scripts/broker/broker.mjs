@@ -37,7 +37,8 @@ import { setPulse } from './stall.mjs';
 import { daemonStateLine } from './daemon-state.mjs';
 import { appendFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { launchDaemon } from './launch.mjs';
+import { handOver } from './handover.mjs';
+import { createSupervisor } from './supervise.mjs';
 import { brokerPaths, laneConfigs } from './config.mjs';
 import { laneCfgFor } from './lanes.mjs';
 import { rerouteMisplaced } from './reroute.mjs';
@@ -237,20 +238,28 @@ let lastWork = Date.now();
 // it hands the lock to a fresh daemon started from `current` and exits. A newly published runtime
 // triggers the same hand-over after a drain, so a job in progress finishes on its own runtime.
 const runtimeGone = () => !existsSync(join(import.meta.dirname, 'gate.mjs'));
+let handoverFailed = false;
 function restartFromCurrent(why = `runtime gone (${import.meta.dirname})`) {
-  const cur = runtimeCurrent();
-  releaseLock(cfg);
-  const args = process.argv.slice(2).filter((a, i, all) => a !== '--root' && all[i - 1] !== '--root' && a !== '--log' && all[i - 1] !== '--log');
-  if (cur) launchDaemon(join(cur, 'scripts', 'broker', 'broker.mjs'), root, args);
-  console.error(`broker: ${why}; ${cur ? `restarted from ${cur}` : 'no published runtime to restart from'}`);
-  process.exit(0);
+  const current = runtimeCurrent();
+  const r = handOver({ cfg, root, argv: process.argv.slice(2), why, current, canStay: !runtimeGone() });
+  if (r.handedOver) { console.error(`broker: ${why}; restarted from ${current}`); process.exit(0); }
+  console.error(`broker: ${why}; could not restart: ${r.error}${r.stayed ? '; staying on this runtime' : ''}`);
+  if (!r.stayed) process.exit(0);
+  handoverFailed = true;
 }
+
+const supervisor = createSupervisor();
+const superviseOtherLanes = () => {
+  if (process.env.BROKER_NO_AUTOSTART) return;
+  for (const lane of supervisor.tick(rootCfg, root, { selfLane: cfg.lane })) console.error(`broker: no daemon was behind the ${lane} queue; started one`);
+};
 
 const tick = () => {
   if (stopRequested(cfg)) { clearStop(cfg); stop('stop requested'); }
   if (runtimeGone()) restartFromCurrent();
+  superviseOtherLanes();
   const { processed, coalescing } = drain();
-  const swap = publishedSwap();
+  const swap = handoverFailed ? null : publishedSwap();
   if (swap) restartFromCurrent(`runtime ${runtimeTag()} superseded by published ${swap}`);
   if (workPending(cfg, processed)) lastWork = Date.now();
   if (idleExpired({ idleMs, lastWork })) stop(`idle for ${flags['idle-exit']} min, exiting`);

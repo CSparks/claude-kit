@@ -29,11 +29,19 @@ export function spawnBroker(root, idleExit = IDLE_EXIT_MIN, why = 'started', lan
 /** Start a broker unless a live one holds the lock; a holder stalled past RESTART_MS is killed and replaced (stall.mjs). `spawner(root, idleExit)` is injectable. Returns true when it started one. */
 export function ensureBroker(cfg, root, spawner = spawnBroker) {
   if (liveHolder(cfg)) return restartIfWedged(cfg, root, { spawner: (r, why) => spawner(r, null, why, cfg.lane) });
-  if (!claimSpawn(cfg)) return false;
+  return startIfDead(cfg, root, spawner);
+}
+
+/** Start a daemon for a lane nobody holds the lock of; one claim at a time. Returns true when it started one. */
+export function startIfDead(cfg, root, spawner = spawnBroker) {
+  if (liveHolder(cfg) || !claimSpawn(cfg)) return false;
   spawner(root, IDLE_EXIT_MIN, `${listQueue(cfg).length} job(s) queued with no daemon`, cfg.lane);
   for (const line of dirtNotice(cfg)) console.error(line);
   return true;
 }
+
+/** Does the lane hold a queued job or a queued measure that a daemon must run. */
+export const laneHasWork = (lane) => !!(listQueue(lane).length || listMeasure(lane).length);
 
 /**
  * Start a daemon behind every lane of the checkout that holds queued jobs and has none, so a queue
@@ -41,7 +49,7 @@ export function ensureBroker(cfg, root, spawner = spawnBroker) {
  * names it started ('root' for the superproject's).
  */
 export function ensureQueuedLanes(cfg, root, spawner = spawnBroker) {
-  return laneConfigs(withLane(cfg, null)).filter((lane) => (listQueue(lane).length || listMeasure(lane).length) && ensureBroker(lane, root, spawner)).map((lane) => lane.lane || 'root');
+  return laneConfigs(withLane(cfg, null)).filter((lane) => laneHasWork(lane) && ensureBroker(lane, root, spawner)).map((lane) => lane.lane || 'root');
 }
 
 const SPAWN_CLAIM_MS = 30_000;

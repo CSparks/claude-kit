@@ -4,13 +4,15 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
-import { brokerPaths } from './config.mjs';
+import { join } from 'node:path';
+import { brokerPaths, laneConfigs } from './config.mjs';
 import { daemonStateLine } from './daemon-state.mjs';
 import { addDeferred, deferredLines } from './deferred.mjs';
 import { revParse } from './git.mjs';
-import { heartbeat } from './lock.mjs';
+import { acquireLock, heartbeat } from './lock.mjs';
+import { setup } from './subkit.mjs';
 import { ensureDirs, writeJob } from './result.mjs';
 import { STALL_MS } from './stall.mjs';
 import { commitOnMain, fixture } from './patchkit.mjs';
@@ -46,6 +48,43 @@ test('an old beat with jobs waiting is STALLED; negative controls: an old beat w
     writeFileSync(brokerPaths(s.cfg).lock, JSON.stringify({ pid: 999999, host: hostname(), ts: '' }));
     assert.match(daemonStateLine(s.cfg), /^broker: DEAD, no daemon holds the lock, 1 queued/);
   } finally { s.done(); }
+});
+
+const HOUR_MS = 60 * 60 * 1000;
+const queueAged = (s, ms) => writeJob(s.cfg, { id: `j-${(Date.now() - ms).toString(36)}-a`, repo: 'app', ops: [] });
+
+test('a lane with queued jobs and no daemon is flagged with its lane and the oldest job\'s age; an empty lane is not', () => {
+  const s = fixture();
+  try {
+    ensureDirs(s.cfg);
+    assert.doesNotMatch(daemonStateLine(s.cfg), /QUEUED WITHOUT A DAEMON/, 'control: an empty lane is quiet');
+    queueAged(s, HOUR_MS);
+    queueAged(s, 5 * 60 * 1000);
+    assert.match(daemonStateLine(s.cfg), /^broker: DEAD, no daemon holds the lock, 2 queued, QUEUED WITHOUT A DAEMON in lane root: oldest waiting 60 min /);
+    holdLock(s);
+    heartbeat(s.cfg);
+    assert.doesNotMatch(daemonStateLine(s.cfg), /QUEUED WITHOUT A DAEMON/, 'control: a live daemon holds the lane');
+  } finally { s.done(); }
+});
+
+test('a live daemon with jobs queued reports how long the oldest waited and the tree another lane holds; control: its own lock is not listed', () => {
+  const t = setup();
+  try {
+    const [, subLane] = laneConfigs(t.cfg);
+    const lock = (lane, pid) => writeFileSync(join(t.root, 'target', 'broker', 'subtree', 'rapid-game.lock'), JSON.stringify({ lane, id: 'j-held', pid, host: hostname() }));
+    mkdirSync(join(t.root, 'target', 'broker', 'subtree'), { recursive: true });
+    writeJob(subLane, { id: `j-${(Date.now() - HOUR_MS).toString(36)}-a`, repo: 'rapid-game', ops: [] });
+    acquireLock(subLane);
+    lock('root', process.pid);
+    const lines = daemonStateLine(subLane).split('\n');
+    assert.match(lines[0], /^broker: ALIVE, /);
+    assert.match(lines[1], /^ {2}oldest queued job has waited 60 min$/);
+    assert.match(lines[2], /^ {2}rapid-game tree is held by lane root \(j-held, pid \d+\); a job that needs it waits$/);
+    lock('rapid-game', process.pid);
+    assert.equal(daemonStateLine(subLane).split('\n').length, 2, 'control: the lane\'s own hold is not a wait');
+    lock('root', 999999);
+    assert.equal(daemonStateLine(subLane).split('\n').length, 2, 'control: a dead holder is not a wait');
+  } finally { t.done(); }
 });
 
 test('a deferred test whose repo HEAD moved says it waits for an idle queue; control: an unmoved HEAD still waits on a HEAD move', () => {

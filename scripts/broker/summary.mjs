@@ -10,7 +10,7 @@ import { deferredLines } from './deferred.mjs';
 import { readLock } from './lock.mjs';
 import { readInflight } from './preimage.mjs';
 import { listQueue } from './result.mjs';
-import { submittedAt } from './stats.mjs';
+import { ageMinutes, oldestQueuedMs } from './queue-age.mjs';
 import { rollupLine } from './metrics.mjs';
 import { liveLine } from './live-patch.mjs';
 import { AWAITING_BILL } from '../../hooks/lib/bill-of-work.mjs';
@@ -50,7 +50,7 @@ function laneNoDaemon(cfg, root, now) {
   if (!existsSync(brokerPaths(cfg).home) || brokerLive(cfg) || isPaused(cfg)) return [];
   const queued = listQueue(cfg);
   if (!queued.length) return [];
-  const oldest = Math.round((now - Math.min(...queued.map((j) => submittedAt(j.id)).filter(Number.isFinite))) / MS_PER_MIN);
+  const oldest = ageMinutes(oldestQueuedMs(cfg, now) ?? 0);
   const script = posix(join(import.meta.dirname, 'broker.mjs'));
   return [
     `--- OPEN, ${AWAITING_BILL}: ${queued.length} broker job(s) queued${cfg.lane ? ` in the ${cfg.lane} queue` : ''}, no daemon running (oldest waiting ${oldest} min) ---`,

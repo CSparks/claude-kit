@@ -119,6 +119,16 @@ export function reclaimStale(cfg, sub) {
   return { reclaimed: held };
 }
 
+/** The live holders of a submodule's tree that belong to another lane than `cfg`'s: [{ tree, lane, id, pid }]. Read only. */
+export function otherLaneTreeHolders(cfg) {
+  const dir = homeOf(cfg);
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((f) => f.endsWith('.lock')).flatMap((f) => {
+    const held = read(join(dir, f));
+    return held && held.lane !== laneName(cfg) && liveRecord(held) ? [{ tree: f.slice(0, -'.lock'.length), lane: held.lane, id: held.id, pid: held.pid }] : [];
+  });
+}
+
 const otherWant = (cfg, sub, now) => {
   const dir = homeOf(cfg);
   if (!existsSync(dir)) return null;
