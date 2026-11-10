@@ -309,7 +309,7 @@ compaction summary.
   ruling, directive, "<name> said", a quoted sentence) prints `RULING CAPTURED: <id>`; promote it that
   turn with `t decide --file <draft.md> --from <inbox id>` (his words verbatim under `**Maintainer:**`).
   The Stop hook blocks once while it rests in the inbox and warns every Stop after; orient lists
-  un-promoted rulings (id, age, first line) above everything else; read them with `q show <id>` before
+  un-promoted rulings (id, age, first line) near the top, above the generic inbox count; read them with `q show <id>` before
   you design. A note that is not a ruling clears with `t triage <id> --skip`.
 - **Dedup before you file (KIT-T025/T159):** an item created directly (not via `cap`
   → triage) runs `q fts` on its nouns first — duplicating a parallel session's

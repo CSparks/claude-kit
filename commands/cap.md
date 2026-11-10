@@ -12,7 +12,7 @@ the same turn, before other work: write a draft with a `**Maintainer:**` paragra
 words verbatim, a `**Decision:**` and a `**Why:**`, then
 `t decide --file <draft.md> --from <inbox id>` (records the decision and moves the note out of the
 inbox). The Stop hook blocks once while a ruling captured this turn rests in the inbox and warns
-every Stop after; orient lists it above everything else. A note that is not a ruling clears with
+every Stop after; orient lists it near the top, above the generic inbox count. A note that is not a ruling clears with
 `t triage <id> --skip`.
 
 Interjection: $ARGUMENTS
