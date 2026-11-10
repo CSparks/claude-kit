@@ -10,7 +10,8 @@ import {
   loadWritePolicy, forbiddenBy, globToRegExp, relForGlob,
 } from './lib.mjs';
 import { recordTurnWrite, recordSubmoduleActivity, repoRelative } from './turn-writes.mjs';
-import { recordPredictedWrite } from './lib/tool-writes.mjs';
+import { recordPredictedWrite, writerId } from './lib/tool-writes.mjs';
+import { subagentId } from './lib/subagent-id.mjs';
 import { handEditWarning } from './lib/broker-hand-edit.mjs';
 import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 import { FILE_HARD, FILE_SOFT, fileLengthVerdict } from './lib/limits.mjs';
@@ -24,8 +25,12 @@ import { uiPixelViolation } from './lib/ui-pixel-gate.mjs';
 // exited 1 and was non-blocking only by exit-code accident.
 const failOpen = (e) => {
   process.stderr.write(`[pre-write] internal error — failing open: ${(e && e.message) || e}\n`);
+  allowedWrite = null;
   process.exit(0);
 };
+// The content this write leaves is recorded for shell-call attribution only when every check passed: exit code 0, not a fail-open.
+let allowedWrite = null;
+process.on('exit', (code) => { if (code === 0 && allowedWrite) recordPredictedWrite(...allowedWrite); });
 process.on('uncaughtException', failOpen);
 process.on('unhandledRejection', failOpen);
 
@@ -198,7 +203,7 @@ const ROOT = _gitRoot || projectRoot(dirname(file));
 if (_gitRoot && !process.env.CLAUDE_KIT_BROKER_GATE) {
   recordTurnWrite(_gitRoot, file, p.session_id);
   recordSubmoduleActivity(_gitRoot, p.session_id);
-  recordPredictedWrite(_gitRoot, repoRelative(_gitRoot, file), file, p.tool_input);
+  allowedWrite = [_gitRoot, repoRelative(_gitRoot, file), file, p.tool_input, writerId(p.session_id, subagentId(p))];
   const handEdit = handEditWarning(file, p.session_id);
   if (handEdit) process.stderr.write(handEdit);
 }

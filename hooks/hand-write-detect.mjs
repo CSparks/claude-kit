@@ -12,7 +12,8 @@ import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mj
 import { clearTurnState, readTurnState, writeTurnState } from './lib/turn-state.mjs';
 import { snapshotDirty, handWrittenSources, headOf, contentHashOf } from './lib/shell-snapshot.mjs';
 import { addHandWrites } from './lib/hand-writes.mjs';
-import { toolWriteProves } from './lib/tool-writes.mjs';
+import { toolWriteProves, writerId } from './lib/tool-writes.mjs';
+import { subagentId } from './lib/subagent-id.mjs';
 
 const CHECK = 'source-shell-write';
 const SHOWN_MAX = 10;
@@ -36,7 +37,8 @@ try {
   if (!before) process.exit(0);
   const command = String((p.tool_input && p.tool_input.command) || '');
   const since = before.ts || Date.now();
-  const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel));
+  const caller = writerId(sid, subagentId(p));
+  const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller);
   const written = handWrittenSources(root, before.files || {}, command, before.head || '')
     .filter((rel) => !pathExcluded(root, CHECK, rel) && !toolWrote(rel));
   if (written.length) {
