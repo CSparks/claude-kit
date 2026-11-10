@@ -4,8 +4,8 @@
 // as unpromoted (KIT-D111). The decision gets `promoted: <ticket id>`, which clears the D111 flag.
 //
 //   mirrorDecision(root, decisionPath) -> { ticket, path, aiDir } | null
-//     null when `root` is the framework store, the machine registry has no framework project, the decision is game-scope,
-//     or it already carries `promoted:`. The ticket lands in the framework project's store directory (repo or central data root).
+//     null when `root` is the framework store or does not consume the framework (frameworks/rapid-game.md detection), the
+//     machine registry has no framework project, the decision is game-scope, or it already carries `promoted:`. The ticket lands in the framework project's store directory (repo or central data root).
 //   node scripts/framework-mirror.mjs --root <game repo> --decision <id>   mirrors one recorded decision (backfill)
 
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -17,7 +17,7 @@ import { reserveId } from './id-reserve.mjs';
 import { writeFromTemplate } from './triage/write-item.mjs';
 import { fileForId, maxStoreNum, readIdConfig } from './id-utils.mjs';
 import { projectName } from '../hooks/lib/paths.mjs';
-import { frameworkAiDir, isFrameworkDecision, isFrameworkStore } from '../hooks/lib/framework-scope.mjs';
+import { consumesFramework, frameworkAiDir, isFrameworkDecision, isFrameworkStore } from '../hooks/lib/framework-scope.mjs';
 
 const TICKET_TYPES = ['task', 'chore', 'feature'];
 const BODY_CHARS = 1500;
@@ -64,7 +64,7 @@ export function mirrorDecision(root, decisionPath) {
   const text = readFileSync(decisionPath, 'utf8');
   const fm = frontmatterBlock(text);
   const meta = { id: field(fm, 'id'), title: field(fm, 'title') || '', summary: field(fm, 'summary') || '', date: field(fm, 'date') || '' };
-  if (!aiDir || !meta.id || field(fm, 'promoted') || isFrameworkStore(root) || !isFrameworkDecision(meta)) return null;
+  if (!aiDir || !meta.id || field(fm, 'promoted') || isFrameworkStore(root) || !consumesFramework(root) || !isFrameworkDecision(meta)) return null;
   const ticket = nextTicketId(aiDir);
   const rel = writeFromTemplate({
     aiDir, store: 'tickets', id: ticket, type: mirrorType(aiDir), priority: TICKET_PRIORITY, title: `Framework decision ${meta.id}: ${meta.title}`,

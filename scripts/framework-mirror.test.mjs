@@ -37,6 +37,7 @@ function world({ registered = true } = {}) {
   const key = `G${unique()}`;
   const fwKey = `R${unique()}`;
   const game = store('game', key);
+  writeFileSync(join(game, '.gitmodules'), '[submodule "rapid-game"]\n\tpath = rapid-game\n');
   const framework = store('framework', fwKey);
   writeFileSync(process.env.CLAUDE_KIT_REGISTRY, JSON.stringify({ projects: registered ? { 'rapid-game': framework, [`game-${key}`]: game } : { [`game-${key}`]: game } }));
   return { game, framework, key, fwKey, done: () => { rmSync(game, { recursive: true, force: true }); rmSync(framework, { recursive: true, force: true }); } };
@@ -77,6 +78,18 @@ test('negative control: a game-scope decision is not mirrored', () => {
   try {
     const r = recordDecision(w.game, draft(GAME_TITLE));
     assert.equal(r.mirrored, undefined);
+    assert.deepEqual(tickets(w.framework), []);
+    assert.ok(!/promoted:/.test(readFileSync(r.path, 'utf8')));
+  } finally { w.done(); }
+});
+
+test('negative control: a framework decision in a project that does not use rapid-game (a web UI framework) is not mirrored', () => {
+  const w = world();
+  try {
+    rmSync(join(w.game, '.gitmodules'));
+    const r = recordDecision(w.game, draft('Use one UI framework for every screen', 'the web framework choice'));
+    assert.equal(r.mirrored, undefined);
+    assert.equal(r.mirrorError, undefined);
     assert.deepEqual(tickets(w.framework), []);
     assert.ok(!/promoted:/.test(readFileSync(r.path, 'utf8')));
   } finally { w.done(); }
