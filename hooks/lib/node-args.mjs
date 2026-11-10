@@ -1,6 +1,7 @@
 // What `node [options] <script|-e code> ...` runs, read from node's option grammar (KIT-T939).
 //
 //   isNodeInlineFlag(arg) -> boolean   arg carries inline code: -e, -p, --eval[=], --print[=], or combined short flags with e or p (-pe)
+//   nodeLoadedModules(args) -> string[]  the module or file each code-loading option names, in call order
 //   nodeScriptName(args) -> string     args: the words after `node`, quotes dropped
 //     the script's file name, or '' when the call runs inline code, stdin, loads code before the script
 //     (-r, --require, --import, --loader, --experimental-loader, --env-file[-if-exists], in any spelling), or uses
