@@ -80,7 +80,7 @@ function deadCitationWarning(root) {
   process.stderr.write(
     `⚠ SESSION.md cites ${missing.length} artifact path(s) that do NOT exist on disk:\n` +
     shown.map((m) => '    ' + m).join('\n') + more + '\n' +
-    `Re-anchor each to a durable repo path (or drop the citation) — a cited artifact that died with its session is a lost deliverable.\n`,
+    `Re-anchor each: t session --fix "<old>" "<new>" --all. History that cites a path that is gone stays as written: one line saying the path is stale or renamed clears it (t session "<path> is stale: <why>"). A cited artifact that died with its session is a lost deliverable.\n`,
   );
 }
 

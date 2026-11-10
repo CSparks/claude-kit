@@ -20,7 +20,7 @@ const USAGE = {
   notes: 't notes <id> "<prose>" | --file <path>',
   edit: 't edit <id> --section Description|Plan|Notes --file <path>',
   config: 't config get <dotted.key> | t config set <dotted.key> <value>… (several values make a list; e.g. broker.affected.conformance "cargo t -p game --test conformance")',
-  session: 't session "<text>" | --file <path> [--append] | --replace --file <path> | --fix "<old>" "<new>" | --drop "<text>"',
+  session: 't session "<text>" | --file <path> [--append] | --replace --file <path> | --fix "<old>" "<new>" [--all] | --drop "<text>"',
 };
 
 export const VERBS = Object.keys(USAGE);
@@ -36,7 +36,7 @@ export async function runVerb(cmd, rest, flags, root, refresh) {
   if (!VERBS.includes(cmd)) return false;
   if (cmd === 'session') {
     if (flags.fix || flags.drop) {
-      const r = editSession(root, { fix: flags.fix, drop: flags.drop });
+      const r = editSession(root, { fix: flags.fix, drop: flags.drop, all: flags.all });
       await refresh(root);
       const what = flags.fix ? 'fixed' : `dropped ${r.changed} ${r.changed === 1 ? 'entry' : 'entries'}`;
       process.stdout.write(`session: ${relative(root, r.path)} ${what}${r.backup ? `; previous kept at ${relative(root, r.backup)}` : ''}\n`);

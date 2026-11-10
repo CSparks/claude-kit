@@ -335,6 +335,7 @@ function parseArgs(argv) {
     else if (a === '--answerable-by') flags.answerableBy = argv[++i];
     else if (a === '--append') flags.append = true;
     else if (a === '--fix') { flags.fix = [argv[++i], argv[++i]]; if (flags.fix.some((x) => x === undefined)) { console.error('t: --fix takes <old> <new>'); process.exit(2); } }
+    else if (a === '--all') flags.all = true;
     else if (a === '--drop') flags.drop = argv[++i];
     else if (a === '--status-to') flags.statusTo = argv[++i];
     else if (a === '--promoted') flags.promoted = argv[++i];

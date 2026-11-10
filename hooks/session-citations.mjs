@@ -44,6 +44,34 @@ function outsideRoot(root, p) {
   return rel === '..' || rel.startsWith('..' + sep) || isAbsolute(rel);
 }
 
+// A line that calls a path stale, renamed or gone declares it history: the anchor already says so, and
+// `t session` only appends, so the warning must accept that sentence as the answer.
+const STALE_MARK = /\b(?:stale|no longer exists?|renam\w*|removed|deleted|moved|gone|historical|superseded|not re-anchored)\b/i;
+const BARE_FILE = /[\w-]+\.[A-Za-z0-9]{1,6}(?![\w])/g;
+const DATED_ENTRY = /^- \[\d{4}-\d{2}-\d{2}/;
+// Dated entries past the newest few are session history, not live anchors.
+const LIVE_DATED_ENTRIES = 10;
+
+function declaredStale(lines) {
+  const marked = lines.filter((l) => STALE_MARK.test(l)).join('\n');
+  return [...citedPaths(marked), ...(marked.match(BARE_FILE) || [])];
+}
+
+function liveText(lines) {
+  let dated = 0;
+  let history = false;
+  return lines.filter((l) => {
+    if (DATED_ENTRY.test(l)) history = ++dated > LIVE_DATED_ENTRIES;
+    else if (!/^\s/.test(l) && l.trim()) history = false;
+    return !history;
+  }).join('\n');
+}
+
+const isDeclared = (p, declared) => declared.some((d) => p === d || p.endsWith(`/${d}`));
+
 export function missingCitations(root, text) {
-  return citedPaths(text).filter((p) => !outsideRoot(root, p) && !existsSync(isAbsolute(p) ? p : resolve(root, p)));
+  const lines = String(text || '').split('\n');
+  const declared = declaredStale(lines);
+  return citedPaths(liveText(lines))
+    .filter((p) => !isDeclared(p, declared) && !outsideRoot(root, p) && !existsSync(isAbsolute(p) ? p : resolve(root, p)));
 }

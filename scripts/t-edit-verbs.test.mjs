@@ -48,6 +48,25 @@ try {
     assert.equal(read(join(root, '.ai', 'SESSION.md')), body);
   });
 
+  ok('session --fix --all re-anchors a citation cited on several lines (KIT-T926)', () => {
+    const root = store();
+    writeFileSync(join(root, '.ai', 'SESSION.md'), '# SESSION\n\n- [2026-10-19 10:00] cites tests/test_GroupPads.cpp here\n- [2026-10-19 10:01] and tests/test_GroupPads.cpp there\n- other\n');
+    const r = editSession(root, { fix: ['tests/test_GroupPads.cpp', 'tests/test_DrumGroup.cpp'], all: true });
+    assert.equal(r.changed, 2);
+    assert.equal((read(r.path).match(/test_DrumGroup\.cpp/g) || []).length, 2);
+    assert.doesNotMatch(read(r.path), /test_GroupPads/);
+    assert.match(read(r.backup), /test_GroupPads/);
+    assert.throws(() => editSession(root, { fix: ['tests/missing.cpp', 'x'], all: true }), /occurs 0 times/);
+  });
+
+  ok('the CLI takes --fix <old> <new> --all (KIT-T926)', () => {
+    const root = store();
+    writeFileSync(join(root, '.ai', 'SESSION.md'), '# SESSION\n\n- a gone.mjs\n- b gone.mjs\n');
+    const r = runT(root, 'session', '--fix', 'gone.mjs', 'here.mjs', '--all');
+    assert.equal(r.status, 0, r.stderr);
+    assert.doesNotMatch(read(join(root, '.ai', 'SESSION.md')), /gone\.mjs/);
+  });
+
   ok('session --drop removes the entry and its indented continuation lines only', () => {
     const root = store();
     writeFileSync(join(root, '.ai', 'SESSION.md'), '# SESSION\n\n- [t] keep\n- [t] dead.rs gone\n  continuation of dead\n- [t] keep too\n');
