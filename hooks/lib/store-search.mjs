@@ -14,6 +14,14 @@ const unquote = (a) => a.replace(/^["']|["']$/g, '');
 export const hasGlob = (arg) => GLOB_CHARS.test(arg);
 export const isItemPath = (arg) => ITEM_PATH.test(arg);
 
+/** The FILE operands of a command: flags dropped, and the pattern or script of grep/sed/awk (its first positional) is not a file. */
+export function fileOperands(tool, tokens) {
+  const positionals = tokens.filter((a) => !a.startsWith('-')).map(unquote);
+  const scriptViaFlag = tokens.some((a) => /^(?:-[A-Za-z]*[ef]|--expression|--file|--regexp)\b/.test(a));
+  const takesScript = tool === 'sed' || tool === 'awk' || GREP_FAMILY.test(tool);
+  return takesScript && !scriptViaFlag ? positionals.slice(1) : positionals;
+}
+
 /** True when the verb searches by pattern: the grep family, awk, and any sed whose script is not a bare line range. */
 export function isPatternSearch(tool, args, gitGrep = false) {
   if (gitGrep || GREP_FAMILY.test(tool) || tool === 'awk') return true;

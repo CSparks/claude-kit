@@ -21,7 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
 import { commandLeads } from './lib/command-leads.mjs';
-import { hasGlob, isItemPath, isPatternSearch, itemEquivalent } from './lib/store-search.mjs';
+import { fileOperands, hasGlob, isItemPath, isPatternSearch, itemEquivalent } from './lib/store-search.mjs';
 import { indexEquivalent } from './lib/index-answerable.mjs';
 import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
@@ -45,6 +45,7 @@ const leadsSearch = (cmd) => commandLeads(cmd).some(({ tool, args }) => SEARCH.t
 const STORE = /\.ai[\\/]|(?:^|[\s"'=])\.?[\\/]?(?:tickets|decisions|inbox|questions|notes)[\\/]|[\\/]projects[\\/][^\\/\s"']+[\\/](?:tickets|decisions|inbox|questions|notes)[\\/]|\b(?:ROADMAP|DECISIONS)\.md\b/i;
 // A recursive/tree-wide grep is DISCOVERY ("find me where X is"), the code-graph's job.
 const RECURSIVE_FLAG = /(?:^|\s)(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive|--include\b|--include-dir\b)/;
+const QUOTED_TOKENS = /"[^"]*"|'[^']*'|\S+/g;
 const FILEISH = /\.[A-Za-z0-9]{1,6}$/; // a concrete file arg (has an extension)
 // Session scratchpad dirs hold logs and tool output, never source: searching them is not
 // discovery (KIT-T464).
@@ -143,10 +144,11 @@ async function main() {
   process.exit(0);
 }
 
+// A segment feeds a piped search only when it names an item FILE; a sed script such as /Notes/,/History/p is not one.
 function readsItemFile(c) {
-  const tok = c.split(/\s+/).filter(Boolean);
+  const tok = c.match(QUOTED_TOKENS) || [];
   const tool = (tok[0] || '').replace(/.*[\\/]/, '').toLowerCase();
-  return (READ.test(tool) || tool === 'sed') && tok.slice(1).some((a) => STORE.test(a) && isItemPath(a));
+  return (READ.test(tool) || tool === 'sed') && fileOperands(tool, tok.slice(1)).some((a) => STORE.test(a) && isItemPath(a));
 }
 
 // True iff any path-ish argument in the command is excluded from `id` by a config glob.

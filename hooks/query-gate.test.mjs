@@ -74,6 +74,12 @@ expect('KIT-T871: blocks an awk search of one named item file', run(d, "awk '/ua
 expect('KIT-T871: blocks cat of an item file piped into grep', run(d, 'cat .ai/tickets/KIT-T001.md | grep uat').code, 2);
 expect('KIT-T871: blocks sed -n range piped into grep', run(d, 'sed -n 1,40p .ai/tickets/KIT-T001.md | grep uat').code, 2);
 expect('KIT-T871: blocks Select-String over an item file', run(d, 'Select-String -Path .ai/tickets/KIT-T001.md -Pattern uat').code, 2);
+// KIT-T980: a q read piped through filters is not an item-file read, whatever the sed script's slashes spell.
+expect('KIT-T980: q show piped through a quoted sed range and grep passes', run(d, "q show KIT-T001 | sed -n '/Notes/,/History/p' | grep -n uat").code, 0);
+expect('KIT-T980: q show piped through an unquoted sed range and grep passes', run(d, 'q show KIT-T001 | sed -n /Notes/,/History/p | grep uat').code, 0);
+expect('KIT-T980: node q.mjs show piped through sed -n and grep -i passes', run(d, 'node scripts/q.mjs show KIT-T001 | sed -n 1,40p | grep -i uat').code, 0);
+expect('KIT-T980 control: sed -e script naming an item file piped into grep still blocks', run(d, "sed -e '/Notes/p' .ai/tickets/KIT-T001.md | grep uat").code, 2);
+expect('KIT-T980 control: a piped grep that names a store file still blocks', run(d, "q show KIT-T001 | grep uat .ai/tickets/KIT-T001.md").code, 2);
 expect('KIT-T871 negative control: a plain cat of ONE named item file passes (Read-tool case)', run(d, 'cat .ai/tickets/KIT-T001.md').code, 0);
 expect('KIT-T871 negative control: a sed line-range read of ONE named item file passes', run(d, 'sed -n 1,40p .ai/tickets/KIT-T001.md').code, 0);
 expect('KIT-T871 negative control: a filter over git output naming "tickets" passes', run(d, 'git log | grep tickets').code, 0);
