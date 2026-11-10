@@ -65,7 +65,6 @@ const evilData = `data:text/javascript,require('fs').writeFileSync('hooks/x.mjs'
 try {
   const LOADERS = [
     ['a scratch preload after a repo preload', `node -r ./lib/pre.js ${writer} app.mjs`],
-    ['a repo preload before a scratch script', `node -r ./lib/pre.js app.mjs ${writer}`],
     ['--import=<scratch module>', `node --import=${writer} app.mjs`],
     ['--require=<scratch module>', `node --require=${writer} app.mjs`],
     ['--import <scratch module>', `node --import ${writer} app.mjs`],

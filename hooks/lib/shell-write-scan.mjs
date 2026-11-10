@@ -9,12 +9,18 @@
 // The raw command is scanned and a write tool counts WHEREVER its name appears as a word (`sudo -u root sed -i`,
 // `timeout -s KILL 5 sh -c "rm x"`, `ssh -i k host tee x`): no wrapper is parsed, no text is blanked, so a deny
 // gate cannot be steered by how a wrapper takes its options. The cost is an occasional false positive, lifted
-// through the exclusion surfaces. A segment led by a reader (grep, cat, git …) or a kit verb is not a write tool.
+// through the exclusion surfaces. A segment led by a reader (grep, cat, git …) or a kit verb is not a write tool,
+// but its redirects are judged like any other: a kit or git segment counts only a `>` outside quotes, because its
+// quoted patterns are never executed (KIT-T951).
+//
+// A node call that loads modules through a code-loading option is judged on every module it loads. A module the
+// call names inside the repo or a package is not read: repo code was authored through Edit/Write and checked
+// there, so a preload is no worse than `node repo.mjs`; a blanket block would also stop `--import tsx`.
 
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { isNodeInlineFlag, nodeScriptName } from './node-args.mjs';
+import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
 import { blindSegments, segments } from './shell-segments.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
@@ -26,6 +32,7 @@ const IN_PLACE_FLAG = /^(?:-[A-Za-z]*i[A-Za-z]*|--in-place(?:=.*)?)$/;
 const INTERPRETER = /^(?:node|python3?|py|powershell|pwsh)$/i;
 const INLINE_FLAG = /^(?:-e|--eval|-p|--print|-c|-command)$/i;
 const SCRIPT_FILE = /\.(?:m?js|cjs|py|ps1)$/i;
+const DATA_URL = /^data:/i;
 const WORD = /[^\s'"`;|&()<>]+/g;
 const REDIRECT = /(?<![-=])>>?\s*(["']?)([^\s"'|;&<>)`]+)/g;
 const HEREDOC_CODE = /\b(?:node|python3?)(?:\.exe)?\s+-?\s*<<-?/i;
@@ -46,7 +53,31 @@ export const FS_WRITE = new RegExp(String.raw`\b(?:${WRITE_NAMES})\b|\.(?:${WRIT
 const nameOf = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
 const wordsIn = (text) => [...text.matchAll(WORD)].map((m) => ({ w: m[0], at: m.index }));
 
-function judgeTool(tool, rest, text, { hit, codeHit, readScript }) {
+/** The target of every `>` or `>>` in `text`; with `outsideQuotes` a `>` inside a quoted span is skipped. */
+function redirectTargets(text, outsideQuotes) {
+  const quoted = new Array(text.length).fill(false);
+  let open = '';
+  for (let i = 0; i < text.length && outsideQuotes; i++) {
+    quoted[i] = open !== '' || text[i] === '"' || text[i] === "'";
+    if (open) { if (text[i] === open) open = ''; } else if (text[i] === '"' || text[i] === "'") open = text[i];
+  }
+  return [...text.matchAll(REDIRECT)].filter((m) => !quoted[m.index]).map((m) => m[2]);
+}
+
+function judgeNodeModules(rest, text, { codeHit, readScript }) {
+  const operands = rest.map((r) => r.w);
+  const loaded = nodeLoadedModules(operands);
+  const script = operands.find((a) => SCRIPT_FILE.test(a) && !a.startsWith('-') && !loaded.includes(a));
+  for (const module of script ? [...loaded, script] : loaded) {
+    const code = DATA_URL.test(module) ? text.slice(Math.max(0, text.indexOf(module))) : readScript(module);
+    const found = code && codeHit(code);
+    if (found) return found;
+  }
+  return null;
+}
+
+function judgeTool(tool, rest, text, ctx) {
+  const { hit, codeHit, readScript } = ctx;
   const operands = rest.map((r) => r.w);
   if (WRITING_CMD.test(tool)) return operands.map(hit).find(Boolean) || null;
   if (COPY_CMD.test(tool)) return hit(operands.filter((a) => !a.startsWith('-')).at(-1) || '');
@@ -55,6 +86,7 @@ function judgeTool(tool, rest, text, { hit, codeHit, readScript }) {
   const isNode = /^node$/i.test(tool);
   const inline = rest.find((r) => INLINE_FLAG.test(r.w) || (isNode && isNodeInlineFlag(r.w)));
   if (inline) return codeHit(text.slice(inline.at + inline.w.length));
+  if (isNode) return judgeNodeModules(rest, text, ctx);
   const script = operands.find((a) => SCRIPT_FILE.test(a));
   return script ? codeHit(readScript(script)) : null;
 }
@@ -76,10 +108,10 @@ function judgeSegment(text, ctx) {
   const words = wordsIn(text);
   if (!words.length) return null;
   const leader = nameOf(words[0].w);
-  if (kitLed(text) || /^git$/i.test(leader)) return null;
+  const quotedArgsInert = kitLed(text) || /^git$/i.test(leader);
 
-  for (const m of text.matchAll(REDIRECT)) { const h = ctx.hit(m[2]); if (h) return h; }
-  if (READER.test(leader)) return null;
+  for (const target of redirectTargets(text, quotedArgsInert)) { const h = ctx.hit(target); if (h) return h; }
+  if (quotedArgsInert || READER.test(leader)) return null;
   for (let i = 0; i < words.length; i++) {
     const found = judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx);
     if (found) return found;
@@ -102,11 +134,15 @@ const WRITE_TOKEN = new RegExp(`\\b(?:${wordsOf(WRITING_CMD, COPY_CMD, IN_PLACE_
 
 // With ambiguous quoting no segment can be trusted: a write-tool word, a `>` or a filesystem write call
 // anywhere in the command is a hit, and `ambiguous()` builds the gate's result for it. Pieces cut on every
-// operator, quoting ignored, that a kit verb leads are read-only searches and are not tested: a write token
-// in a `q` pattern is not a write, and a write behind an operator is its own piece and still tested.
-const ambiguousWrite = (text) => {
-  const rest = blindSegments(text)
-    .filter((s) => !kitLed(s.text))
+// operator, quoting ignored, that a kit verb leads are read-only searches: a write token in a `q` pattern is
+// not a write, but a redirect in one is still judged by its target, and a write behind an operator is its own
+// piece and still tested.
+const ambiguousWrite = (text, hit) => {
+  const pieces = blindSegments(text);
+  const kitPieces = pieces.filter((s) => kitLed(s.text));
+  if (kitPieces.some((s) => redirectTargets(s.text, false).some((target) => hit(target)))) return true;
+  const rest = pieces
+    .filter((s) => !kitPieces.includes(s))
     .map((s) => s.text)
     .join(' ; ');
   return WRITE_TOKEN.test(rest) || FS_WRITE.test(rest);
@@ -115,7 +151,7 @@ const ambiguousWrite = (text) => {
 export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous }) {
   const parts = segments(String(command || ''));
   const text = parts.text;
-  if (parts.ambiguous && ambiguous) return ambiguousWrite(text) ? ambiguous() : null;
+  if (parts.ambiguous && ambiguous) return ambiguousWrite(text, hit) ? ambiguous() : null;
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return codeHit(text);
   const ctx = { hit, codeHit, readScript };
   for (const seg of parts) {
