@@ -35,7 +35,8 @@ function game({ ledger = true } = {}) {
 
 const withLedger = game();
 const noLedger = game({ ledger: false });
-const block = (root, prompt, type = 'claude-kit:patch-worker') => lessonsBlock({ root, input: { subagent_type: type }, prompt, footer: `check ${LESSONS_CHECK}` });
+const block = (root, prompt, type = 'claude-kit:patch-worker') => lessonsBlock({ root, input: { subagent_type: type, prompt }, prompt, footer: `check ${LESSONS_CHECK}` });
+const checkout = () => { const dir = mkdtempSync(join(tmpdir(), 'kit-tree-')); mkdirSync(join(dir, '.git')); return dir; };
 const BRIEF = 'Cut the shadow cost of the scatter chunks: fewer instances per draw call';
 
 try {
@@ -54,6 +55,18 @@ try {
   check('a repo without a ledger passes', block(noLedger, BRIEF) === null);
   check('a read-only researcher is never asked', block(withLedger, BRIEF, 'claude-kit:researcher') === null);
   check('a generic writer is asked', block(withLedger, BRIEF, 'general-purpose') !== null);
+  const kitTree = checkout();
+  const otherGame = game();
+  mkdirSync(join(otherGame, '.git'));
+  try {
+    check('a brief whose [tree:] is a checkout with no framework is not asked (KIT-T937)', block(withLedger, `${BRIEF} [tree: ${kitTree}]`) === null);
+    check('negative control: a [tree:] that is a framework checkout is still asked', block(withLedger, `${BRIEF} [tree: ${otherGame}]`) !== null);
+    check('negative control: a [tree:] that is not a repo root does not lift the check', block(withLedger, `${BRIEF} [tree: ${join(kitTree, 'nowhere')}]`) !== null);
+    check('negative control: the same brief with no [tree:] is still asked', block(withLedger, BRIEF) !== null);
+  } finally {
+    rmSync(kitTree, { recursive: true, force: true });
+    rmSync(otherGame, { recursive: true, force: true });
+  }
   check('lessonsWork matches the four themes', ['shader cost', 'texture bake', 'chunk streaming', 'frame time'].every(lessonsWork) && !lessonsWork('fix the menu label'));
 } finally {
   rmSync(withLedger, { recursive: true, force: true });

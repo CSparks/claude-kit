@@ -6,11 +6,13 @@
 //   lessonsWork(prompt)                           -> does the brief touch rendering, perf, assets or streaming
 //
 // Escape: `[lessons-checked: L-R01, L-S02]` naming ledger ids, or `[lessons-checked: none apply: <why>]`.
-// Read-only agents other than the patch-worker are never asked.
+// Read-only agents other than the patch-worker are never asked. A brief whose `[tree: <path>]` names another checkout is
+// judged by that checkout's frameworks: the kit checkout carries none, so hook and gate work there is never asked.
 
 import { frameworksFor } from './lib/frameworks.mjs';
 import { ledgerFiles, lessonIds } from './lib/lessons.mjs';
 import { readOnlyDispatch } from './dispatch-readonly.mjs';
+import { declaredTreeRoot } from './dispatch-target.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 
 export const LESSONS_CHECK = 'lessons-checked';
@@ -28,7 +30,8 @@ export function lessonsBlock({ root, input, prompt, footer }) {
   const type = String(input.subagent_type || input.agent_type || '').trim();
   if (!PATCH_WORKER.test(type) && readOnlyDispatch(root, type, prompt)) return null;
   if (!lessonsWork(prompt)) return null;
-  const ledgers = ledgerFiles(root, frameworksFor(root));
+  const tree = declaredTreeRoot(input) || root;
+  const ledgers = ledgerFiles(tree, frameworksFor(tree));
   if (!ledgers.length) return null;
   const known = new Set(ledgers.flatMap((f) => [...lessonIds(f)]));
   const said = TOKEN.exec(String(prompt))?.[1]?.trim() || '';

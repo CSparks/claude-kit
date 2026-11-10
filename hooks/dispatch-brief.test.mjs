@@ -23,6 +23,10 @@ expect('the block names the check and the DE-T195 example', /brief-grounded/.tes
 expect('a variant feature with words but no reuses token is blocked', call(`build KIT-T910 ${words}`).code, 2);
 expect('a feature brief with a quote and a reuses token passes', call(`build KIT-T910 ${words} [reuses: stadium layout generator]`).code, 0);
 expect('a non-variant feature needs only the quote', call(`build KIT-T911 ${words}`).code, 0);
+expect('an id named as test-fixture data is not a ticket the brief builds (KIT-T937)', call('fix the gate; test fixture ids KIT-T910 and KIT-T911').code, 0);
+expect('negative control: the same id outside a fixture phrase still blocks', call('build KIT-T910; test fixture ids KIT-T911').code, 2);
+expect('negative control: a fixture word in an earlier sentence does not exempt the id', call('write the fixture. build KIT-T910').code, 2);
+expect('negative control: one fixture mention does not exempt an id also cited as work', call('fixture KIT-T910\nbuild KIT-T910').code, 2);
 expect('negative control: a bug brief passes with no quote', call('fix KIT-T912').code, 0);
 expect('negative control: an empty maintainer-words token does not count', call('build KIT-T911 [maintainer-words: ]').code, 2);
 expect('negative control: a brief citing no ticket passes', call('tidy the readme').code, 0);

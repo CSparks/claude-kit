@@ -15,7 +15,7 @@ import { TOKENS } from './lib/gate-tokens.mjs';
 export const CEILING_CHECK = 'agent-context-ceiling';
 export const HANDOFF_CHECK = 'handoff-before-replace';
 const WAIVED = TOKENS.handoffWaived.pattern;
-const TICKET_ID = /\b[A-Z][A-Z0-9]+-T\d{1,4}\b/g;
+export const TICKET_ID = /\b[A-Z][A-Z0-9]+-T\d{1,4}\b/g;
 
 export const ticketsCited = (text) => [...new Set(String(text || '').match(TICKET_ID) || [])];
 

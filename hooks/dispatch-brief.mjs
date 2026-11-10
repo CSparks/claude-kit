@@ -5,7 +5,7 @@
 //   isVariant(title)                                    -> does the title name a variant of an existing feature
 
 import { readOnlyDispatch } from './dispatch-readonly.mjs';
-import { ticketsCited } from './dispatch-context.mjs';
+import { TICKET_ID, ticketsCited } from './dispatch-context.mjs';
 import { ticketMeta } from './lib/ticket-store.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 
@@ -15,14 +15,26 @@ const WORDS = TOKENS.maintainerWords.pattern;
 const REUSES = TOKENS.reuses.pattern;
 const VARIANT = /\b(?:variants?|class(?:es)?|modes?|kinds?|types?|flavou?rs?|versions?|another|extra|additional|more|higher|lower|bigger|smaller|faster|slower|like|same|similar|also)\b/i;
 const TITLE_CHARS = 80;
+const FIXTURE_LEAD = /\b(?:test[- ])?fixtures?\b[^\n.;]{0,60}$/i;
+const LEAD_CHARS = 80;
 
 export const isVariant = (title) => VARIANT.test(String(title || ''));
+
+// An id written as test-fixture data (a `fixture` word within 60 chars before it on its line) is not a ticket the brief builds.
+function fixtureOnly(prompt, id) {
+  const spots = [...prompt.matchAll(TICKET_ID)].filter((m) => m[0] === id);
+  return spots.length > 0 && spots.every((m) => {
+    const lead = prompt.slice(Math.max(0, m.index - LEAD_CHARS), m.index);
+    return FIXTURE_LEAD.test(lead.slice(lead.lastIndexOf('\n') + 1));
+  });
+}
 
 function ungrounded(root, prompt, table) {
   const hasWords = WORDS.test(prompt);
   const hasReuses = REUSES.test(prompt);
   const out = [];
   for (const id of ticketsCited(prompt)) {
+    if (fixtureOnly(prompt, id)) continue;
     const meta = ticketMeta(root, id, table);
     if (!meta || !CHECKED_TYPES.has(meta.type)) continue;
     const needs = [];

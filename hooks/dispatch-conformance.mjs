@@ -7,9 +7,11 @@
 //
 // Escape: name the test in the brief, or `[conformance: not affected: <why>]`.
 // Read-only agents other than the patch-worker are never asked. Same work words as lessons-checked.
+// A brief whose `[tree: <path>]` names another checkout is judged by that checkout's frameworks.
 
 import { frameworksFor } from './lib/frameworks.mjs';
 import { readOnlyDispatch } from './dispatch-readonly.mjs';
+import { declaredTreeRoot } from './dispatch-target.mjs';
 import { lessonsWork } from './dispatch-lessons.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 
@@ -17,7 +19,7 @@ export const CONFORMANCE_CHECK = 'conformance-named';
 const NOT_AFFECTED = TOKENS.conformanceNotAffected.pattern;
 const PATCH_WORKER = /(?:^|:)patch-worker$/i;
 
-export function conformanceBlock({ root, input, prompt, footer, frameworks = frameworksFor(root) }) {
+export function conformanceBlock({ root, input, prompt, footer, frameworks = frameworksFor(declaredTreeRoot(input) || root) }) {
   const type = String(input.subagent_type || input.agent_type || '').trim();
   if (!PATCH_WORKER.test(type) && readOnlyDispatch(root, type, prompt)) return null;
   if (!lessonsWork(prompt)) return null;

@@ -24,6 +24,16 @@ export function isWorktreeIsolation(value) {
   return /^worktree$/i.test(String(value ?? '').trim());
 }
 
+// The checkout a brief declares with `[tree: <path>]` when that path is a repo root, canonicalized; '' otherwise.
+export function declaredTreeRoot(input) {
+  try {
+    const declared = treeToken(input);
+    return declared && isRepoRoot(declared) ? gitRoot(declared) || declared : '';
+  } catch {
+    return '';
+  }
+}
+
 // The repo root the dispatched agent will actually work in. Only a path that IS a repo root
 // counts — a passing mention of a file inside another checkout must not retarget the dispatch —
 // and the answer is canonicalized through git so it compares equal to a row that repo wrote.
