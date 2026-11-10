@@ -16,7 +16,8 @@ import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { git } from './exec.mjs';
 import { isSourcePath } from './shell-source-write.mjs';
-import { KIT_TOOL, nodeScriptName, shellArgs } from './shell-write-scan.mjs';
+import { nodeScriptName } from './node-args.mjs';
+import { KIT_TOOL, shellArgs } from './shell-write-scan.mjs';
 import { segments } from './shell-segments.mjs';
 
 const ENTRIES_MAX = 5000;

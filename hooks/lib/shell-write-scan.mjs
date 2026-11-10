@@ -14,6 +14,7 @@
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
+import { isNodeInlineFlag, nodeScriptName } from './node-args.mjs';
 import { blindSegments, segments } from './shell-segments.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
@@ -51,7 +52,8 @@ function judgeTool(tool, rest, text, { hit, codeHit, readScript }) {
   if (COPY_CMD.test(tool)) return hit(operands.filter((a) => !a.startsWith('-')).at(-1) || '');
   if (IN_PLACE_TOOL.test(tool)) return operands.some((a) => IN_PLACE_FLAG.test(a)) ? operands.map(hit).find(Boolean) || null : null;
   if (!INTERPRETER.test(tool)) return null;
-  const inline = rest.find((r) => INLINE_FLAG.test(r.w));
+  const isNode = /^node$/i.test(tool);
+  const inline = rest.find((r) => INLINE_FLAG.test(r.w) || (isNode && isNodeInlineFlag(r.w)));
   if (inline) return codeHit(text.slice(inline.at + inline.w.length));
   const script = operands.find((a) => SCRIPT_FILE.test(a));
   return script ? codeHit(readScript(script)) : null;
@@ -61,15 +63,6 @@ const ARG = /(?:"[^"]*"|'[^']*'|[^\s"'])+/g;
 
 /** Whitespace-split arguments with a quoted span kept whole and its quotes dropped. */
 export const shellArgs = (text) => [...String(text).matchAll(ARG)].map((m) => m[0].replace(/["']/g, '')).filter(Boolean);
-
-/** The script name `node [flags] <script> ...` runs: its first non-flag argument; '' under an inline flag (`node -e <code>` runs no script). */
-export function nodeScriptName(args) {
-  for (const a of args) {
-    if (INLINE_FLAG.test(a)) return '';
-    if (!a.startsWith('-')) return nameOf(a);
-  }
-  return '';
-}
 
 /** True when the segment runs a kit verb: `q ...` or `node [flags] <kit script> ...`, never `node -e <code>` whatever the code names. */
 export function kitLed(text) {
