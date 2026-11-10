@@ -62,7 +62,7 @@ export function parseCodeArgs(rawArgs) {
       if (a === '--kind') flags.kinds = String(v).split(',');
       else if (a === '--type') flags.types = String(v).split(',');
       else if (a === '--lang') flags.langs = String(v).split(',').map(langOfToken);
-      else if (a === '--path') flags.path = cleanPath(String(v));
+      else if (a === '--path') addPath(flags, cleanPath(String(v)), args[i + 1]);
       else if (a === '--not-path') flags.notPaths.push(cleanPath(String(v)));
       else if (GLOB_FLAGS.has(a)) addGlob(flags, String(v));
       else if (a === '--project') flags.project = String(v);
