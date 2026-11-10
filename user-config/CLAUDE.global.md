@@ -166,7 +166,10 @@ in a block message or a decision file is a defect.
   `[<Family N.M>] <label>` (the hook names the value; never hand-written, KIT-T897); prompt carries
   `[job: <id>]`; an agent that writes no repo file (design/artifact: scratchpad only) adds
   `[read-only: <why>]`, one in another git checkout adds `[tree: <its root>]`; a feature/request
-  brief adds `[maintainer-words: "<his sentence>"]` and `[reuses: <mechanism>|none: <why>]` (KIT-T703).
+  brief adds `[maintainer-words: "<his sentence>"]` and `[reuses: <mechanism>|none: <why>]` (KIT-T703);
+  a design or plan brief (job `plan`, or an analyst or researcher briefed with design words) adds
+  `[rulings-checked: <q inbox or q fts run, or inbox ids read>|none apply: <why>]` while the inbox
+  holds un-triaged notes (KIT-T938).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout
@@ -302,6 +305,12 @@ compaction summary.
   with `t decide --file` that same turn, verbatim words in the body, before any further work
   (KIT-T507). Orient replays the kit's last three days of decisions into every project's session, so
   a ruling in one session reaches the rest; a directive left in a ticket comment reaches no one.
+  **A `cap` note is never the home of a ruling (KIT-T938):** a capture that quotes him (verbatim,
+  ruling, directive, "<name> said", a quoted sentence) prints `RULING CAPTURED: <id>`; promote it that
+  turn with `t decide --file <draft.md> --from <inbox id>` (his words verbatim under `**Maintainer:**`).
+  The Stop hook blocks once while it rests in the inbox and warns every Stop after; orient lists
+  un-promoted rulings (id, age, first line) above everything else; read them with `q show <id>` before
+  you design. A note that is not a ruling clears with `t triage <id> --skip`.
 - **Dedup before you file (KIT-T025/T159):** an item created directly (not via `cap`
   → triage) runs `q fts` on its nouns first — duplicating a parallel session's
   ticket is a filing bug.

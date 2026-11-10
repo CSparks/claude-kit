@@ -328,6 +328,7 @@ function parseArgs(argv) {
     else if (a === '--by') flags.by = argv[++i];
     else if (a === '--root') flags.root = argv[++i];
     else if (a === '--file') flags.file = argv[++i];
+    else if (a === '--from') flags.from = String(argv[++i] || '').split(',').map((x) => x.trim()).filter(Boolean);
     else if (a === '--section') flags.section = argv[++i];
     else if (a === '--description') flags.description = argv[++i];
     else if (a === '--body') flags.body = argv[++i];
@@ -343,6 +344,7 @@ function parseArgs(argv) {
     else if (a === '--title') flags.title = argv[++i];
     else if (a === '--type') flags.type = argv[++i];
     else if (a === '--replace') flags.replace = true;
+    else if (a === '--skip') flags.skip = true;
     else if (a === '--not-dup') flags.notDup = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
     else if (a.startsWith('--') && a !== '--help') { console.error(`t: unknown flag ${a}`); process.exit(2); }
@@ -359,7 +361,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|note|notes|epic|request|question|session|config|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t config get <dotted.key> | t config set <dotted.key> <value>… | t decide --file <draft.md> | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<id|none (why)>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|note|notes|epic|request|question|session|config|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t config get <dotted.key> | t config set <dotted.key> <value>… | t decide --file <draft.md> [--from <inbox-id,...>] | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<id|none (why)>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] [--skip] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
@@ -459,9 +461,9 @@ async function main() {
     return;
   }
   if (cmd === 'decide') {
-    if (!flags.file) { console.error('usage: t decide --file <draft.md>'); process.exit(2); }
+    if (!flags.file) { console.error('usage: t decide --file <draft.md> [--from <inbox-id,...>]'); process.exit(2); }
     const { recordDecision } = await import('./t-decide.mjs');
-    const r = recordDecision(root, readFileSync(flags.file, 'utf8'));
+    const r = recordDecision(root, readFileSync(flags.file, 'utf8'), { from: flags.from });
     await refresh(root);
     process.stdout.write(`decide: ${r.id} -> ${relative(root, r.path)}\n`);
     return;
@@ -479,7 +481,7 @@ async function main() {
     const { triageCapture } = await import('./t-triage.mjs');
     const r = triageCapture(root, rest[0], flags, scaffoldNew);
     await refresh(root);
-    process.stdout.write(`triage: ${r.id} -> ${relative(root, r.path)} (capture moved to ${r.moved})\n`);
+    process.stdout.write(r.id ? `triage: ${r.id} -> ${relative(root, r.path)} (capture moved to ${r.moved})\n` : `triage: skipped, capture moved to ${r.moved}\n`);
     return;
   }
   if (cmd === 'move') {

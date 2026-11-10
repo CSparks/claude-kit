@@ -17,6 +17,7 @@ import { CODEX, firstExisting } from './lib/orient/common.mjs';
 import { decisionViews, kitDecisionsSection, recentSection, standingSection } from './lib/orient/decisions.mjs';
 import { header, identity, notices } from './lib/orient/notices.mjs';
 import { lineageSection, roadmapSection, sessionSection } from './lib/orient/record.mjs';
+import { rulingsSection } from './lib/orient/rulings.mjs';
 import { worktreeSection } from './lib/orient/worktree.mjs';
 import { governsSection, mentionsSection, openWorkSection, porcelainPath, zombiesSection } from './lib/orient/work.mjs';
 
@@ -47,6 +48,7 @@ const views = decisionViews(root);
 
 header(ctx);
 await notices(ctx);
+rulingsSection(ctx);
 const foundational = identity(ctx, views);
 const { repos, wips, recentCommitLines } = await worktreeSection(ctx);
 sessionSection(ctx, join(root, '.ai', 'SESSION.md'));

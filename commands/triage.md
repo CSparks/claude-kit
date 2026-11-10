@@ -40,6 +40,12 @@ inbox or the stores by hand; the script already did.
      Optional `links: [<id>...]`. The script resolves `route`/`priority` from config for caps
      where you omit them; pass them only to override.
 
+   **A cap that quotes the maintainer is a decision, not a ticket (KIT-T938).** The plan lists
+   caps that read as rulings (verbatim, ruling, directive, "<name> said", a quoted sentence).
+   Promote each to a decision before the apply step: `t decide --file <draft.md> --from <cap id>`
+   (the `**Maintainer:**` paragraph holds his words verbatim; the cap moves to `inbox/triaged/`).
+   A cap that only looks like one is `skip` (or `t triage <cap id> --skip`).
+
    **Presenting + accepting provenance candidates (bug/regression caps only).** When a cap
    carries `provenance.candidates`, surface the strongest one to the maintainer as a
    PROPOSAL — never silently authoritative — e.g. *"BUG-024: likely caused by `6712903`

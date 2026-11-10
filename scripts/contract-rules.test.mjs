@@ -22,6 +22,12 @@ try {
     const text = read(f);
     ok(`${f} puts the dispatch checklist in the orchestrator's hands`, /Dispatch checklist, every Agent call/.test(text) && text.includes('[job: <id>]') && text.includes('[read-only: <why>]'));
   }
+  ok('the base contract says a cap note is never the home of a ruling and names the promotion, the Stop block and the clear (KIT-T938)',
+    ['A `cap` note is never the home of a ruling', 'RULING CAPTURED', 't decide --file <draft.md> --from <inbox id>', 'Stop hook blocks once', 't triage <id> --skip', 'orient lists']
+      .every((s) => base.includes(s)));
+  ok('the base contract puts [rulings-checked: ...] in the dispatch checklist for design and plan briefs', /design or plan brief[\s\S]{0,200}\[rulings-checked: <q inbox or q fts run, or inbox ids read>\|none apply: <why>\]/.test(base));
+  for (const f of ['commands/work.md', 'commands/drain.md']) ok(`${f} carries the rulings-checked tag`, read(f).includes('[rulings-checked: <q inbox or q fts run, or inbox ids read>|none apply: <why>]'));
+  ok('the owning commands carry the promotion protocol', read('commands/cap.md').includes('RULING CAPTURED') && read('commands/decide.md').includes('--from <inbox id>') && read('commands/triage.md').includes('t decide --file <draft.md> --from <cap id>'));
   const gates = read('hooks/lib/gate-tokens.mjs');
   ok('the tree and read-only token meanings say a scratchpad path is read-only work, not a [tree:]', /a non-git path such as the scratchpad is ignored: use \[read-only:\]/.test(gates));
 

@@ -14,6 +14,7 @@ import { ESCALATION_CHECK } from '../dispatch-escalation.mjs';
 import { HOLDER_CHECK } from '../dispatch-holder.mjs';
 import { JOB_CHECK } from '../dispatch-job.mjs';
 import { LESSONS_CHECK } from '../dispatch-lessons.mjs';
+import { RULINGS_CHECK } from '../dispatch-rulings.mjs';
 import { UI_CHECK } from '../dispatch-ui.mjs';
 import { WORKER_CHECK, DEFAULT_WRITER_CAP } from '../dispatch-worker.mjs';
 import { BRIEF_CHECK, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
@@ -47,6 +48,7 @@ export const GATES = {
       { check: CONFORMANCE_CHECK, wants: ['the same work names the framework conformance test in the brief'], tokens: [T.conformanceNotAffected] },
       { check: UI_CHECK, wants: ['UI sizing or layout work goes to claude-kit:rg-ui-engineer or names the framework mechanism it reuses'], tokens: [T.uiFrameworkChecked] },
       { check: BRIEF_GROUNDED_CHECK, wants: ['a feature or request ticket brief quotes the maintainer; a variant also names what it reuses'], tokens: [T.maintainerWords, T.reuses] },
+      { check: RULINGS_CHECK, wants: ['a design or plan brief (job plan, or an analyst or researcher briefed with design words) cites the inbox search for maintainer rulings while the inbox holds un-triaged notes'], tokens: [T.rulingsChecked] },
       { check: HANDOFF_CHECK, wants: ['a dispatch that replaces a past-ceiling agent waits until that agent wrote its Handoff block in the ticket Notes'], tokens: [T.handoffWaived, T.writeHandoff] },
     ],
   },

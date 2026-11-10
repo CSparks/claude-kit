@@ -9,6 +9,8 @@
 //    written at PreCompact, so a mid-work /clear resumes from a stale anchor. This nudges ONCE
 //    when meaningful work landed THIS turn (a commit touching project files, or a decision/note/question) but SESSION.md
 //    wasn't touched — flipping the burden from "remember to flush" to "clear the gate".
+//  • Stop also blocks once on a maintainer ruling captured this turn that still rests in the inbox, and warns
+//    on every older one until `t decide --from` / `t triage` moves it out (KIT-T938).
 //
 // No-ops on unadopted repos. FAIL-OPEN everywhere: a durability hook must never wedge a session
 // or block a /clear (the hook contract), so every path exits 0.
@@ -21,6 +23,9 @@ import { triageFooter } from './lib/block-triage.mjs';
 import { unresolvedAsks } from '../scripts/question-store.mjs';
 import { orphanShells, projectSlug, excludedIds, nagText, ORPHAN_AGE_MIN } from './orphan-shells.mjs';
 import { verifyOrphans } from './orphan-verify.mjs';
+import { rulingStop } from './lib/ruling-stop.mjs';
+import { unpromotedRulings } from './lib/inbox-rulings.mjs';
+import { staleWarning } from './lib/ruling-messages.mjs';
 
 // Cap the dead-citation list so a badly-drifted SESSION.md can't swamp the flush output.
 const CITATION_LIST_MAX = 8;
@@ -54,8 +59,8 @@ async function main() {
     if (!unbounded) {
       unresolvedQuestionWarning(root, p.session_id);
       orphanShellWarning(root, p.session_id);
-      stopAnchorNudge(root, p);
     }
+    stopBlockOnce(store, p, unbounded);
   } else {
     precompactReminder(store);
   }
@@ -139,6 +144,9 @@ function precompactReminder(root) {
     /* no inbox dir — fine */
   }
 
+  const rulings = unpromotedRulings(root);
+  if (rulings.length) inboxNote += `\n${staleWarning(rulings)}`;
+
   console.log(`=== COMPACTION IMMINENT — flush before detail is lost ===
 The on-disk record survives this, not the conversation. Before continuing:
 - Decisions/directives from this session -> t decide --file <draft.md> (one decision each)
@@ -149,29 +157,29 @@ After compaction, trust .ai/ + git (${branch}@${head}) over the summary.
 =========================================================`);
 }
 
-// --- Stop: SESSION-anchor ratchet (mirrors request-gate.mjs) --------------------
+// --- Stop: the block-once ratchets, one block message, one exit (mirrors request-gate.mjs) ---
 
-function stopAnchorNudge(root, p) {
-  if (p.stop_hook_active) return;                 // already nudged this stop — never loop
+// SESSION-anchor ratchet: a turn that landed work without touching SESSION.md. Empty when current or unbounded.
+function anchorNudgeText(root, turnStartMs) {
+  if (!turnStartMs) return '';
+  if (sessionMtimeMs(root) >= turnStartMs - TURN_SKEW_MS) return '';  // the anchor is current
+  const work = workSince(root, turnStartMs);                           // a no-op turn stays silent
+  if (!work) return '';
+  return `⚠ SESSION.md is the resume anchor and wasn't updated this turn, but ${work} landed.\n` +
+    'The rule: flush at every commit, landing receipt and decision, the same turn, before replying. Run t session "<state + next steps>" (or --file <draft>): it adds a dated line and deletes nothing. Never --replace unless the draft is the complete anchor. Then stop.\n';
+}
+
+// A ruling captured this turn blocks once (KIT-T938); older ones only warn. The unbounded store has no anchor to nudge.
+function stopBlockOnce(store, p, unbounded) {
   const tx = p.transcript_path;
-  if (!tx || !existsSync(tx)) return;             // can't bound the turn — stay silent (fail-open)
-
-  const turnStartMs = lastUserTurnMs(tx);
-  if (!turnStartMs) return;
-
-  // Did SESSION.md get touched THIS turn? If so, the anchor is current — gate satisfied.
-  if (sessionMtimeMs(root) >= turnStartMs - TURN_SKEW_MS) return;
-
-  // Otherwise, did meaningful work land this turn? Only nag when there's actually fresh work an
-  // anchor should point at — a no-op turn (just chatting) must stay silent.
-  const work = workSince(root, turnStartMs);
-  if (!work) return;
-
-  process.stderr.write(
-    `⚠ SESSION.md is the resume anchor and wasn't updated this turn, but ${work} landed.\n` +
-    `The rule: flush at every commit, landing receipt and decision, the same turn, before replying. Run t session "<state + next steps>" (or --file <draft>): it adds a dated line and deletes nothing. Never --replace unless the draft is the complete anchor. Then stop.\n${triageFooter()}`,
-  );
-  process.exit(2);                                 // block-once (rigid) — same ratchet as request-gate
+  const turnStartMs = tx && existsSync(tx) ? lastUserTurnMs(tx) : 0;  // no bounded turn: stay silent (fail-open)
+  const rulings = rulingStop(store, { turnStartMs, stopActive: !!p.stop_hook_active });
+  if (rulings.warn) process.stderr.write(`${rulings.warn}\n`);
+  const anchor = unbounded || p.stop_hook_active ? '' : anchorNudgeText(store, turnStartMs);
+  const blocks = [rulings.block, anchor].filter(Boolean);
+  if (!blocks.length) return;
+  process.stderr.write(`${blocks.join('\n')}${triageFooter()}`);
+  process.exit(2);
 }
 
 // "This turn" = since the last real user message (the request-gate's definition). Returns its

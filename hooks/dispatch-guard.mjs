@@ -14,6 +14,7 @@
 //   conformance-named    (KIT-T690) — the same work briefed without naming the framework's conformance test
 //   ui-framework-first   (KIT-T583) — UI sizing/layout work briefed to a generic agent in a rapid-game repo
 //   brief-grounded       (KIT-T703) — a feature/request brief with no quoted maintainer words, or a variant with no reuses token
+//   rulings-checked      (KIT-T938) — a design or plan brief sent while the inbox holds un-triaged notes and cites no search of them
 //   handoff-before-replace (KIT-D116) — a dispatch replacing a past-ceiling agent that wrote no handoff (and a warning listing past-ceiling agents)
 // exit 2 = block, 0 = allow. No-ops on unadopted repos; FAIL-OPEN everywhere else.
 //
@@ -41,6 +42,7 @@ import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
 import { BRIEF_CHECK, briefBlock } from './dispatch-brief.mjs';
+import { RULINGS_CHECK, rulingsBlock } from './dispatch-rulings.mjs';
 import { CEILING_CHECK, HANDOFF_CHECK, ceilingWarning, handoffBlock, ticketsCited } from './dispatch-context.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
@@ -96,6 +98,7 @@ try {
     conformanceCheck(root, input, prompt, p),
     uiCheck(root, input, prompt, p),
     briefCheck(root, input, prompt, p),
+    rulingsCheck(root, input, prompt, p),
     handoffCheck(root, input, prompt, p),
   ].filter(Boolean);
   if (!blocks.length) {
@@ -248,6 +251,12 @@ function uiCheck(root, input, prompt, p) {
 function briefCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, BRIEF_CHECK, root)) return null;
   return briefBlock({ root, input, prompt, footer: excludeFooter(BRIEF_CHECK) });
+}
+
+// --- rulings-checked (KIT-T938) -----------------------------------------------------
+function rulingsCheck(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, RULINGS_CHECK, root)) return null;
+  return rulingsBlock({ root, input, prompt, footer: excludeFooter(RULINGS_CHECK) });
 }
 
 // --- handoff-before-replace (KIT-D116) --------------------------------------------

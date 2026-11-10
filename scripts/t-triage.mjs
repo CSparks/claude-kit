@@ -1,6 +1,7 @@
 // `t triage <capture> [--type <t>] [--title "<text>"] [--priority <p>]`: turn one inbox capture into a
 // ticket (type from --type or the capture's leading `(type)`; the whole capture is the Description) and
 // move the capture to inbox/triaged/. A capture routed to another store refuses: use triage --plan.
+// `t triage <capture> --skip` files nothing and only moves the capture: a note that needs no item (KIT-T938).
 //
 //   triageCapture(root, capture, flags, scaffold) -> { id, path, moved }   (scaffold = t.mjs scaffoldNew)
 
@@ -25,6 +26,7 @@ function captureFile(root, capture) {
 export function triageCapture(root, capture, flags, scaffold) {
   if (!capture) throw new Error('t triage: usage: t triage <inbox-file> [--type <type>] [--title "<text>"]');
   const file = captureFile(root, capture);
+  if (flags.skip) return { id: '', path: '', moved: moveCapToTriaged(join(root, '.ai'), join('inbox', basename(file))) };
   const body = readFileSync(file, 'utf8');
   const type = flags.type || leadingType(body);
   if (!type) throw new Error('t triage: the capture carries no (type) tag; pass --type <ticket type>');

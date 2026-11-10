@@ -4,11 +4,13 @@
 // structured triage-plan the LLM classifier consumes. The single-handle requirement is asserted by
 // reporting dbHandleOpens: 1 — every query below runs on the handle the caller passes in.
 
+import { basename } from 'node:path';
 import { openHandle } from './handle.mjs';
 import { loadScope, scopeIndex, ROUTE_STORE } from './config.mjs';
 import { leadingType, capText, ftsOrQuery, truncate } from './cap-text.mjs';
 import { inferProvenance, PROVENANCE_TYPES } from './provenance.mjs';
 import { reopenOnCollision } from '../lapsed-reopen.mjs';
+import { isRuling } from '../../hooks/lib/inbox-rulings.mjs';
 
 const DEDUP_LIMIT = 8;          // candidate dedup hits per cap — a hint list, not a dump
 const PROBE_STORE = 'tickets';  // store an ambiguous cap dedup-probes before its route is known
@@ -70,6 +72,7 @@ async function planForCap(db, cap, configs) {
     route,
     priority,
     needsClassification: !known,
+    ruling: isRuling(cap.body || ''),
     // A deterministic cap dedups against its resolved store; an ambiguous one has no single
     // target yet, so it probes the broadest store (tickets) to surface candidates for the LLM.
     dedupCandidates: dedupCandidates(db, store || PROBE_STORE, text),
@@ -144,7 +147,8 @@ function printPlan(out) {
   for (const [scope, items] of [...byScope].sort((a, b) => a[0].localeCompare(b[0]))) {
     process.stdout.write(`${scope} (${items.length})\n`);
     for (const i of items) {
-      const tag = i.needsClassification ? '? CLASSIFY' : `→ ${i.type} → ${i.route} [${i.priority || '-'}]`;
+      const kind = i.needsClassification ? '? CLASSIFY' : `→ ${i.type} → ${i.route} [${i.priority || '-'}]`;
+      const tag = i.ruling ? `RULING (t decide --from ${basename(i.file, '.md')}) ${kind}` : kind;
       const dup = i.dedupCandidates.length ? `  dup? ${i.dedupCandidates.map((c) => c.id).join(', ')}` : '';
       const allow = i.needsClassification ? `  pick: ${i.allowedClassifications.join('|')}` : '';
       process.stdout.write(`  ${tag}  ${truncate(i.text, TEXT_COL)}${dup}${allow}\n`);

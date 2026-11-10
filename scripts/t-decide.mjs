@@ -11,7 +11,10 @@
 // on disk, at or below the store's highest, or reserved by another creator), so a cite written
 // against the draft id never points at a different decision.
 //
-// `recordDecision(root, draftText)` → { id, path }.
+// `--from <inbox-id,...>` names the inbox notes the decision promotes (KIT-T938): each moves to inbox/triaged/
+// once the decision is written, and an unknown id refuses before an id is minted.
+//
+// `recordDecision(root, draftText, { from })` → { id, path, cleared }.
 
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -19,6 +22,8 @@ import { field, frontmatterBlock, splitFrontmatter } from './frontmatter.mjs';
 import { attributionProblem } from './decision-attribution.mjs';
 import { reserveId, reserveNextId } from './id-reserve.mjs';
 import { maxStoreNum, readIdConfig } from './id-utils.mjs';
+import { resolveInboxNotes } from '../hooks/lib/inbox-rulings.mjs';
+import { moveCapToTriaged } from './triage/write-item.mjs';
 
 const SLUG_MAX = 64;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -53,8 +58,9 @@ function claimExactly(root, dir, wanted) {
   return wanted;
 }
 
-export function recordDecision(root, text) {
+export function recordDecision(root, text, { from = [] } = {}) {
   const draft = parseDraft(text);
+  const notes = resolveInboxNotes(root, from);
   const dir = join(root, '.ai', 'decisions');
   const id = draft.id ? claimExactly(root, dir, draft.id) : reserveNextId(root, 'decisions');
   const slug = draft.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, SLUG_MAX).replace(/-$/, '') || 'decision';
@@ -63,5 +69,6 @@ export function recordDecision(root, text) {
   const date = draft.date || new Date().toISOString().slice(0, 10);
   const head = [`id: ${id}`, `title: ${draft.title}`, `summary: ${draft.summary}`, `date: ${date}`, `supersedes: ${draft.supersedes}`, `source: ${draft.source}`];
   writeFileSync(path, `---\n${head.join('\n')}\n---\n\n${draft.body}\n`);
-  return { id, path };
+  const cleared = notes.map((file) => moveCapToTriaged(join(root, '.ai'), join('inbox', file)));
+  return { id, path, cleared };
 }

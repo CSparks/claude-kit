@@ -120,6 +120,7 @@ test('--plan groups inbox by scope, marks (bug) deterministic, flags untyped, su
   const idea = items.find((i) => i.type === null);
   assert.ok(idea, 'the untyped cap has no resolved type');
   assert.equal(idea.needsClassification, true, 'an untyped cap needs LLM classification');
+  assert.deepEqual([bug.ruling, idea.ruling], [false, false], 'a cap that quotes no one is no ruling (KIT-T938)');
   assert.deepEqual(
     idea.allowedClassifications.sort(),
     ['bug', 'decision', 'feature', 'question'],

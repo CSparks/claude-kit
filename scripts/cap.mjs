@@ -41,6 +41,8 @@ import { wantsHelpFirst } from './cli-help.mjs';
 import { runTopic } from './cap-topic.mjs';
 import { dedupHints, asKitBug, reopenedLines } from './cap-dedup.mjs';
 import { classificationKeys, projectTable, matchProject, namedInText } from './cap-routing.mjs';
+import { isRuling } from '../hooks/lib/inbox-rulings.mjs';
+import { rulingDemand } from '../hooks/lib/ruling-messages.mjs';
 
 const DATE_END = 10; // slice [0,DATE_END) of an ISO string = YYYY-MM-DD
 const TIME_START = 11; // HH:MM:SS begins here
@@ -258,7 +260,9 @@ if (isDone) {
   }
   const inboxDir = join(aiDir, 'inbox');
   mkdirSync(inboxDir, { recursive: true });
-  await writeItemFile(join(inboxDir, name), `${type ? `(${type}) ` : ''}${text}\n${identity}`);
+  const body = `${type ? `(${type}) ` : ''}${text}`;
+  await writeItemFile(join(inboxDir, name), `${body}\n${identity}`);
   console.log(`captured${type ? ` (${type})` : ''} -> ${projectName}/inbox/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
+  if (isRuling(body)) console.log(rulingDemand(name.replace(/\.md$/, '')));
   for (const line of dupLines) console.log(line);
 }
