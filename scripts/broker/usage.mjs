@@ -4,11 +4,11 @@
 // `usageProblem(flags)` → null | { text, code }: code 0 for help, 2 for a bad argument.
 
 const COMMANDS = new Set(['pause', 'resume', 'cancel', 'status', 'stop', 'stats', 'blockers', 'clean', 'restore']);
-const FLAGS = new Set(['_', 'root', 'log', 'once', 'poll', 'idle-exit', 'spawned-by', 'now', 'help', 'since', 'json', 'lane', 'pycache', 'debris', 'running', 'top']);
+const FLAGS = new Set(['_', 'root', 'log', 'once', 'poll', 'supervise-ms', 'idle-exit', 'spawned-by', 'now', 'help', 'since', 'json', 'lane', 'pycache', 'debris', 'running', 'top']);
 
 export const USAGE = [
   'usage: broker.mjs [--root <checkout>] [command] [options]',
-  '  (no command)   run the daemon; options: --lane <submodule repo> (a submodule repo: its own queue; default the root lane) --once --poll <ms> --idle-exit <min> --log <file|auto>',
+  '  (no command)   run the daemon; options: --lane <submodule repo> (a submodule repo: its own queue; default the root lane) --once --poll <ms> --supervise-ms <ms> (how often it checks the other lanes for queued jobs with no daemon) --idle-exit <min> --log <file|auto>',
   '  status         show the daemon, queue and suite state',
   '  stats [--since 24h|7d|<ISO>] [--json]   queue wait, phase minutes, failure rates, batches, fairness, stall kills, ST-T904 share',
   '  blockers [--since 24h|7d|<ISO>] [--top N] [--json]   where wall time goes, waste first, ranked against the window before, with trend (KIT-D121)',

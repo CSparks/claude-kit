@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { brokerPaths, laneConfigs } from './config.mjs';
 import { acquireLock } from './lock.mjs';
@@ -17,6 +17,8 @@ import { setup, PASS } from './subkit.mjs';
 
 const BROKER = join(import.meta.dirname, 'broker.mjs');
 const CONTROL_WAIT_MS = 3000;
+const LONG_JOB_MS = 60_000;
+const FAST_SUPERVISE_MS = 1000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const queueIn = (t, lane, flags) => writeJob(lane, { ...buildPatchJob(t.cfg, flags, '*** write a.txt\na\n').job, commands: [PASS] });
 const recorder = () => { const started = []; return { started, spawner: (root, idle, why, lane) => started.push(lane || 'root') }; };
@@ -85,7 +87,19 @@ function daemonFixture() {
   return t;
 }
 
-const startRootDaemon = (t, autostart) => spawn(process.execPath, [BROKER, '--root', t.root, '--poll', '200'], { env: { ...process.env, BROKER_NO_AUTOSTART: autostart ? '' : '1', BROKER_ALLOW_NON_CARGO: '1' }, stdio: 'ignore', windowsHide: true });
+const killTree = (pid) => spawnSync(process.platform === 'win32' ? 'taskkill' : 'kill', process.platform === 'win32' ? ['/PID', String(pid), '/T', '/F'] : [String(pid)], { windowsHide: true });
+
+async function stopDaemons(t, root, subLane) {
+  killTree(root.pid);
+  try {
+    const pid = JSON.parse(readFileSync(brokerPaths(subLane).lock, 'utf8')).pid;
+    if (pid) killTree(pid);
+  } catch { /* no lane daemon was started */ }
+  await sleep(CONTROL_WAIT_MS / 6);
+  t.done();
+}
+
+const startRootDaemon = (t, autostart, extra = []) => spawn(process.execPath, [BROKER, '--root', t.root, '--poll', '200', ...extra], { env: { ...process.env, BROKER_NO_AUTOSTART: autostart ? '' : '1', BROKER_ALLOW_NON_CARGO: '1' }, stdio: 'ignore', windowsHide: true });
 
 test('a running daemon starts the daemon of a lane whose queue has jobs, and that daemon runs them', async () => {
   const t = daemonFixture();
@@ -97,15 +111,23 @@ test('a running daemon starts the daemon of a lane whose queue has jobs, and tha
     for (const end = Date.now() + 120_000; Date.now() < end && !result; await sleep(250)) result = readResult(subLane, job.id);
     assert.ok(result, 'the lane had no daemon and the root daemon started one');
     assert.equal(result.status, 'passed');
-  } finally {
-    root.kill();
-    try {
-      const pid = JSON.parse(readFileSync(brokerPaths(subLane).lock, 'utf8')).pid;
-      if (pid) spawnSync(process.platform === 'win32' ? 'taskkill' : 'kill', process.platform === 'win32' ? ['/PID', String(pid), '/T', '/F'] : [String(pid)], { windowsHide: true });
-    } catch { /* no lane daemon was started */ }
-    await sleep(500);
-    t.done();
-  }
+  } finally { await stopDaemons(t, root, subLane); }
+});
+
+test('a daemon in the middle of a long job still starts the daemon of a lane that has jobs queued', async () => {
+  const t = daemonFixture();
+  const [rootLane, subLane] = laneConfigs(t.cfg);
+  const long = queueIn(t, rootLane, { ticket: 'T-0', title: 'long' });
+  writeJob(rootLane, { ...long, commands: [`node -e "setTimeout(() => {}, ${LONG_JOB_MS})"`] });
+  const root = startRootDaemon(t, true, ['--supervise-ms', String(FAST_SUPERVISE_MS)]);
+  try {
+    for (const end = Date.now() + 60_000; Date.now() < end && !existsSync(join(brokerPaths(rootLane).home, 'inflight.json')); await sleep(100));
+    const job = queueIn(t, subLane, { repo: 'rapid-game', ticket: 'T-1', title: 'fw' });
+    let result = null;
+    for (const end = Date.now() + 120_000; Date.now() < end && !result; await sleep(250)) result = readResult(subLane, job.id);
+    assert.ok(result, 'the lane daemon was started while the root daemon was busy');
+    assert.equal(readResult(rootLane, long.id), null, 'the root job was still running');
+  } finally { await stopDaemons(t, root, subLane); }
 });
 
 test('control: with autostart off the same running daemon leaves the lane queue alone', async () => {
@@ -116,5 +138,5 @@ test('control: with autostart off the same running daemon leaves the lane queue 
   try {
     await sleep(CONTROL_WAIT_MS);
     assert.equal(readResult(subLane, job.id), null);
-  } finally { root.kill(); await sleep(300); t.done(); }
+  } finally { await stopDaemons(t, root, subLane); }
 });

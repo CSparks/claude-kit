@@ -163,9 +163,14 @@ if (command === 'status') {
 
 const notCargo = cargoScopeRefusal(root);
 if (notCargo) { console.error(`broker: ${notCargo}`); process.exit(2); }
+const supervisor = createSupervisor({ everyMs: Number(flags['supervise-ms']) || undefined });
+const superviseOtherLanes = () => {
+  if (process.env.BROKER_NO_AUTOSTART) return;
+  for (const lane of supervisor.tick(rootCfg, root, { selfLane: cfg.lane })) console.error(`broker: no daemon was behind the ${lane} queue; started one`);
+};
 const lock = acquireLock(cfg, { spawnedBy: typeof flags['spawned-by'] === 'string' ? flags['spawned-by'] : null, log: logFile });
 const childRegistry = join(brokerPaths(cfg).home, 'children.json');
-if (lock.ok) { clearStop(cfg); clearCancel(cfg); pinRuntime(); setPulse(() => heartbeat(cfg)); setChildRegistry(childRegistry); setAbortWatch(daemonAbortWatch(cfg)); }
+if (lock.ok) { clearStop(cfg); clearCancel(cfg); pinRuntime(); setPulse(() => { heartbeat(cfg); superviseOtherLanes(); }); setChildRegistry(childRegistry); setAbortWatch(daemonAbortWatch(cfg)); }
 if (!lock.ok) {
   console.error(`broker: another broker holds the lock (pid ${lock.holder.pid} on ${lock.holder.host} since ${lock.holder.ts})`);
   process.exit(1);
@@ -247,12 +252,6 @@ function restartFromCurrent(why = `runtime gone (${import.meta.dirname})`) {
   if (!r.stayed) process.exit(0);
   handoverFailed = true;
 }
-
-const supervisor = createSupervisor();
-const superviseOtherLanes = () => {
-  if (process.env.BROKER_NO_AUTOSTART) return;
-  for (const lane of supervisor.tick(rootCfg, root, { selfLane: cfg.lane })) console.error(`broker: no daemon was behind the ${lane} queue; started one`);
-};
 
 const tick = () => {
   if (stopRequested(cfg)) { clearStop(cfg); stop('stop requested'); }
