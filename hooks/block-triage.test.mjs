@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { ENV, HOOKS, cleanup, git, identify, reporter, repo } from './test-harness.mjs';
-import { TRIAGE_LINE, triageFooter } from './lib/block-triage.mjs';
+import { TRIAGE_ANSWERS, TRIAGE_LINE, triageFooter } from './lib/block-triage.mjs';
 import { excludeFooter } from './lib/exclusions.mjs';
 
 const { ok, done } = reporter('block-triage');
@@ -22,7 +22,8 @@ const MESSAGE_MODULE = new Map([['question-brief-audit.mjs', 'lib/question-audit
 const REACHES_FOOTER = /\b(?:excludeFooter|triageFooter)\(|\bTRIAGE_LINE\b/; // a call, so a bare import or re-export does not count
 
 try {
-  ok('the line asks the question and names both remedies', /process failure/i.test(TRIAGE_LINE) && /kit bug/i.test(TRIAGE_LINE) && /KIT-D145/.test(TRIAGE_LINE));
+  ok('the line names all three answers and their remedies', TRIAGE_ANSWERS.every((a) => TRIAGE_LINE.includes(a)) && TRIAGE_ANSWERS.length === 3 && /KIT-D145/.test(TRIAGE_LINE) && /open ticket id and the agent/.test(TRIAGE_LINE));
+  ok('every footer carries every answer', [triageFooter(), excludeFooter('store-grep')].every((f) => TRIAGE_ANSWERS.every((a) => f.includes(a))));
   ok('triageFooter carries the line', triageFooter().includes(TRIAGE_LINE));
   ok('excludeFooter carries the line for every check id', ['store-grep', 'file-length'].every((id) => excludeFooter(id).includes(TRIAGE_LINE)));
 
@@ -38,10 +39,16 @@ try {
 
   const KIT = join(HOOKS, '..');
   const read = (f) => readFileSync(join(KIT, f), 'utf8');
-  ok('the base contract states the triage rule with its decision id', /Triage every block: process failure or kit bug\? \(KIT-D154/.test(read('user-config/CLAUDE.global.md')));
+  // The three answers, in order, in the text after `anchor`.
+  const threeAnswers = (text, anchor) => {
+    const tail = text.slice(Math.max(0, text.search(anchor)));
+    return /process failure[\s\S]*?kit bug[\s\S]*?known kit bug[\s\S]*?fix in progress/i.test(tail.slice(0, 1200));
+  };
+  const base = read('user-config/CLAUDE.global.md');
+  ok('the base contract states the triage rule with its decision id and all three answers', /Triage every block: [^\n]*\(KIT-D154/.test(base) && threeAnswers(base, /Triage every block/));
   const agentDefs = readdirSync(join(KIT, 'agents')).filter((f) => f.endsWith('.md') && f !== 'README.md');
-  ok('every agent definition carries the triage section', agentDefs.length >= 10 && agentDefs.every((f) => /## Hook blocks — triage first \(KIT-D154\)/.test(read(`agents/${f}`))));
-  ok('the dispatching commands put the triage line in every brief', ['commands/work.md', 'commands/drain.md'].every((f) => /On ANY hook block, say in your next reply/.test(read(f))));
+  ok('every agent definition carries the triage section with all three answers', agentDefs.length >= 10 && agentDefs.every((f) => threeAnswers(read(`agents/${f}`), /## Hook blocks — triage first \(KIT-D154\)/)));
+  ok('the dispatching commands put the triage line, with all three answers, in every brief', ['commands/work.md', 'commands/drain.md'].every((f) => threeAnswers(read(f), /On ANY hook block, say in your next reply/)));
 
   const live = (name, dir, input) => spawnSync(process.execPath, [join(HOOKS, name)], { input: JSON.stringify(input), cwd: dir, encoding: 'utf8', env: ENV });
   const d = identify(repo());

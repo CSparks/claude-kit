@@ -32,3 +32,10 @@ first seen in groovegrid. Filed automatically (KIT-T286): every kit bug is a tic
 - [2026-11-09 23:29] (status) todo → review
 - [2026-11-09 23:30] (landed) f53b948 block triage as a global principle: KIT-D154 (every agent says "process failure or kit bug?" on any hook block); the lin
 - [2026-11-09 23:49] (comment) @kit-agent: Plugin 0.1.35 bump needed for the agent-definition triage section and the tool-write-record hook wiring to reach sessions (plugin cache refresh).
+- [2026-11-09 23:49] (landed) 4819d6d plugin 0.1.35: sessions pick up the tool-write-record hook registration, the agent-definition triage section and the wor
+- [2026-11-09 23:57] (comment) @claude: Chris 2026-11-09: 'That should be a valid third response for fix being in the works.' The block-triage line (KIT-D154) g (full comment #2 in ## Notes)
+### comment #2 [2026-11-09 23:57] @claude
+Chris 2026-11-09: 'That should be a valid third response for fix being in the works.' The block-triage line (KIT-D154) gets a third valid answer: KNOWN KIT BUG, fix in progress (ticket id and agent named); no new ticket, no new dispatch. Amend KIT-D154, the shared footer, the base CLAUDE.md rule and the agent briefs.
+- [2026-11-10 00:03] (comment) @kit-agent: Amended 2026-11-09 (maintainer: 'That should be a valid third response for fix being in the works'): KIT-D154 now has th (full comment #3 in ## Notes)
+### comment #3 [2026-11-10 00:03] @kit-agent
+Amended 2026-11-09 (maintainer: 'That should be a valid third response for fix being in the works'): KIT-D154 now has three answers, adding KNOWN KIT BUG, FIX IN PROGRESS (name the open ticket and the agent; no new ticket or dispatch). Footer, base contract, 15 agent definitions, work/drain brief lines and the block-triage test carry it.

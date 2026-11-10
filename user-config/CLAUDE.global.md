@@ -349,11 +349,12 @@ opt-in-aware — each no-ops unless the repo has `.ai/`, and inert under any reg
   end-around is allowed only to repair that block itself. Before the first call to a gated tool
   (Agent, AskUserQuestion) read `q gates agent` / `q gates question`: every requirement and exact
   tag form, derived from the gate code.
-- **Triage every block: process failure or kit bug? (KIT-D154, GG-D053).** On ANY hook block, the
-  next reply says which it was, before anything else. Process failure (you broke a rule the gate
-  enforces): ticket the root cause plus a prevention that stops the recurrence. Kit bug (the gate
-  misfired, missed or printed too little): ticket it and dispatch the fix agent the same turn
-  (KIT-D145). Every gate block text ends with this line; every dispatched agent inherits it.
+- **Triage every block: process failure, kit bug, or known kit bug with the fix in progress? (KIT-D154, GG-D053).**
+  On ANY hook block, the next reply says which it was, before anything else. Process failure (you broke
+  a rule the gate enforces): ticket the root cause plus a prevention that stops the recurrence. Kit bug
+  (the gate misfired, missed or printed too little): ticket it and dispatch the fix agent the same turn
+  (KIT-D145). Known kit bug, fix in progress: name the open ticket id and the agent working it; no new
+  ticket, no new dispatch. Every gate block text ends with this line; every dispatched agent inherits it.
 - `.claude-tooling-ok` silences missing-tool warnings per project.
 
 ## Kit bugs and kit features — ticketed and fixed the same turn (KIT-T286, KIT-D145)
