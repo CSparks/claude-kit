@@ -299,7 +299,7 @@ function scanNamedFile(root, text, flags) {
   } catch { return null; }
 }
 
-const filterSummary = (flags) => [flags.path && `--path ${flags.path}`, flags.langs && `--lang ${flags.langs.join(',')}`, flags.kinds && `--kind ${flags.kinds.join(',')}`]
+const filterSummary = (flags) => [flags.path && `--path ${flags.path}`, flags.anyPaths && `--path ${flags.anyPaths.join(' --path ')}`,flags.langs && `--lang ${flags.langs.join(',')}`, flags.kinds && `--kind ${flags.kinds.join(',')}`]
   .filter(Boolean).join(' ') || 'the default kinds';
 
 /**
