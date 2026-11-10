@@ -1,0 +1,33 @@
+// contract-rules.test.mjs — the process-failure preventions the base contract and the dispatching commands
+// must carry (KIT-D156): flush the anchor at every commit/landing/decision, the dispatch checklist, and store reads
+// through q show. Run: node scripts/contract-rules.test.mjs
+
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { KIT_ROOT } from './dispatch-ladder.mjs';
+import { adopted, cleanup, hook, reporter } from '../hooks/test-harness.mjs';
+
+const { ok, done } = reporter('contract-rules');
+const read = (rel) => readFileSync(join(KIT_ROOT, rel), 'utf8');
+
+try {
+  const base = read('user-config/CLAUDE.global.md');
+  ok('the base contract says to flush the anchor at every commit, landing receipt and decision, before replying',
+    /Flush the anchor \(`t session "<state \+ next steps>"`\) at every commit, landing receipt and decision, the same turn, before replying/.test(base));
+  ok('the base contract carries the dispatch checklist with every tag form',
+    ['Dispatch checklist', '`q gates agent`', '[<Family N.M>] <label>', '[job: <id>]', '[read-only: <why>]', '[tree: <its root>]', '[maintainer-words:', '[reuses:']
+      .every((s) => base.includes(s)));
+  ok('the base contract reads store items with q show or Read, never a text tool', /Read a work-store item with `q show <id>` or the Read tool on ONE file; never sed\/cat\/grep\/head on `\.ai\/`/.test(base));
+  for (const f of ['commands/work.md', 'commands/drain.md']) {
+    const text = read(f);
+    ok(`${f} puts the dispatch checklist in the orchestrator's hands`, /Dispatch checklist, every Agent call/.test(text) && text.includes('[job: <id>]') && text.includes('[read-only: <why>]'));
+  }
+  const gates = read('hooks/lib/gate-tokens.mjs');
+  ok('the tree and read-only token meanings say a scratchpad path is read-only work, not a [tree:]', /a non-git path such as the scratchpad is ignored: use \[read-only:\]/.test(gates));
+
+  const repo = adopted(true);
+  writeFileSync(join(repo, '.ai', 'SESSION.md'), '# S\nstate\n');
+  const orient = hook('orient.mjs', { hook_event_name: 'SessionStart' }, repo);
+  ok('orient tells the session to flush SESSION.md at every commit, landing and decision', /flush: t session at every commit, landing, decision/.test(orient.out));
+} finally { cleanup(); }
+done();

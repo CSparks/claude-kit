@@ -143,6 +143,7 @@ const bookkeeping = runStopWithTurn(makeRepo({ session: '# S\n' }), { '.ai/ticke
 ok('a commit that only changes .ai tickets does not nag', bookkeeping.code === 0 && !/resume anchor/.test(bookkeeping.err));
 const realWork = runStopWithTurn(makeRepo({ session: '# S\n' }), { 'src/app.mjs': 'export {};\n' });
 ok('a commit that changes project files still nags once', realWork.code === 2 && /resume anchor/.test(realWork.err));
+ok('the nag states the rule: every commit, landing receipt and decision, before replying', /every commit, landing receipt and decision, the same turn, before replying/.test(realWork.err) && /t session "<state \+ next steps>"/.test(realWork.err));
 
 console.log(`\n${count - failures}/${count} passed`);
 process.exit(failures ? 1 : 0);

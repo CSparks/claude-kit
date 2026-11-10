@@ -169,7 +169,7 @@ function stopAnchorNudge(root, p) {
 
   process.stderr.write(
     `⚠ SESSION.md is the resume anchor and wasn't updated this turn, but ${work} landed.\n` +
-    `Flush the anchor with t session "<state + next steps>" (or --file <draft>): it adds a dated line and deletes nothing. Never --replace unless the draft is the complete anchor. Then stop.\n${triageFooter()}`,
+    `The rule: flush at every commit, landing receipt and decision, the same turn, before replying. Run t session "<state + next steps>" (or --file <draft>): it adds a dated line and deletes nothing. Never --replace unless the draft is the complete anchor. Then stop.\n${triageFooter()}`,
   );
   process.exit(2);                                 // block-once (rigid) — same ratchet as request-gate
 }

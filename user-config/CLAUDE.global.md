@@ -51,6 +51,7 @@ language, docs, configs, tickets, across the repo and its framework submodule; f
 `q file <glob>`, `q fts <terms>` (work items), `q show <id>`. Ranked, compact, exact — and
 tracked (`search-report.mjs`): the share of greps against q is a measured regression.
 - The query-gate redirects a grep to its exact `q` equivalent; follow it, don't route around it.
+- Read a work-store item with `q show <id>` or the Read tool on ONE file; never sed/cat/grep/head on `.ai/`.
 - Dependency sources (cargo registry, vendored crates): `q code <text> --registry <crate-version>`
   (e.g. `rapier3d-0.25.1`; a bare crate name works when Cargo.lock pins one version) — also `q sym`,
   same filters, absolute paths. Never grep `~/.cargo/registry` or a `vendor/` dir.
@@ -161,10 +162,11 @@ in a block message or a decision file is a defect.
   `dispatch-ladder` hook blocks a silent inherit of fable. A deliberate model-less fable inherit
   needs an inline `[allow-fable: <reason>]` token in the prompt. SessionStart orient flags a
   main thread that is not on the coordination family and names the `/model` switch.
-- **Every dispatch names its model in the agent LABEL**: the Agent tool's `description`
-  starts with the exact tag of the family's current model — `"[Opus 5.5] Diagnose POI rate"`.
-  The `dispatch-label` hook blocks a hand-written or missing tag and names the exact value to
-  resend; it never rewrites the call (KIT-T897). No unprefixed dispatches.
+- **Dispatch checklist — every Agent call (exact forms: `q gates agent`):** `description` =
+  `[<Family N.M>] <label>` (the hook names the value; never hand-written, KIT-T897); prompt carries
+  `[job: <id>]`; an agent that writes no repo file (design/artifact: scratchpad only) adds
+  `[read-only: <why>]`, one in another git checkout adds `[tree: <its root>]`; a feature/request
+  brief adds `[maintainer-words: "<his sentence>"]` and `[reuses: <mechanism>|none: <why>]` (KIT-T703).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout
@@ -194,7 +196,7 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   the signed bill goes to the SAME agent after it lands (warm build, warm context). Read-only = no Edit/Write in
   the definition's `tools:` (`claude-kit:analyst`, `researcher`,
   Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in a
-  different checkout declares `[tree: <absolute path>]`. Two writers in ONE checkout need
+  different git checkout declares `[tree: <its root>]`. Two writers in ONE checkout need
   the maintainer's quoted words: `[maintainer-asked-parallel: <his words>]`.
 - **Warm reuse has a context ceiling (KIT-D116, amends KIT-D077/D094).** An agent past
   `dispatch.context_ceiling_tokens` (300k, Chris 2026-10-30) is retired, never resumed:
@@ -307,7 +309,7 @@ compaction summary.
 
 ## Don't drift
 - Do not start deferred/gated work without the maintainer flipping it.
-- Keep the plan-of-record CURRENT every working turn — a stale one is a failure.
+- Flush the anchor (`t session "<state + next steps>"`) at every commit, landing receipt and decision, the same turn, before replying; a stale plan-of-record is a failure.
 - Enforcement is hooks, not judgment. A block gets a root-cause fix, never a
   weakened check.
 

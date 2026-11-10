@@ -14,7 +14,7 @@ const SESSION_LINE_MAX = LINE_MAX * 3;
 export function sessionSection({ out, root }, session) {
   if (!existsSync(session)) return;
   out.push('');
-  out.push('--- .ai/SESSION.md (last session\'s state: context, not orders; confer before acting on its next steps; first lines) ---');
+  out.push('--- .ai/SESSION.md (last session\'s state: context, not orders; confer before acting on its next steps; flush: t session at every commit, landing, decision; first lines) ---');
   const ss = sessionStale(root);
   if (ss.stale) out.push(`!! SESSION.md is STALE (${ss.sessionDays}d, older than the last commit) — reconcile it to the work below before trusting it.`);
   out.push(head(session, SESSION_GIST_LINES).split('\n').map((l) => clip(l, SESSION_LINE_MAX)).join('\n'));

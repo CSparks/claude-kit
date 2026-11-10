@@ -51,6 +51,7 @@ expect('shared-tree message lists the in-flight agent', /agent-live/.test(shared
 expect('shared-tree message never steers to worktree isolation', /isolation: ?"worktree"|git worktree add/.test(sharedMsg) ? 1 : 0, 0);
 expect('shared-tree message names the maintainer escape, not the retired note', /\[maintainer-asked-parallel:/.test(sharedMsg) && !/shared-tree-ok/.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message names the read-only agent types', /claude-kit:analyst/.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message points a scratchpad-only design agent at [read-only:], and [tree:] at a git root', /artifact agent that writes only the scratchpad/.test(sharedMsg) && /git checkout[\s\S]*\[tree: <absolute path of its root>\]/.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message carries the exclude footer', /id: shared-tree-dispatch/.test(sharedMsg) ? 1 : 0, 1);
 
 // One read/write agent per checkout (KIT-D077).

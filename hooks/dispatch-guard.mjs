@@ -66,8 +66,10 @@ const SERIAL_FIX = [
   '    (or one new one) the next ticket — warm build, warm context;',
   '  • research only: dispatch a READ-ONLY agent type (no Edit/Write in its tools:',
   '    claude-kit:researcher, claude-kit:analyst, Explore, Plan),',
-  '    or add [read-only: <reason>] to the prompt of a writer-capable type;',
-  '  • writing in a DIFFERENT checkout: add [tree: <absolute path>] to the prompt;',
+  '    or add [read-only: <reason>] to the prompt of a writer-capable type — also for a design or',
+  '    artifact agent that writes only the scratchpad, no repo file;',
+  '  • writing in a DIFFERENT git checkout: add [tree: <absolute path of its root>] to the prompt',
+  '    (a path that is not a git root is ignored);',
   '  • two writers in one checkout only on the maintainer words: include',
   '    [maintainer-asked-parallel: <his words>] in the prompt.',
 ];
