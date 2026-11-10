@@ -231,6 +231,19 @@ try {
     ['KIT-T939: node -p writing hooks/code-graph.mjs', `node -p "require('fs').writeFileSync('hooks/code-graph.mjs','x')"`],
     ['KIT-T939: node flags then -e writing scripts/cap.mjs', `node --no-warnings -e "require('fs').writeFileSync('scripts/cap.mjs','x')"`],
     ['KIT-T939: an ambiguous node -e writing scripts/t.mjs', `node -e "require(\\"fs\\").writeFileSync('scripts/t.mjs','x')"`],
+    ['KIT-T939: node -r <kit script> -e writing hooks/x.mjs', `node -r scripts/q.mjs -e "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node --require <kit script> -e writing hooks/x.mjs', `node --require scripts/t.mjs -e "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node --import <kit script> -p writing hooks/x.mjs', `node --import scripts/cap.mjs -p "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node --experimental-loader <kit script> --eval writing hooks/x.mjs', `node --experimental-loader scripts/q.mjs --eval "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node --env-file <kit script> -e writing hooks/x.mjs', `node --env-file scripts/t.mjs -e "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node -C <kit script> -e writing hooks/x.mjs', `node -C scripts/t.mjs -e "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node --conditions <kit script> -e writing hooks/x.mjs', `node --conditions scripts/t.mjs -e "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node -pe writing hooks/x.mjs', `node -pe "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node -ep writing hooks/x.mjs', `node -ep "require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node --eval= writing hooks/x.mjs', `node --eval="require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node --print= writing hooks/x.mjs', `node --print="require('fs').writeFileSync('hooks/x.mjs','x')"`],
+    ['KIT-T939: node -pe naming a kit script path and writing it', `node -pe "require('fs').writeFileSync('scripts/t.mjs','x')"`],
+    ['KIT-T939: an unplaceable node option before a kit script path in -e code', `node --inspect-brk -e "require('fs').writeFileSync('scripts/q.mjs','x')"`],
   ];
   for (const [name, command] of namingKit) check(`${name} blocks on the first call`, blocked(command), run(command).stderr.slice(0, 100));
   const kitReads = [
