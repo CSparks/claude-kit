@@ -25,7 +25,11 @@ export const isNodeInlineFlag = (arg) => INLINE_LONG.test(arg) || (COMBINED_SHOR
 
 const loadsCode = (arg) => CODE_LOADING_LONG.test(arg) || (!arg.startsWith('--') && CODE_LOADING_SHORT.test(arg));
 
-const joinedValue = (arg) => (arg.startsWith('--') ? arg.slice(arg.indexOf('=') + 1) : arg.slice(arg.indexOf('r') + 1));
+function attachedValue(arg) {
+  if (!arg.startsWith('--')) return arg.slice(arg.indexOf('r') + 1);
+  const eq = arg.indexOf('=');
+  return eq < 0 ? '' : arg.slice(eq + 1);
+}
 
 /** The modules (or env files) the options before the script load, joined or separate: node runs each before the script. */
 export function nodeLoadedModules(args) {
