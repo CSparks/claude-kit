@@ -7,6 +7,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
+import { refreshIndex } from './code-index.mjs';
 import { codeVerbRows, parseCodeArgs } from './code-index-query.mjs';
 import { langsOfToken } from './code-index-extract.mjs';
 
@@ -25,7 +26,8 @@ put('src/core/Constants.h', 'constexpr int kStepsPerBar = 16;\n');
 put('src/core/Engine.cpp', 'int kStepsPerBarCopy = 16;\n');
 put('src/core/lib.rs', 'pub const kStepsPerBarRs: u32 = 16;\n');
 
-const locs = async (args) => (await codeVerbRows('code', args, root)).map((r) => r.loc).filter(Boolean);
+const refresh = (r, options) => refreshIndex(r, { ...options, dbPath: join(cache, 'i.db') });
+const locs = async (args) => (await codeVerbRows('code', args, root, refresh)).map((r) => r.loc).filter(Boolean);
 
 try {
   await test('the cpp token names cpp and c; other tokens stay single', () => {
@@ -54,7 +56,7 @@ try {
   });
 } finally {
   rmSync(root, { recursive: true, force: true });
-  rmSync(cache, { recursive: true, force: true });
+  try { rmSync(cache, { recursive: true, force: true }); } catch { /* the index database stays open until exit */ }
 }
 
 console.log(`\ncode-index-lang-family: ${pass} passed, ${fail} failed`);
