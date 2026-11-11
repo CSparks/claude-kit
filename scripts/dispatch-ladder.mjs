@@ -68,8 +68,7 @@ export function readLadder(kitRoot = ladderRoot()) {
   const aliases = {};
   for (const m of subBlock(body, 'aliases').matchAll(/^ {4}([\w-]+):\s*([\w.-]+)/gm)) aliases[m[1].toLowerCase()] = m[2];
   const refresh = body.match(/^ {2}refresh_days:[ \t]*(\d+)/m);
-  const ceiling = body.match(/^ {2}context_ceiling_tokens:[ \t]*(\d+)/m);
-  return { jobs, defaultJob, aliases, refreshDays: refresh ? Number(refresh[1]) : FRESHNESS_DAYS, contextCeilingTokens: ceiling ? Number(ceiling[1]) : CONTEXT_CEILING_TOKENS };
+  return { jobs, defaultJob, aliases, refreshDays: refresh ? Number(refresh[1]) : FRESHNESS_DAYS };
 }
 
 export function resolveJob({ type, job } = {}, kitRoot = ladderRoot()) {
