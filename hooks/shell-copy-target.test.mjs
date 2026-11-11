@@ -1,15 +1,17 @@
 #!/usr/bin/env node
-// shell-copy-target.test.mjs — KIT-T984: a cp/mv/Copy-Item judges the path it WRITES (the destination), read with
-// quotes kept whole, so a backup copy of a source file into the scratchpad is no hand write; a copy or move that
-// lands on a source path still is. A move is judged like a copy: its source leaves the tree, which no gate treats as authoring.
+// shell-copy-target.test.mjs — KIT-T984 and the fail-closed rule for copies and moves. source-shell-gate lifts a
+// cp/mv/Copy-Item/Move-Item of a source file only when the command has the one strict shape (shell-copy-target.mjs)
+// AND its destination provably lands outside the repo; every other copy or move judges every operand as a write, and
+// every hit of a command is judged on its own, so one proven move never excuses the rest of the line.
+// The table is run through the real gate in a repo holding src/ (a directory), src/a.cpp, dir/c.cpp, a/b.cpp, x.cpp.
 // Run: node hooks/shell-copy-target.test.mjs
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shellSourceWrite } from './lib/shell-source-write.mjs';
+import { copyTargets } from './lib/shell-copy-target.mjs';
 
 const HOOK = fileURLToPath(new URL('./source-shell-gate.mjs', import.meta.url));
 let fails = 0;
@@ -17,83 +19,111 @@ let passes = 0;
 const check = (name, cond, detail = '') => {
   if (cond) { passes++; console.log(`  ok    ${name}`); } else { fails++; console.log(`  FAIL  ${name} ${detail}`); }
 };
-const blocks = (name, command) => check(`blocks ${name}`, !!shellSourceWrite(command), command);
-const allows = (name, command) => check(`allows ${name}`, shellSourceWrite(command) === null, command);
-
-const temp = tmpdir().replace(/\\/g, '/');
-const spaced = `${temp}/Chris Sparks/scratchpad`;
-const msys = temp.replace(/^([A-Za-z]):\//, (_, d) => `/${d.toLowerCase()}/`);
-
-const BACKUPS = [
-  ['a copy into a quoted temp path holding a space', `cp src/a.cpp "${spaced}/a.cpp"`],
-  ['a copy into a single-quoted temp path holding a space', `cp src/a.cpp '${spaced}/a.cpp'`],
-  ['a copy into a temp path in the MSYS drive form', `cp src/a.cpp ${msys}/a.cpp`],
-  ['a copy into a quoted temp path in the MSYS drive form with a space', `cp src/a.cpp "${msys}/Chris Sparks/a.cpp"`],
-  ['cp -t to the temp dir', `cp -t ${temp} src/a.cpp`],
-  ['cp --target-directory= to the temp dir', `cp --target-directory=${temp} src/a.cpp`],
-  ['cp into a temp dir with a trailing slash', `cp -r src/a.cpp ${temp}/`],
-  ['a copy with stderr merged', `cp src/a.cpp ${temp}/a.cpp 2>&1`],
-  ['a copy with a joined -tDIR', `cp -t${temp} src/a.cpp`],
-  ['a copy with a clustered -rt DIR', `cp -rt ${temp} src/a.cpp`],
-  ['a copy with an abbreviated --target= ', `cp --target=${temp} src/a.cpp`],
-  ['a copy with options after the operands', `cp src/a.cpp ${temp}/a.cpp -v`],
-  ['Copy-Item with a lower-case abbreviated -dest', `Copy-Item src/a.cpp -dest "${spaced}/a.cpp"`],
-  ['Copy-Item with -Destination:value', `Copy-Item src/a.cpp -Destination:"${spaced}/a.cpp"`],
-  ['Copy-Item with positional Path and Destination', `Copy-Item src/a.cpp "${spaced}/a.cpp"`],
-  ['Copy-Item with -Destination', `Copy-Item src/a.cpp -Destination "${spaced}/a.cpp"`],
-  ['Copy-Item with -Path and -Destination', `Copy-Item -Path src/a.cpp -Destination "${spaced}/a.cpp" -Force`],
-];
-for (const [name, command] of BACKUPS) allows(name, command);
-
-const LANDS_ON_SOURCE = [
-  ['a copy onto a source file', `cp ${temp}/x.cpp src/a.cpp`],
-  ['a copy between source files', 'cp src/a.cpp src/b.cpp'],
-  ['a move onto a source file', `mv ${temp}/x.cpp src/a.cpp`],
-  ['a copy into a quoted repo path holding a space', 'cp a.cpp "my dir/b.cpp"'],
-  ['cp -t into a source-named target', `cp -t src/a.cpp ${temp}/x.cpp`],
-  ['a copy into a directory with a trailing slash, landing a source name', `cp ${temp}/x.cpp src/`],
-  ['cp -t into a directory with a trailing slash, landing a source name', `cp -t src/ ${temp}/x.cpp`],
-  ['cp --target-directory= with a trailing slash', `cp --target-directory=src/ ${temp}/x.cpp`],
-  ['Copy-Item onto a source file', `Copy-Item ${temp}/x.cpp -Destination src/a.cpp`],
-  ['a copy under a wrapper', `sudo -u root cp ${temp}/x.cpp src/a.cpp`],
-  ['a copy onto a source file with stdout sent to the null device', `cp ${temp}/x.cpp src/a.cpp > /dev/null`],
-  ['a copy onto a source file with stderr to a file', `cp ${temp}/x.cpp src/a.cpp 2> err.txt`],
-  ['a copy onto a source file with a quoted redirect target', `cp ${temp}/x.cpp src/a.cpp >> "my log.txt"`],
-  ['a copy onto a source file with stderr merged', `cp ${temp}/x.cpp src/a.cpp 2>&1`],
-  ['a quoted > that is no redirect, then a source destination', `cp "${temp}/x>" ${temp}/a.cpp "src/"`],
-  ['a quoted > in the first operand with a source last', `cp "${temp}/x>" src/a.cpp`],
-  ['a joined -tDIR into the repo', `cp -tsrc/ ${temp}/x.cpp`],
-  ['a clustered -rt DIR into the repo', `cp -rt src/ ${temp}/x.cpp`],
-  ['an abbreviated --target= into the repo', `cp --target=src/ ${temp}/x.cpp`],
-  ['--target-directory with a separate value into the repo', `cp --target-directory src/ ${temp}/x.cpp`],
-  ['a -t with no value (destination unknown)', 'cp src/a.cpp src/b.cpp -t'],
-  ['an option that may take a value after the operands (destination unknown)', `cp ${temp}/x.cpp src/a.cpp --sparse always`],
-  ['an unknown short option (destination unknown)', `cp -Q ${temp}/x.cpp src/a.cpp`],
-  ['Copy-Item with an upper-case -DESTINATION', `Copy-Item ${temp}/x.cpp -DESTINATION src/a.cpp`],
-  ['Copy-Item with an unambiguous prefix -Dest', `Copy-Item ${temp}/x.cpp -Dest src/a.cpp`],
-  ['Copy-Item with -Destination:value', `Copy-Item ${temp}/x.cpp -Destination:src/a.cpp`],
-  ['Copy-Item with an ambiguous -De (destination unknown)', `Copy-Item ${temp}/x.cpp -De src/a.cpp`],
-  ['Copy-Item with a parameter holding a value after the operands', `Copy-Item ${temp}/x.cpp src/a.cpp -Filter *.cpp`],
-  ['Copy-Item with an unknown parameter (destination unknown)', `Copy-Item ${temp}/x.cpp src/a.cpp -Bogus`],
-  ['Copy-Item with a quoted destination in the repo', `Copy-Item ${temp}/x.cpp "my dir/a.cpp"`],
-  ['a move onto a source file inside the repo', 'mv src/a.cpp src/a.cpp.bak'],
-  ['a move whose destination is unresolved', 'mv src/a.cpp "$DEST/a.cpp.bak"'],
-];
-for (const [name, command] of LANDS_ON_SOURCE) blocks(name, command);
-blocks('rm of a source file', 'rm src/a.cpp');
-blocks('a rename in place onto a source name', 'rename a.cpp b.cpp');
 
 const repo = mkdtempSync(join(tmpdir(), 'kit-copytarget-'));
 execFileSync('git', ['init', '-q'], { cwd: repo });
 mkdirSync(join(repo, '.ai'), { recursive: true });
+for (const file of ['src/a.cpp', 'dir/c.cpp', 'a/b.cpp', 'x.cpp']) {
+  mkdirSync(join(repo, file, '..'), { recursive: true });
+  writeFileSync(join(repo, file), 'int x;\n');
+}
 const run = (command) => spawnSync(process.execPath, [HOOK], { cwd: repo, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }), encoding: 'utf8' });
-check('the gate lets a quoted scratchpad backup of a source file through', run(`cp src/a.cpp "${spaced}/a.cpp"`).status === 0);
-check('the gate still refuses a copy onto a source file in the repo', run(`cp ${temp}/x.cpp src/a.cpp`).status === 2);
-check('the gate lets a source file move out to the temp dir', run(`mv src/a.cpp ${temp}/a.cpp`).status === 0);
-check('the gate lets a source file move to a path outside any repo', run('mv src/a.cpp ../moved.bak').status === 0);
-check('the gate refuses a move that stays in the repo', run('mv src/a.cpp src/a.cpp.bak').status === 2);
-check('the gate refuses a move to a destination it cannot resolve', run('mv src/a.cpp "$DEST/a.bak"').status === 2);
-check('the gate refuses a move onto a source file', run(`mv ${temp}/x.cpp src/a.cpp`).status === 2);
+const allows = (name, command) => check(`allows ${name}`, run(command).status === 0, command);
+const blocks = (name, command) => check(`blocks ${name}`, run(command).status === 2, command);
+
+const temp = tmpdir().replace(/\\/g, '/');
+const spaced = `${temp}/Chris Sparks/scratchpad`;
+const msys = temp.replace(/^([A-Za-z]):\//, (_, d) => `/${d.toLowerCase()}/`);
+const EN_DASH = '–';
+const EM_DASH = '—';
+const BAR = '―';
+
+const ALLOWED = [
+  ['KIT-T984: a quoted scratchpad path holding a space', `cp src/a.cpp "${spaced}/a.cpp"`],
+  ['a single-quoted scratchpad path holding a space', `cp src/a.cpp '${spaced}/a.cpp'`],
+  ['a copy into the temp dir', `cp src/a.cpp ${temp}/a.cpp`],
+  ['a copy into the MSYS drive form', `cp src/a.cpp ${msys}/a.cpp`],
+  ['a copy into a quoted MSYS path with a space', `cp src/a.cpp "${msys}/Chris Sparks/a.cpp"`],
+  ['cp -p, -f and -v', `cp -p -f -v src/a.cpp ${temp}/a.cpp`],
+  ['cp -t DIR', `cp -t ${temp} src/a.cpp`],
+  ['cp --target-directory=DIR', `cp --target-directory=${temp} src/a.cpp`],
+  ['cp --target-directory DIR', `cp --target-directory ${temp} src/a.cpp`],
+  ['a copy with stderr merged and stdout to the null device', `cp src/a.cpp ${temp}/a.cpp > /dev/null 2>&1`],
+  ['a move out to a new temp file', `mv src/a.cpp ${temp}/a.cpp`],
+  ['a move to a path outside any repo', 'mv src/a.cpp ../moved.bak'],
+  ['Copy-Item with positional Path and Destination', `Copy-Item src/a.cpp "${spaced}/a.cpp"`],
+  ['Copy-Item with -Path, -Destination and -Force', `Copy-Item -Path src/a.cpp -Destination "${spaced}/a.cpp" -Force`],
+  ['Copy-Item with -destination:value in lower case', `Copy-Item src/a.cpp -destination:"${spaced}/a.cpp"`],
+  ['Move-Item out to the temp dir', `Move-Item src/a.cpp "${spaced}/a.cpp"`],
+  ['a proven move, then a read-only command', `mv src/a.cpp ${temp}/a.cpp && git status`],
+];
+for (const [name, command] of ALLOWED) allows(name, command);
+
+const BLOCKED = [
+  ['cp x.cpp into an existing directory named without a slash', 'cp x.cpp src'],
+  ['mv into an existing directory named without a slash (judged as src/a.cpp)', 'mv src/a.cpp src'],
+  ['a move into the existing temp directory named without a slash', `mv src/a.cpp ${temp}`],
+  ['a recursive copy of a directory', 'cp -r dir src'],
+  ['cp -R', 'cp -R dir src'],
+  ['cp -a', 'cp -a dir src'],
+  ['cp --recursive', 'cp --recursive dir src'],
+  ['cp --parents', 'cp --parents a/b.cpp src'],
+  ['a symbolic link copy', 'cp -s x.cpp src/y.cpp'],
+  ['a hard link copy', 'cp -l x.cpp src/y.cpp'],
+  ['--link', 'cp --link x.cpp src/y.cpp'],
+  ['--symbolic-link', 'cp --symbolic-link x.cpp src/y.cpp'],
+  ['an option cluster', 'cp -rf dir src'],
+  ['an unquoted backslash escape in the destination', `cp ${temp}/x.cpp src\\/a.cpp`],
+  ['an unquoted escaped space', `cp x.cpp src\\ ${temp}/a.cpp`],
+  ['a glob source', `cp src/*.cpp ${temp}/`],
+  ['a variable destination', 'cp src/a.cpp "$DEST/a.cpp"'],
+  ['an unquoted variable destination', 'cp src/a.cpp $DEST'],
+  ['a brace expansion', `cp src/a.cpp ${temp}/{a,b}.cpp`],
+  ['a command substitution', 'cp src/a.cpp "$(pwd)/a.cpp"'],
+  ['several sources', `cp x.cpp dir/c.cpp ${temp}`],
+  ['a copy onto a source file', `cp ${temp}/x.cpp src/a.cpp`],
+  ['a copy between source files', 'cp src/a.cpp src/b.cpp'],
+  ['a backup next to the original inside the repo', 'cp src/a.cpp src/a.cpp.bak'],
+  ['a move inside the repo', 'mv src/a.cpp src/a.cpp.bak'],
+  ['a move onto a source file', `mv ${temp}/x.cpp src/a.cpp`],
+  ['cp -t into the repo', `cp -t src ${temp}/x.cpp`],
+  ['a joined -tDIR into the repo', `cp -tsrc/ ${temp}/x.cpp`],
+  ['a clustered -rtDIR into the repo', `cp -rtsrc/ ${temp}/x.cpp`],
+  ['an abbreviated --target= into the repo', `cp --target=src/ ${temp}/x.cpp`],
+  ['a quoted option', `cp "--target-directory=src/" ${temp}/x.cpp`],
+  ['a quoted dash token', `cp "-t" src ${temp}/x.cpp`],
+  ['a -t with no value', `cp ${temp}/x.cpp src/a.cpp -t`],
+  ['an option that may take a value after the operands', `cp ${temp}/x.cpp src/a.cpp --sparse always`],
+  ['an unknown short option', `cp -Q ${temp}/x.cpp src/a.cpp`],
+  ['install', `install -m 755 x.cpp ${temp}/x.cpp`],
+  ['a quoted > in the first operand, then a source destination', `cp "${temp}/x>" ${temp}/a.cpp "src/"`],
+  ['the move-then-write line: a proven move does not excuse the next copy', `mv src/a.cpp ${temp}/a.cpp; cp ${temp}/evil.cpp src/b.cpp`],
+  ['the move-then-redirect line', `mv src/a.cpp ${temp}/a.cpp; echo hi > src/c.cpp`],
+  ['the copy-then-sed line', `cp src/a.cpp ${temp}/a.cpp && sed -i s/a/b/ src/a.cpp`],
+  ['a move whose destination the shell expands', 'mv src/a.cpp "$DEST/a.cpp.bak"'],
+  ['Copy-Item onto a source file', `Copy-Item ${temp}/x.cpp -Destination src/b.cpp`],
+  ['Copy-Item with an abbreviated -Dest', `Copy-Item src/a.cpp -Dest "${spaced}/a.cpp"`],
+  ['Copy-Item with an ambiguous -De', `Copy-Item ${temp}/x.cpp -De src/b.cpp`],
+  ['Copy-Item -Recurse', 'Copy-Item -Recurse dir src'],
+  ['Copy-Item -Container', 'Copy-Item -Container dir src'],
+  ['Copy-Item with a backtick escape', `Copy-Item ${temp}/x.cpp src/a\`.cpp`],
+  ['Copy-Item with a comma list of sources', `Copy-Item x.cpp,dir/c.cpp ${temp}`],
+  ['Copy-Item with an unknown parameter', `Copy-Item ${temp}/x.cpp src/b.cpp -Bogus`],
+  ['Copy-Item with an en dash parameter', `Copy-Item ${temp}/x.cpp ${EN_DASH}Destination src/y.cpp`],
+  ['Copy-Item with an em dash parameter', `Copy-Item ${temp}/x.cpp ${EM_DASH}Destination src/y.cpp`],
+  ['Copy-Item with a horizontal bar parameter', `Copy-Item ${temp}/x.cpp ${BAR}Destination src/y.cpp`],
+  ['cp with an en dash option', `cp ${EN_DASH}t src ${temp}/x.cpp`],
+  ['a non-ASCII character in an unquoted destination', `cp src/a.cpp ${temp}/café/a.cpp`],
+];
+for (const [name, command] of BLOCKED) blocks(name, command);
+blocks('rm of a source file', 'rm src/a.cpp');
+
+const proven = (tool, args) => copyTargets(tool, args).proven;
+check('the strict grammar proves the one plain shape', proven('cp', `src/a.cpp ${temp}/a.cpp`)?.destination === `${temp}/a.cpp`);
+check('-t DIR names DIR/<source name>', proven('cp', `-t ${temp} src/a.cpp`)?.destination === `${temp}/a.cpp`);
+check('the strict grammar refuses -r', proven('cp', `-r dir ${temp}/d`) === null);
+check('the strict grammar refuses install', proven('install', `x.cpp ${temp}/x.cpp`) === null);
+check('the strict grammar refuses a trailing-slash destination', proven('cp', `x.cpp ${temp}/`) === null);
 
 console.log(`\nshell-copy-target: ${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
