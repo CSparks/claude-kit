@@ -1,19 +1,21 @@
 // What a cp, mv, Copy-Item or Move-Item call may write, read from the call's argument text under a STRICT allowlist.
-//   copyTargets(tool, argText) -> { proven: { sources: [string], destination: string } | null, writes: string[] }
+//   copyTargets(tool, argText) -> { proven: { sources: [string], destination, under: [string] } | null, writes: string[] }
 //
 // `proven` is set only for the one shape whose destination is known without running the shell:
 //   - the tool is cp, mv, Copy-Item or Move-Item;
-//   - every token is a plain literal: no glob, variable, substitution, brace, parenthesis, comment or unquoted
-//     backslash (bash tools), no backtick or comma (PowerShell tools), no leading tilde, no unterminated quote;
+//   - every token is a plain literal: no glob, variable, substitution, brace, parenthesis, comment, unquoted
+//     backslash (bash tools), backtick or comma (PowerShell tools), non-ASCII character, leading tilde or
+//     unterminated quote;
 //   - the options are the small set that cannot change where bytes land (cp: -f -p -v -n and their long forms; mv: -f
 //     -v -n; Copy-Item/Move-Item: -Path -Destination -Force, exact names), plus `-t DIR` / `--target-directory DIR|=DIR`
-//     in their exact forms; a quoted token that starts with `-` is an unknown option;
+//     in their exact forms; a quoted token that starts with a dash is an unknown option;
 //   - exactly one source and one destination (with -t, the one source goes to DIR/<its name>), no trailing slash.
-// The caller still has to show that destination resolves outside every adopted repo and is no existing directory.
+// `under` is where the source would land if the destination turns out to be a directory. The caller must still show
+// the destination resolves outside every adopted repo and is no existing directory.
 //
 // Everything else (any other option or cluster, -r -R -a --parents, links, several sources, a glob, an unquoted
-// backslash, install, the `copy` alias) is uncertain: `writes` then lists every operand AND `<operand>/any.rs`
-// (anything may land under a directory operand), so a gate judging them as writes fails closed.
+// backslash, install, the `copy` alias) is uncertain: `writes` then lists every operand, every value glued to an
+// option, and `<operand>/any.rs` (anything may land under a directory operand), so a gate judging them fails closed.
 // A redirect (`> f`, `2>&1`, `< f`) is cut out of the tokens with its target; the caller judges redirects itself.
 
 const SAFE_SHORT = { cp: ['-f', '-p', '-v', '-n'], mv: ['-f', '-v', '-n'] };
@@ -24,9 +26,11 @@ const PS_SWITCH = 'force';
 const PS_VALUE_PARAMS = ['path', 'destination'];
 const REDIRECT_FD = /^(?:\d+|&)$/;
 const ENDS_IN_SLASH = /[\\/]$/;
-const GNU_UNQUOTED_SPECIAL = /[*?[\]{}()$`\\!#]/;
-const PS_UNQUOTED_SPECIAL = /[*?[\]{}()$`,#@]/;
+const NON_ASCII = '\\u0080-\\uffff';
+const GNU_UNQUOTED_SPECIAL = new RegExp(`[*?[\\]{}()$\`\\\\!#${NON_ASCII}]`);
+const PS_UNQUOTED_SPECIAL = new RegExp(`[*?[\\]{}()$\`,#@${NON_ASCII}]`);
 const DOUBLE_QUOTED_SPECIAL = /[$`]|\\[$`"\\\n]/;
+const OPTION_START = /^[-–—―]/;
 const ANY_SOURCE_NAME = 'any.rs';
 
 /** Tokens `{ v, quoted, impure }` of `text` with redirects cut out; `open` when a quote never closes. */
@@ -72,7 +76,8 @@ function tokenize(text, powershell) {
 
 const stripSlash = (p) => String(p).replace(/[\\/]+$/, '');
 const baseName = (p) => stripSlash(p).replace(/.*[\\/]/, '');
-const isOption = (t) => t.v.startsWith('-');
+const isOption = (t) => OPTION_START.test(t.v);
+const shapeOf = (source, destination) => ({ sources: [source], destination, under: [`${stripSlash(destination)}/${baseName(source)}`] });
 
 function gnuProven(tool, tokens) {
   const name = tool.toLowerCase();
@@ -91,9 +96,9 @@ function gnuProven(tool, tokens) {
       dir = value;
     } else if (!shorts.includes(t.v) && !longs.includes(t.v)) return null;
   }
-  if (dir !== null) return positional.length === 1 ? { sources: positional, destination: `${stripSlash(dir)}/${baseName(positional[0])}` } : null;
+  if (dir !== null) return positional.length === 1 ? shapeOf(positional[0], `${stripSlash(dir)}/${baseName(positional[0])}`) : null;
   if (positional.length !== 2 || ENDS_IN_SLASH.test(positional[1])) return null;
-  return { sources: [positional[0]], destination: positional[1] };
+  return shapeOf(positional[0], positional[1]);
 }
 
 function psProven(tokens) {
@@ -114,13 +119,7 @@ function psProven(tokens) {
   const source = named.path ?? positional.shift();
   const destination = named.destination ?? positional.shift();
   if (!source || !destination || positional.length || ENDS_IN_SLASH.test(destination)) return null;
-  return { sources: [source], destination };
-}
-
-/** Every operand as a path a call might write, plus the names a directory operand could receive. */
-function everyOperand(tokens) {
-  const operands = tokens.flatMap((t) => (isOption(t) ? optionValues(t.v) : [t.v])).filter(Boolean);
-  return operands.flatMap((p) => [p, `${stripSlash(p)}/${ANY_SOURCE_NAME}`]);
+  return shapeOf(source, destination);
 }
 
 // An option may carry a path: after `=`, after `:` (PowerShell), or glued on (`-tDIR`, `-rtDIR`): every suffix of a short option.
@@ -128,6 +127,12 @@ function optionValues(option) {
   const values = option.includes('=') ? [option.slice(option.indexOf('=') + 1)] : [];
   if (option.startsWith('--')) return values;
   return [...values, ...Array.from({ length: Math.max(0, option.length - 2) }, (_, k) => option.slice(k + 2))];
+}
+
+/** Every operand as a path a call might write, plus the names a directory operand could receive. */
+function everyOperand(tokens) {
+  const operands = tokens.flatMap((t) => (isOption(t) ? optionValues(t.v) : [t.v])).filter(Boolean);
+  return operands.flatMap((p) => [p, `${stripSlash(p)}/${ANY_SOURCE_NAME}`]);
 }
 
 export function copyTargets(tool, argText) {
