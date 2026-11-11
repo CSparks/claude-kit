@@ -68,6 +68,12 @@ try {
   ok('KIT-T785 control: a for loop around wait.mjs is still blocked', blocked(sub(`for i in 1 2 3; do node ${BROKER}/wait.mjs j-zzz-9; done`)));
   ok('KIT-T798: a for loop running two greps over finished broker job logs passes', sub('for t in a b; do grep -c "test result" target/broker/logs/job-$t.log; grep -n panicked target/broker/logs/job-$t.log; done').code === 0);
   ok('KIT-T798 control: a while loop with sleep over target/broker job logs still blocks', blocked(sub('while true; do grep -c ok target/broker/logs/job-a.log; sleep 5; done')));
+  const READ_LOGS = `node -e "const fs=require('fs');for(const f of fs.readdirSync('target/broker/logs'))console.log(f)"`;
+  ok('KIT-T1054: a node -e for loop over target/broker logs plus a submit in one call passes', sub(`${READ_LOGS} && node ${BROKER}/submit.mjs --root D:/x --ticket T-1054 --title t`).code === 0);
+  ok('KIT-T1054: a python -c loop and a wait in one call passes', sub(`python -c "for i in range(3): print(i)"; node ${BROKER}/wait.mjs j-t1054-1 --root D:/x --timeout 280`).code === 0);
+  ok('KIT-T1054 control: a shell while loop with sleep around wait.mjs is still blocked, node -e beside it or not', blocked(sub(`${READ_LOGS}; while true; do sleep 5; node ${BROKER}/wait.mjs j-t1054-2; done`)));
+  ok('KIT-T1054 control: a shell until loop around submit.mjs is still blocked', blocked(sub(`until node ${BROKER}/submit.mjs --root D:/x --ticket T-1054 --title u; do sleep 1; done`)));
+  ok('KIT-T1054 control: a shell for loop around submit.mjs is still blocked even with a node -e in it', blocked(sub(`for i in 1 2; do node -e "console.log(1)"; node ${BROKER}/submit.mjs --root D:/x --ticket T-1054 --title f; done`)));
   ok("KIT-T784: a commit message heredoc naming target/broker, sleep and an apostrophe passes", sub("git commit -q -F - <<'EOF'\nfix: the agent's loop: sleep 5 then watch.mjs target/broker\nEOF").code === 0);
   ok('KIT-T784: a t notes argument naming sleep, tail -f and target/broker is data and passes', sub('node scripts/t.mjs notes KIT-T1 "loops: sleep 5; tail -f target/broker/finished.log"').code === 0);
   ok('KIT-T784 control: sleep outside the quotes of a git line still blocks', blocked(sub('git commit -m "x" && sleep 5 && cat target/broker/finished.log')));

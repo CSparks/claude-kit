@@ -13,6 +13,15 @@ const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 export const baseName = (word) => word.replace(/^["']|["']$/g, '').replace(/\\/g, '/').split('/').pop();
 
+const INLINE_RUNNERS = /^(?:node|python3?|py|deno|bun)(?:\.exe)?$/i;
+const INLINE_FLAG = /^(?:-e|--eval|-p|--print|-c)$/;
+
+/** True for an interpreter run with its program inline (`node -e "..."`, `python -c "..."`): the quoted text is its own language. */
+export function isInlineCode(words) {
+  const at = words.findIndex((w) => !ENV_ASSIGN.test(w));
+  return at >= 0 && INLINE_RUNNERS.test(baseName(words[at])) && words.slice(at + 1).some((w) => INLINE_FLAG.test(w));
+}
+
 export function isDataCommand(words) {
   const at = words.findIndex((w) => !ENV_ASSIGN.test(w));
   if (at < 0) return false;

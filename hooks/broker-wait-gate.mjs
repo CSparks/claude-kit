@@ -16,7 +16,7 @@
 
 import { payload,gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter, readTurnState, writeTurnState } from './lib.mjs';
 import { brokerCalls, usesCargo } from './lib/broker-calls.mjs';
-import { withoutDataArguments } from './lib/command-leads.mjs';
+import { withoutDataArguments, withoutInlineCode } from './lib/command-leads.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { waitSlot, jobId, digest } from './lib/broker-wait-state.mjs';
 
@@ -47,8 +47,9 @@ function problems(command, input, state) {
   }
   const text = withoutDataArguments(command);
   const onBroker = calls.length || BROKER_STATE.test(text);
-  const polls = (WAITING.test(text) || POLL_LOOP.test(text)) && onBroker;
-  if (polls || (COUNT_LOOP.test(text) && calls.length)) found.push('a sleep, poll or tail loop around the broker');
+  const shell = withoutInlineCode(text);
+  const polls = (WAITING.test(shell) || POLL_LOOP.test(shell)) && onBroker;
+  if (polls || (COUNT_LOOP.test(shell) && calls.length)) found.push('a sleep, poll or tail loop around the broker');
   return found;
 }
 
