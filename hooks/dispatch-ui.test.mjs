@@ -33,6 +33,12 @@ try {
   check('a level/room generation brief with "layout" is not UI work', block(game, 'Plan', LEVELGEN) === null && !uiWork(LEVELGEN));
   check('a menu layout brief that mentions a level still blocks on sizing words', uiWork('level select menu: padding 8px'));
   check('uiWork needs a noun and a sizing word', uiWork('menu layout') && !uiWork('menu') && !uiWork('padding'));
+  const INVENTORY = 'Inventory the other repo: UI, physics, audio. The HUD uses font size 24px and a gap of 8px; list what exists, read-only.';
+  check('a read-only Explore inventory that lists UI passes', block(game, 'Explore', INVENTORY) === null && uiWork(INVENTORY));
+  check('read-only Plan and analyst types pass', block(game, 'Plan', INVENTORY) === null && block(game, 'claude-kit:analyst', INVENTORY) === null);
+  check('a [read-only:] declaration on a writer type passes', block(game, 'general-purpose', `${INVENTORY} [read-only: inventory only]`) === null);
+  check('the same brief to a writer type still blocks', block(game, 'general-purpose', INVENTORY) !== null);
+  check('patch-worker still blocks despite its confined Write', block(game, 'claude-kit:patch-worker', INVENTORY) !== null);
 } finally {
   rmSync(game, { recursive: true, force: true });
   rmSync(plain, { recursive: true, force: true });

@@ -1,7 +1,7 @@
 // ui-framework-first — a dispatch check for dispatch-guard. UI, HUD, menu and screen work belongs to the
 // framework specialist (claude-kit:rg-ui-engineer) or carries the framework-first check: where the
 // repo carries the rapid-game framework, a brief that sizes or lays out UI and goes to a generic agent
-// is blocked until it names the framework mechanism it reuses.
+// is blocked until it names the framework mechanism it reuses. A read-only agent builds no UI and passes.
 //
 //   uiBlock({ root, input, prompt, footer }) -> block message | null (check `ui-framework-first`)
 //
@@ -10,6 +10,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { TOKENS } from './lib/gate-tokens.mjs';
+import { readOnlyDispatch } from './dispatch-readonly.mjs';
 
 export const UI_CHECK = 'ui-framework-first';
 const CHECKED = TOKENS.uiFrameworkChecked.pattern;
@@ -19,6 +20,8 @@ const UI_SIZING_NO_LAYOUT = /\b(?:px|pixels?|font[- ]size|val::px|ppu|margin|pad
 // Level and world generation brief: its "layout" is a floor plan, not a UI frame.
 const WORLD_LAYOUT = /\b(?:procedural(?:ly)?|dungeons?|rooms?|levels?|world[- ]?gen(?:eration)?|tilemaps?|floor ?plans?|chunks?)\b/i;
 const SPECIALIST = /(?:^|:)rg-ui-engineer$/i;
+// patch-worker writes through the broker, so it builds UI although its own Write tool is confined.
+const PATCH_WORKER = /(?:^|:)patch-worker$/i;
 
 export function uiWork(prompt) {
   const text = String(prompt || '');
@@ -29,6 +32,7 @@ export function uiWork(prompt) {
 export function uiBlock({ root, input, prompt, footer }) {
   const type = String(input.subagent_type || input.agent_type || '').trim();
   if (SPECIALIST.test(type) || CHECKED.test(prompt)) return null;
+  if (!PATCH_WORKER.test(type) && readOnlyDispatch(root, type, prompt)) return null;
   if (!existsSync(join(root, 'rapid-game'))) return null;
   if (!uiWork(prompt)) return null;
   return [
