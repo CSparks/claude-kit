@@ -114,6 +114,26 @@ export function showFile(cwd, ref, path) {
   return r.status === 0 ? r.stdout : null;
 }
 
+// The text of many tracked files at `ref` read by ONE `git cat-file --batch`: Map path -> text for the paths that are files there.
+export function showFiles(cwd, ref, paths) {
+  const found = new Map();
+  if (!paths.length) return found;
+  const r = spawnSync('git', ['cat-file', '--batch'], { cwd, input: paths.map((p) => `${ref}:${p}\n`).join(''), windowsHide: true, maxBuffer: 1 << 28 });
+  if (r.status !== 0) return found;
+  const out = r.stdout;
+  let at = 0;
+  for (const path of paths) {
+    const eol = out.indexOf('\n', at);
+    if (eol < 0) break;
+    const [, type, size] = out.toString('utf8', at, eol).split(' ');
+    at = eol + 1;
+    if (size === undefined) continue;
+    if (type === 'blob') found.set(path, out.toString('utf8', at, at + Number(size)));
+    at += Number(size) + 1;
+  }
+  return found;
+}
+
 // The tracked file paths at `ref` under `path`: [path] for a file, its files for a directory, [] when absent.
 export function treeFiles(cwd, ref, path) {
   const r = git(['ls-tree', '-r', '-z', '--name-only', ref, '--', path], cwd);

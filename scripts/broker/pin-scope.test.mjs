@@ -9,6 +9,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'n
 import { dirname, join } from 'node:path';
 import { dropSuperseded } from './autopin-supersede.mjs';
 import { readBrokerConfig } from './config.mjs';
+import { showFiles } from './git.mjs';
 import { dependentsOf, readLock } from './cargo-lock.mjs';
 import { buildOnly } from './pin-scope.mjs';
 import { processOnce } from './queue.mjs';
@@ -199,4 +200,18 @@ test('control: the older sha submitted after the newer one does not drop the new
     assert.deepEqual(dropSuperseded(w.cfg).map((d) => d.by), [], 'neither is covered by a later descendant');
     assert.equal(listQueue(w.cfg).length, 2);
   } finally { w.done(); }
+});
+
+test('showFiles reads many files in one call: present files by path, a missing path and a directory left out, multibyte text intact', () => {
+  const repo = makeRepo(tempDir('ps-show-'));
+  mkdirSync(join(repo, 'dir'), { recursive: true });
+  writeFileSync(join(repo, 'a.txt'), 'alpha\n');
+  writeFileSync(join(repo, 'dir', 'b.txt'), 'bêta ✓\n');
+  g(['add', '-A'], repo);
+  g(['commit', '-m', 'files'], repo);
+  const found = showFiles(repo, 'HEAD', ['a.txt', 'nope.txt', 'dir', 'dir/b.txt']);
+  assert.deepEqual([...found.keys()], ['a.txt', 'dir/b.txt']);
+  assert.equal(found.get('a.txt'), 'alpha\n');
+  assert.equal(found.get('dir/b.txt'), 'bêta ✓\n');
+  assert.equal(showFiles(repo, 'HEAD', []).size, 0);
 });

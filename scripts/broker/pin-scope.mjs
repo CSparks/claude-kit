@@ -10,13 +10,15 @@
 
 import { join } from 'node:path';
 import { dependentsOf, readLock } from './cargo-lock.mjs';
-import { git, showFile } from './git.mjs';
+import { git, showFile, showFiles } from './git.mjs';
 
 const TEST_SUBS = new Set(['test', 't']);
 const BUILD_SUBS = new Set(['build', 'b', 'check', 'clippy']);
 const IGNORED_DIR = /^(?:\.ai|\.claude|\.github|docs)\//;
 const DOCS = /\.(?:md|txt)$/i;
+const MANIFEST = /(?:^|\/)Cargo\.toml$/;
 const posix = (p) => String(p).replace(/\\/g, '/');
+const parentOf = (dir) => dir.split('/').slice(0, -1).join('/');
 
 function packageName(text) {
   const pkg = text.split(/^\[/m).find((s) => s.startsWith('package]'));
@@ -24,26 +26,33 @@ function packageName(text) {
   return m ? m[1] : null;
 }
 
+// Every package `ref` holds, by manifest directory ('' is the root): one ls-tree and one batched read.
+function packagesAt(subCwd, ref) {
+  const listed = git(['ls-tree', '-r', '--name-only', '-z', ref], subCwd).out.split(String.fromCharCode(0)).filter((p) => MANIFEST.test(p));
+  const byDir = new Map();
+  for (const [path, text] of showFiles(subCwd, ref, listed)) {
+    const name = packageName(text);
+    if (name) byDir.set(parentOf(path), name);
+  }
+  return byDir;
+}
+
 // The nearest enclosing package of `path`, read from the first ref that holds its manifest.
-function crateOf(subCwd, refs, path, memo) {
-  for (let d = posix(path).split('/').slice(0, -1).join('/'); ; d = d.split('/').slice(0, -1).join('/')) {
-    if (!memo.has(d)) {
-      const manifest = d ? `${d}/Cargo.toml` : 'Cargo.toml';
-      const text = refs.map((ref) => showFile(subCwd, ref, manifest)).find((t) => t !== null);
-      memo.set(d, text ? packageName(text) : null);
-    }
-    if (memo.get(d)) return memo.get(d);
+function crateOf(packages, path) {
+  for (let d = parentOf(posix(path)); ; d = parentOf(d)) {
+    const name = packages.map((byDir) => byDir.get(d)).find(Boolean);
+    if (name) return name;
     if (!d) return null;
   }
 }
 
 export function changedCrates(subCwd, refs, files) {
-  const memo = new Map();
+  const packages = refs.map((ref) => packagesAt(subCwd, ref));
   const crates = new Set();
   const unmapped = [];
   for (const raw of files) {
     const path = posix(raw);
-    const crate = crateOf(subCwd, refs, path, memo);
+    const crate = crateOf(packages, path);
     if (crate) crates.add(crate);
     else if (!IGNORED_DIR.test(path) && !DOCS.test(path)) unmapped.push(path);
   }
