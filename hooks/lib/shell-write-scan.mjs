@@ -82,6 +82,15 @@ function judgeNodeModules(rest, text, { codeHit, readScript }) {
   return null;
 }
 
+function judgeCopy(tool, argText, hit) {
+  const { destinations, sources, certain } = copyTargets(tool, argText);
+  const landed = destinations.map(hit).find(Boolean);
+  if (landed) return landed;
+  if (!certain) return sources.map(hit).find(Boolean) || null;
+  const left = MOVE_CMD.test(tool) ? sources.map(hit).find(Boolean) : null;
+  return left ? { ...left, movedTo: destinations[0] } : null;
+}
+
 function judgeTool(tool, rest, text, ctx, argText) {
   const { hit, codeHit, readScript } = ctx;
   const operands = rest.map((r) => r.w);
