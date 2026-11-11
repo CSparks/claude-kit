@@ -34,6 +34,19 @@ try {
     const submit = `node $HOME/rt/scripts/broker/submit.mjs --root D:/x --ticket T-9 --title "t"`;
     return gate(submit).code === 0 && fail(submit, 'bash: node: command not found').code === 0 && gate(submit).code === 0;
   })());
+  const envelope = `node ${BROKER}/submit.mjs --root D:/x --ticket T-7 --title "t" < D:/x/env-missing.txt`;
+  ok('a submit that failed with no job id (stdin file missing) may be resubmitted verbatim', gate(envelope).code === 0
+    && fail(envelope, 'Exit code 1\nbash: D:/x/env-missing.txt: No such file or directory').code === 0
+    && gate(envelope).code === 0);
+  const queued = `node ${BROKER}/submit.mjs --root D:/x --ticket T-8 --title "t" < D:/x/env.txt`;
+  ok('control: a submit that got a job id and then failed still counts, a verbatim repeat is denied', gate(queued).code === 0
+    && fail(queued, 'Exit code 1\nj-mwbqc8xp-ix7rkq\nsubmit: j-mwa000aa-bbbbbb not withdrawn: gone').code === 0
+    && gate(queued).code === 2);
+  const repeated = `node ${BROKER}/submit.mjs --root D:/x --ticket T-6 --title "t"`;
+  ok('control: without a failure event a verbatim submit repeat is denied', gate(repeated).code === 0 && gate(repeated).code === 2);
+  ok('a failed submit with no id leaves a wait on the same agent counted', gate(`node ${BROKER}/wait.mjs j-ggg-777`).code === 0
+    && fail(`node ${BROKER}/submit.mjs --root D:/x --ticket T-5`, 'Exit code 2\nsubmit: usage').code === 0
+    && gate(`node ${BROKER}/wait.mjs j-ggg-777`).code === 2);
   ok('another agent\'s failure never releases this agent\'s wait', gate(`node ${BROKER}/wait.mjs j-ddd-444`, 'eeeeeeeeeeeeeeeee').code === 0
     && fail(`node ${BROKER}/wait.mjs j-ddd-444`, spaceHome).code === 0
     && gate(`node ${BROKER}/wait.mjs j-ddd-444`, 'eeeeeeeeeeeeeeeee').code === 2);
