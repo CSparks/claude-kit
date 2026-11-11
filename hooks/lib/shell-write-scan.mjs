@@ -87,7 +87,7 @@ function judgeCopy(tool, argText, ctx) {
   const tagged = ctx.exemptByDestination
     ? proven.sources.map(hit).filter(Boolean).map((h) => ({ ...h, outsideTo: proven.destination }))
     : [];
-  return [hit(proven.destination), ...tagged].filter(Boolean);
+  return [proven.destination, ...proven.under].map(hit).concat(tagged).filter(Boolean);
 }
 
 function judgeTool(tool, rest, text, ctx, argText) {
