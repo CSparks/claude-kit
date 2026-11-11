@@ -2,11 +2,12 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MIN_ELASTIC_GRANT, RAMP_MS, grantFor } from './build-grant.mjs';
+import { LONG_HOLD_MS, MIN_ELASTIC_GRANT, RAMP_MS, grantFor, isLongHold } from './build-grant.mjs';
 
 const GIB = 2 ** 30;
 const NOW = Date.parse('2026-11-07T12:00:00Z');
-const old = (jobs) => ({ jobs, ts: new Date(NOW - 10 * RAMP_MS).toISOString() });
+const old = (jobs) => ({ jobs, ts: new Date(NOW - 2 * RAMP_MS).toISOString() });
+const long = (jobs) => ({ jobs, ts: new Date(NOW - LONG_HOLD_MS - 1000).toISOString() });
 const fresh = (jobs) => ({ jobs, ts: new Date(NOW - 1000).toISOString() });
 const BUDGET = 14;
 
@@ -32,6 +33,23 @@ test('memory: builds not yet visible in free commit are charged, and low commit 
   assert.equal(grantFor({ requested: 4, budget: BUDGET, held: [old(2)], commitFreeBytes: lowCommit, now: NOW }), 4);
   assert.equal(grantFor({ requested: 4, budget: BUDGET, held: [old(2)], commitFreeBytes: 3 * GIB, now: NOW }), 0);
   assert.equal(grantFor({ requested: 4, budget: BUDGET, held: [fresh(2)], commitFreeBytes: lowCommit, now: NOW }), 0, 'a fresh hold is charged 8 GiB of the 16 free');
+});
+
+test('KIT-T1031: a hold past the ceiling lets one small slice start beside it, never more', () => {
+  assert.equal(grantFor({ requested: 24, elastic: true, budget: BUDGET, held: [long(BUDGET)], now: NOW }), MIN_ELASTIC_GRANT);
+  assert.equal(grantFor({ requested: 2, elastic: true, budget: BUDGET, held: [long(BUDGET)], now: NOW }), 2);
+  assert.equal(grantFor({ requested: 24, elastic: true, budget: BUDGET, held: [long(BUDGET), fresh(MIN_ELASTIC_GRANT)], now: NOW }), 0, 'the overflow slice is taken once');
+  assert.equal(grantFor({ requested: 8, budget: BUDGET, held: [long(BUDGET)], now: NOW }), 0, 'a fixed build that needs more than the slice still waits');
+});
+
+test('KIT-T1031: a hold under the ceiling gets no overflow slice', () => {
+  assert.equal(grantFor({ requested: 24, elastic: true, budget: BUDGET, held: [old(BUDGET)], now: NOW }), 0);
+  assert.equal(isLongHold(old(BUDGET), NOW), false);
+  assert.equal(isLongHold(long(BUDGET), NOW), true);
+});
+
+test('KIT-T1031: the overflow slice still obeys the memory check', () => {
+  assert.equal(grantFor({ requested: 24, elastic: true, budget: BUDGET, held: [long(BUDGET)], commitFreeBytes: 3 * GIB, now: NOW }), 0);
 });
 
 test('low memory never starves the first build', () => {

@@ -1,7 +1,8 @@
 // build-slot.mjs — the machine-wide build budget (KIT-D105, KIT-T622, KIT-D135). Every Rust build from every
 // project, agent and tool takes cores from ONE budget: the physical cores minus the reserve (build-budget.mjs),
 // less the cores a running game or UAT session keeps. Builds that do not fit queue in arrival order; only the head
-// of the queue is admitted, so a large build is never starved by small ones. Holds and tickets live in one directory
+// of the queue is admitted, so a large build is never starved by small ones; a hold past the 5-minute ceiling lets one
+// small slice start beside it (build-grant.mjs). A hold's `ts` is when it began. Holds and tickets live in one directory
 // under the user's `.claude` shared by every checkout (build-slot-store.mjs).
 //
 //   acquireBuildSlot(cmd, { jobs, label, force, elastic, cwd, shouldCancel, probes, pollMs })
@@ -59,7 +60,7 @@ export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false
 
 function hold(dir, name, ticketPath, record, started, holder) {
   const path = join(dir, `${SLOT_PREFIX}${name}`);
-  writeFileSync(path, JSON.stringify(record));
+  writeFileSync(path, JSON.stringify({ ...record, ts: new Date().toISOString() }));
   rmSync(ticketPath, { force: true });
   return { cancelled: false, waitedMs: Date.now() - started, holder, granted: record.jobs, release() { rmSync(path, { force: true }); } };
 }

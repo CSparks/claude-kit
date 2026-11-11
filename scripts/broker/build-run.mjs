@@ -7,7 +7,9 @@
 // (-j, CARGO_BUILD_JOBS, RUST_TEST_THREADS, NEXTEST_TEST_THREADS) cut to the cores it holds, at lowered CPU priority
 // (lower still while a game runs). A program `cargo run` starts is not a build: the hold ends when it starts.
 // Anything that does not compile, and a tool started by a build that already holds cores (CLAUDE_KIT_BUILD_HELD),
-// runs untouched. A build queued past MAX_WAIT_S exits EXIT_QUEUED with the readout, never waits in silence.
+// runs untouched. A build queued past MAX_WAIT_S exits EXIT_QUEUED with one line naming who holds the cores, from which
+// root and for how long, then the readout; never waits in silence. A hold past the 5-minute ceiling is filed once as a
+// kit bug (build-long-hold.mjs).
 
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -16,8 +18,9 @@ import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acquireBuildSlot } from './build-slot.mjs';
 import { classify } from './build-classify.mjs';
-import { formatSnapshot } from './build-status.mjs';
-import { snapshot } from './build-slot-store.mjs';
+import { describeHolder, formatSnapshot } from './build-status.mjs';
+import { liveHolds, snapshot } from './build-slot-store.mjs';
+import { flagLongHolds } from './build-long-hold.mjs';
 import { HELD_ENV, heldEnv } from './build-env.mjs';
 import { cargoConfigJobs } from './cargo-config-jobs.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
@@ -63,7 +66,9 @@ function forwardUntilProgram(child, release) {
   });
 }
 
-function runGated(real, tool, args, verdict, cwd) {
+const holderLine = (state) => (state.holds.length ? `${describeHolder(state.holds[0], state.budget)}\n` : '');
+
+async function runGated(real, tool, args, verdict, cwd) {
   const requested = requestedJobs(args) ?? (Number(process.env.CARGO_BUILD_JOBS) || cargoConfigJobs(cwd) || availableParallelism());
   const maxWaitMs = (Number(process.env.CLAUDE_KIT_BUILD_MAX_WAIT_S) || DEFAULT_MAX_WAIT_S) * 1000;
   const label = `${cwd}: ${tool} ${args.join(' ')}`.slice(0, LABEL_CHARS);
@@ -73,13 +78,15 @@ function runGated(real, tool, args, verdict, cwd) {
     if (!told) {
       told = true;
       const state = snapshot();
-      process.stderr.write(`[build-budget] queued for ${Math.min(requested, state.budget)} cores (budget ${state.budget})\n${formatSnapshot(state)}\n`);
+      process.stderr.write(`[build-budget] queued for ${Math.min(requested, state.budget)} cores (budget ${state.budget})\n${holderLine(state)}${formatSnapshot(state)}\n`);
     }
     return Date.now() > deadline;
   };
   const slot = acquireBuildSlot(`${tool} ${verdict.sub}`, { jobs: requested, elastic: true, force: true, label, cwd, shouldCancel });
+  await flagLongHolds(liveHolds());
   if (slot.cancelled) {
-    process.stderr.write(`[build-budget] still queued after ${maxWaitMs / 1000}s, not started; run again when cores free up\n${formatSnapshot(snapshot())}\n`);
+    const state = snapshot();
+    process.stderr.write(`[build-budget] still queued after ${maxWaitMs / 1000}s, not started; run again when cores free up\n${holderLine(state)}${formatSnapshot(state)}\n`);
     return EXIT_QUEUED;
   }
   const cores = slot.granted;

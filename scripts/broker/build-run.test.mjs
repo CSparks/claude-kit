@@ -10,6 +10,7 @@ import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classify } from './build-classify.mjs';
 import { HELD_ENV } from './build-env.mjs';
+import { LONG_HOLD_MS, MIN_ELASTIC_GRANT } from './build-grant.mjs';
 import { SLOT_PREFIX } from './build-slot-store.mjs';
 import { findReal } from './build-run.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
@@ -29,19 +30,19 @@ function fakeCargo(dir) {
   if (!win) chmodSync(file, 0o755);
 }
 
-function holdCores(dir, jobs) {
+function holdCores(dir, jobs, ageMs) {
   const slots = join(dir, 'slots');
   mkdirSync(slots, { recursive: true });
-  const rec = { pid: process.pid, host: hostname(), jobs, label: 'other build', cwd: dir, ts: new Date().toISOString() };
+  const rec = { pid: process.pid, host: hostname(), jobs, label: 'other build', cwd: dir, ts: new Date(Date.now() - ageMs).toISOString() };
   writeFileSync(join(slots, `${SLOT_PREFIX}other`), JSON.stringify(rec));
 }
 
-function run(args, extraEnv = {}, { held = 0 } = {}) {
+function run(args, extraEnv = {}, { held = 0, heldForMs = 0 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'build-run-'));
   fakeCargo(dir);
-  if (held) holdCores(dir, held);
+  if (held) holdCores(dir, held, heldForMs);
   const env = {
-    ...process.env, PATH: `${dir}${delimiter}${process.env.PATH}`,
+    ...process.env, PATH: `${dir}${delimiter}${process.env.PATH}`, CLAUDE_KIT_BUG_STORE: join(dir, 'no-kit-store'),
     CLAUDE_KIT_BUILD_SLOT_DIR: join(dir, 'slots'), CLAUDE_KIT_BUILD_BUDGET_FILE: join(dir, 'budget.json'),
     CLAUDE_KIT_PHYSICAL_CORES: String(PHYSICAL), CLAUDE_KIT_GAME_RUNNING: '0', CLAUDE_KIT_BUILD_MAX_WAIT_S: '5', CLAUDE_KIT_COMMIT_FREE_BYTES: String(PLENTY_OF_MEMORY), ...extraEnv,
   };
@@ -109,6 +110,24 @@ test('KIT-T1017: a build that never gets cores does not run and exits non-zero n
   assert.equal(r.seen, null, 'cargo was not started');
   assert.match(r.stderr, /not started/);
   assert.match(r.stderr, new RegExp(`queued for ${BUDGET} cores \\(budget ${BUDGET}\\)`), 'the queue message names the cores the build can get, never more than the budget');
+});
+
+test('KIT-T1031: the exit-75 message names who holds the cores, the root and for how long', () => {
+  const r = run(['test', '-p', 'x'], { CLAUDE_KIT_BUILD_MAX_WAIT_S: QUEUE_WAIT_S }, { held: BUDGET, heldForMs: 90000 });
+  assert.equal(r.status, 75);
+  assert.match(r.stderr, new RegExp(`held by pid ${process.pid} on ${BUDGET} cores for (9\\d)s, root \\S+.*, job other build`));
+});
+
+test('KIT-T1031: a build starts on a small slice beside a hold past the 5-minute ceiling', () => {
+  const r = run(['test', '-p', 'x'], {}, { held: BUDGET, heldForMs: LONG_HOLD_MS + 1000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.seen.jobs, String(MIN_ELASTIC_GRANT));
+});
+
+test('KIT-T1031: a hold under the ceiling gives the build no slice', () => {
+  const r = run(['test', '-p', 'x'], { CLAUDE_KIT_BUILD_MAX_WAIT_S: QUEUE_WAIT_S }, { held: BUDGET, heldForMs: LONG_HOLD_MS - 60000 });
+  assert.equal(r.status, 75);
+  assert.equal(r.seen, null);
 });
 
 test('a build that does not compile, and a tool a build started, pass untouched without taking cores', () => {
