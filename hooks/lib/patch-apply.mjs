@@ -23,28 +23,14 @@
 
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { commandName, leadIndex } from './command-lead.mjs';
 import { gitCommand } from './git-subcommand.mjs';
-import { blindSegments, dequoted, segments, shellArgs, shellTokens } from './shell-segments.mjs';
+import { runnerTexts } from './runner-texts.mjs';
+import { blindSegments, segments, shellArgs, shellTokens } from './shell-segments.mjs';
 
 const WORD = /"([^"]*)"|'([^']*)'|([^\s"'|;&<>()]+)/g;
 const PATH_LIKE = /[\\/]|\.[A-Za-z0-9]{1,6}$/;
 const PATH_WORD_LIMIT = 32;
-const WRAPPER = /^(?:sudo|doas|env|command|exec|nohup|time|nice|ionice|timeout|stdbuf|xargs|builtin|setsid|unbuffer)$/i;
-const RESERVED = /^(?:!|if|then|else|elif|do|while|until)$/;
-const SH_NAME = /^(?:bash|sh|zsh|dash|ksh|ash)$/i;
-const SH_C_FLAG = /^-[A-Za-z]*c[A-Za-z]*$/;
-const SH_VALUE_FLAG = /^[-+][oO]$/;
-const PS_NAME = /^(?:pwsh|powershell)$/i;
-const PS_C_FLAG = /^-(?:c|command)$/i;
-const SU_NAME = /^(?:su|runuser)$/i;
-const SU_C_FLAG = /^(?:--command|-[A-Za-z]*c[A-Za-z]*)$/;
-const FIND_NAME = /^find$/i;
-const FIND_EXEC_FLAG = /^-(?:exec|execdir|ok|okdir)$/;
-const FIND_CLAUSE_END = /^(?:\\?;|\+)$/;
-const SSH_NAME = /^ssh$/i;
-const SSH_VALUE_FLAG = /^-[BbcDEeFIiJLlmOoPpQRSWw]$/;
-const TRAP_NAME = /^trap$/i;
-const TRAP_FLAG = /^(?:--|-[lp]+)$/;
 const MAX_NESTING = 4;
 const QUOTE_START = /^["']/;
 const QUOTE_CHAR = /["']/;
@@ -53,8 +39,6 @@ const GROUP_START = /^[$({`]+/;
 const GROUP_END = /[)}`]+$/;
 const BLIND_SEPARATOR = /[\s"'`]+/;
 const SUBSTITUTION_START = /[<>$]?\(|`/;
-const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
-const NUMBER = /^\d+(?:\.\d+)?[smhd]?$/;
 
 const DIFF_GIT = /diff --git ([^\s\\'"]+) ([^\s\\'"]+)/g;
 const FILE_HEADER = /(?:\+\+\+|---) ([^\s\\'"]+)/g;
@@ -147,78 +131,9 @@ function patchCommandTargets(args, ctx) {
   return patchTargets(patchTexts(input ? [input] : [], ctx, !input), strip);
 }
 
-const commandName = (word) => String(word).replace(/.*[\\/]/, '').replace(/\.(?:exe|bat|cmd)$/i, '');
 const isApplier = (name, rest) => /^patch$/i.test(name) || (/^git$/i.test(name) && ['apply', 'am'].includes(gitCommand(rest).sub));
 
-/** Where the command text a shell runs begins in `rest` (the words after the shell's name): after `-c`, `-Command` or `eval`; -1 when it runs none. */
-function innerStart(name, rest) {
-  if (/^eval$/i.test(name)) return 0;
-  if (SH_NAME.test(name)) {
-    for (let i = 0; i < rest.length && rest[i].startsWith('-'); i++) {
-      if (SH_C_FLAG.test(rest[i])) return i + 1 < rest.length ? i + 1 : -1;
-      if (SH_VALUE_FLAG.test(rest[i])) i++;
-    }
-    return -1;
-  }
-  const at = PS_NAME.test(name) ? rest.findIndex((w) => PS_C_FLAG.test(w)) : -1;
-  return at >= 0 && at + 1 < rest.length ? at + 1 : -1;
-}
-
-const findClauses = (rest) => rest.flatMap((word, i) => {
-  if (!FIND_EXEC_FLAG.test(word)) return [];
-  const end = rest.findIndex((w, j) => j > i && FIND_CLAUSE_END.test(dequoted(w)));
-  return [rest.slice(i + 1, end < 0 ? rest.length : end).join(' ')];
-});
-
-/** The words after ssh's options and host: the remote command. */
-function sshOperands(rest) {
-  for (let i = 0; i < rest.length; i++) {
-    if (SSH_VALUE_FLAG.test(rest[i])) i++;
-    else if (!rest[i].startsWith('-')) return rest.slice(i + 1);
-  }
-  return [];
-}
-
-/**
- * The command strings `name` runs from its operands `rest`, each with the shell it is written for: a shell's `-c` string,
- * `eval`, `su -c`, every clause of a `find -exec`, the remote command of `ssh`, the string of a `trap`. With `blind`
- * (words cut on whitespace and quotes) a string operand arrives as several words, so every word after the lead is taken.
- */
-function runnerTexts(name, rest, { shell = '', blind = false } = {}) {
-  const whole = (words) => (blind || words.length !== 1 ? words.join(' ') : dequoted(words[0]));
-  if (FIND_NAME.test(name)) return findClauses(rest).map((text) => ({ text, shell }));
-  if (SSH_NAME.test(name)) return [sshOperands(rest)].filter((ops) => ops.length).map((ops) => ({ text: whole(ops), shell: 'bash' }));
-  if (TRAP_NAME.test(name)) return [rest.filter((w) => !TRAP_FLAG.test(w))].filter((ops) => ops.length).map((ops) => ({ text: blind ? ops.join(' ') : dequoted(ops[0]), shell: 'bash' }));
-  if (SU_NAME.test(name)) {
-    const at = rest.findIndex((w) => SU_C_FLAG.test(w));
-    return at >= 0 && at + 1 < rest.length ? [{ text: whole(rest.slice(at + 1, blind ? undefined : at + 2)), shell: 'bash' }] : [];
-  }
-  const start = innerStart(name, rest);
-  if (start < 0) return [];
-  const operands = rest.slice(start);
-  const isEval = /^eval$/i.test(name);
-  const text = blind ? operands.join(' ') : isEval ? operands.map(dequoted).join(' ') : dequoted(operands[0]);
-  return [{ text, shell: PS_NAME.test(name) ? 'powershell' : isEval ? shell : 'bash' }];
-}
-
 const leadsCommand = (name, rest) => isApplier(name, rest) || runnerTexts(name, rest, { blind: true }).length > 0;
-
-/** The index of the first word that `matches` past wrappers (`sudo -u root`, `env A=1`, `command`, `timeout 5`) and shell grouping words (`then`, `!`); -1 when another command leads. */
-function leadIndex(words, matches) {
-  let wrapped = false;
-  let afterFlag = false;
-  for (let i = 0; i < words.length; i++) {
-    if (matches(commandName(words[i]), words.slice(i + 1))) return i;
-    if (RESERVED.test(words[i])) continue;
-    const wrapper = WRAPPER.test(commandName(words[i]));
-    const flag = wrapped && words[i].startsWith('-');
-    const value = wrapped && (afterFlag || NUMBER.test(words[i]));
-    if (!wrapper && !ENV_ASSIGN.test(words[i]) && !flag && !value) return -1;
-    wrapped ||= wrapper;
-    afterFlag = flag;
-  }
-  return -1;
-}
 
 const cleanWord = (word) => (QUOTE_START.test(word) ? word : word.replace(GROUP_START, '').replace(GROUP_END, ''));
 const cleaned = (words) => words.map(cleanWord).filter(Boolean);
