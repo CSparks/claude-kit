@@ -37,7 +37,10 @@ function validate(verb, rel, target) {
   return spec;
 }
 
-const listWrite = (fm, key, values) => setField(fm, key, `[${values.join(', ')}]`);
+/** Throws when `target` is not the shape `rel` points at; `t new regression` checks its flags before an id is minted. */
+export const checkLinkTarget = (rel, target) => validate('new', rel, target);
+
+const listWrite =(fm, key, values) => setField(fm, key, `[${values.join(', ')}]`);
 
 function addToList(fm, key, value) {
   const cur = listField(fm, key);
