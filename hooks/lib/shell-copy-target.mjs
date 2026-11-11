@@ -119,10 +119,15 @@ function psProven(tokens) {
 
 /** Every operand as a path a call might write, plus the names a directory operand could receive. */
 function everyOperand(tokens) {
-  const operands = tokens
-    .map((t) => (isOption(t) && !t.quoted ? (t.v.includes('=') ? t.v.slice(t.v.indexOf('=') + 1) : '') : t.v))
-    .filter(Boolean);
+  const operands = tokens.flatMap((t) => (isOption(t) ? optionValues(t.v) : [t.v])).filter(Boolean);
   return operands.flatMap((p) => [p, `${stripSlash(p)}/${ANY_SOURCE_NAME}`]);
+}
+
+// An option may carry a path: after `=`, after `:` (PowerShell), or glued on (`-tDIR`, `-rtDIR`): every suffix of a short option.
+function optionValues(option) {
+  const values = option.includes('=') ? [option.slice(option.indexOf('=') + 1)] : [];
+  if (option.startsWith('--')) return values;
+  return [...values, ...Array.from({ length: Math.max(0, option.length - 2) }, (_, k) => option.slice(k + 2))];
 }
 
 export function copyTargets(tool, argText) {
