@@ -107,8 +107,8 @@ try {
     if (warning) console.error(warning);
     const advice = workerAdviceText(root, input, prompt, p);
     if (advice) console.error(advice);
-    const ceiling = pathExcluded(root, CEILING_CHECK, root) ? null : ceilingWarning(root);
-    if (ceiling) console.error(ceiling);
+    const waste = pathExcluded(root, WASTE_CHECK, root) ? null : wasteWarning(root);
+    if (waste) console.error(waste);
     process.exit(0);
   }
   const queued = blocks.length === 1 ? queueBehindOverlap(root, input, prompt, p) : null;

@@ -125,7 +125,7 @@ function jobItem(root, dir, rows, row, job, acks, nowMs, { sessionId, autoAck })
       ackJobs(dir, [job.id], AUTO_ACK);
       return null;
     }
-    const step = readyStep(job.fin, resumable(row, sessionId) && !ceilingFlag(row));
+    const step = readyStep(job.fin, resumable(row, sessionId) && !wasteFlag(row));
     return { ...base, kind: 'result-ready', step, key: `result-ready:${job.id}`, verdict: job.fin.verdict, landed: job.fin.landed, purged: !inLane(dir, 'results', job.id) };
   }
   if (inLane(dir, 'queue', job.id) || inLane(dir, 'results', job.id)) return null;

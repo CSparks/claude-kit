@@ -115,7 +115,7 @@ function recordStop(root, p) {
     const outcome = outcomeFromTranscript(firstString(p.agent_transcript_path, p.agentTranscriptPath));
     const rosterRow = readAgents(root).find((r) => r.id === id) || {};
     updateAgent(root, id, { status: 'done', ...(scope ? { scope } : {}), ...outcome, source: 'subagentstop' });
-    const flag = ceilingFlag({ ...rosterRow, id, ...outcome, transcript: firstString(p.agent_transcript_path, p.agentTranscriptPath) });
+    const flag = wasteFlag({ ...rosterRow, id, ...outcome, transcript: firstString(p.agent_transcript_path, p.agentTranscriptPath) });
     if (flag) process.stderr.write(`RETIRE ${id}:${flag}
 `);
     appendOutcome(root, outcomeRow({ id, rosterRow, stop: p, outcome }));
