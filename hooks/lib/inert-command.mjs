@@ -10,8 +10,8 @@
 // (KIT-D117). Command substitutions are classified as the commands they run; a quoting that cannot be trusted is
 // judged piece by piece with every operator splitting (shell-segments.mjs blindSegments).
 
-import { KIT_TOOL, redirectTargets, shellArgs } from './shell-write-scan.mjs';
-import { blindSegments, segments } from './shell-segments.mjs';
+import { KIT_TOOL, redirectTargets } from './shell-write-scan.mjs';
+import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 import { nodeScriptName, nodeTestFiles } from './node-args.mjs';
 import { isSourcePath } from './shell-source-write.mjs';
 import { landsOutsideRepo } from './lands-outside-repo.mjs';

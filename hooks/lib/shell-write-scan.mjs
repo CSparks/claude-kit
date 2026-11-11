@@ -18,14 +18,17 @@
 // is parsed and no text blanked, so a deny gate cannot be steered by how a wrapper takes its options. A segment led by
 // a reader or a kit verb is no write tool, but its redirects are judged: a kit or git segment counts only a `>`
 // outside quotes (KIT-T951). A node call is judged on every module it loads, except repo and package modules.
+// An applier is the command a segment leads with, past wrappers and grouping words, also inside `bash -c "..."`; a copy
+// destination holding a variable the command assigns once and literally is judged by the value (shell-variables.mjs).
 
 import { readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
 import { copyTargets } from './shell-copy-target.mjs';
-import { patchApplyHits, withoutRedirects } from './patch-apply.mjs';
-import { blindSegments, segments } from './shell-segments.mjs';
+import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
+import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
+import { assignedValues, expandVariables } from './shell-variables.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
@@ -90,7 +93,7 @@ function judgeNodeModules(rest, text, { codeHit, readScript }) {
 // The destination of a copy or move is judged as a write. A proven shape also yields its source hits tagged with the
 // destination, for a caller that can show the destination leaves the repo; anything else judges every operand.
 function judgeCopy(tool, argText, ctx) {
-  const { proven, writes } = copyTargets(tool, argText);
+  const { proven, writes } = copyTargets(tool, expandVariables(argText, ctx.vars, ctx.shell));
   const { hit } = ctx;
   if (!proven) return writes.map(hit).filter(Boolean);
   const tagged = ctx.exemptByDestination
@@ -116,11 +119,6 @@ function judgeTool(tool, rest, text, ctx, argText) {
   return script ? codeHit(readScript(script)) : null;
 }
 
-const ARG = /(?:"[^"]*"|'[^']*'|[^\s"'])+/g;
-
-/** Whitespace-split arguments with a quoted span kept whole and its quotes dropped. */
-export const shellArgs = (text) => [...String(text).matchAll(ARG)].map((m) => m[0].replace(/["']/g, '')).filter(Boolean);
-
 /** True when the segment runs a kit verb: `q ...` or `node [flags] <kit script> ...`, never `node -e <code>` whatever the code names. */
 export function kitLed(text) {
   const args = shellArgs(text);
@@ -136,7 +134,7 @@ function judgeSegment(text, ctx) {
   const quotedArgsInert = kitLed(text) || /^git$/i.test(leader);
 
   const hits = redirectTargets(text, quotedArgsInert, ctx.shell === 'bash').map(ctx.hit).filter(Boolean);
-  hits.push(...patchApplyHits(leader, shellArgs(withoutRedirects(text)).slice(1), { ...ctx, text }));
+  hits.push(...patchApplyHits(text, ctx));
   if (quotedArgsInert || READER.test(leader)) return hits;
   for (let i = 0; i < words.length; i++) {
     hits.push(...listed(judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length))));
@@ -158,7 +156,6 @@ const wordsOf = (...patterns) => patterns.map((p) => p.source.slice('^(?:'.lengt
 const WRITE_TOKEN = new RegExp(`\\b(?:${wordsOf(WRITING_CMD, COPY_CMD, IN_PLACE_TOOL)})\\b|>`, 'i');
 // Redirections that write no file: fd duplication (`2>&1`, `>&2`) and output sent to the null device.
 const HARMLESS_REDIRECT = /\d*>&(?:\d+|-)|\d*&?>>?\s*\/dev\/null\b/g;
-const PATCH_TOKEN = /\bgit\s+(?:-\S+\s+)*(?:apply|am)\b|(?:^|;)\s*patch\b/i;
 
 // With ambiguous quoting no segment can be trusted: a write-tool word, a `>` or a filesystem write call
 // anywhere in the command is a hit, and `ambiguous()` builds the gate's result for it. Pieces cut on every
@@ -174,7 +171,7 @@ const ambiguousWrite = (text, hit) => {
     .map((s) => s.text)
     .join(' ; ')
     .replace(HARMLESS_REDIRECT, ' ');
-  return WRITE_TOKEN.test(rest) || PATCH_TOKEN.test(rest) || FS_WRITE.test(rest);
+  return WRITE_TOKEN.test(rest) || appliesPatch(rest) || FS_WRITE.test(rest);
 };
 
 export function scanAllShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false, exemptByDestination = false, shell = '' }) {
@@ -183,7 +180,8 @@ export function scanAllShellWrites(command, { hit, codeHit, readScript = readTem
   if (parts.ambiguous && ambiguous) return ambiguousWrite(text, hit) ? [ambiguous()] : [];
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
   const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell, raw: String(command || '') };
-  return [...parts].flatMap((seg) => judgeSegment(seg.text, ctx));
+  const variables = assignedValues(parts, shell);
+  return [...parts].flatMap((seg) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg) }));
 }
 
 export const scanShellWrites = (command, options) => scanAllShellWrites(command, options)[0] || null;

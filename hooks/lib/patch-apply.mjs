@@ -2,8 +2,7 @@
 // outside Edit/Write, so none of pre-write's checks saw it (KIT-T1068). A write gate judges the files such a call
 // names the way it judges a redirect.
 //
-//   patchApplyHits(leader, args, { text, raw, hit, readScript }) -> [hit]
-//     leader: the command word of the segment; args: the words after it (git: after `git`)
+//   patchApplyHits(text, { raw, shell, hit, readScript }) -> [hit]
 //     text:   the segment text (its `< file` redirect names the patch)
 //     raw:    the whole command, heredoc bodies included (the segment text has them cut)
 //     hit(path), readScript(path): the caller's judge and its reader of temp files
@@ -14,15 +13,33 @@
 // (`sudo`, `env A=1`, `command`, `timeout 5`...), never in the arguments of another command.
 // A call that only checks or reports (`git apply --check|--stat|--numstat|--summary`, `patch --dry-run`) writes nothing.
 // `git checkout <rev> -- <path>` restores content a commit or stash already holds, gated when it was written: not judged.
+// The command string a shell runs (`bash -c "..."`, `sh -lc`, `pwsh -Command`, `eval`) is split into segments and judged by the same rules.
+//
+//   appliesPatch(text) -> boolean
+//     the shell-write-scan fallback for a command whose quoting cannot be trusted: true when any piece, cut on every
+//     operator, is led by an applier (or by a shell whose string is); a flag cannot lift it, so `--check` also counts.
 
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { gitCommand } from './git-subcommand.mjs';
+import { blindSegments, dequoted, segments, shellArgs, shellTokens } from './shell-segments.mjs';
 
 const WORD = /"([^"]*)"|'([^']*)'|([^\s"'|;&<>()]+)/g;
 const PATH_LIKE = /[\\/]|\.[A-Za-z0-9]{1,6}$/;
 const PATH_WORD_LIMIT = 32;
 const WRAPPER = /^(?:sudo|doas|env|command|exec|nohup|time|nice|ionice|timeout|stdbuf|xargs|builtin|setsid|unbuffer)$/i;
+const RESERVED = /^(?:!|if|then|else|elif|do|while|until)$/;
+const SH_NAME = /^(?:bash|sh|zsh|dash|ksh|ash)$/i;
+const SH_C_FLAG = /^-[A-Za-z]*c[A-Za-z]*$/;
+const SH_VALUE_FLAG = /^[-+][oO]$/;
+const PS_NAME = /^(?:pwsh|powershell)$/i;
+const PS_C_FLAG = /^-(?:c|command)$/i;
+const MAX_NESTING = 4;
+const QUOTE_START = /^["']/;
+const GROUP_START = /^[$({`]+/;
+const GROUP_END = /[)}`]+$/;
+const BLIND_SEPARATOR = /[\s"'`]+/;
+const SUBSTITUTION_START = /[<>$]?\(|`/;
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const NUMBER = /^\d+(?:\.\d+)?[smhd]?$/;
 
@@ -120,14 +137,30 @@ function patchCommandTargets(args, ctx) {
 const commandName = (word) => String(word).replace(/.*[\\/]/, '').replace(/\.(?:exe|bat|cmd)$/i, '');
 const isApplier = (name, rest) => /^patch$/i.test(name) || (/^git$/i.test(name) && ['apply', 'am'].includes(gitCommand(rest).sub));
 
-/** The index of the applier in a command's words past any wrappers (`sudo -u root`, `env A=1`, `command`, `timeout 5`), -1 when none leads. */
-function applierIndex(words) {
+/** Where the command text a shell runs begins in `rest` (the words after the shell's name): after `-c`, `-Command` or `eval`; -1 when it runs none. */
+function innerStart(name, rest) {
+  if (/^eval$/i.test(name)) return 0;
+  if (SH_NAME.test(name)) {
+    for (let i = 0; i < rest.length && rest[i].startsWith('-'); i++) {
+      if (SH_C_FLAG.test(rest[i])) return i + 1 < rest.length ? i + 1 : -1;
+      if (SH_VALUE_FLAG.test(rest[i])) i++;
+    }
+    return -1;
+  }
+  const at = PS_NAME.test(name) ? rest.findIndex((w) => PS_C_FLAG.test(w)) : -1;
+  return at >= 0 && at + 1 < rest.length ? at + 1 : -1;
+}
+
+const leadsCommand = (name, rest) => isApplier(name, rest) || innerStart(name, rest) >= 0;
+
+/** The index of the first word that `matches` past wrappers (`sudo -u root`, `env A=1`, `command`, `timeout 5`) and shell grouping words (`then`, `!`); -1 when another command leads. */
+function leadIndex(words, matches) {
   let wrapped = false;
   let afterFlag = false;
   for (let i = 0; i < words.length; i++) {
-    const name = commandName(words[i]);
-    if (isApplier(name, words.slice(i + 1))) return i;
-    const wrapper = WRAPPER.test(name);
+    if (matches(commandName(words[i]), words.slice(i + 1))) return i;
+    if (RESERVED.test(words[i])) continue;
+    const wrapper = WRAPPER.test(commandName(words[i]));
     const flag = wrapped && words[i].startsWith('-');
     const value = wrapped && (afterFlag || NUMBER.test(words[i]));
     if (!wrapper && !ENV_ASSIGN.test(words[i]) && !flag && !value) return -1;
@@ -137,11 +170,11 @@ function applierIndex(words) {
   return -1;
 }
 
-export function patchApplyHits(leader, args, ctx) {
-  const words = [leader, ...args];
-  const at = applierIndex(words);
-  if (at < 0) return [];
-  const [applier, ...rest] = words.slice(at);
+const cleanWord = (word) => (QUOTE_START.test(word) ? word : word.replace(GROUP_START, '').replace(GROUP_END, ''));
+const cleaned = (words) => words.map(cleanWord).filter(Boolean);
+
+function applierHits(words, ctx) {
+  const [applier, ...rest] = words;
   let dir = '';
   let targets = [];
   if (/^patch$/i.test(commandName(applier))) targets = patchCommandTargets(rest, ctx);
@@ -151,4 +184,46 @@ export function patchApplyHits(leader, args, ctx) {
     targets = gitApplyTargets(git.sub, git.args, ctx);
   }
   return targets.map((p) => ctx.hit(dir ? `${dir}/${p}` : p)).filter(Boolean);
+}
+
+/** The command text a shell word list runs (`bash -c "..."`, `eval ...`) and the shell it is written for. */
+function innerCommand(tokens, shellName) {
+  const at = leadIndex(tokens, (name, rest) => innerStart(name, rest) >= 0);
+  if (at < 0) return null;
+  const name = commandName(tokens[at]);
+  const rest = tokens.slice(at + 1);
+  const operands = rest.slice(innerStart(name, rest));
+  return { text: (/^eval$/i.test(name) ? operands.map(dequoted) : [dequoted(operands[0])]).join(' '), shell: PS_NAME.test(name) ? 'powershell' : /^eval$/i.test(name) ? shellName : 'bash' };
+}
+
+/**
+ * The hits of one segment's applier, found past wrappers and grouping words, and of every applier in a command string a
+ * shell runs (`bash -c "..."`, `pwsh -Command ...`, `eval ...`), judged by the same rules to MAX_NESTING levels.
+ */
+export function patchApplyHits(text, ctx, depth = 0) {
+  const words = cleaned(shellArgs(withoutRedirects(text)));
+  const at = leadIndex(words, isApplier);
+  if (at >= 0) return applierHits(words.slice(at), { ...ctx, text });
+  const inner = depth < MAX_NESTING ? innerCommand(cleaned(shellTokens(text)), ctx.shell) : null;
+  if (!inner) return [];
+  return [...segments(inner.text, { shell: inner.shell })].flatMap((seg) => patchApplyHits(seg.text, { ...ctx, shell: inner.shell }, depth + 1));
+}
+
+const blindWords = (text) => cleaned(String(text).split(BLIND_SEPARATOR));
+
+/**
+ * True when some piece of `text`, cut on every operator whatever the quoting, is led by an applier or by a shell whose
+ * command string is. A caller whose quoting cannot be trusted blocks on it; `echo patch` and `grep patch f` lead with a reader.
+ */
+export function appliesPatch(text, depth = 0) {
+  const pieces = blindSegments(text).flatMap((piece) => piece.text.split(SUBSTITUTION_START));
+  return pieces.some((piece) => {
+    const words = blindWords(piece);
+    const at = leadIndex(words, leadsCommand);
+    if (at < 0) return false;
+    const name = commandName(words[at]);
+    const rest = words.slice(at + 1);
+    if (isApplier(name, rest)) return true;
+    return depth < MAX_NESTING && appliesPatch(rest.slice(innerStart(name, rest)).join(' '), depth + 1);
+  });
 }

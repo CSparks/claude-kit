@@ -6,7 +6,8 @@
 // Run: node hooks/node-args.test.mjs
 
 import { isNodeInlineFlag, nodeScriptName } from './lib/node-args.mjs';
-import { kitLed, shellArgs } from './lib/shell-write-scan.mjs';
+import { kitLed } from './lib/shell-write-scan.mjs';
+import { shellArgs } from './lib/shell-segments.mjs';
 import { shellSourceWrite } from './lib/shell-source-write.mjs';
 
 let fails = 0;

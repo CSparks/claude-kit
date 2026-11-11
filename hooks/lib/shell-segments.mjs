@@ -77,6 +77,19 @@ export const shellOfTool = (toolName) => (/powershell/i.test(String(toolName || 
 /** Operator split that ignores quoting: the pieces a command leads with when quote pairing cannot be trusted. */
 export const blindSegments = (cmd) => split(cmd, true).out;
 
+const ARG = /(?:"[^"]*"|'[^']*'|[^\s"'])+/g;
+const WHOLLY_QUOTED = /^(?:"[^"]*"|'[^']*')$/;
+const QUOTES = /["']/g;
+
+/** Whitespace-split tokens with every quoted span kept whole and its quotes in place. */
+export const shellTokens = (text) => [...String(text).matchAll(ARG)].map((m) => m[0]);
+
+/** One token without its quotes: only the outer pair when the token is one quoted span, so an inner quote survives. */
+export const dequoted = (token) => (WHOLLY_QUOTED.test(token) ? token.slice(1, -1) : token.replace(QUOTES, ''));
+
+/** Whitespace-split arguments with a quoted span kept whole and its quotes dropped. */
+export const shellArgs = (text) => shellTokens(text).map((t) => t.replace(QUOTES, '')).filter(Boolean);
+
 // A shell path argument as a native path: quotes stripped, MSYS `/d/x` drive form turned into `d:/x`.
 export const toPath = (p) => String(p).replace(/^["']|["']$/g, '').replace(/^\/([A-Za-z])\//, '$1:/');
 
