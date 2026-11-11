@@ -26,16 +26,20 @@ const SEQUENTIAL_AFTER = new Set([';', '&&']);
 
 // Commands that read and write files and never bind a shell variable. The word is judged after its quotes are removed;
 // bash matches it case-sensitively, PowerShell case-insensitively. A path-qualified or variable-named command is not here.
-const SAFE_COMMANDS = new Set(['cp', 'copy', 'copy-item', 'mv', 'move-item', 'install', 'mkdir', 'md', 'echo', 'cd', 'set-location', 'ls', 'dir', 'get-childitem', 'pwd', 'true', 'test']);
-// Text that evaluates code or assigns while it expands: command, process and arithmetic substitution, `${NAME:=x}`, an
-// array subscript (arithmetic). PowerShell: a parenthesis, brace or splat evaluates, and `variable:` is the provider
-// that writes variables.
-const BASH_EVALUATING = /\$\(|`|[<>]\(|\$\[|\$\{[^}]*=|\w\[/;
-const POWERSHELL_EVALUATING = /[({]|variable:|\s@/i;
-const POWERSHELL_PARAMETER = /^[-–—―]([a-z]+)/i;
+const SAFE_COMMANDS = new Set(['cp', 'copy', 'copy-item', 'mv', 'move-item', 'install', 'mkdir', 'md', 'echo', 'cd', 'set-location', 'ls', 'dir', 'get-childitem', 'pwd', 'true']);
+// Text that evaluates code or assigns while it expands: command, process and arithmetic substitution and
+// `${NAME:=x}` in bash; in PowerShell a parenthesis, brace, backtick escape or splat.
+const BASH_EVALUATING = /\$\(|`|[<>]\(|\$\[|\$\{[^}]*=/;
+const POWERSHELL_EVALUATING = /[({`]|\s@/;
+const DASH = '-–—―';
+const POWERSHELL_PARAMETER = new RegExp(`^[${DASH}]([a-z]+)`, 'i');
+const POWERSHELL_PARAMETER_BINDING = new RegExp(`^[${DASH}][a-z]+:`, 'i');
+const DRIVE_LETTER = /^[A-Za-z]:/;
+const SCOPE_QUALIFIER = /\$\w+:/g;
 const POWERSHELL_VARIABLE_PARAMETERS = ['errorvariable', 'warningvariable', 'informationvariable', 'outvariable', 'pipelinevariable'];
 const POWERSHELL_VARIABLE_ALIASES = new Set(['ev', 'wv', 'iv', 'ov', 'pv']);
-const FIELD_SEPARATOR = 'IFS';
+// Names that change how a later word expands or which program a command word runs.
+const COMMAND_CONTROL_NAMES = new Set(['IFS', 'PATH']);
 // Variables the shell rewrites itself (`cd` moves PWD) are never resolved from an assignment.
 const SHELL_OWNED_NAMES = /^(?:pwd|oldpwd|random|srandom|seconds|lineno|bashpid|reply|optind|optarg|shlvl|_)$|^(?:epoch|bash_|comp_)/i;
 
@@ -77,19 +81,29 @@ function bindsVariable(token) {
   return POWERSHELL_VARIABLE_ALIASES.has(name) || (name.length > 1 && POWERSHELL_VARIABLE_PARAMETERS.some((p) => p.startsWith(name)));
 }
 
+// A PowerShell token that names a provider path (`variable:sp`, `Var*:`, `Variable::sp`): a colon that is no parameter
+// binding, one-letter drive or `$scope:` qualifier. The colon cannot be quoted away, so the drive name never matters.
+function namesProviderPath(token) {
+  const rest = dequoted(token).replace(POWERSHELL_PARAMETER_BINDING, '').replace(DRIVE_LETTER, '').replace(SCOPE_QUALIFIER, '');
+  return rest.includes(':');
+}
+
+const controlsCommands = (assignments) => assignments.some(([name]) => COMMAND_CONTROL_NAMES.has(name));
+
 // True when the segment is blank, a literal assignment, or a safe command whose text evaluates nothing.
 function leavesVariablesAlone(text, shell) {
   if (!text.trim()) return true;
   const power = isPowershell(shell);
   if ((power ? POWERSHELL_EVALUATING : BASH_EVALUATING).test(text)) return false;
   const assigned = assignmentsOf(text, shell);
-  if (assigned) return !assigned.some(([name]) => name === FIELD_SEPARATOR);
+  if (assigned) return !controlsCommands(assigned);
   const tokens = shellTokens(text);
-  const word = power ? tokens[0] : tokens.find((t) => !BASH_ASSIGN.test(t));
-  if (word === undefined) return false;
-  const command = dequoted(word);
+  const at = power ? 0 : tokens.findIndex((t) => !BASH_ASSIGN.test(t));
+  if (at < 0) return false;
+  const command = dequoted(tokens[at]);
   if (!SAFE_COMMANDS.has(power ? command.toLowerCase() : command)) return false;
-  return !power || !tokens.some(bindsVariable);
+  if (power) return !tokens.some((t) => bindsVariable(t) || namesProviderPath(t));
+  return !controlsCommands(tokens.slice(0, at).map((t) => BASH_ASSIGN.exec(t).slice(1)));
 }
 
 // How often the command writes to `name`: a bash assignment or declaration, a PowerShell assignment.
