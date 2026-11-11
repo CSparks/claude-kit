@@ -75,10 +75,10 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
    commits exactly the patch's paths (`<title> (implements <ticket>)`), pushes, and for a
    submodule repo pins the superproject. The result carries `landed.sha`.
 
-## Handing back (KIT-D115, KIT-D116)
+## Handing back (KIT-D115, KIT-D149)
 
-No agent spends more than 5 minutes waiting on anything. When the one wait is spent, or your context nears
-the ceiling (`dispatch.context_ceiling_tokens`, 300k), write a `Handoff <your agent id>` block in the ticket Notes (`t notes <ticket> "…"`) with the
+No agent spends more than 5 minutes waiting on anything. When the one wait is spent, or the coordinator retires you for
+waste (context spent on task output, polling or repeated lines), write a `Handoff <your agent id>` block in the ticket Notes (`t notes <ticket> "…"`) with the
 labelled lines `Jobs:` (job ids), `State:`, `Next:` (the action on pass, fail and stale) and `Files:` (pointers).
 Then end with nothing running and report the job ids. The orchestrator watches `target/broker/finished.log`
 (one line per finished job: id, verdict, agent, ticket) and resumes you, or briefs a fresh agent from the ticket.
