@@ -73,9 +73,13 @@ try {
   ok('negative: reasoning, ranged reads and q results are not garbage', g.garbage < 0.5 && !breakdownLine(good, 280000, 'agent-2').includes('MOSTLY GARBAGE'));
   ok('negative: an unreadable or empty transcript gives no line', breakdownLine(join(dir, 'nope.jsonl'), 280000, 'x') === '' && breakdownLine(write('empty.jsonl', []), 280000, 'x') === '');
 
-  const flagged = ceilingFlag({ id: 'agent-1', status: 'done', tokens: 450000, tickets: ['KIT-T1'], transcript: bad });
-  ok('the ceiling flag carries the composition line', flagged.includes('Composition: agent agent-1 at 450k') && flagged.includes('MOSTLY GARBAGE INPUT'));
-  ok('negative: a past-ceiling row with no transcript keeps the plain flag', !ceilingFlag({ id: 'a', status: 'done', tokens: 450000 }).includes('Composition'));
+  ok('the avoidable lines are named, largest first, with their sizes', b.avoidable.length > 0 && b.avoidable[0].tokens >= b.avoidable[b.avoidable.length - 1].tokens && b.avoidable.some((r) => r.label.includes('cargo test')));
+  ok('negative: a healthy transcript names no avoidable line', g.avoidable.length === 0 && g.avoidableTokens === 0);
+
+  const flagged = wasteFlag({ id: 'agent-1', status: 'done', tickets: ['KIT-T1'], transcript: bad });
+  ok('the waste flag carries the composition line and names the avoidable lines', flagged.includes('Composition: agent agent-1') && flagged.includes('MOSTLY GARBAGE INPUT') && flagged.includes('Avoidable:') && flagged.includes('cargo test'));
+  ok('negative: a row with no transcript has no flag', wasteFlag({ id: 'a', status: 'done', tokens: 450000 }) === '');
+  ok('negative: a healthy transcript has no flag whatever its size', wasteFlag({ id: 'a', status: 'done', tokens: 450000, transcript: good }) === '');
 } finally {
   cleanup();
 }
