@@ -3,8 +3,10 @@
 // Write tools, where pre-write checks length, comments and literals; a shell write skips them.
 // This is the shell twin of pre-write's code checks (check-id source-shell-write, KIT-T648).
 //
-//   shellSourceWrite(command, { readScript, tempDir }) -> null | { path, ambiguous? }
+//   shellSourceWrites(command, { readScript, tempDir }) -> [{ path, ambiguous?, outsideTo? }]   every hit
 //     ambiguous: the quoting could not be split and the command holds a write token (KIT-T705)
+//     outsideTo: a proven cp/mv source operand; the gate lifts it when that destination leaves the repo
+//   shellSourceWrite(command, options) -> the first hit without outsideTo, or null
 //   isSourcePath(path, tempDir) -> boolean   a hand-authored source path (not temp, build output or a vendored tree)
 
 import { existsSync, realpathSync } from 'node:fs';
