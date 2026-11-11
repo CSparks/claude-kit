@@ -27,8 +27,12 @@ first seen in pixelvision. Filed automatically (KIT-T286): every kit bug is a ti
 ## Plan
 1.
 
+## Notes
+Agent follow-through: user-config/CLAUDE.global.md checklist line now carries [escalate: <reason>] (job dearer than the ticket type default); agents/analyst.md and analyst-max.md carry a Dispatcher line naming it; scripts/contract-rules.test.mjs 17 passed (new assertions: base contract, both analyst agents; control: HEAD contract fails the regex). Composed ~/.claude/CLAUDE.md is produced by bootstrap, not by publish; not run here. Publish held (live-claims.mjs by session da28715f).
+
 ## History
 - [2026-11-10 17:05] (created) bug — Process failure 2026-11-10 (pixelvision): design-job dispatch (opus) blocked by dispatch-escalation (KIT-T432) because the brief lacked [esc
 - [2026-11-10 19:20] (comment) @claude: Landed in the owning commands: commands/work.md and commands/drain.md dispatch checklist now name [escalate: <reason>] f (full comment #1 in ## Notes)
 ### comment #1 [2026-11-10 19:20] @claude
 Landed in the owning commands: commands/work.md and commands/drain.md dispatch checklist now name [escalate: <reason>] for a job dearer than the ticket type's default (design/opus with no ticket); scripts/contract-rules.test.mjs 14 passed (new assertion per command), plugin 0.1.40 so sessions load it. NOT done: the contract line in user-config/CLAUDE.global.md (my brief forbids editing CLAUDE.md-named files; a kit session or the maintainer adds the [escalate: <reason>] clause to that checklist line) and the design/analyst agent definitions. q gates agent already prints the escalate tag.
+- [2026-11-10 19:21] (landed) 36022f6 Dispatch checklist in /work and /drain names [escalate: <reason>] (plugin 0.1.40); landing notes for KIT-T930, T931, T93

@@ -169,7 +169,8 @@ in a block message or a decision file is a defect.
   brief adds `[maintainer-words: "<his sentence>"]` and `[reuses: <mechanism>|none: <why>]` (KIT-T703);
   a design or plan brief (job `plan`, or an analyst or researcher briefed with design words) adds
   `[rulings-checked: <q inbox or q fts run, or inbox ids read>|none apply: <why>]` while the inbox
-  holds un-triaged notes (KIT-T938).
+  holds un-triaged notes (KIT-T938); a job dearer than the default of the ticket type the brief
+  names (a design/opus dispatch with no ticket) adds `[escalate: <reason>]` (KIT-T940).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout
