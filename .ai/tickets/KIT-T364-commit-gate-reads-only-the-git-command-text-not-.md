@@ -3,7 +3,7 @@ id: KIT-T364
 title: Commit gate reads only the git command text, not a -F/--file message file; an agent committing with -F had to put the ticket token in a…
 summary:               # OPTIONAL one-line gist — what a trail/brief shows instead of a clipped title
 type: bug
-status: todo
+status: superseded
 priority: high
 milestone:             # blank = backlog; set to schedule onto ROADMAP.md
 labels: []
@@ -19,7 +19,7 @@ tier:                  # OPTIONAL dispatch firepower: light | standard | deep �
 model:                 # OPTIONAL override: fable | opus | sonnet | haiku — pins the subagent model, beating tier.
 effort:                # OPTIONAL override: low | medium | high | xhigh | max — pins reasoning effort, beating tier.
 supersedes:            # ticket id this one RETIRES (set on the NEWER ticket)
-superseded_by:         # ticket id that retired THIS one (drops it from the active board + drain)
+superseded_by: KIT-T1019
 created: 2026-10-06T14:51:23.422Z
 updated: 2026-10-06T14:51:23.422Z
 ---
@@ -54,3 +54,4 @@ Commit gate reads only the git command text, not a -F/--file message file; an ag
        (fixed)     <sha>                    (regressed) → T-040   (recurred as)
      NEVER edit or delete a prior line — this is the task's audit trail (KIT-D037). -->
 - [<YYYY-MM-DD HH:MM>] (created)
+- [2026-11-11 04:53] (status) todo → superseded (by KIT-T1019)
