@@ -56,16 +56,23 @@ function usesTree(cfg, sub, job) {
   return paths.some((p) => p === posix(sub.path) || p.startsWith(`${posix(sub.path)}/`));
 }
 
-/**
- * The submodules whose tree a lane needs for `jobs` of `repo`: its own, or those a superproject job builds. With the
- * check tree (check-tree.mjs) only a landing or a pin touches the live submodule; a check-only job builds in its own tree.
- */
-export function subtreesFor(cfg, repo, jobs) {
-  const live = cfg.checkTree ? jobs.filter((j) => j.land || (j.pins || []).length) : jobs;
+function treesOf(cfg, repo, live) {
   if (repo.submodule) return live.length ? [repo] : [];
   const subs = cfg.repos.filter((r) => r.submodule && String(r.pinIn) === String(repo.path));
   return subs.filter((sub) => live.some((j) => usesTree(cfg, sub, j)));
 }
+
+/**
+ * The submodules whose tree a lane takes BEFORE it runs `jobs` of `repo`: its own, or those a superproject job builds. With
+ * the check tree (check-tree.mjs) a job builds in its own copy and only a pin runs in the live submodule, so only a pin job
+ * takes the tree up front; a landing takes it for the landing step alone (liveSubtreesFor, live-trees.mjs, KIT-T1046).
+ */
+export function subtreesFor(cfg, repo, jobs) {
+  return treesOf(cfg, repo, cfg.checkTree ? jobs.filter((j) => (j.pins || []).length) : jobs);
+}
+
+/** Every tree `jobs` may write in the live checkout: what the landing step, or a run in the live checkout, takes. */
+export const liveSubtreesFor = (cfg, repo, jobs) => treesOf(cfg, repo, jobs);
 
 /** Every submodule tree a lane's idle work (re-checks, the suite) runs over. */
 export function idleSubtrees(cfg) {

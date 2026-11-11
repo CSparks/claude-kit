@@ -4,13 +4,14 @@
 // span and clears it in a finally; a daemon start clears a marker a crash left behind, after the journal restored the tree.
 //
 //   markLive(cfg, id, why) / clearLive(cfg)       write and remove the marker
-//   withLive(cfg, id, why, fn)                    mark, run fn, clear
+//   withLive(cfg, id, why, fn)                    take the job's submodule trees (live-trees.mjs), mark, run fn, clear, hand the trees over
 //   liveState(cfg)                                -> { patched: false } | { patched: true, id, why, since }
 //   liveLine(cfg)                                 -> the one status line
 
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
+import { dropLive, holdLive } from './live-trees.mjs';
 
 const file = (cfg) => join(brokerPaths(cfg).home, 'live-patched.json');
 
@@ -24,8 +25,9 @@ export function markLive(cfg, id, why) {
 export const clearLive = (cfg) => rmSync(file(cfg), { force: true });
 
 export function withLive(cfg, id, why, fn) {
+  const took = holdLive();
   markLive(cfg, id, why);
-  try { return fn(); } finally { clearLive(cfg); }
+  try { return fn(); } finally { clearLive(cfg); if (took) dropLive(); }
 }
 
 export function liveState(cfg) {

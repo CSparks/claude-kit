@@ -38,6 +38,7 @@ import { foreignBuild } from './known-red.mjs';
 import { runDiagnosed } from './run.mjs';
 import { prepareCheckTree } from './check-tree.mjs';
 import { clearLive, markLive, withLive } from './live-patch.mjs';
+import { holdLive } from './live-trees.mjs';
 
 function baseFields(job, startedAt) {
   return {
@@ -63,7 +64,7 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
     runCfg = t.error ? cfg : t.cfg;
   };
   enterCheck();
-  if (cwd === live) markLive(cfg, id, 'train runs in the live checkout');
+  if (cwd === live) { holdLive(); markLive(cfg, id, 'train runs in the live checkout'); }
   const results = [];
   let builds = 0;
   const finish = (m, fields) => {
@@ -96,7 +97,7 @@ export function runTrain(cfg, repo, members, { onResult = () => {} } = {}) {
       const pool = groups.shift().filter((m) => !hasFinalResult(cfg, m.job.id));
       if (!pool.length) continue;
       const waiting = [pool, ...groups].flat();
-      if (checkTree) enterCheck();
+      if (checkTree) { enterCheck(); if (cwd === live) holdLive(); }
       locksBefore = lockFilesDeep(cwd);
       const paths = [...new Set([...waiting.flatMap(filesOf), ...locksBefore])];
       const snap = () => capture(cfg, { id, cwd, paths, members: waiting.map((m) => m.job.id), startedAt });

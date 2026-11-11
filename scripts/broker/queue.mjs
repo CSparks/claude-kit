@@ -25,7 +25,8 @@ import { failOnError } from './contain.mjs';
 import { lastServed, markServed, roundRobin } from './rr.mjs';
 import { pruneIncremental, pruneLine } from './incremental.mjs';
 import { batchHold } from './batch-window.mjs';
-import { idleSubtrees, subtreesFor, takeSubtrees } from './subtree.mjs';
+import { idleSubtrees, liveSubtreesFor, subtreesFor, takeSubtrees } from './subtree.mjs';
+import { TreeBusy, beginJob, endJob } from './live-trees.mjs';
 import { runMeasurements } from './measure.mjs';
 import { linkedHold } from './linked-order.mjs';
 
@@ -91,14 +92,20 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
       const own = repoByName(cfg, job.repo);
       if (own && dirtyHold(cfg, own)) { held.set(job.repo, job.id); rekeyHold(cfg, job, own); continue; }
       train = formTrain(cfg, job, roundRobin(pendingQueue(cfg), lastServed(cfg)), { skip: (j) => held.has(j.repo) || !!linkedHold(cfg, j, order) });
-      tree = takeSubtrees(cfg, subtreesFor(cfg, repoByName(cfg, job.repo) || {}, train ? train.members.map((m) => m.job) : [job]), job.id);
+      const jobs = train ? train.members.map((m) => m.job) : [job];
+      const home = repoByName(cfg, job.repo) || {};
+      const upfront = subtreesFor(cfg, home, jobs);
+      tree = takeSubtrees(cfg, upfront, job.id);
       if (!tree.ok) { waiting.set(job.repo, tree.reason); continue; }
+      beginJob(cfg, liveSubtreesFor(cfg, home, jobs).filter((s) => !upfront.some((u) => u.name === s.name)), job.id);
       markServed(cfg, job.session);
       ran = train ? runTrain(cfg, train.repo, train.members, { onResult }) : processJob(cfg, job);
     } catch (error) {
+      if (error instanceof TreeBusy) { waiting.set(job.repo, error.message); continue; }
       processed.push(...failOnError(cfg, train ? train.members.map((m) => m.job.id) : [job.id], error, { onResult }));
       continue;
     } finally {
+      endJob();
       if (tree && tree.ok) tree.release();
     }
     if (train) {
