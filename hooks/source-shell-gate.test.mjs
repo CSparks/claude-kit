@@ -58,6 +58,8 @@ try {
     const r = run(command);
     check(`blocks ${name}`, r.status === 2 && /Edit/.test(r.stderr) && /source-shell-write/.test(r.stderr), `exit=${r.status} ${r.stderr.slice(0, 120)}`);
   }
+  const heredoc = run("cat > scripts/repro.test.mjs <<'EOF'\nx\nEOF").stderr;
+  check('KIT-T1016: the block text names the Write tool first, ahead of Edit, and says never a heredoc', /Use the Write tool/.test(heredoc) && heredoc.indexOf('Write tool') < heredoc.indexOf('Edit tool') && /never a heredoc/.test(heredoc));
 
   const PASSES = [
     ['cat of a source file', 'cat src/lib.rs'],

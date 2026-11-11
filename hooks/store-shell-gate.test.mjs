@@ -54,6 +54,12 @@ try {
   check("KIT-T784 control: a shell heredoc body that writes the store still blocks", blocked("bash <<'EOF'\nrm .ai/decisions/X-D001-a.md\nEOF"));
   check("KIT-T784 control: node reading its program from a heredoc still blocks", blocked("node - <<'EOF'\nfs.writeFileSync('.ai/decisions/X-D001-a.md', t)\nEOF"));
 
+  const FILTER = "npm run publish:runtime 2>&1 | grep -vE '^\\s*$' | grep -v '^> ' | tail -20";
+  check("KIT-T1018: a pipe that filters stdout with a '^\\s*$' pattern and a '^> ' pattern passes", !blocked(FILTER), run(FILTER).stderr.slice(0, 120));
+  check('KIT-T1018 control: a store redirect after the same filter still blocks', blocked("npm run x | grep -vE '^\\s*$' > .ai/SESSION.md"));
+  check('KIT-T1018 control: a store rm after the same filter still blocks', blocked("npm run x | grep -vE '^\\s*$'; rm .ai/tickets/X-T001-a.md"));
+  check("KIT-T1018 control: a real $'…' string with a write token still blocks", blocked("echo $'a\\' ; rm .ai/decisions/X-D001-a.md ; echo '"));
+
   check('KIT-T705 negative control: node -e with escaped quotes and no write passes', !blocked('node -e "console.log(\\"x\\")"'));
 
   const READS = [

@@ -28,9 +28,9 @@ try {
     if (found.outsideTo && landsOutsideRepo(found.outsideTo, root, cwd)) continue;
     process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : `a shell command writes a source file by hand (${found.path}).`}
-  The pre-write gate (file length, comment prose, literals, rot markers) only sees the Edit and Write tools:
-    Edit   change part of an existing file
-    Write  create or replace a whole file
+  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
+  \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
+  pre-write gate (file length, comment prose, literals, rot markers).
   A change too large for one Edit is a Write of the new file or several Edits, never a script.
   Generated output a tool writes (cargo, a formatter, a codegen) is not a hand write: run the tool.
 ${excludeFooter(CHECK)}`);

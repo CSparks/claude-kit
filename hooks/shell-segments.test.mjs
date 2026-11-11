@@ -48,6 +48,11 @@ check('KIT-T941 control: an unclosed quote stays ambiguous in bash', bash("echo 
 check('KIT-T941 control: a bash escaped backslash then a closing quote ends the argument', bash('cap "a\\\\" ; sed -i x y').map((s) => s.text.trim()).join('|') === 'cap "a\\\\"|sed -i x y');
 check('KIT-T941: without a shell the legacy test flags any escape before a quote', segments(escaped).ambiguous === true);
 
+const pattern = "grep -vE '^\\s*$' | grep -v '^> '";
+check("KIT-T1018: a `$` that ends a quoted span ('^\\s*$') is not a $'…' string, in both modes", segments(pattern).ambiguous === false && bash(pattern).ambiguous === false);
+check('KIT-T1018: a `$` that ends a double-quoted span is not ambiguous', segments('echo "cost $" ; ls').ambiguous === false);
+check('KIT-T1018 control: a quote opened right after `$` is still ambiguous in both modes', segments("echo $'a' ; ls").ambiguous === true && bash('echo $"a" ; ls').ambiguous === true);
+
 // KIT-T784: a quoted heredoc read by a data consumer is inert data.
 const body = "ancestors' and \"quotes\" and `ticks` ; grep -r .ai/ ; rm x";
 const heredoc = (head, tail = '') => `${head} <<'EOF'\n${body}\nEOF${tail}`;

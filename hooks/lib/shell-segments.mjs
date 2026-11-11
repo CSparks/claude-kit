@@ -5,7 +5,8 @@
 //
 // The split follows plain quote pairing only. Shells disagree about escapes (a backslash before a quote in
 // bash, a backtick in PowerShell, `$'…'` strings), so a line with an escape character directly before a
-// quote, a `$'` or `$"` string or a quote that never closes is ambiguous: the returned array carries
+// quote, a `$'` or `$"` string (a quote OPENED right after `$`; a `$` that ends a quoted span, as in the
+// grep pattern '^\s*$', is plain text) or a quote that never closes is ambiguous: the returned array carries
 // `ambiguous: true` and its segments cannot be trusted. A deny gate that sees the flag skips per-segment
 // parsing and tests the raw command for its own target words anywhere (KIT-T705, KIT-D117), or judges the
 // pieces from `blindSegments`, which split on every operator whatever the quoting.
@@ -23,12 +24,11 @@ import { inertText } from './inert-heredoc.mjs';
 
 export { inertText };
 
-const AMBIGUOUS_QUOTING = /\$['"]|[\\`]["']/;
+const ESCAPE_BEFORE_QUOTE = /[\\`]["']/;
 
 export const AMBIGUOUS_MESSAGE = 'Ambiguous shell quoting: rewrite the command without escaped quotes, or put the code in a scratchpad file.';
 
 const QUOTE = /["']/;
-const DOLLAR_QUOTE = /\$['"]/;
 
 function split(cmd, blind = false, shell = '') {
   const out = [];
@@ -36,13 +36,17 @@ function split(cmd, blind = false, shell = '') {
   let op = 'start';
   let q = '';
   let escaped = false;
+  let dollarQuoted = false;
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i];
     if (shell === 'bash' && !blind && ch === '\\' && q !== "'" && i + 1 < cmd.length) { cur += ch + cmd[++i]; continue; }
     const escapeChar = ch === '`' || (shell === 'powershell' && ch === '\\');
     if (shell && escapeChar && q !== "'" && QUOTE.test(cmd[i + 1] || '')) escaped = true;
     if (q) { cur += ch; if (ch === q) q = ''; continue; }
-    if (!blind && (ch === '"' || ch === "'")) { q = ch; cur += ch; continue; }
+    if (!blind && (ch === '"' || ch === "'")) {
+      if (cmd[i - 1] === '$') dollarQuoted = true;
+      q = ch; cur += ch; continue;
+    }
     if (ch === '&' && (cmd[i - 1] === '>' || cmd[i + 1] === '>')) { cur += ch; continue; }
     if (ch === '|' || ch === '&' || ch === ';' || ch === '\n') {
       const pair = ch + (cmd[i + 1] || '');
@@ -56,13 +60,13 @@ function split(cmd, blind = false, shell = '') {
     cur += ch;
   }
   out.push({ text: cur, after: op });
-  return { out, open: q !== '', escaped };
+  return { out, open: q !== '', escaped, dollarQuoted };
 }
 
 export function segments(cmd, { shell = '' } = {}) {
   const text = inertText(cmd);
-  const { out, open, escaped } = split(text, false, shell);
-  out.ambiguous = open || (shell ? escaped || DOLLAR_QUOTE.test(text) : AMBIGUOUS_QUOTING.test(text));
+  const { out, open, escaped, dollarQuoted } = split(text, false, shell);
+  out.ambiguous = open || dollarQuoted || (shell ? escaped : ESCAPE_BEFORE_QUOTE.test(text));
   out.text = text;
   return out;
 }
