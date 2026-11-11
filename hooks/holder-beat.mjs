@@ -9,7 +9,8 @@ import { payload, gitRoot, gitRootOfFile, isStorePath, pathExcluded, excludeFoot
 import { beatHolder, refuseEdit } from './lib/checkout-holder.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { isKitCheckout } from './lib/kit-checkout.mjs';
-import { overlapLines, overlappingHolders } from './lib/session-overlap.mjs';
+import { overlapLines } from './lib/session-overlap.mjs';
+import { overlappingHolders } from './lib/live-claims.mjs';
 import { repoRelative } from './turn-writes.mjs';
 import { HOLDER_CHECK } from './dispatch-holder.mjs';
 

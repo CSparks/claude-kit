@@ -7,7 +7,8 @@
 //   beatHolder({ tree, session, label, agent, origin, now }) -> record/refresh session's hold on the checkout; origin is the
 //                                                    repo the session itself works in
 //   refuseEdit({ tree, session, path })              -> note a refused edit (session-overlap.mjs ignores it in the write ledger); beatHolder({ edited }) clears it
-//   liveHolders(tree, now)                          -> [{ tree, session, label, agent, origin, since, beatAt, file }] inside the window
+//   noteLegacyClaims({ tree, session, files, now })  -> { file: firstSeenMs } for claims with no recorded write HEAD (live-claims.mjs bounds them)
+//   liveHolders(tree, now)                         -> [{ tree, session, label, agent, origin, since, beatAt, file }] inside the window
 //   releaseTree(tree, session)                       -> drop that session's hold (a synchronous writer finished)
 //   releaseAgent(agent)                              -> drop every hold whose last writer was that agent (SubagentStop)
 //   HOLDER_WINDOW_MS, holdersDir()                   -> CLAUDE_KIT_HOLDERS_DIR overrides the directory (tests)
@@ -38,7 +39,7 @@ export function beatHolder({ tree, session, label = '', agent = '', origin = '',
     const prev = readEntry(file);
     mkdirSync(treeDir(tree), { recursive: true });
     const refused = (prev?.refused || []).filter((f) => f !== edited);
-    writeFileSync(file, JSON.stringify({ tree, session, label: label || prev?.label || '', agent: agent || prev?.agent || '', origin: origin || prev?.origin || '', since: prev?.since || now, beatAt: now, refused }));
+    writeFileSync(file, JSON.stringify({ tree, session, label: label || prev?.label || '', agent: agent || prev?.agent || '', origin: origin || prev?.origin || '', since: prev?.since || now, beatAt: now, refused, legacySeen: prev?.legacySeen || {} }));
   } catch {
     /* a heartbeat never breaks the tool call that carried it */
   }
@@ -55,6 +56,25 @@ export function refuseEdit({ tree, session, path, now = Date.now() }) {
     writeFileSync(file, JSON.stringify({ ...prev, refused }));
   } catch {
     /* a refusal record never breaks the tool call that carried it */
+  }
+}
+
+// When each of `files` was first judged for the session: a claim recorded without a write HEAD can name no commit that
+// releases it, so its age since this first sighting bounds it. Returns { file: firstSeenMs }; an unreadable entry
+// answers "just now", which keeps the claim.
+export function noteLegacyClaims({ tree, session, files, now = Date.now() }) {
+  const justNow = () => Object.fromEntries(files.map((f) => [f, now]));
+  try {
+    const file = entryFile(tree, session);
+    const prev = readEntry(file);
+    if (!prev) return justNow();
+    const seen = { ...(prev.legacySeen || {}) };
+    const fresh = files.filter((f) => seen[f] === undefined);
+    for (const f of fresh) seen[f] = now;
+    if (fresh.length) writeFileSync(file, JSON.stringify({ ...prev, legacySeen: seen }));
+    return Object.fromEntries(files.map((f) => [f, seen[f]]));
+  } catch {
+    return justNow();
   }
 }
 

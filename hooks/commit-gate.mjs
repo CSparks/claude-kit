@@ -10,7 +10,8 @@ import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from '
 import { pendingHandWrites } from './lib/hand-writes.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
 import { isKitCheckout } from './lib/kit-checkout.mjs';
-import { overlapLines, overlappingHolders } from './lib/session-overlap.mjs';
+import { overlapLines } from './lib/session-overlap.mjs';
+import { overlappingHolders } from './lib/live-claims.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),

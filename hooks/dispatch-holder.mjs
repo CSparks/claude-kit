@@ -11,7 +11,8 @@
 
 import { HOLDER_WINDOW_MS, beatHolder, liveHolders } from './lib/checkout-holder.mjs';
 import { isKitCheckout } from './lib/kit-checkout.mjs';
-import { overlapLines, overlappingHolders } from './lib/session-overlap.mjs';
+import { overlapLines } from './lib/session-overlap.mjs';
+import { overlappingHolders } from './lib/live-claims.mjs';
 
 export const HOLDER_CHECK = 'checkout-holder';
 const MS_PER_MIN = 60 * 1000;

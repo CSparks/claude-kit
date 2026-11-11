@@ -17,10 +17,12 @@
 //   recordToolWrite(root, rel, hash, now, writer)                    -> add a confirmed entry
 //   recordPredictedWrite(root, rel, file, toolInput, writer, now)    -> add the unconfirmed entries for the content `toolInput` leaves
 //   toolWriteProves(root, rel, sinceMs, currentHash, byWriter)       -> true when another writer's tool left `currentHash` in `rel` since `sinceMs`
-//   predictedHashes(current, toolInput)                              -> hashes of the content an Edit or Write leaves ([] when unknown)
+//   cleanWriters(root, rel, currentHash)                             -> writers whose predicted write left `currentHash` and started from committed or their own clean-based text
+//   predictedHashes(current, toolInput)                             -> hashes of the content an Edit or Write leaves ([] when unknown)
 
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
+import { gitTry } from './exec.mjs';
 import { readTurnState, writeTurnState } from './turn-state.mjs';
 
 const SLOT = 'toolwrites';
@@ -33,14 +35,15 @@ const toLf = (s) => s.replace(/\r\n/g, '\n');
 const toCrlf = (s) => toLf(s).replace(/\n/g, '\r\n');
 
 export const writerId = (session, agent) => (session ? `${session}|${agent || ''}` : '');
+export const writerSession = (writer) => String(writer || '').split('|')[0];
 
 const entriesOf = (root) => {
   const state = readTurnState(root, SLOT) || {};
   return Array.isArray(state.entries) ? state.entries : [];
 };
 
-const addEntries = (root, hashes, rel, now, writer, confirmed) => {
-  const added = hashes.map((h) => ({ p: rel, h, ts: now, w: writer, c: confirmed }));
+const addEntries = (root, hashes, rel, now, writer, confirmed, clean = false) => {
+  const added = hashes.map((h) => ({ p: rel, h, ts: now, w: writer, c: confirmed, ...(clean ? { k: true } : {}) }));
   writeTurnState(root, { entries: [...entriesOf(root), ...added].slice(-ENTRIES_MAX) }, SLOT);
 };
 
@@ -67,17 +70,31 @@ export function predictedHashes(current, toolInput) {
   return [...new Set([hashOf(text), ...(current.includes('\r\n') ? [hashOf(toCrlf(text))] : [])])];
 }
 
+const committedAndClean = (root, rel) => gitTry(['ls-files', '--error-unmatch', '--', rel], root).ok
+  && gitTry(['diff', '--quiet', 'HEAD', '--', rel], root).ok;
+
+// Did the edit start from content no other session's uncommitted work is in: the committed text, or the text this
+// session's own earlier clean-based write left?
+const startsClean = (root, rel, currentHash, session) => committedAndClean(root, rel)
+  || entriesOf(root).some((e) => e.p === rel && e.h === currentHash && e.k === true && writerSession(e.w) === session);
+
 export function recordPredictedWrite(root, rel, file, toolInput, writer = '', now = Date.now()) {
   try {
     if (!rel || !file) return;
     const isWrite = typeof (toolInput || {}).content === 'string';
-    const current = isWrite || statSync(file).size > HASH_MAX_BYTES ? undefined : readFileSync(file, 'utf8');
-    const hashes = predictedHashes(current, toolInput);
-    if (hashes.length) addEntries(root, hashes, rel, now, writer, false);
+    const bytes = isWrite || statSync(file).size > HASH_MAX_BYTES ? undefined : readFileSync(file);
+    const hashes = predictedHashes(bytes === undefined ? undefined : bytes.toString('utf8'), toolInput);
+    if (!hashes.length) return;
+    const clean = isWrite || startsClean(root, rel, hashOf(bytes), writerSession(writer));
+    addEntries(root, hashes, rel, now, writer, false, clean);
   } catch {
     /* an unreadable or new file has no prediction */
   }
 }
+
+/** The writers whose clean-based predicted write left exactly `currentHash` in `rel` (a Write, or an Edit on committed text). */
+export const cleanWriters = (root, rel, currentHash) => entriesOf(root)
+  .filter((e) => e && e.p === rel && e.h === currentHash && e.k === true).map((e) => e.w);
 
 /** True when a tool of a writer other than `byWriter` wrote `rel` at or after `sinceMs` and `currentHash` is what it left. */
 export const toolWriteProves = (root, rel, sinceMs, currentHash, byWriter = '') => Boolean(currentHash)
