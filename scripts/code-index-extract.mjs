@@ -21,6 +21,12 @@ const CARGO_LOCK = /(?:^|\/)Cargo\.lock$/;
 /** The indexed language a `--lang` token names: a language (`rust`) or a file extension (`rs`, `mjs`). */
 export const langOfToken = (token) => (Object.values(LANG).includes(token) ? token : LANG[token.toLowerCase()] || token);
 
+// A C++ project keeps its headers in `.h`, indexed as c, so the cpp token also covers c.
+const LANG_FAMILY = { cpp: ['cpp', 'c'] };
+
+/** Every indexed language a `--lang` token covers. */
+export const langsOfToken = (token) => LANG_FAMILY[langOfToken(token)] || [langOfToken(token)];
+
 export function classify(path) {
   if (SKIP_NAMES.test(path)) return null;
   if (CARGO_LOCK.test(path)) return { kind: 'config', lang: 'toml' };

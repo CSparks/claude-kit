@@ -9,6 +9,7 @@
 
 import { existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { toPath } from './shell-segments.mjs';
 import { FS_WRITE, readTempScript, scanShellWrites } from './shell-write-scan.mjs';
 import { writeCallTargets } from './shell-write-target.mjs';
 
@@ -40,7 +41,7 @@ function expandShortNames(p) {
 }
 
 export function isSourcePath(path, tempDir = tmpdir()) {
-  const p = expandShortNames(slashed(path));
+  const p = expandShortNames(slashed(toPath(path)));
   if (!SOURCE_FILE.test(p) || GENERATED_DIR.test(p) || DEVICE.test(p)) return false;
   const temp = expandShortNames(slashed(tempDir)).toLowerCase();
   return !(p.toLowerCase().startsWith(`${temp}/`) || /^\/tmp\//.test(p));

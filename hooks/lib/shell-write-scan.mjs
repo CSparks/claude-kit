@@ -1,10 +1,11 @@
 // Finds the hand write in a shell command (redirect, mv/rm/cp, sed -i, a PowerShell cmdlet, `node -e`,
 // a heredoc or scratch script) aimed at a path some gate protects. Callers supply the policy:
 //
-//   scanShellWrites(command, { hit, codeHit, readScript }) -> null | whatever hit/codeHit returned
+//   scanShellWrites(command, { hit, codeHit, readScript, judgeMoveSources }) -> null | whatever hit/codeHit returned
 //     hit(path)     judge one operand path of a writing command or redirect
 //     codeHit(code) judge inline code, a heredoc body or a scratch script that writes files
 //     readScript(p) the text of a script the command runs ('' when unreadable)
+//     judgeMoveSources  judge a mv's sources as well as its destination (default: destination only)
 //
 // The raw command is scanned and a write tool counts WHEREVER its name appears as a word (`sudo -u root sed -i`,
 // `timeout -s KILL 5 sh -c "rm x"`, `ssh -i k host tee x`): no wrapper is parsed, no text is blanked, so a deny
@@ -21,12 +22,16 @@ import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
+import { copyDestinations } from './shell-copy-target.mjs';
 import { blindSegments, segments } from './shell-segments.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
-const WRITING_CMD = /^(?:mv|rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|move-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
-const COPY_CMD = /^(?:cp|copy|copy-item|install)$/i;
+const WRITING_CMD = /^(?:rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
+// Judged on the destination only: a copy reads its sources, and a move takes them out of the tree. A gate that
+// protects its files from removal too (the work store) passes `judgeMoveSources` and has a move judged on every operand.
+const MOVE_CMD = /^(?:mv|move-item)$/i;
+const COPY_CMD = /^(?:cp|copy|copy-item|install|mv|move-item)$/i;
 const IN_PLACE_TOOL = /^(?:sed|perl)$/i;
 const IN_PLACE_FLAG = /^(?:-[A-Za-z]*i[A-Za-z]*|--in-place(?:=.*)?)$/;
 const INTERPRETER = /^(?:node|python3?|py|powershell|pwsh)$/i;
@@ -76,11 +81,12 @@ function judgeNodeModules(rest, text, { codeHit, readScript }) {
   return null;
 }
 
-function judgeTool(tool, rest, text, ctx) {
+function judgeTool(tool, rest, text, ctx, argText) {
   const { hit, codeHit, readScript } = ctx;
   const operands = rest.map((r) => r.w);
   if (WRITING_CMD.test(tool)) return operands.map(hit).find(Boolean) || null;
-  if (COPY_CMD.test(tool)) return hit(operands.filter((a) => !a.startsWith('-')).at(-1) || '');
+  if (MOVE_CMD.test(tool) && ctx.judgeMoveSources) return operands.map(hit).find(Boolean) || null;
+  if (COPY_CMD.test(tool)) return copyDestinations(shellArgs(argText)).map(hit).find(Boolean) || null;
   if (IN_PLACE_TOOL.test(tool)) return operands.some((a) => IN_PLACE_FLAG.test(a)) ? operands.map(hit).find(Boolean) || null : null;
   if (!INTERPRETER.test(tool)) return null;
   const isNode = /^node$/i.test(tool);
@@ -113,7 +119,7 @@ function judgeSegment(text, ctx) {
   for (const target of redirectTargets(text, quotedArgsInert)) { const h = ctx.hit(target); if (h) return h; }
   if (quotedArgsInert || READER.test(leader)) return null;
   for (let i = 0; i < words.length; i++) {
-    const found = judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx);
+    const found = judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length));
     if (found) return found;
   }
   return null;
@@ -148,12 +154,12 @@ const ambiguousWrite = (text, hit) => {
   return WRITE_TOKEN.test(rest) || FS_WRITE.test(rest);
 };
 
-export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous }) {
+export function scanShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false }) {
   const parts = segments(String(command || ''));
   const text = parts.text;
   if (parts.ambiguous && ambiguous) return ambiguousWrite(text, hit) ? ambiguous() : null;
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return codeHit(text);
-  const ctx = { hit, codeHit, readScript };
+  const ctx = { hit, codeHit, readScript, judgeMoveSources };
   for (const seg of parts) {
     const found = judgeSegment(seg.text, ctx);
     if (found) return found;

@@ -4,7 +4,7 @@
 // is exactly what grep would print: the trigram table only narrows candidate files. Flags: see QUERY_HELP in q.mjs.
 
 import { readFileSync, statSync } from 'node:fs';
-import { extractSymbols, langOfToken } from './code-index-extract.mjs';
+import { extractSymbols, langsOfToken } from './code-index-extract.mjs';
 import { basename, resolve } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
 import { scanSummary } from './q-scan-dir.mjs';
@@ -61,7 +61,7 @@ export function parseCodeArgs(rawArgs) {
       const v = args[++i];
       if (a === '--kind') flags.kinds = String(v).split(',');
       else if (a === '--type') flags.types = String(v).split(',');
-      else if (a === '--lang') flags.langs = String(v).split(',').map(langOfToken);
+      else if (a === '--lang') flags.langs = String(v).split(',').flatMap(langsOfToken);
       else if (a === '--path') addPath(flags, cleanPath(String(v)), args[i + 1]);
       else if (a === '--not-path') flags.notPaths.push(cleanPath(String(v)));
       else if (GLOB_FLAGS.has(a)) addGlob(flags, String(v));

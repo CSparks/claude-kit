@@ -94,7 +94,7 @@ export function changedSince(root, before, headBefore = '') {
     && (after[rel] ?? signature(root, rel)) !== (before[rel] ?? null));
 }
 
-const leaderOf = (text) => {
+export const leaderOf = (text) => {
   const words = text.trim().split(/\s+/).filter((w) => w && !ENV_ASSIGN.test(w));
   return (words[0] || '').replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
 };

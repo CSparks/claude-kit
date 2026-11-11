@@ -247,7 +247,7 @@ if (_gitRoot && !process.env.CLAUDE_KIT_BROKER_GATE) {
 let _postEdit = null;
 function postEdit() {
   if (_postEdit) return _postEdit;
-  _postEdit = { text: content, offset: 0 };
+  _postEdit = { text: content, offset: 0, charAt: 0 };
   const ti = p.tool_input || {};
   if (typeof ti.content === 'string' || typeof ti.old_string !== 'string') return _postEdit;
   try {
@@ -256,16 +256,24 @@ function postEdit() {
     const oldStr = lf(ti.old_string);
     const newStr = lf(ti.new_string ?? '');
     const at = current.indexOf(oldStr);
-    if (at === -1) return (_postEdit = { text: current, offset: null });
+    if (at === -1) return (_postEdit = { text: current, offset: null, charAt: null });
     const lineAt = current.slice(0, at).split('\n').length - 1;
     if (ti.replace_all) {
       const sites = current.split(oldStr).length - 1;
-      return (_postEdit = { text: current.split(oldStr).join(newStr), offset: sites === 1 ? lineAt : null });
+      return (_postEdit = { text: current.split(oldStr).join(newStr), offset: sites === 1 ? lineAt : null, charAt: sites === 1 ? at : null });
     }
-    return (_postEdit = { text: current.slice(0, at) + newStr + current.slice(at + oldStr.length), offset: lineAt });
+    return (_postEdit = { text: current.slice(0, at) + newStr + current.slice(at + oldStr.length), offset: lineAt, charAt: at });
   } catch {
     return _postEdit; // unreadable/new file — the fragment is the best available proxy
   }
+}
+// The code-only lines of the fragment, blanked against the whole post-edit file so a fragment that starts inside a
+// block comment or string is judged in that state (KIT-T966); the fragment alone when its place is unknown.
+function fragmentCodeLines(fragment) {
+  const { text, charAt } = postEdit();
+  if (charAt === null) return codeOnly(fragment).split('\n');
+  const span = fragment.replace(/\r\n/g, '\n').length;
+  return codeOnly(text).slice(charAt, charAt + span).split('\n');
 }
 const markersIn = (() => {
   const cache = new Map();
@@ -460,7 +468,7 @@ if (dead.length) viols.push({ id: 'dead-code', msg: 'Dead-code trace comments (d
 // (keeping newlines so line numbers stay true) so the scan never sees those. The
 // declaration/assignment skips below stay line-keyed against the ORIGINAL line.
 if (!NATIVE_LINTED.has(ext) && !SHELL_LIKE.has(ext) && !isTest && !isMig && !excludedFile('magic-numbers')) {
-  const codeLines = codeOnly(content).split('\n');
+  const codeLines = fragmentCodeLines(content);
   const hits = [];
   for (let i = 0; i < lines.length && hits.length < MAX_SHOWN; i++) {
     const raw = lines[i];

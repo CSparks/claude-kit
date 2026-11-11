@@ -8,7 +8,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { ENV, HOOKS, cleanup, git, identify, reporter, repo, tmpDir } from './test-harness.mjs';
+import { ENV, HOOKS, cleanup, git, reporter, repo } from './test-harness.mjs';
+import { handWriteHarness } from './hand-write-harness.mjs';
 
 const { ok, done } = reporter('hand-write-detect');
 
@@ -17,36 +18,7 @@ try {
   const wired = (event) => wiring.hooks[event].some((e) => /Bash/.test(e.matcher) && e.hooks.some((h) => h.command.includes('hand-write-detect')));
   ok('wired for PreToolUse and PostToolUse on Bash|PowerShell', wired('PreToolUse') && wired('PostToolUse'));
 
-  const state = tmpDir('hw-state-');
-  const scratch = tmpDir('hw-scratch-');
-  const spawnHook = (name, input, cwd) => spawnSync(process.execPath, [join(HOOKS, name)], {
-    input: JSON.stringify(input), cwd, encoding: 'utf8', env: { ...ENV, CLAUDE_KIT_TURN_STATE: state },
-  });
-  const node = (cwd, code) => spawnSync(process.execPath, ['--input-type=commonjs', '-e', code], { cwd, encoding: 'utf8' });
-  let callId = 0;
-  const call = (d, sid, command, action) => {
-    const id = `t${++callId}`;
-    spawnHook('hand-write-detect.mjs', { hook_event_name: 'PreToolUse', session_id: sid, tool_use_id: id, tool_input: { command } }, d);
-    action();
-    return spawnHook('hand-write-detect.mjs', { hook_event_name: 'PostToolUse', session_id: sid, tool_use_id: id, tool_input: { command }, tool_response: {} }, d);
-  };
-  const commit = (d, sid, paths) => {
-    git(['add', '--', ...paths], d);
-    const r = spawnHook('commit-gate.mjs', { session_id: sid, tool_input: { command: `git -C ${d} commit -m "implements KIT-T706"` } }, d);
-    git(['reset', '-q'], d);
-    return { code: r.status, out: `${r.stdout || ''}${r.stderr || ''}` };
-  };
-  const fresh = () => {
-    const d = identify(repo());
-    mkdirSync(join(d, '.ai'));
-    mkdirSync(join(d, 'src'));
-    writeFileSync(join(d, 'src', 'a.mjs'), 'export const a = 1;\n');
-    writeFileSync(join(d, 'src', 'b.mjs'), 'export const b = 2;\n');
-    git(['add', '-A'], d);
-    git(['commit', '-q', '-m', 'seed'], d);
-    return d;
-  };
-  const rewrite = (d, expr) => node(d, `const fs = require('fs'); const p = 'src/' + 'a.mjs'; ${expr}`);
+  const { state, scratch, spawnHook, node, call, commit, fresh, rewrite } = handWriteHarness();
 
   const SINKS = [
     ['a variable-path writeFileSync', "fs.writeFileSync(p, 'export const a = 9;\\n')"],

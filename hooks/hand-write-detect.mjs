@@ -6,6 +6,8 @@
 // never parsed to find the write; only a generator command (git, a build tool, a formatter, a kit verb) is
 // exempt, and so is a file whose content an Edit or Write of any session left during the call (the accepted-writes
 // ledger, tool-write-record.mjs): another writer's concurrent edit, judged by pre-write, never the call's (KIT-T888).
+// A file git put back (content equal to HEAD, or an earlier Edit's content in a call that runs git) is no write either
+// (lib/restored-content.mjs, KIT-T982).
 // Check-id source-shell-write. Post exits 2 to show the message. No-ops on unadopted repos; fails open.
 
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
@@ -13,6 +15,7 @@ import { clearTurnState, readTurnState, writeTurnState } from './lib/turn-state.
 import { snapshotDirty, handWrittenSources, headOf, contentHashOf } from './lib/shell-snapshot.mjs';
 import { addHandWrites } from './lib/hand-writes.mjs';
 import { toolWriteProves, writerId } from './lib/tool-writes.mjs';
+import { restoredSources } from './lib/restored-content.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 
 const CHECK = 'source-shell-write';
@@ -39,8 +42,10 @@ try {
   const since = before.ts || Date.now();
   const caller = writerId(sid, subagentId(p));
   const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller);
-  const written = handWrittenSources(root, before.files || {}, command, before.head || '')
+  const changed = handWrittenSources(root, before.files || {}, command, before.head || '')
     .filter((rel) => !pathExcluded(root, CHECK, rel) && !toolWrote(rel));
+  const restored = restoredSources(root, changed, command);
+  const written = changed.filter((rel) => !restored.has(rel));
   if (written.length) {
     addHandWrites(root, sid, written);
     const shown = written.slice(0, SHOWN_MAX);
