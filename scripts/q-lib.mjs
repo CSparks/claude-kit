@@ -45,7 +45,7 @@ import { existsSync, statSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { resolveEngine } from './db-engine.mjs';
-import { withLockRetry, lockTimeoutMs } from './q-lock.mjs';
+import { withLockRetry, lockTimeoutMs, refreshOrServeSnapshot, STALE_SNAPSHOT_NOTE } from './q-lock.mjs';
 import { hydrate, defaultDbPath, hydrationSources, isRegisteredStore, isSharedDb } from './hydrate-db.mjs';
 import { readIdConfig, statStoreFiles } from './id-utils.mjs';
 import { fallback } from './q-fallback.mjs';
@@ -95,9 +95,11 @@ async function newestAcross(sources) {
 // Open the cache, auto-(re)hydrating when it is missing or stale. `root` is undefined for a
 // cross-scope query (all registered scopes) and set only when --root forces single-scope;
 // staleness is checked against exactly the sources that will be hydrated (KIT-T031). Returns
-// { handle, wasStale } — handle is null when no engine exists (caller then uses the markdown
-// fallback); wasStale is true when the DB needed rehydration before the query, so callers can
-// surface a one-line notice to the user (KIT-T076).
+// { handle, wasStale, servedSnapshot } — handle is null when no engine exists (caller then uses
+// the markdown fallback); wasStale is true when the DB needed rehydration before the query, so
+// callers can surface a one-line notice to the user (KIT-T076); servedSnapshot is true when
+// another session held the write lock past a short wait and the read went on from the cache's
+// last snapshot (KIT-T1042), which callers surface with STALE_SNAPSHOT_NOTE.
 //
 // EXPORTED (KIT-T131) as the canonical cache-READ entry: the web-UI API opens the cache
 // through this so its reads inherit the SAME staleness→rehydrate guarantee the CLI has —
@@ -116,10 +118,11 @@ export async function dbOpen(root, dbPath, { assumeFresh = false } = {}) {
   // In-process writes hydrate at the mutation site via writeItemFile — KIT-T096.
   // `assumeFresh`: a caller that just ran a verified query moments ago (orient's follow-up
   // trails) skips the store walk, which statistics every .md under every registered project.
-  const wasStale = !existsSync(dbPath) || (!assumeFresh && statSync(dbPath).mtimeMs < await newestAcross(hydrationSources(root)));
-  if (wasStale) await withLockRetry(() => hydrate({ root, dbPath }));
+  const haveCache = existsSync(dbPath);
+  const wasStale = !haveCache || (!assumeFresh && statSync(dbPath).mtimeMs < await newestAcross(hydrationSources(root)));
+  const servedSnapshot = wasStale && await refreshOrServeSnapshot(() => hydrate({ root, dbPath }), haveCache);
   const handle = await withLockRetry(() => open(dbPath, { readOnly: true, busyTimeoutMs: lockTimeoutMs() }));
-  return { handle, wasStale };
+  return { handle, wasStale, servedSnapshot };
 }
 
 // ---- q verify (KIT-T076) — per-scope staleness self-check --------------------
@@ -410,7 +413,7 @@ async function queryOnce(cmd, args, { root, cwdRoot = root || process.cwd(), noD
   if (cmd === 'governing' || cmd === 'drift' || cmd === 'mentions' || cmd === 'topics' || cmd === 'topic') {
     return { rows: fallback(cmd, args, cwdRoot), cached: false };
   }
-  const { handle, wasStale } = noDb ? { handle: null, wasStale: false } : await dbOpen(root, dbPath, { assumeFresh });
+  const { handle, wasStale, servedSnapshot } = noDb ? { handle: null, wasStale: false } : await dbOpen(root, dbPath, { assumeFresh });
   if (!handle) {
     return { rows: fallback(cmd, args, cwdRoot), cached: false };
   }
@@ -419,7 +422,7 @@ async function queryOnce(cmd, args, { root, cwdRoot = root || process.cwd(), noD
     const fn = Q[cmd];
     if (!fn) throw new Error(`unknown query '${cmd}'.`);
     const rows = (cmd === 'fts' || cmd === 'similar') ? fn(handle, args.join(' ')) : fn(handle, ...args);
-    return { rows, cached: true, wasStale };
+    return { rows, cached: true, wasStale, servedSnapshot };
   } finally {
     handle.close();
   }
@@ -511,7 +514,8 @@ async function main() {
   }
 
   if (cmd === 'sql') {
-    const { handle, unregistered } = noDb ? { handle: null } : await dbOpen(root, dbPath);
+    const { handle, unregistered, servedSnapshot } = noDb ? { handle: null } : await dbOpen(root, dbPath);
+    if (servedSnapshot) process.stderr.write(STALE_SNAPSHOT_NOTE);
     if (!handle) {
       process.stderr.write(unregistered
         ? `q: '${root}' is not a registered project — the shared cache holds no rows for it, so ad-hoc SQL has nothing to answer from (KIT-T164).\n`
@@ -525,7 +529,8 @@ async function main() {
     return;
   }
 
-  const { rows, relaxed } = await query(cmd, args, { root, cwdRoot, noDb, dbPath });
+  const { rows, relaxed, servedSnapshot } = await query(cmd, args, { root, cwdRoot, noDb, dbPath });
+  if (servedSnapshot) process.stderr.write(STALE_SNAPSHOT_NOTE);
   if (relaxed) process.stderr.write('q: no item holds every term — showing items with any term, best match first.\n');
   printRows(rows, json);
   if (cmd === 'fts' && !json) await printFtsExtras(splitFts(args.join(' ')).query, cwdRoot, rows.length > 0 && !relaxed);

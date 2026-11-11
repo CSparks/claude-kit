@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Tests for q reads under SQLite lock contention (KIT-T487): a q read that finds the store
-// write-locked waits and succeeds once the lock clears; a lock held past the timeout fails
-// with a message naming the cause. The lock holder is a separate process (a same-process
+// Tests for q reads under SQLite lock contention (KIT-T487, KIT-T1042): a stale-cache refresh
+// waits briefly for the write lock; a lock held longer never stalls the read, which answers from
+// the cache's snapshot with a stderr note. The lock holder is a separate process (a same-process
 // holder cannot release while the reader blocks the event loop).
 
 import { mkdtempSync, mkdirSync, writeFileSync, utimesSync, rmSync } from 'node:fs';
@@ -12,12 +12,12 @@ import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { hydrate } from './hydrate-db.mjs';
 import { resolveEngine } from './db-engine.mjs';
-import { withLockRetry, isLockError } from './q-lock.mjs';
+import { withLockRetry, isLockError, refreshOrServeSnapshot } from './q-lock.mjs';
 
 const Q_CLI = join(dirname(fileURLToPath(import.meta.url)), 'q.mjs');
-const HOLD_MS = 1500;
-const SHORT_TIMEOUT_MS = 300;
-const LONG_HOLD_MS = 4000;
+const HOLD_MS = 300;
+const LONG_HOLD_MS = 5000;
+const READ_BOUND_MS = 3000;
 const GENEROUS_TIMEOUT_MS = 20000;
 const FUTURE_MS = 60000;
 
@@ -78,24 +78,35 @@ function qFts(timeoutMs) {
   });
 }
 
-await test('q fts succeeds once a write lock clears inside the timeout', async () => {
+await test('q fts rehydrates and says nothing when the lock clears inside the short refresh wait', async () => {
   makeStale();
   const { exited } = await holdWriteLock(HOLD_MS);
-  const started = Date.now();
   const r = await qFts(GENEROUS_TIMEOUT_MS);
   await exited;
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /LCK-T001/);
-  assert.ok(Date.now() - started >= HOLD_MS / 2, 'the read waited on the lock rather than racing it');
+  assert.equal(r.stderr.includes('rehydrating'), false, 'no snapshot note when the refresh ran');
 });
 
-await test('negative control: a lock held past the timeout fails with a clear message', async () => {
+await test('q fts on a stale cache returns its snapshot with a note while another session holds the write lock (KIT-T1042)', async () => {
   makeStale();
   const { exited } = await holdWriteLock(LONG_HOLD_MS);
-  const r = await qFts(SHORT_TIMEOUT_MS);
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /^q: database is locked — another q or session held the store for over 300ms/);
+  const started = Date.now();
+  const r = await qFts(GENEROUS_TIMEOUT_MS);
+  const elapsed = Date.now() - started;
   await exited;
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /LCK-T001/, 'results come back, never an empty answer');
+  assert.match(r.stderr, /^q: another session is rehydrating the cache — answered from its last snapshot/);
+  assert.ok(elapsed < READ_BOUND_MS, `the read returned in ${elapsed} ms while the lock was held ${LONG_HOLD_MS} ms (bound ${READ_BOUND_MS})`);
+});
+
+await test('refreshOrServeSnapshot serves the snapshot on a lock error only when a cache exists', async () => {
+  const locked = () => { throw new Error('database is locked'); };
+  assert.equal(await refreshOrServeSnapshot(locked, true), true);
+  await assert.rejects(refreshOrServeSnapshot(locked, false), /database is locked — another q or session held the store for over/);
+  await assert.rejects(refreshOrServeSnapshot(() => { throw new Error('boom'); }, true), /boom/);
+  assert.equal(await refreshOrServeSnapshot(() => 'refreshed', true), false);
 });
 
 await test('isLockError matches busy/locked errors only', () => {
