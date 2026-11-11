@@ -85,8 +85,7 @@ function deltaOf(cwd, pin) {
 
 // Names of every crate the submodule holds at `ref`.
 export function submoduleCrates(subCwd, ref) {
-  const listed = git(['ls-tree', '-r', '--name-only', '-z', ref], subCwd).out.split(String.fromCharCode(0)).filter((p) => /(?:^|\/)Cargo\.toml$/.test(p));
-  return new Set(listed.map((m) => showFile(subCwd, ref, m)).filter(Boolean).map(packageName).filter(Boolean));
+  return new Set(packagesAt(subCwd, ref).values());
 }
 
 const testCommand = (commands) => commands.find((c) => /cargo\s+(?:test|t)(?:\s|$)/.test(c) && !/--no-run/.test(c));
