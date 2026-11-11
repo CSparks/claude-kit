@@ -47,7 +47,9 @@ export function isSourcePath(path, tempDir = tmpdir()) {
   return !(p.toLowerCase().startsWith(`${temp}/`) || /^\/tmp\//.test(p));
 }
 
-export function shellSourceWrite(command, { readScript = readTempScript, tempDir = tmpdir() } = {}) {
+// Every hit of the command. A hit tagged `outsideTo` is a source operand of a proven cp or mv: the gate drops it when
+// that destination lands outside every adopted repo, and keeps every other hit.
+export function shellSourceWrites(command, { readScript = readTempScript, tempDir = tmpdir() } = {}) {
   const hit = (path) => (isSourcePath(path, tempDir) ? { path: slashed(path) } : null);
   const codeHit = (code) => {
     if (!FS_WRITE.test(code)) return null;
