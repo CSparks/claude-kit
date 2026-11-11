@@ -60,7 +60,14 @@ try {
   check('KIT-T1018 control: a store rm after the same filter still blocks', blocked("npm run x | grep -vE '^\\s*$'; rm .ai/tickets/X-T001-a.md"));
   check("KIT-T1018 control: a real $'…' string with a write token still blocks", blocked("echo $'a\\' ; rm .ai/decisions/X-D001-a.md ; echo '"));
 
-  check('KIT-T705 negative control: node -e with escaped quotes and no write passes', !blocked('node -e "console.log(\\"x\\")"'));
+  const READ_ONLY_AMBIGUOUS = ["cargo test 2>&1 | grep -E $'^ok' | tail", "cargo test 2>/dev/null | grep -E $'^ok'", "cargo test &>/dev/null; grep -c $'ok' out.log", 'cargo test >&2 | grep -E $\'^ok\''];
+  for (const command of READ_ONLY_AMBIGUOUS) check(`KIT-T1012: an ambiguous-quoting read-only pipe with only fd or null-device redirects passes: ${command}`, !blocked(command), run(command).stderr.slice(0, 120));
+  check('KIT-T1012 control: the same ambiguous pipe redirected into the store still blocks', blocked("cargo test 2>&1 | grep -E $'^ok' > .ai/SESSION.md"));
+  check('KIT-T1012 control: a store target after an fd duplication still blocks', blocked("cargo test 2>&1 >> .ai/SESSION.md ; echo $'x'"));
+  check('KIT-T1012 control: a stderr redirect into the store still blocks', blocked("cargo test 2>.ai/SESSION.md ; echo $'x'"));
+  check('KIT-T1012 control: an ambiguous pipe with a store rm still blocks', blocked("cargo test 2>&1 | grep -E $'^ok' ; rm .ai/tickets/X-T001-a.md"));
+
+  check('KIT-T705 negative control: node -e with escaped quotes and no write passes',!blocked('node -e "console.log(\\"x\\")"'));
 
   const READS = [
     ['cat of a ticket', 'cat .ai/tickets/X-T001-a.md'],

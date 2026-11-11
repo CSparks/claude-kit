@@ -1,5 +1,6 @@
 // Finds the hand write in a shell command (redirect, mv/rm/cp, sed -i, a PowerShell cmdlet, `node -e`,
-// a heredoc or scratch script) aimed at a path some gate protects. Callers supply the policy:
+// a heredoc, a scratch script, `git apply` / `git am` / `patch` of a diff: patch-apply.mjs) aimed at a path some gate
+// protects. Callers supply the policy:
 //
 //   scanAllShellWrites(command, { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell }) -> every hit
 //     shell ('bash' | 'powershell'): the escape rules segments() applies; omitted, any escape before a quote is ambiguous
@@ -17,11 +18,12 @@
 // a reader or a kit verb is no write tool, but its redirects are judged: a kit or git segment counts only a `>`
 // outside quotes (KIT-T951). A node call is judged on every module it loads, except repo and package modules.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
 import { copyTargets } from './shell-copy-target.mjs';
+import { patchApplyHits, withoutRedirects } from './patch-apply.mjs';
 import { blindSegments, segments } from './shell-segments.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
@@ -131,6 +133,7 @@ function judgeSegment(text, ctx) {
   const quotedArgsInert = kitLed(text) || /^git$/i.test(leader);
 
   const hits = redirectTargets(text, quotedArgsInert, ctx.shell === 'bash').map(ctx.hit).filter(Boolean);
+  hits.push(...patchApplyHits(leader, shellArgs(withoutRedirects(text)).slice(1), { ...ctx, text }));
   if (quotedArgsInert || READER.test(leader)) return hits;
   for (let i = 0; i < words.length; i++) {
     hits.push(...listed(judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length))));
@@ -141,8 +144,8 @@ function judgeSegment(text, ctx) {
 /** The text of a script under the temp dir ('' elsewhere or when unreadable): scratch scripts are judged, repo scripts are not. */
 export function readTempScript(path) {
   try {
-    const abs = resolve(path);
-    const rel = relative(resolve(tmpdir()), abs);
+    const abs = realpathSync.native(resolve(path));
+    const rel = relative(realpathSync.native(resolve(tmpdir())), abs);
     if (rel.startsWith('..') || isAbsolute(rel)) return '';
     return readFileSync(abs, 'utf8');
   } catch { return ''; }
@@ -150,6 +153,9 @@ export function readTempScript(path) {
 
 const wordsOf = (...patterns) => patterns.map((p) => p.source.slice('^(?:'.length, -')$'.length)).join('|');
 const WRITE_TOKEN = new RegExp(`\\b(?:${wordsOf(WRITING_CMD, COPY_CMD, IN_PLACE_TOOL)})\\b|>`, 'i');
+// Redirections that write no file: fd duplication (`2>&1`, `>&2`) and output sent to the null device.
+const HARMLESS_REDIRECT = /\d*>&(?:\d+|-)|\d*&?>>?\s*\/dev\/null\b/g;
+const PATCH_TOKEN = /\bgit\s+(?:-\S+\s+)*(?:apply|am)\b|(?:^|;)\s*patch\b/i;
 
 // With ambiguous quoting no segment can be trusted: a write-tool word, a `>` or a filesystem write call
 // anywhere in the command is a hit, and `ambiguous()` builds the gate's result for it. Pieces cut on every
@@ -163,8 +169,9 @@ const ambiguousWrite = (text, hit) => {
   const rest = pieces
     .filter((s) => !kitPieces.includes(s))
     .map((s) => s.text)
-    .join(' ; ');
-  return WRITE_TOKEN.test(rest) || FS_WRITE.test(rest);
+    .join(' ; ')
+    .replace(HARMLESS_REDIRECT, ' ');
+  return WRITE_TOKEN.test(rest) || PATCH_TOKEN.test(rest) || FS_WRITE.test(rest);
 };
 
 export function scanAllShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false, exemptByDestination = false, shell = '' }) {
@@ -172,7 +179,7 @@ export function scanAllShellWrites(command, { hit, codeHit, readScript = readTem
   const text = parts.text;
   if (parts.ambiguous && ambiguous) return ambiguousWrite(text, hit) ? [ambiguous()] : [];
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
-  const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell };
+  const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell, raw: String(command || '') };
   return [...parts].flatMap((seg) => judgeSegment(seg.text, ctx));
 }
 
