@@ -18,8 +18,12 @@ try {
   const command = String((p.tool_input && p.tool_input.command) || '');
   const found = command ? shellSourceWrite(command) : null;
   // The written file's own repo (a relative path is relative to where the command `cd`s), not the hook's cwd.
-  const root = found ? gitRootOfFile(resolve(commandCwd(command), toPath(found.path))) : '';
-  if (found && adopted(root)) {
+  const cwd = found ? commandCwd(command) : '';
+  const rootOf = (path) => gitRootOfFile(resolve(cwd, toPath(path)));
+  const root = found ? rootOf(found.path) : '';
+  // A move out of the repo to a destination the shell cannot expand is judged as staying.
+  const leavesRepo = Boolean(found && found.movedTo) && !UNEXPANDED.test(found.movedTo) && rootOf(found.movedTo) !== root;
+  if (found && adopted(root) && !leavesRepo) {
     if (!pathExcluded(root, CHECK, found.path)) {
       process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : `a shell command writes a source file by hand (${found.path}).`}
