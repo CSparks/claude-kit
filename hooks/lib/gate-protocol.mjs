@@ -3,6 +3,7 @@
 // enforce them, tag forms from gate-tokens.mjs, the summary rule from question-brief.mjs.
 //   GATES -> { agent, question }: { title, hooks, checks: [{ check, wants[], tokens[] }] }
 //   gateText(name) -> the printable protocol, or null for an unknown name;  gateNames() -> the gate names
+//   gateDigest(gates?) -> the few lines a compaction start prints: per gate, each check's tag form (KIT-T1053)
 
 import { LABEL_CHECK, LABEL_REQUIREMENTS } from './dispatch-label.mjs';
 import { TOKENS } from './gate-tokens.mjs';
@@ -75,6 +76,44 @@ function checkLines({ check, wants, tokens }) {
     `  ${check}`.padEnd(CHECK_COLUMN) + first,
     ...rest.map((line) => `${indent}${line}`),
     ...tokens.map((t) => `${indent}tag: ${t.form}`),
+  ];
+}
+
+const DIGEST_WIDTH = 110;
+const MODEL_HINT = /pass (model:[^;]*?) on every call/;
+
+function wrapWords(words, width, indent) {
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    if (line && line.length + 1 + w.length > width) { lines.push(line); line = indent + w; } else line = line ? `${line} ${w}` : w;
+  }
+  return line ? [...lines, line] : lines;
+}
+
+// One entry per distinct first tag form, as `check/check: form` for the checks that take it; the ladder entry also names the model parameter.
+function digestEntries(gate) {
+  const byForm = new Map();
+  for (const { check, wants, tokens } of gate.checks) {
+    if (!tokens.length) continue;
+    const model = check === LADDER_CHECK ? (MODEL_HINT.exec(wants[0]) || [])[1] : null;
+    const form = `${model ? `${model} or ` : ''}${tokens[0].form}`;
+    byForm.set(form, [...(byForm.get(form) || []), check]);
+  }
+  return [...byForm].map(([form, checks]) => `${checks.join('/')}: ${form}`);
+}
+
+/**
+ * The few lines orient prints at a compaction (KIT-T1053): per gated tool, the tag each check takes, derived from the gate
+ * definitions above so it never drifts from them. `q gates <name>` prints the full requirements.
+ */
+export function gateDigest(gates = GATES) {
+  return [
+    'GATE DIGEST (after a compaction the per-type tags are not remembered; read q gates agent|question before the first call):',
+    ...Object.entries(gates).flatMap(([name, gate]) => {
+      const entries = digestEntries(gate);
+      return entries.length ? wrapWords([`${name}:`, ...entries.map((e, i) => (i < entries.length - 1 ? `${e};` : e))], DIGEST_WIDTH, '  ') : [];
+    }),
   ];
 }
 

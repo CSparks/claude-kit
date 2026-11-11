@@ -181,6 +181,10 @@
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" orphan-reaper.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" framework-pin.mjs", "timeout": 15 }
         ]
+      },
+      {
+        "matcher": "compact",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" gate-digest.mjs" }]
       }
     ],
     "PreCompact": [
