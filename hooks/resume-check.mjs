@@ -4,23 +4,19 @@
 // the hand-back reconciler stops listing them (KIT-T822), and records the tickets the message names as taken over
 // (lib/reopened.mjs, KIT-T837); a resume naming no ticket takes over the tickets the agent was dispatched for (KIT-T912). Two checks on the target's roster row:
 //   - no model: warn, so an unlabelled agent is named at the moment it is woken (KIT-T461).
-//   - context past the ceiling (KIT-D116): BLOCK the resume, because every call re-sends the whole
-//     context. The one message allowed is the handoff request, marked `[write-handoff]`;
-//     `[resume-over-ceiling: <reason>]` overrides. Check-id: agent-context-ceiling.
+//   - waste (KIT-D149, KIT-D158): WARN when most of the agent's context is avoidable output, with the avoidable lines
+//     named, so the session coordinator can retire or redirect it. Context SIZE never blocks a resume.
 // Fail-open: a throw exits 0.
 
-import { gitRoot, adopted, payload, readAgents, pathExcluded, excludeFooter } from './lib.mjs';
+import { gitRoot, adopted, payload, readAgents, pathExcluded } from './lib.mjs';
 import { modelDisplay } from './model-tag.mjs';
-import { WRITE_HANDOFF, ceilingFlag, handoffCount } from './lib/agent-context.mjs';
+import { handoffCount, wasteFlag } from './lib/agent-context.mjs';
 import { ticketNotes } from '../scripts/broker/red-run.mjs';
 import { brokerDir } from './lib/handback.mjs';
 import { ackAgent } from '../scripts/broker/finished-ack.mjs';
-import { ticketsCited } from './dispatch-context.mjs';
+import { ticketsCited, WASTE_CHECK } from './dispatch-context.mjs';
 import { recordReopen } from './lib/reopened.mjs';
 import { dispatchedTickets } from './lib/successor.mjs';
-
-const CHECK_ID = 'agent-context-ceiling';
-const OVERRIDE = /\[resume-over-ceiling:\s*[^\]\s][^\]]*\]/i;
 
 main().catch(() => process.exit(0));
 
@@ -37,11 +33,8 @@ async function main() {
       process.stderr.write(`!! resuming ${row.id} (${row.scope || '?'}): its roster row carries no model, so its panel row shows none (KIT-T461). Re-dispatch it with an explicit model if it keeps running.\n`);
     }
     const message = String(input.message ?? input.prompt ?? '');
-    const flag = row ? ceilingFlag(row) : '';
-    if (flag && !WRITE_HANDOFF.test(message) && !OVERRIDE.test(message) && !pathExcluded(root, CHECK_ID, root)) {
-      process.stderr.write(`BLOCKED: resuming ${row.id} (${row.scope || '?'}), a past-ceiling agent.\n${flag.trim()}\nBrief a fresh agent from the ticket and its Notes after the handoff. To resume anyway: [resume-over-ceiling: <reason>].\n\n${excludeFooter(CHECK_ID)}\n`);
-      process.exit(2);
-    }
+    const flag = row && !pathExcluded(root, WASTE_CHECK, root) ? wasteFlag(row) : '';
+    if (flag) process.stderr.write(`!! resuming ${row.id} (${row.scope || '?'}):${flag}\n`);
     ackAgent(brokerDir(root), target.trim());
     const named = ticketsCited(message);
     const tickets = named.length || !row ? named : dispatchedTickets(row);
