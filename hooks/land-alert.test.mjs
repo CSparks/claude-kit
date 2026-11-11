@@ -235,5 +235,46 @@ function makeTurnStateDir() {
     run(d, { transcript_path: tx }, tsDir).code, 2);
 }
 
+// ─── KIT-T976: landings an earlier assistant reply named by sha are not listed again ─────
+function writeTranscriptReplies(dir, userTs, replies) {
+  const file = join(dir, 'transcript.jsonl');
+  const assistant = replies.map((text) => JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } }));
+  writeFileSync(file, [JSON.stringify({ type: 'user', message: { role: 'user', content: 'go' }, timestamp: userTs }), ...assistant].join('\n') + '\n');
+  return file;
+}
+{
+  const d = makeRepo();
+  const userTs = new Date(Date.now() - 10000).toISOString();
+  const named = makeCommit(d, 'src/a.ts', 'export {}', 'feat: a HOD-T021');
+  const fresh = makeCommit(d, 'src/b.ts', 'export {}', 'feat: b HOD-T022');
+  const tx = writeTranscriptReplies(d, userTs, [`pushed ${named.slice(0, 7)} — HOD-T021 landed.`, 'Working on the next one.']);
+  const r = run(d, { transcript_path: tx }, makeTurnStateDir());
+  expect('a landing named in an earlier reply does not stop a new one alerting', r.code, 2);
+  expect('the alert lists the new landing', String(r.err.includes(fresh.slice(0, 7))), 'true');
+  expect('the alert omits the landing already named', String(r.err.includes(named.slice(0, 7))), 'false');
+}
+{
+  const d = makeRepo();
+  const userTs = new Date(Date.now() - 10000).toISOString();
+  const first = makeCommit(d, 'src/c.ts', 'export {}', 'feat: c HOD-T023');
+  const second = makeCommit(d, 'src/d.ts', 'export {}', 'feat: d HOD-T024');
+  const tx = writeTranscriptReplies(d, userTs, [`landed ${first.slice(0, 7)} and ${second.slice(0, 9)}.`, 'Standing by.']);
+  expect('every landing named in earlier replies produces no alert', run(d, { transcript_path: tx }, makeTurnStateDir()).code, 0);
+}
+{
+  const d = makeRepo();
+  const userTs = new Date(Date.now() - 10000).toISOString();
+  makeCommit(d, 'src/e.ts', 'export {}', 'feat: e HOD-T025');
+  const tx = writeTranscriptReplies(d, userTs, ['pushed 0123abc earlier work landed.', 'Done.']);
+  expect('control: a never-announced landing still alerts', run(d, { transcript_path: tx }, makeTurnStateDir()).code, 2);
+}
+{
+  const d = makeRepo();
+  const userTs = new Date(Date.now() - 10000).toISOString();
+  const sha = makeCommit(d, 'src/f.ts', 'export {}', 'feat: f HOD-T026');
+  const tx = writeTranscriptReplies(d, userTs, [`pushed ${sha.slice(0, 7)}.`]);
+  expect('a sha named only in the reply being judged is not counted as announced earlier', run(d, { transcript_path: tx }, makeTurnStateDir()).code, 2);
+}
+
 console.log(`\n${testCount} tests — ${failures ? `${failures} FAILED` : 'ALL PASS'}`);
 process.exit(failures ? 1 : 0);

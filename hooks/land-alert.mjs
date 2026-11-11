@@ -20,6 +20,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { assistantTextOf } from './lib/assistant-text.mjs';
+import { unannouncedIn } from './lib/announced-landings.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
 import {
   gitRoot, adopted, payload, git, wipSummary, remoteCommitUrl, ID_CITE_SRC, readTurnState, writeTurnState,
@@ -93,8 +94,8 @@ async function main() {
   const { turnStartMs, lastAssistant } = parseTranscript(tx);
   if (!turnStartMs) process.exit(0);
 
-  const landed = landedThisTurn(root, turnStartMs);
-  if (!landed.length) process.exit(0); // nothing landed — silent
+  const landed = unannouncedIn(tx, landedThisTurn(root, turnStartMs));
+  if (!landed.length) process.exit(0); // nothing landed, or every landing already named by sha — silent
 
   const head = git(['-C', root, 'rev-parse', 'HEAD']).trim();
   const pushed = isPushed(root);
