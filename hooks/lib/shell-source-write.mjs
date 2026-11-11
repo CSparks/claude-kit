@@ -10,7 +10,7 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { toPath } from './shell-segments.mjs';
-import { FS_WRITE, readTempScript, scanShellWrites } from './shell-write-scan.mjs';
+import { FS_WRITE, readTempScript, scanAllShellWrites } from './shell-write-scan.mjs';
 import { writeCallTargets } from './shell-write-target.mjs';
 
 const SOURCE_EXT = 'rs|js|mjs|cjs|jsx|ts|tsx|vue|svelte|py|go|java|kt|swift|c|h|cc|cpp|hpp|cs|rb|php|sh|bash|ps1|lua|sql|wgsl|glsl|rhai|css|scss';
