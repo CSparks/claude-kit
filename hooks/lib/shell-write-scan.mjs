@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
-import { copyDestinations, withoutRedirects } from './shell-copy-target.mjs';
+import { copyTargets } from './shell-copy-target.mjs';
 import { blindSegments, segments } from './shell-segments.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
