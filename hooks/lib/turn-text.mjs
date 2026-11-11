@@ -15,7 +15,8 @@
 //   was made after, never text written later. Null when the file is unreadable or the call is not in it (a PreToolUse
 //   hook runs before Claude Code writes the call's own reply).
 //
-//   turnCalls(file, toolNames) -> [{ id, name, input }] the calls of those tools made in the current turn, oldest first.
+//   turnCalls(file, toolNames) -> [{ id, name, input, denied }] the calls of those tools made in the current turn,
+//     oldest first; denied is true when a PreToolUse hook refused the call, so it never reached the maintainer.
 
 import { readFileSync } from 'node:fs';
 import { assistantBlocksOf } from './assistant-text.mjs';
@@ -30,6 +31,10 @@ const textOf = (content) => {
 };
 const isToolResult = (content) => Array.isArray(content) && content.some((b) => b && b.type === 'tool_result');
 const isHarness = (entry, text) => entry.isMeta === true || entry.isCompactSummary === true || NOTICE.test(text) || COMPACT.test(text);
+
+const HOOK_DENIAL = /^\s*PreToolUse:\S+ hook error/;
+const toolResults = (entry) => (entry?.type === 'user' && Array.isArray(entry.message?.content) ? entry.message.content.filter((b) => b?.type === 'tool_result') : []);
+const resultText = (b) => (typeof b.content === 'string' ? b.content : textOf(b.content));
 
 const toolUses = (entry) => (entry?.type === 'assistant' && Array.isArray(entry.message?.content) ? entry.message.content.filter((b) => b?.type === 'tool_use') : []);
 const parsed = (line) => { try { return JSON.parse(line); } catch { return null; } };
@@ -67,16 +72,18 @@ export function turnText(file, { beforeToolUseId } = {}) {
 export function turnCalls(file, toolNames) {
   const lines = readLines(file);
   if (!lines) return [];
+  const entries = lines.map(parsed);
+  const denied = new Set(entries.flatMap(toolResults).filter((b) => HOOK_DENIAL.test(resultText(b))).map((b) => b.tool_use_id));
   const calls = [];
-  for (let i = lines.length - 1; i >= 0; i--) {
-    const entry = parsed(lines[i]);
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
     if (!entry) continue;
     const content = entry.message?.content;
     if (entry.type === 'user' && !isToolResult(content)) {
       const text = textOf(content).trim();
       if (text && !isHarness(entry, text)) break;
     }
-    calls.unshift(...toolUses(entry).filter((b) => toolNames.has(b.name)).map((b) => ({ id: b.id, name: b.name, input: b.input })));
+    calls.unshift(...toolUses(entry).filter((b) => toolNames.has(b.name)).map((b) => ({ id: b.id, name: b.name, input: b.input, denied: denied.has(b.id) })));
   }
   return calls;
 }

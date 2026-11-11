@@ -20,7 +20,7 @@ const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
 function audited(p, root, calls) {
   const done = auditedCalls();
   const results = [];
-  for (const call of calls.filter((c) => !done.has(c.id))) {
+  for (const call of calls.filter((c) => !c.denied && !done.has(c.id))) {
     const audit = auditQuestionnaire(p.transcript_path, call);
     if (!audit) continue;
     recordAudit({ session: p.session_id, project: projectName(root), call: call.id, parts: audit.problems.map((x) => x.part) });
