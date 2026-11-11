@@ -40,6 +40,7 @@ import {
 import { wantsHelpFirst } from './cli-help.mjs';
 import { runTopic } from './cap-topic.mjs';
 import { dedupHints, asKitBug, reopenedLines } from './cap-dedup.mjs';
+import { emitReceipt, refuse, installCrashReceipt } from './cap-receipt.mjs';
 import { classificationKeys, projectTable, matchProject, namedInText } from './cap-routing.mjs';
 import { isRuling } from '../hooks/lib/inbox-rulings.mjs';
 import { rulingDemand } from '../hooks/lib/ruling-messages.mjs';
@@ -109,7 +110,8 @@ const USAGE = `usage: cap [--project <name>] [--done] [--not-dup <id,...>] [type
   cap --done bug "fixed login crash"          resolved event -> .ai/resolved/, skips the triage queue
   cap topic [<slug>]                          show / set this session's topic (stamped on later captures)
   cap bug --not-dup KIT-T271 "…"              ids already checked: left out of the duplicate hints
-A capture is never refused: possible duplicates are listed after it is filed.
+A capture is never refused for a duplicate: possible duplicates are listed, then the LAST line says
+"filed <id>" or "captured …". A refusal's last line reads "cap: refused, nothing was written: <why>".
 Routing precedence: --project, then a leading "<name>:", then the nearest .ai/ above the cwd,
 then the unbounded catch-all store (a cwd with no .ai above it).
 `;
@@ -117,9 +119,10 @@ then the unbounded catch-all store (a cwd with no .ai above it).
 const argv = process.argv.slice(2);
 if (wantsHelpFirst(argv)) { process.stdout.write(USAGE); process.exit(0); }
 refuseIfExcluded('cap');
+installCrashReceipt();
 if (argv.length === 0) {
   console.error(USAGE);
-  process.exit(1);
+  refuse('no text to capture');
 }
 
 if (argv[0] === 'topic' && argv.length <= 2) process.exit(runTopic(argv, findAiDir(process.cwd())));
@@ -127,10 +130,7 @@ if (argv[0] === 'topic' && argv.length <= 2) process.exit(runTopic(argv, findAiD
 const { notDup, rest: argvAfterNotDup } = takeNotDupFlag(argv);
 const { done: isDone, rest: argvAfterDone } = takeDoneFlag(argvAfterNotDup);
 const { project: flagProject, rest } = takeProjectFlag(argvAfterDone);
-if (rest.length === 0) {
-  console.error('cap: nothing to capture.');
-  process.exit(1);
-}
+if (rest.length === 0) refuse('nothing to capture');
 
 // A leading `name:` token (e.g. `hod: roads are graded`, whether `hod:` is its own arg or fused
 // into one quoted string) is the inline form of --project. Split it off as a CANDIDATE; it is only
@@ -166,8 +166,7 @@ const explicitHit = flagProject ? matchProject(table, flagProject) : prefixHit;
 
 if (flagProject && !explicitHit) {
   const known = table.map((p) => p.key ? `${p.name} (${p.key})` : p.name).join(', ') || '(registry empty)';
-  console.error(`cap: --project "${flagProject}" matches no registered project. Known: ${known}`);
-  process.exit(1);
+  refuse(`--project "${flagProject}" matches no registered project. Known: ${known}`);
 }
 
 if (explicitHit) {
@@ -175,10 +174,7 @@ if (explicitHit) {
   projectName = explicitHit.name;
   // A prefix that resolved was targeting, not content — strip it. (A flag leaves the text whole.)
   if (prefixHit && !flagProject) words = prefixStripped;
-  if (words.length === 0) {
-    console.error('cap: nothing to capture after the project target.');
-    process.exit(1);
-  }
+  if (words.length === 0) refuse('nothing to capture after the project target');
 } else {
   // Fallback: the nearest .ai/ above the cwd (historical behavior). Still the ultimate fallback.
   aiDir = findAiDir(process.cwd());
@@ -187,11 +183,10 @@ if (explicitHit) {
     // the unbounded catch-all (KIT-T189). With none configured there is nowhere to go at all, so
     // name both escape routes: a capture deferred is a capture lost (KIT-T186).
     const known = table.map((p) => (p.key ? `${p.name} (${p.key.toLowerCase()})` : p.name)).join(', ');
-    console.error(`cap: ${noStoreMessage()}.`);
     console.error(known
-      ? `cap: or pass --project <name>. Registered: ${known}`
+      ? `cap: pass --project <name>. Registered: ${known}`
       : 'cap: the project registry is empty — run init-project.mjs in the target repo first.');
-    process.exit(1);
+    refuse(noStoreMessage());
   }
   const cwdEntry = table.find((p) => existsSync(p.aiDir) && resolve(p.aiDir) === resolve(aiDir));
   projectName = cwdEntry ? cwdEntry.name : (readRegistry().dataRoot && aiDir.includes('projects') ? basename(dirname(aiDir)) : basename(dirname(resolve(aiDir))));
@@ -254,15 +249,13 @@ if (isDone) {
   // A bug or feature captured into the KIT's own store is a ticket at once, not an inbox note (KIT-T286).
   const kitBug = type === 'bug' || type === 'feature' ? await asKitBug(aiDir, text, slug, type, notDup) : null;
   if (kitBug) {
-    console.log(`filed ${kitBug.id} (kit-${type}${kitBug.created ? '' : ', already open — recorded again'}) -> ${projectName}/tickets${ambiguity ? ` [${ambiguity}]` : ''}`);
-    for (const line of dupLines) console.log(line);
+    emitReceipt(dupLines, `filed ${kitBug.id} (kit-${type}${kitBug.created ? '' : ', already open — recorded again'}) -> ${projectName}/tickets${ambiguity ? ` [${ambiguity}]` : ''}`);
     process.exit(0);
   }
   const inboxDir = join(aiDir, 'inbox');
   mkdirSync(inboxDir, { recursive: true });
   const body = `${type ? `(${type}) ` : ''}${text}`;
   await writeItemFile(join(inboxDir, name), `${body}\n${identity}`);
-  console.log(`captured${type ? ` (${type})` : ''} -> ${projectName}/inbox/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
-  if (isRuling(body)) console.log(rulingDemand(name.replace(/\.md$/, '')));
-  for (const line of dupLines) console.log(line);
+  const demand = isRuling(body) ? [rulingDemand(name.replace(/\.md$/, ''))] : [];
+  emitReceipt([...demand, ...dupLines], `captured${type ? ` (${type})` : ''} -> ${projectName}/inbox/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
 }

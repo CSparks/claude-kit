@@ -3,6 +3,9 @@
 // of an already-ticketed idea is caught at the receipt. Suggest-only and fail-open — a search
 // failure or an unkeyed store yields no lines; it never blocks the write. Ids the caller already
 // checked (`cap --not-dup`) are left out.
+//
+// The search reads the markdown store, never the shared SQLite cache: a hint nobody needs must not
+// wait on a write lock another session holds (stacked lock waits ran a capture for minutes, KIT-T1040).
 
 import { realpathSync } from 'node:fs';
 import { dirname, basename, join } from 'node:path';
@@ -22,11 +25,11 @@ export async function dedupHints(aiDir, text, { skip = [] } = {}) {
     const { key } = readIdConfig(root || aiDir, aiDir);
     if (!key) return [];
     const scopes = [key, ...(root ? frameworkStores(root).map((f) => f.scope) : [])];
-    const found = await query('similar', ['--store', 'tickets', '--scopes', scopes.join(','), text], { root });
+    const found = await query('similar', ['--store', 'tickets', '--scopes', scopes.join(','), text], { root, noDb: true });
     const rows = found.rows.filter((r) => !skip.includes(r.id));
     if (!rows.length) return [];
     return [
-      `  possible duplicate${rows.length > 1 ? 's' : ''} (the capture above is filed, not refused; link or supersede if one is the same work):`,
+      `  possible duplicate${rows.length > 1 ? 's' : ''} (the capture below is filed, not refused; link or supersede if one is the same work):`,
       ...rows.slice(0, MAX_HINTS).map((r) => `    ${r.id} [${r.status}] ${r.title}`),
     ];
   } catch {

@@ -292,9 +292,10 @@ console.log('\ncap dedup hint (project + adopted framework store)');
   writeFileSync(join(fw, '.ai', 'tickets', 'FWK-T001-sleepwake.md'),
     '---\nid: FWK-T001\ntitle: sleepwake rings for far entities\ntype: feature\nstatus: todo\n---\nrings\n');
 
+  const lastLine = (s) => s.trim().split('\n').at(-1);
   const own = cap(repo, ['feature', 'puppet camps']);
   ok('cap: surfaces a duplicate in the project store and still captures',
-    /GME-T001/.test(own) && /^captured/.test(own) && readdirSync(join(repo, '.ai', 'inbox')).length === 1);
+    /GME-T001/.test(own) && /^captured/.test(lastLine(own)) && readdirSync(join(repo, '.ai', 'inbox')).length === 1);
   const fwHit = cap(repo, ['feature', 'sleepwake rings']);
   ok('cap: surfaces a duplicate in the adopted framework store', /FWK-T001/.test(fwHit));
   const none = cap(repo, ['feature', 'zebra crossing signage']);
