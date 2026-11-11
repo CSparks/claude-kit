@@ -12,6 +12,7 @@ import { AMBIGUOUS_MESSAGE, toPath } from './lib/shell-segments.mjs';
 import { commandCwd } from './lib/shell-cwd.mjs';
 
 const CHECK = 'source-shell-write';
+const UNEXPANDED = /^~|[$`*?[]/;
 
 try {
   const p = await payload();
