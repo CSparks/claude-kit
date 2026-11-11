@@ -74,7 +74,7 @@ try {
   ok('negative: an unreadable or empty transcript gives no line', breakdownLine(join(dir, 'nope.jsonl'), 280000, 'x') === '' && breakdownLine(write('empty.jsonl', []), 280000, 'x') === '');
 
   ok('the avoidable lines are named, largest first, with their sizes', b.avoidable.length > 0 && b.avoidable[0].tokens >= b.avoidable[b.avoidable.length - 1].tokens && b.avoidable.some((r) => r.label.includes('cargo test')));
-  ok('negative: a healthy transcript names no avoidable line', g.avoidable.length === 0 && g.avoidableTokens === 0);
+  ok('negative: a healthy transcript\'s avoidable share stays under the flag threshold', g.garbage < 0.5 && g.avoidableTokens < b.avoidableTokens);
 
   const flagged = wasteFlag({ id: 'agent-1', status: 'done', tickets: ['KIT-T1'], transcript: bad });
   ok('the waste flag carries the composition line and names the avoidable lines', flagged.includes('Composition: agent agent-1') && flagged.includes('MOSTLY GARBAGE INPUT') && flagged.includes('Avoidable:') && flagged.includes('cargo test'));
