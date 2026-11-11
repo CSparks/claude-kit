@@ -78,12 +78,23 @@ test('launchFollowup starts the runner detached with the sha and the runtime roo
   assert.deepEqual(JSON.parse(readFileSync(argvFile, 'utf8')), ['--followup', 'abc1234', '--runtime', root]);
 });
 
-test('npm run publish:runtime refuses before touching anything while a follow-up is failed (end to end)', () => {
+test('KIT-D162: a failed follow-up record never blocks a publish, and a publish runs no test (end to end)', () => {
   const root = runtime();
   recordFollowup(root, { sha: 'abc1234', files: FILES, pid: 1 });
   finishFollowup(root, { failed: [FILES[2]] });
   const r = spawnSync(process.execPath, [SCRIPT, '--runtime', root], { encoding: 'utf8', env: { ...process.env, npm_lifecycle_event: 'publish:runtime' } });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /^runtime: [0-9a-f]{7,40} -> /);
+  assert.doesNotMatch(r.stderr, /refusing to publish/);
+  assert.doesNotMatch(r.stderr, /runtime-publish phases:/, 'no scratch export was made to run tests in');
+});
+
+test('control: outside the npm script the publish still refuses', () => {
+  const root = runtime();
+  const env = { ...process.env };
+  delete env.npm_lifecycle_event;
+  const r = spawnSync(process.execPath, [SCRIPT, '--runtime', root], { encoding: 'utf8', env });
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /refusing to publish: the follow-up tests of publish abc1234 failed: scripts\/c\.test\.mjs/);
-  assert.deepEqual(readdirSync(root), ['publish-followup.json'], 'no lock, export or scratch was created');
+  assert.match(r.stderr, /refusing - run `npm run publish:runtime`, which exports the committed HEAD and moves `current`/);
+  assert.deepEqual(readdirSync(root), []);
 });

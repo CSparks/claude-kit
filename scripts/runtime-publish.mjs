@@ -3,18 +3,17 @@
 // (KIT-T450). Writers edit the repo; every other session loads scripts and hooks from
 // `<runtime>/current`, so a half-edited file is never loaded.
 //
-//   npm run publish:runtime        # exports HEAD, runs npm test there, then publishes: the ONLY way `current` moves.
-//                                  # The working tree is never tested or published (KIT-T510).
+//   npm run publish:runtime        # exports HEAD and moves `current`, runs no tests (KIT-D162): the ONLY way `current` moves.
+//                                  # The working tree is never published (KIT-T510).
 //   node scripts/runtime-publish.mjs [--runtime <dir>] [--keep N]   # refuses outside that npm script
-//   npm run publish:followup       # runs the owed remainder of a two-phase publish (publish-followup.mjs) and records the result;
-//                                  # a failed or unfinished remainder refuses the next publish until this passes.
+//   npm run publish:followup       # a test run of an export of HEAD the maintainer starts by hand (publish-followup.mjs).
 //
 // Layout: <runtime>/<sha>/ (immutable `git archive HEAD`), <runtime>/current -> <sha> (junction),
 // <runtime>/cache (the shared query cache, linked in as <sha>/.cache), node_modules linked from the
 // repo when present. `current` moves only after the export is complete.
 
 import { mkdirSync, existsSync, readdirSync, rmSync, renameSync, symlinkSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { runtimeRoot as defaultRuntimeRoot } from './runtime-path.mjs';
@@ -24,8 +23,8 @@ import { installedPlugin, pluginDrift } from './plugin-drift.mjs';
 import { heldRuntimes } from './runtime-holders.mjs';
 import { referencedRuntimes } from './runtime-refs.mjs';
 import { CHILD_OPTIONS, gitOrThrow, stopProcessesUnder, sweepScratch, withPublishLock } from './runtime-publish-guard.mjs';
-import { claimFollowup, finishFollowup, followupBlocker, followupFiles, readFollowup } from './publish-followup.mjs';
-import { followupSuite, launchFollowup, publishSuite } from './publish-suite.mjs';
+import { claimFollowup, finishFollowup, followupFiles, readFollowup } from './publish-followup.mjs';
+import { followupSuite } from './publish-suite.mjs';
 
 const PUBLISH_SCRIPT = 'publish:runtime';
 const DEFAULT_KEEP = 3;
@@ -145,27 +144,13 @@ function publishLocked({ repo, runtimeRoot, keep = DEFAULT_KEEP, graceHours = DE
   return { sha, dir, current: join(runtimeRoot, 'current') };
 }
 
-// Paths changed since the published runtime (`current`); undefined when nothing is published or git cannot say.
-function changedSincePublished(repo, runtimeRoot) {
-  const published = basename(currentRuntime(runtimeRoot));
-  if (!SHA_DIR.test(published)) return undefined;
-  try { return execFileSync('git', ['-C', repo, 'diff', '--name-only', published, 'HEAD'], { encoding: 'utf8', ...CHILD_OPTIONS }).trim(); } catch { return undefined; }
-}
-
 const SELF = fileURLToPath(import.meta.url);
 
-// Two-phase publish (KIT-T839): the nearest reached test files that fit the budget gate this publish; the reached
-// files that did not fit run in a detached follow-up whose result gates the NEXT publish and shows at orient.
+// A publish moves the runtime and runs no tests (KIT-D162): the machine is shared, so a commit or publish never waits on
+// a test run. `--followup` stays as an explicit, maintainer-started test run of an export.
 function publishMain(repo, runtimeRoot, keep) {
-  const blocker = followupBlocker(runtimeRoot);
-  if (blocker) throw new Error(`refusing to publish: ${blocker}`);
-  let owed = [];
-  const r = publishRuntime({ repo, runtimeRoot, keep, verify: (dir) => { owed = publishSuite(dir, { changed: changedSincePublished(repo, runtimeRoot) }); } });
+  const r = publishRuntime({ repo, runtimeRoot, keep });
   process.stdout.write(`runtime: ${r.sha} -> ${r.current}\nrun kit scripts from ${r.current}/scripts/ (q.mjs, t.mjs, cap.mjs)\n`);
-  if (owed.length) {
-    const pid = launchFollowup(SELF, runtimeRoot, r.sha, owed);
-    process.stdout.write(`follow-up: ${owed.length} test file(s) the change reaches did not fit the publish budget; they run in pid ${pid} (log ${join(runtimeRoot, 'publish-followup.log')}). A failure blocks the next publish and shows at orient.\n`);
-  }
   const drift = pluginDrift({ repo, installed: installedPlugin() });
   if (drift.length) process.stderr.write(`runtime-publish: ${drift.length} agent/skill/command/hook file(s) changed since the plugin cache was copied, under the same plugin.json version, so sessions do not see them. Bump .claude-plugin/plugin.json version, then restart sessions: ${drift.slice(0, 8).join(', ')}${drift.length > 8 ? ', ...' : ''}\n`);
 }
@@ -189,7 +174,7 @@ if (isMain(import.meta.url)) {
   const runtimeRoot = arg('--runtime') || defaultRuntimeRoot();
   const followup = process.argv.includes('--followup');
   if (!followup && process.env.npm_lifecycle_event !== PUBLISH_SCRIPT) {
-    process.stderr.write('runtime-publish: refusing - run `npm run ' + PUBLISH_SCRIPT + '`, which tests the committed HEAD before `current` moves.\n');
+    process.stderr.write('runtime-publish: refusing - run `npm run ' + PUBLISH_SCRIPT + '`, which exports the committed HEAD and moves `current`.\n');
     process.exit(1);
   }
   try {

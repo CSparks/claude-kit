@@ -296,8 +296,8 @@ Don't run the publish loop on every edit.
 - `claude plugin validate .` checks the plugin + marketplace manifests.
 
 **Sealed runtime — what sessions run (KIT-T450, KIT-D092):** while a writer has the repo
-half-edited, any session loading it loads the half-edit. `npm run publish:runtime` (`npm test`, then
-`scripts/runtime-publish.mjs`, which refuses to run outside that npm script) exports the COMMITTED tree to
+half-edited, any session loading it loads the half-edit. `npm run publish:runtime` (
+`scripts/runtime-publish.mjs`, which runs no tests, KIT-D162, and refuses to run outside that npm script) exports the COMMITTED tree to
 `~/.claude/claude-kit-runtime/<sha>/` and repoints `~/.claude/claude-kit-runtime/current` at it; that is the
 only way `current` moves. `node bootstrap.mjs` then points the plugin install (hooks, commands, agents,
 skills, the `q`/`t`/`cap` shims), the statusline and every `<kit>` path in the composed `~/.claude/CLAUDE.md`
