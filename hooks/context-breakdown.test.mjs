@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { cleanup, reporter, tmpDir } from './test-harness.mjs';
 import { breakdownLine, contextBreakdown, SOURCE } from './lib/context-breakdown.mjs';
-import { ceilingFlag } from './lib/agent-context.mjs';
+import { wasteFlag } from './lib/agent-context.mjs';
 
 const { ok, done } = reporter('context-breakdown');
 const dir = tmpDir('breakdown-');
