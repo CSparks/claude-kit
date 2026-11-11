@@ -10,6 +10,7 @@ import { readIdConfig } from './id-utils.mjs';
 import { frameworkStores } from './q-framework.mjs';
 import { landedLine } from './landed.mjs';
 import { askedLabel } from './question-asks.mjs';
+import { projectStore } from './q-project.mjs';
 
 const STORES = ['tickets', 'tickets/archive', 'decisions', 'notes', 'questions', 'inbox', 'epics'];
 
@@ -42,12 +43,34 @@ export function findItemFile(id, root) {
   return null;
 }
 
+/** Splits `q show` arguments into { id, project }: `--project <name|key>` (or `--scope`, `--flag=value`) may sit anywhere. */
+export function showArgs(args) {
+  const rest = [];
+  let project;
+  for (let i = 0; i < args.length; i++) {
+    const a = String(args[i]);
+    const inline = /^--(project|scope)=(.*)$/.exec(a);
+    if (!inline && a !== '--project' && a !== '--scope') { rest.push(a); continue; }
+    const value = inline ? inline[2] : args[++i];
+    if (value === undefined || value === '') throw new Error(`${inline ? `--${inline[1]}` : a} takes a value`);
+    project = value;
+  }
+  return { id: rest[0], project };
+}
+
+/** Where `id` is looked up under `--project`: that project's store alone. Throws on an unknown project. */
+function pinnedFile(id, project) {
+  const { name, aiDir } = projectStore(project);
+  return { file: existsSync(aiDir) ? findIn(aiDir, id) : null, name };
+}
+
 /** Lines to print for `id`, or a one-line miss message. A ticket with landed commits gets a LANDED COMMITS line. */
-export function showRows(id, root) {
+export function showRows(id, root, { project } = {}) {
   const want = String(id || '').trim();
-  if (!want) return ['usage: q show <id>   (e.g. q show KIT-T287)'];
-  const file = findItemFile(want, root);
-  if (!file) return [`q show: no item '${want}' in the project, framework or registered stores`];
+  if (!want) return ['usage: q show <id> [--project <name>]   (e.g. q show KIT-T287)'];
+  const pinned = project ? pinnedFile(want, project) : null;
+  const file = pinned ? pinned.file : findItemFile(want, root);
+  if (!file) return [`q show: no item '${want}' in ${pinned ? `project ${pinned.name}` : 'the project, framework or registered stores'}`];
   const text = readFileSync(file, 'utf8').replace(/\r\n/g, '\n').trimEnd();
   const landed = landedLine(text);
   const asked = askedLabel(text);

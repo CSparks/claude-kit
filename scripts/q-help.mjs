@@ -35,7 +35,7 @@ export const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <qu
                               fixed, status moves, created — counts exact, lists capped
   topics                      the generated topic index — slug, first/last date, count, gist
   topic <slug>                one topic's items, oldest first (also: q --topic <slug>)
-  show <id>                   print one item in full (ticket, decision, note, question) from any store
+  show <id> [--project <name>] print one item in full (ticket, decision, note, question) from any store; --project pins one project's store
   code <text> [filters]       SEARCH CODE/DOCS/CONFIG/TICKETS (the grep replacement): ranked, compact, verified
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
                               --path crates/sim  --not-path <glob|dir> (repeatable; drops matches)

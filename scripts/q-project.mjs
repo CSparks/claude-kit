@@ -17,13 +17,16 @@ function unknownMessage(name, table) {
 /** The upper-cased id key (scope) of the registered project `name` names. Throws on a miss. */
 export function projectScope(name, table = projectTable()) {
   const hit = matchProject(table, name);
-  if (!hit) {
-    const names = table.map((p) => p.name).sort();
-    const known = names.length ? `${names.slice(0, KNOWN_SHOWN).join(', ')}${names.length > KNOWN_SHOWN ? `, +${names.length - KNOWN_SHOWN} more` : ''}` : 'none registered';
-    throw new Error(`unknown project '${name}' — registered: ${known}.`);
-  }
+  if (!hit) throw new Error(unknownMessage(name, table));
   if (!hit.key) throw new Error(`project '${hit.name}' has no ids.key in its config.yml, so it has no scope to search.`);
   return hit.key.toUpperCase();
+}
+
+/** The registered project `name` names, as { name, aiDir }: its one store directory. Throws on an unknown project. */
+export function projectStore(name, table = projectTable()) {
+  const hit = matchProject(table, name);
+  if (!hit) throw new Error(unknownMessage(name, table));
+  return { name: hit.name, aiDir: hit.aiDir };
 }
 
 /** Does `name` name a registered project (registry name or id key)? */

@@ -10,7 +10,7 @@ const VERB_FLAGS = {
   fts: ['--scope', '--project', '--limit', '--any'], inbox: ['--older-than'], confirmations: ['--older-than'], similar: ['--store', '--scopes'],
   sessions: ['--project'], recent: [], open: ['--status', '--limit'], trail: [], orphans: [], rundown: [], governing: [], drift: [], mentions: [],
   children: [], backlinks: [], 'by-commit': [], 'doc-trail': [], topics: [], topic: [], 'next-id': [], regressions: [],
-  supersedes: [], integrity: [], verify: [], session: [], said: [], show: [], sql: [],
+  supersedes: [], integrity: [], verify: [], session: [], said: [], show: ['--scope', '--project'], sql: [],
 };
 
 /** Flags on `args` that `cmd` does not take ([] for verbs that parse their own flags). */
