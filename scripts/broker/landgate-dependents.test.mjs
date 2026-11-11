@@ -78,6 +78,28 @@ test('a dependent the project suite runs whole is left to the suite cadence, in 
   } finally { cleanup(dir); }
 });
 
+test('a landing of the submodule\'s own repo runs its own --test list and leaves the dependents to the nightly suite (KIT-T1052)', () => {
+  const dir = layout();
+  try {
+    const own = ['cd rust && cargo t --no-fail-fast -p base --lib scatter'];
+    const lane = { ...cfg(true), repos: [{ name: 'game', path: '.' }, { name: 'fw', path: 'fw', submodule: true }] };
+    const gate = landGate(lane, dir, { repo: 'fw', commands: own }, files('crates/base/src/lib.rs'));
+    assert.deepEqual(gate.commands, ['CHECK', ...own], 'check and the job\'s own test, no third step');
+    assert.deepEqual(gate.selection.deferredDependents, ['mid', 'top']);
+    const mapped = landGate(lane, dir, { repo: 'fw', commands: [] }, files('crates/base/src/lib.rs'));
+    assert.deepEqual(mapped.commands, ['CHECK', 'cargo test -p base --lib'], 'a job with no commands runs its mapped tests only');
+  } finally { cleanup(dir); }
+});
+
+test('control: a landing of a repo that is not a submodule still runs the dependents of the crate it touched', () => {
+  const dir = layout();
+  try {
+    const own = ['cargo test -p base --test unit'];
+    const lane = { ...cfg(true), repos: [{ name: 'game', path: '.' }, { name: 'fw', path: 'fw', submodule: true }] };
+    assert.deepEqual(landGate(lane, dir, { repo: 'game', commands: own }, files('crates/base/src/lib.rs')).commands, ['CHECK', ...own, 'cargo test -p mid -p top']);
+  } finally { cleanup(dir); }
+});
+
 test('negative controls: dependents off, a leaf crate and a registry dependent add nothing', () => {
   const dir = layout();
   try {

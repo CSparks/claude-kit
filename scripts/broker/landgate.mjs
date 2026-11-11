@@ -90,8 +90,10 @@ function suiteCrates(suite) {
 // is the suite (nightly), and a landing that ran it would exceed the five-minute ceiling (KIT-D104); it is returned as `deferred`.
 // A workspace inside a submodule (a linked landing from the consumer) contributes no command: its dependents unify features apart
 // from the job's own command and recompile the framework cold (KIT-T860); the submodule half is gated by its own pre-push
-// check (linked.mjs) and its dependents run on the nightly suite, so they are `deferred` too.
-function dependentTests(cfg, cwd, sel) {
+// check (linked.mjs) and its dependents run on the nightly suite, so they are `deferred` too. The same holds when the landing
+// is the submodule's own (`ownSubmodule`: the job's repo is a submodule): its workspace is the framework, whose dependents
+// are every crate downstream of a shared one such as the test kit, and their cold run costs a quarter hour (KIT-T1052).
+function dependentTests(cfg, cwd, sel, ownSubmodule) {
   const commands = [];
   const deferred = [];
   const wholeSuite = suiteCrates(cfg.suite || []);
@@ -100,7 +102,7 @@ function dependentTests(cfg, cwd, sel) {
   for (const [ws, names] of byWorkspace) {
     const lock = readLock(join(cwd, ws, 'Cargo.lock'));
     if (!lock) continue;
-    const submodule = inSubmodule(cfg, ws);
+    const submodule = ownSubmodule || inSubmodule(cfg, ws);
     const all = [...dependentsOf(lock, names)].filter((dep) => !names.includes(dep) && !sel.crates.has(dep) && (lock.get(dep) || {}).local);
     const deps = all.filter((dep) => !wholeSuite.has(dep) && !submodule);
     deferred.push(...all.filter((dep) => !deps.includes(dep)));
@@ -129,7 +131,8 @@ export function landGate(cfg, cwd, job, files) {
   const given = Array.isArray(job.commands) && job.commands.length ? job.commands : [];
   const dropped = given.filter((c) => isSuiteShaped(c, cfg.suite));
   const kept = given.filter((c) => !dropped.includes(c));
-  const { commands: dependents, deferred: deferredDependents } = cfg.affected.dependents ? dependentTests(cfg, cwd, sel) : { commands: [], deferred: [] };
+  const ownSubmodule = (cfg.repos || []).some((r) => r.submodule && r.name === job.repo);
+  const { commands: dependents, deferred: deferredDependents } = cfg.affected.dependents ? dependentTests(cfg, cwd, sel, ownSubmodule) : { commands: [], deferred: [] };
   if (kept.length && !cfg.affected.mandatory) return { commands: withConformance(cfg, [...new Set([cfg.affected.check, ...kept, ...dependents])], files), selection: { reasons: [], dropped, explicit: true, deferredDependents } };
   const tests = [...sel.crates].filter(([, specs]) => specs.size).flatMap(([name, specs]) => crateTests(cfg, sel.workspaces.get(name), name, specs));
   const commands = withConformance(cfg, [...new Set([cfg.affected.check, ...tests, ...dependents, ...kept])], files);
