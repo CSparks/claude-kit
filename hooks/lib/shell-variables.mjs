@@ -22,7 +22,15 @@ const PLAIN_VALUE = /^[\w@%+=:,./-]+$/;
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*/;
 const UNCONDITIONAL_BEFORE = new Set(['start', ';']);
 const SEQUENTIAL_AFTER = new Set([';', '&&']);
-const SHELL_REBINDERS = /\b(?:eval|source|set-variable|new-variable|clear-variable|remove-variable|unset)\b|\[ref\]|-(?:out)?variable\b/i;
+// A rebinder is a whole word: never a piece of a path or filename (`hooks/source-x.mjs`, `eval-utils.cpp`).
+// A backslash before the word joins a path only after a path character; at a command boundary it is the escape that
+// still runs the builtin. A `$` after the word is an expansion that splits into the command, never a filename.
+const PATH_BEFORE = String.raw`[\w./~$-]`;
+const PATH_AFTER = String.raw`[\w./\\~-]`;
+const WHOLE_WORD = (word) => String.raw`(?<!${PATH_BEFORE})(?<!${PATH_BEFORE}\\)(?<!:\\)(?:${word})(?!${PATH_AFTER})`;
+const REBINDING_WORDS = 'eval|source|set-variable|new-variable|clear-variable|remove-variable|unset|-(?:out)?variable';
+const DOT_COMMAND = String.raw`(?:^|[;&|(){\n\`'"!]|(?<![\w-])(?:then|do|else|elif|builtin|command))\s*\.(?=\s+\S)`;
+const SHELL_REBINDERS = new RegExp(`${WHOLE_WORD(REBINDING_WORDS)}|\\[ref\\]|${DOT_COMMAND}`, 'i');
 
 const isPowershell = (shell) => shell === POWERSHELL;
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

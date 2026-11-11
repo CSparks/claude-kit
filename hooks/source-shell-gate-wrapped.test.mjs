@@ -206,6 +206,48 @@ try {
   ok('source gate passes Copy-Item with a PowerShell variable', src(`$sp = "${scratch}"; Copy-Item src/a.cpp "$sp/a.cpp"`, 'PowerShell') === PASS);
   ok('source gate passes Copy-Item with a differently cased PowerShell variable', src(`$sp = '${scratch}'; Copy-Item src/a.cpp "$SP\\a.cpp.bak"`, 'PowerShell') === PASS);
 
+  const namedLikeBuiltins = [
+    ['a source-named file in a path', 'cp hooks/source-shell-gate-wrapped.test.mjs "$SP/x.bak"'],
+    ['an eval-named file', 'cp src/eval-utils.cpp "$SP/x.bak"'],
+    ['a bare file that starts with source-', 'cp source-x.cpp "$SP/x.bak"'],
+    ['a bare file that starts with eval.', 'cp eval.cpp "$SP/x.bak"'],
+    ['a bare file that ends with -source', 'cp my-source "$SP/x.bak"'],
+    ['a directory named source', 'cp src/source/a.cpp "$SP/x.bak"'],
+    ['a Windows path through a source-named file', 'cp \'src\\source.cpp\' "$SP/x.bak"'],
+    ['a source-named destination', 'cp src/a.cpp "$SP/source.cpp"'],
+    ['a dot as a cp operand', 'cp . "$SP/x.bak"'],
+    ['a drive path through a source-named file', 'cp \'C:\\x\\source\' "$SP/x.bak"'],
+    ['a drive root directory named source', 'cp \'C:\\source\' "$SP/x.bak"'],
+    ['an unset-named file', 'cp src/unset-x.cpp "$SP/x.bak"'],
+    ['a file named like a PowerShell flag', 'cp src/my-variable.cpp "$SP/x.bak"'],
+  ];
+  for (const [name, tail] of namedLikeBuiltins) ok(`source gate passes cp: ${name} does not count as a shell rebinder`, src(`SP="${scratch}"; ${tail}`) === PASS);
+
+  const rebinderForms = [
+    ['source f', 'source f'],
+    ['source f after &&', 'true && source f'],
+    ['eval', 'eval "SP=src"'],
+    ['eval after a pipe', 'echo x | eval "SP=src"'],
+    ['a dot command', '. f'],
+    ['a dot command after &&', 'true && . f'],
+    ['a dot command in a subshell', '(. f)'],
+    ['a dot command behind builtin', 'builtin . f'],
+    ['a dot command behind command', 'command . f'],
+    ['a dot command after then','if true; then . f; fi'],
+    ['source after do', 'for i in 1; do source f; done'],
+    ['source in a subshell', '(source f)'],
+    ['source after a newline', 'true\nsource f'],
+    ['source in a brace group', '{ source f; }'],
+    ['unset', 'unset SP'],
+    ['source behind a builtin wrapper', 'builtin source f'],
+    ['an escaped eval', '\\eval "SP=src"'],
+    ['an escaped source', '\\source f'],
+    ['an escaped source after a semicolon', 'true;\\source f'],
+    ['eval split from an expansion', 'eval$IFS"SP=src"'],
+    ['source split from a braced expansion', 'source${IFS}f'],
+  ];
+  for (const [name, form] of rebinderForms) ok(`source gate blocks cp: ${name} keeps the variable unresolved`, src(`SP="${scratch}"; ${form}; cp src/a.cpp "$SP/b.cpp"`) === BLOCK);
+
   const copyBlocks = [
     ['an unresolved variable naming a source file', 'cp src/a.cpp "$UNKNOWN/a.cpp"'],
     ['an unresolved variable with a non-source tail', 'cp src/a.cpp "$UNKNOWN/a.cpp.bak"'],
