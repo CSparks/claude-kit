@@ -52,7 +52,7 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
    Never poll, loop, `tail`, `sleep`, background a wait, re-submit a job to read it, or run `watch.mjs` (KIT-D115).
    Read a result with `node result-summary.mjs <id> --root <tree>`: the verdict, each command's exit code, each failed test
    with its panic location, the DRIVE/summary lines and the log path. Never read a log whole and never `tail` one: repeated
-   lines ("Compiling" walls, queued/running ticks) are collapsed to "×N" and cost context for nothing (KIT-D116).
+   lines ("Compiling" walls, queued/running ticks) are collapsed to "×N" and cost context for nothing (KIT-D149).
    - `stale` — per failing op: the reason (`not-found`, `ambiguous xN`, `create-exists`),
      the closest current excerpt, `HEAD`, and the commits since your base that touched the
      file. Re-read the file, fix the block, resubmit with `--revises <id>`. Submit refuses these (and

@@ -215,8 +215,8 @@ the source lines it changes, so it is not authored source (KIT-T231).
 | `upstream-gate` | `upstream-policy` | path glob matched against the target `owner/repo` (`- bevyengine/bevy`); the trailing marker `# claude-kit-ignore upstream-policy` in the command also clears it |
 | `wait-poll` | `wait-poll` | path glob matched against the output file (reads) or the cwd (sleep loops); the trailing marker `# claude-kit-ignore wait-poll` in the command also clears it |
 | `broker-wait-gate` | `broker-wait` | path glob matched against the checkout root; the trailing marker `# claude-kit-ignore broker-wait` in the command also clears it. |
-| `resume-check` | `agent-context-ceiling` | path glob matched against the checkout root. |
-| `dispatch-guard` | `handoff-before-replace`, `agent-context-ceiling` | a dispatch citing a ticket whose past-ceiling agent left no `Handoff <agent>` block (Jobs:, State:, Next:, Files:) in its Notes is blocked (escape `[handoff-waived: <reason>]`); every dispatch warns about past-ceiling agents (KIT-D116). |
+| `resume-check` | `agent-waste` | path glob matched against the checkout root. |
+| `dispatch-guard` | `handoff-before-replace`, `agent-waste` | a dispatch citing a ticket whose wasteful agent left no `Handoff <agent>` block (Jobs:, State:, Next:, Files:) in its Notes is blocked (escape `[handoff-waived: <reason>]`); every dispatch warns about agents whose context is mostly avoidable output (KIT-D149). |
 | `broker-log-gate` | `broker-log` | path glob matched against the broker log path; the trailing marker `# claude-kit-ignore broker-log` in the command also clears it |
 | `orphan-reaper` | `runaway-process` | path glob matched against the runaway's process name (`python.exe`), exempting it from the runaway reap |
 | `kit-bug-dispatch-gate` | `kit-bug-dispatch` | path glob matched against the ticket id (`- "KIT-T801"`) |
