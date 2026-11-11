@@ -50,6 +50,10 @@ const LANDS_ON_SOURCE = [
   ['cp --target-directory= with a trailing slash', `cp --target-directory=src/ ${temp}/x.cpp`],
   ['Copy-Item onto a source file', `Copy-Item ${temp}/x.cpp -Destination src/a.cpp`],
   ['a copy under a wrapper', `sudo -u root cp ${temp}/x.cpp src/a.cpp`],
+  ['a copy onto a source file with stdout sent to the null device', `cp ${temp}/x.cpp src/a.cpp > /dev/null`],
+  ['a copy onto a source file with stderr to a file', `cp ${temp}/x.cpp src/a.cpp 2> err.txt`],
+  ['a copy onto a source file with a quoted redirect target', `cp ${temp}/x.cpp src/a.cpp >> "my log.txt"`],
+  ['a copy onto a source file with stderr merged', `cp ${temp}/x.cpp src/a.cpp 2>&1`],
 ];
 for (const [name, command] of LANDS_ON_SOURCE) blocks(name, command);
 blocks('rm of a source file', 'rm src/a.cpp');

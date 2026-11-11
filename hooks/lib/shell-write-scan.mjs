@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
-import { copyDestinations } from './shell-copy-target.mjs';
+import { copyDestinations, withoutRedirects } from './shell-copy-target.mjs';
 import { blindSegments, segments } from './shell-segments.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
@@ -86,7 +86,7 @@ function judgeTool(tool, rest, text, ctx, argText) {
   const operands = rest.map((r) => r.w);
   if (WRITING_CMD.test(tool)) return operands.map(hit).find(Boolean) || null;
   if (MOVE_CMD.test(tool) && ctx.judgeMoveSources) return operands.map(hit).find(Boolean) || null;
-  if (COPY_CMD.test(tool)) return copyDestinations(shellArgs(argText)).map(hit).find(Boolean) || null;
+  if (COPY_CMD.test(tool)) return copyDestinations(shellArgs(withoutRedirects(argText))).map(hit).find(Boolean) || null;
   if (IN_PLACE_TOOL.test(tool)) return operands.some((a) => IN_PLACE_FLAG.test(a)) ? operands.map(hit).find(Boolean) || null : null;
   if (!INTERPRETER.test(tool)) return null;
   const isNode = /^node$/i.test(tool);

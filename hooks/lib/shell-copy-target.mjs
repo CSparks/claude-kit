@@ -8,7 +8,7 @@
 const DIR_FLAG = /^(?:-t|--target-directory)$/i;
 const DIR_JOINED = /^--target-directory=(.+)$/i;
 const DEST_FLAG = /^-destination$/i;
-const REDIRECT = /\d?>>?&?\s*\S*/g;
+const REDIRECT = /\d*>>?(?:&\d+|\s*(?:"[^"]*"|'[^']*'|\S+))/g;
 const ENDS_IN_SLASH = /[\\/]$/;
 
 const baseName = (p) => String(p).replace(ENDS_IN_SLASH, '').replace(/.*[\\/]/, '');
@@ -16,8 +16,11 @@ const into = (dir, sources) => (sources.length
   ? sources.map((s) => `${dir.replace(ENDS_IN_SLASH, '')}/${baseName(s)}`)
   : [dir]);
 
+/** The argument text of a call with every redirect (`> file`, `2>&1`, `>> "a b"`) cut out, so no redirect target reads as an operand. */
+export const withoutRedirects = (text) => String(text).replace(REDIRECT, ' ');
+
 export function copyDestinations(args) {
-  const operands = args.map((a) => a.replace(REDIRECT, '')).filter(Boolean);
+  const operands = args.filter(Boolean);
   const dirAt = operands.findIndex((a) => DIR_FLAG.test(a));
   const destAt = operands.findIndex((a) => DEST_FLAG.test(a));
   const joined = operands.map((a) => a.match(DIR_JOINED)).find(Boolean);

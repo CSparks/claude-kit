@@ -271,7 +271,7 @@ function postEdit() {
 // block comment or string is judged in that state (KIT-T966); the fragment alone when its place is unknown.
 function fragmentCodeLines(fragment) {
   const { text, charAt } = postEdit();
-  if (charAt === null) return codeOnly(fragment).split('\n');
+  if (charAt === null || text === fragment) return codeOnly(fragment).split('\n');
   const span = fragment.replace(/\r\n/g, '\n').length;
   return codeOnly(text).slice(charAt, charAt + span).split('\n');
 }

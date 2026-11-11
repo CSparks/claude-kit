@@ -50,6 +50,10 @@ try {
   const partial = hook('pre-write.mjs', { tool_input: { file_path: midLine, old_string: 'a = 1;\nexport', new_string: 'a = 9;\nexport' } }, repo);
   ok('a fragment that starts and ends mid-line is judged on its own characters, not the whole lines', partial.code === 0);
 
+  const crlfBody = [...Array.from({ length: 30 }, (_, i) => `// row ${i}`), 'export function f(x) {', '  return x * 1337;', '}', ''].join('\r\n');
+  const crlfWrite = hook('pre-write.mjs', { tool_input: { file_path: join(repo, 'crlf.ts'), content: crlfBody } }, repo);
+  ok('control: the last lines of a CRLF Write still reach the magic-number scan', blocksMagic(crlfWrite) && crlfWrite.out.includes('1337'));
+
   const bare = hook('pre-write.mjs', { tool_input: { file_path: join(repo, 'bare.ts'), content: 'export function f(x) {\n  return x * 1337;\n}\n' } }, repo);
   ok('control: a Write with a magic number in code still blocks', blocksMagic(bare));
 } finally {
