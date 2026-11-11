@@ -13,11 +13,13 @@
 // (`sudo`, `env A=1`, `command`, `timeout 5`...), never in the arguments of another command.
 // A call that only checks or reports (`git apply --check|--stat|--numstat|--summary`, `patch --dry-run`) writes nothing.
 // `git checkout <rev> -- <path>` restores content a commit or stash already holds, gated when it was written: not judged.
-// The command string a shell runs (`bash -c "..."`, `sh -lc`, `pwsh -Command`, `eval`) is split into segments and judged by the same rules.
+// A command another command runs is split into segments and judged by the same rules: the string a shell takes
+// (`bash -c "..."`, `sh -lc`, `pwsh -Command`, `eval`, `su -c`), the clauses of `find -exec|-execdir|-ok|-okdir`, the remote
+// command of `ssh`, the string of a `trap`, and every `$(...)`, backtick and `<(...)` substitution.
 //
 //   appliesPatch(text) -> boolean
 //     the shell-write-scan fallback for a command whose quoting cannot be trusted: true when any piece, cut on every
-//     operator, is led by an applier (or by a shell whose string is); a flag cannot lift it, so `--check` also counts.
+//     operator, is led by an applier (or by a command whose operands run one); a flag cannot lift it, so `--check` also counts.
 
 import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -34,8 +36,19 @@ const SH_C_FLAG = /^-[A-Za-z]*c[A-Za-z]*$/;
 const SH_VALUE_FLAG = /^[-+][oO]$/;
 const PS_NAME = /^(?:pwsh|powershell)$/i;
 const PS_C_FLAG = /^-(?:c|command)$/i;
+const SU_NAME = /^(?:su|runuser)$/i;
+const SU_C_FLAG = /^(?:--command|-[A-Za-z]*c[A-Za-z]*)$/;
+const FIND_NAME = /^find$/i;
+const FIND_EXEC_FLAG = /^-(?:exec|execdir|ok|okdir)$/;
+const FIND_CLAUSE_END = /^(?:\\?;|\+)$/;
+const SSH_NAME = /^ssh$/i;
+const SSH_VALUE_FLAG = /^-[BbcDEeFIiJLlmOoPpQRSWw]$/;
+const TRAP_NAME = /^trap$/i;
+const TRAP_FLAG = /^(?:--|-[lp]+)$/;
 const MAX_NESTING = 4;
 const QUOTE_START = /^["']/;
+const QUOTE_CHAR = /["']/;
+const REDIRECT_TOKEN = /^\d*[<>]{1,2}&?(.*)$/;
 const GROUP_START = /^[$({`]+/;
 const GROUP_END = /[)}`]+$/;
 const BLIND_SEPARATOR = /[\s"'`]+/;
@@ -151,7 +164,44 @@ function innerStart(name, rest) {
   return at >= 0 && at + 1 < rest.length ? at + 1 : -1;
 }
 
-const leadsCommand = (name, rest) => isApplier(name, rest) || innerStart(name, rest) >= 0;
+const findClauses = (rest) => rest.flatMap((word, i) => {
+  if (!FIND_EXEC_FLAG.test(word)) return [];
+  const end = rest.findIndex((w, j) => j > i && FIND_CLAUSE_END.test(dequoted(w)));
+  return [rest.slice(i + 1, end < 0 ? rest.length : end).join(' ')];
+});
+
+/** The words after ssh's options and host: the remote command. */
+function sshOperands(rest) {
+  for (let i = 0; i < rest.length; i++) {
+    if (SSH_VALUE_FLAG.test(rest[i])) i++;
+    else if (!rest[i].startsWith('-')) return rest.slice(i + 1);
+  }
+  return [];
+}
+
+/**
+ * The command strings `name` runs from its operands `rest`, each with the shell it is written for: a shell's `-c` string,
+ * `eval`, `su -c`, every clause of a `find -exec`, the remote command of `ssh`, the string of a `trap`. With `blind`
+ * (words cut on whitespace and quotes) a string operand arrives as several words, so every word after the lead is taken.
+ */
+function runnerTexts(name, rest, { shell = '', blind = false } = {}) {
+  const whole = (words) => (blind || words.length !== 1 ? words.join(' ') : dequoted(words[0]));
+  if (FIND_NAME.test(name)) return findClauses(rest).map((text) => ({ text, shell }));
+  if (SSH_NAME.test(name)) return [sshOperands(rest)].filter((ops) => ops.length).map((ops) => ({ text: whole(ops), shell: 'bash' }));
+  if (TRAP_NAME.test(name)) return [rest.filter((w) => !TRAP_FLAG.test(w))].filter((ops) => ops.length).map((ops) => ({ text: blind ? ops.join(' ') : dequoted(ops[0]), shell: 'bash' }));
+  if (SU_NAME.test(name)) {
+    const at = rest.findIndex((w) => SU_C_FLAG.test(w));
+    return at >= 0 && at + 1 < rest.length ? [{ text: whole(rest.slice(at + 1, blind ? undefined : at + 2)), shell: 'bash' }] : [];
+  }
+  const start = innerStart(name, rest);
+  if (start < 0) return [];
+  const operands = rest.slice(start);
+  const isEval = /^eval$/i.test(name);
+  const text = blind ? operands.join(' ') : isEval ? operands.map(dequoted).join(' ') : dequoted(operands[0]);
+  return [{ text, shell: PS_NAME.test(name) ? 'powershell' : isEval ? shell : 'bash' }];
+}
+
+const leadsCommand = (name, rest) => isApplier(name, rest) || runnerTexts(name, rest, { blind: true }).length > 0;
 
 /** The index of the first word that `matches` past wrappers (`sudo -u root`, `env A=1`, `command`, `timeout 5`) and shell grouping words (`then`, `!`); -1 when another command leads. */
 function leadIndex(words, matches) {
@@ -186,27 +236,82 @@ function applierHits(words, ctx) {
   return targets.map((p) => ctx.hit(dir ? `${dir}/${p}` : p)).filter(Boolean);
 }
 
-/** The command text a shell word list runs (`bash -c "..."`, `eval ...`) and the shell it is written for. */
-function innerCommand(tokens, shellName) {
-  const at = leadIndex(tokens, (name, rest) => innerStart(name, rest) >= 0);
-  if (at < 0) return null;
-  const name = commandName(tokens[at]);
-  const rest = tokens.slice(at + 1);
-  const operands = rest.slice(innerStart(name, rest));
-  return { text: (/^eval$/i.test(name) ? operands.map(dequoted) : [dequoted(operands[0])]).join(' '), shell: PS_NAME.test(name) ? 'powershell' : /^eval$/i.test(name) ? shellName : 'bash' };
+/** The segment's quote-aware tokens without its redirections (`< f`, `<<'EOF'`, `2>&1`): a quoted `<` stays in its token. */
+function commandTokens(text) {
+  const tokens = shellTokens(text);
+  const kept = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const redirect = REDIRECT_TOKEN.exec(tokens[i]);
+    if (!redirect) kept.push(tokens[i]);
+    else if (!redirect[1]) i++;
+  }
+  return kept;
+}
+
+/** The command strings a shell word list's lead command runs from its operands (runnerTexts), each with the shell it is written for. */
+function runnerCommands(tokens, shellName) {
+  const at = leadIndex(tokens, (name, rest) => runnerTexts(name, rest, { shell: shellName }).length > 0);
+  return at < 0 ? [] : runnerTexts(commandName(tokens[at]), tokens.slice(at + 1), { shell: shellName });
+}
+
+/** The index of the `)` closing the parenthesis opened before `from`, quotes respected; the end of `text` when it never closes. */
+function closingParen(text, from, escapes) {
+  let depth = 1;
+  let quote = '';
+  for (let i = from; i < text.length; i++) {
+    const ch = text[i];
+    if (escapes && ch === '\\' && quote !== "'") i++;
+    else if (quote) quote = ch === quote ? '' : quote;
+    else if (QUOTE_CHAR.test(ch)) quote = ch;
+    else if (ch === '(') depth++;
+    else if (ch === ')' && --depth === 0) return i;
+  }
+  return text.length;
 }
 
 /**
- * The hits of one segment's applier, found past wrappers and grouping words, and of every applier in a command string a
- * shell runs (`bash -c "..."`, `pwsh -Command ...`, `eval ...`), judged by the same rules to MAX_NESTING levels.
+ * The command text inside every `$(...)`, `<(...)`, `>(...)` and backtick pair of `text` that a shell runs: none in a
+ * single-quoted span or behind an escape. PowerShell has `$(...)` only. An unclosed one runs to the end; `$((1 + 2))` yields a harmless `(1 + 2)`.
+ */
+function substitutions(text, shellName) {
+  const bash = shellName !== 'powershell';
+  const found = [];
+  let quote = '';
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if ((bash ? ch === '\\' : ch === '`') && quote !== "'") i++;
+    else if (quote === "'") quote = ch === "'" ? '' : quote;
+    else if (ch === quote) quote = '';
+    else if (!quote && QUOTE_CHAR.test(ch)) quote = ch;
+    else if ((ch === '$' && next === '(') || (bash && !quote && next === '(' && (ch === '<' || ch === '>'))) {
+      const end = closingParen(text, i + 2, bash);
+      found.push(text.slice(i + 2, end));
+      i = end;
+    } else if (bash && ch === '`') {
+      const close = text.indexOf('`', i + 1);
+      const end = close < 0 ? text.length : close;
+      found.push(text.slice(i + 1, end));
+      i = end;
+    }
+  }
+  return found;
+}
+
+/**
+ * The hits of one segment's applier, found past wrappers and grouping words, and of every applier in a command the
+ * segment runs from its operands or a substitution, judged by the same rules to MAX_NESTING levels.
  */
 export function patchApplyHits(text, ctx, depth = 0) {
   const words = cleaned(shellArgs(withoutRedirects(text)));
   const at = leadIndex(words, isApplier);
-  if (at >= 0) return applierHits(words.slice(at), { ...ctx, text });
-  const inner = depth < MAX_NESTING ? innerCommand(cleaned(shellTokens(text)), ctx.shell) : null;
-  if (!inner) return [];
-  return [...segments(inner.text, { shell: inner.shell })].flatMap((seg) => patchApplyHits(seg.text, { ...ctx, shell: inner.shell }, depth + 1));
+  const own = at >= 0 ? applierHits(words.slice(at), { ...ctx, text }) : [];
+  if (depth >= MAX_NESTING) return own;
+  const runs = [
+    ...(at >= 0 ? [] : runnerCommands(cleaned(commandTokens(text)), ctx.shell)),
+    ...substitutions(text, ctx.shell).map((inner) => ({ text: inner, shell: ctx.shell })),
+  ];
+  return [...own, ...runs.flatMap((run) => [...segments(run.text, { shell: run.shell })].flatMap((seg) => patchApplyHits(seg.text, { ...ctx, shell: run.shell }, depth + 1)))];
 }
 
 const blindWords = (text) => cleaned(String(text).split(BLIND_SEPARATOR));
@@ -226,6 +331,6 @@ export function appliesPatch(text, depth = 0) {
     const name = commandName(words[at]);
     const rest = words.slice(at + 1);
     if (isApplier(name, rest)) return true;
-    return depth < MAX_NESTING && appliesPatch(rest.slice(innerStart(name, rest)).join(' '), depth + 1);
+    return depth < MAX_NESTING && runnerTexts(name, rest, { blind: true }).some((run) => appliesPatch(run.text, depth + 1));
   });
 }

@@ -18,7 +18,8 @@
 // is parsed and no text blanked, so a deny gate cannot be steered by how a wrapper takes its options. A segment led by
 // a reader or a kit verb is no write tool, but its redirects are judged: a kit or git segment counts only a `>`
 // outside quotes (KIT-T951). A node call is judged on every module it loads, except repo and package modules.
-// An applier is the command a segment leads with, past wrappers and grouping words, also inside `bash -c "..."`; a copy
+// An applier is the command a segment leads with, past wrappers and grouping words, also in a command another runs
+// (`bash -c "..."`, `find -exec`, `ssh host`, a `trap` string, a `$(...)` substitution: patch-apply.mjs); a copy
 // destination holding a variable the command assigns once and literally is judged by the value (shell-variables.mjs).
 
 import { readFileSync, realpathSync } from 'node:fs';
