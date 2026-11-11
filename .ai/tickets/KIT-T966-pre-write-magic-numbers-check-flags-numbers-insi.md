@@ -35,3 +35,7 @@ first seen in groovegrid. Filed automatically (KIT-T286): every kit bug is a tic
 - [2026-11-11 02:29] (status) todo → review
 - [2026-11-11 02:29] (comment) Fixed in a19f1fa (+7c947bb test fix); runtime publish refused: exported HEAD red on hooks/claim-release-controls.test.mjs (imports uncommitted hooks/lib/live-claims.mjs, KIT-T944 residual awaiting maintainer approval), so current has not moved
 - [2026-11-11 02:30] (comment) ticked: An Edit fragment starting inside a block comment is judged as comment text by pre-write magic-numbers; numerics in code still block
+- [2026-11-11 02:33] (landed) 10c2d90 pre-write keeps the whole content of a Write in the magic-number scan; a redirect and its target are cut from a cp's ope
+- [2026-11-11 02:37] (comment) @claude: Cause: pre-write ran codeOnly (comment/string blanking) on the Edit fragment alone, so a fragment starting inside a /**  (full comment #1 in ## Notes)
+### comment #1 [2026-11-11 02:37] @claude
+Cause: pre-write ran codeOnly (comment/string blanking) on the Edit fragment alone, so a fragment starting inside a /** */ block was judged as code. Fix a19f1fa and 10c2d90: the fragment's character span is cut out of codeOnly(post-edit file), so it carries the file's comment state; a Write, or an Edit whose place is unknown, is judged on its own text. Tests: hooks/pre-write-comment-state.test.mjs (7; 3 failed before the fix; a mid-line fragment control and a CRLF-Write control guard the slice).
