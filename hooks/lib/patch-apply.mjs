@@ -212,13 +212,15 @@ export function patchApplyHits(text, ctx, depth = 0) {
 const blindWords = (text) => cleaned(String(text).split(BLIND_SEPARATOR));
 
 /**
- * True when some piece of `text`, cut on every operator whatever the quoting, is led by an applier or by a shell whose
- * command string is. A caller whose quoting cannot be trusted blocks on it; `echo patch` and `grep patch f` lead with a reader.
+ * True when some piece of `text`, cut on every operator whatever the quoting, runs `git apply` or `git am` anywhere in
+ * it, or is led by `patch` or by a shell whose command string is. A caller whose quoting cannot be trusted blocks on it;
+ * `echo patch` and `grep patch f` lead with a reader and name no applier.
  */
 export function appliesPatch(text, depth = 0) {
   const pieces = blindSegments(text).flatMap((piece) => piece.text.split(SUBSTITUTION_START));
   return pieces.some((piece) => {
     const words = blindWords(piece);
+    if (words.some((w, i) => /^git$/i.test(commandName(w)) && isApplier('git', words.slice(i + 1)))) return true;
     const at = leadIndex(words, leadsCommand);
     if (at < 0) return false;
     const name = commandName(words[at]);

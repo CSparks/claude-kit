@@ -48,9 +48,15 @@ try {
     ['a subshell ( git apply )', `${heredoc('( git apply', SRC_DIFF)} )`],
     ['then patch', `if true; then\n${heredoc('patch -p1', SRC_DIFF)}\nfi`],
     ['a command substitution', `x=$(git apply <<'EOF'\n${SRC_DIFF}EOF\n)`],
+    ['git apply run from another command (find -exec)', heredoc('find . -name x -exec git apply', SRC_DIFF)],
+    ['git apply run over ssh', heredoc('ssh host git apply', SRC_DIFF)],
+    ['git apply in a trap string', "trap 'git apply x.patch' EXIT"],
+    ['env A=1 echo git apply (git named anywhere)', 'env A=1 echo git apply'],
     ['bash -c patch', heredoc('bash -c "patch -p1"', SRC_DIFF)],
     ['bash -c sudo patch with a redirect', 'bash -c "sudo patch -p1 < x.patch"'],
     ['git apply --check (a flag cannot lift an untrusted line)', 'git apply --check x.patch'],
+    ['a negated ! patch', heredoc('! patch -p1', SRC_DIFF)],
+    ['then patch on one line', `if true; then ${heredoc('patch -p1', SRC_DIFF)}\nfi`],
   ];
   for (const [name, command] of ambiguousBlocks) ok(`ambiguous quoting: source gate blocks ${name}`, src(AMBIGUOUS + command) === BLOCK);
   ok('ambiguous quoting: store gate blocks sudo patch', store(AMBIGUOUS + heredoc('sudo patch -p1', STORE_DIFF)) === BLOCK);
@@ -59,7 +65,7 @@ try {
     ['echo patch', 'echo patch'],
     ['grep patch', 'grep patch f.txt'],
     ['sudo ls', 'sudo ls -la'],
-    ['env A=1 echo git apply', 'env A=1 echo git apply'],
+    ['echo of the word apply', 'echo git status; echo apply'],
     ['bash -c echo patch', 'bash -c "echo patch"'],
     ['a commit message that mentions patch and apply', 'git commit -m "fix \\"patch\\" handling of apply"'],
   ];
@@ -77,6 +83,10 @@ try {
     ['pwsh -Command git apply', heredoc('pwsh -Command "git apply"', SRC_DIFF)],
     ['powershell -NoProfile -c git apply', heredoc('powershell -NoProfile -c "git apply"', SRC_DIFF)],
     ['eval git apply', heredoc('eval "git apply"', SRC_DIFF)],
+    ['a negated ! patch', heredoc('! patch -p1', SRC_DIFF)],
+    ['then patch on one line', `if true; then ${heredoc('patch -p1', SRC_DIFF)}\nfi`],
+    ['do git apply on one line', `for i in 1; do ${heredoc('git apply', SRC_DIFF)}\ndone`],
+    ['a grouped { patch; }', `${heredoc('{ patch -p1', SRC_DIFF)}; }`],
     ['bash -c git apply behind a pipe', `cat x | ${heredoc('bash -c "git apply"', SRC_DIFF)}`],
   ];
   for (const [name, command] of shellBlocks) ok(`source gate blocks ${name}`, src(command) === BLOCK);
@@ -128,8 +138,8 @@ try {
     ['a single-quoted reference', `SP="${scratch}"; cp src/a.cpp '$SP/b.cpp'`],
     ['a ${VAR:-default} expansion', `SP="${scratch}"; cp src/a.cpp "\${SP:-src}/b.cpp"`],
     ['an unquoted reference to a value holding a space', `SP="${scratch}"; cp src/a.cpp $SP/a.cpp`],
-    ['a bare value holding a backslash', 'SP=C:\\\\x; cp src/a.cpp "$SP/b.cpp"'],
-    ['an eval anywhere in the command', `SP="${scratch}"; eval "SP=src"; cp src/a.cpp "$SP/b.cpp"`],
+    ['a bare value holding a backslash (bash drops it)', 'SP=C:\\x; cp src/a.cpp "$SP/b.cpp"'],
+    ['an eval that rebinds the variable out of sight', `SP="${scratch}"; N=S; eval "$N"P=src; cp src/a.cpp "$SP/b.cpp"`],
     ['a loop that rebinds the variable', `SP="${scratch}"; for SP in src; do cp src/a.cpp "$SP/b.cpp"; done`],
     ['a source operand that is a variable', 'cp "$X" src/b.cpp'],
     ['a literal in-repo backup', 'cp src/a.cpp src/a.cpp.bak'],
@@ -149,6 +159,7 @@ try {
   ok('expandVariables: double quotes expand any literal', expandVariables('"$A/b"', new Map([['A', 'x y']]), 'bash') === '"x y/b"');
   ok('expandVariables: an unquoted value with a space stays unexpanded', expandVariables('$A/b', new Map([['A', 'x y']]), 'bash') === '$A/b');
   ok('expandVariables: single quotes keep the variable', expandVariables("'$A'", new Map([['A', 'x']]), 'bash') === "'$A'");
+  ok('expandVariables: a backslash inside single quotes is literal and closes the span', expandVariables("'\\' \"$A\"", new Map([['A', 'x']]), 'bash') === "'\\' \"x\"");
   ok('expandVariables: a backslash escapes the dollar', expandVariables('"\\$A"', new Map([['A', 'x']]), 'bash') === '"\\$A"');
   ok('expandVariables: ${NAME} braces expand', expandVariables('"${A}/b"', new Map([['A', 'x']]), 'bash') === '"x/b"');
   ok('expandVariables: a longer name is another variable', expandVariables('"$AB"', new Map([['A', 'x']]), 'bash') === '"$AB"');
