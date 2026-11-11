@@ -27,5 +27,9 @@ first seen in marblequest. Filed automatically (KIT-T286): every kit bug is a ti
 ## Plan
 1.
 
+## Notes
+Root cause (marblequest transcript, entries 128-143): the reply before the blocked call is ONE 39-word narration block, the ~190 words never reached the transcript, and turnText reads every block (no split, bullet or cap bug). The Stop backstop (turnCalls) audited the hook-denied first call, which never reached the maintainer (its result is 'PreToolUse:AskUserQuestion hook error'), and the audit judged question text only as an alternative to prose; the re-ask audited clean. Fix (e63e11d): turnCalls marks denied calls and the audit skips them; prose plus question text is one count, reported in the Counted line. Tests: hooks/question-brief-blocked.test.mjs 8 passed (new; removing the skip fails 2), question-brief-audit 22, -turn 16, -narration 8, -gate 23, block-triage 13, question-grounded-gate 16 passed.
+
 ## History
 - [2026-11-11 17:16] (created) bug — question-brief-audit (KIT-D153) misfires, recurrence of KIT-T893: marblequest 2026-11-11. The full summary (about 190 words: intro paragraph
+- [2026-11-11 17:25] (landed) e63e11d question-brief audit skips a call a PreToolUse hook denied (never reached the maintainer) and counts the turn's prose pl
