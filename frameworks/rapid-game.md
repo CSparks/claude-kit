@@ -15,8 +15,10 @@ streaming, assets, physics, UI, save, tunables, screens, editor and audio presen
 ZERO library or version decisions made by the person typing it; a POC that graduates turns
 on what is already there. When a game needs something not in the framework, it goes into
 rapid-game FIRST, never into the game (the flywheel: every game's effort compounds into
-the next start). The submodule pin is the safety — a consumer re-pins when it wants what
-is upstream; nothing breaks when the framework moves. (ST-D057, 2026-08-19.)
+the next start). The submodule pin keeps a consumer buildable, and a session keeps it
+current: it pulls rapid-game and pins origin/main at session start (KIT-D141), citing no
+ticket (KIT-D157). A breaking change found while pinning is priority one, fixed through
+local tickets in that codebase. (ST-D057, 2026-08-19; KIT-D141; KIT-D157.)
 
 **Dependency rule — adopt the primitives, own the compositions.** A concept a better-
 maintained library directly replicates is that library; a concept it does NOT have — the

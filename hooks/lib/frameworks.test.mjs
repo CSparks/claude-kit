@@ -138,3 +138,22 @@ test('the default frameworks dir resolves to the KIT root, not hooks/', () => {
   assert.match(frameworkSection(game), /FRAMEWORK CONTRACT: rapid-game/);
   rmSync(game, { recursive: true, force: true });
 });
+
+test('the rapid-game section states the session-start pin rule, not "a consumer re-pins when it wants" (KIT-D141, KIT-D157)', () => {
+  const game = repo();
+  writeFileSync(join(game, '.gitmodules'), '[submodule "rapid-game"]\n\tpath = rapid-game\n');
+  const section = frameworkSection(game);
+  assert.doesNotMatch(section, /re-pins when it wants/);
+  assert.doesNotMatch(section, /nothing breaks when the framework moves/);
+  assert.match(section, /pulls rapid-game and pins origin\/main at session start \(KIT-D141\)/);
+  assert.match(section, /citing no\s+ticket \(KIT-D157\)/);
+  assert.match(section, /priority one, fixed through\s+local tickets in that codebase/);
+  rmSync(game, { recursive: true, force: true });
+});
+
+test('control: a repo that does not use rapid-game gets no pin rule', () => {
+  const web = repo();
+  writeFileSync(join(web, 'package.json'), '{"dependencies":{"react":"18"}}');
+  assert.equal(frameworkSection(web), '');
+  rmSync(web, { recursive: true, force: true });
+});
