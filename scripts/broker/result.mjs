@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import { brokerPaths } from './config.mjs';
 import { recordRun } from './red-run.mjs';
 import { recordFinished } from './finished-log.mjs';
+import { noteLanding } from './land-anchor.mjs';
 import { recordStaleEnvelope } from './stale-envelope.mjs';
 import { sweepLogs } from './log-sweep.mjs';
 
@@ -115,6 +116,7 @@ export function writeResult(cfg, result) {
   writeFileSync(join(p.results, `${result.id}.json`), JSON.stringify(full, null, 2));
   recordRun(cfg, full);
   recordFinished(cfg, full);
+  if (full.status === STATUS.LANDED) noteLanding(cfg, { ...full, title: full.title || queuedField(p.queue, full.id, 'title') });
   if (full.status === STATUS.STALE && full.stale?.length && full.phase !== REPEAT_PHASE) {
     recordStaleEnvelope(cfg, full, result.envelope || queuedField(p.queue, result.id, 'envelope'));
   }
