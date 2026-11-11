@@ -1,37 +1,42 @@
-// What a cp, mv, install, Copy-Item or Move-Item call READS and WRITES, read from the call's argument text.
-//   copyTargets(tool, argText) -> { destination, destinations: string[], sources: string[], certain: boolean }
-//     destination: the destination as typed. destinations: every path the call may write.
-//     certain: the destination is known. When it is not (an option that may take a value, an ambiguous PowerShell
-//     parameter, an unterminated quote, a missing value) `destinations` is empty and `sources` holds EVERY
-//     operand, so a gate judging them fails closed.
-// The text is tokenized first: a quoted span stays whole, and a redirect (`> f`, `2>&1`, `>> "a b"`, `< f`) is cut out
-// with the target that follows it, never by a pattern that ignores quoting. A token `quoted` is one that opens
-// with a quote: its text is an operand whatever it starts with.
-// A destination may be a directory: `-t DIR`, a trailing slash, or a bare name that already exists. A copy then writes
-// each source under its own file name, so `DEST/<source name>` is judged beside DEST. A recursive copy, a --parents copy
-// or a source with no file extension (it may be a directory) can write any name under DEST, so `DEST/any.rs` is judged too.
+// What a cp, mv, Copy-Item or Move-Item call may write, read from the call's argument text under a STRICT allowlist.
+//   copyTargets(tool, argText) -> { proven: { sources: [string], destination: string } | null, writes: string[] }
+//
+// `proven` is set only for the one shape whose destination is known without running the shell:
+//   - the tool is cp, mv, Copy-Item or Move-Item;
+//   - every token is a plain literal: no glob, variable, substitution, brace, parenthesis, comment or unquoted
+//     backslash (bash tools), no backtick or comma (PowerShell tools), no leading tilde, no unterminated quote;
+//   - the options are the small set that cannot change where bytes land (cp: -f -p -v -n and their long forms; mv: -f
+//     -v -n; Copy-Item/Move-Item: -Path -Destination -Force, exact names), plus `-t DIR` / `--target-directory DIR|=DIR`
+//     in their exact forms; a quoted token that starts with `-` is an unknown option;
+//   - exactly one source and one destination (with -t, the one source goes to DIR/<its name>), no trailing slash.
+// The caller still has to show that destination resolves outside every adopted repo and is no existing directory.
+//
+// Everything else (any other option or cluster, -r -R -a --parents, links, several sources, a glob, an unquoted
+// backslash, install, the `copy` alias) is uncertain: `writes` then lists every operand AND `<operand>/any.rs`
+// (anything may land under a directory operand), so a gate judging them as writes fails closed.
+// A redirect (`> f`, `2>&1`, `< f`) is cut out of the tokens with its target; the caller judges redirects itself.
 
-const GNU_ARG_SHORT = 'tSmog';
-const GNU_PLAIN_SHORT = 'rRfinvpaulsLPHdxbTZ';
-const GNU_RECURSIVE_SHORT = 'rRa';
-const GNU_PLAIN_LONG = /^(?:recursive|force|interactive|no-clobber|verbose|preserve|archive|update|link|symbolic-link|dereference|no-dereference|parents|backup|no-target-directory|remove-destination|attributes-only|one-file-system|debug|reflink|directory|compare)$/;
-const GNU_RECURSIVE_LONG = /^(?:recursive|archive|parents)$/;
-const GNU_ARG_LONG = /^(?:suffix|mode|owner|group)$/;
-const TARGET_DIRECTORY = 'target-directory';
-const PS_ARG_PARAMS = ['path', 'literalpath', 'destination', 'filter', 'include', 'exclude', 'credential', 'fromsession', 'tosession', 'erroraction', 'warningaction', 'informationaction', 'errorvariable', 'warningvariable', 'informationvariable', 'outvariable', 'outbuffer', 'pipelinevariable'];
-const PS_SWITCH_PARAMS = ['force', 'container', 'recurse', 'passthru', 'whatif', 'confirm', 'usetransaction', 'debug', 'verbose'];
-const PS_TOOL = /^(?:copy-item|move-item|copy)$/i;
+const SAFE_SHORT = { cp: ['-f', '-p', '-v', '-n'], mv: ['-f', '-v', '-n'] };
+const SAFE_LONG = { cp: ['--force', '--preserve', '--verbose', '--no-clobber'], mv: ['--force', '--verbose', '--no-clobber'] };
+const GNU_TOOL = /^(?:cp|mv)$/i;
+const PS_TOOL = /^(?:copy-item|move-item)$/i;
+const PS_SWITCH = 'force';
+const PS_VALUE_PARAMS = ['path', 'destination'];
 const REDIRECT_FD = /^(?:\d+|&)$/;
 const ENDS_IN_SLASH = /[\\/]$/;
-const HAS_EXTENSION = /\.[^.\\/]+$/;
+const GNU_UNQUOTED_SPECIAL = /[*?[\]{}()$`\\!#]/;
+const PS_UNQUOTED_SPECIAL = /[*?[\]{}()$`,#@]/;
+const DOUBLE_QUOTED_SPECIAL = /[$`]|\\[$`"\\\n]/;
 const ANY_SOURCE_NAME = 'any.rs';
 
-/** The argument tokens `{ v, quoted }` of `text` with redirects removed; `open` when a quote never closes. */
-function tokenize(text) {
+/** Tokens `{ v, quoted, impure }` of `text` with redirects cut out; `open` when a quote never closes. */
+function tokenize(text, powershell) {
+  const special = powershell ? PS_UNQUOTED_SPECIAL : GNU_UNQUOTED_SPECIAL;
   const out = [];
   let cur = null;
   let quote = '';
   let dropNext = false;
+  const start = (quoted) => { cur = cur || { v: '', quoted, impure: false }; };
   const flush = () => {
     if (cur && dropNext) dropNext = false;
     else if (cur) out.push(cur);
@@ -39,8 +44,13 @@ function tokenize(text) {
   };
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (quote) { if (ch === quote) quote = ''; else cur.v += ch; continue; }
-    if (ch === '"' || ch === "'") { cur = cur || { v: '', quoted: true }; quote = ch; continue; }
+    if (quote) {
+      if (ch === quote) { quote = ''; continue; }
+      cur.v += ch;
+      if (quote === '"' && (DOUBLE_QUOTED_SPECIAL.test(ch + (text[i + 1] || '')) || (powershell && ch === '`'))) cur.impure = true;
+      continue;
+    }
+    if (ch === '"' || ch === "'") { start(true); quote = ch; continue; }
     if (/\s/.test(ch)) { flush(); continue; }
     if (ch === '>' || ch === '<') {
       if (cur && !cur.quoted && REDIRECT_FD.test(cur.v)) cur = null; else flush();
@@ -51,8 +61,9 @@ function tokenize(text) {
       i = j - 1;
       continue;
     }
-    cur = cur || { v: '', quoted: false };
+    start(false);
     cur.v += ch;
+    if (special.test(ch) || (ch === '~' && cur.v === '~')) cur.impure = true;
   }
   const open = quote !== '';
   flush();
@@ -61,92 +72,64 @@ function tokenize(text) {
 
 const stripSlash = (p) => String(p).replace(/[\\/]+$/, '');
 const baseName = (p) => stripSlash(p).replace(/.*[\\/]/, '');
-const underDir = (dir, sources) => (sources.length ? sources.map((s) => `${stripSlash(dir)}/${baseName(s)}`) : [dir]);
+const isOption = (t) => t.v.startsWith('-');
 
-function resolved(dest, sources, { isDir = false, recursive = false } = {}) {
-  const joined = underDir(dest, sources);
-  const asDir = isDir || ENDS_IN_SLASH.test(dest);
-  const wide = recursive || sources.some((s) => !HAS_EXTENSION.test(stripSlash(s)));
-  const destinations = [...(asDir ? [] : [dest]), ...joined, ...(wide ? [`${stripSlash(dest)}/${ANY_SOURCE_NAME}`] : [])];
-  return { destination: dest, destinations, sources, certain: true };
-}
-const unknown = (tokens) => ({ destination: '', destinations: [], sources: tokens.map((t) => t.v), certain: false });
-
-// cp, mv, install: options may sit among the operands; `-t DIR` / `--target-directory=DIR` (any unambiguous prefix,
-// a joined `-tDIR`, a cluster `-rt DIR`) name the destination directory, else it is the last operand.
-function gnuTargets(tokens) {
+function gnuProven(tool, tokens) {
+  const name = tool.toLowerCase();
+  const shorts = SAFE_SHORT[name];
+  const longs = SAFE_LONG[name];
   const positional = [];
   let dir = null;
-  let recursive = false;
-  let optionsDone = false;
   for (let i = 0; i < tokens.length; i++) {
-    const { v, quoted } = tokens[i];
-    if (optionsDone || quoted || !v.startsWith('-') || v === '-') { positional.push(v); continue; }
-    if (v === '--') { optionsDone = true; continue; }
-    if (v.startsWith('--')) {
-      const [name, ...rest] = v.slice(2).split('=');
-      const joined = rest.length ? rest.join('=') : null;
-      if (name && TARGET_DIRECTORY.startsWith(name)) {
-        const value = joined ?? tokens[++i]?.v;
-        if (value === undefined || dir !== null) return null;
-        dir = value;
-      } else if (GNU_ARG_LONG.test(name)) {
-        if ((joined ?? tokens[++i]?.v) === undefined) return null;
-      } else if (GNU_PLAIN_LONG.test(name)) {
-        recursive ||= GNU_RECURSIVE_LONG.test(name);
-      } else return null;
-      continue;
-    }
-    for (let k = 1; k < v.length; k++) {
-      const c = v[k];
-      if (GNU_ARG_SHORT.includes(c)) {
-        const value = v.slice(k + 1) || tokens[++i]?.v;
-        if (value === undefined || (c === 't' && dir !== null)) return null;
-        if (c === 't') dir = value;
-        break;
-      }
-      if (!GNU_PLAIN_SHORT.includes(c)) return null;
-      recursive ||= GNU_RECURSIVE_SHORT.includes(c);
-    }
+    const t = tokens[i];
+    if (!isOption(t)) { positional.push(t.v); continue; }
+    if (t.quoted) return null;
+    const joined = t.v.startsWith('--target-directory=') ? t.v.slice('--target-directory='.length) : null;
+    if (t.v === '-t' || t.v === '--target-directory' || joined !== null) {
+      const value = joined ?? tokens[++i]?.v;
+      if (!value || dir !== null || (joined === null && isOption(tokens[i]))) return null;
+      dir = value;
+    } else if (!shorts.includes(t.v) && !longs.includes(t.v)) return null;
   }
-  if (dir !== null) return resolved(dir, positional, { isDir: true, recursive });
-  if (positional.length < 2) return null;
-  return resolved(positional.at(-1), positional.slice(0, -1), { recursive });
+  if (dir !== null) return positional.length === 1 ? { sources: positional, destination: `${stripSlash(dir)}/${baseName(positional[0])}` } : null;
+  if (positional.length !== 2 || ENDS_IN_SLASH.test(positional[1])) return null;
+  return { sources: [positional[0]], destination: positional[1] };
 }
 
-// The one PowerShell parameter `name` (case-insensitive, an unambiguous prefix) names, or '' when none or several.
-function psParameter(name) {
-  const lower = name.toLowerCase();
-  const all = [...PS_ARG_PARAMS, ...PS_SWITCH_PARAMS];
-  if (all.includes(lower)) return lower;
-  const matches = all.filter((p) => p.startsWith(lower));
-  return matches.length === 1 ? matches[0] : '';
-}
-
-// Copy-Item, Move-Item: `-Destination X` or `-Destination:X`, else the second positional (Path, Destination).
-function psTargets(tokens) {
+function psProven(tokens) {
   const positional = [];
   const named = {};
-  let recursive = false;
   for (let i = 0; i < tokens.length; i++) {
-    const { v, quoted } = tokens[i];
-    if (quoted || !/^-[A-Za-z]/.test(v)) { positional.push(v); continue; }
-    const colon = v.indexOf(':');
-    const param = psParameter(colon > 0 ? v.slice(1, colon) : v.slice(1));
-    if (!param) return null;
-    if (PS_SWITCH_PARAMS.includes(param)) { recursive ||= param === 'recurse'; continue; }
-    const value = colon > 0 ? v.slice(colon + 1) : tokens[++i]?.v;
-    if (value === undefined || named[param] !== undefined) return null;
-    named[param] = value;
+    const t = tokens[i];
+    if (!isOption(t)) { positional.push(t.v); continue; }
+    if (t.quoted) return null;
+    const colon = t.v.indexOf(':');
+    const name = (colon > 0 ? t.v.slice(1, colon) : t.v.slice(1)).toLowerCase();
+    if (name === PS_SWITCH && colon < 0) continue;
+    if (!PS_VALUE_PARAMS.includes(name) || named[name] !== undefined) return null;
+    const value = colon > 0 ? t.v.slice(colon + 1) : tokens[++i]?.v;
+    if (!value) return null;
+    named[name] = value;
   }
-  const path = named.path ?? named.literalpath ?? positional.shift();
-  const dest = named.destination ?? positional.shift();
-  if (path === undefined || dest === undefined || positional.length) return null;
-  return resolved(dest, path.split(','), { recursive });
+  const source = named.path ?? positional.shift();
+  const destination = named.destination ?? positional.shift();
+  if (!source || !destination || positional.length || ENDS_IN_SLASH.test(destination)) return null;
+  return { sources: [source], destination };
+}
+
+/** Every operand as a path a call might write, plus the names a directory operand could receive. */
+function everyOperand(tokens) {
+  const operands = tokens
+    .map((t) => (isOption(t) && !t.quoted ? (t.v.includes('=') ? t.v.slice(t.v.indexOf('=') + 1) : '') : t.v))
+    .filter(Boolean);
+  return operands.flatMap((p) => [p, `${stripSlash(p)}/${ANY_SOURCE_NAME}`]);
 }
 
 export function copyTargets(tool, argText) {
-  const { tokens, open } = tokenize(String(argText));
-  const known = open ? null : (PS_TOOL.test(tool) ? psTargets(tokens) : gnuTargets(tokens));
-  return known || unknown(tokens);
+  const powershell = PS_TOOL.test(tool);
+  const { tokens, open } = tokenize(String(argText), powershell);
+  const plain = !open && tokens.every((t) => !t.impure);
+  const supported = powershell || GNU_TOOL.test(tool);
+  const proven = plain && supported ? (powershell ? psProven(tokens) : gnuProven(tool, tokens)) : null;
+  return { proven, writes: proven ? [] : everyOperand(tokens) };
 }
