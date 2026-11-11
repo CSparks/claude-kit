@@ -259,7 +259,7 @@ function rulingsCheck(root, input, prompt, p) {
   return rulingsBlock({ root, input, prompt, footer: excludeFooter(RULINGS_CHECK) });
 }
 
-// --- handoff-before-replace (KIT-D116) --------------------------------------------
+// --- handoff-before-replace (KIT-D149) --------------------------------------------
 // A read-only dispatch replaces no writer; only a dispatch owning ticket work takes one over.
 function handoffCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, HANDOFF_CHECK, root)) return null;

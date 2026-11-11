@@ -25,6 +25,6 @@ export const TOKENS = {
   maintainerWords: token('maintainer-words', '[maintainer-words: "<his sentence>"]', 'a feature or request brief quotes the maintainer', /\[maintainer-words:\s*[^\]\s][^\]]*\]/i),
   reuses: token('reuses', '[reuses: <existing mechanism>]', 'a variant of an existing feature names what it reuses, or `[reuses: none: <why>]`', /\[reuses:\s*[^\]\s][^\]]*\]/i),
   handoffWaived: token('handoff-waived', '[handoff-waived: <reason>]', 'replace an agent flagged for waste although it wrote no handoff (only when the handoff is impossible)', /\[handoff-waived:\s*[^\]\s][^\]]*\]/i),
-  writeHandoff: token('write-handoff', '[write-handoff]', 'the one message a past-ceiling agent is resumed with: its handoff request', /\[write-handoff\]/i),
+  writeHandoff: token('write-handoff', '[write-handoff]', 'the one message an agent retired for waste is resumed with: its handoff request', /\[write-handoff\]/i),
   reAsk: token('re-ask', '[re-ask: <reason>]', 'ask a question another session already asked and nobody resolved (in the question text)', /\[re-ask:\s*[^\]]+\]/i),
 };
