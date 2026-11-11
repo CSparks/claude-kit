@@ -25,6 +25,11 @@ try {
   ok('searchPaths: the pattern is not a path', searchPaths(['-rn', 'foo.bar', 'src/a.cpp']).join() === 'src/a.cpp');
   ok('searchPaths: flag values are not paths', searchPaths(['-n', '-A', '3', '-g', '*.rs', 'foo', 'src/lib.rs']).join() === 'src/lib.rs');
   ok('searchPaths: -e supplies the pattern, every positional is a path', searchPaths(['-e', 'foo', 'a.cpp', 'b.cpp']).join() === 'a.cpp,b.cpp');
+  ok('searchPaths: a bundle ending in a value letter takes the next word', searchPaths(['-nA', '3', 'foo', 'crates/x/src/lib.rs']).join() === 'crates/x/src/lib.rs');
+  ok('searchPaths: a bundle with an attached value takes none', searchPaths(['-nA3', 'foo', 'src/a.cpp']).join() === 'src/a.cpp');
+  ok('searchPaths: long value flags', searchPaths(['--max-columns', '200', '--glob', '*.rs', 'foo', 'src/lib.rs']).join() === 'src/lib.rs');
+  ok('searchPaths: a long flag with =value takes no next word', searchPaths(['--max-columns=200', 'foo', 'src/lib.rs']).join() === 'src/lib.rs');
+  ok('searchPaths: negative control: a bundle of boolean letters takes no value', searchPaths(['-rni', 'foo', 'src', 'a.cpp']).join() === 'src,a.cpp');
   ok('targetsOnlyFiles: files only', targetsOnlyFiles(['a.cpp', 'src/b.h']));
   ok('targetsOnlyFiles: negative control: a directory beside a file', !targetsOnlyFiles(['src', 'CMakeLists.txt']));
   ok('targetsOnlyFiles: negative control: a glob and no path', !targetsOnlyFiles(['src/*.rs']) && !targetsOnlyFiles([]));
@@ -42,12 +47,19 @@ try {
     ['a bare git grep', 'git grep ModalOverlay', BLOCK],
     ['grep -r over a directory and one file', 'grep -rn foo src CMakeLists.txt', BLOCK],
     ['rg over a directory and one file', 'rg -n foo src/ui CMakeLists.txt', BLOCK],
+    ['rg bundle with a context value over a directory', 'rg -nA 3 foo src', BLOCK],
+    ['grep bundle with a context value over a directory and a file', 'grep -rnC 2 foo src CMakeLists.txt', BLOCK],
+    ['rg --max-columns over a directory', 'rg --max-columns 200 foo src', BLOCK],
+    ['rg bundle with a context value, tree-wide', 'rg -nA 3 foo', BLOCK],
     ['git grep -- one file', 'git grep -n ModalOverlay -- src/a.cpp', PASS],
     ['git grep -- several files', 'git -C . grep -n ModalOverlay -- src/a.cpp src/b.h', PASS],
     ['git grep of a glob scoped to non-indexed source (KIT-T085)', "git grep -n ModalOverlay -- 'src/*.cpp'", PASS],
     ['git log --grep', 'git log --grep=ModalOverlay', PASS],
     ['a filter over git output', 'git log | grep tickets', PASS],
     ['rg with valued flags and one file', "rg -n -g '*.rs' foo crates/x/src/lib.rs", PASS],
+    ['rg bundle with a context value over one file', 'rg -nA 3 foo crates/x/src/lib.rs', PASS],
+    ['grep bundle with a context value over one file', 'grep -rnC 2 foo src/a.cpp', PASS],
+    ['rg --max-columns over one file', 'rg --max-columns 200 foo crates/x/src/lib.rs', PASS],
     ['grep -r of one named file', 'grep -rn foo src/a.cpp', PASS],
     ['grep -r of a quoted multi-word pattern in one file', 'grep -rn "foo bar" src/a.cpp', PASS],
   ];
