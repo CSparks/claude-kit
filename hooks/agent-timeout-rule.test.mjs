@@ -9,6 +9,7 @@ import { ROOT, reporter } from './test-harness.mjs';
 const { ok, done } = reporter('agent-timeout-rule');
 const MAX_TOOL_TIMEOUT_MS = 300000;
 const ADVISES_LONGEST = /\b(max|maximum|longest|highest)\s+timeout\b/i;
+const ADVISES_BACKGROUND_WAIT = /run_in_background|completion notification/i;
 const MS_FIGURE = /\b(\d[\d_,]*)\s*ms\b/gi;
 const SECONDS_FIGURE = /timeout[^\n]{0,20}?\b(\d+)\s*(?:s|sec|seconds)\b/gi;
 
@@ -28,8 +29,12 @@ for (const file of sources) {
   const text = readFileSync(join(ROOT, file), 'utf8');
   ok(`${file} never advises the max timeout`, !ADVISES_LONGEST.test(text));
   ok(`${file} names no timeout over ${MAX_TOOL_TIMEOUT_MS} ms`, overCeiling(text).length === 0);
+  ok(`${file} never tells a subagent to background a build and wait for it`, !ADVISES_BACKGROUND_WAIT.test(text));
+  ok(`${file} sends a build past the ceiling to a Handoff`, !/wait-rule\.md|Waiting on builds/.test(text) || /Handoff/.test(text));
 }
 
+ok('negative control: background-and-wait advice is caught', ADVISES_BACKGROUND_WAIT.test('or with `run_in_background` and wait for the completion notification') && ADVISES_BACKGROUND_WAIT.test('use run_in_background'));
+ok('negative control: the Handoff path text passes', !ADVISES_BACKGROUND_WAIT.test('write a Handoff block naming the build command and end'));
 ok('negative control: "max timeout" is caught', ADVISES_LONGEST.test('run it with the max timeout'));
 ok('negative control: 600000 ms is caught', overCeiling('set timeout 600000 ms').length === 1);
 ok('negative control: 320 s is caught', overCeiling('a timeout of 320 s').length === 1);

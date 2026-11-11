@@ -48,7 +48,7 @@ try {
   const results = [1, 2, 3, 4, 5].map(() => read(d, sid));
   const blocked = results[4];
   ok('Read x2 free, 3rd and 4th warn, 5th (offence 3) blocks citing the rule', results.slice(0, 4).every((r) => r.code === 0) && blocked.code === 2
-    && /BLOCKED \(offence 3\)/.test(blocked.out) && /max timeout|run_in_background/.test(blocked.out) && blocked.out.includes('wait-poll') && blocked.out.includes('.claude-kit-ignore.yaml'));
+    && /BLOCKED \(offence 3\)/.test(blocked.out) && /Handoff block/.test(blocked.out) && !/max timeout|run_in_background/.test(blocked.out) && blocked.out.includes('wait-poll') && blocked.out.includes('.claude-kit-ignore.yaml'));
 
   const e = adopted(false);
   const cats = [1, 2, 3, 4, 5].map(() => bash(e, 'pos2', `tail -n 20 ${OUT}`));

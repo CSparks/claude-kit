@@ -35,8 +35,23 @@ try {
   ok('a background broker wait is blocked', blocked(sub(`node ${BROKER}/wait.mjs j-eee-555`, { run_in_background: true })));
   ok('a background cargo command is blocked', blocked(sub('cargo test -p x', { run_in_background: true })));
   ok('negative: a background command that is neither broker nor cargo passes', sub('node scripts/build.mjs', { run_in_background: true }).code === 0);
+  const CMAKE = '"/c/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"';
+  const backgroundBuilds = [`${CMAKE} --build build --config Debug`, 'ctest --output-on-failure', 'msbuild app.sln /m', 'ninja -C out', 'make -j8', 'gradlew.bat assembleDebug', 'cd build && cmake --build .'];
+  ok('a background build tool (cmake, ctest, msbuild, ninja, make, gradle) is blocked for a subagent', backgroundBuilds.every((c) => blocked(sub(c, { run_in_background: true }))));
+  ok('the background-build block names the handoff path', /Handoff/.test(sub('ninja', { run_in_background: true }).out));
+  ok('negative: the same build tools in the foreground pass', backgroundBuilds.every((c) => sub(c, { timeout: 290000 }).code === 0));
+  ok('negative: the main thread may background a build tool', backgroundBuilds.every((c) => hook('broker-wait-gate.mjs', { tool_name: 'Bash', tool_input: { command: c, run_in_background: true } }, d, env).code === 0));
+  ok('negative: a background command that merely names a build word passes', sub('node serve.mjs --task make', { run_in_background: true }).code === 0 && sub('q code "cmake --build"', { run_in_background: true }).code === 0);
   ok('a Bash timeout over 300000 ms is blocked', blocked(sub('node scripts/x.mjs', { timeout: 600000 })));
   ok('negative: a Bash timeout of 290000 ms passes', sub('node scripts/x.mjs', { timeout: 290000 }).code === 0);
+
+  const longWaits = ['cd "/d/dev/groovegrid" && sleep 240; echo waited', 'sleep 150; date +%H:%M', 'sleep 11', 'powershell -NoProfile -Command "Wait-Process -Name GrooveGrid_UITests -Timeout 150 -ErrorAction SilentlyContinue"',
+    'powershell -NoProfile -Command "Get-Process -Name MSBuild | Wait-Process -Timeout 280; \'waited\'"', 'powershell -Command "Start-Sleep -Seconds 120"', 'Start-Sleep 30', 'Start-Sleep -Milliseconds 90000', 'Wait-Job -Id 3', 'timeout /t 120'];
+  ok('a subagent sleep over 10 s, Wait-Process, Wait-Job or timeout /t is blocked outside any broker call', longWaits.every((c) => blocked(sub(c, { timeout: 280000 }))));
+  ok('the long-wait block names the Handoff path', /Handoff/.test(sub('sleep 240', { timeout: 280000 }).out));
+  ok('negative: a short settle sleep passes', ['sleep 1; ls build/tests', 'sleep 3', 'sleep 10', 'Start-Sleep -Milliseconds 500', 'Start-Sleep 2'].every((c) => sub(c).code === 0));
+  ok('negative: the main thread may sleep and Wait-Process', ['sleep 240', 'powershell -Command "Wait-Process -Id 4"'].every((c) => hook('broker-wait-gate.mjs', { tool_name: 'Bash', tool_input: { command: c } }, d, env).code === 0));
+  ok('negative: a long sleep named only in data (a q query, a commit message) passes', ['q code "sleep 240"', 'git commit -m "no more sleep 240 waits"'].every((c) => sub(c).code === 0));
 
   ok('watch.mjs is blocked', blocked(sub(`node ${BROKER}/watch.mjs --root D:/x --for landing`)));
   ok('broker.mjs watch is blocked', blocked(sub(`node ${BROKER}/broker.mjs watch`)));

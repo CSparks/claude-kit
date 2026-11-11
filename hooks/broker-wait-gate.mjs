@@ -6,24 +6,29 @@
 //
 // DENIED, from a subagent:
 //   - run_in_background on a broker or cargo command (the agent would stay alive on it)
+//   - run_in_background on a build or test tool (cmake, ctest, msbuild, ninja, make, gradle, ...): a subagent has no
+//     way to wait on it and SubagentStop ends its shells, so a build past one 300000 ms call goes in a Handoff
 //   - a Bash timeout over 300000 ms
 //   - watch.mjs / `broker.mjs watch|wait` (the orchestrator's tools), `submit.mjs --wait`
 //   - wait.mjs with --timeout over 300 s, or a SECOND wait on the same job (polling)
 //   - the same submit command repeated verbatim without --revises (re-running a job to read its status)
 //   - sleep / while / until / for loops, `tail -f`, `Get-Content -Wait` around a broker call or target/broker
+//   - a sleep over 10 s, Wait-Process, Wait-Job or `timeout /t` anywhere (long-waits.mjs)
 // Check-id: broker-wait (path glob subject: the checkout; in-source marker `# claude-kit-ignore broker-wait`).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fail-open on any error.
 
 import { payload,gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter, readTurnState, writeTurnState } from './lib.mjs';
-import { brokerCalls, usesCargo } from './lib/broker-calls.mjs';
+import { brokerCalls, usesCargo, usesTool } from './lib/broker-calls.mjs';
 import { withoutDataArguments, withoutInlineCode } from './lib/command-leads.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { waitSlot, jobId, digest } from './lib/broker-wait-state.mjs';
+import { longWaits } from './lib/long-waits.mjs';
 
 const CHECK_ID = 'broker-wait';
 const MAX_TOOL_TIMEOUT_MS = 300000;
 const MAX_WAIT_S = 300;
 const BROKER_STATE = /target[\\/]broker/i;
+const BUILD_TOOL = /^(?:cmake|ctest|msbuild|ninja|make|mingw32-make|nmake|devenv|xcodebuild|gradlew?|mvn|ant)(?:\.exe|\.bat|\.cmd)?$/i;
 const AT_COMMAND = String.raw`(?:^|[;&|(\n]|\bdo|\bthen)\s*`;
 const WAITING = new RegExp(`${AT_COMMAND}(?:sleep|start-sleep)\\b|\\btail\\s+-\\w*[fF]|\\bget-content\\b[^|;&]*-wait\\b`, 'i');
 const POLL_LOOP = new RegExp(`${AT_COMMAND}(?:while|until)\\b(?!\\s+(?:IFS=\\S*\\s+)?read\\b)`, 'i');
@@ -35,6 +40,7 @@ function problems(command, input, state) {
   const found = [];
   const background = input.run_in_background === true || input.run_in_background === 'true';
   if (background && (calls.length || usesCargo(command))) found.push('a broker or cargo command in the background: the agent stays alive on it');
+  else if (background && usesTool(command, BUILD_TOOL)) found.push('a build or test tool in the background: a subagent cannot wait on it and its shells end with it');
   if (Number(input.timeout) > MAX_TOOL_TIMEOUT_MS) found.push(`a Bash timeout of ${input.timeout} ms: no call may run past 5 minutes`);
   for (const c of calls) {
     if (c.script === 'watch' || (c.script === 'broker' && /^(?:watch|wait)$/.test(c.sub))) found.push(`${c.script === 'broker' ? `broker.mjs ${c.sub}` : 'watch.mjs'}: following the checkout is the orchestrator's job`);
@@ -50,6 +56,7 @@ function problems(command, input, state) {
   const shell = withoutInlineCode(text);
   const polls = (WAITING.test(shell) || POLL_LOOP.test(shell)) && onBroker;
   if (polls || (COUNT_LOOP.test(shell) && calls.length)) found.push('a sleep, poll or tail loop around the broker');
+  found.push(...longWaits(shell));
   return found;
 }
 
@@ -62,6 +69,9 @@ const message = (found) => [
   'writes its handoff (job ids, state, next steps, file pointers in the ticket Notes) and ends with nothing running;',
   "the orchestrator resumes it from the broker's finished-job line (target/broker/finished.log). No polling, no loops,",
   'no background waits, no re-running a job to read it.',
+  'A build or test that cannot finish in one foreground call of at most 300000 ms is scoped down (a narrower target, one',
+  'test by name); if it still cannot fit, write a Handoff block in the ticket Notes naming the exact command and end:',
+  'the orchestrator runs it in the background and resumes you.',
   '',
 ].join('\n');
 
