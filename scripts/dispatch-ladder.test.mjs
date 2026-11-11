@@ -5,7 +5,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONTEXT_CEILING_TOKENS, readLadder, resolveJob, dispatchDrift, capabilityFreshness, freshnessWarning, FRESHNESS_DAYS, KIT_ROOT } from './dispatch-ladder.mjs';
+import { readLadder, resolveJob, dispatchDrift, capabilityFreshness, freshnessWarning, FRESHNESS_DAYS, KIT_ROOT } from './dispatch-ladder.mjs';
 import { adopted, hook, git, cleanup, reporter, tmpDir, fixtureKit, isoDaysAgo } from '../hooks/test-harness.mjs';
 
 const { ok, done } = reporter('dispatch-ladder');
