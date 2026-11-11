@@ -146,6 +146,16 @@ const otherWant = (cfg, sub, now) => {
   return null;
 };
 
+/** True while this process holds a submodule tree that another lane has asked for (KIT-T1044: its builds take cores first). */
+export function heldTreeWanted(cfg, now = Date.now()) {
+  const dir = homeOf(cfg);
+  if (!existsSync(dir)) return false;
+  return readdirSync(dir).filter((f) => f.endsWith('.lock')).some((f) => {
+    const held = read(join(dir, f));
+    return !!held && held.pid === process.pid && !!otherWant(cfg, { name: f.slice(0, -'.lock'.length) }, now);
+  });
+}
+
 function touchWant(cfg, sub) {
   const file = wantPath(cfg, sub, laneName(cfg));
   try { writeFileSync(file, ''); utimesSync(file, new Date(), new Date()); } catch { /* best effort */ }

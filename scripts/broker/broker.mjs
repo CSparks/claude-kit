@@ -44,7 +44,8 @@ import { laneCfgFor } from './lanes.mjs';
 import { rerouteMisplaced } from './reroute.mjs';
 import { runtimeCurrent } from '../runtime-path.mjs';
 import { usageProblem } from './usage.mjs';
-import { reconcileSubtrees } from './subtree.mjs';
+import { setSlotPriority } from './slot-priority.mjs';
+import { heldTreeWanted, reconcileSubtrees } from './subtree.mjs';
 import { reapOrphans, setChildRegistry } from './children.mjs';
 import { ensureQueuedLanes } from './ensure.mjs';
 import { stopDaemon } from './stop.mjs';
@@ -170,7 +171,7 @@ const superviseOtherLanes = () => {
 };
 const lock = acquireLock(cfg, { spawnedBy: typeof flags['spawned-by'] === 'string' ? flags['spawned-by'] : null, log: logFile });
 const childRegistry = join(brokerPaths(cfg).home, 'children.json');
-if (lock.ok) { clearStop(cfg); clearCancel(cfg); pinRuntime(); setPulse(() => { heartbeat(cfg); superviseOtherLanes(); }); setChildRegistry(childRegistry); setAbortWatch(daemonAbortWatch(cfg)); }
+if (lock.ok) { clearStop(cfg); clearCancel(cfg); pinRuntime(); setPulse(() => { heartbeat(cfg); superviseOtherLanes(); }); setChildRegistry(childRegistry); setAbortWatch(daemonAbortWatch(cfg)); setSlotPriority({ group: root, wanted: () => heldTreeWanted(cfg) }); }
 if (!lock.ok) {
   console.error(`broker: another broker holds the lock (pid ${lock.holder.pid} on ${lock.holder.host} since ${lock.holder.ts})`);
   process.exit(1);

@@ -2,7 +2,8 @@
 // project, agent and tool takes cores from ONE budget: the physical cores minus the reserve (build-budget.mjs),
 // less the cores a running game or UAT session keeps. Builds that do not fit queue in arrival order; only the head
 // of the queue is admitted, so a large build is never starved by small ones; a hold past the 5-minute ceiling lets one
-// small slice start beside it (build-grant.mjs). A hold's `ts` is when it began. Holds and tickets live in one directory
+// small slice start beside it (build-grant.mjs). A broker daemon that holds a tree another lane of its checkout waits
+// for marks its tickets `priority`, and they go ahead of that checkout's earlier ones (slot-order.mjs, KIT-T1044). A hold's `ts` is when it began. Holds and tickets live in one directory
 // under the user's `.claude` shared by every checkout (build-slot-store.mjs).
 //
 //   acquireBuildSlot(cmd, { jobs, label, force, elastic, cwd, shouldCancel, probes, pollMs })
@@ -20,6 +21,7 @@ import { isCargoBuild } from './cargo-subs.mjs';
 import { grantFor } from './build-grant.mjs';
 import { commitFreeBytes } from './build-probes.mjs';
 import { SLOT_PREFIX, limits, liveHolds, liveTickets, queueDir, slotDir } from './build-slot-store.mjs';
+import { slotPriority } from './slot-priority.mjs';
 import { pulse } from './stall.mjs';
 
 export { slotDir };
@@ -39,10 +41,13 @@ export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false
   const record = { pid: process.pid, host: hostname(), label, cwd, jobs: Math.max(1, Number(jobs) || 1), ts: new Date().toISOString() };
   const name = `${Date.now().toString().padStart(TICKET_WIDTH, '0')}-${process.pid}-${Math.random().toString(RADIX).slice(2, 8)}`;
   const ticketPath = join(queue, name);
-  writeFileSync(ticketPath, JSON.stringify({ ...record, elastic }));
+  const ticket = { ...record, elastic, ...(slotPriority() || {}) };
+  writeFileSync(ticketPath, JSON.stringify(ticket));
   const started = Date.now();
   let holder = null;
   for (;;) {
+    const now = slotPriority();
+    if (now && now.priority !== !!ticket.priority) writeFileSync(ticketPath, JSON.stringify(Object.assign(ticket, now)));
     const { budget } = limits(probes);
     const head = liveTickets(queue)[0] === name;
     const holds = liveHolds(dir);

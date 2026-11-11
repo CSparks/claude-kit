@@ -3,7 +3,8 @@
 //
 //   slotDir()                -> directory (CLAUDE_KIT_BUILD_SLOT_DIR moves it, tests)
 //   queueDir(dir?)           -> arrival-order tickets `<time>-<pid>-<rand>`, each { pid, host, label, cwd, jobs, ts }
-//   liveTickets(queue)       -> ticket names whose process is alive, oldest first (dead ones are deleted)
+//   liveTickets(queue)       -> ticket names whose process is alive, oldest first, a priority ticket ahead of its own
+//                               checkout's earlier ones (slot-order.mjs); dead ones are deleted
 //   liveHolds(dir)           -> [{ name, ...record }] holds `slot-<ticket>` whose process is alive (dead ones are deleted)
 //   limits(probes?)          -> { physical, budget, game } the budget in force now; a running game takes gameCores off it
 //   snapshot(probes?)        -> everything the readout prints
@@ -13,6 +14,7 @@ import { homedir, hostname } from 'node:os';
 import { join } from 'node:path';
 import { buildCores, physicalCores, readBudgetConfig, reserveCores } from './build-budget.mjs';
 import { gameRunning } from './build-probes.mjs';
+import { orderTickets } from './slot-order.mjs';
 
 export const SLOT_PREFIX = 'slot-';
 
@@ -27,12 +29,13 @@ export const alive = (rec) => {
 export const readRec = (path) => { try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; } };
 
 export function liveTickets(queue) {
-  const names = [];
-  for (const name of readdirSync(queue).sort()) {
-    if (alive(readRec(join(queue, name)))) names.push(name);
+  const entries = [];
+  for (const name of readdirSync(queue)) {
+    const rec = readRec(join(queue, name));
+    if (alive(rec)) entries.push({ name, group: rec.group, priority: rec.priority });
     else rmSync(join(queue, name), { force: true });
   }
-  return names;
+  return orderTickets(entries);
 }
 
 export function liveHolds(dir = slotDir()) {
