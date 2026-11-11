@@ -4,10 +4,10 @@
 // still flagged beside both.
 // Run: node hooks/hand-write-restore.test.mjs
 
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { cleanup, git, reporter } from './test-harness.mjs';
+import { cleanup, git, reporter, tmpDir } from './test-harness.mjs';
 import { handWriteHarness } from './hand-write-harness.mjs';
 
 const { ok, done } = reporter('hand-write-restore');
@@ -17,7 +17,7 @@ const HAND = "fs.writeFileSync(p, 'export const a = 9;\\n')";
 const EDITED = 'export const a = 7;\n';
 
 try {
-  const { spawnHook, call, fresh, rewrite } = handWriteHarness();
+  const { state, spawnHook, call, fresh, rewrite } = handWriteHarness();
   const flagged = (r, file = 'src/a.mjs') => r.status === 2 && r.stderr.includes(file);
   const clean = (r) => r.status === 0 && !r.stderr.includes('HAND WRITE');
 
@@ -71,6 +71,47 @@ try {
   rewrite(mixedFiles, HAND);
   const viaMixed = call(mixedFiles, 'S1', `git checkout -- src/b.mjs && ${NOT_GENERATOR}`, () => writeFileSync(join(mixedFiles, 'src', 'b.mjs'), 'export const b = 9;\n'));
   ok('control: a restore of one file does not excuse a hand write of another', flagged(viaMixed, 'src/b.mjs') && !viaMixed.stderr.includes('src/a.mjs'));
+
+  const neverStored = fresh();
+  edit(neverStored, 'S1', 'src/a.mjs', EDITED);
+  rewrite(neverStored, HAND);
+  const viaUnstored = call(neverStored, 'S1', `git status && ${NOT_GENERATOR}`, () => writeFileSync(join(neverStored, 'src', 'a.mjs'), EDITED));
+  ok('KIT-T982 control: Edit content git never stored (no stash, index or commit holds it) is not a restore, git in the command or not', flagged(viaUnstored));
+
+  process.env.CLAUDE_KIT_TURN_STATE = state;
+  const { restoredSources } = await import('./lib/restored-content.mjs');
+  const { gitRoot } = await import('./lib.mjs');
+  const MINUTE_MS = 60 * 1000;
+  const WINDOW_PLUS_MS = 31 * MINUTE_MS;
+  const popped = fresh();
+  edit(popped, 'S1', 'src/a.mjs', EDITED);
+  git(['stash', 'push', '--', 'src'], popped);
+  git(['stash', 'pop'], popped);
+  const root = gitRoot(popped);
+  const restores = (options, command = 'git stash pop') => restoredSources(root, ['src/a.mjs'], command, options).has('src/a.mjs');
+  ok('keying control: the own session\'s confirmed entry with the blob in git\'s store is a restore', restores({ session: 'S1' }));
+  ok('KIT-T982 control: an entry older than the window is no restore', !restores({ session: 'S1', now: Date.now() + WINDOW_PLUS_MS }));
+  ok('KIT-T982 control: another session\'s entry is no restore', !restores({ session: 'S2' }));
+  ok('KIT-T982 control: a call with no session identity is no restore', !restores({}));
+  ok('KIT-T982 control: no git segment in the command, no replay', !restores({ session: 'S1' }, './run-tests.exe'));
+
+  const predicted = fresh();
+  const input = { session_id: 'S1', tool_input: { file_path: join(predicted, 'src', 'a.mjs'), content: EDITED } };
+  spawnHook('pre-write.mjs', input, predicted);
+  writeFileSync(join(predicted, 'src', 'a.mjs'), EDITED);
+  git(['stash', 'push', '--', 'src'], predicted);
+  git(['stash', 'pop'], predicted);
+  ok('KIT-T982 control: an unconfirmed pre-write prediction is no restore', !restoredSources(gitRoot(predicted), ['src/a.mjs'], 'git stash pop', { session: 'S1' }).has('src/a.mjs'));
+
+  const headFile = fresh();
+  const headRoot = gitRoot(headFile);
+  ok('a file equal to HEAD is restored with no session and no git in the command', restoredSources(headRoot, ['src/a.mjs'], './run-tests.exe').has('src/a.mjs'));
+  writeFileSync(join(headFile, 'src', 'a.mjs'), 'export const a = 1; \n');
+  ok('KIT-T982 control: one byte off HEAD is not a restore', !restoredSources(headRoot, ['src/a.mjs'], 'git status').has('src/a.mjs'));
+  const noRepo = tmpDir('hw-norepo-');
+  mkdirSync(join(noRepo, 'src'));
+  writeFileSync(join(noRepo, 'src', 'a.mjs'), 'export const a = 1;\n');
+  ok('KIT-T982 control: when git cannot answer nothing is restored (fail closed)', restoredSources(noRepo, ['src/a.mjs'], 'git status', { session: 'S1' }).size === 0);
 } finally {
   cleanup();
 }

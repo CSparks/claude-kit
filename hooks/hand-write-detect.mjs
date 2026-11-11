@@ -44,7 +44,7 @@ try {
   const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller);
   const changed = handWrittenSources(root, before.files || {}, command, before.head || '')
     .filter((rel) => !pathExcluded(root, CHECK, rel) && !toolWrote(rel));
-  const restored = restoredSources(root, changed, command);
+  const restored = restoredSources(root, changed, command, { session: sid });
   const written = changed.filter((rel) => !restored.has(rel));
   if (written.length) {
     addHandWrites(root, sid, written);
