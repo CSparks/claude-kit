@@ -4,6 +4,7 @@
 // another writer, whatever tool that writer used. A call that can write source keeps the file, in either shell.
 // Run: node hooks/shell-attribution.test.mjs
 
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { cleanup, reporter } from './test-harness.mjs';
@@ -12,7 +13,7 @@ import { handWriteHarness } from './hand-write-harness.mjs';
 const { ok, done } = reporter('shell-attribution');
 
 try {
-  const { scratch, spawnHook, fresh, rewrite } = handWriteHarness();
+  const { scratch, spawnHook, spawnHookAsync, fresh, rewrite } = handWriteHarness();
   let id = 0;
   const run = (tool, command) => {
     const d = fresh();
@@ -66,6 +67,29 @@ try {
   for (const [tool, name, command] of BLAMED) {
     ok(`CONTROL (${tool}): ${name} still owns the changed file`, blamed(run(tool, command)));
   }
+
+  // KIT-T1010: two lanes of one orchestrator session (agent ids differ) share a checkout; lane X runs a program the
+  // hook cannot rule out while lane Y's Edit lands. Y's pre-write ran before X's call began and Y's confirmation lags.
+  const CHECKER = 'rapid-game/rust/target/debug/meshkit-check.exe script.txt';
+  const CONFIRM_LAG_MS = 400;
+  const lagged = async ({ command, confirm, rewriteByShell = false }) => {
+    const d = fresh();
+    const file = join(d, 'src', 'a.mjs');
+    const edit = { session_id: 'ORCH', agent_id: 'laneY', tool_input: { file_path: file, old_string: 'a = 1', new_string: 'a = 9' } };
+    const base = { session_id: 'ORCH', agent_id: 'laneX', tool_use_id: `lag${++id}`, tool_name: 'Bash', tool_input: { command } };
+    spawnHook('pre-write.mjs', edit, d);
+    spawnHook('hand-write-detect.mjs', { ...base, hook_event_name: 'PreToolUse' }, d);
+    writeFileSync(file, rewriteByShell ? 'export const a = 5;\n' : 'export const a = 9;\n');
+    const post = spawnHookAsync('hand-write-detect.mjs', { ...base, hook_event_name: 'PostToolUse', tool_response: {} }, d);
+    if (confirm) {
+      await new Promise((resolve) => setTimeout(resolve, CONFIRM_LAG_MS));
+      spawnHook('tool-write-record.mjs', { ...edit, hook_event_name: 'PostToolUse', tool_response: {} }, d);
+    }
+    return post;
+  };
+  ok('KIT-T1010: lane Y\'s Edit whose confirmation lags is not blamed on lane X\'s checker call', spared(await lagged({ command: CHECKER, confirm: true })));
+  ok('KIT-T1010 control: an Edit nothing ever confirms still leaves the file to the call', blamed(await lagged({ command: CHECKER, confirm: false })));
+  ok('KIT-T1010 control: a call that rewrote the file to other content is blamed even with the confirmation landing', blamed(await lagged({ command: 'node scratch.js', confirm: true, rewriteByShell: true })));
 } finally {
   cleanup();
 }

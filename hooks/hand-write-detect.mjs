@@ -7,6 +7,7 @@
 // test runner, a kit verb, a reader, no redirect into a source file; lib/inert-command.mjs, KIT-T1001) owns no changed
 // file, and so is a file whose content an Edit or Write of any session left during the call (the accepted-writes
 // ledger, tool-write-record.mjs): another writer's concurrent edit, judged by pre-write, never the call's (KIT-T888).
+// A file holding another writer's predicted content whose confirmation has not landed yet waits for it (lib/settle-writes.mjs, KIT-T1010).
 // A file git put back (content equal to HEAD, or an earlier Edit's content in a call that runs git) is no write either
 // (lib/restored-content.mjs, KIT-T982), and so is a byte-identical git rename (lib/identical-renames.mjs, KIT-T991).
 // Check-id source-shell-write. Post exits 2 to show the message. No-ops on unadopted repos; fails open.
@@ -17,6 +18,7 @@ import { snapshotDirty, handWrittenSources, headOf, contentHashOf } from './lib/
 import { addHandWrites } from './lib/hand-writes.mjs';
 import { toolWriteProves, writerId } from './lib/tool-writes.mjs';
 import { restoredSources } from './lib/restored-content.mjs';
+import { hasPendingPrediction, settleOwned, settleMsFromEnv } from './lib/settle-writes.mjs';
 import { unmovedHandWrites } from './lib/identical-renames.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { shellOfTool } from './lib/shell-segments.mjs';
@@ -45,8 +47,12 @@ try {
   const since = before.ts || Date.now();
   const caller = writerId(sid, subagentId(p));
   const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller);
-  const changed = handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name) })
-    .filter((rel) => !pathExcluded(root, CHECK, rel) && !toolWrote(rel));
+  const awaitsConfirmation = (rel) => hasPendingPrediction(root, rel, contentHashOf(root, rel), caller, since);
+  const changed = await settleOwned(
+    handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name) })
+      .filter((rel) => !pathExcluded(root, CHECK, rel)),
+    { pending: awaitsConfirmation, proven: toolWrote, maxMs: settleMsFromEnv() },
+  );
   const restored = restoredSources(root, changed, command, { session: sid });
   const written = unmovedHandWrites(root, changed.filter((rel) => !restored.has(rel)));
   if (written.length) {

@@ -1,18 +1,29 @@
 // Fixture helpers for the hand-write-detect test files: a throwaway adopted repo, a hook spawner on a private
 // turn-state directory, a shell call simulated as Pre -> action -> Post, and a commit through commit-gate.
-//   handWriteHarness() -> { state, scratch, spawnHook, node, call, commit, fresh, rewrite }
+//   handWriteHarness() -> { state, scratch, spawnHook, spawnHookAsync, node, call, commit, fresh, rewrite }
+// Hooks run with a CLAUDE_KIT_WRITE_SETTLE_MS of SETTLE_MS, the wait for a lagging Edit confirmation.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 import { ENV, HOOKS, git, identify, repo, tmpDir } from './test-harness.mjs';
+
+export const SETTLE_MS = 1500;
 
 export function handWriteHarness() {
   const state = tmpDir('hw-state-');
   const scratch = tmpDir('hw-scratch-');
+  const hookEnv = { ...ENV, CLAUDE_KIT_TURN_STATE: state, CLAUDE_KIT_WRITE_SETTLE_MS: String(SETTLE_MS) };
   const spawnHook = (name, input, cwd) => spawnSync(process.execPath, [join(HOOKS, name)], {
-    input: JSON.stringify(input), cwd, encoding: 'utf8', env: { ...ENV, CLAUDE_KIT_TURN_STATE: state },
+    input: JSON.stringify(input), cwd, encoding: 'utf8', env: hookEnv,
+  });
+  const spawnHookAsync = (name, input, cwd) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [join(HOOKS, name)], { cwd, env: hookEnv });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('close', (status) => resolve({ status, stderr }));
+    child.stdin.end(JSON.stringify(input));
   });
   const node = (cwd, code) => spawnSync(process.execPath, ['--input-type=commonjs', '-e', code], { cwd, encoding: 'utf8' });
   let callId = 0;
@@ -39,5 +50,5 @@ export function handWriteHarness() {
     return d;
   };
   const rewrite = (d, expr) => node(d, `const fs = require('fs'); const p = 'src/' + 'a.mjs'; ${expr}`);
-  return { state, scratch, spawnHook, node, call, commit, fresh, rewrite };
+  return { state, scratch, spawnHook, spawnHookAsync, node, call, commit, fresh, rewrite };
 }

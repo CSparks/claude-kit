@@ -4,12 +4,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { hostname, tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classify } from './build-classify.mjs';
 import { HELD_ENV } from './build-env.mjs';
+import { SLOT_PREFIX } from './build-slot-store.mjs';
 import { findReal } from './build-run.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
 
@@ -17,6 +18,7 @@ const RUNNER = fileURLToPath(new URL('./build-run.mjs', import.meta.url));
 const PHYSICAL = 16;
 const BUDGET = 14;
 const GAME_BUDGET = 8;
+const PLENTY_OF_MEMORY = 2 ** 40;
 
 function fakeCargo(dir) {
   const probe = join(dir, 'probe.mjs');
@@ -27,13 +29,21 @@ function fakeCargo(dir) {
   if (!win) chmodSync(file, 0o755);
 }
 
-function run(args, extraEnv = {}) {
+function holdCores(dir, jobs) {
+  const slots = join(dir, 'slots');
+  mkdirSync(slots, { recursive: true });
+  const rec = { pid: process.pid, host: hostname(), jobs, label: 'other build', cwd: dir, ts: new Date().toISOString() };
+  writeFileSync(join(slots, `${SLOT_PREFIX}other`), JSON.stringify(rec));
+}
+
+function run(args, extraEnv = {}, { held = 0 } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'build-run-'));
   fakeCargo(dir);
+  if (held) holdCores(dir, held);
   const env = {
     ...process.env, PATH: `${dir}${delimiter}${process.env.PATH}`,
     CLAUDE_KIT_BUILD_SLOT_DIR: join(dir, 'slots'), CLAUDE_KIT_BUILD_BUDGET_FILE: join(dir, 'budget.json'),
-    CLAUDE_KIT_PHYSICAL_CORES: String(PHYSICAL), CLAUDE_KIT_GAME_RUNNING: '0', CLAUDE_KIT_BUILD_MAX_WAIT_S: '5', ...extraEnv,
+    CLAUDE_KIT_PHYSICAL_CORES: String(PHYSICAL), CLAUDE_KIT_GAME_RUNNING: '0', CLAUDE_KIT_BUILD_MAX_WAIT_S: '5', CLAUDE_KIT_COMMIT_FREE_BYTES: String(PLENTY_OF_MEMORY), ...extraEnv,
   };
   if (!(HELD_ENV in extraEnv)) delete env[HELD_ENV];
   try {
@@ -81,6 +91,24 @@ test('a running game cuts the budget the build gets', () => {
 
 test('a build with no -j runs on the whole budget, never the machine\'s logical cores', () => {
   assert.equal(run(['check']).seen.jobs, String(BUDGET));
+});
+
+const OTHER_HOLDS_ROOM_FOR_SIX = 8;
+const QUEUE_WAIT_S = '2';
+
+test('KIT-T1017: a plain build that finds fewer cores free than it wants runs capped to them and says so', () => {
+  const r = run(['test', '-p', 'x'], {}, { held: OTHER_HOLDS_ROOM_FOR_SIX });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.seen.jobs, String(BUDGET - OTHER_HOLDS_ROOM_FOR_SIX));
+  assert.match(r.stderr, /asked for \d+ cores, running on 6/);
+});
+
+test('KIT-T1017: a build that never gets cores does not run and exits non-zero naming why', () => {
+  const r = run(['test', '-p', 'x'], { CLAUDE_KIT_BUILD_MAX_WAIT_S: QUEUE_WAIT_S }, { held: BUDGET });
+  assert.notEqual(r.status, 0, 'a build that did not run must not read as a pass');
+  assert.equal(r.seen, null, 'cargo was not started');
+  assert.match(r.stderr, /not started/);
+  assert.match(r.stderr, new RegExp(`queued for ${BUDGET} cores \\(budget ${BUDGET}\\)`), 'the queue message names the cores the build can get, never more than the budget');
 });
 
 test('a build that does not compile, and a tool a build started, pass untouched without taking cores', () => {

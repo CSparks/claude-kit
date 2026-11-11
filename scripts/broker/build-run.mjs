@@ -70,7 +70,11 @@ function runGated(real, tool, args, verdict, cwd) {
   const deadline = Date.now() + maxWaitMs;
   let told = false;
   const shouldCancel = () => {
-    if (!told) { told = true; process.stderr.write(`[build-budget] queued for ${requested} cores\n${formatSnapshot(snapshot())}\n`); }
+    if (!told) {
+      told = true;
+      const state = snapshot();
+      process.stderr.write(`[build-budget] queued for ${Math.min(requested, state.budget)} cores (budget ${state.budget})\n${formatSnapshot(state)}\n`);
+    }
     return Date.now() > deadline;
   };
   const slot = acquireBuildSlot(`${tool} ${verdict.sub}`, { jobs: requested, elastic: true, force: true, label, cwd, shouldCancel });
