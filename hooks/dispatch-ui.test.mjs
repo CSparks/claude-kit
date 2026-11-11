@@ -33,6 +33,10 @@ try {
   check('a level/room generation brief with "layout" is not UI work', block(game, 'Plan', LEVELGEN) === null && !uiWork(LEVELGEN));
   check('a menu layout brief that mentions a level still blocks on sizing words', uiWork('level select menu: padding 8px'));
   check('uiWork needs a noun and a sizing word', uiWork('menu layout') && !uiWork('menu') && !uiWork('padding'));
+  const SKY = 'Tune the sky clouds shader: rg-graphics sky/clouds.rs and sky.wgsl. Pixel probes on the screen overlay at top-to-base edge coverage; frame cost at 4K resolution, scale the layer gap.';
+  check('a sky/clouds shader brief is not UI work', block(game, 'claude-kit:patch-worker', SKY) === null && !uiWork(SKY));
+  check('a HUD brief that mentions a shader still blocks on UI-only sizing', uiWork('HUD speedometer shader: font size 24px, padding 8px'));
+  check('a UI sizing brief is still blocked next to the sky brief', block(game, 'claude-kit:patch-worker', BRIEF) !== null);
   const INVENTORY = 'Inventory the other repo: UI, physics, audio. The HUD uses font size 24px and a gap of 8px; list what exists, read-only.';
   check('a read-only Explore inventory that lists UI passes', block(game, 'Explore', INVENTORY) === null && uiWork(INVENTORY));
   check('read-only Plan and analyst types pass', block(game, 'Plan', INVENTORY) === null && block(game, 'claude-kit:analyst', INVENTORY) === null);

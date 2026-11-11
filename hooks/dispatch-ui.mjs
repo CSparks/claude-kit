@@ -15,18 +15,28 @@ import { readOnlyDispatch } from './dispatch-readonly.mjs';
 export const UI_CHECK = 'ui-framework-first';
 const CHECKED = TOKENS.uiFrameworkChecked.pattern;
 const UI_NOUN = /\b(?:hud|ui|menu|menus|screen|screens|panel|widget|overlay)\b/i;
-const UI_SIZING = /\b(?:px|pixels?|font[- ]size|val::px|ppu|layout|margin|padding|gap|anchor|scale|resolution|safe area)\b/i;
-const UI_SIZING_NO_LAYOUT = /\b(?:px|pixels?|font[- ]size|val::px|ppu|margin|padding|gap|anchor|scale|resolution|safe area)\b/i;
-// Level and world generation brief: its "layout" is a floor plan, not a UI frame.
-const WORLD_LAYOUT = /\b(?:procedural(?:ly)?|dungeons?|rooms?|levels?|world[- ]?gen(?:eration)?|tilemaps?|floor ?plans?|chunks?)\b/i;
+// Sizing words by how strongly they signal UI; graphics and level briefs use the loose ones for other things.
+const SIZING_UI = ['font[- ]size', 'val::px', 'ppu', 'margin', 'padding', 'safe area'];
+const SIZING_LOOSE = ['px', 'pixels?', 'gap', 'anchor', 'scale', 'resolution'];
+const SIZING_LAYOUT = ['layout'];
+// A brief carrying one of these vocabularies is not about UI frames: the sizing groups it names mean
+// something else there (a floor plan, a pixel probe) and are dropped; UI-only words still count.
+const CONTEXTS = [
+  { vocab: /\b(?:procedural(?:ly)?|dungeons?|rooms?|levels?|world[- ]?gen(?:eration)?|tilemaps?|floor ?plans?|chunks?)\b/i, drops: [SIZING_LAYOUT] },
+  { vocab: /\b(?:shaders?|wgsl|glsl|sky|skybox|clouds?|raymarch(?:ing|ed)?|fragment|vertex|rg-graphics|renderer|rendering|gpu|volumetric|atmosphere|lighting|textures?|meshes|mesh)\b/i, drops: [SIZING_LAYOUT, SIZING_LOOSE] },
+];
+const sizingWords = (text) => {
+  const dropped = CONTEXTS.filter((c) => c.vocab.test(text)).flatMap((c) => c.drops);
+  const kept = [SIZING_UI, SIZING_LOOSE, SIZING_LAYOUT].filter((group) => !dropped.includes(group));
+  return new RegExp(`\\b(?:${kept.flat().join('|')})\\b`, 'i');
+};
 const SPECIALIST = /(?:^|:)rg-ui-engineer$/i;
 // patch-worker writes through the broker, so it builds UI although its own Write tool is confined.
 const PATCH_WORKER = /(?:^|:)patch-worker$/i;
 
 export function uiWork(prompt) {
   const text = String(prompt || '');
-  const sizing = WORLD_LAYOUT.test(text) ? UI_SIZING_NO_LAYOUT : UI_SIZING;
-  return UI_NOUN.test(text) && sizing.test(text);
+  return UI_NOUN.test(text) && sizingWords(text).test(text);
 }
 
 export function uiBlock({ root, input, prompt, footer }) {
