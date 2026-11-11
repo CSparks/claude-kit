@@ -13,7 +13,7 @@ import { handWriteHarness } from './hand-write-harness.mjs';
 const { ok, done } = reporter('shell-attribution');
 
 try {
-  const { scratch, spawnHook, spawnHookAsync, fresh, rewrite } = handWriteHarness();
+  const { scratch, spawnHook, spawnHookAsync, fresh, rewrite, commit } = handWriteHarness();
   let id = 0;
   const run = (tool, command) => {
     const d = fresh();
@@ -85,11 +85,16 @@ try {
       await new Promise((resolve) => setTimeout(resolve, CONFIRM_LAG_MS));
       spawnHook('tool-write-record.mjs', { ...edit, hook_event_name: 'PostToolUse', tool_response: {} }, d);
     }
-    return post;
+    return { result: await post, refused: commit(d, 'ORCH', ['src/a.mjs']).out.includes('KIT-T706') };
   };
-  ok('KIT-T1010: lane Y\'s Edit whose confirmation lags is not blamed on lane X\'s checker call', spared(await lagged({ command: CHECKER, confirm: true })));
-  ok('KIT-T1010 control: an Edit nothing ever confirms still leaves the file to the call', blamed(await lagged({ command: CHECKER, confirm: false })));
-  ok('KIT-T1010 control: a call that rewrote the file to other content is blamed even with the confirmation landing', blamed(await lagged({ command: 'node scratch.js', confirm: true, rewriteByShell: true })));
+  const confirmed = await lagged({ command: CHECKER, confirm: true });
+  ok('KIT-T1010: lane Y\'s Edit whose confirmation lags is not blamed on lane X\'s checker call', spared(confirmed.result));
+  ok('KIT-T1010: the commit holding that file is not refused', !confirmed.refused);
+  const unconfirmed = await lagged({ command: CHECKER, confirm: false });
+  ok('KIT-T1010 control: an Edit nothing ever confirms still leaves the file to the call', blamed(unconfirmed.result));
+  ok('KIT-T1010 control: and the commit holding it is refused', unconfirmed.refused);
+  const rewritten = await lagged({ command: 'node scratch.js', confirm: true, rewriteByShell: true });
+  ok('KIT-T1010 control: a call that rewrote the file to other content is blamed even with the confirmation landing', blamed(rewritten.result) && rewritten.refused);
 } finally {
   cleanup();
 }

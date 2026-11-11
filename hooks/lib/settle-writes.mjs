@@ -13,7 +13,7 @@
 import { readTurnState } from './turn-state.mjs';
 
 const SLOT = 'toolwrites';
-export const WRITE_SETTLE_MS = 8000;
+export const WRITE_SETTLE_MS = 30000;
 export const SETTLE_POLL_MS = 100;
 const PREDICTION_LEAD_MS = 30000;
 
