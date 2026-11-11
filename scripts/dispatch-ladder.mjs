@@ -9,7 +9,6 @@
 //   capabilityFreshness(kitRoot?, nowMs?)   -> { newest, oldest, oldestJob, ageDays (of the oldest row) } | null (no dated row)
 //   freshnessWarning(kitRoot?, nowMs?)      -> string | null (OLDEST row evidence older than the refresh period)
 //   readLadder(...).refreshDays             -> the refresh period in days (config dispatch.refresh_days, default FRESHNESS_DAYS)
-//   readLadder(...).contextCeilingTokens    -> the warm-reuse context ceiling (config dispatch.context_ceiling_tokens, default CONTEXT_CEILING_TOKENS; KIT-D116)
 //   dispatchDrift(projectRoot, kitRoot?)    -> string warning | null (project config carries a `dispatch:` block)
 //   CLI: node dispatch-ladder.mjs resolve [--type <ticket type>] [--job <job>]   prints JSON
 //        node dispatch-ladder.mjs freshness                                      prints the warning or `fresh`
