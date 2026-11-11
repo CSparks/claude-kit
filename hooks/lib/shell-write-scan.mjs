@@ -28,8 +28,9 @@ import { blindSegments, segments } from './shell-segments.mjs';
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
 const WRITING_CMD = /^(?:rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
-// Judged on the destination only: a copy reads its sources, and a move takes them out of the tree. A gate that
-// protects its files from removal too (the work store) passes `judgeMoveSources` and has a move judged on every operand.
+// A copy is judged on its destination: it only reads its sources. A move also takes its sources out of the tree, so a
+// source hit comes back with `movedTo` and the caller lets it through only when the destination leaves the repo.
+// A gate that protects its files from removal outright (the work store) passes `judgeMoveSources`.
 const MOVE_CMD = /^(?:mv|move-item)$/i;
 const COPY_CMD = /^(?:cp|copy|copy-item|install|mv|move-item)$/i;
 const IN_PLACE_TOOL = /^(?:sed|perl)$/i;
