@@ -10,7 +10,7 @@
 
 import { join } from 'node:path';
 import { dependentsOf, readLock } from './cargo-lock.mjs';
-import { git, showFile, showFiles } from './git.mjs';
+import { git, showFiles } from './git.mjs';
 
 const TEST_SUBS = new Set(['test', 't']);
 const BUILD_SUBS = new Set(['build', 'b', 'check', 'clippy']);
