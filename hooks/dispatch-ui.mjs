@@ -2,6 +2,7 @@
 // framework specialist (claude-kit:rg-ui-engineer) or carries the framework-first check: where the
 // repo carries the rapid-game framework, a brief that sizes or lays out UI and goes to a generic agent
 // is blocked until it names the framework mechanism it reuses. A read-only agent builds no UI and passes.
+// A UI noun and a sizing word count only within one clause (a few words apart); file names and identifiers are ignored.
 //
 //   uiBlock({ root, input, prompt, footer }) -> block message | null (check `ui-framework-first`)
 //
@@ -30,13 +31,27 @@ const sizingWords = (text) => {
   const kept = [SIZING_UI, SIZING_LOOSE, SIZING_LAYOUT].filter((group) => !dropped.includes(group));
   return new RegExp(`\\b(?:${kept.flat().join('|')})\\b`, 'i');
 };
+// A UI noun and a sizing word describe UI work only when they sit in the same clause: a long brief holds both
+// words far apart (a "debug overlay" bullet, a "safety margin" bullet) without sizing any UI.
+const NEAR_WORDS = 8;
+const CLAUSE_BREAK = /[.;!?\n]\s/;
+// File names and code identifiers (screens.rs, menu_pad, hud/mod.rs) name code, not a UI being built.
+const CODE_TOKEN = /\S*(?:[_/\\]|\.[a-z]{1,5}\b)\S*/gi;
+const nearEachOther = (text, noun, sizing) => {
+  const nouns = [...text.matchAll(new RegExp(noun.source, 'gi'))].map((m) => m.index);
+  const sizes = [...text.matchAll(new RegExp(sizing.source, 'gi'))].map((m) => m.index);
+  return nouns.some((n) => sizes.some((s) => {
+    const span = text.slice(Math.min(n, s), Math.max(n, s));
+    return span.split(/\s+/).length <= NEAR_WORDS + 1 && !CLAUSE_BREAK.test(span);
+  }));
+};
 const SPECIALIST = /(?:^|:)rg-ui-engineer$/i;
 // patch-worker writes through the broker, so it builds UI although its own Write tool is confined.
 const PATCH_WORKER = /(?:^|:)patch-worker$/i;
 
 export function uiWork(prompt) {
-  const text = String(prompt || '');
-  return UI_NOUN.test(text) && sizingWords(text).test(text);
+  const text = String(prompt || '').replace(CODE_TOKEN, ' ');
+  return nearEachOther(text, UI_NOUN, sizingWords(text));
 }
 
 export function uiBlock({ root, input, prompt, footer }) {

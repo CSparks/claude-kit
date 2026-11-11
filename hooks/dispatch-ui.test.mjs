@@ -43,6 +43,19 @@ try {
   check('a [read-only:] declaration on a writer type passes', block(game, 'general-purpose', `${INVENTORY} [read-only: inventory only]`) === null);
   check('the same brief to a writer type still blocks', block(game, 'general-purpose', INVENTORY) !== null);
   check('patch-worker still blocks despite its confined Write', block(game, 'claude-kit:patch-worker', INVENTORY) !== null);
+  const ENEMY_AI = [
+    'Build enemy AI floor safety in marblequest. Enemies read the levelled floor map (a ledge, a pit, a ring of raised cells) and never steer over an edge.',
+    'Keep a safety margin of 0.5 m from a ledge, scale the probe distance with speed, and anchor the probe at the enemy feet.',
+    'Keep frame cost low: one map query per frame. The map layout is per dungeon cell. Files under 300 lines.',
+    'Tests: grid_bug_floor_safe, ram_tank_pit_ring; run the screens.rs and menu_pad suites untouched. A debug overlay is out of scope.',
+  ].join('\n');
+  check('an enemy-AI floor-safety build brief is not UI work', block(game, 'claude-kit:implementer', ENEMY_AI) === null && !uiWork(ENEMY_AI));
+  const FIT_TEXT = 'Fit the pause menu labels: shrink the font size until the text fits the panel, padding 12px, then wrap.';
+  const SCROLL_NAV = 'Add a scrolling list to the inventory screen: anchor the list to the screen edge, gap 8px between rows, d-pad nav.';
+  check('a text-fitting menu brief still blocks', block(game, 'claude-kit:implementer', FIT_TEXT) !== null);
+  check('a scroll-list and nav screen brief still blocks', block(game, 'claude-kit:implementer', SCROLL_NAV) !== null);
+  check('a UI noun and a sizing word in different clauses is not UI work', !uiWork('Fix the menu enum variant.\nKeep a safety margin from the ledge.') && uiWork('the menu: padding 8px'));
+  check('a file name holding a UI noun does not count', !uiWork('Edit screens.rs and hud/mod.rs, keep a safety margin'));
 } finally {
   rmSync(game, { recursive: true, force: true });
   rmSync(plain, { recursive: true, force: true });
