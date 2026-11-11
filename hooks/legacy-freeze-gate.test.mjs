@@ -3,7 +3,7 @@
 // reference added to it is blocked with file and line, and reads, `git mv` INTO it and unrelated writes pass.
 // Run: node hooks/legacy-freeze-gate.test.mjs
 
-import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
@@ -146,6 +146,27 @@ try {
   ok('blocks git add of a new, untracked legacy file', blocks(inMoved('git add legacy/new.ts')));
   git(['mv', 'legacy/n.ts', 'legacy/o.ts'], moved);
   ok('stages an unchanged rename but still refuses to move a legacy file out', allows(inMoved('git add legacy/o.ts')) && blocks(inMoved('git mv legacy/o.ts src/o.ts')));
+
+  // -C belongs to git only before the subcommand
+  ok('blocks git add with a trailing -C that would shift the base directory', blocks(shell('git add legacy/old/a.ts -C src')));
+  ok('blocks git add with -C after the paths and a dir-like value', blocks(shell('git add -C src legacy/old/a.ts')));
+  ok('blocks git commit by path even with a -C <commit> value option', blocks(shell('git commit -C HEAD -- legacy/old/a.ts')));
+  ok('a git commit -C <commit> value is no path: committing other paths passes', allows(shell('git commit -C HEAD -- src/x.ts')));
+  ok('a global git -C <dir> still moves the base: legacy paths under it are judged there', blocks(shell(`git -C "${at('legacy')}" add old/a.ts`)) && allows(shell(`git -C "${at('src')}" add x.ts`)));
+  ok('a global -c key=value before the subcommand does not hide the paths', blocks(shell('git -c core.quotepath=off add legacy/old/a.ts')));
+
+  // A symlink or junction outside legacy/ that points into it is frozen too
+  let aliased = true;
+  try { symlinkSync(at('legacy'), at('alias'), 'junction'); } catch { aliased = false; }
+  if (aliased) {
+    ok('blocks Write through an alias that resolves into legacy', blocks(file('Write', at('alias', 'old', 'b.ts'), { content: 'x' })));
+    ok('blocks Edit through an alias that resolves into legacy', blocks(file('Edit', at('alias', 'old', 'a.ts'), { old_string: 'a = 1', new_string: 'a = 2' })));
+    ok('blocks a shell write through an alias', blocks(shell('echo x > alias/old/a.ts')) && blocks(shell('rm alias/old/a.ts')));
+    ok('blocks a git add through an alias', blocks(shell('git add alias/old/a.ts')));
+    ok('allows reading through an alias', allows(shell('cat alias/old/a.ts')));
+  } else {
+    console.log('  skip  alias cases (cannot create a symlink or junction here)');
+  }
 
   // Opt-in, exclusion, fail-open
   const bare = repoWith(null);

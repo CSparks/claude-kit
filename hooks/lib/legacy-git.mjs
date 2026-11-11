@@ -4,17 +4,33 @@
 //
 //   gitLegacyWrite(tokens, underLegacy, cwd, movedIn) -> null | { path, op }
 //     tokens       the words after `git` (quotes stripped)
-//     underLegacy  (path, base) -> bool, `base` being the directory a `git -C` moved to
+//     underLegacy  (path, base) -> bool, `base` being the directory the global `git -C <dir>` options moved to
 //     movedIn      (path, base) -> bool, true when nothing under the path changed except by unchanged git renames
+//
+// Only the options BEFORE the subcommand are git's global options: `-C <dir>` there moves the working directory, while
+// the same letters after it are the subcommand's own value options (`git commit -C <commit>`) and move nothing.
 
 import { resolve } from 'node:path';
-import { subcommand } from './branch-ops.mjs';
 
 const CHANGING = new Set(['add', 'checkout', 'restore', 'rm', 'reset', 'clean', 'commit', 'stash', 'update-index', 'apply']);
 const STAGING = new Set(['add', 'commit']);
+const GLOBAL_VALUE_OPTIONS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--super-prefix']);
 const DIR_OPTION = '-C';
+const VALUE_OPTIONS = new Set([
+  '-m', '--message', '-F', '--file', '--author', '--date', '--pathspec-from-file',
+  '-C', '-c', '--reuse-message', '--reedit-message', '-t', '--template', '--cleanup',
+]);
 
-const VALUE_OPTIONS = new Set(['-m', '--message', '-F', '--file', '--author', '--date', '--pathspec-from-file']);
+// { base, sub, rest }: the working directory after the global -C options, the subcommand and the words after it.
+function parseInvocation(tokens, cwd) {
+  let base = cwd;
+  let i = 0;
+  while (i < tokens.length && tokens[i].startsWith('-')) {
+    if (tokens[i] === DIR_OPTION && tokens[i + 1] !== undefined) base = resolve(base, tokens[i + 1]);
+    i += GLOBAL_VALUE_OPTIONS.has(tokens[i]) ? 2 : 1;
+  }
+  return { base, sub: tokens[i], rest: tokens.slice(i + 1) };
+}
 
 // The non-option words, with the value of an option that takes one (a commit message) left out.
 function operands(rest) {
@@ -26,18 +42,11 @@ function operands(rest) {
   return out;
 }
 
-function workingDir(tokens, cwd) {
-  const at = tokens.indexOf(DIR_OPTION);
-  return at >= 0 && tokens[at + 1] ? resolve(cwd, tokens[at + 1]) : cwd;
-}
-
 export function gitLegacyWrite(tokens, underLegacy, cwd = process.cwd(), movedIn = () => false) {
-  const { sub, rest } = subcommand(tokens);
-  const base = workingDir(tokens, cwd);
+  const { base, sub, rest } = parseInvocation(tokens, cwd);
   const found = (paths) => paths.find((p) => underLegacy(p, base));
   if (sub === 'mv') {
-    const paths = operands(rest);
-    const source = found(paths.slice(0, -1));
+    const source = found(operands(rest).slice(0, -1));
     return source ? { path: source, op: 'git mv out of legacy' } : null;
   }
   if (!CHANGING.has(sub)) return null;

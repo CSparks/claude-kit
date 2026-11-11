@@ -130,6 +130,20 @@ try {
     addHandWrites(gitRoot(d), 'S7', ['legacy/a.mjs']);
     return commit(d, 'S7', ['legacy/a.mjs']);
   };
+  const { identicalRenameTargets } = await import('./lib/identical-renames.mjs');
+  const SAME = 'a'.repeat(40);
+  const OTHER = 'b'.repeat(40);
+  const raw = (...entries) => `${entries.join('\0')}\0`;
+  const rename = (oldMode, newMode, oldId, newId, status, from, to) => `:${oldMode} ${newMode} ${oldId} ${newId} ${status}\0${from}\0${to}`;
+  const targets = (...entries) => [...identicalRenameTargets(raw(...entries))];
+  ok('KIT-T991: a raw R100 rename with equal blob ids and modes is accepted', targets(rename('100644', '100644', SAME, SAME, 'R100', 'a', 'b')).join() === 'b');
+  ok('KIT-T991 control: an R100 rename whose blob ids differ is refused', targets(rename('100644', '100644', SAME, OTHER, 'R100', 'a', 'b')).length === 0);
+  ok('KIT-T991 control: an R100 rename that changes the file mode is refused', targets(rename('100644', '100755', SAME, SAME, 'R100', 'a', 'b')).length === 0);
+  ok('KIT-T991 control: a scored rename below 100 is refused', targets(rename('100644', '100644', SAME, SAME, 'R095', 'a', 'b')).length === 0);
+  ok('KIT-T991: entries around a rename (M, A, a copy) keep the parse aligned', targets(
+    `:100644 100644 ${SAME} ${OTHER} M\0m.mjs`, rename('100644', '100644', SAME, OTHER, 'C080', 'c', 'd'), `:000000 100644 ${'0'.repeat(40)} ${SAME} A\0n.mjs`,
+    rename('100644', '100644', SAME, SAME, 'R100', 'x', 'y'),
+  ).join() === 'y');
   ok('KIT-T991: a ledgered path that is a byte-identical R100 rename commits', !ledgeredMove().out.includes('KIT-T706'));
   ok('KIT-T991 control: a ledgered rename whose content changed is still refused', ledgeredMove('export const a = 1;\nexport const z = 3;\n').out.includes('KIT-T706'));
 

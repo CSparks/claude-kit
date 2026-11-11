@@ -8,22 +8,32 @@
 
 import { gitTry } from './exec.mjs';
 
-const RENAME_FIELDS = 2;
 const IDENTICAL = 'R100';
 const SCORED_STATUS = /^[RC]\d+$/;
+const RAW_META = /^:(\d+) (\d+) ([0-9a-f]+) ([0-9a-f]+) (\S+)$/;
 
-/** Destination paths of the staged R100 renames. */
-function stagedIdenticalRenames(root) {
-  const listing = gitTry(['diff', '--cached', '-M', '--name-status', '-z'], root);
+/**
+ * Destination paths of the renames in `git diff --raw -z` output whose status is R100 AND whose source and destination
+ * entries carry the same blob id and mode: git's score is never trusted alone.
+ */
+export function identicalRenameTargets(raw) {
+  const parts = String(raw).split('\0');
   const renames = new Set();
-  if (!listing.ok) return renames;
-  const parts = listing.out.split('\0');
   for (let i = 0; i < parts.length; i++) {
-    if (parts[i] === IDENTICAL) renames.add(parts[i + RENAME_FIELDS]);
-    if (SCORED_STATUS.test(parts[i])) i += RENAME_FIELDS;
+    const meta = RAW_META.exec(parts[i]);
+    if (!meta) continue;
+    const [, oldMode, newMode, oldId, newId, status] = meta;
+    if (!SCORED_STATUS.test(status)) { i += 1; continue; }
+    if (status === IDENTICAL && oldMode === newMode && oldId === newId) renames.add(parts[i + 2]);
+    i += 2;
   }
   return renames;
 }
+
+const stagedIdenticalRenames = (root) => {
+  const listing = gitTry(['diff', '--cached', '-M', '--raw', '--no-abbrev', '-z'], root);
+  return listing.ok ? identicalRenameTargets(listing.out) : new Set();
+};
 
 /** Every path whose working tree differs from the index; null when git cannot answer. */
 function editedSinceStaging(root) {
