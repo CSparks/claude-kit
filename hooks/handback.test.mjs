@@ -3,7 +3,7 @@
 // never block or order a dispatch; an ack or a reopen clears it.
 // Run: node hooks/handback.test.mjs
 
-import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -203,6 +203,35 @@ try {
   writeFileSync(join(d, '.claude-kit-ignore.yaml'), `successor:\n  - "${TICKET}"\n`);
   roster(row());
   ok('.claude-kit-ignore.yaml glob over the ticket id excludes it', silent(stop()));
+  rmSync(join(d, '.claude-kit-ignore.yaml'), { force: true });
+
+  // KIT-T1011: a worker whose transcript is being written is running, whatever its roster row says.
+  const transcriptAged = (ageMin) => {
+    const file = join(d, 'sessions', `live-${n++}`, `${OLD}.output`);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, '{"type":"assistant"}\n');
+    const stamp = (Date.now() - ageMin * MINUTE_MS) / 1000;
+    utimesSync(file, stamp, stamp);
+    return file;
+  };
+  reset();
+  ticket('doing');
+  roster(row({ status: 'stale', outputFile: transcriptAged(1) }));
+  ok('KIT-T1011: a row marked stale whose transcript was written a minute ago is a running worker: nothing is listed', silent(stop()));
+  roster(row({ status: 'stale', outputFile: transcriptAged(90) }));
+  ok('KIT-T1011 control: the same stale row with an idle transcript is still listed', /AGENT STALE/.test(stop().out));
+  roster(row({ status: 'stale' }));
+  ok('KIT-T1011 control: a stale row with no transcript at all is still listed', /AGENT STALE/.test(stop().out));
+
+  const OTHER_TICKET = 'KIT-T901';
+  writeFileSync(join(d, '.ai', 'tickets', `${OTHER_TICKET}-other.md`), `---\nid: ${OTHER_TICKET}\nstatus: doing\n---\n\n## Notes\n`);
+  ticket('doing', `## Notes\n\nworked by ${OLD}\n`);
+  roster(row({ status: 'killed', tickets: [TICKET, OTHER_TICKET] }));
+  const attributed = stop().out;
+  ok('KIT-T1011: of several tickets a brief cites, only the one that names the agent is listed', attributed.includes(TICKET) && !attributed.includes(OTHER_TICKET));
+  ticket('doing');
+  const unattributed = stop().out;
+  ok('KIT-T1011 control: when no cited ticket names the agent, every cited ticket is listed', unattributed.includes(TICKET) && unattributed.includes(OTHER_TICKET));
 } finally {
   cleanup();
 }

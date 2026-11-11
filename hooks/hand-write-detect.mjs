@@ -3,8 +3,9 @@
 // KIT-D117). Pre snapshots the repo's dirty files and HEAD (a HEAD move, as a broker landing makes, is no write of the call); Post diffs the snapshot. A hand-authored source file the
 // call created, changed or deleted joins the session's hand-write ledger, and commit-gate refuses it until
 // Edit or Write re-saves it (pre-write judges length, comments and literals there). The call's command is
-// never parsed to find the write; only a generator command (git, a build tool, a formatter, a kit verb) is
-// exempt, and so is a file whose content an Edit or Write of any session left during the call (the accepted-writes
+// never parsed to find the write, only to rule it out: a command that cannot write source (a generator, a build or
+// test runner, a kit verb, a reader, no redirect into a source file; lib/inert-command.mjs, KIT-T1001) owns no changed
+// file, and so is a file whose content an Edit or Write of any session left during the call (the accepted-writes
 // ledger, tool-write-record.mjs): another writer's concurrent edit, judged by pre-write, never the call's (KIT-T888).
 // A file git put back (content equal to HEAD, or an earlier Edit's content in a call that runs git) is no write either
 // (lib/restored-content.mjs, KIT-T982), and so is a byte-identical git rename (lib/identical-renames.mjs, KIT-T991).
@@ -18,6 +19,7 @@ import { toolWriteProves, writerId } from './lib/tool-writes.mjs';
 import { restoredSources } from './lib/restored-content.mjs';
 import { unmovedHandWrites } from './lib/identical-renames.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
+import { shellOfTool } from './lib/shell-segments.mjs';
 
 const CHECK = 'source-shell-write';
 const SHOWN_MAX = 10;
@@ -43,7 +45,7 @@ try {
   const since = before.ts || Date.now();
   const caller = writerId(sid, subagentId(p));
   const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller);
-  const changed = handWrittenSources(root, before.files || {}, command, before.head || '')
+  const changed = handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name) })
     .filter((rel) => !pathExcluded(root, CHECK, rel) && !toolWrote(rel));
   const restored = restoredSources(root, changed, command, { session: sid });
   const written = unmovedHandWrites(root, changed.filter((rel) => !restored.has(rel)));

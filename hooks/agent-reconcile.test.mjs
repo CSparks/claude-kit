@@ -53,6 +53,45 @@ test('live recent row is untouched (negative control)', () => {
   assert.equal(readFileSync(agentsPath(d), 'utf8').trim().split('\n').length, 3);
 });
 
+// KIT-T1011: a foreground agent's outputFile stays an empty stub; its real transcript is the harness's subagent file.
+function subagentFixture({ idleMin, body = ok, stub = true }) {
+  const home = mkdtempSync(join(tmpdir(), 'kit-rec-home-'));
+  const sub = join(home, 'projects', 'D--dev-proj', 'sess-1', 'subagents');
+  mkdirSync(sub, { recursive: true });
+  const file = join(sub, 'agent-worker.jsonl');
+  writeFileSync(file, body);
+  const t = new Date(Date.now() - idleMin * MIN);
+  utimesSync(file, t, t);
+  const d = mkdtempSync(join(tmpdir(), 'kit-rec-'));
+  mkdirSync(join(d, '.ai'));
+  const outputFile = join(d, 'worker.output');
+  if (stub) { writeFileSync(outputFile, ''); utimesSync(outputFile, new Date(Date.now() - 120 * MIN), new Date(Date.now() - 120 * MIN)); }
+  const row = { id: 'worker', status: 'in-flight', task: 't', ts: new Date(Date.now() - 120 * MIN).toISOString(), ...(stub ? { outputFile } : {}) };
+  writeFileSync(agentsPath(d), `${JSON.stringify(row)}\n`);
+  return { d, home };
+}
+const statusUnder = ({ d, home }) => {
+  process.env.CLAUDE_HOME = home;
+  try { return readAgents(d)[0].status; } finally { delete process.env.CLAUDE_HOME; }
+};
+
+test('KIT-T1011: a busy worker whose output stub is empty and 2h old is not stale', () => {
+  assert.equal(statusUnder(subagentFixture({ idleMin: 1 })), 'in-flight');
+});
+
+test('KIT-T1011 control: the same worker with an idle subagent transcript is stale', () => {
+  assert.equal(statusUnder(subagentFixture({ idleMin: 90 })), 'stale');
+});
+
+test('KIT-T1011 control: an idle subagent transcript ending in a usage limit is killed', () => {
+  assert.equal(statusUnder(subagentFixture({ idleMin: 90, body: limit })), 'killed');
+});
+
+test('KIT-T1011: an empty output stub and no subagent transcript is no evidence either way', () => {
+  const fixture = subagentFixture({ idleMin: 1 });
+  assert.equal(statusUnder({ ...fixture, home: mkdtempSync(join(tmpdir(), 'kit-rec-empty-')) }), 'in-flight');
+});
+
 test('reconcile:false is a pure read', () => {
   const d = fixture([{ id: 'dead', ageMin: 120, idleMin: 100, transcript: limit }]);
   assert.equal(readAgents(d, 400, { reconcile: false })[0].status, 'in-flight');

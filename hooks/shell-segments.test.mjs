@@ -33,6 +33,21 @@ for (const [name, cmd] of ambiguousCases) {
 }
 check('KIT-T705: the flag adds no segment: the plain split is returned', texts("echo hi ; grep x ; echo it's").join('|') === "echo hi|grep x|echo it's");
 
+// KIT-T941: with the shell named, bash escapes settle quoting that PowerShell leaves ambiguous.
+const bash = (cmd) => segments(cmd, { shell: 'bash' });
+const powershell = (cmd) => segments(cmd, { shell: 'powershell' });
+const escaped = 'echo "say \\"hi\\" ; there" ; ls';
+check('KIT-T941: bash reads an escaped quote inside double quotes as text, not ambiguity', bash(escaped).ambiguous === false);
+check('KIT-T941: the escaped quote keeps the semicolon inside the argument', bash(escaped).map((s) => s.text.trim()).join('|') === 'echo "say \\"hi\\" ; there"|ls');
+check('KIT-T941: powershell still flags the escape before a quote', powershell(escaped).ambiguous === true);
+check('KIT-T941: an escape inside single quotes is literal in both shells', bash("t comment 'a \\\"b\\\" ; c'").ambiguous === false && powershell("t comment 'a \\\"b\\\" ; c'").ambiguous === false);
+check('KIT-T941: a backslash-escaped quote outside quotes does not open a string in bash', bash('echo \\" ; ls').ambiguous === false);
+check('KIT-T941 control: a $\' string stays ambiguous in bash', bash("echo $'a\\' ; b").ambiguous === true);
+check('KIT-T941 control: a backtick before a quote stays ambiguous in bash', bash("echo `' ; b").ambiguous === true);
+check('KIT-T941 control: an unclosed quote stays ambiguous in bash', bash("echo it's ; rm x").ambiguous === true);
+check('KIT-T941 control: a bash escaped backslash then a closing quote ends the argument', bash('cap "a\\\\" ; sed -i x y').map((s) => s.text.trim()).join('|') === 'cap "a\\\\"|sed -i x y');
+check('KIT-T941: without a shell the legacy test flags any escape before a quote', segments(escaped).ambiguous === true);
+
 // KIT-T784: a quoted heredoc read by a data consumer is inert data.
 const body = "ancestors' and \"quotes\" and `ticks` ; grep -r .ai/ ; rm x";
 const heredoc = (head, tail = '') => `${head} <<'EOF'\n${body}\nEOF${tail}`;

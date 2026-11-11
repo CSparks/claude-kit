@@ -10,7 +10,7 @@
 import { resolve } from 'node:path';
 import { payload, gitRootOfFile, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { shellSourceWrites } from './lib/shell-source-write.mjs';
-import { AMBIGUOUS_MESSAGE, toPath } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, shellOfTool, toPath } from './lib/shell-segments.mjs';
 import { commandCwd } from './lib/shell-cwd.mjs';
 import { landsOutsideRepo } from './lib/lands-outside-repo.mjs';
 
@@ -19,7 +19,7 @@ const CHECK = 'source-shell-write';
 try {
   const p = await payload();
   const command = String((p.tool_input && p.tool_input.command) || '');
-  const hits = command ? shellSourceWrites(command) : [];
+  const hits = command ? shellSourceWrites(command, { shell: shellOfTool(p.tool_name) }) : [];
   // A hit's own repo (a relative path is relative to where the command `cd`s), not the hook's cwd.
   const cwd = hits.length ? commandCwd(command) : '';
   for (const found of hits) {

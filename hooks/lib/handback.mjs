@@ -22,6 +22,7 @@
 // A worker owes only the tickets its task label names (successor.mjs dispatchedTickets). A SendMessage that resumed the
 // worker and named the ticket (reopened.mjs) takes the handoff over, and stays taken over after the resumed run retires
 // until the worker writes a newer Handoff block; silence past SILENT_MS brings it back as 'reopened'. A job still queued or running is waiting, not a failure.
+// A row marked stale whose subagent transcript is being written now is a running worker, never an ended one (subagent-transcript.mjs).
 
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -35,13 +36,16 @@ import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
 import { wasteFlag, handoffCount, hasHandoff } from './agent-context.mjs';
-import { CLOSED, dispatchedTickets, handoffClosed, openTicketStatus, recent, retiredAt, succeeded } from './successor.mjs';
+import { isLive } from './subagent-transcript.mjs';
+import { ticketsCited } from '../dispatch-context.mjs';
+import { CLOSED, dispatchedTickets, handoffClosed, openTicketStatus, recent, retiredAt, succeeded, ticketText } from './successor.mjs';
 
 const ENDED = new Set(['done', 'error', 'killed', 'stale']);
 const ABNORMAL = new Set(['error', 'killed', 'stale']);
 const LOST_GRACE_MS = 2 * 60 * 1000;
 const MS_PER_MIN = 60 * 1000;
 const SHA_SHOWN = 8;
+const ID_PREFIX_CHARS = 8;
 const RESUBMIT = fileURLToPath(new URL('../../scripts/broker/resubmit.mjs', import.meta.url));
 const ACK = fileURLToPath(new URL('../../scripts/broker/ack.mjs', import.meta.url));
 const LANDED = 'landed';
@@ -140,9 +144,20 @@ function liveTickets(dir, ledger, finished) {
   return new Set(ledger.filter((s) => s.ticket && !done.has(s.id) && (inLane(dir, 'queue', s.id) || inLane(dir, 'results', s.id))).map((s) => s.ticket));
 }
 
+// A brief that cites several tickets without the task label naming one owns only those whose ticket text names the
+// agent (a comment, a Handoff, a commit note); when none does, it keeps every cited ticket.
+function ownedTickets(root, row) {
+  const cited = dispatchedTickets(row);
+  const labelled = ticketsCited(row.task).some((t) => cited.includes(t));
+  if (labelled || cited.length < 2) return cited;
+  const prefix = String(row.id).slice(0, ID_PREFIX_CHARS);
+  const touched = cited.filter((t) => String(ticketText(root, t) || '').includes(prefix));
+  return touched.length ? touched : cited;
+}
+
 function workItems(root, rows, row, nowMs, live) {
   const out = [];
-  for (const ticket of dispatchedTickets(row)) {
+  for (const ticket of ownedTickets(root, row)) {
     if (live.has(ticket) || !openTicket(root, ticket) || succeeded(root, rows, row, ticket) || handoffClosed(root, ticket, row.id)) continue;
     const notes = ticketNotes(root, ticket);
     const handoff = hasHandoff(notes, row.id);
@@ -167,6 +182,7 @@ export function reconcileHandbacks(root, rows, { nowMs = Date.now(), sessionId =
   const items = [];
   for (const row of rows) {
     if (!ENDED.has(row.status) || !recent(row, nowMs) || !ownsWork(root, row)) continue;
+    if (row.status === 'stale' && isLive(row, nowMs)) continue;
     const jobs = jobsOf(row, ledger, finished, byJob, claims.get(row.id));
     const waiting = jobs.some((j) => !j.fin && (inLane(dir, 'queue', j.id) || inLane(dir, 'results', j.id)));
     let found = jobs.map((j) => jobItem(root, dir, rows, row, j, acks, nowMs, { sessionId, autoAck })).filter(Boolean);

@@ -10,6 +10,12 @@
 // parsing and tests the raw command for its own target words anywhere (KIT-T705, KIT-D117), or judges the
 // pieces from `blindSegments`, which split on every operator whatever the quoting.
 //
+// A caller that knows the shell passes `{ shell }` and gets that shell's escape rules instead: under 'bash' a backslash
+// escapes the next character outside single quotes, so `\"` inside a double-quoted argument is no ambiguity (KIT-T941);
+// under 'powershell' a backslash or backtick before a quote outside single quotes still is. Single-quoted spans are
+// literal in both. A `$'` or `$"` string, a backtick before a quote and an unclosed quote stay ambiguous. Without
+// `shell` the legacy test applies: an escape before a quote anywhere.
+//
 // The bodies of quoted heredocs read by a data consumer are cut first (inert-heredoc.mjs, KIT-T784); the
 // returned array carries the cut text as `.text` for gates that also test the raw command.
 
@@ -21,13 +27,20 @@ const AMBIGUOUS_QUOTING = /\$['"]|[\\`]["']/;
 
 export const AMBIGUOUS_MESSAGE = 'Ambiguous shell quoting: rewrite the command without escaped quotes, or put the code in a scratchpad file.';
 
-function split(cmd, blind = false) {
+const QUOTE = /["']/;
+const DOLLAR_QUOTE = /\$['"]/;
+
+function split(cmd, blind = false, shell = '') {
   const out = [];
   let cur = '';
   let op = 'start';
   let q = '';
+  let escaped = false;
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i];
+    if (shell === 'bash' && !blind && ch === '\\' && q !== "'" && i + 1 < cmd.length) { cur += ch + cmd[++i]; continue; }
+    const escapeChar = ch === '`' || (shell === 'powershell' && ch === '\\');
+    if (shell && escapeChar && q !== "'" && QUOTE.test(cmd[i + 1] || '')) escaped = true;
     if (q) { cur += ch; if (ch === q) q = ''; continue; }
     if (!blind && (ch === '"' || ch === "'")) { q = ch; cur += ch; continue; }
     if (ch === '&' && (cmd[i - 1] === '>' || cmd[i + 1] === '>')) { cur += ch; continue; }
@@ -43,16 +56,19 @@ function split(cmd, blind = false) {
     cur += ch;
   }
   out.push({ text: cur, after: op });
-  return { out, open: q !== '' };
+  return { out, open: q !== '', escaped };
 }
 
-export function segments(cmd) {
+export function segments(cmd, { shell = '' } = {}) {
   const text = inertText(cmd);
-  const { out, open } = split(text);
-  out.ambiguous = open || AMBIGUOUS_QUOTING.test(text);
+  const { out, open, escaped } = split(text, false, shell);
+  out.ambiguous = open || (shell ? escaped || DOLLAR_QUOTE.test(text) : AMBIGUOUS_QUOTING.test(text));
   out.text = text;
   return out;
 }
+
+/** The escape-rule name `segments` takes for a hook payload's tool: PowerShell has its own, every other shell tool is bash. */
+export const shellOfTool = (toolName) => (/powershell/i.test(String(toolName || '')) ? 'powershell' : 'bash');
 
 /** Operator split that ignores quoting: the pieces a command leads with when quote pairing cannot be trusted. */
 export const blindSegments = (cmd) => split(cmd, true).out;

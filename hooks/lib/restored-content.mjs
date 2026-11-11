@@ -16,7 +16,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitTry } from './exec.mjs';
 import { segments } from './shell-segments.mjs';
-import { leaderOf } from './shell-snapshot.mjs';
+import { leaderOf } from './inert-command.mjs';
 import { readTurnState } from './turn-state.mjs';
 
 const CHUNK = 100;

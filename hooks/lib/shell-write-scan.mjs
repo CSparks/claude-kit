@@ -1,7 +1,8 @@
 // Finds the hand write in a shell command (redirect, mv/rm/cp, sed -i, a PowerShell cmdlet, `node -e`,
 // a heredoc or scratch script) aimed at a path some gate protects. Callers supply the policy:
 //
-//   scanAllShellWrites(command, { hit, codeHit, readScript, judgeMoveSources, exemptByDestination }) -> every hit
+//   scanAllShellWrites(command, { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell }) -> every hit
+//     shell ('bash' | 'powershell'): the escape rules segments() applies; omitted, any escape before a quote is ambiguous
 //   scanShellWrites(command, options) -> the first hit, or null
 //     hit(path)     judge one operand path of a writing command or redirect
 //     codeHit(code) judge inline code, a heredoc body or a scratch script that writes files
@@ -55,12 +56,16 @@ const nameOf = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
 const wordsIn = (text) => [...text.matchAll(WORD)].map((m) => ({ w: m[0], at: m.index }));
 const listed = (found) => [].concat(found || []);
 
-/** The target of every `>` or `>>` in `text`; with `outsideQuotes` a `>` inside a quoted span is skipped. */
-function redirectTargets(text, outsideQuotes) {
+/**
+ * The target of every `>` or `>>` in `text`; with `outsideQuotes` a `>` inside a quoted span is skipped. Only text the
+ * quoting of which is settled reaches the quote walk, so a backslash outside single quotes escapes the next character.
+ */
+export function redirectTargets(text, outsideQuotes) {
   const quoted = new Array(text.length).fill(false);
   let open = '';
   for (let i = 0; i < text.length && outsideQuotes; i++) {
     quoted[i] = open !== '' || text[i] === '"' || text[i] === "'";
+    if (text[i] === '\\' && open !== "'") { quoted[i + 1] = true; i++; continue; }
     if (open) { if (text[i] === open) open = ''; } else if (text[i] === '"' || text[i] === "'") open = text[i];
   }
   return [...text.matchAll(REDIRECT)].filter((m) => !quoted[m.index]).map((m) => m[2]);
@@ -162,8 +167,8 @@ const ambiguousWrite = (text, hit) => {
   return WRITE_TOKEN.test(rest) || FS_WRITE.test(rest);
 };
 
-export function scanAllShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false, exemptByDestination = false }) {
-  const parts = segments(String(command || ''));
+export function scanAllShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false, exemptByDestination = false, shell = '' }) {
+  const parts = segments(String(command || ''), { shell });
   const text = parts.text;
   if (parts.ambiguous && ambiguous) return ambiguousWrite(text, hit) ? [ambiguous()] : [];
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));

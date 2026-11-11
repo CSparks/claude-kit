@@ -3,7 +3,7 @@
 // Write tools, where pre-write checks length, comments and literals; a shell write skips them.
 // This is the shell twin of pre-write's code checks (check-id source-shell-write, KIT-T648).
 //
-//   shellSourceWrites(command, { readScript, tempDir }) -> [{ path, ambiguous?, outsideTo? }]   every hit
+//   shellSourceWrites(command, { readScript, tempDir, shell }) -> [{ path, ambiguous?, outsideTo? }]   every hit
 //     ambiguous: the quoting could not be split and the command holds a write token (KIT-T705)
 //     outsideTo: a proven cp/mv source operand; the gate lifts it when that destination leaves the repo
 //   shellSourceWrite(command, options) -> the first hit without outsideTo, or null
@@ -51,7 +51,7 @@ export function isSourcePath(path, tempDir = tmpdir()) {
 
 // Every hit of the command. A hit tagged `outsideTo` is a source operand of a proven cp or mv: the gate drops it when
 // that destination lands outside every adopted repo, and keeps every other hit.
-export function shellSourceWrites(command, { readScript = readTempScript, tempDir = tmpdir() } = {}) {
+export function shellSourceWrites(command, { readScript = readTempScript, tempDir = tmpdir(), shell = '' } = {}) {
   const hit = (path) => (isSourcePath(path, tempDir) ? { path: slashed(path) } : null);
   const codeHit = (code) => {
     if (!FS_WRITE.test(code)) return null;
@@ -60,7 +60,7 @@ export function shellSourceWrites(command, { readScript = readTempScript, tempDi
     for (const m of code.replace(MODULE_SPECIFIER, ' ').matchAll(QUOTED_SOURCE)) { const h = hit(m[1]); if (h) return h; }
     return null;
   };
-  return scanAllShellWrites(command, { hit, codeHit, readScript, exemptByDestination: true, ambiguous: () => ({ path: AMBIGUOUS_PATH, ambiguous: true }) });
+  return scanAllShellWrites(command, { hit, codeHit, readScript, exemptByDestination: true, shell, ambiguous: () => ({ path: AMBIGUOUS_PATH, ambiguous: true }) });
 }
 
 /** The first hit no destination can lift, or null: what a scan alone proves. */
