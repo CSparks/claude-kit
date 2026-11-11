@@ -4,7 +4,8 @@
 // `<runtime>/current`, so a half-edited file is never loaded.
 //
 //   npm run publish:runtime        # exports HEAD and moves `current`, runs no tests (KIT-D162): the ONLY way `current` moves.
-//                                  # The working tree is never published (KIT-T510).
+//                                  # The working tree is never published (KIT-T510). Refuses, `current` unmoved, while agent/skill/
+//                                  # command text differs from the plugin cache under an unchanged version (KIT-T1071).
 //   node scripts/runtime-publish.mjs [--runtime <dir>] [--keep N]   # refuses outside that npm script
 //   npm run publish:followup       # a test run of an export of HEAD the maintainer starts by hand (publish-followup.mjs).
 //
@@ -19,7 +20,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { runtimeRoot as defaultRuntimeRoot } from './runtime-path.mjs';
 import { isMain } from './is-main.mjs';
 import { liveUsers } from './runtime-pin.mjs';
-import { installedPlugin, pluginDrift } from './plugin-drift.mjs';
+import { installedPlugin, publishCheck } from './plugin-drift.mjs';
 import { heldRuntimes } from './runtime-holders.mjs';
 import { referencedRuntimes } from './runtime-refs.mjs';
 import { CHILD_OPTIONS, gitOrThrow, stopProcessesUnder, sweepScratch, withPublishLock } from './runtime-publish-guard.mjs';
@@ -149,10 +150,16 @@ const SELF = fileURLToPath(import.meta.url);
 // A publish moves the runtime and runs no tests (KIT-D162): the machine is shared, so a commit or publish never waits on
 // a test run. `--followup` stays as an explicit, maintainer-started test run of an export.
 function publishMain(repo, runtimeRoot, keep) {
-  const r = publishRuntime({ repo, runtimeRoot, keep });
+  const r = guardedPublish({ repo, runtimeRoot, keep, installed: installedPlugin() });
   process.stdout.write(`runtime: ${r.sha} -> ${r.current}\nrun kit scripts from ${r.current}/scripts/ (q.mjs, t.mjs, cap.mjs)\n`);
-  const drift = pluginDrift({ repo, installed: installedPlugin() });
-  if (drift.length) process.stderr.write(`runtime-publish: ${drift.length} agent/skill/command/hook file(s) changed since the plugin cache was copied, under the same plugin.json version, so sessions do not see them. Bump .claude-plugin/plugin.json version, then restart sessions: ${drift.slice(0, 8).join(', ')}${drift.length > 8 ? ', ...' : ''}\n`);
+}
+
+/** Publish unless the plugin cache would keep stale agent/skill/command text or the manifests disagree on the version: then throw before `current` moves (KIT-T1071). */
+export function guardedPublish({ installed, ...options }) {
+  const { refuse, warn } = publishCheck({ repo: options.repo, installed });
+  for (const w of warn) process.stderr.write(`runtime-publish: ${w}\n`);
+  if (refuse.length) throw new Error(`refusing to publish; \`current\` is unchanged.\n  - ${refuse.join('\n  - ')}`);
+  return publishRuntime(options);
 }
 
 // Runs the recorded remainder (the failed files of the last attempt, else all) on an export of `ref` and records the outcome.
