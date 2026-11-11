@@ -6,12 +6,13 @@
 //   liveTickets(queue)       -> ticket names whose process is alive, oldest first, a priority ticket ahead of its own
 //                               checkout's earlier ones (slot-order.mjs); dead ones are deleted
 //   liveHolds(dir)           -> [{ name, ...record }] holds `slot-<ticket>` whose process is alive (dead ones are deleted)
-//   limits(probes?)          -> { physical, budget, game } the budget in force now; a running game takes gameCores off it
+//   rewriteHold(path, rec)   -> replaces a live hold's record atomically (build-phase.mjs resizes holds with it)
+//   limits(probes?)        -> { physical, budget, game } the budget in force now; a running game takes gameCores off it
 //   snapshot(probes?)        -> everything the readout prints
 
-import { mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, hostname } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { buildCores, physicalCores, readBudgetConfig, reserveCores } from './build-budget.mjs';
 import { gameRunning } from './build-probes.mjs';
 import { orderTickets } from './slot-order.mjs';
@@ -36,6 +37,18 @@ export function liveTickets(queue) {
     else rmSync(join(queue, name), { force: true });
   }
   return orderTickets(entries);
+}
+
+// Replaces a live hold's record whole. Written beside it and renamed over it, so a reader never sees a torn file (an
+// unreadable hold reads as dead and is deleted). A released hold is never recreated. -> true when the record landed.
+export function rewriteHold(path, rec) {
+  const tmp = join(dirname(path), `tmp-${basename(path)}`);
+  try {
+    if (!existsSync(path)) return false;
+    writeFileSync(tmp, JSON.stringify(rec));
+    renameSync(tmp, path);
+    return true;
+  } catch { rmSync(tmp, { force: true }); return false; }
 }
 
 export function liveHolds(dir = slotDir()) {

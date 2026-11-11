@@ -19,6 +19,7 @@ import { LOCK_BACKOFF_MS, fileLockFailure, holdersOf, lockNote } from './file-lo
 import { killTree, trackChild, untrackChild } from './children.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
 import { checkpointWatch } from './build-checkpoint.mjs';
+import { phaseWatch } from './build-phase.mjs';
 import { fitCommand, heldEnv, requestedCores } from './build-env.mjs';
 import { foreignBuilds, governedPids, listProcesses, summarize, waitForQuiet } from './build-contention.mjs';
 import { isCargoBuild } from './cargo-subs.mjs';
@@ -79,13 +80,14 @@ function runOnce(cmd, opts, hooks) {
     return { cmd: String(cmd).trim(), composed, exit: 1, durationMs: 0, slotWaitMs: waitedMs, logTail: [], cancelled: true };
   }
   try {
-    const run = runInSlot(cmd, composed, opts, hooks, slot.granted);
+    const run = runInSlot(cmd, composed, opts, hooks, slot);
     const contendedBy = run.timedOut ? summarize(foreignBuilds(listProcesses(), governedPids())) : quiet.contendedBy;
     return { ...run, slotWaitMs: waitedMs, ...(contendedBy.length ? { contendedBy } : {}) };
   } finally { guard.release(); slot.release(); }
 }
 
-function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0, checkpoint }, { shouldCancel, pollMs = DEFAULT_POLL_MS }, granted) {
+function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0, checkpoint }, { shouldCancel, pollMs = DEFAULT_POLL_MS }, slot) {
+  const granted = slot.granted;
   const marker = `${logPath}.exit`;
   rmSync(marker, { force: true });
   writeFileSync(logPath, '');
@@ -101,11 +103,13 @@ function runInSlot(cmd, composed, { cwd, targetDir, logPath, timeoutMs = 0, chec
   } finally { closeSync(fd); }
   trackChild({ pid: child.pid, marker, logPath, cmd });
   const watch = checkpoint && timeoutMs ? checkpointWatch({ logPath, pid: child.pid, limitMs: timeoutMs, ...checkpoint }) : null;
+  const phase = granted ? phaseWatch({ slot, pid: child.pid }) : null;
   let cancelled = false;
   let timedOut = false;
   let stalled = '';
   while (!existsSync(marker)) {
     if (shouldCancel()) { cancelled = true; killTree(child.pid); break; }
+    phase?.poll();
     if (watch) stalled = watch.poll(Date.now() - started)?.stop || '';
     if (stalled || (!watch && timeoutMs && Date.now() - started > timeoutMs)) { timedOut = true; killTree(child.pid); break; }
     pulse();

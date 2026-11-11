@@ -9,7 +9,8 @@
 // Anything that does not compile, and a tool started by a build that already holds cores (CLAUDE_KIT_BUILD_HELD),
 // runs untouched. A build queued past MAX_WAIT_S exits EXIT_QUEUED with one line naming who holds the cores, from which
 // root and for how long, then the readout; never waits in silence. A hold past the 5-minute ceiling is filed once as a
-// kit bug (build-long-hold.mjs).
+// kit bug (build-long-hold.mjs). A held build that reaches its test run phase has its hold shrunk to what the tests use
+// (build-phase.mjs), so the cores it no longer compiles on go to the next build.
 
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -21,6 +22,7 @@ import { classify } from './build-classify.mjs';
 import { describeHolder, formatSnapshot } from './build-status.mjs';
 import { liveHolds, snapshot } from './build-slot-store.mjs';
 import { flagLongHolds } from './build-long-hold.mjs';
+import { PHASE_POLL_MS, phaseWatch } from './build-phase.mjs';
 import { HELD_ENV, heldEnv } from './build-env.mjs';
 import { cargoConfigJobs } from './cargo-config-jobs.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
@@ -96,7 +98,9 @@ async function runGated(real, tool, args, verdict, cwd) {
   lowerPriority(child, snapshot().game);
   if (verdict.runs) forwardUntilProgram(child, () => slot.release());
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig));
-  return new Promise((done) => child.on('exit', (code, signal) => { slot.release(); done(code ?? (signal ? 1 : 0)); }));
+  const phase = phaseWatch({ slot, pid: child.pid });
+  const watching = setInterval(() => phase.poll(), PHASE_POLL_MS);
+  return new Promise((done) => child.on('exit', (code, signal) => { clearInterval(watching); slot.release(); done(code ?? (signal ? 1 : 0)); }));
 }
 
 async function main([tool, ...args]) {

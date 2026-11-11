@@ -7,7 +7,9 @@
 // under the user's `.claude` shared by every checkout (build-slot-store.mjs).
 //
 //   acquireBuildSlot(cmd, { jobs, label, force, elastic, cwd, shouldCancel, probes, pollMs })
-//     -> { cancelled, waitedMs, holder, granted, release() }
+//     -> { cancelled, waitedMs, holder, granted, update(patch), release() }
+//   `update(patch)` rewrites the live hold's record (build-phase.mjs shrinks it to a run-phase charge); the hold keeps
+//   `full` (the grant) and `by` (who started it, build-origin.mjs).
 //   `jobs` is the cores the build asks for (clamped to the budget). `elastic` builds start on whatever is free once
 //   MIN_ELASTIC_GRANT cores are, `granted` says how many they got; a fixed build (the broker's composed `-j`) waits for
 //   all of `jobs`. `cmd` that is not cargo build-shaped (and not `force`) gets a no-op slot at once. While queued the
@@ -20,7 +22,8 @@ import { join } from 'node:path';
 import { isCargoBuild } from './cargo-subs.mjs';
 import { grantFor } from './build-grant.mjs';
 import { commitFreeBytes } from './build-probes.mjs';
-import { SLOT_PREFIX, limits, liveHolds, liveTickets, queueDir, slotDir } from './build-slot-store.mjs';
+import { SLOT_PREFIX, limits, liveHolds, liveTickets, queueDir, rewriteHold, slotDir } from './build-slot-store.mjs';
+import { startedBy } from './build-origin.mjs';
 import { slotPriority } from './slot-priority.mjs';
 import { pulse } from './stall.mjs';
 
@@ -31,7 +34,7 @@ const TICKET_WIDTH = 15;
 const RADIX = 36;
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
-const NO_SLOT = { cancelled: false, waitedMs: 0, holder: null, granted: 0, release() {} };
+const NO_SLOT = { cancelled: false, waitedMs: 0, holder: null, granted: 0, update() {}, release() {} };
 
 export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false, elastic = false, cwd = process.cwd(), shouldCancel = () => false, probes = {}, pollMs = POLL_MS } = {}) {
   if (!force && !isCargoBuild(cmd)) return NO_SLOT;
@@ -65,7 +68,13 @@ export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false
 
 function hold(dir, name, ticketPath, record, started, holder) {
   const path = join(dir, `${SLOT_PREFIX}${name}`);
-  writeFileSync(path, JSON.stringify({ ...record, ts: new Date().toISOString() }));
+  let current = { ...record, ts: new Date().toISOString(), full: record.jobs, by: startedBy() };
+  writeFileSync(path, JSON.stringify(current));
   rmSync(ticketPath, { force: true });
-  return { cancelled: false, waitedMs: Date.now() - started, holder, granted: record.jobs, release() { rmSync(path, { force: true }); } };
+  let released = false;
+  return {
+    cancelled: false, waitedMs: Date.now() - started, holder, granted: record.jobs,
+    update(patch) { if (!released) { current = { ...current, ...patch }; rewriteHold(path, current); } },
+    release() { released = true; rmSync(path, { force: true }); },
+  };
 }
