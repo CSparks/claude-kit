@@ -50,7 +50,7 @@ Each finding is one line group:
 
 ## Waiting on builds and tests (KIT-T355)
 Cost is per tool call, so a wait is ONE call and one read of the result.
-- Run a long capture in one Bash call with the max timeout, or with `run_in_background` and wait for the completion notification.
+- Run a long capture in one Bash call with a `timeout` of at most 300000 ms, or with `run_in_background` and wait for the completion notification. A capture that cannot finish in 5 minutes is scoped down or split, never given a longer timeout (KIT-D104).
 - Never poll an output file, never sleep-loop, and never re-run a whole suite to see one view: capture that view by name.
 
 ## Search — q first (the kit's search tool)
@@ -63,7 +63,7 @@ framework submodule — code in every language, docs, configs, tickets — and a
 
 ## Waiting on builds and tests (KIT-T355)
 Cost is per tool call, so a wait is ONE call and one read of the result.
-- Run a long build or test in one Bash call with the max timeout, or with `run_in_background` and wait for the completion notification.
+- Run a long build or test in one Bash call with a `timeout` of at most 300000 ms, or with `run_in_background` and wait for the completion notification. A build or suite that cannot finish in 5 minutes is scoped down or split, never given a longer timeout (KIT-D104).
 - Pipe the output through a filter that keeps only failures, panics, assertion lines and the `test result` totals.
 - Never poll an output file, never sleep-loop, and never re-run a whole suite to see one test: run that test by name.
 
