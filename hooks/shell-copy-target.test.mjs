@@ -89,6 +89,11 @@ mkdirSync(join(repo, '.ai'), { recursive: true });
 const run = (command) => spawnSync(process.execPath, [HOOK], { cwd: repo, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }), encoding: 'utf8' });
 check('the gate lets a quoted scratchpad backup of a source file through', run(`cp src/a.cpp "${spaced}/a.cpp"`).status === 0);
 check('the gate still refuses a copy onto a source file in the repo', run(`cp ${temp}/x.cpp src/a.cpp`).status === 2);
+check('the gate lets a source file move out to the temp dir', run(`mv src/a.cpp ${temp}/a.cpp`).status === 0);
+check('the gate lets a source file move to a path outside any repo', run('mv src/a.cpp ../moved.bak').status === 0);
+check('the gate refuses a move that stays in the repo', run('mv src/a.cpp src/a.cpp.bak').status === 2);
+check('the gate refuses a move to a destination it cannot resolve', run('mv src/a.cpp "$DEST/a.bak"').status === 2);
+check('the gate refuses a move onto a source file', run(`mv ${temp}/x.cpp src/a.cpp`).status === 2);
 
 console.log(`\nshell-copy-target: ${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
