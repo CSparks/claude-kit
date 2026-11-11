@@ -28,7 +28,12 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 ## Plan
 1.
 
+## Notes
+Prevention landed in code (commit 9c4abae): hooks/source-shell-gate.mjs block text now leads with Use the Write tool (create or replace a whole file, a scratch repro or test included, never a heredoc, echo-redirect or node -e), then the Edit tool; test hooks/source-shell-gate.test.mjs 168 passed. NOT done: letting rm of a source path pass. hooks/source-shell-gate.test.mjs asserts node fs.rmSync on a source file blocks, so that is a policy reversal of a tested contract (and WRITING_CMD is shared with the store gate where rm must block); needs the maintainer call, or a separate scoped change tagging delete-only hits in shell-write-scan. No CLAUDE.md or agent-definition text proposed. Left untouched and uncommitted: hooks/zz-repro.test.mjs (previous agent scratch repro, never add or commit).
+
 ## History
 - [2026-11-11 04:40] (created) bug — source-shell-gate (source-shell-write) blocks an rm of an untracked source file the same agent created through Write (a scratch repro hooks/
 - [2026-11-11 04:40] (comment) seen again in claude-kit: source-shell-gate (source-shell-write) blocks an rm of an untracked source file the same agent created through Write (scratch repro): deletion leaves nothing for pre-write to judge
 - [2026-11-11 04:40] (asked again) 2026-11-11 — cap:bug:source-shell-gate-source-shell-write-blocks-an-r
+- [2026-11-11 05:02] (landed) 9c4abae shell-segments: only a quote opened right after a dollar sign is a dollar-quote ambiguity, so a grep pattern ending in a
+- [2026-11-11 05:02] (comment) @claude: Block-text prevention landed in 9c4abae; the rm-of-a-source-path part is open (policy call, see Notes)
