@@ -42,6 +42,12 @@ const alive = (pid) => {
 const read = (file) => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; } };
 const liveRecord = (r) => !!r && (r.host !== hostname() || alive(r.pid));
 
+/** The live holder record of a submodule tree's lock, or null; reads only. `cfg` needs targetDir, `sub` needs name. */
+export const liveTreeHolder = (cfg, sub) => {
+  const held = read(lockPath(cfg, sub));
+  return liveRecord(held) ? held : null;
+};
+
 /** Does a job build or edit the submodule's tree: it pins it, edits a path in it, or runs cargo. */
 function usesTree(cfg, sub, job) {
   if ((job.pins || []).some((p) => p.repo === sub.name)) return true;

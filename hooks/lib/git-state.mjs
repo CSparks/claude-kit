@@ -58,7 +58,7 @@ function fetchStamp(repoRoot) {
   return join(cacheDir(), `fetched-${pathKey(repoRoot)}`);
 }
 
-function fetchDue(repoRoot, now = Date.now()) {
+export function fetchDue(repoRoot, now = Date.now()) {
   try {
     return now - statSync(fetchStamp(repoRoot)).mtimeMs >= FETCH_MIN_AGE_MS;
   } catch {
@@ -66,7 +66,7 @@ function fetchDue(repoRoot, now = Date.now()) {
   }
 }
 
-function stampFetch(repoRoot, now = Date.now()) {
+export function stampFetch(repoRoot, now = Date.now()) {
   try {
     const stamp = fetchStamp(repoRoot);
     if (!existsSync(stamp)) {
