@@ -12,6 +12,7 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { classify } from '../../scripts/code-index-extract.mjs';
+import { gitCommand } from './git-subcommand.mjs';
 
 const GREP_TOOLS = new Set(['grep', 'egrep', 'fgrep', 'rg']);
 const RG_TYPE = { rust: 'rust', py: 'py', python: 'py', md: 'md', markdown: 'md', toml: 'toml', json: 'json', yaml: 'yaml', sh: 'sh', css: 'css', html: 'html', go: 'go', java: 'java', c: 'c', cpp: 'cpp' };
@@ -38,7 +39,10 @@ function tokens(c) {
 export function indexEquivalent(command, { qPath, root, cwd = process.cwd() }) {
   const toks = tokens(command);
   let tool = (toks.shift() || '').replace(/.*[\\/]/, '').toLowerCase();
-  if (tool === 'git' && (toks[0] || '').toLowerCase() === 'grep') { toks.shift(); tool = 'grep'; }
+  if (tool === 'git') {
+    const git = gitCommand(toks);
+    if (git.sub === 'grep') { toks.splice(0, toks.length, ...git.args); tool = 'grep'; }
+  }
   if (!GREP_TOOLS.has(tool)) return null;
   const f = { fixed: tool === 'fgrep', ext: tool === 'egrep' || tool === 'rg', ignore: false, word: false, files: false, count: false, ctx: [], lang: '' };
   const pos = [];

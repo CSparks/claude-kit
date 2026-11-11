@@ -22,6 +22,8 @@ import { fileURLToPath } from 'node:url';
 import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
 import { commandLeads } from './lib/command-leads.mjs';
 import { fileOperands, hasGlob, isItemPath, isPatternSearch, itemEquivalent } from './lib/store-search.mjs';
+import { gitCommand } from './lib/git-subcommand.mjs';
+import { searchPaths, targetsOnlyFiles } from './lib/search-targets.mjs';
 import { indexEquivalent } from './lib/index-answerable.mjs';
 import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
@@ -37,7 +39,7 @@ const GRAPH = join(KIT, 'scripts', 'code-graph.mjs');
 // Text tools that READ/SEARCH file CONTENT (the wrong path for store + discovery).
 const SEARCH = /^(?:grep|egrep|fgrep|rg|ag|ack|sed|awk|findstr|select-string|sls)$/;
 const READ = /^(?:cat|head|tail|type|get-content|gc)$/;
-const leadsSearch = (cmd) => commandLeads(cmd).some(({ tool, args }) => SEARCH.test(tool) || (tool === 'git' && args[0] === 'grep'));
+const leadsSearch = (cmd) => commandLeads(cmd).some(({ tool, args }) => SEARCH.test(tool) || (tool === 'git' && gitCommand(args).sub === 'grep'));
 // Anything in the .ai work store — the data `q` owns. Tickets/decisions/etc. may also
 // be referenced bare (a `cd` already inside .ai), so match the store dirs at TOKEN START
 // only — `src/notes/` is a legit user directory, not the store (KIT-T056). The
@@ -164,7 +166,7 @@ function excludedByConfig(root, id, c) {
 // Return a block message, or null to allow. One simple command (no pipe/chain).
 // `piped` = this segment reads the previous command's stdout.
 function judge(c, piped = false) {
-  let tok = c.split(/\s+/).filter(Boolean);
+  let tok = c.match(QUOTED_TOKENS) || [];
   if (!tok.length) return null;
   let tool = tok[0].replace(/.*[\\/]/, '').toLowerCase(); // basename, lower
   // xargs feeds stdin as FILENAMES to its command — that command reads files, so
@@ -177,7 +179,9 @@ function judge(c, piped = false) {
     c = tok.join(' ');
     piped = false;
   }
-  const gitGrep = tool === 'git' && (tok[1] || '').toLowerCase() === 'grep';
+  const git = tool === 'git' ? gitCommand(tok.slice(1)) : null;
+  const gitGrep = git !== null && git.sub === 'grep';
+  const argv = gitGrep ? git.args : tok.slice(1); // the tokens after the tool word, after `git grep` for a git grep
   const isSearch = SEARCH.test(tool) || gitGrep;
   const isRead = READ.test(tool);
   const isFind = tool === 'find' || tool === 'get-childitem' || tool === 'gci';
@@ -187,7 +191,8 @@ function judge(c, piped = false) {
   // of a search tool is its pattern. (find/gci never filter stdin — no exemption.)
   if (piped && (isSearch || isRead)) {
     const unquoted = c.replace(/"[^"]*"|'[^']*'/g, ' ');
-    const positionals = unquoted.split(/\s+/).filter(Boolean).slice(gitGrep ? 2 : 1).filter((a) => !a.startsWith('-'));
+    const words = unquoted.split(/\s+/).filter(Boolean).slice(1);
+    const positionals = (gitGrep ? gitCommand(words).args : words).filter((a) => !a.startsWith('-'));
     const fileArgs = isRead ? positionals : positionals.slice(1);
     if (!fileArgs.some((a) => /[\\/]/.test(a))) return null;
   }
@@ -203,15 +208,14 @@ function judge(c, piped = false) {
   if ((isSearch || isRead || isFind) && STORE.test(c) && !isStoreWrite) {
     // A search tool's first positional is its pattern, not a path; flag VALUES (`head -n 50`) aren't
     // FILEISH — so count the concrete store FILES among the args, not bare positionals.
-    const positionals = (gitGrep ? tok.slice(2) : tok.slice(1))
-      .filter((a) => !a.startsWith('-')).map((a) => a.replace(/^["']|["']$/g, ''));
+    const positionals = argv.filter((a) => !a.startsWith('-')).map((a) => a.replace(/^["']|["']$/g, ''));
     const storeFiles = positionals.filter((a) => STORE.test(a) && FILEISH.test(a));
     // ONE specific named file (no find, no recursion) — read/grep it directly; q can't return its raw
     // form. Discovery (find, recursion, a store dir, a glob, or >1 concrete file) stays q's to answer.
     const oneNamedFile = !isFind && !RECURSIVE_FLAG.test(c) && storeFiles.length === 1 && !hasGlob(storeFiles[0]);
     // A pattern search of an ITEM file is q's whatever the file count (KIT-T871, KIT-D134); a plain read passes.
     const itemFile = positionals.find((a) => STORE.test(a) && isItemPath(a));
-    const searchesItem = itemFile && isPatternSearch(tool, tok.slice(gitGrep ? 2 : 1), gitGrep);
+    const searchesItem = itemFile && isPatternSearch(tool, argv, gitGrep);
     if (!oneNamedFile || searchesItem) return { id: 'store-grep', msg: storeMsg(c, itemFile) };
   }
 
@@ -221,11 +225,12 @@ function judge(c, piped = false) {
   // definitions at most for it, so blocking strands the agent. With NO extension signal (no
   // --include / glob / -t flag) keep blocking — unknown scope routes to code-graph.
   if (isSearch) {
-    const args = (gitGrep ? tok.slice(2) : tok.slice(1)).filter((a) => !a.startsWith('-'));
-    const targetsOneFile = args.some((a) => FILEISH.test(a)) || targetsOnlyScratch(args); // a concrete file or a scratch dir = "not source discovery"
+    const args = argv.filter((a) => !a.startsWith('-'));
     // PowerShell parameters are whole -Names (`-Path`, `-Pattern`), not bundled short flags, so RECURSIVE_FLAG would
     // read `-Pattern` as `-r`. Select-String is tree-wide only with -Recurse, a wildcard or a directory path.
     const psSearch = tool === 'select-string' || tool === 'sls';
+    // Targeted = every path operand is a concrete file, or a scratch dir: one file never launders a directory beside it (KIT-T1069).
+    const targetsOneFile = (psSearch ? args.some((a) => FILEISH.test(a)) : targetsOnlyFiles(searchPaths(argv, { git: gitGrep }))) || targetsOnlyScratch(args);
     const psTreeWide = /s-recurse/i.test(c) || args.some((a) => /[*?]|[\/]$/.test(a));
     const recursive = psSearch ? psTreeWide : RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep;
     const dependency = recursive && registryTarget(c); // a crate dir looks like a file (`rapier3d-0.25.1`), so judge it first

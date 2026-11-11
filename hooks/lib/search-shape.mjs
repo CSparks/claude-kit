@@ -9,6 +9,7 @@
 // shape (grep-likes only): identifier | definition | path-ish | phrase | regex
 
 import { segments } from './shell-segments.mjs';
+import { gitCommand } from './git-subcommand.mjs';
 
 const LANG_BY_EXT = {
   rs: 'rust', wgsl: 'wgsl', glsl: 'glsl', toml: 'toml', md: 'md', py: 'py', json: 'json',
@@ -71,8 +72,9 @@ function fromSegment(text, piped) {
     const m = text.match(/--query\s+([a-z-]+)/);
     return { tool: 'Bash', kind: 'code-graph', verb: m ? m[1] : '', lang: '', target: 'code', pattern: '', shape: '' };
   }
-  const git = tool === 'git' && (toks[1] || '').toLowerCase() === 'grep';
-  if (git) skip = 2;
+  const gitSub = tool === 'git' ? gitCommand(toks.slice(1)) : null;
+  const git = gitSub !== null && gitSub.sub === 'grep';
+  if (git) skip = toks.length - gitSub.args.length;
   if (GREP_TOOLS.has(tool) || git) {
     const pos = positionals(toks, skip);
     if (piped && pos.length <= 1) return null; // filtering another command's output, not searching files
