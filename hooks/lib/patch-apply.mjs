@@ -9,11 +9,22 @@
 //     hit(path), readScript(path): the caller's judge and its reader of temp files
 //
 // The targets come from the diff's own headers (`diff --git a/x b/x`, `--- a/x`, `+++ b/x`), read from the command
-// itself and from a patch file under the temp dir; a patch file elsewhere is another author's work and stays allowed.
+// itself and from every patch file it names (operand, `< file`, or, when the applier reads a pipe, any path in the
+// command); a file that cannot be read names nothing and stays allowed. The applier is found past wrappers
+// (`sudo`, `env A=1`, `command`, `timeout 5`...), never in the arguments of another command.
 // A call that only checks or reports (`git apply --check|--stat|--numstat|--summary`, `patch --dry-run`) writes nothing.
 // `git checkout <rev> -- <path>` restores content a commit or stash already holds, gated when it was written: not judged.
 
+import { readFileSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { gitCommand } from './git-subcommand.mjs';
+
+const WORD = /"([^"]*)"|'([^']*)'|([^\s"'|;&<>()]+)/g;
+const PATH_LIKE = /[\\/]|\.[A-Za-z0-9]{1,6}$/;
+const PATH_WORD_LIMIT = 32;
+const WRAPPER = /^(?:sudo|doas|env|command|exec|nohup|time|nice|ionice|timeout|stdbuf|xargs|builtin|setsid|unbuffer)$/i;
+const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const NUMBER = /^\d+(?:\.\d+)?[smhd]?$/;
 
 const DIFF_GIT = /diff --git ([^\s\\'"]+) ([^\s\\'"]+)/g;
 const FILE_HEADER = /(?:\+\+\+|---) ([^\s\\'"]+)/g;
@@ -50,23 +61,42 @@ export function patchTargets(text, strip) {
   return [...new Set(tokens.map((t) => strippedPath(t, strip)).filter(Boolean))];
 }
 
-const readable = (paths, readScript) => paths.map((p) => readScript(unquote(p))).join('\n');
-
-function patchTexts(operands, text, raw, readScript) {
-  const redirect = text.match(STDIN_REDIRECT);
-  const source = redirect ? redirect[1] ?? redirect[2] ?? redirect[3] : '';
-  return `${raw}\n${readable(operands.concat(source ? [source] : []), readScript)}`;
+/** The text of a patch file: a temp script through the caller's reader, any other regular file straight from disk ('' when unreadable). */
+function fileText(path, readScript) {
+  const name = unquote(path);
+  const temp = readScript(name);
+  if (temp) return temp;
+  try {
+    const abs = resolve(name);
+    return statSync(abs).isFile() && statSync(abs).size <= HEADER_TEXT_LIMIT ? readFileSync(abs, 'utf8') : '';
+  } catch { return ''; }
 }
 
-function gitApplyTargets(sub, args, { text, raw, readScript }) {
+/** The path-like words of the whole command, quoted spans kept whole: the files a piped producer may read. */
+function pathWords(raw) {
+  const words = [...String(raw).matchAll(WORD)].map((m) => m[1] ?? m[2] ?? m[3]);
+  return words.filter((w) => PATH_LIKE.test(w)).slice(0, PATH_WORD_LIMIT);
+}
+
+/** The command's text plus the text of every patch file it names; a stdin-reading applier also reads the files its pipeline names. */
+function patchTexts(operands, { text, raw, readScript }, readsStdin) {
+  const redirect = text.match(STDIN_REDIRECT);
+  const source = redirect ? redirect[1] ?? redirect[2] ?? redirect[3] : '';
+  const piped = readsStdin && !source ? pathWords(raw) : [];
+  const files = operands.concat(source ? [source] : [], piped);
+  return `${raw}\n${files.map((p) => fileText(p, readScript)).join('\n')}`;
+}
+
+function gitApplyTargets(sub, args, ctx) {
   const flags = args.filter((a) => a.startsWith('-'));
   if (sub === 'apply' && flags.some((f) => GIT_REPORT_ONLY.has(f)) && !flags.some((f) => GIT_WRITES.has(f))) return [];
   if (sub === 'am' && flags.some((f) => AM_PASSIVE.has(f))) return [];
   const strip = Number((flags.map((f) => /^-p(\d+)$/.exec(f)).find(Boolean) || [])[1] ?? GIT_APPLY_STRIP);
-  return patchTargets(patchTexts(args.filter((a) => !a.startsWith('-')), text, raw, readScript), strip);
+  const operands = args.filter((a) => !a.startsWith('-'));
+  return patchTargets(patchTexts(operands, ctx, !operands.length), strip);
 }
 
-function patchCommandTargets(args, { text, raw, readScript }) {
+function patchCommandTargets(args, ctx) {
   const positionals = [];
   let strip = PATCH_STRIP;
   let input = '';
@@ -84,16 +114,39 @@ function patchCommandTargets(args, { text, raw, readScript }) {
   }
   if (output) return [unquote(output)];
   if (positionals.length) return [unquote(positionals[0])];
-  return patchTargets(patchTexts(input ? [input] : [], text, raw, readScript), strip);
+  return patchTargets(patchTexts(input ? [input] : [], ctx, !input), strip);
+}
+
+const commandName = (word) => String(word).replace(/.*[\\/]/, '').replace(/\.(?:exe|bat|cmd)$/i, '');
+const isApplier = (name, rest) => /^patch$/i.test(name) || (/^git$/i.test(name) && ['apply', 'am'].includes(gitCommand(rest).sub));
+
+/** The index of the applier in a command's words past any wrappers (`sudo -u root`, `env A=1`, `command`, `timeout 5`), -1 when none leads. */
+function applierIndex(words) {
+  let wrapped = false;
+  let afterFlag = false;
+  for (let i = 0; i < words.length; i++) {
+    const name = commandName(words[i]);
+    if (isApplier(name, words.slice(i + 1))) return i;
+    const wrapper = WRAPPER.test(name);
+    const flag = wrapped && words[i].startsWith('-');
+    const value = wrapped && (afterFlag || NUMBER.test(words[i]));
+    if (!wrapper && !ENV_ASSIGN.test(words[i]) && !flag && !value) return -1;
+    wrapped ||= wrapper;
+    afterFlag = flag;
+  }
+  return -1;
 }
 
 export function patchApplyHits(leader, args, ctx) {
-  let targets = [];
+  const words = [leader, ...args];
+  const at = applierIndex(words);
+  if (at < 0) return [];
+  const [applier, ...rest] = words.slice(at);
   let dir = '';
-  if (/^patch$/i.test(leader)) targets = patchCommandTargets(args, ctx);
-  else if (/^git$/i.test(leader)) {
-    const git = gitCommand(args);
-    if (git.sub !== 'apply' && git.sub !== 'am') return [];
+  let targets = [];
+  if (/^patch$/i.test(commandName(applier))) targets = patchCommandTargets(rest, ctx);
+  else {
+    const git = gitCommand(rest);
     dir = git.dir;
     targets = gitApplyTargets(git.sub, git.args, ctx);
   }

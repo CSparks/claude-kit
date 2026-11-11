@@ -35,8 +35,11 @@ try {
   const longSpelling = realpathSync.native(srcPatch).replace(/\\/g, '/');
   const quoted = (p) => `"${p}"`;
 
-  const gate = (name, command) => spawnSync(process.execPath, [join(HOOKS, name)], { cwd: repo, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }), encoding: 'utf8' });
+  const elsewhere = tmpDir('kit-patch-temp-');
+  const offTemp = { ...process.env, TEMP: elsewhere, TMP: elsewhere, TMPDIR: elsewhere };
+  const gate = (name, command, env = process.env) => spawnSync(process.execPath, [join(HOOKS, name)], { cwd: repo, env, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }), encoding: 'utf8' });
   const src = (command) => gate('source-shell-gate.mjs', command).status;
+  const srcOffTemp = (command) => gate('source-shell-gate.mjs', command, offTemp).status;
   const store = (command) => gate('store-shell-gate.mjs', command).status;
 
   const blocks = [
@@ -59,6 +62,20 @@ try {
     ['patch of an original file named as the operand', 'patch src/a.rs < upstream.diff'],
     ['patch -o onto a source file', 'patch -o src/a.rs orig.rs < upstream.diff'],
     ['a chained apply', `git status && git apply ${srcPatch}`],
+    ['sudo patch -p1 of a heredoc diff', heredoc('sudo patch -p1', SRC_DIFF)],
+    ['env A=1 git apply of a heredoc diff', heredoc('env A=1 git apply', SRC_DIFF)],
+    ['a leading assignment before git apply', heredoc('A=1 git apply', SRC_DIFF)],
+    ['command git apply of a temp patch', `command git apply ${srcPatch}`],
+    ['sudo -n git apply of a temp patch', `sudo -n git apply ${srcPatch}`],
+    ['sudo -u root patch -p1 < temp file', `sudo -u root patch -p1 < ${srcPatch}`],
+    ['timeout 5 patch -p1 < temp file', `timeout 5 patch -p1 < ${srcPatch}`],
+    ['env -i git -C . apply of a temp patch', `env -i git -C . apply ${srcPatch}`],
+    ['a path-qualified patch behind sudo', heredoc('sudo /usr/bin/patch -p1', SRC_DIFF)],
+    ['cat temp patch | git apply', `cat ${srcPatch} | git apply`],
+    ['cat temp patch (long spelling, quoted) | git apply', `cat ${quoted(longSpelling)} | git apply`],
+    ['cat temp patch | patch -p1', `cat ${srcPatch} | patch -p1`],
+    ['cat temp mbox | git am', `cat ${mbox} | git am`],
+    ['cat temp patch | sudo git apply', `cat ${srcPatch} | sudo git apply`],
   ];
   for (const [name, command] of blocks) ok(`source gate blocks ${name}`, src(command) === BLOCK);
 
@@ -78,8 +95,32 @@ try {
     ['a commit message that mentions git apply', 'git commit -m "document git apply and patch usage"'],
     ['a log filtered for apply', 'git log --oneline | grep apply'],
     ['git checkout <rev> -- <path> (restores committed content)', 'git checkout stash@{0} -- src/ui/Main.h'],
+    ['git restore of a source file', 'git restore src/ui/Main.h'],
+    ['sudo git apply --check', `sudo git apply --check ${srcPatch}`],
+    ['env A=1 git apply --stat of a heredoc', heredoc('env A=1 git apply --stat', SRC_DIFF)],
+    ['command git apply --cached', `command git apply --cached ${srcPatch}`],
+    ['sudo patch --dry-run', `sudo patch --dry-run -p1 < ${srcPatch}`],
+    ['cat temp patch | git apply --check', `cat ${srcPatch} | git apply --check`],
+    ['cat temp patch | git apply --stat', `cat ${srcPatch} | git apply --stat`],
+    ['cat temp patch that names no source | git apply', `cat ${docPatch} | git apply`],
+    ['git am --abort behind sudo', 'sudo git am --abort'],
+    ['command -v git', 'command -v git'],
+    ['sudo git status', 'sudo git status'],
+    ['echo the word patch', 'echo patch the src tree'],
+    ['grep for the word patch', 'grep -n patch src/ui/Main.h'],
+    ['env printing git apply in a string', 'env A=1 echo "git apply"'],
+    ['cat of a temp patch that is not applied', `cat ${srcPatch} | wc -l`],
   ];
   for (const [name, command] of passes) ok(`source gate passes ${name}`, src(command) === PASS);
+
+  const outside = put('outside.patch', SRC_DIFF);
+  const outsideDoc = put('outside-doc.patch', DOC_DIFF);
+  ok('source gate blocks a patch saved outside the temp dir', srcOffTemp(`git apply ${outside}`) === BLOCK);
+  ok('source gate blocks an outside patch behind sudo < redirect', srcOffTemp(`sudo patch -p1 < ${outside}`) === BLOCK);
+  ok('source gate blocks an outside patch piped to git apply', srcOffTemp(`cat ${outside} | git apply`) === BLOCK);
+  ok('source gate off-temp negative control: an outside patch that names no source', srcOffTemp(`git apply ${outsideDoc}`) === PASS);
+  ok('source gate off-temp negative control: git apply --check of an outside source patch', srcOffTemp(`git apply --check ${outside}`) === PASS);
+  ok('source gate off-temp negative control: an unreadable patch', srcOffTemp('git apply no/such/upstream.patch') === PASS);
 
   ok('store gate blocks a patch file that names a store item', store(`git apply ${storePatch}`) === BLOCK);
   ok('store gate blocks a heredoc diff that names a store item', store(heredoc('git apply', STORE_DIFF)) === BLOCK);
