@@ -51,6 +51,16 @@ try {
     ['Bash', 'an unresolved redirect target', 'echo x > "$OUT"'],
     ['Bash', 'node -p inside an assignment (inline code can write)', 'TD="$(node -p 1)"; ls "$TD"'],
     ['Bash', 'a scratch node script under the temp dir', `node ${join(scratch, 'gen.mjs').replace(/\\/g, '/')}`],
+    ['Bash', 'node -e with a trailing --test is inline code, not a test run', 'node -e "console.log(1)" --test'],
+    ['Bash', 'node -p with a trailing --test', 'node -p 1 --test'],
+    ['Bash', 'a script whose own argument is --test', 'node scratch.js --test'],
+    ['Bash', 'a test script from the scratchpad, not the repo', `node ${join(scratch, 'x.test.mjs').replace(/\\/g, '/')}`],
+    ['Bash', 'node --test over a scratchpad file', `node --test ${join(scratch, 'gen.test.mjs').replace(/\\/g, '/')}`],
+    ['Bash', 'a repo test run that preloads a module with --require', 'node --require ./preload.js --test hooks/a.test.mjs'],
+    ['Bash', 'a repo test script that preloads a module with --import', 'node --import ./hook.mjs hooks/a.test.mjs'],
+    ['Bash', 'a repo test run redirected into a source file', 'node --test hooks/a.test.mjs > src/a.mjs'],
+    ['Bash', 'an ambiguous line holding a redirect', "echo $'x' > src/a.mjs"],
+    ['PowerShell', 'a backslash before > is no escape in PowerShell: the redirect writes', 'echo x \\> src/a.mjs'],
     ['PowerShell', 'a cap whose quotes only PowerShell reads as escapes, then sed -i', 'cap request "x\\" ; sed -i s/a/b/ src/a.mjs ; echo \\""'],
   ];
   for (const [tool, name, command] of BLAMED) {

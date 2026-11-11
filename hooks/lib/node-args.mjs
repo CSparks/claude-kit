@@ -2,6 +2,7 @@
 //
 //   isNodeInlineFlag(arg) -> boolean   arg carries inline code: -e, -p, --eval[=], --print[=], or combined short flags with e or p (-pe)
 //   nodeLoadedModules(args) -> string[]  the module or file each code-loading option names, in call order
+//   nodeTestFiles(args) -> string[]|null  the test files a `node --test` or `node x.test.mjs` call runs; null for any other call
 //   nodeScriptName(args) -> string     args: the words after `node`, quotes dropped
 //     the script's file name, or '' when the call runs inline code, stdin, loads code before the script
 //     (-r, --require, --import, --loader, --experimental-loader, --env-file[-if-exists], in any spelling), or uses
@@ -57,4 +58,31 @@ export function nodeScriptName(args) {
     return '';
   }
   return '';
+}
+
+const TEST_OPTION = /^--test(?:=|$)/;
+const PLAIN_OPTION = /^--[\w-]+(?:=\S*)?$/;
+const TEST_SCRIPT = /\.test\.(?:m?js|cjs)$/i;
+
+/**
+ * The test files `node [options] <files>` runs when it is node's test runner: `--test` among the options before the
+ * first file, or a single `*.test.(m)js` script, and no inline code, stdin, preloaded module or option this module
+ * cannot place. Arguments after the first file belong to that file, never to node. null when the call is anything else.
+ */
+export function nodeTestFiles(args) {
+  const files = [];
+  let runner = false;
+  let at = 0;
+  for (; at < args.length; at++) {
+    const a = args[at];
+    if (a === END_OF_OPTIONS) { at++; break; }
+    if (!a.startsWith('-')) break;
+    if (TEST_OPTION.test(a)) { runner = true; continue; }
+    if (a === STDIN || isNodeInlineFlag(a) || loadsCode(a) || !PLAIN_OPTION.test(a)) return null;
+  }
+  if (nodeLoadedModules(args).length) return null;
+  files.push(...(runner ? args.slice(at).filter((a) => !a.startsWith('-')) : args.slice(at, at + 1)));
+  const isTestPath = (f) => TEST_SCRIPT.test(f) || (runner && !/\.[A-Za-z0-9]+$/.test(f));
+  if (!runner && files.length !== 1) return null;
+  return files.every(isTestPath) ? files : null;
 }

@@ -12,7 +12,7 @@
 
 import { KIT_TOOL, redirectTargets, shellArgs } from './shell-write-scan.mjs';
 import { blindSegments, segments } from './shell-segments.mjs';
-import { nodeScriptName } from './node-args.mjs';
+import { nodeScriptName, nodeTestFiles } from './node-args.mjs';
 import { isSourcePath } from './shell-source-write.mjs';
 import { landsOutsideRepo } from './lands-outside-repo.mjs';
 import { commandCwd } from './shell-cwd.mjs';
@@ -22,8 +22,6 @@ const GENERATORS = /^(?:git|cargo|rustc|rustfmt|clippy-driver|npm|npx|pnpm|yarn|
 const READERS = /^(?:cat|head|tail|less|more|wc|ls|stat|file|diff|cmp|grep|egrep|fgrep|rg|ag|ack|sort|uniq|cut|tr|echo|printf|pwd|date|sleep|which|whoami|tasklist|read|test|\[|\[\[|export|unset|local|declare)$/i;
 const SED_IN_PLACE = /\s(?:--in-place\b|-[A-Za-z]*i)/;
 const BROKER_CLIENT = /^(?:submit|wait|watch|broker)\.mjs$/i;
-const TEST_SCRIPT = /\.test\.(?:m?js|cjs)$/i;
-const NODE_TEST_FLAG = /^--test(?:-|$)/;
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const KEYWORD_ONLY = /^(?:for|select|case|in|esac|done|fi|function|\{|\}|\(|\))$/;
 const KEYWORD_THEN_COMMAND = /^(?:do|then|else|elif|if|while|until|time|!)$/;
@@ -65,10 +63,11 @@ function splitSubstitutions(text) {
 }
 
 // A redirect that could write a source file of `root`: its target is unresolved, or a source path inside the repo.
-function redirectsIntoSource(command, { root, shell }) {
-  const cwd = commandCwd(command, root);
-  const text = segments(command, { shell }).text;
-  return redirectTargets(text, true).some((raw) => {
+// A line whose quoting cannot be trusted fails closed: any `>` in it may be a redirect.
+function redirectsIntoSource(command, { root, shell, cwd }) {
+  const parts = segments(command, { shell });
+  if (parts.ambiguous) return parts.text.includes('>');
+  return redirectTargets(parts.text, true, shell === 'bash').some((raw) => {
     const target = raw.replace(/^["']|["']$/g, '');
     if (NULL_DEVICE.test(target)) return false;
     if (UNRESOLVED_TARGET.test(target)) return true;
@@ -76,9 +75,10 @@ function redirectsIntoSource(command, { root, shell }) {
   });
 }
 
-function isTestRun(args) {
-  if (args.some((a) => NODE_TEST_FLAG.test(a))) return true;
-  return TEST_SCRIPT.test(nodeScriptName(args));
+// A node test run whose every file sits inside the repo: a scratchpad or unresolved path is a script of unknown origin.
+function isTestRun(args, ctx) {
+  const files = nodeTestFiles(args);
+  return files !== null && files.every((f) => !UNRESOLVED_TARGET.test(f) && !landsOutsideRepo(f, ctx.root, ctx.cwd));
 }
 
 function inertSegment(text, ctx) {
@@ -92,7 +92,7 @@ function inertSegment(text, ctx) {
   if (!/^node$/i.test(leader)) return false;
   const args = words.slice(1);
   const script = nodeScriptName(args);
-  return KIT_TOOL.test(script) || isTestRun(args) || (!ctx.intoSource && BROKER_CLIENT.test(script));
+  return KIT_TOOL.test(script) || isTestRun(args, ctx) || (!ctx.intoSource && BROKER_CLIENT.test(script));
 }
 
 function isInert(command, ctx) {
@@ -103,5 +103,6 @@ function isInert(command, ctx) {
 
 export function isInertCommand(command, { root, shell = '' } = {}) {
   const text = String(command || '');
-  return isInert(text, { shell, intoSource: redirectsIntoSource(text, { root, shell }) });
+  const cwd = commandCwd(text, root);
+  return isInert(text, { shell, root, cwd, intoSource: redirectsIntoSource(text, { root, shell, cwd }) });
 }

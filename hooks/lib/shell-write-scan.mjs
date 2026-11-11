@@ -57,15 +57,15 @@ const wordsIn = (text) => [...text.matchAll(WORD)].map((m) => ({ w: m[0], at: m.
 const listed = (found) => [].concat(found || []);
 
 /**
- * The target of every `>` or `>>` in `text`; with `outsideQuotes` a `>` inside a quoted span is skipped. Only text the
- * quoting of which is settled reaches the quote walk, so a backslash outside single quotes escapes the next character.
+ * The target of every `>` or `>>` in `text`; with `outsideQuotes` a `>` inside a quoted span is skipped. With
+ * `bashEscapes` (the caller knows the shell is bash) a backslash outside single quotes escapes the next character.
  */
-export function redirectTargets(text, outsideQuotes) {
+export function redirectTargets(text, outsideQuotes, bashEscapes = false) {
   const quoted = new Array(text.length).fill(false);
   let open = '';
   for (let i = 0; i < text.length && outsideQuotes; i++) {
     quoted[i] = open !== '' || text[i] === '"' || text[i] === "'";
-    if (text[i] === '\\' && open !== "'") { quoted[i + 1] = true; i++; continue; }
+    if (bashEscapes && text[i] === '\\' && open !== "'") { quoted[i + 1] = true; i++; continue; }
     if (open) { if (text[i] === open) open = ''; } else if (text[i] === '"' || text[i] === "'") open = text[i];
   }
   return [...text.matchAll(REDIRECT)].filter((m) => !quoted[m.index]).map((m) => m[2]);
@@ -130,7 +130,7 @@ function judgeSegment(text, ctx) {
   const leader = nameOf(words[0].w);
   const quotedArgsInert = kitLed(text) || /^git$/i.test(leader);
 
-  const hits = redirectTargets(text, quotedArgsInert).map(ctx.hit).filter(Boolean);
+  const hits = redirectTargets(text, quotedArgsInert, ctx.shell === 'bash').map(ctx.hit).filter(Boolean);
   if (quotedArgsInert || READER.test(leader)) return hits;
   for (let i = 0; i < words.length; i++) {
     hits.push(...listed(judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length))));
@@ -172,7 +172,7 @@ export function scanAllShellWrites(command, { hit, codeHit, readScript = readTem
   const text = parts.text;
   if (parts.ambiguous && ambiguous) return ambiguousWrite(text, hit) ? [ambiguous()] : [];
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
-  const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination };
+  const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell };
   return [...parts].flatMap((seg) => judgeSegment(seg.text, ctx));
 }
 
