@@ -202,11 +202,13 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in a
   different git checkout declares `[tree: <its root>]`. Two writers in ONE checkout need
   the maintainer's quoted words: `[maintainer-asked-parallel: <his words>]`.
-- **Warm reuse has a context ceiling (KIT-D116, amends KIT-D077/D094).** An agent past
-  `dispatch.context_ceiling_tokens` (300k, Chris 2026-10-30) is retired, never resumed:
-  request its handoff (`[write-handoff]`), then brief a fresh agent from the ticket Notes.
-  A retiring agent MUST write a `Handoff <agent id>` block (Jobs:, State:, Next:, Files:) in the
-  ticket Notes, never a scratchpad; the dispatch guard refuses a replacement until it exists.
+- **No context size limit; waste is the limit (KIT-D149, KIT-D158, supersedes KIT-D116).** An agent is
+  never retired, blocked or replaced for the size of its context: real work is fine at any size.
+  The session coordinator tracks the waste share per agent (bash dumps, repeated lines, raw-log
+  reads, polled waits; the avoidable lines are named in the flag) and retires or redirects an agent
+  whose context is mostly avoidable. An agent retired for waste MUST write a `Handoff <agent id>`
+  block (Jobs:, State:, Next:, Files:) in the ticket Notes, never a scratchpad: request it
+  (`[write-handoff]`); the dispatch guard refuses a replacement until it exists.
 - **No agent waits (KIT-D115, KIT-D104's 5 minutes).** One foreground broker wait under 5 minutes
   is fine; polling, loops, background waits and re-running a job to read it are denied. Past the
   wait the agent writes its handoff and ends; inside the signed bill, resume it from
