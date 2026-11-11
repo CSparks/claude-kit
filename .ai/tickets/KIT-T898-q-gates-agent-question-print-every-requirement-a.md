@@ -38,3 +38,5 @@ One-rejection check: a scan of every local transcript found 0 tool results holdi
 - [2026-11-08 19:52] (landed) b6d47e6 orient budget test measures the content, not the length of the test's own temp path (published suite failed 4239 vs 4200
 - [2026-11-08 19:53] (status) todo → review
 - [2026-11-08 19:53] (landed) b6171ad tickets KIT-T894, T897, T898, T899, T901 to review; runtime b6d47e6 published [no-test: ticket store only] (implements K
+- [2026-11-08 19:59] (landed) 071c026 dispatch-guard repeats the dispatch-label problems inside its own block, so one rejection lists every requirement of a d
+- [2026-11-08 20:02] (landed) d55d7e6 dispatch-guard: blank-line placement after the label check [no-test: whitespace only] (implements KIT-T898)

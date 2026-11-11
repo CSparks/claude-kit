@@ -39,3 +39,4 @@ ROOT CAUSE (2026-11-06, from dirt-empire target/broker results + process listing
 - [2026-11-06 23:03] (comment) ticked: Waiting on foreign builds is off by default (KIT-D105) and opt-in by CLAUDE_KIT_CONTENTION_WAIT_MS
 - [2026-11-06 23:04] (landed) 9172c3f broker: sample foreign cargo builds before a build and at a timeout kill, bounded wait opt-in (implements KIT-T874, KIT-
 - [2026-11-06 23:12] (landed) 32d78e3 broker: make the contention run test wait for its foreign build to be visible (implements KIT-T874)
+- [2026-11-06 23:17] (landed) c1e1926 tickets: KIT-T874 root cause and fix notes, KIT-T873 superseded (implements KIT-T874)

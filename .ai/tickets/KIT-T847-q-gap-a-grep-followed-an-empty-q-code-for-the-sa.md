@@ -36,3 +36,4 @@ Not reproduced as a q fault: the same command now returns 696+ hits. Likely caus
 - [2026-11-03 16:31] (comment) criterion added: an empty --dir scan says why (no readable files; relative path resolves against cwd) and a cut-short scan says STOPPED; q-code-target 8 passed
 - [2026-11-03 16:31] (comment) ticked: an empty --dir scan says why (no readable files; relative path resolves against cwd) and a cut-short scan says STOPPED; q-code-target 8 passed
 - [2026-11-03 16:31] (status) doing → review
+- [2026-11-03 16:31] (landed) 3b98a14 q code: --test/--not-test, --repo, --dir on a git checkout answers from its index (sibling repo 0.35 s, was past 120 s),

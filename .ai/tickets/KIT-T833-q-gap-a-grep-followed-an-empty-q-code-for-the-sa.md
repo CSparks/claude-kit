@@ -35,3 +35,4 @@ Cause: a --regex pattern in grep BRE dialect with a bare paren (getNumBuses( *kE
 - [2026-11-02 19:02] (comment) seen again in groovegrid: q: q code 'addEventOutput\|getNumBuses( *kEvent\|kEvent' --regex --dir "$J/modules/juce_audio_plugin_client/VST3" -C1 2>&1 then grep: kEvent
 - [2026-11-02 22:51] (status) todo → review
 - [2026-11-02 22:51] (landed) 5882693 t config get|set edits one .ai/config.yml key with broker keys checked against the reader (config-edit 11 passed, t-verb
+- [2026-11-02 22:53] (landed) b6c7342 KIT-T836, KIT-T833 to review with notes [no-test: ticket store only] (implements KIT-T836, KIT-T833)

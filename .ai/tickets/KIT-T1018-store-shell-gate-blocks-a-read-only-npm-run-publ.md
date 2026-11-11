@@ -35,3 +35,4 @@ Root cause: shell-segments flagged any dollar sign directly before a quote as a 
 - [2026-11-11 04:46] (created) bug — store-shell-gate blocks a read-only 'npm run publish:runtime | grep -vE pattern | tail' as an ambiguous-quoting .ai store write: the pattern
 - [2026-11-11 05:02] (landed) 9c4abae shell-segments: only a quote opened right after a dollar sign is a dollar-quote ambiguity, so a grep pattern ending in a
 - [2026-11-11 05:02] (status) todo → review
+- [2026-11-11 05:02] (landed) 1110b6d tickets: KIT-T1018 to review with fix sha, KIT-T1016 notes (implements KIT-T1018, KIT-T1016)

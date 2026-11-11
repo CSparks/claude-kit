@@ -61,3 +61,4 @@ Chris 2026-11-07: 'ANd that needs to be across ALL projects. Rust or C++' then '
 - [2026-11-07 18:13] (status) todo → review
 - [2026-11-07 18:13] (landed) 3e0ff80 tickets: KIT-T879 to review, runtime 9826963 published [no-test: ticket store only] (implements KIT-T879)
 - [2026-11-08 17:18] (landed) 08a8308 plugin 0.1.33: sessions pick up the build-wrap hook registration (implements KIT-T879)
+- [2026-11-08 17:22] (landed) ea92c9f tickets: KIT-T879 activation notes [no-test: ticket store only] (implements KIT-T879)

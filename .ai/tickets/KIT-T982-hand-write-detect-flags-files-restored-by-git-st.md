@@ -47,3 +47,4 @@ Cause: git restores are not a hand write by effect. Fix a19f1fa: hooks/lib/resto
 - [2026-11-11 03:04] (comment) @claude: Security pass: hooks/lib/restored-content.mjs compares blob ids computed in-process (no git diff inference, git failure  (full comment #2 in ## Notes)
 ### comment #2 [2026-11-11 03:04] @claude
 Security pass: hooks/lib/restored-content.mjs compares blob ids computed in-process (no git diff inference, git failure = not restored); the ledger replay needs a CONFIRMED entry of the calling session within 30 minutes AND a blob of those bytes in git's object store AND git in the command. Tests: hooks/hand-write-restore.test.mjs (19). Note: restored-content reads the toolwrites ledger slot directly (readTurnState) because tool-writes.mjs is held by the KIT-T944 residual; fold it into a tool-writes export once that lands.
+- [2026-11-11 03:04] (landed) 535e462 tickets: security-pass notes for KIT-T984 and KIT-T982 (implements KIT-T984, KIT-T982)

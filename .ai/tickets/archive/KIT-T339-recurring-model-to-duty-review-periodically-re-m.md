@@ -47,3 +47,4 @@ Chris 2026-10-09 (dirt-empire session), after KIT-T403: 'Just like I want it enf
 - [2026-10-09 21:46] (comment) ticked: orient prints table age and newest-known model each SessionStart; !! when stale
 - [2026-10-09 21:46] (status) doing → review
 - [2026-10-27 22:27] (status) review → done — lapsed: 14d in review, no maintainer feedback (KIT-D107)
+- [2026-11-05 16:03] (landed) b2c53b7 model reassessment 2026-11-05: 12 rows confirmed, 3 not re-dated (implements KIT-T339)

@@ -36,3 +36,4 @@ Diagnosis: q sym foot --path rapid-game/rust/core/rg-ik --type fn,struct was cor
 - [2026-11-02 18:53] (comment) ticked:
 - [2026-11-02 18:53] (landed) 5109170 q-miss counts only search terms, not q flag names or values; a lapsed done regression needs no fixed_commit; q-miss 12,
 - [2026-11-02 18:53] (status) todo → review
+- [2026-11-02 18:56] (landed) 7f92e03 KIT-T832, KIT-T835 to review [no-test: ticket store only] (implements KIT-T832)

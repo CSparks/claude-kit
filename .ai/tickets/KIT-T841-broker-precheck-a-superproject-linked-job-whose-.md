@@ -34,3 +34,4 @@ Fixed in the commit after bde80d4 (runtime 6f9d9f1). scripts/broker/precheck-sco
 - [2026-11-02 21:33] (created) bug — broker precheck: a superproject (linked) job whose --test is 'cd rapid-game/rust && cargo t -p rg-scatter --test scatter' is prechecked as '
 - [2026-11-02 21:45] (landed) 6f9d9f1 Broker precheck: a superproject command that starts cd <submodule dir> is checked in that submodule's own workspace (cd
 - [2026-11-02 21:46] (status) todo → review
+- [2026-11-02 21:46] (landed) c99706d KIT-T841 to review, KIT-T842 superseded by it [no-test: ticket store only] (implements KIT-T841)

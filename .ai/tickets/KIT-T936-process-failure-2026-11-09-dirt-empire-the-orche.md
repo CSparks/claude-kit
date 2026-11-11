@@ -35,3 +35,5 @@ Real-store measure (no tuning): replaying the groovegrid SHIFT/GATE and shared S
 - [2026-11-10 16:26] (created) bug — Process failure 2026-11-09 dirt-empire: the orchestrator offered 'share flora meshes across cells' as a fresh questionnaire option without c
 - [2026-11-10 17:42] (landed) 48f36f4 question-grounded gate: an option that matches a recorded decision or open ticket (label stems against titles and bodies
 - [2026-11-10 18:08] (status) todo → review
+- [2026-11-10 18:21] (landed) 1548452 tickets: KIT-T906, T936, T937, T943, T944, T955 in review with landing notes, KIT-T948 reopened for the partial-commit c
+- [2026-11-10 18:21] (landed) eb9eb7f plugin 0.1.39: sessions pick up the question-grounded gate registration in hooks.json (implements KIT-T936)

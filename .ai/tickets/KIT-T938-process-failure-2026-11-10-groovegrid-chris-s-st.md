@@ -48,3 +48,4 @@ first seen in groovegrid. Filed automatically (KIT-T286): every kit bug is a tic
 ### comment #1 [2026-11-10 17:05] @kit-agent
 Landed in 6e78dce: cap RULING CAPTURED receipt, Stop block-once plus stale warning, orient rulings block, rulings-checked dispatch gate, t decide --from, t triage --skip, protocol in contract/commands. Follow-up gate miss: KIT-T939. Publish sha in the hand-back.
 - [2026-11-10 17:05] (status) todo → review
+- [2026-11-10 17:05] (landed) 4db5a72 KIT-T938: orient lists rulings near the top, above the generic inbox count (contract and cap wording); tickets KIT-T938 

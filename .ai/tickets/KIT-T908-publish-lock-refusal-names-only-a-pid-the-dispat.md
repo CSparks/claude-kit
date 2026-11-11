@@ -32,3 +32,4 @@ Findings. (b) Reflog (local CST, UTC-6): 297838d committed 16:06:41 = 22:06:41Z 
 ## History
 - [2026-11-08 22:36] (created) bug — publish.lock refusal names only a pid: the dispatcher cannot tell its own publish from another session's, and a reused pid blocks forever (2026-11-08 pid 2260 held 4 to 24 minutes)
 - [2026-11-08 22:39] (comment) @claude: Findings. (b) Reflog (local CST, UTC-6): 297838d committed 16:06:41 = 22:06:41Z by another session; pid 2260 started 22: (full comment #1 in ## Notes)
+- [2026-11-08 22:39] (landed) ecad15b runtime-publish: the lock records command line, project and parent; a refusal names holder, age and parent; a lock whose

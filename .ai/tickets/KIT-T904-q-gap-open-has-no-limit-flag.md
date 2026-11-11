@@ -37,3 +37,4 @@ Fixed 0680fae; runtime 0680fae published. scripts/q-open-args.mjs parses --limit
 - [2026-11-08 20:06] (comment) ticked: q open --limit N keeps the first N rows (0 = all) on the cache and scan paths; an unknown flag still errors; --help documents it (scripts/q-open.test.mjs 7 passed)
 - [2026-11-08 20:09] (landed) 0680fae q open takes --limit N (0 = all) on the cache and scan paths, in the flag table and in --help (implements KIT-T904)
 - [2026-11-08 20:09] (status) doing → review
+- [2026-11-08 20:09] (landed) 07e823d KIT-T904 to review; runtime 0680fae [no-test: ticket store only] (implements KIT-T904)

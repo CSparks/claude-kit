@@ -37,3 +37,4 @@ Thresholds recorded: a framework-inbox directive blocks every Stop at 3+ days ol
 - [2026-11-10 18:07] (landed) eb7fa11 framework mirror finds the framework store by its id key and the registry's store directory (central data root included)
 - [2026-11-10 18:08] (status) todo → review
 - [2026-11-10 18:16] (landed) ec0c0e1 framework mirror: only a project that consumes rapid-game mirrors a framework-titled decision (a web UI framework decisi
+- [2026-11-10 18:21] (landed) 1548452 tickets: KIT-T906, T936, T937, T943, T944, T955 in review with landing notes, KIT-T948 reopened for the partial-commit c

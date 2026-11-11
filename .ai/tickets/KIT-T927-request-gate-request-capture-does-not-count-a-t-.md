@@ -30,3 +30,4 @@ first seen in groovegrid. Filed automatically (KIT-T286): every kit bug is a tic
 ## History
 - [2026-11-10 00:01] (created) bug — request-gate (request-capture) does not count a 't comment <ticket>' as a capture: groovegrid 2026-11-09 Chris said 'Yeah, that's the shortc
 - [2026-11-10 00:06] (status) todo → review
+- [2026-11-10 00:06] (landed) cc88bde request-gate: a turn that ran cap, a t item verb (new, request, note, question, comment, criterion, decide) or dispatche

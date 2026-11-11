@@ -35,3 +35,4 @@ Evidence: 74 classifier refusals 'a hook changed this call's input after auto mo
 - [2026-11-08 18:57] (landed) 4151aa1 dispatch-label replaces activity-tag: a dispatch with a non-canonical description prefix or no table model is BLOCKED wi
 - [2026-11-08 19:38] (landed) 9c8ceef plugin 0.1.34: sessions pick up the dispatch-label hook registration and the rewritten kit-bug rules (implements KIT-T89
 - [2026-11-08 19:53] (status) todo → review
+- [2026-11-08 19:59] (landed) 071c026 dispatch-guard repeats the dispatch-label problems inside its own block, so one rejection lists every requirement of a d

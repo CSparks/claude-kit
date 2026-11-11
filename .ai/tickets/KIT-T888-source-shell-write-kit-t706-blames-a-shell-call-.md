@@ -36,3 +36,9 @@ Recurrence 2026-11-08, groovegrid orchestrator session da28715f: PostToolUse han
 ### comment #2 [2026-11-09 23:15] @claude
 Recurrence 2026-11-09 (groovegrid): hand-write-detect blamed my Bash call (t decide, t comment, q fts: no source writes) for src/ui/song/SongCurveRow.cpp, a file a parallel writer agent (a8fcee4e8e904a80e) was editing in the same checkout. The detector attributes any changed source file to whichever shell call ran last. Fix: attribute only files the shell call itself wrote (before/after snapshot scoped to that call, or the command's own write targets), never another agent's concurrent edits.
 - [2026-11-09 23:20] (status) todo → review
+- [2026-11-09 23:20] (landed) 602b5d5 hand-write-detect: a source file an Edit or Write of any session recorded during the shell call is that tool's write, ne
+- [2026-11-09 23:25] (comment) @claude: Second recurrence 2026-11-09 (groovegrid): hand-write-detect flagged src/ui/song/SongCurveRow.h after a read-only agent's 'q file' call; the concurrent writer a8fcee4e8e904a80e had changed it.
+- [2026-11-09 23:46] (landed) 2f2d069 hand-write-detect: the exemption for another writer's concurrent edit rests on a separate accepted-writes ledger written
+- [2026-11-09 23:49] (landed) 4819d6d plugin 0.1.35: sessions pick up the tool-write-record hook registration, the agent-definition triage section and the wor
+- [2026-11-11 04:28] (landed) a2cb5a3 source-shell-write: a call that cannot write source owns no changed file; bash escapes settle cap/t/q quoting; stale not
+- [2026-11-11 04:36] (landed) ea3678f inert-command: node --test counts only among node's own options in a repo test run with no preload; an untrusted line fa

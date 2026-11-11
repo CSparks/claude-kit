@@ -36,3 +36,4 @@ Cause: KIT-T719/T801 (D110 item 1) add the Cargo.lock dependents of a touched cr
 - [2026-11-03 16:51] (comment) criterion added: a land gate no longer adds a dependent that the project suite runs whole (dirt-empire: cargo test -p dirt-empire) to a landing; it is reported as selection.deferredDependents; landgate-dependents 5 and 36 other landgate/affected/pin-scope/train-commands tests passed
 - [2026-11-03 16:51] (comment) ticked: a land gate no longer adds a dependent that the project suite runs whole (dirt-empire: cargo test -p dirt-empire) to a landing; it is reported as selection.deferredDependents; landgate-dependents 5 and 36 other landgate/affected/pin-scope/train-commands tests passed
 - [2026-11-03 16:51] (status) doing → review
+- [2026-11-03 16:51] (landed) 2a335ca broker land gate: a dependent crate the project suite runs whole (cargo test -p dirt-empire) is left to the nightly suit

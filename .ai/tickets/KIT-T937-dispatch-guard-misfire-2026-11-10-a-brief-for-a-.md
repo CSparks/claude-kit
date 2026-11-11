@@ -35,3 +35,4 @@ Landed 9dcfc35; tests: hooks/dispatch-lessons.test.mjs hooks/dispatch-conformanc
 - [2026-11-10 17:26] (landed) 9dcfc35 dispatch-guard: lessons-checked and conformance-named judge a brief by its [tree:] checkout's frameworks (the kit checko
 - [2026-11-10 17:27] (status) todo → review
 - [2026-11-10 18:08] (status) review → review
+- [2026-11-10 18:21] (landed) 1548452 tickets: KIT-T906, T936, T937, T943, T944, T955 in review with landing notes, KIT-T948 reopened for the partial-commit c

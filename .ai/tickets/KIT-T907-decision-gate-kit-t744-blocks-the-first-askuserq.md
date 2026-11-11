@@ -42,3 +42,4 @@ Chris 2026-11-08: "Because I do not wnat to be seeing tha tbig fuckign error all
 - [2026-11-08 22:05] (comment) criterion added: A questionnaire that only shares words with decisions passes with them listed as advisory context; one repeating a whole decision title is blocked every time, with no resend (hooks/decision-gate.test.mjs, real groovegrid replays, threshold mutation)
 - [2026-11-08 22:05] (comment) ticked: A questionnaire that only shares words with decisions passes with them listed as advisory context; one repeating a whole decision title is blocked every time, with no resend (hooks/decision-gate.test.mjs, real groovegrid replays, threshold mutation)
 - [2026-11-08 22:06] (status) todo → review
+- [2026-11-08 22:06] (landed) 297838d tickets: KIT-T907 root cause and fix, KIT-T881 investigation for KIT-D151 with decision options, KIT-T906 checked [no-te

@@ -32,3 +32,4 @@ t new regression refuses unless --regressed-from <id> and --causing-commit <sha>
 
 ## History
 - [2026-11-11 02:41] (created) feature — t new regression should require --regressed-from and --causing-commit (or refuse) at creation; today it creates the ticket and only the Stop
+- [2026-11-11 02:50] (landed) 43c0e45 t new regression requires --regressed-from and --causing-commit and writes both links; refusal names the missing flags b

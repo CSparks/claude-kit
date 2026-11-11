@@ -37,3 +37,4 @@ Added t config get|set <dotted.key> <value>...: scripts/config-edit.mjs edits on
 - [2026-11-02 19:25] (asked again) 2026-11-02 — cap:feature:t-config-set-a-project-s-ai-config-yml-key-e-g-b
 - [2026-11-02 22:51] (status) todo → review
 - [2026-11-02 22:51] (landed) 5882693 t config get|set edits one .ai/config.yml key with broker keys checked against the reader (config-edit 11 passed, t-verb
+- [2026-11-02 22:53] (landed) b6c7342 KIT-T836, KIT-T833 to review with notes [no-test: ticket store only] (implements KIT-T836, KIT-T833)

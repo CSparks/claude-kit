@@ -35,3 +35,4 @@ Added --glob/-g/--include to q code and sym (code-index-query.mjs excluder; glob
 - [2026-11-03 01:27] (comment) criterion added: q code --glob G (also -g, --include; repeatable; !G drops) keeps only matching paths; code-index 28 passed
 - [2026-11-03 01:27] (comment) ticked: q code --glob G (also -g, --include; repeatable; !G drops) keeps only matching paths; code-index 28 passed
 - [2026-11-03 01:27] (status) todo → review
+- [2026-11-03 01:27] (landed) 015e9b0 q code and sym take --glob (-g, --include; repeatable, !G drops): keeps only matching paths, a no-slash glob also matche

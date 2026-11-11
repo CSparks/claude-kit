@@ -39,3 +39,4 @@ first seen in groovegrid. Filed automatically (KIT-T286): every kit bug is a tic
 - [2026-11-05 01:37] (comment) @implementer: Follow-up (groovegrid bfad152d entries 2784-2792): both blocked AskUserQuestion replies again held only thinking + tool_ (full comment #1 in ## Notes)
 ### comment #1 [2026-11-05 01:37] @implementer
 Follow-up (groovegrid bfad152d entries 2784-2792): both blocked AskUserQuestion replies again held only thinking + tool_use; the prose counted was the earlier status reply (2752) of the same turn. Gate now reports when the call's own reply has no text block. Option naming is by 5-letter stems, not verbatim labels.
+- [2026-11-05 01:39] (landed) 15bd965 question-brief-gate: say when the call's own reply has no text block even if earlier replies this turn were counted; que

@@ -37,3 +37,4 @@ Published: runtime 7aebf88 (KIT_TEST_FULL=1 publish at 7aebf88 HEAD, 330-file su
 - [2026-11-02 19:28] (landed) 0ab34ce A SendMessage resume naming the ticket takes the retired worker's handoff over until it retires again or stays silent 30
 - [2026-11-02 19:29] (landed) 7aebf88 runner tests ignore a KIT_TEST_FULL set by the publish (implements KIT-T834)
 - [2026-11-02 19:46] (landed) 5fd6ef7 Orphan verify: an unverifiable shell row silent for 2 h is presumed dead; orphan-verify 12, orphan-shells 18 passed (imp
+- [2026-11-02 20:03] (landed) d5524a4 Ticket sync after runtime e769a0a [no-test: ticket store only] (implements KIT-T834, KIT-T837, KIT-T838, KIT-T840)

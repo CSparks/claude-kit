@@ -29,3 +29,4 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 
 ## History
 - [2026-10-07 03:36] (created) feature — orient (SessionStart) should report framework-submodule drift: for each submodule, commits behind/ahead of origin/main and the pin other reg
+- [2026-11-11 03:24] (landed) c1f17e5 framework-pin: report-only SessionStart step for a consumer of a framework submodule: bounded throttled fetch of origin/

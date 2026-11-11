@@ -38,3 +38,4 @@ first seen in dialogue. Filed automatically (KIT-T286): every kit bug is a ticke
 - [2026-11-10 22:46] (comment) @claude: Junk ticket: created by a test call (cap bug x --help) while probing cap usage. Not a real bug; close as invalid.
 - [2026-11-10 22:59] (comment) @kit-agent: Invalid: junk ticket created by a test call ('x --help'); no defect. Closed by the KIT-T978/T980 fix agent at the marblequest orchestrator's request.
 - [2026-11-10 22:59] (status) todo → done
+- [2026-11-10 23:02] (landed) b25ebef close KIT-T667 as invalid (implements KIT-T667)

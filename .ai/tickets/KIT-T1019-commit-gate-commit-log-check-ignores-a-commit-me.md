@@ -32,3 +32,4 @@ BLOCKED on the KIT-T944 commit: the fix lives in hooks/commit-gate.mjs, which ca
 
 ## History
 - [2026-11-11 04:48] (created) bug — commit-gate commit-log check ignores a commit message passed with git commit -F <file> and blocks a message that cites its ticket
+- [2026-11-11 04:53] (landed) a86f68c commit-message and commit-files libs for the commit-gate -F and pathspec fixes, tests with negative controls; KIT-T364 s

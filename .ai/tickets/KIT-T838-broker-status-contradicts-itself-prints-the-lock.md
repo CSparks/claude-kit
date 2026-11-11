@@ -32,3 +32,4 @@ Fix: scripts/broker/daemon-state.mjs daemonStateLine (ALIVE/STALLED/DEAD with he
 - [2026-11-02 19:35] (created) bug — broker status contradicts itself: prints the lock's spawn reason as present state and a deferred test 'waits on a HEAD move' after HEAD moved (dirt-empire 2026-11-02, daemon pid 37724)
 - [2026-11-02 19:43] (status) todo → review
 - [2026-11-02 19:44] (landed) 9ff6b12 broker status prints one ALIVE/STALLED/DEAD line with the heartbeat age and shows the spawn reason as history; a deferre
+- [2026-11-02 20:03] (landed) d5524a4 Ticket sync after runtime e769a0a [no-test: ticket store only] (implements KIT-T834, KIT-T837, KIT-T838, KIT-T840)

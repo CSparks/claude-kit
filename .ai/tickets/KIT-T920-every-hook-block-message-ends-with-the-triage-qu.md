@@ -39,3 +39,6 @@ Chris 2026-11-09: 'That should be a valid third response for fix being in the wo
 - [2026-11-10 00:03] (comment) @kit-agent: Amended 2026-11-09 (maintainer: 'That should be a valid third response for fix being in the works'): KIT-D154 now has th (full comment #3 in ## Notes)
 ### comment #3 [2026-11-10 00:03] @kit-agent
 Amended 2026-11-09 (maintainer: 'That should be a valid third response for fix being in the works'): KIT-D154 now has three answers, adding KNOWN KIT BUG, FIX IN PROGRESS (name the open ticket and the agent; no new ticket or dispatch). Footer, base contract, 15 agent definitions, work/drain brief lines and the block-triage test carry it.
+- [2026-11-10 00:03] (landed) d4ada21 block triage, third answer (KIT-D154 amended): KNOWN KIT BUG, FIX IN PROGRESS (name the open ticket and the agent workin
+- [2026-11-10 00:06] (landed) c112dc0 plugin 0.1.36: sessions pick up the three-answer block-triage text in the agent definitions and the work/drain brief lin
+- [2026-11-10 00:12] (landed) 8bde59e session-citations: only stale, no longer exists, renamed, not re-anchored and historical clear a cited path (a deliverab

@@ -30,3 +30,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 ## History
 - [2026-11-09 23:25] (created) bug — q show <inbox id> prints nothing for inbox captures (groovegrid, 2026-11-09): two read-only agents could not q show GG-INBOX-2026-11-09-2140
 - [2026-11-09 23:33] (status) todo → review
+- [2026-11-09 23:34] (landed) 373f45c q show: resolves the synthetic <KEY>-INBOX-<stem> and <KEY>-QUESTIONS-<stem> ids that q fts and q inbox list for id-less

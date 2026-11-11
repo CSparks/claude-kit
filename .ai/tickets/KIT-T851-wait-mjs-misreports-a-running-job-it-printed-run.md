@@ -31,3 +31,4 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 - [2026-11-03 03:56] (created) bug — wait.mjs misreports a running job: it printed running 57s applying, then its Bash call moved itself to the background and exited 1 with no v
 - [2026-11-03 04:04] (comment) criterion added: wait.mjs ends inside its tool window with exit 2 and the running line; a stripped console, signal or loop throw on a pending job exits 2, never 1
 - [2026-11-03 04:04] (status) todo → review
+- [2026-11-03 04:06] (landed) e47fa26 wait.mjs never exits 1 for a pending job: --tool-timeout clamps the wait inside the Bash window; EPIPE, signals and loop

@@ -39,3 +39,4 @@ Not reproduced as exit 0: build-run.mjs returns EXIT_QUEUED 75 and the bash shim
 ### comment #2 [2026-11-11 04:53] @claude
 Fix commit 5cc1d37. The exit-0 report has a receipt of a layer above the shim: this session's own piped test run was reported as exit code 0 by the background notification while the test it piped had output; a pipe or wrapper masks the shim's 75.
 - [2026-11-11 04:53] (status) todo → review
+- [2026-11-11 04:53] (landed) c4d1e0c tickets: KIT-T1010 and KIT-T1017 to review with criteria and fix shas; KIT-T1016, KIT-T1018 filed (implements KIT-T1010,

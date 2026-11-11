@@ -37,3 +37,4 @@ Prevention landed in code (commit 9c4abae): hooks/source-shell-gate.mjs block te
 - [2026-11-11 04:40] (asked again) 2026-11-11 — cap:bug:source-shell-gate-source-shell-write-blocks-an-r
 - [2026-11-11 05:02] (landed) 9c4abae shell-segments: only a quote opened right after a dollar sign is a dollar-quote ambiguity, so a grep pattern ending in a
 - [2026-11-11 05:02] (comment) @claude: Block-text prevention landed in 9c4abae; the rm-of-a-source-path part is open (policy call, see Notes)
+- [2026-11-11 05:02] (landed) 1110b6d tickets: KIT-T1018 to review with fix sha, KIT-T1016 notes (implements KIT-T1018, KIT-T1016)

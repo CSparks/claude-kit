@@ -29,3 +29,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## History
 - [2026-10-14 02:53] (created) bug — q gap: 'code' has no --file flag
+- [2026-11-10 00:00] (comment) seen again in claude-kit: q code --file --path scripts/t-revise.mjs -C 2

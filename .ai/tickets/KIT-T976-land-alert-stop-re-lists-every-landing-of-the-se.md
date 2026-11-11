@@ -32,3 +32,4 @@ land-alert lists only landings whose sha no earlier assistant reply of the sessi
 
 ## History
 - [2026-11-10 19:30] (created) bug — land-alert (Stop) re-lists every landing of the session each time it fires, including landings the orchestrator already announced by sha and
+- [2026-11-11 02:46] (landed) f326ac2 land-alert lists only landings no earlier assistant reply named by sha; silent when every landing was named; tests with 

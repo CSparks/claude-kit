@@ -42,3 +42,4 @@ Second cause (coordinator report, MIDI/Ableton brief): the decision part needed 
 - [2026-11-03 17:56] (comment) criterion added: a plainly labelled decision line ('- decision: what is being decided is ..., needed now because ...', 'Decision: <statement>', '**Decision:** ...') meets the brief's decision part; 'decided' counts as a decision word and 'because'/'needed' as a why-now cue; question-brief-gate 28 passed
 - [2026-11-03 17:56] (comment) ticked: a plainly labelled decision line ('- decision: what is being decided is ..., needed now because ...', 'Decision: <statement>', '**Decision:** ...') meets the brief's decision part; 'decided' counts as a decision word and 'because'/'needed' as a why-now cue; question-brief-gate 28 passed
 - [2026-11-03 17:56] (status) review → review
+- [2026-11-03 17:56] (landed) cf8f020 question-brief: a plainly labelled Decision: line (bullet, bold or plain) states the decision on its own; decided and be

@@ -31,4 +31,5 @@ Diagnosis: wait.mjs exit codes were already right (0 passed/landed, 1 other fina
 ## History
 - [2026-11-02 19:59] (created) bug — wait.mjs: a still-running job looked finished to callers (patch-worker 2026-11-02: 'running 45s' then exit 0); the last stdout line now names the state and exit code (STILL RUNNING exit 2)
 - [2026-11-02 19:59] (status) todo → review
-- [2026-11-02 20:00] (landed) e769a0a wait.mjs prints its state and exit code as the last stdout line in every case (STILL RUNNING exit 2); wait-exit 9, wait 
+- [2026-11-02 20:00] (landed) e769a0a wait.mjs prints its state and exit code as the last stdout line in every case (STILL RUNNING exit 2); wait-exit 9, wait
+- [2026-11-02 20:03] (landed) d5524a4 Ticket sync after runtime e769a0a [no-test: ticket store only] (implements KIT-T834, KIT-T837, KIT-T838, KIT-T840)

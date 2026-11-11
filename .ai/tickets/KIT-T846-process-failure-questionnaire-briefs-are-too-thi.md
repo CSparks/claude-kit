@@ -40,3 +40,4 @@ first seen in dirt-empire. Filed automatically (KIT-T286): every kit bug is a ti
 - [2026-11-03 02:09] (comment) ticked: A questionnaire whose preceding prose lacks the decision and why now, 2 sources, per-option consequences, the recommendation reason or what is not asked is blocked (question-brief-gate.test)
 - [2026-11-03 02:09] (comment) ticked: A questionnaire fired at a floated question, or restating the maintainer's own words, is blocked as not ready (question-brief-gate.test)
 - [2026-11-03 02:09] (status) doing → review
+- [2026-11-03 02:09] (landed) 234f36f KIT-T845, KIT-T846 to review with notes [no-test: ticket store only] (implements KIT-T845, KIT-T846)

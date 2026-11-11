@@ -73,3 +73,4 @@ Chris 2026-11-08: "Anything where there is a need for deeper verbose analysis, t
 - [2026-11-11 03:21] (status) todo → review
 - [2026-11-11 03:21] (comment) Built: waste measure replaces the context ceiling (fc75249..3698ba6); runtime publish blocked on the KIT-T944 commit
 - [2026-11-11 03:21] (comment) ticked: dispatch.context_ceiling_tokens no longer gates retire, resume or replace anywhere (dispatch-guard, resume-check, agent-context, ladder config, roster, handback), with no size warning
+- [2026-11-11 03:22] (landed) f57609d tickets: KIT-T902 built and in review, KIT-T988 superseded by it, KIT-D158 restates KIT-D149 (implements KIT-T902)

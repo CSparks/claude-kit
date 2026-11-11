@@ -59,3 +59,4 @@ Routing half already landed as KIT-D062 (project reality-check, in the interject
 - [2026-08-16 00:35] (status) doing → review
 - [2026-08-16 00:35] (comment) codified as the live-checkout rule in CLAUDE.global.md GIT WORKFLOW [no-test: doctrine]
 - [2026-10-27 22:27] (status) review → done — lapsed: 14d in review, no maintainer feedback (KIT-D107)
+- [2026-11-08 16:25] (landed) 76c7669 base CLAUDE.md: git work in the maintainer's checkout is routine, never lose code; drops the KIT-T226 hand-them-the-comm

@@ -36,3 +36,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 ### comment #1 [2026-11-09 23:56] @kit-agent
 Root cause: projectAiDirs preferred any registered checkout .ai, so rapid-game (registered at the dirt-empire submodule checkout, whose .ai holds agent rosters only) resolved there instead of the central store. Fixed: a .ai with config.yml wins, else the central project, else a config-less repo .ai. No misfiled capture exists: the checkout has no inbox, and stiletto-2349/rapid-game/.ai is a link to the central store.
 - [2026-11-09 23:56] (status) todo → review
+- [2026-11-09 23:56] (landed) 76947ca q code: a dash-led token that is not flag-shaped (a regex, a multi-word pattern) is search text and files no gap, and an

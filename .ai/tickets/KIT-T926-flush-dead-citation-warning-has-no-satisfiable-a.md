@@ -34,3 +34,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 - [2026-11-10 00:12] (comment) @kit-agent: Narrowed the stale markers to stale, no longer exists, renam*, not re-anchored, historical (moved/removed/gone/deleted/s (full comment #1 in ## Notes)
 ### comment #1 [2026-11-10 00:12] @kit-agent
 Narrowed the stale markers to stale, no longer exists, renam*, not re-anchored, historical (moved/removed/gone/deleted/superseded do not clear: a deliverable that moved to an absent path is the case the warning exists for); fixtures now use the real groovegrid lines 236 and 238.
+- [2026-11-10 00:12] (landed) 8bde59e session-citations: only stale, no longer exists, renamed, not re-anchored and historical clear a cited path (a deliverab

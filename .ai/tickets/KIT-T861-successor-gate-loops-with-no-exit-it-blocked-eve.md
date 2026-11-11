@@ -2,7 +2,7 @@
 id: KIT-T861
 title: successor-gate loops with no exit: it blocked every reply 20+ times demanding a successor worker for tickets whose next step waits on a queu
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-05T22:46:08Z
-updated: 2026-11-05T22:46:08Z
+updated: 2026-11-05T23:32:50Z
 ---
 
 ## Description
@@ -33,3 +33,5 @@ KIT-D132 (2026-11-05): successor-gate and handback-directive no longer block or 
 ## History
 - [2026-11-05 22:46] (created) bug — successor-gate loops with no exit: it blocked every reply 20+ times demanding a successor worker for tickets whose next step waits on a queu
 - [2026-11-05 23:23] (landed) 6de33d2 KIT-D132: hooks never dispatch or block; bill of work stated in every orient (implements KIT-D132, KIT-T861)
+- [2026-11-05 23:23] (landed) bf65e13 KIT-D132: hooks never dispatch or block; bill of work stated in every orient (implements KIT-D132, KIT-T861)
+- [2026-11-05 23:32] (status) todo → review

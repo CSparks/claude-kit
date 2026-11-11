@@ -36,3 +36,4 @@ The flag q code --repo <x> takes a registered project (as --project) else an exi
 - [2026-11-03 16:31] (comment) criterion added: q code --repo <project|dir> searches that checkout; a bare --repo is a no-op; an unknown value says so; q-code-target 8 passed
 - [2026-11-03 16:31] (comment) ticked: q code --repo <project|dir> searches that checkout; a bare --repo is a no-op; an unknown value says so; q-code-target 8 passed
 - [2026-11-03 16:31] (status) doing → review
+- [2026-11-03 16:31] (landed) 3b98a14 q code: --test/--not-test, --repo, --dir on a git checkout answers from its index (sibling repo 0.35 s, was past 120 s),

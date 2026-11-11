@@ -54,3 +54,4 @@ Chris 2026-11-07: "Writers are supposed to be SCOPED TO THE REPO THEY ARE WRITIN
 - [2026-11-07 18:14] (landed) 8a794b6 question-brief: a lettered option is picked only by its key after a picking verb; foreign-tree and holder messages name
 - [2026-11-07 18:15] (edit) Notes replaced
 - [2026-11-07 18:15] (status) todo → review
+- [2026-11-07 18:16] (landed) f822bf6 tickets: KIT-T882 root cause (the writer was real) and KIT-T881 root cause with handoffs [no-test: ticket store only] (i

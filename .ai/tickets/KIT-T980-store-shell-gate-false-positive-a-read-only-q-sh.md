@@ -33,3 +33,4 @@ Fixed 2026-11-10. The gate that blocked was query-gate (check store-grep), NOT s
 ## History
 - [2026-11-10 22:46] (created) bug — store-shell gate false-positive: a read-only 'q show <id> | sed | grep' pipeline is blocked as a shell read of .ai/ even though q show is th
 - [2026-11-10 23:01] (status) todo → review
+- [2026-11-10 23:01] (landed) 00d0557 query-gate: a piped sed script such as /Notes/,/History/p is not an item file, so q show | sed | grep passes; tests (imp

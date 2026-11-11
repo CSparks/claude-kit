@@ -36,3 +36,4 @@ Cause: --dir walked and stat/opened every file of a sibling repo (47k files incl
 - [2026-11-03 16:31] (comment) criterion added: q code --dir on a git checkout answers from its index in under a second (stiletto-2349 0.35 s, was past 120 s); a plain dir scan stops at 20 s with a notice; q-code-target 8 passed
 - [2026-11-03 16:31] (comment) ticked: q code --dir on a git checkout answers from its index in under a second (stiletto-2349 0.35 s, was past 120 s); a plain dir scan stops at 20 s with a notice; q-code-target 8 passed
 - [2026-11-03 16:31] (status) doing → review
+- [2026-11-03 16:31] (landed) 3b98a14 q code: --test/--not-test, --repo, --dir on a git checkout answers from its index (sibling repo 0.35 s, was past 120 s),

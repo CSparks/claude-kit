@@ -30,3 +30,4 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 ## History
 - [2026-11-09 23:30] (created) bug — q gap: 'code' has no -INBOX-|inboxId|INBOX- flag
 - [2026-11-09 23:53] (status) todo → review
+- [2026-11-09 23:56] (landed) 76947ca q code: a dash-led token that is not flag-shaped (a regex, a multi-word pattern) is search text and files no gap, and an

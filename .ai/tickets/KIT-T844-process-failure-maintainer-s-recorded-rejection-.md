@@ -36,3 +36,4 @@ Root cause: dispatch grounding read decisions only; the maintainer's comment on 
 - [2026-11-03 16:31] (comment) criterion added: the dispatch brief (begin-task --md, governing-brief) prints, under each governing decision, the maintainer's later comments on its subject (decision id named, or 3+ title words shared) with an OBJECTION? flag; maintainer-said 5 passed
 - [2026-11-03 16:31] (comment) ticked: the dispatch brief (begin-task --md, governing-brief) prints, under each governing decision, the maintainer's later comments on its subject (decision id named, or 3+ title words shared) with an OBJECTION? flag; maintainer-said 5 passed
 - [2026-11-03 16:31] (status) doing → review
+- [2026-11-03 16:31] (landed) 3b98a14 q code: --test/--not-test, --repo, --dir on a git checkout answers from its index (sibling repo 0.35 s, was past 120 s),

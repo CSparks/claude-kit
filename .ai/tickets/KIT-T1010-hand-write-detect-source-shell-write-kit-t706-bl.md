@@ -43,3 +43,4 @@ Cause (ledger read at the incident, intent.rs entries of the game lane): pre-wri
 ### comment #2 [2026-11-11 04:53] @claude
 Fix commits 5cc1d37 and 19db931. Measured confirmation lag (toolwrites ledger, 149 pre-write/recorder pairs): median 0.8 s, p95 8.9 s, max 60 s, so the settle cap is 30 s (the wait ends the moment the confirmation lands). Inferred, not observed: the flagged call's start time, from ledger timestamps and the session hand-writes file mtime. Residual: the ledger update is a non-atomic read-modify-write capped at 300 entries (299 held at diagnosis); a lost entry still gives a false flag. Tests also assert the commit outcome: shell-attribution 35 passed.
 - [2026-11-11 04:53] (status) todo → review
+- [2026-11-11 04:53] (landed) c4d1e0c tickets: KIT-T1010 and KIT-T1017 to review with criteria and fix shas; KIT-T1016, KIT-T1018 filed (implements KIT-T1010,

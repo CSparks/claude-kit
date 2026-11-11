@@ -7,6 +7,7 @@ superseded when a newer one sets `supersedes:` (or it carries `superseded_by:` /
 
 - **KIT-T037**  →  **KIT-T014**  · 1 superseded
 - **KIT-T060**  →  **KIT-T075**  · 1 superseded
+- **KIT-T364**  →  **KIT-T1019**  · 1 superseded
 - **KIT-T120**  →  **KIT-T169**  · 1 superseded
 - **KIT-T109**  →  **KIT-T183**  · 1 superseded
 - **KIT-T212**  →  **KIT-T239**  · 1 superseded
@@ -41,3 +42,15 @@ superseded when a newer one sets `supersedes:` (or it carries `superseded_by:` /
 - **KIT-T789**  →  **KIT-T788**  · 1 superseded
 - **KIT-T791**  →  **KIT-T790**  · 1 superseded
 - **KIT-T815**  →  **KIT-T816**  · 1 superseded
+- **KIT-T842**  →  **KIT-T841**  · 1 superseded
+- **KIT-T919**  →  **KIT-T871**  · 1 superseded
+- **KIT-T867**  →  **KIT-T872**  · 1 superseded
+- **KIT-T873**  →  **KIT-T874**  · 1 superseded
+- **KIT-T988**  →  **KIT-T902**  · 1 superseded
+- **KIT-T910**  →  **KIT-T909**  · 1 superseded
+- **KIT-T512**  →  **KIT-T922**  · 1 superseded
+- **KIT-T883**  →  **KIT-T923**  · 1 superseded
+- **KIT-T808**  →  **KIT-T927**  · 1 superseded
+- **KIT-T935**  →  **KIT-T939**  · 1 superseded
+- **KIT-T964**  →  **KIT-T965**  · 1 superseded
+- **KIT-T977**  →  **KIT-T982**  · 1 superseded

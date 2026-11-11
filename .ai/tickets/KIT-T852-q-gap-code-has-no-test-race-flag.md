@@ -36,3 +36,4 @@ q code --test (--tests) / --not-test (--not-tests): test = tests/test/__tests__/
 - [2026-11-03 16:31] (comment) criterion added: q code|sym|file --test keeps only test files, --not-test drops them; q-code-target 8 passed
 - [2026-11-03 16:31] (comment) ticked: q code|sym|file --test keeps only test files, --not-test drops them; q-code-target 8 passed
 - [2026-11-03 16:31] (status) doing → review
+- [2026-11-03 16:31] (landed) 3b98a14 q code: --test/--not-test, --repo, --dir on a git checkout answers from its index (sibling repo 0.35 s, was past 120 s),

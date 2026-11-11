@@ -151,3 +151,6 @@ Handoff kit-agent-T881 (third round, 2026-11-08):
 - [2026-11-08 23:06] (comment) ticked: KIT-D152: a PostToolUse and Stop audit judges the summary after the call (advisory, exit 0; Stop only as backstop), the pre-call brief block and 3 s wait are gone, audits are recorded once per call and misses counted per session and project for orient (hooks/question-brief-audit.test.mjs, real groovegrid replays, mutation checks)
 - [2026-11-08 23:06] (comment) ticked: Same-reply brief unreadable at PreToolUse (Claude Code writes the reply after hooks run): maintainer decision recorded in Notes
 - [2026-11-08 23:06] (status) todo → review
+- [2026-11-08 23:06] (landed) cfdbe13 tickets: KIT-T881 post-hoc audit implemented (bd800de), facts and live check, handoff [no-test: ticket store only] (impl
+- [2026-11-09 21:03] (landed) 424fd59 question-brief audit judges only that a plain summary of reasonable length came first (text, narration or question text)
+- [2026-11-09 21:04] (landed) e55f6a7 question-brief audit judges only that a plain summary of reasonable length came first (text, narration or question text)

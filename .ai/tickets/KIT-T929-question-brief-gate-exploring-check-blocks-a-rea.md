@@ -33,3 +33,4 @@ first seen in groovegrid. Filed automatically (KIT-T286): every kit bug is a tic
 - [2026-11-10 00:20] (comment) @kit-agent: Fixed: the exploring check is skipped once at least 20 words of assistant prose followed the message; a question mark in (full comment #1 in ## Notes)
 ### comment #1 [2026-11-10 00:20] @kit-agent
 Fixed: the exploring check is skipped once at least 20 words of assistant prose followed the message; a question mark in a yelled or profane message with no question word is not a question; the block prints the last 240 characters of the message that tripped it. Real question words and explicit floated ideas still block.
+- [2026-11-10 00:20] (landed) 5bdcdd5 question-brief-gate: the exploring check no longer blocks a message a prose reply already answered (20 words of assistan

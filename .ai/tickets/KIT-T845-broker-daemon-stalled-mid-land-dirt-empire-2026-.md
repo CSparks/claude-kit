@@ -43,3 +43,4 @@ e6bdd07 published. Root cause (dirt-empire, daemon 35624, 01:26-01:32 UTC): the 
 - [2026-11-03 02:09] (comment) ticked: The tick costs seconds, not minutes: Cargo.lock graphs are memoised and base-movement diffs cached on disk (cargo-lock.test, timing-moved.test)
 - [2026-11-03 02:09] (comment) ticked: A holder silent for 4 min with a job queued is replaced by the next wait/submit poll; default stall_kill_s is 180 (stall.test)
 - [2026-11-03 02:09] (status) doing → review
+- [2026-11-03 02:09] (landed) 234f36f KIT-T845, KIT-T846 to review with notes [no-test: ticket store only] (implements KIT-T845, KIT-T846)

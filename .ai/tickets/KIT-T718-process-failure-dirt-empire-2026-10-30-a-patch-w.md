@@ -56,3 +56,4 @@ Orient split (37355ea, by-concern files under hooks/lib/orient, output identical
 - [2026-10-31 00:46] (landed) b83d356 orient: a retired agent that left a Handoff block on a ticket still open, with no dispatch since, is listed with its Job
 - [2026-11-02 16:57] (landed) 67f94f6 KIT-T718 Notes: Handoff ad0b866e39b3b3615 (publish fixes T823-T828 in code, publish pending) [no-test: ticket store only
 - [2026-11-02 16:58] (landed) 6b1d621 KIT-T718 Notes: Handoff ad0b866e39b3b3615 detail [no-test: ticket store only] (implements KIT-T718)
+- [2026-11-02 20:05] (landed) d9c4bc2 Handoff ae9f33fd30059ba64 on KIT-T718, T823, T829, T729 [no-test: ticket store only] (implements KIT-T718)

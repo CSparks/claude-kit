@@ -38,3 +38,4 @@ Root cause (dirt-empire target/broker/resume-attempts.jsonl + .ai/queued-dispatc
 - [2026-11-05 21:54] (comment) ticked: A held successor brief older than its item's agent retirement is ignored; the newest row wins (hooks/handback-queued.test.mjs)
 - [2026-11-05 21:54] (comment) ticked: The successor gate and the prompt directive name a still-open step at every later stop and prompt, not once per session (successor-gate, handback, dispatch-worker tests)
 - [2026-11-05 21:54] (status) todo → review
+- [2026-11-05 21:54] (landed) c8688aa successor gate and prompt directive re-surface an open step at every stop and prompt; a held brief older than its item's

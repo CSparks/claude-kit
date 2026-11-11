@@ -40,3 +40,4 @@ Tests to add (hooks/shell-write-scan.test.mjs, hooks/source-shell-gate.test.mjs)
 
 ## History
 - [2026-11-10 22:46] (created) bug — source-shell-gate misfire: a read-only Bash loop (for f in suite logs; grep -m1 -oE pattern with an escaped quote in a bracket class; date -
+- [2026-11-11 02:52] (landed) 5149552 tickets: KIT-T979 diagnosis and ready fix design recorded; code held for the shell-write-scan lane (implements KIT-T979)

@@ -32,3 +32,4 @@ BLOCKED on the KIT-T944 commit (same reason: the fix is in hooks/commit-gate.mjs
 
 ## History
 - [2026-11-11 04:49] (created) bug — commit-gate commit-foreign blocks a commit on an untracked directory (target/) that was never staged; passing explicit paths after git add s
+- [2026-11-11 04:53] (landed) a86f68c commit-message and commit-files libs for the commit-gate -F and pathspec fixes, tests with negative controls; KIT-T364 s
