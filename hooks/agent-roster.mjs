@@ -24,7 +24,7 @@ import { outcomeFromResponse, outcomeFromTranscript } from './agent-outcome.mjs'
 import { subagentOrphans, orphanLines } from './orphan-shells.mjs';
 import { killOrphanTasks } from './lib/task-kill.mjs';
 import { ticketsCited } from './dispatch-context.mjs';
-import { ceilingFlag } from './lib/agent-context.mjs';
+import { wasteFlag } from './lib/agent-context.mjs';
 import { releaseAgent, releaseTree } from './lib/checkout-holder.mjs';
 
 const TASK_LABEL_MAX = 140; // clip a pasted brief to a scannable one-liner in the roster

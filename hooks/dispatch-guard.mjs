@@ -43,7 +43,7 @@ import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
 import { BRIEF_CHECK, briefBlock } from './dispatch-brief.mjs';
 import { RULINGS_CHECK, rulingsBlock } from './dispatch-rulings.mjs';
-import { CEILING_CHECK, HANDOFF_CHECK, ceilingWarning, handoffBlock, ticketsCited } from './dispatch-context.mjs';
+import { WASTE_CHECK, HANDOFF_CHECK, wasteWarning, handoffBlock, ticketsCited } from './dispatch-context.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
 import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';

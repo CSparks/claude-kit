@@ -34,7 +34,7 @@ import { SILENT_MS, reopenState, resumeCovers } from './reopened.mjs';
 import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
-import { ceilingFlag, handoffCount, hasHandoff } from './agent-context.mjs';
+import { wasteFlag, handoffCount, hasHandoff } from './agent-context.mjs';
 import { CLOSED, dispatchedTickets, handoffClosed, openTicketStatus, recent, retiredAt, succeeded } from './successor.mjs';
 
 const ENDED = new Set(['done', 'error', 'killed', 'stale']);
