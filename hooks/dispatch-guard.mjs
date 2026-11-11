@@ -15,7 +15,7 @@
 //   ui-framework-first   (KIT-T583) — UI sizing/layout work briefed to a generic agent in a rapid-game repo
 //   brief-grounded       (KIT-T703) — a feature/request brief with no quoted maintainer words, or a variant with no reuses token
 //   rulings-checked      (KIT-T938) — a design or plan brief sent while the inbox holds un-triaged notes and cites no search of them
-//   handoff-before-replace (KIT-D116) — a dispatch replacing a past-ceiling agent that wrote no handoff (and a warning listing past-ceiling agents)
+//   handoff-before-replace (KIT-D149) — a dispatch replacing an agent flagged for waste that wrote no handoff (and a warning listing wasteful agents)
 // exit 2 = block, 0 = allow. No-ops on unadopted repos; FAIL-OPEN everywhere else.
 //
 // Every check is independent: it decides on its own escape token, its own ignore-file key, and

@@ -49,7 +49,7 @@ export const GATES = {
       { check: UI_CHECK, wants: ['UI sizing or layout work goes to claude-kit:rg-ui-engineer or names the framework mechanism it reuses'], tokens: [T.uiFrameworkChecked] },
       { check: BRIEF_GROUNDED_CHECK, wants: ['a feature or request ticket brief quotes the maintainer; a variant also names what it reuses'], tokens: [T.maintainerWords, T.reuses] },
       { check: RULINGS_CHECK, wants: ['a design or plan brief (job plan, or an analyst or researcher briefed with design words) cites the inbox search for maintainer rulings while the inbox holds un-triaged notes'], tokens: [T.rulingsChecked] },
-      { check: HANDOFF_CHECK, wants: ['a dispatch that replaces a past-ceiling agent waits until that agent wrote its Handoff block in the ticket Notes'], tokens: [T.handoffWaived, T.writeHandoff] },
+      { check: HANDOFF_CHECK, wants: ['a dispatch that replaces an agent flagged for waste waits until that agent wrote its Handoff block in the ticket Notes'], tokens: [T.handoffWaived, T.writeHandoff] },
     ],
   },
   question: {

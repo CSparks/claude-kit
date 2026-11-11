@@ -1,4 +1,4 @@
-// successor.mjs — an agent that retires with a Handoff block leaves its ticket's work to a successor (KIT-T718, KIT-D116).
+// successor.mjs — an agent that retires with a Handoff block leaves its ticket's work to a successor (KIT-T718, KIT-D149).
 // The handoff is the record that work is open; a dispatch citing the ticket after the retirement is the successor.
 //
 //   pendingSuccessors(root, rows, { nowMs }) -> [{ row, ticket }]: done rows of agents that own ticket work (a

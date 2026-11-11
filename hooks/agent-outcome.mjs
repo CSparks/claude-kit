@@ -6,7 +6,7 @@
 //   outcomeFromResponse(response)   -> outcome from a PostToolUse Agent tool_response (a synchronous
 //                                      agent returns resolvedModel, totalDurationMs, totalTokens,
 //                                      totalToolUseCount; an async launch returns resolvedModel only)
-//   lastContextTokens(path)         -> the live context size from a transcript's tail (KIT-D116)
+//   lastContextTokens(path)         -> the live context size from a transcript's tail (shown, never a limit; KIT-D149)
 //   outcomeFromTranscript(path)     -> outcome from a subagent transcript JSONL (SubagentStop carries
 //                                      agent_transcript_path)
 //
