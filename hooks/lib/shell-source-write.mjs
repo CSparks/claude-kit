@@ -58,5 +58,8 @@ export function shellSourceWrites(command, { readScript = readTempScript, tempDi
     for (const m of code.replace(MODULE_SPECIFIER, ' ').matchAll(QUOTED_SOURCE)) { const h = hit(m[1]); if (h) return h; }
     return null;
   };
-  return scanShellWrites(command, { hit, codeHit, readScript, ambiguous: () => ({ path: AMBIGUOUS_PATH, ambiguous: true }) });
+  return scanAllShellWrites(command, { hit, codeHit, readScript, exemptByDestination: true, ambiguous: () => ({ path: AMBIGUOUS_PATH, ambiguous: true }) });
 }
+
+/** The first hit no destination can lift, or null: what a scan alone proves. */
+export const shellSourceWrite = (command, options) => shellSourceWrites(command, options).find((h) => !h.outsideTo) || null;
