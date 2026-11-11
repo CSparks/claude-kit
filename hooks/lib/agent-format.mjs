@@ -3,7 +3,7 @@
 // model prints `[model?]` — never a blank path.
 
 import { modelDisplay } from '../model-tag.mjs';
-import { ceilingFlag } from './agent-context.mjs';
+import { wasteFlag } from './agent-context.mjs';
 
 export const MODEL_UNKNOWN = '[model?]';
 
