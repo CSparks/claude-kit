@@ -7,7 +7,8 @@
 
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { payload, VENDORED, fileExt, nodeCli, runStatus, logGap, projectRoot, pathExcluded, excludeFooter } from './lib.mjs';
+import { payload, VENDORED, fileExt, nodeCli, runStatus, logGap, projectRoot, pathExcluded, excludeFooter, legacyDir } from './lib.mjs';
+import { underLegacy } from './lib/legacy-paths.mjs';
 
 const THRESHOLD_PCT = 5;
 const MIN_LINES = 8;
@@ -26,7 +27,12 @@ if (SKIP_EXT.has(ext)) process.exit(0);
 
 const dir = dirname(file);
 // KIT-T051: a path glob under `duplication` (or '*') exempts this file from the DRY warn.
-if (pathExcluded(projectRoot(dir), 'duplication', file)) process.exit(0);
+const root = projectRoot(dir);
+if (pathExcluded(root, 'duplication', file)) process.exit(0);
+// Frozen legacy code (KIT-T989) is neither judged nor part of the corpus a new file is compared against.
+const legacy = legacyDir(root);
+if (underLegacy(root, legacy, file)) process.exit(0);
+const ignored = ['node_modules', 'dist', 'build', 'target', '.venv', 'vendor', ...(legacy ? [legacy] : [])].map((d) => `**/${d}/**`).join(',');
 const bin = nodeCli('jscpd', dir);
 if (!bin) {
   logGap('missing-tool', projectRoot(dir), 'jscpd not installed (install: npm install -g jscpd)');
@@ -42,7 +48,7 @@ const { code, out } = runStatus(
     '--min-lines', String(MIN_LINES),
     '--min-tokens', String(MIN_TOKENS),
     '--reporters', 'consoleFull',
-    '--ignore', '**/node_modules/**,**/dist/**,**/build/**,**/target/**,**/.venv/**,**/vendor/**',
+    '--ignore', ignored,
     dir,
   ],
   dir,

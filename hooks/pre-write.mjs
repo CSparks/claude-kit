@@ -7,8 +7,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import {
   payload, projectRoot, gitRootOfFile, pathExcluded, markerExcludedLines, excludeFooter, VENDORED, LOCKFILES, fileExt,
-  loadWritePolicy, forbiddenBy, globToRegExp, relForGlob,
+  loadWritePolicy, forbiddenBy, globToRegExp, relForGlob, legacyDir,
 } from './lib.mjs';
+import { underLegacy } from './lib/legacy-paths.mjs';
 import { recordTurnWrite, recordSubmoduleActivity, repoRelative } from './turn-writes.mjs';
 import { recordPredictedWrite, writerId } from './lib/tool-writes.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
@@ -231,6 +232,8 @@ if (_gitRoot && !process.env.CLAUDE_KIT_BROKER_GATE) {
     process.exit(2);
   }
 }
+// Frozen legacy code (KIT-T989) is reference material: the quality checks below do not judge it.
+if (underLegacy(ROOT, legacyDir(ROOT), file)) process.exit(0);
 //
 // KIT-T111/KIT-T155: an Edit payload carries only the replacement FRAGMENT, so markers
 // living outside it (a line-1 `ignore-file`, an enclosing start/end block) were invisible

@@ -6,6 +6,7 @@
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { unmovedHandWrites } from './identical-renames.mjs';
 import { readTurnState, writeTurnState } from './turn-state.mjs';
 
 const HAND_WRITES_MAX = 500;
@@ -20,10 +21,11 @@ export function handWrites(root, sid) {
   return sid ? new Set(filesOf(root, sid)) : new Set();
 }
 
-/** The ledgered paths among `paths` (repo-relative, POSIX) still on disk: the files a commit may not carry yet. */
+/** The ledgered paths among `paths` (repo-relative, POSIX) still on disk and not byte-identical git renames: the files a commit may not carry yet. */
 export function pendingHandWrites(root, sid, paths) {
   const ledger = handWrites(root, sid);
-  return ledger.size ? paths.filter((p) => ledger.has(p) && existsSync(join(root, p))) : [];
+  const held = ledger.size ? paths.filter((p) => ledger.has(p) && existsSync(join(root, p))) : [];
+  return unmovedHandWrites(root, held);
 }
 
 export function addHandWrites(root, sid, rels) {

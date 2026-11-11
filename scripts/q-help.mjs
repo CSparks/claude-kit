@@ -40,6 +40,7 @@ export const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <qu
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
                               --path crates/sim  --not-path <glob|dir> (repeatable; drops matches)
                               --glob <glob> (-g, --include; repeatable; keeps only matching paths; !glob drops)  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
+                              --legacy  include the repo's frozen legacy_dir (.ai/config.yml), left out of every answer by default
                               --test | --not-test  keep only test files (tests/ dirs, test_x, x_test, x.test.*, x.spec.*) | drop them
                               --project <name>  search that registered project's checkout (name or id key), e.g. the kit's scripts
                               --repo <project|dir>  --project, or --dir when it is a directory (bare --repo = the cwd repo, a no-op)

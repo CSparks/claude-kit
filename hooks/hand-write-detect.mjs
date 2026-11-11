@@ -7,7 +7,7 @@
 // exempt, and so is a file whose content an Edit or Write of any session left during the call (the accepted-writes
 // ledger, tool-write-record.mjs): another writer's concurrent edit, judged by pre-write, never the call's (KIT-T888).
 // A file git put back (content equal to HEAD, or an earlier Edit's content in a call that runs git) is no write either
-// (lib/restored-content.mjs, KIT-T982).
+// (lib/restored-content.mjs, KIT-T982), and so is a byte-identical git rename (lib/identical-renames.mjs, KIT-T991).
 // Check-id source-shell-write. Post exits 2 to show the message. No-ops on unadopted repos; fails open.
 
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
@@ -16,6 +16,7 @@ import { snapshotDirty, handWrittenSources, headOf, contentHashOf } from './lib/
 import { addHandWrites } from './lib/hand-writes.mjs';
 import { toolWriteProves, writerId } from './lib/tool-writes.mjs';
 import { restoredSources } from './lib/restored-content.mjs';
+import { unmovedHandWrites } from './lib/identical-renames.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 
 const CHECK = 'source-shell-write';
@@ -45,7 +46,7 @@ try {
   const changed = handWrittenSources(root, before.files || {}, command, before.head || '')
     .filter((rel) => !pathExcluded(root, CHECK, rel) && !toolWrote(rel));
   const restored = restoredSources(root, changed, command, { session: sid });
-  const written = changed.filter((rel) => !restored.has(rel));
+  const written = unmovedHandWrites(root, changed.filter((rel) => !restored.has(rel)));
   if (written.length) {
     addHandWrites(root, sid, written);
     const shown = written.slice(0, SHOWN_MAX);

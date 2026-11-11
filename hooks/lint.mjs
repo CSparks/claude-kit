@@ -10,7 +10,8 @@
 
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { payload, VENDORED, LOCKFILES, fileExt, projectRoot, have, run, logGap, nodeCli, pathExcluded } from './lib.mjs';
+import { payload, VENDORED, LOCKFILES, fileExt, projectRoot, have, run, logGap, nodeCli, pathExcluded, legacyDir } from './lib.mjs';
+import { underLegacy } from './lib/legacy-paths.mjs';
 
 const HEAD_CLIPPY = 60;
 const HEAD_LINT = 40;
@@ -28,6 +29,7 @@ const ext = fileExt(norm);
 const root = projectRoot(dirname(file));
 // KIT-T051: a path glob under `lint` (or '*') exempts this file from linting.
 if (pathExcluded(root, 'lint', file)) process.exit(0);
+if (underLegacy(root, legacyDir(root), file)) process.exit(0); // frozen legacy code is not linted (KIT-T989)
 const toolingOk = existsSync(join(root, '.claude-tooling-ok'));
 const hasDocker =
   existsSync(join(root, 'Dockerfile')) ||

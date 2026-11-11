@@ -25,6 +25,8 @@ import { loadTreeSitter } from './treesitter.mjs';
 import { wantsHelp } from './cli-help.mjs';
 import { FAMILIES } from './code-graph-families.mjs';
 import { isMain } from './is-main.mjs';
+import { legacyDir } from '../hooks/lib/config.mjs';
+import { underLegacy } from '../hooks/lib/legacy-paths.mjs';
 
 const SKIP_DIRS = new Set([
   'node_modules', '.git', 'target', 'dist', 'build', '.venv', 'venv', '__pycache__',
@@ -210,9 +212,12 @@ function resolveImport(spec, fromFileAbs, root, fileSet) {
 // Absolute paths of the source files for a repo (git-aware when possible, else a walk).
 // Exported so the maintenance hook can stat them for a cheap staleness check without
 // reading + parsing every file.
-export function listSourceFiles(root) {
+// Frozen legacy code (`legacy_dir` in .ai/config.yml, KIT-T989) is left out unless `legacy` asks for it.
+export function listSourceFiles(root, { legacy = false } = {}) {
   const absRoot = resolve(root);
-  return gitFiles(absRoot) || walk(absRoot);
+  const all = gitFiles(absRoot) || walk(absRoot);
+  const dir = legacy ? '' : legacyDir(absRoot);
+  return dir ? all.filter((f) => !underLegacy(absRoot, dir, f)) : all;
 }
 
 // A build carries the files it could NOT read (KIT-T236): git's file list is a snapshot that
@@ -220,9 +225,9 @@ export function listSourceFiles(root) {
 // (ENOENT + a libuv abort) so the caller saw a crash and fell back to grep. Skipping the entry
 // keeps every other answer intact; `graph.stale` is what makes the gap VISIBLE instead of
 // silently shrinking the result set.
-export async function buildGraph(root) {
+export async function buildGraph(root, { legacy = false } = {}) {
   const absRoot = resolve(root);
-  const paths = listSourceFiles(absRoot);
+  const paths = listSourceFiles(absRoot, { legacy });
   const ts = await loadTreeSitter(); // null → heuristic floor
   // Sequential: the tree-sitter parser is a single shared instance (setLanguage mutates it).
   const files = [];
@@ -425,6 +430,7 @@ const USAGE = `usage: code-graph [root|status] [--out <graph.json>] [--query <q>
   --query duplicate-defines <symbol> twins of <symbol> — flags the superseded one
   --query entry-points               app roots (more than one = more than one app)
   (no --query)                       build the graph and print it as JSON; --out writes it
+  --legacy                           include the repo's frozen legacy_dir (left out by default)
 `;
 
 async function main() {
@@ -436,9 +442,11 @@ async function main() {
   let queryArg = null;
   let codemap = null;
   let status = false;
+  let legacy = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--out') out = args[++i];
     else if (args[i] === '--query') { query = args[++i]; queryArg = args[++i]; }
+    else if (args[i] === '--legacy') legacy = true;
     else if (args[i] === '--codemap-check') codemap = args[++i];
     // `status` is a VERB, not a directory — taken as a root it walked <cwd>/status and died
     // with ENOENT scandir (KIT-T236).
@@ -449,7 +457,7 @@ async function main() {
     console.error(`code-graph: '${root}' is not a directory — a positional argument is the repo ROOT.\n${USAGE}`);
     process.exit(2);
   }
-  const graph = await buildGraph(root);
+  const graph = await buildGraph(root, { legacy });
   // A stale index NEVER answers as if it were complete: report the skipped entries and fail,
   // so a caller sees a failure rather than a quietly-short `[]` (KIT-T236).
   const reportStale = () => {

@@ -14,6 +14,7 @@ import { uncheckedFrameworks } from './q-framework.mjs';
 import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 import { grepPattern } from './q-grep-pattern.mjs';
 import { addPath, strayPathRows } from './q-code-paths.mjs';
+import { dropLegacy, legacyTest } from './q-legacy.mjs';
 
 export const DEFAULT_LIMIT = 40;
 const MIN_LITERAL = 3;
@@ -75,6 +76,7 @@ export function parseCodeArgs(rawArgs) {
     } else if (a === '--regex' || a === '-E') flags.regex = true;
     else if (a === '-i') flags.ignoreCase = true;
     else if (a === '-w') flags.word = true;
+    else if (a === '--legacy') flags.legacy = true;
     else if (a === '--test' || a === '--tests') flags.tests = 'only';
     else if (a === '--not-test' || a === '--not-tests') flags.tests = 'none';
     else if (a === '--fuzzy') flags.fuzzy = true;
@@ -310,6 +312,7 @@ export async function ftsDocLines(queryText, root, refresh = refreshIndex) {
   const terms = String(queryText || '').split(/\s+/).map((t) => t.replace(/\*$/, '')).filter((t) => t.length >= MIN_LITERAL && !/^(?:AND|OR|NOT)$/.test(t));
   if (!terms.length) return [];
   const flags = { before: 0, after: 0, limit: DOC_LINE_LIMIT, kinds: ['doc', 'config'], notPaths: [], fuzzy: true };
+  dropLegacy(flags, root);
   try { return (await codeVerb(root, terms.join(' '), flags, refresh)).filter((r) => r.loc); } catch { return []; }
 }
 
@@ -424,7 +427,9 @@ export async function ftsCodeDefs(queryText, root, refresh = refreshIndex) {
      WHERE f.kind = 'code' AND s.type NOT IN (${DEF_STOP_TYPES.map(() => '?').join(',')}) AND (${like})`,
     [...DEF_STOP_TYPES, ...terms.map((t) => `%${t}%`)]);
   idx.handle.close();
+  const frozen = legacyTest(root);
   const hits = found
+    .filter((r) => !frozen(r.path))
     .map((r) => ({ ...r, matched: terms.filter((t) => nameWords(r.name).includes(t)) }))
     .filter((r) => r.matched.length);
   const termCount = new Map(terms.map((t) => [t, hits.filter((r) => r.matched.includes(t)).length]));
@@ -470,6 +475,7 @@ async function answerRows(cmd, args, root, refresh) {
   const target = await resolveTarget(flags, root, refresh);
   if (target.error) return [{ loc: '', text: target.error }];
   flags.path = target.path;
+  dropLegacy(flags, target.root);
   const found = await verbRows(cmd, text, flags, target.root, target.refresh);
   const rows = target.prefix ? found.map((r) => (r.loc ? { ...r, loc: `${target.prefix}/${r.loc}` } : r)) : found;
   const note = target.scanned && (target.scanned.truncated || !rows.some((r) => r.loc));

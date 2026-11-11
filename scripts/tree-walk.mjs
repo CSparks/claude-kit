@@ -5,6 +5,7 @@
 
 import { readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { legacyDir } from '../hooks/lib/config.mjs';
 
 export const SKIP_DIRS = new Set([
   'node_modules', 'target', 'dist', 'build', 'vendor', 'coverage', '__pycache__', 'out', 'bin', 'obj',
@@ -24,6 +25,7 @@ export const isSource = (name) => SOURCE_EXT.has(extOf(name));
  */
 export function walkTree(root) {
   const out = new Map();
+  const legacy = legacyDir(root).toLowerCase();
   const visit = (rel, depth) => {
     let entries;
     try { entries = readdirSync(join(root, rel), { withFileTypes: true }); } catch { return; }
@@ -36,6 +38,7 @@ export function walkTree(root) {
         if (e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue;
         const child = rel ? `${rel}/${e.name}` : e.name;
         if (existsSync(join(root, child, '.git'))) continue; // another repo's tree
+        if (child.toLowerCase() === legacy) continue; // frozen legacy code is no module of the live tree (KIT-T989)
         dirs.push(e.name);
       }
     }

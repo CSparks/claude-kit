@@ -12,6 +12,10 @@
         ]
       },
       {
+        "matcher": "Write|Edit|NotebookEdit|Bash|PowerShell",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" legacy-freeze-gate.mjs" }]
+      },
+      {
         "matcher": "Bash|PowerShell",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" commit-gate.mjs" }]
       },

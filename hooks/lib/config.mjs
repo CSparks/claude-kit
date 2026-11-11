@@ -42,6 +42,18 @@ export function loadCaptureConfig(root, defaultSignals = []) {
   return out;
 }
 
+// legacy_dir from a repo's .ai/config.yml: the repo-relative directory holding retired code the legacy-freeze gate
+// protects (e.g. `legacy_dir: legacy`). '' (no freeze) when the key is absent, empty, absolute or climbs out of the repo.
+export function legacyDir(root) {
+  try {
+    const m = readFileSync(join(root, '.ai', 'config.yml'), 'utf8').match(/^legacy_dir:[ \t]*["']?([^"'#\r\n]*?)["']?[ \t]*(?:#.*)?\r?$/m);
+    const dir = m ? m[1].trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '') : '';
+    return dir && !/^(?:[A-Za-z]:|\/)/.test(dir) && !dir.split('/').includes('..') ? dir : '';
+  } catch {
+    return '';
+  }
+}
+
 // watch_repos from a repo's .ai/config.yml (paths relative to the repo root) — extra repos
 // (e.g. a backport target) whose working-tree state a resume should also surface.
 export function watchRepos(root) {

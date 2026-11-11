@@ -1,7 +1,8 @@
 // hand-write-detect and git restores (KIT-T982, KIT-T963, KIT-T977, KIT-T933): a file that git put back is no hand
 // write. A file whose content now equals HEAD has no diff to gate; with git in the command, a file whose content an
-// Edit or Write of any session left earlier was judged by pre-write when it was written. A real shell rewrite is
-// still flagged beside both.
+// Edit or Write of any session left earlier was judged by pre-write when it was written; a byte-identical git
+// rename (R100, KIT-T991) is a move, neither flagged nor held by the commit gate. A real shell rewrite is
+// still flagged beside all three.
 // Run: node hooks/hand-write-restore.test.mjs
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -17,7 +18,7 @@ const HAND = "fs.writeFileSync(p, 'export const a = 9;\\n')";
 const EDITED = 'export const a = 7;\n';
 
 try {
-  const { state, spawnHook, call, fresh, rewrite } = handWriteHarness();
+  const { state, spawnHook, call, commit, fresh, rewrite } = handWriteHarness();
   const flagged = (r, file = 'src/a.mjs') => r.status === 2 && r.stderr.includes(file);
   const clean = (r) => r.status === 0 && !r.stderr.includes('HAND WRITE');
 
@@ -78,6 +79,31 @@ try {
   const viaUnstored = call(neverStored, 'S1', `git status && ${NOT_GENERATOR}`, () => writeFileSync(join(neverStored, 'src', 'a.mjs'), EDITED));
   ok('KIT-T982 control: Edit content git never stored (no stash, index or commit holds it) is not a restore, git in the command or not', flagged(viaUnstored));
 
+  const moved = fresh();
+  const viaMove = call(moved, 'S1', 'mkdir -p legacy && for f in a b; do git mv src/$f.mjs legacy/$f.mjs; done', () => {
+    mkdirSync(join(moved, 'legacy'));
+    git(['mv', 'src/a.mjs', 'legacy/a.mjs'], moved);
+    git(['mv', 'src/b.mjs', 'legacy/b.mjs'], moved);
+  });
+  ok('byte-identical git mv renames (R100) in a loop with a mkdir are no hand write', clean(viaMove));
+
+  const movedEdited = fresh();
+  const viaMoveEdit = call(movedEdited, 'S1', 'mkdir -p legacy && git mv src/a.mjs legacy/a.mjs', () => {
+    mkdirSync(join(movedEdited, 'legacy'));
+    git(['mv', 'src/a.mjs', 'legacy/a.mjs'], movedEdited);
+    writeFileSync(join(movedEdited, 'legacy', 'a.mjs'), 'export const a = 9;\n');
+  });
+  ok('control: a git mv followed by a shell edit of the destination is still a hand write', flagged(viaMoveEdit, 'legacy/a.mjs'));
+
+  const movedStaged = fresh();
+  const viaMoveStaged = call(movedStaged, 'S1', 'mkdir -p legacy && git mv src/a.mjs legacy/a.mjs', () => {
+    mkdirSync(join(movedStaged, 'legacy'));
+    git(['mv', 'src/a.mjs', 'legacy/a.mjs'], movedStaged);
+    writeFileSync(join(movedStaged, 'legacy', 'a.mjs'), 'export const a = 1;\nexport const z = 3;\n');
+    git(['add', 'legacy/a.mjs'], movedStaged);
+  });
+  ok('control: a rename staged with changed content (not R100) is still a hand write', flagged(viaMoveStaged, 'legacy/a.mjs'));
+
   process.env.CLAUDE_KIT_TURN_STATE = state;
   const { restoredSources } = await import('./lib/restored-content.mjs');
   const { gitRoot } = await import('./lib.mjs');
@@ -94,6 +120,18 @@ try {
   ok('KIT-T982 control: another session\'s entry is no restore', !restores({ session: 'S2' }));
   ok('KIT-T982 control: a call with no session identity is no restore', !restores({}));
   ok('KIT-T982 control: no git segment in the command, no replay', !restores({ session: 'S1' }, './run-tests.exe'));
+
+  const { addHandWrites } = await import('./lib/hand-writes.mjs');
+  const ledgeredMove = (extra) => {
+    const d = fresh();
+    mkdirSync(join(d, 'legacy'));
+    git(['mv', 'src/a.mjs', 'legacy/a.mjs'], d);
+    if (extra) writeFileSync(join(d, 'legacy', 'a.mjs'), extra);
+    addHandWrites(gitRoot(d), 'S7', ['legacy/a.mjs']);
+    return commit(d, 'S7', ['legacy/a.mjs']);
+  };
+  ok('KIT-T991: a ledgered path that is a byte-identical R100 rename commits', !ledgeredMove().out.includes('KIT-T706'));
+  ok('KIT-T991 control: a ledgered rename whose content changed is still refused', ledgeredMove('export const a = 1;\nexport const z = 3;\n').out.includes('KIT-T706'));
 
   const predicted = fresh();
   const input = { session_id: 'S1', tool_input: { file_path: join(predicted, 'src', 'a.mjs'), content: EDITED } };

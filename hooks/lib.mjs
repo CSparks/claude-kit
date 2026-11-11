@@ -9,7 +9,7 @@
 
 export { readStdin, payload } from './lib/stdin.mjs';
 export { git, gitTry, have, run, runStatus, nodeCli } from './lib/exec.mjs';
-export { compileSignals, loadCaptureConfig, watchRepos, readLineage, uatDefault } from './lib/config.mjs';
+export { compileSignals, loadCaptureConfig, watchRepos, readLineage, uatDefault, legacyDir } from './lib/config.mjs';
 export {
   gitRoot, gitRootOfFile, adopted, projectName, centralDataRoot, storeRoot, projectRoot,
   VENDORED, LOCKFILES, fileExt, isStorePath,
