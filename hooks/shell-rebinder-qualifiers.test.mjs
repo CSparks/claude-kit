@@ -32,7 +32,6 @@ try {
     ['Clear-Variable', 'Microsoft.PowerShell.Utility\\Clear-Variable sp'],
     ['Remove-Variable', 'Microsoft.PowerShell.Management\\Remove-Variable sp'],
     ['a lower-case qualified cmdlet', 'microsoft.powershell.utility\\set-variable sp src'],
-    ['an extensionless path ending in a cmdlet name', 'Copy-Item x src\\Set-Variable'],
     ['the plain cmdlet', 'Set-Variable sp src'],
   ];
   for (const [name, middle] of qualified) ok(`Copy-Item stays blocked: ${name} keeps the variable unresolved`, powershellCopy(middle) === BLOCK);
@@ -62,6 +61,7 @@ try {
     ['a file named like a cmdlet behind a backslash', "Copy-Item 'src\\Set-Variable.cpp' \"$sp\\x.bak\""],
     ['a file named like a cmdlet behind a drive path', "Copy-Item 'C:\\x\\New-Variable.ps1' \"$sp\\x.bak\""],
     ['a file named like a cmdlet behind a slash', "Copy-Item src/Remove-Variable.cpp \"$sp\\x.bak\""],
+    ['an extensionless destination ending in a cmdlet name', 'Copy-Item x src\\Set-Variable'],
   ];
   for (const [name, tail] of cmdletNamedPaths) ok(`Copy-Item passes: ${name} is no rebinder`, powershellCopy(tail) === PASS);
 } finally {

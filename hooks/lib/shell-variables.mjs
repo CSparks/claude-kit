@@ -2,7 +2,8 @@
 // A cp whose destination is `"$SCRATCH/a.cpp.bak"` is judged by where it lands; the gate cannot see the shell's
 // environment, so it resolves a variable only from an assignment it can prove: one literal `NAME=value` (bash) or
 // `$name = 'value'` (PowerShell) segment that runs unconditionally before the use, the only write to that name in the
-// whole command. Every other variable stays unresolved and the copy stays fail-closed.
+// whole command, in a command whose every segment is known to leave variables alone (KIT-T1082). Anything the allowlist
+// does not recognise leaves every variable unresolved and the copy stays fail-closed.
 //
 //   assignedValues(parts, shell) -> Map<segment, Map<name, value>>   the variables each segment of `parts` can read
 //   expandVariables(text, values, shell) -> text   `$NAME` and `${NAME}` replaced where the shell would expand them
@@ -22,22 +23,21 @@ const PLAIN_VALUE = /^[\w@%+=:,./-]+$/;
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*/;
 const UNCONDITIONAL_BEFORE = new Set(['start', ';']);
 const SEQUENTIAL_AFTER = new Set([';', '&&']);
-// A rebinder is a whole word: never a piece of a path or filename (`hooks/source-x.mjs`, `eval-utils.cpp`).
-// A backslash before a bash builtin joins a path only after a path character; at a command boundary it is the escape
-// that still runs the builtin, and after an unquoted `$NAME` expansion (`$IFS\source`) the name ends at the backslash.
-// A `$` after the word is an expansion that splits into the command, never a filename.
-// A PowerShell cmdlet is also a command word after a module qualifier (`Microsoft.PowerShell.Utility\Set-Variable`), so
-// only a path character other than the backslash holds it inside a word: an extensionless path ending in a cmdlet
-// name stays fail-closed, `src\Set-Variable.cpp` is a file.
-const PATH_BEFORE = String.raw`[\w./~$-]`;
-const PATH_AFTER = String.raw`[\w./\\~-]`;
-const EXPANSION_BEFORE = String.raw`(?<!\$\w*)`;
-const JOINED_BY_BACKSLASH = String.raw`(?<!${EXPANSION_BEFORE}${PATH_BEFORE}\\)(?<!:\\)`;
-const WHOLE_WORD = (word, joined = JOINED_BY_BACKSLASH) => String.raw`(?<!${PATH_BEFORE})${joined}(?:${word})(?!${PATH_AFTER})`;
-const BUILTIN_WORDS = 'eval|source|unset|-(?:out)?variable';
-const CMDLET_WORDS = 'set-variable|new-variable|clear-variable|remove-variable';
-const DOT_COMMAND = String.raw`(?:^|[;&|(){\n\`'"!]|(?<![\w-])(?:then|do|else|elif|builtin|command))\s*\.(?=\s+\S)`;
-const SHELL_REBINDERS = new RegExp([WHOLE_WORD(BUILTIN_WORDS), WHOLE_WORD(CMDLET_WORDS, ''), String.raw`\[ref\]`, DOT_COMMAND].join('|'), 'i');
+
+// Commands that read and write files and never bind a shell variable. The word is judged after its quotes are removed;
+// bash matches it case-sensitively, PowerShell case-insensitively. A path-qualified or variable-named command is not here.
+const SAFE_COMMANDS = new Set(['cp', 'copy', 'copy-item', 'mv', 'move-item', 'install', 'mkdir', 'md', 'echo', 'cd', 'set-location', 'ls', 'dir', 'get-childitem', 'pwd', 'true', 'test']);
+// Text that evaluates code or assigns while it expands: command, process and arithmetic substitution, `${NAME:=x}`, an
+// array subscript (arithmetic). PowerShell: a parenthesis, brace or splat evaluates, and `variable:` is the provider
+// that writes variables.
+const BASH_EVALUATING = /\$\(|`|[<>]\(|\$\[|\$\{[^}]*=|\w\[/;
+const POWERSHELL_EVALUATING = /[({]|variable:|\s@/i;
+const POWERSHELL_PARAMETER = /^[-–—―]([a-z]+)/i;
+const POWERSHELL_VARIABLE_PARAMETERS = ['errorvariable', 'warningvariable', 'informationvariable', 'outvariable', 'pipelinevariable'];
+const POWERSHELL_VARIABLE_ALIASES = new Set(['ev', 'wv', 'iv', 'ov', 'pv']);
+const FIELD_SEPARATOR = 'IFS';
+// Variables the shell rewrites itself (`cd` moves PWD) are never resolved from an assignment.
+const SHELL_OWNED_NAMES = /^(?:pwd|oldpwd|random|srandom|seconds|lineno|bashpid|reply|optind|optarg|shlvl|_)$|^(?:epoch|bash_|comp_)/i;
 
 const isPowershell = (shell) => shell === POWERSHELL;
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -70,13 +70,34 @@ function powershellAssignments(text) {
 
 const assignmentsOf = (text, shell) => (isPowershell(shell) ? powershellAssignments(text) : bashAssignments(text));
 
-// How often the command writes to `name`: an assignment, a loop or read target, a PowerShell compound assignment.
+// A PowerShell common parameter that stores a stream in a variable: the alias, the full name or any prefix of it.
+function bindsVariable(token) {
+  const m = POWERSHELL_PARAMETER.exec(dequoted(token));
+  const name = m ? m[1].toLowerCase() : '';
+  return POWERSHELL_VARIABLE_ALIASES.has(name) || (name.length > 1 && POWERSHELL_VARIABLE_PARAMETERS.some((p) => p.startsWith(name)));
+}
+
+// True when the segment is blank, a literal assignment, or a safe command whose text evaluates nothing.
+function leavesVariablesAlone(text, shell) {
+  if (!text.trim()) return true;
+  const power = isPowershell(shell);
+  if ((power ? POWERSHELL_EVALUATING : BASH_EVALUATING).test(text)) return false;
+  const assigned = assignmentsOf(text, shell);
+  if (assigned) return !assigned.some(([name]) => name === FIELD_SEPARATOR);
+  const tokens = shellTokens(text);
+  const word = power ? tokens[0] : tokens.find((t) => !BASH_ASSIGN.test(t));
+  if (word === undefined) return false;
+  const command = dequoted(word);
+  if (!SAFE_COMMANDS.has(power ? command.toLowerCase() : command)) return false;
+  return !power || !tokens.some(bindsVariable);
+}
+
+// How often the command writes to `name`: a bash assignment or declaration, a PowerShell assignment.
 function writesTo(text, name, shell) {
   const n = escapeRegex(name);
-  const pattern = isPowershell(shell)
-    ? String.raw`\$${n}\s*[-+*/%]?=|foreach\s*\(\s*\$${n}\b`
-    : String.raw`(?<![\w$])${n}\+?=|\b(?:for|read|select|mapfile|readarray|getopts)\b[^\n;&|]*\b${n}\b|\bprintf\s+-v\s+${n}\b`;
-  return [...text.matchAll(new RegExp(pattern, isPowershell(shell) ? 'gi' : 'g'))].length;
+  const power = isPowershell(shell);
+  const pattern = power ? String.raw`\$${n}\s*[-+*/%]?=` : String.raw`(?<![\w$])${n}\+?=`;
+  return [...text.matchAll(new RegExp(pattern, power ? 'gi' : 'g'))].length;
 }
 
 /**
@@ -87,14 +108,14 @@ export function assignedValues(parts, shell) {
   const reads = new Map();
   const known = new Map();
   const whole = parts.text;
-  const rebinds = SHELL_REBINDERS.test(whole);
+  const trusted = !parts.ambiguous && parts.every((seg) => leavesVariablesAlone(seg.text, shell));
   parts.forEach((seg, i) => {
     reads.set(seg, new Map(known));
     const next = parts[i + 1];
     const visible = UNCONDITIONAL_BEFORE.has(seg.after) && next && SEQUENTIAL_AFTER.has(next.after);
-    const found = visible && !rebinds ? assignmentsOf(seg.text, shell) : null;
+    const found = visible && trusted ? assignmentsOf(seg.text, shell) : null;
     for (const [name, value] of found || []) {
-      if (IMPURE_VALUE.test(value) || writesTo(whole, name, shell) !== 1) continue;
+      if (IMPURE_VALUE.test(value) || SHELL_OWNED_NAMES.test(name) || writesTo(whole, name, shell) !== 1) continue;
       known.set(isPowershell(shell) ? name.toLowerCase() : name, value);
     }
   });
