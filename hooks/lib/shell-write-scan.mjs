@@ -8,6 +8,7 @@
 //     hit(path)     judge one operand path of a writing command or redirect
 //     codeHit(code) judge inline code, a heredoc body or a scratch script that writes files
 //     readScript(p) the text of a script the command runs ('' when unreadable)
+//     hit results of rm, del, erase, unlink and Remove-Item (every operand) carry `deletes: true`: a caller may exempt a file it owns
 //     judgeMoveSources  judge every operand of a mv (a gate that protects its files from removal)
 //     exemptByDestination  a cp/mv whose shape is proven by shell-copy-target.mjs returns its source hits tagged
 //       `outsideTo: <destination>`; the CALLER exempts exactly those when the destination lands outside every
@@ -29,6 +30,7 @@ import { blindSegments, segments } from './shell-segments.mjs';
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
 const WRITING_CMD = /^(?:rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
+const DELETE_CMD = /^(?:rm|del|erase|unlink|remove-item)$/i;
 const MOVE_CMD = /^(?:mv|move-item)$/i;
 const COPY_CMD = /^(?:cp|copy|copy-item|install|mv|move-item)$/i;
 const IN_PLACE_TOOL = /^(?:sed|perl)$/i;
@@ -100,6 +102,7 @@ function judgeCopy(tool, argText, ctx) {
 function judgeTool(tool, rest, text, ctx, argText) {
   const { hit, codeHit, readScript } = ctx;
   const operands = rest.map((r) => r.w);
+  if (DELETE_CMD.test(tool)) return operands.map(hit).filter(Boolean).map((h) => ({ ...h, deletes: true }));
   if (WRITING_CMD.test(tool)) return operands.map(hit).find(Boolean) || null;
   if (MOVE_CMD.test(tool) && ctx.judgeMoveSources) return operands.map(hit).find(Boolean) || null;
   if (COPY_CMD.test(tool)) return judgeCopy(tool, argText, ctx);
