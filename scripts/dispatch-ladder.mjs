@@ -22,7 +22,6 @@ import { kitDataText } from './kit-data.mjs';
 
 export const KIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const FRESHNESS_DAYS = 14;
-export const CONTEXT_CEILING_TOKENS = 300000;
 // Tests point the resolver at a fixture kit; production always reads the kit checkout.
 export const ladderRoot = () => process.env.CLAUDE_KIT_LADDER_ROOT || KIT_ROOT;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
