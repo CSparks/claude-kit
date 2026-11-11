@@ -87,7 +87,7 @@ function judgeTool(tool, rest, text, ctx, argText) {
   const operands = rest.map((r) => r.w);
   if (WRITING_CMD.test(tool)) return operands.map(hit).find(Boolean) || null;
   if (MOVE_CMD.test(tool) && ctx.judgeMoveSources) return operands.map(hit).find(Boolean) || null;
-  if (COPY_CMD.test(tool)) return copyDestinations(shellArgs(withoutRedirects(argText))).map(hit).find(Boolean) || null;
+  if (COPY_CMD.test(tool)) return judgeCopy(tool, argText, hit);
   if (IN_PLACE_TOOL.test(tool)) return operands.some((a) => IN_PLACE_FLAG.test(a)) ? operands.map(hit).find(Boolean) || null : null;
   if (!INTERPRETER.test(tool)) return null;
   const isNode = /^node$/i.test(tool);
