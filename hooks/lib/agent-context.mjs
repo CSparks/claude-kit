@@ -1,34 +1,39 @@
-// agent-context.mjs — the warm-reuse context ceiling and the handoff that retires an agent (KIT-D116).
-// Every tool call re-sends the whole context, so an agent past `dispatch.context_ceiling_tokens` is
-// retired after a written handoff, never resumed.
+// agent-context.mjs — the waste measure of an agent's context and the handoff that retires a wasteful agent (KIT-D149, KIT-D158).
+// An agent is never retired, blocked or replaced for the SIZE of its context: real work is fine at any size. The only limit is
+// waste, the avoidable share of context (bulk tool output, repeated lines, polled waits; context-breakdown.mjs) that the
+// session coordinator tracks and acts on.
 //
-//   contextCeiling()                 -> the ceiling in tokens (kit config)
-//   contextTokens(row)               -> an agent's context size: its row's `tokens`, else (in-flight) its live transcript tail
-//   overCeiling(rows)                -> [{ row, tokens }] for the rows past the ceiling
-//   ceilingFlag(row)                 -> '' under the ceiling, else the one-line flag orient and the guards print, ending with what the
-//                                       context is made of (context-breakdown.mjs) when the row names its transcript (`transcript` or `outputFile`)
-//   handoffRequest(row)              -> the SendMessage text that asks a past-ceiling agent for its handoff
+//   WASTE_RETIRE_SHARE               -> the avoidable share above which an agent is flagged
+//   WASTE_MIN_TOKENS                 -> the avoidable tokens below which no share flags an agent
+//   wasteReport(row)                 -> the waste measurement of the row's transcript (`transcript` or `outputFile`), or null
+//   overWaste(rows)                  -> [{ row, waste }] for the rows whose waste share is flagged
+//   wasteFlag(row)                   -> '' for an agent with no flagged waste, else the one-line flag orient and the guards print:
+//                                       the share, the avoidable lines by name, the fix, the handoff request, the composition
+//   handoffRequest(row)              -> the SendMessage text that asks a retiring agent for its handoff
 //   handoffCount(notes, agentId)     -> how many Handoff headings the Notes carry for the agent, complete or not
 //   hasHandoff(notes, agentId)       -> does a ticket's Notes carry a `Handoff` block with Jobs:, State:, Next:, Files: whose heading
 //                                       names the agent or names no agent id
-//   missingHandoffs(root, rows, tickets) -> past-ceiling WRITER rows owning a todo or doing one of `tickets` (ticket-store.mjs) whose
+//   missingHandoffs(root, rows, tickets) -> flagged WRITER rows owning a todo or doing one of `tickets` (ticket-store.mjs) whose
 //                                           handoff is not in the ticket Notes yet; read-only agents own no work and never appear
 //   WRITE_HANDOFF                    -> the token that marks a resume message as the handoff request
 
-import { readLadder } from '../../scripts/dispatch-ladder.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
 import { lastContextTokens } from '../agent-outcome.mjs';
-import { breakdownLine } from './context-breakdown.mjs';
+import { breakdownLine, wasteOf } from './context-breakdown.mjs';
 import { readOnlyRow } from '../dispatch-readonly.mjs';
 import { ownedTickets, ticketMeta, ticketStore } from './ticket-store.mjs';
 import { TOKENS } from './gate-tokens.mjs';
 
 export const WRITE_HANDOFF = TOKENS.writeHandoff.pattern;
+export const WASTE_RETIRE_SHARE = 0.5;
+export const WASTE_MIN_TOKENS = 5000;
 const HANDOFF_LABELS = ['Jobs', 'State', 'Next', 'Files'];
 const ID_PREFIX_CHARS = 8;
+const PERCENT = 100;
 const TOKENS_PER_K = 1000;
+const NAMED_LINES = 3;
 
-export const contextCeiling = () => readLadder().contextCeilingTokens;
+const transcriptOf = (row) => row?.transcript || row?.outputFile;
 
 export function contextTokens(row) {
   if (Number.isFinite(row?.tokens)) return row.tokens;
@@ -36,21 +41,26 @@ export function contextTokens(row) {
   return undefined;
 }
 
-export function overCeiling(rows, ceiling = contextCeiling()) {
-  return rows.map((row) => ({ row, tokens: contextTokens(row) })).filter((r) => r.tokens > ceiling);
+export const wasteReport = (row) => wasteOf(transcriptOf(row));
+
+const flagged = (waste) => Boolean(waste) && waste.garbage > WASTE_RETIRE_SHARE && waste.avoidableTokens >= WASTE_MIN_TOKENS;
+
+export function overWaste(rows) {
+  return rows.map((row) => ({ row, waste: wasteReport(row) })).filter((r) => flagged(r.waste));
 }
 
 export function handoffRequest(row) {
   return `[write-handoff] Write a "Handoff ${row.id}" block in the Notes of ${(row.tickets || ['your ticket']).join(', ')} with the labelled lines Jobs:, State:, Next:, Files: (job ids, state, next steps, file pointers), then stop.`;
 }
 
-export function ceilingFlag(row) {
-  const tokens = contextTokens(row);
-  const ceiling = contextCeiling();
-  if (!(tokens > ceiling)) return '';
-  const k = (n) => `${Math.round(n / TOKENS_PER_K)}k`;
-  const made = breakdownLine(row.transcript || row.outputFile, tokens, row.id);
-  return ` !! CONTEXT ${k(tokens)} > ${k(ceiling)} ceiling (KIT-D116): retire, do not resume. Request the handoff first: SendMessage ${row.id} "${handoffRequest(row)}"${made ? ` Composition: ${made}` : ''}`;
+const k = (n) => `${Math.round(n / TOKENS_PER_K)}k`;
+
+export function wasteFlag(row) {
+  const waste = wasteReport(row);
+  if (!flagged(waste)) return '';
+  const named = waste.avoidable.slice(0, NAMED_LINES).map((r) => `${r.label} ${k(r.tokens)}`).join('; ');
+  const made = breakdownLine(transcriptOf(row), contextTokens(row), row.id);
+  return ` !! WASTE ${Math.round(waste.garbage * PERCENT)}% of context (${k(waste.avoidableTokens)}) is avoidable (KIT-D149): the session coordinator retires or redirects this agent. Avoidable: ${named}. Fix: ${waste.hints.join('; ')}. Request the handoff first: SendMessage ${row.id} "${handoffRequest(row)}"${made ? ` Composition: ${made}` : ''}`;
 }
 
 const HANDOFF_HEAD = /^[ \t]*(?:#{1,6}[ \t]*|\*\*)?Handoff\b[^\n]*/gim;
@@ -75,7 +85,7 @@ const stillOpen = (root, ticket, table) => OPEN_STATUSES.has(ticketMeta(root, ti
 
 // Only a ticket still todo or doing needs the handoff; one the agent finished leaves nothing to carry over.
 export function missingHandoffs(root, rows, tickets, table) {
-  return overCeiling(rows).map((r) => r.row).filter((row) => {
+  return overWaste(rows).map((r) => r.row).filter((row) => {
     if (readOnlyRow(root, row)) return false;
     const owned = ownedTickets(root, row, tickets, table).filter((t) => stillOpen(root, t, table));
     return owned.length > 0 && !owned.some((t) => hasHandoff(ticketNotes(ticketStore(root, t, table), t), row.id));

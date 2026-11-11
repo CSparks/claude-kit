@@ -1,13 +1,19 @@
-// context-breakdown.mjs — what an agent's context is made of (KIT-D116). When an agent nears the ceiling the orchestrator
-// gets one line it can relay: shares by source, the five biggest single tool results, and a verdict "mostly garbage
-// input" when bulk tool output (build/test logs, broker output, bash dumps, re-reads of a file) is the majority.
+// context-breakdown.mjs — what an agent's context is made of, and how much of it is waste (KIT-D149, KIT-D158). Shares by
+// source, the five biggest single tool results, and the AVOIDABLE share: bulk tool output (build/test logs, broker output,
+// bash dumps, re-reads of a file) and repeated lines (progress ticks, polled waits) that changed nothing the agent did.
 //
-//   contextBreakdown(path)            -> { total, shares: { source: tokens }, top: [{ label, tokens }], garbage, hints } from a transcript JSONL, or null
-//   breakdownLine(path, tokens, id)   -> the one-line report for the orchestrator, or '' when the transcript is unreadable
+//   contextBreakdown(path)            -> { total, shares, top, garbage, avoidable, avoidableTokens, hints } from a transcript JSONL, or null
+//     garbage: the avoidable share of the transcript's estimated tokens; avoidable: the avoidable tool results, largest first,
+//     each { label, tokens, source }; hints: the fix for each source of waste
+//   wasteOf(path)                     -> the same, cached by the transcript's path, size and mtime, or null
+//   breakdownLine(path, contextTokens, id) -> the one-line composition report, or '' when the transcript is unreadable
 //
 // Sizes are estimates (CHARS_PER_TOKEN); shares are relative to the transcript's own estimated total.
 
-import { readFileSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { collapseRepeats } from '../../scripts/broker/collapse-repeats.mjs';
 
 const MAX_TRANSCRIPT_BYTES = 64 * 1024 * 1024;
@@ -69,6 +75,13 @@ function parse(path) {
   return readFileSync(path, 'utf8').split('\n').flatMap((line) => { try { return line.trim() ? [JSON.parse(line)] : []; } catch { return []; } });
 }
 
+// Bulk output, and the repeated lines inside any result, are the avoidable tokens; each is named by the call that produced it.
+function avoidableOf(results) {
+  const bulk = results.filter((r) => GARBAGE.has(r.source) && r.tokens - r.repeated >= BULK_MIN_TOKENS).map((r) => ({ label: r.label, tokens: r.tokens - r.repeated, source: r.source }));
+  const repeats = results.filter((r) => r.repeated > 0).map((r) => ({ label: `repeated lines of ${r.label}`, tokens: r.repeated, source: SOURCE.REPEAT }));
+  return [...bulk, ...repeats].sort((a, b) => b.tokens - a.tokens);
+}
+
 export function contextBreakdown(path) {
   try {
     const shares = {};
@@ -95,23 +108,44 @@ export function contextBreakdown(path) {
     }
     const total = Object.values(shares).reduce((n, t) => n + t, 0);
     if (!total) return null;
-    const bulk = results.filter((r) => GARBAGE.has(r.source) && r.tokens - r.repeated >= BULK_MIN_TOKENS);
-    const garbage = (bulk.reduce((n, r) => n + r.tokens - r.repeated, 0) + (shares[SOURCE.REPEAT] || 0)) / total;
-    const hints = [...new Set([...(shares[SOURCE.REPEAT] ? [SOURCE.REPEAT] : []), ...bulk.sort((a, b) => b.tokens - a.tokens).map((r) => r.source)].map((s) => FIX[s]))];
-    return { total, shares, top: results.sort((a, b) => b.tokens - a.tokens).slice(0, TOP_RESULTS), garbage, hints };
+    const avoidable = avoidableOf(results);
+    const avoidableTokens = avoidable.reduce((n, r) => n + r.tokens, 0);
+    const hints = [...new Set(avoidable.map((r) => r.source).map((s) => FIX[s]))];
+    return { total, shares, top: [...results].sort((a, b) => b.tokens - a.tokens).slice(0, TOP_RESULTS), garbage: avoidableTokens / total, avoidable: avoidable.slice(0, TOP_RESULTS), avoidableTokens, hints };
   } catch {
     return null;
   }
+}
+
+const cacheDir = () => join(process.env.CLAUDE_KIT_TURN_STATE || tmpdir(), 'claude-kit-waste');
+
+/** contextBreakdown cached on disk by the transcript's path, size and mtime; a transcript only grows, so an unchanged one is read once. */
+export function wasteOf(path) {
+  if (!path) return null;
+  let file = '';
+  let key = '';
+  try {
+    const s = statSync(path);
+    key = `${s.size}:${s.mtimeMs}`;
+    file = join(cacheDir(), `${createHash('sha1').update(String(path)).digest('hex')}.json`);
+    const cached = JSON.parse(readFileSync(file, 'utf8'));
+    if (cached.key === key) return cached.result;
+  } catch { /* no usable cache entry */ }
+  const result = contextBreakdown(path);
+  try {
+    if (file) { mkdirSync(cacheDir(), { recursive: true }); writeFileSync(file, JSON.stringify({ key, result })); }
+  } catch { /* the cache is best effort */ }
+  return result;
 }
 
 const k = (n) => `${Math.round(n / TOKENS_PER_K)}k`;
 const pct = (part, whole) => `${Math.round((part / whole) * PERCENT)}%`;
 
 export function breakdownLine(path, contextTokens, id) {
-  const b = path ? contextBreakdown(path) : null;
+  const b = path ? wasteOf(path) : null;
   if (!b) return '';
   const sources = Object.entries(b.shares).sort((a, c) => c[1] - a[1]).slice(0, SHOWN_SOURCES).map(([name, t]) => `${pct(t, b.total)} ${name}`).join(', ');
   const top = b.top.map((r) => `${r.label} ${k(r.tokens)}`).join('; ');
   const verdict = b.garbage > GARBAGE_MAJORITY ? ` MOSTLY GARBAGE INPUT (${pct(b.garbage, 1)} bulk tool output); fix: ${b.hints.join('; ')}` : b.hints.length ? ` avoidable: ${b.hints[0]}` : '';
-  return `agent ${id} at ${k(contextTokens)}: ${sources}; top: ${top}.${verdict}`;
+  return `agent ${id} at ${k(contextTokens ?? b.total)}: ${sources}; top: ${top}.${verdict}`;
 }
