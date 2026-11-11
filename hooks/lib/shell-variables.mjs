@@ -23,14 +23,21 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_]*/;
 const UNCONDITIONAL_BEFORE = new Set(['start', ';']);
 const SEQUENTIAL_AFTER = new Set([';', '&&']);
 // A rebinder is a whole word: never a piece of a path or filename (`hooks/source-x.mjs`, `eval-utils.cpp`).
-// A backslash before the word joins a path only after a path character; at a command boundary it is the escape that
-// still runs the builtin. A `$` after the word is an expansion that splits into the command, never a filename.
+// A backslash before a bash builtin joins a path only after a path character; at a command boundary it is the escape
+// that still runs the builtin, and after an unquoted `$NAME` expansion (`$IFS\source`) the name ends at the backslash.
+// A `$` after the word is an expansion that splits into the command, never a filename.
+// A PowerShell cmdlet is also a command word after a module qualifier (`Microsoft.PowerShell.Utility\Set-Variable`), so
+// only a path character other than the backslash holds it inside a word: an extensionless path ending in a cmdlet
+// name stays fail-closed, `src\Set-Variable.cpp` is a file.
 const PATH_BEFORE = String.raw`[\w./~$-]`;
 const PATH_AFTER = String.raw`[\w./\\~-]`;
-const WHOLE_WORD = (word) => String.raw`(?<!${PATH_BEFORE})(?<!${PATH_BEFORE}\\)(?<!:\\)(?:${word})(?!${PATH_AFTER})`;
-const REBINDING_WORDS = 'eval|source|set-variable|new-variable|clear-variable|remove-variable|unset|-(?:out)?variable';
+const EXPANSION_BEFORE = String.raw`(?<!\$\w*)`;
+const JOINED_BY_BACKSLASH = String.raw`(?<!${EXPANSION_BEFORE}${PATH_BEFORE}\\)(?<!:\\)`;
+const WHOLE_WORD = (word, joined = JOINED_BY_BACKSLASH) => String.raw`(?<!${PATH_BEFORE})${joined}(?:${word})(?!${PATH_AFTER})`;
+const BUILTIN_WORDS = 'eval|source|unset|-(?:out)?variable';
+const CMDLET_WORDS = 'set-variable|new-variable|clear-variable|remove-variable';
 const DOT_COMMAND = String.raw`(?:^|[;&|(){\n\`'"!]|(?<![\w-])(?:then|do|else|elif|builtin|command))\s*\.(?=\s+\S)`;
-const SHELL_REBINDERS = new RegExp(`${WHOLE_WORD(REBINDING_WORDS)}|\\[ref\\]|${DOT_COMMAND}`, 'i');
+const SHELL_REBINDERS = new RegExp([WHOLE_WORD(BUILTIN_WORDS), WHOLE_WORD(CMDLET_WORDS, ''), String.raw`\[ref\]`, DOT_COMMAND].join('|'), 'i');
 
 const isPowershell = (shell) => shell === POWERSHELL;
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
