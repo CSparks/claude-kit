@@ -61,6 +61,23 @@ const LANDS_ON_SOURCE = [
   ['a copy onto a source file with stderr to a file', `cp ${temp}/x.cpp src/a.cpp 2> err.txt`],
   ['a copy onto a source file with a quoted redirect target', `cp ${temp}/x.cpp src/a.cpp >> "my log.txt"`],
   ['a copy onto a source file with stderr merged', `cp ${temp}/x.cpp src/a.cpp 2>&1`],
+  ['a quoted > that is no redirect, then a source destination', `cp "${temp}/x>" ${temp}/a.cpp "src/"`],
+  ['a quoted > in the first operand with a source last', `cp "${temp}/x>" src/a.cpp`],
+  ['a joined -tDIR into the repo', `cp -tsrc/ ${temp}/x.cpp`],
+  ['a clustered -rt DIR into the repo', `cp -rt src/ ${temp}/x.cpp`],
+  ['an abbreviated --target= into the repo', `cp --target=src/ ${temp}/x.cpp`],
+  ['--target-directory with a separate value into the repo', `cp --target-directory src/ ${temp}/x.cpp`],
+  ['a -t with no value (destination unknown)', 'cp src/a.cpp src/b.cpp -t'],
+  ['an option that may take a value after the operands (destination unknown)', `cp ${temp}/x.cpp src/a.cpp --sparse always`],
+  ['an unknown short option (destination unknown)', `cp -Q ${temp}/x.cpp src/a.cpp`],
+  ['Copy-Item with an upper-case -DESTINATION', `Copy-Item ${temp}/x.cpp -DESTINATION src/a.cpp`],
+  ['Copy-Item with an unambiguous prefix -Dest', `Copy-Item ${temp}/x.cpp -Dest src/a.cpp`],
+  ['Copy-Item with -Destination:value', `Copy-Item ${temp}/x.cpp -Destination:src/a.cpp`],
+  ['Copy-Item with an ambiguous -De (destination unknown)', `Copy-Item ${temp}/x.cpp -De src/a.cpp`],
+  ['Copy-Item with an extra parameter holding a value (destination unknown)', `Copy-Item ${temp}/x.cpp src/a.cpp -Filter *.cpp`],
+  ['Copy-Item with a quoted destination in the repo', `Copy-Item ${temp}/x.cpp "my dir/a.cpp"`],
+  ['a move onto a source file inside the repo', 'mv src/a.cpp src/a.cpp.bak'],
+  ['a move whose destination is unresolved', 'mv src/a.cpp "$DEST/a.cpp.bak"'],
 ];
 for (const [name, command] of LANDS_ON_SOURCE) blocks(name, command);
 blocks('rm of a source file', 'rm src/a.cpp');
