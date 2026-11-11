@@ -1,7 +1,10 @@
 // suite.mjs — the full-suite schedule (KIT-T472, KIT-D110). With `land_gate: affected` landings skip the
-// full suite; the daemon runs `suite` (default verify_default), then the `nightly:` tiers, on the committed HEAD when the
-// queue is idle: once a day after `nightly_at` (default), or, with `suite_every` set, once that many landings accumulated. A queued job in any lane
-// cancels the run within one poll (it re-runs later), so a suite never delays a landing and never runs
+// full suite. The daemon never starts it by itself (KIT-D160, KIT-D161): once it is due (a day after `nightly_at`, or
+// `suite_every` landings accumulated) it is recorded as awaiting approval, one line naming the suite and the command
+// that approves it, and `suiteLine` keeps showing it. `approveSuite` (`broker.mjs approve-suite`) approves ONE run: the
+// daemon then runs `suite` (default verify_default), then the `nightly:` tiers, on the committed HEAD when the
+// queue is idle. A queued job in any lane
+// cancels the run within one poll (it re-runs later, still approved), so a suite never delays a landing and never runs
 // ahead of a job (KIT-T504). A suite put off `suite_max_landings` landings or `suite_max_hours` is
 // reported OVERDUE by `suiteLine` and still waits for an empty queue.
 // Commands that finished before a cancel are kept per sha (`state.partial`) and not re-run while
@@ -16,8 +19,11 @@
 // of failing tests, naming the range since the last green run, the failing tests, and the
 // landings whose paths map to the failing targets (suite-blame.mjs) as the inferred causing_commit.
 //
-// `runSuite(cfg, { fileBug, pollMs })` → null (not due) | { sha, status, cancelled?, starved?, filed? }.
-// `suiteState(cfg)` → { lastRun, lastGreen, filed }.
+// `runSuite(cfg, { fileBug, pollMs })` → null (not due, or already announced as awaiting approval)
+//   | { sha, status: 'deferred', deferred: true, line } the first time a due suite is not approved
+//   | { sha, status, cancelled?, starved?, filed? } an approved run.
+// `approveSuite(cfg, { by?, now? })` → true when this lane has a suite to approve; the approval is consumed by the run.
+// `suiteState(cfg)` → { lastRun, lastGreen, filed, approved?, awaiting? }.
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -101,6 +107,23 @@ function suiteScope(cfg) {
   return own && own.suite.length ? { cwd: join(cfg.root, own.path), suite: own.suite, parts: 1 } : null;
 }
 
+const approveCommand = (cfg) => `node broker.mjs approve-suite --root ${cfg.root}`;
+
+export function approveSuite(cfg, { by = 'maintainer', now = Date.now() } = {}) {
+  if (!suiteScope(cfg)) return false;
+  save(cfg, { ...suiteState(cfg), approved: { by, at: new Date(now).toISOString() } });
+  return true;
+}
+
+// A due suite the maintainer has not approved is recorded once per HEAD and never started (KIT-D160).
+function deferSuite(cfg, state, head, now) {
+  const first = !state.awaiting;
+  if (state.awaiting?.sha !== head) save(cfg, { ...state, awaiting: { sha: head, at: state.awaiting?.at || new Date(now).toISOString() } });
+  if (!first) return null;
+  const lane = cfg.lane ? ` (lane ${cfg.lane})` : '';
+  return { sha: head, status: 'deferred', deferred: true, line: `full suite ${short(head)}${lane} is due and deferred: it runs only when approved (${approveCommand(cfg)})` };
+}
+
 export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now() } = {}) {
   const scope = suiteScope(cfg);
   if (!scope || stopRequested(cfg)) return null;
@@ -112,6 +135,7 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
     if (cfg.suiteSchedule === 'nightly') state.sinceAt = new Date(now).toISOString();
   }
   if (!due(cfg, cwd, state, head, now)) return null;
+  if (!state.approved) return deferSuite(cfg, state, head, now);
   if (listQueue(cfg).length > 0) { notePutOff(cfg, state, head, now); return null; }
   const untrackedBlocks = (cfg.untrackedDerived && derivedUntrackedBlocks(cwd)) || cfg.untrackedBlocks;
   if (!checkoutState(cwd, { untrackedBlocks, dirtyBlocks: dirtyBlocksOf(cfg, cwd) }).clean) return null;
@@ -158,6 +182,8 @@ export function runSuite(cfg, { fileBug = fileBugViaCap, pollMs, now = Date.now(
   state.lastRunAt = new Date(now).toISOString();
   delete state.partial;
   delete state.putOff;
+  delete state.approved;
+  delete state.awaiting;
   state.shard = nextShard(k, parts);
   mkdirSync(dir(cfg), { recursive: true });
   writeFileSync(join(dir(cfg), `${head}${tag}.json`), JSON.stringify(out, null, 2));
@@ -171,6 +197,7 @@ export function suiteLine(cfg, now = Date.now()) {
   if (!scope) return null;
   const s = suiteState(cfg);
   const red = Object.keys(s.filed || {}).length;
-  const late = overdue(cfg, scope.cwd, s, revParse(scope.cwd, 'HEAD'), now) ? `, OVERDUE (put off since ${s.putOff.at.slice(0, 16)}Z; runs when the queue is empty)` : '';
+  const waiting = s.awaiting && !s.approved ? `, AWAITING APPROVAL for ${short(s.awaiting.sha)} since ${s.awaiting.at.slice(0, 16)}Z: ${approveCommand(cfg)}` : '';
+  const late = waiting || (overdue(cfg, scope.cwd, s, revParse(scope.cwd, 'HEAD'), now) ? `, OVERDUE (put off since ${s.putOff.at.slice(0, 16)}Z; runs when the queue is empty)` : '');
   return `suite: last run ${short(s.lastRun)}, last green ${short(s.lastGreen)}${red ? `, RED (${red} regression filed)` : ''}${late}; ${cfg.suiteSchedule === 'nightly' ? `nightly after ${cfg.nightlyAt.text}${cfg.lane ? '' : ` (${cfg.nightly.length} extra tier command(s))`}` : `every ${cfg.suiteEvery} landing(s)`}${scope.parts > 1 ? `, partition ${s.shard || 1}/${scope.parts} next` : ''}`;
 }

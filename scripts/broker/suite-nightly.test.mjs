@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { normalizeBroker } from './config.mjs';
-import { nightlySlot, runSuite, suiteState } from './suite.mjs';
+import { approveSuite, nightlySlot, runSuite, suiteState } from './suite.mjs';
 import { commitOnMain, fixture } from './patchkit.mjs';
 import { cleanup, tempDir } from './testkit.mjs';
 
@@ -21,7 +21,7 @@ function setup(extra = {}) {
   s.cfg = normalizeBroker(s.root, { repos: [{ name: 'app', path: '.', main: 'main', remote: 'origin' }], land_gate: 'affected', suite: [rec('SUITE')], nightly: [rec('GPU'), rec('PERF')], ...extra });
   s.cfg.suiteSchedule = 'nightly';
   const land = (n) => commitOnMain(s.root, `n${n}.txt`, `${n}\n`, `landing ${n}`);
-  return { s, log, land, run: (now) => runSuite(s.cfg, { fileBug: () => assert.fail('green expected'), now }), done: () => { cleanup(dir); s.done(); } };
+  return { s, log, land, run: (now) => { approveSuite(s.cfg, { now }); return runSuite(s.cfg, { fileBug: () => assert.fail('green expected'), now }); }, done: () => { cleanup(dir); s.done(); } };
 }
 
 test('the slot is the latest nightly_at not in the future', () => {

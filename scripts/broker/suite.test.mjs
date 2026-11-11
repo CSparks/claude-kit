@@ -11,7 +11,7 @@ import { processOnce } from './queue.mjs';
 import { readResult, writeJob } from './result.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
 import { failingTargets } from './suite-blame.mjs';
-import { runSuite, suiteState } from './suite.mjs';
+import { approveSuite, runSuite, suiteState } from './suite.mjs';
 import { fixture, g } from './patchkit.mjs';
 
 const OK = 'node -e "0" --';
@@ -35,6 +35,7 @@ const setup = (extra = {}) => {
   const land = (title, envelope) => {
     const { job } = buildPatchJob(s.cfg, { ticket: 'T-1', title, land: true }, envelope);
     writeJob(s.cfg, { ...job, commands: [SUITE] });
+    approveSuite(s.cfg);
     const summary = processOnce(s.cfg, { fileBug });
     return { result: readResult(s.cfg, job.id), summary };
   };
@@ -51,6 +52,7 @@ test('failingTargets maps a failed test to the target cargo was running', () => 
 test('a red suite after two landings files one regression naming the camera landing as the likely cause', () => {
   const t = setup();
   try {
+    approveSuite(t.s.cfg);
     const first = processOnce(t.s.cfg, { fileBug: t.fileBug });
     assert.equal(first.suite.status, 'passed', 'the first idle tick runs the suite on HEAD');
     const green = suiteState(t.s.cfg).lastGreen;
@@ -73,6 +75,7 @@ test('a red suite after two landings files one regression naming the camera land
 test('negative: no second filing for the same failures, no run while a job is queued or a build path is hand-edited, none with land_gate full', () => {
   const t = setup({ suite_every: 1 });
   try {
+    approveSuite(t.s.cfg);
     processOnce(t.s.cfg, { fileBug: t.fileBug });
     t.land('camera', CAMERA);
     assert.equal(t.bugs.length, 1);
@@ -81,12 +84,14 @@ test('negative: no second filing for the same failures, no run while a job is qu
     assert.equal(t.bugs.length, 1, 'the same failing set is filed once');
 
     g(['commit', '--allow-empty', '-m', 'hand commit'], t.s.root);
+    approveSuite(t.s.cfg);
     const { job } = buildPatchJob(t.s.cfg, { ticket: 'T-2' }, '*** write other.md\nx\n');
     writeJob(t.s.cfg, { ...job, commands: [OK] });
     assert.equal(runSuite(t.s.cfg, { fileBug: t.fileBug }), null, 'a queued job comes first');
     processOnce(t.s.cfg, { fileBug: t.fileBug });
     writeFileSync(join(t.s.root, 'crates/app/src/camera.rs'), 'hand edit\n');
     g(['commit', '--allow-empty', '-m', 'another'], t.s.root);
+    approveSuite(t.s.cfg);
     assert.equal(runSuite(t.s.cfg, { fileBug: t.fileBug }), null, 'a hand-edited build path skips the run');
     assert.equal(runSuite({ ...t.s.cfg, landGate: 'full' }), null);
   } finally { t.s.done(); }

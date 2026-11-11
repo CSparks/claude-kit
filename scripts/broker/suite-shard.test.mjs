@@ -7,7 +7,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { normalizeBroker } from './config.mjs';
 import { ensureDirs } from './result.mjs';
-import { runSuite, suiteLine, suiteState } from './suite.mjs';
+import { approveSuite, runSuite, suiteLine, suiteState } from './suite.mjs';
 import { shardCommands } from './suite-shard.mjs';
 import { fixture, g } from './patchkit.mjs';
 import { cleanup, tempDir } from './testkit.mjs';
@@ -39,6 +39,7 @@ function runs(partitions, count) {
     ensureDirs(s.cfg);
     for (let i = 0; i < count; i++) {
       g(['commit', '--allow-empty', '-qm', `landing ${i}`], s.root);
+      approveSuite(s.cfg);
       const r = runSuite(s.cfg, { fileBug: () => assert.fail('no bug expected') });
       assert.equal(r.status, 'passed');
     }

@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gateChecks } from './gate-check.mjs';
 import { normalizeBroker } from './config.mjs';
-import { runSuite } from './suite.mjs';
+import { approveSuite, runSuite } from './suite.mjs';
 import { fixture } from './patchkit.mjs';
 import { cleanup, tempDir } from './testkit.mjs';
 
@@ -64,6 +64,7 @@ test('the suite run carries the moved check after the suite commands, and a lane
     s.cfg = normalizeBroker(s.root, { repos: [{ name: 'app', path: '.', main: 'main', remote: 'origin' }], land_gate: 'affected', suite: [rec('SUITE')], suite_every: 1 });
     s.cfg.scheduledChecks = [rec('CHECK')];
     const ran = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean) : []);
+    approveSuite(s.cfg);
     runSuite(s.cfg, { fileBug: () => assert.fail('green expected'), now: Date.now() });
     assert.deepEqual(ran(), ['SUITE', 'CHECK']);
     const lane = { ...s.cfg, lane: 'rapid-game' };

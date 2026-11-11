@@ -112,9 +112,15 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
   as `cd <workspace dir> && affected.test -p <crate> …`. `affected.match: module` ties a src module
   to the tests that reach it by path (`parent::mod`, `parent::{…, mod}`, `mod::`) instead of any test
   naming the word (`affected-match.mjs`; dirt-empire HUD patch: 53 specs → 26).
-- **Suite cadence** (`suite.mjs`): while the queue is idle and `suite_every` landings have
-  accumulated, the daemon runs `suite` (default `verify_default`) on the committed HEAD; a
-  queued job cancels it (it re-runs later), a hand-edited build path skips it. The tree is never
+- **Suite cadence, on approval** (`suite.mjs`, KIT-D160, KIT-D161, KIT-T1057): the daemon never starts the full
+  suite by itself. Once it is due (`suite_every` landings accumulated, or the first idle moment after `nightly_at`)
+  it records `awaiting` in the suite state and prints ONE line (`full suite <sha> is due and deferred: it runs only
+  when approved (node broker.mjs approve-suite --root <checkout>)`); `broker status` keeps showing `AWAITING
+  APPROVAL`. `broker.mjs approve-suite [--lane <name>]` approves ONE run: while the queue is idle the daemon
+  then runs `suite` (default `verify_default`) on the committed HEAD and the approval is consumed. A
+  queued job cancels it (it re-runs later, still approved), a hand-edited build path skips it. Dirt Empire 2026-11-11:
+  `nightly_at: "02:00"` means the first idle moment after 02:00, so a queue busy all night started the suite at 09:50
+  local, held 14 cores for 20+ minutes and starved every other checkout (KIT-T1056). The tree is never
   checked out or rewritten. A red run writes `suite/<sha>.json` and files one `cap regression`
   per failing set: the range since the last green run, the failing tests with their targets,
   and the landings whose paths map to those targets as the inferred causing_commit

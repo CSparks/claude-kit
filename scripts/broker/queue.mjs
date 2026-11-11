@@ -134,7 +134,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
     deferred = measured.cancelled ? { dropped: [], filed: [], kept: [], cancelled: true } : recheckDeferred(cfg, fileBug ? { fileBug } : {});
     suite = deferred.cancelled ? null : runSuite(cfg, fileBug ? { fileBug } : {});
   } finally { idle.release(); }
-  if (suite && !suite.cancelled && suite.status !== 'partial') suite.pruned = pruneAfterSuite(cfg);
+  if (suite && !suite.cancelled && !suite.deferred && suite.status !== 'partial') suite.pruned = pruneAfterSuite(cfg);
   // Another lane's queued job also cancels idle work, but only this lane's own queue can be drained here.
   if ((deferred.cancelled || (suite && suite.cancelled)) && listQueue(cfg).length) {
     const next = processOnce(cfg, { onResult, fileBug, coalesceMs, batchWindowMs });

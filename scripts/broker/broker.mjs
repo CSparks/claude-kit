@@ -15,6 +15,7 @@
 //   node broker.mjs cancel <job-id> --root <checkout>  # withdraw a QUEUED job
 //   node broker.mjs cancel <job-id> --running          # kill the running job's command tree; the job ends cancelled (not while it lands)
 //   node broker.mjs status --root <checkout>           # queue, pause, deferred foreign failures
+//   node broker.mjs approve-suite --root <checkout> [--lane <name>]   # approve ONE full suite run; the daemon never starts one itself (KIT-D160)
 //   node broker.mjs clean <path...> | --pycache --root <checkout>   # remove untracked leftovers (never tracked files)
 //   node broker.mjs restore <path...> | --debris --root <checkout> # put Cargo.lock debris and broker-written files back from HEAD
 // Start it with background Bash; a second start while one is live exits 1 (restart is idempotent).
@@ -30,7 +31,7 @@ import { recoverUnderLock } from './recover.mjs';
 import { processOnce } from './queue.mjs';
 import { idleExpired, workPending } from './idle-clock.mjs';
 import { STATUS, ensureDirs } from './result.mjs';
-import { suiteLine } from './suite.mjs';
+import { approveSuite, suiteLine } from './suite.mjs';
 import { pinRuntime, runtimeTag } from '../runtime-pin.mjs';
 import { publishedSwap } from './runtime-swap.mjs';
 import { setPulse } from './stall.mjs';
@@ -124,6 +125,13 @@ if (command === 'restore') {
   for (const x of r.refused) console.error(`broker: refused ${x.path}: ${x.reason}`);
   if (flags.debris && !swept.length) console.error('broker: no Cargo.lock debris to restore');
   process.exit(r.refused.length ? 1 : 0);
+}
+
+if (command === 'approve-suite') {
+  const approved = laneConfigs(rootCfg).filter((lane) => (flags.lane ? lane.lane === flags.lane : true) && approveSuite(lane));
+  for (const lane of approved) console.error(`broker: full suite approved${lane.lane ? ` (lane ${lane.lane})` : ''}; the daemon runs it once when the queue is idle (${suiteLine(lane)})`);
+  if (!approved.length) console.error('broker: no suite to approve here (land_gate is not affected, or no lane has a suite)');
+  process.exit(approved.length ? 0 : 1);
 }
 
 if (command === 'stop') {
@@ -227,7 +235,8 @@ const drain = () => {
   else if (summary.holding) note(`broker: ${summary.holding} (up to ${Math.ceil(summary.coalescing / 1000)} s more)`);
   else if (summary.waiting && summary.waiting.length) note(`broker: waiting — ${summary.waiting.join('; ')}`);
   else lastNote = '';
-  if (summary.suite) console.error(`  suite ${summary.suite.sha.slice(0, 7)} → ${summary.suite.status}${summary.suite.filed ? ' (regression filed)' : ''}${summary.suite.pruned ? `; ${summary.suite.pruned}` : ''}`);
+  if (summary.suite?.deferred) console.error(`  ${summary.suite.line}`);
+  else if (summary.suite) console.error(`  suite ${summary.suite.sha.slice(0, 7)} → ${summary.suite.status}${summary.suite.filed ? ' (regression filed)' : ''}${summary.suite.pruned ? `; ${summary.suite.pruned}` : ''}`);
   return summary;
 };
 

@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { normalizeBroker } from './config.mjs';
 import { pruneIncremental } from './incremental.mjs';
 import { processOnce } from './queue.mjs';
+import { approveSuite } from './suite.mjs';
 import { fixture } from './patchkit.mjs';
 import { cleanup, tempDir } from './testkit.mjs';
 
@@ -82,6 +83,7 @@ test('the daemon prunes after a suite run; incremental_keep_hours: off leaves th
       s.cfg = normalizeBroker(s.root, { repos: [{ name: 'app', path: '.', main: 'main', remote: 'origin' }], land_gate: 'affected', suite: ['node -e 0'], incremental_keep_hours: keep });
       const stale = unit(s.cfg.targetDir, 'game-aaaa', 1, { now: Date.now() });
       unit(s.cfg.targetDir, 'game-bbbb', 0, { now: Date.now() });
+      approveSuite(s.cfg);
       const sum = processOnce(s.cfg);
       assert.ok(sum.suite, 'an idle drain ran the suite');
       assert.equal(!existsSync(stale), expectGone, `keep ${keep}`);

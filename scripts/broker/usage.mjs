@@ -3,7 +3,7 @@
 //
 // `usageProblem(flags)` → null | { text, code }: code 0 for help, 2 for a bad argument.
 
-const COMMANDS = new Set(['pause', 'resume', 'cancel', 'status', 'stop', 'stats', 'blockers', 'clean', 'restore']);
+const COMMANDS = new Set(['pause', 'resume', 'cancel', 'status', 'stop', 'stats', 'blockers', 'clean', 'restore', 'approve-suite']);
 const FLAGS = new Set(['_', 'root', 'log', 'once', 'poll', 'supervise-ms', 'idle-exit', 'spawned-by', 'now', 'help', 'since', 'json', 'lane', 'pycache', 'debris', 'running', 'top']);
 
 export const USAGE = [
@@ -16,6 +16,7 @@ export const USAGE = [
   '  cancel <id> [--running]   withdraw a queued job; --running kills the running command tree; the job ends cancelled',
   '  clean <path...>|--pycache   remove untracked leftovers from the checkout (a stray __pycache__); tracked files are refused',
   '  restore <path...>|--debris   put Cargo.lock debris a killed job left, and files a broker job wrote, back from HEAD (hand edits are refused)',
+  '  approve-suite [--lane <name>]   approve ONE full suite run (the daemon never starts one itself, KIT-D160); it runs once when the queue is idle',
   '  stop [--now]   stop the daemon after its current job; refuses while a job is queued or running unless --now',
 ].join('\n');
 

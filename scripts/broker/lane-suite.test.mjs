@@ -11,7 +11,7 @@ import { laneConfigs, normalizeBroker } from './config.mjs';
 import { processOnce } from './queue.mjs';
 import { readResult, writeJob } from './result.mjs';
 import { buildPatchJob } from './submit-lib.mjs';
-import { suiteLine, suiteState } from './suite.mjs';
+import { approveSuite, suiteLine, suiteState } from './suite.mjs';
 import { setup } from './subkit.mjs';
 
 const PASS = 'node -e "0"';
@@ -27,6 +27,7 @@ function lanes(suite) {
   const land = (file) => {
     const { job } = buildPatchJob(t.cfg, { repo: 'rapid-game', ticket: 'RG-T1', title: `add ${file}`, land: true, 'no-pin': true }, `*** write ${file}\nx\n`);
     writeJob(subLane, { ...job, commands: [PASS] });
+    approveSuite(subLane);
     const summary = processOnce(subLane, { fileBug: (b) => bugs.push(b) });
     return { result: readResult(subLane, job.id), summary };
   };
