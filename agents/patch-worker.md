@@ -27,13 +27,13 @@ you author the patch, you submit it, you wait ONCE at most, and you hand back. L
 - Search with `q`. `q code <text> --dir <path>` searches logs and scratch files outside the index.
 - Do NOT run `cargo`, `rustc`, or any build or test command. The broker builds.
 - Your only mutating action is `node <kit>/scripts/broker/submit.mjs`, and its only
-  blocking action is ONE foreground `node <kit>/scripts/broker/wait.mjs <id> --root <tree> --timeout 280` (under 5 minutes, KIT-D104). The `broker-wait-gate` hook denies everything else: a second wait on a job, a loop, `tail`/`sleep`, a background wait, a Bash timeout over 300000 ms, `watch.mjs`, re-submitting a job to read it (KIT-D115).
+  blocking action is ONE foreground `node <kit>/scripts/broker/wait.mjs <id> --root <tree> --timeout 170` (the harness moves any foreground call to the background at 180 s; KIT-D104 ceiling 5 minutes). The `broker-wait-gate` hook denies everything else: a second wait on a job, a loop, `tail`/`sleep`, a background wait, a Bash timeout over 300000 ms, `watch.mjs`, re-submitting a job to read it (KIT-D115).
 - SendMessage is for progress pings to the orchestrator ("main") only, never for asking it to
   write or build for you.
 - Read the CURRENT files before every patch: the tree moves between your submits.
 
 ## NO-WAIT RULE (KIT-D115)
-- Submit your jobs, then wait AT MOST ONCE: `wait.mjs <id> --root <tree> --timeout 280` in the foreground. The hook adds the timeout.
+- Submit your jobs, then wait AT MOST ONCE: `wait.mjs <id> --root <tree> --timeout 170` in the foreground. The hook adds the timeout.
 - Never poll, loop, tail or sleep on the broker; never background a wait or any broker or cargo command; never wait twice on one job; never resubmit a job to read its status.
 - Past the one wait: write a Handoff block in the ticket Notes (Jobs:, State:, Next:, Files:), end with nothing running, and report the job ids. The orchestrator resumes you from the broker finished-job line.
 
@@ -69,8 +69,9 @@ Report in five lines: ticket, patch ids, final status, landed sha, anything that
 
 ## Waiting on builds and tests (KIT-T355)
 Cost is per tool call, so a wait is ONE call and one read of the result.
-- Run a long build or test in ONE foreground Bash call with a `timeout` of at most 300000 ms (KIT-D104). Never start it in the background to wait for it: a subagent cannot idle and its shells end with it (KIT-D115).
-- A build or suite that cannot finish in 5 minutes is scoped down (a narrower target, one test by name), never given a longer timeout. If it still cannot fit, write a `Handoff` block in the ticket Notes naming the exact command and end; the orchestrator runs it in the background and resumes you.
+- Run a long build or test in ONE foreground Bash call with a `timeout` of at most 300000 ms (KIT-D104). The harness moves any foreground call to the background at 180 s whatever its `timeout`, so the run must finish in about 170 s. Never start it in the background to wait for it: a subagent cannot idle and its shells end with it (KIT-D115).
+- A build or suite that cannot finish in about 170 s is scoped down (a narrower target, one test by name), never given a longer timeout. If it still cannot fit, write a `Handoff` block in the ticket Notes naming the exact command and end; the orchestrator runs it in the background and resumes you.
+- A call that returns "moved to the background" outlived that window. Read its output file at most once, never sleep, poll or wait on it: a subagent writes the `Handoff` block and ends, the main thread waits for the one finish notice.
 - Pipe the output through a filter that keeps only failures, panics, assertion lines and the `test result` totals.
 - Never poll an output file, never sleep-loop, and never re-run a whole suite to see one test: run that test by name.
 

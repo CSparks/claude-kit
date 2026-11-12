@@ -23,6 +23,7 @@ import { withoutDataArguments, withoutInlineCode } from './lib/command-leads.mjs
 import { subagentId } from './lib/subagent-id.mjs';
 import { waitSlot, jobId, digest } from './lib/broker-wait-state.mjs';
 import { longWaits } from './lib/long-waits.mjs';
+import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../scripts/broker/wait-limits.mjs';
 
 const CHECK_ID = 'broker-wait';
 const MAX_TOOL_TIMEOUT_MS = 300000;
@@ -65,13 +66,16 @@ const message = (found) => [
   'BLOCKED: waiting on the broker the wrong way (KIT-D115).',
   ...found.map((f) => `  - ${f}`),
   '',
-  'A subagent submits, may wait ONCE with `wait.mjs <id> --root <tree> --timeout 280` in the foreground, and otherwise',
+  `A subagent submits, may wait ONCE with \`wait.mjs <id> --root <tree> --timeout ${MAX_FOREGROUND_WAIT_S}\` in the foreground, and otherwise`,
   'writes its handoff (job ids, state, next steps, file pointers in the ticket Notes) and ends with nothing running;',
   "the orchestrator resumes it from the broker's finished-job line (target/broker/finished.log). No polling, no loops,",
   'no background waits, no re-running a job to read it.',
-  'A build or test that cannot finish in one foreground call of at most 300000 ms is scoped down (a narrower target, one',
-  'test by name); if it still cannot fit, write a Handoff block in the ticket Notes naming the exact command and end:',
-  'the orchestrator runs it in the background and resumes you.',
+  `The harness moves any foreground call to the background at ${HARNESS_FOREGROUND_S} s whatever its timeout (at most 300000 ms is`,
+  'the ceiling, KIT-D104), so a build or test that cannot finish in one foreground call of about that length is scoped',
+  'down (a narrower target, one test by name); if it still cannot fit, write a Handoff block in the ticket Notes naming',
+  'the exact command and end: the orchestrator runs it in the background and resumes you.',
+  'A call the harness already moved to the background ("moved to the background" notice): Read its output file at most',
+  'once, never sleep, poll or wait on it, write the Handoff block and end.',
   '',
 ].join('\n');
 

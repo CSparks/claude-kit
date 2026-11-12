@@ -49,6 +49,9 @@ try {
     'powershell -NoProfile -Command "Get-Process -Name MSBuild | Wait-Process -Timeout 280; \'waited\'"', 'powershell -Command "Start-Sleep -Seconds 120"', 'Start-Sleep 30', 'Start-Sleep -Milliseconds 90000', 'Wait-Job -Id 3', 'timeout /t 120'];
   ok('a subagent sleep over 10 s, Wait-Process, Wait-Job or timeout /t is blocked outside any broker call', longWaits.every((c) => blocked(sub(c, { timeout: 280000 }))));
   ok('the long-wait block names the Handoff path', /Handoff/.test(sub('sleep 240', { timeout: 280000 }).out));
+  const pollBlock = sub('sleep 30; tail -3 target/broker/finished.log', { timeout: 280000 });
+  ok('KIT-T1104: the block text names the 180 s harness window, the backgrounded-call procedure and a wait of 170 s', blocked(pollBlock) && /at 180 s/.test(pollBlock.out) && /moved to the background/.test(pollBlock.out) && /--timeout 170/.test(pollBlock.out) && !/--timeout 280/.test(pollBlock.out));
+  ok('KIT-T1104 control: a poll loop on a broker job is still blocked, with or without a timeout argument', ['until grep -q passed target/broker/j-1.json; do sleep 5; done', 'while true; do node ' + BROKER + '/wait.mjs j-zzz-9 --timeout 20; done'].every((c) => blocked(sub(c))));
   ok('negative: a short settle sleep passes', ['sleep 1; ls build/tests', 'sleep 3', 'sleep 10', 'Start-Sleep -Milliseconds 500', 'Start-Sleep 2'].every((c) => sub(c).code === 0));
   ok('negative: the main thread may sleep and Wait-Process', ['sleep 240', 'powershell -Command "Wait-Process -Id 4"'].every((c) => hook('broker-wait-gate.mjs', { tool_name: 'Bash', tool_input: { command: c } }, d, env).code === 0));
   ok('negative: a long sleep named only in data (a q query, a commit message) passes', ['q code "sleep 240"', 'git commit -m "no more sleep 240 waits"'].every((c) => sub(c).code === 0));
@@ -127,9 +130,11 @@ try {
   const s = tag(`node ${BROKER}/submit.mjs --root D:/x --ticket T-1`);
   ok('a subagent submit gets --agent <id> right after the script', s.input?.command === `node ${BROKER}/submit.mjs --agent a1b2c3d4e5f6a7b8c --root D:/x --ticket T-1`);
   const w = tag(`node ${BROKER}/wait.mjs j-1-a --root D:/x`);
-  ok('a subagent wait gets --agent and --timeout 280', /wait\.mjs --agent a1b2c3d4e5f6a7b8c --timeout 280 --tool-timeout 290 j-1-a/.test(w.input?.command));
-  ok('the wait gets a Bash timeout under 5 minutes that outlasts the wait', w.input?.timeout === 290000);
-  ok('negative: a wait that names its --timeout keeps it', /--timeout 120\b/.test(tag(`node ${BROKER}/wait.mjs j-1-a --timeout 120`).input?.command) && !/--timeout 280/.test(tag(`node ${BROKER}/wait.mjs j-1-a --timeout 120`).input?.command));
+  ok('a subagent wait gets --agent and --timeout 170', /wait\.mjs --agent a1b2c3d4e5f6a7b8c --timeout 170 --tool-timeout 180 j-1-a/.test(w.input?.command));
+  ok('KIT-T1104: the wait gets a Bash timeout equal to the harness foreground window, which outlasts the wait', w.input?.timeout === 180000);
+  const longAsk = tag(`node ${BROKER}/wait.mjs j-1-a --timeout 280`);
+  ok('KIT-T1104: a wait asking 280 s still gets a Bash timeout no longer than the harness window', longAsk.input?.timeout === 180000 && /--tool-timeout 180\b/.test(longAsk.input?.command));
+  ok('negative: a wait that names its --timeout keeps it', /--timeout 120\b/.test(tag(`node ${BROKER}/wait.mjs j-1-a --timeout 120`).input?.command) && !/--timeout 170/.test(tag(`node ${BROKER}/wait.mjs j-1-a --timeout 120`).input?.command));
   ok('negative: the main thread is untouched', tag(`node ${BROKER}/submit.mjs --root D:/x`, {}, {}).input === null);
   ok('negative: a command that is no broker call is untouched', tag('node q.mjs code "wait.mjs"').input === null);
   ok('negative: a submit already carrying --agent is not tagged twice', !/--agent \S+ .*--agent/.test(tag(`node ${BROKER}/submit.mjs --agent z9 --root D:/x`).input?.command || ''));

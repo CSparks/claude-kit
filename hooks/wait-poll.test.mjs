@@ -74,6 +74,13 @@ try {
   ok('each subagent has its own count: two agents sharing a session each read an output twice and pass', ['a1', 'a2', 'a3', 'a4'].every((a) => agentRead(a, liveOut.replace('bk8', 'bk7')).code === 0 && agentRead(a, liveOut.replace('bk8', 'bk7')).code === 0));
   ok('negative: one agent re-reading the same live output past the limit is still blocked', [1, 2, 3, 4, 5].map(() => agentRead('a9', liveOut)).pop().code === 2);
 
+  const movedOut = join(tmpDir('wp-moved-'), 'bk6.output');
+  writeFileSync(movedOut, '');
+  const movedReads = [1, 2, 3, 4, 5].map(() => read(h, 'moved1', movedOut));
+  ok('KIT-T1104: two Reads of a run the harness moved to the background pass, the third and fourth warn, the fifth blocks', movedReads.slice(0, 4).every((r) => r.code === 0) && movedReads[4].code === 2);
+  ok('KIT-T1104: the warning and the block name the 180 s window and what to do with a moved call', /at 180 s/.test(movedReads[2].out) && /moved to the background/.test(movedReads[4].out) && /Handoff/.test(movedReads[4].out));
+  ok('KIT-T1104: the same file is free to read once its exit marker is written', (() => { writeFileSync(movedOut, '[exited with code 0]\n'); return read(h, 'moved1', movedOut).code === 0; })());
+
   const g = adopted(false);
   writeFileSync(join(g, '.claude-kit-ignore.yaml'), 'wait-poll:\n  - "**/tasks/**"\n');
   ok('.claude-kit-ignore.yaml glob excludes an output file', [1, 2, 3, 4, 5].every(() => read(g, 'ex1', OUT).code === 0));
@@ -85,6 +92,7 @@ try {
 
   const rule = readFileSync(join(ROOT, 'docs', 'wait-rule.md'), 'utf8');
   const agents = execFileSync('git', ['ls-files', 'agents'], { cwd: ROOT, encoding: 'utf8' }).split('\n').filter((x) => x.endsWith('.md') && !x.endsWith('README.md'));
+  ok('KIT-T1104: the rule names the 180 s harness window, the 170 s run limit and the moved-to-background procedure', /at 180 s whatever its `timeout`/.test(rule) && /about 170 s/.test(rule) && /"moved to the background"[^\n]*Handoff/.test(rule) && !/5 minutes is scoped/.test(rule));
   ok('every agent definition carries docs/wait-rule.md verbatim', agents.length >= 10 && agents.every((a) => readFileSync(join(ROOT, a), 'utf8').includes(rule)));
   ok('work and drain briefs carry the wait rule', ['commands/work.md', 'commands/drain.md'].every((c) => readFileSync(join(ROOT, c), 'utf8').includes('docs/wait-rule.md')));
 } finally {

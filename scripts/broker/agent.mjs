@@ -6,6 +6,8 @@
 //   subagentRefusal(script, flags, env) -> a refusal text for a subagent-only violation, or null
 //   MAX_SUBAGENT_WAIT_S               -> the longest wait a subagent may ask for
 
+import { MAX_FOREGROUND_WAIT_S } from './wait-limits.mjs';
+
 export const MAX_SUBAGENT_WAIT_S = 300;
 const HANDOFF = 'write the handoff (job ids, state, next steps, file pointers in the ticket Notes) and end; the orchestrator resumes you from target/broker/finished.log (KIT-D115)';
 
@@ -15,7 +17,7 @@ export function agentOf(flags, env = process.env) {
 }
 
 export function subagentRefusal(script, flags, env = process.env) {
-  if (flags.wait && script === 'submit') return `submit never waits: it prints the job id. ${agentOf(flags, env) ? `Wait once with wait.mjs <id> --timeout 280, or ${HANDOFF}.` : 'Use wait.mjs <id>.'}`;
+  if (flags.wait && script === 'submit') return `submit never waits: it prints the job id. ${agentOf(flags, env) ? `Wait once with wait.mjs <id> --timeout ${MAX_FOREGROUND_WAIT_S}, or ${HANDOFF}.` : 'Use wait.mjs <id>.'}`;
   if (!agentOf(flags, env)) return null;
   if (script === 'watch') return `watch.mjs follows the whole checkout and is the orchestrator's: ${HANDOFF}.`;
   if (script === 'wait' && Number(flags.timeout) > MAX_SUBAGENT_WAIT_S) return `a subagent waits under ${MAX_SUBAGENT_WAIT_S / 60} minutes (KIT-D104): ${HANDOFF}.`;

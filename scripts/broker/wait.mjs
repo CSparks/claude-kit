@@ -29,7 +29,7 @@ import { holdAge, holdLine, holdReport } from './hand-hold.mjs';
 import { subagentRefusal } from './agent.mjs';
 import { heartbeatKey, repeatPrinter } from './collapse-repeats.mjs';
 import { armWaitGuard } from './wait-guard.mjs';
-import { waitWindow } from './wait-limits.mjs';
+import { HARNESS_FOREGROUND_S, waitWindow } from './wait-limits.mjs';
 
 const DEFAULT_HEARTBEAT_S = 60;
 const EXIT = { OK: 0, NOT_OK: 1, RUNNING: 2, UNKNOWN: 3 };
@@ -51,7 +51,7 @@ if (refusal) { console.error(`wait: ${refusal}`); process.exit(2); }
 const { root, cfg: rootCfg } = loadCfg(flags);
 const window = waitWindow(flags);
 const timeoutMs = window.seconds * 1000;
-if (window.clamped) console.error(`wait: --timeout ${window.asked} cut to ${window.seconds} s to end inside the Bash call's window; pass --tool-timeout <s> with a matching Bash timeout for longer`);
+if (window.clamped) console.error(`wait: --timeout ${window.asked} cut to ${window.seconds} s to end inside the Bash call's window; the harness moves any foreground call to the background at ${HARNESS_FOREGROUND_S} s, so a job that outlasts it is handed off, not waited on again`);
 const pollMs = Number(flags.poll) || rootCfg.pollMs;
 const graceMs = flags['grace-ms'] === undefined ? NO_BROKER_GRACE_MS : Number(flags['grace-ms']);
 const beatMs = (flags.heartbeat === undefined ? DEFAULT_HEARTBEAT_S : Number(flags.heartbeat)) * 1000;

@@ -33,7 +33,7 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
    base64 lines of a binary file (or pass --binary assets/x.glb=<file> and no stdin); replaces the file whole
    PATCH
    )
-   node <kit>/scripts/broker/wait.mjs $id --root <tree> --timeout 280
+   node <kit>/scripts/broker/wait.mjs $id --root <tree> --timeout 170
    ```
    - An `edit` block applies while its SEARCH text matches exactly once. Include enough
      context lines to be unique. One `*** edit` header may carry several blocks.
@@ -46,7 +46,7 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
 3. **Read the result.** `submit` answers in seconds when the patch fails the pre-write gate, does not apply
    (`stale`) or does not compile (`cargo check` in the broker's own precheck tree): the result prints as JSON, exit 1,
    and the job never takes a queue slot. Otherwise it prints the id and you wait AT MOST ONCE, in the foreground:
-   `wait.mjs <id> --root <tree> --timeout 280` (the hook adds the timeout and a Bash timeout under 5 minutes).
+   `wait.mjs <id> --root <tree> --timeout 170` (the hook adds the timeout and a Bash timeout of 180 s, the longest the harness holds a foreground call).
    `wait` exits 0 for passed/landed, 1 otherwise, 2 when the wait ended with the job still queued or running.
    On exit 2, or when a second wait would follow, do not wait again: write the handoff and end (see *Handing back*).
    Never poll, loop, `tail`, `sleep`, background a wait, re-submit a job to read it, or run `watch.mjs` (KIT-D115).

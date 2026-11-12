@@ -1,16 +1,19 @@
-// wait-limits.mjs — how long wait.mjs may block so its Bash call never outlives the harness (KIT-T851).
-// A foreground call with no timeout argument is moved to the background at 120 s and its console stripped;
-// the caller names a longer window with --tool-timeout <s> (the Bash call's own timeout), and wait ends
-// itself TOOL_MARGIN_S before it, with exit 2 and the running line.
+// wait-limits.mjs — how long wait.mjs may block so its Bash call never outlives the harness (KIT-T851, KIT-T1104).
+// The harness moves a foreground call to the background at its own timeout (120 s when none is named) and never
+// later than HARNESS_FOREGROUND_S whatever timeout the call names, stripping its console. The caller names a longer
+// window with --tool-timeout <s> (the Bash call's own timeout); wait ends itself TOOL_MARGIN_S before the smaller
+// of the two, with exit 2 and the running line.
 
+export const HARNESS_FOREGROUND_S = 180;
 export const DEFAULT_TOOL_TIMEOUT_S = 120;
 export const TOOL_MARGIN_S = 10;
 export const DEFAULT_WAIT_S = 100;
+export const MAX_FOREGROUND_WAIT_S = HARNESS_FOREGROUND_S - TOOL_MARGIN_S;
 
-/** The seconds wait may block: the asked-for --timeout, cut to fit the tool window. */
+/** The seconds wait may block: the asked-for --timeout, cut to fit the tool window and the harness cap. */
 export function waitWindow(flags) {
   const asked = Number(flags.timeout) || DEFAULT_WAIT_S;
-  const tool = Number(flags['tool-timeout']) || DEFAULT_TOOL_TIMEOUT_S;
+  const tool = Math.min(Number(flags['tool-timeout']) || DEFAULT_TOOL_TIMEOUT_S, HARNESS_FOREGROUND_S);
   const ceiling = Math.max(tool - TOOL_MARGIN_S, 1);
   return { seconds: Math.min(asked, ceiling), clamped: asked > ceiling, asked, ceiling };
 }

@@ -141,7 +141,7 @@ try {
 
   // the no-wait rule lives in the patch-worker definition; no hook writes it into a brief
   const definition = readFileSync(join(import.meta.dirname, '..', 'agents', 'patch-worker.md'), 'utf8');
-  ok('the patch-worker definition carries the no-wait rule (KIT-D115)', definition.includes('NO-WAIT RULE (KIT-D115)') && definition.includes('wait.mjs <id> --root <tree> --timeout 280') && definition.includes('wait AT MOST ONCE'));
+  ok('the patch-worker definition carries the no-wait rule (KIT-D115)', definition.includes('NO-WAIT RULE (KIT-D115)') && definition.includes('wait.mjs <id> --root <tree> --timeout 170') && definition.includes('wait AT MOST ONCE'));
   ok('the definition carries the handoff step the rule ends in', definition.includes('Past the one wait: write a Handoff block'));
   ok('the definition no longer names a context ceiling', !/context_ceiling_tokens|context ceiling/i.test(definition));
 } finally {
