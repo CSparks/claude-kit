@@ -13,6 +13,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lessonsSection } from './lessons.mjs';
+import { frameworkFirstSection } from './framework-first.mjs';
 
 // …/hooks/lib/frameworks.mjs → the kit root, which is where `frameworks/` lives.
 const KIT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -44,6 +45,7 @@ export function parseFramework(text) {
     submodule: scalar('submodule'),
     cargo: scalar('cargo'),
     lessons: scalar('lessons'),
+    crates: scalar('crates'),
     conformance: scalar('conformance'),
     paths: list('paths'),
     body: body.trim(),
@@ -108,6 +110,7 @@ export function frameworkSection(root) {
   if (!found.length) return '';
   const out = [];
   for (const framework of found) {
+    out.push(...frameworkFirstSection(root, framework));
     out.push(`--- FRAMEWORK CONTRACT: ${framework.title} (BINDING here — this repo uses it) ---`);
     out.push(framework.body);
     out.push('');

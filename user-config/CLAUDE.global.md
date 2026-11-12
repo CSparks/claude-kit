@@ -170,7 +170,10 @@ in a block message or a decision file is a defect.
   a design or plan brief (job `plan`, or an analyst or researcher briefed with design words) adds
   `[rulings-checked: <q inbox or q fts run, or inbox ids read>|none apply: <why>]` while the inbox
   holds un-triaged notes (KIT-T938); a job dearer than the default of the ticket type the brief
-  names (a design/opus dispatch with no ticket) adds `[escalate: <reason>]` (KIT-T940).
+  names (a design/opus dispatch with no ticket) adds `[escalate: <reason>]` (KIT-T940). In a repo
+  that uses a framework with a crate index (rapid-game: `docs/CRATES.md`), a plan brief and every plan
+  leaving plan mode (in the plan text) add `[framework-checked: <indexed crates read, per mechanism>|none apply: <why>]`
+  (KIT-T1095; `q gates plan`).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout

@@ -15,6 +15,7 @@ import * as broker from './dispatch-broker.mjs';
 import * as conformance from './dispatch-conformance.mjs';
 import * as context from './dispatch-context.mjs';
 import * as escalation from './dispatch-escalation.mjs';
+import * as framework from './dispatch-framework.mjs';
 import * as holder from './dispatch-holder.mjs';
 import * as job from './dispatch-job.mjs';
 import * as lessons from './dispatch-lessons.mjs';
@@ -36,7 +37,7 @@ try {
 
   const ids = new Set(GATES.agent.checks.map((c) => c.check));
   const exported = {};
-  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, holder, job, lessons, rulings, ui, worker, protocol]) {
+  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, framework, holder, job, lessons, rulings, ui, worker, protocol]) {
     for (const [name, value] of Object.entries(mod)) if (name.endsWith('_CHECK') && typeof value === 'string') exported[name] = value;
   }
   const guardNames = [...new Set([...read('hooks/dispatch-guard.mjs').matchAll(/pathExcluded\(root, ([A-Z_]+_CHECK), root\)/g)].map((m) => m[1]))];
@@ -44,7 +45,7 @@ try {
   ok(`every check dispatch-guard runs is listed by q gates agent (${guardNames.length} names)`, guardNames.length > 10 && unlisted.length === 0);
   if (unlisted.length) console.log(`  unlisted: ${unlisted.join(', ')}`);
 
-  const copies = ['dispatch-brief', 'dispatch-broker', 'dispatch-conformance', 'dispatch-context', 'dispatch-escalation', 'dispatch-job', 'dispatch-lessons',
+  const copies = ['dispatch-brief', 'dispatch-broker', 'dispatch-conformance', 'dispatch-context', 'dispatch-escalation', 'dispatch-framework', 'plan-exit-gate', 'dispatch-job', 'dispatch-lessons',
     'dispatch-readonly', 'dispatch-rulings', 'dispatch-target', 'dispatch-ui', 'dispatch-worker', 'dispatch-guard', 'agent-outcome', 'reask-gate', 'lib/agent-context']
     .filter((f) => read(`hooks/${f}.mjs`).split('\n').some((l) => !l.trim().startsWith('//') && /\/\\\[[a-z-]+/.test(l)));
   ok('no gate keeps its own copy of a tag pattern: gate-tokens.mjs is the one definition', copies.length === 0);
@@ -57,14 +58,14 @@ try {
   const question = q('gates', 'question');
   ok('q gates question prints the summary-first rule, the readiness rules and the re-ask tag',
     question.status === 0 && question.stdout.includes('summary first, then the questionnaire') && question.stdout.includes('exploring:') && question.stdout.includes(TOKENS.reAsk.form));
-  ok('q gates with no name lists the gates', q('gates').stdout.includes('agent, question'));
+  ok('q gates with no name lists the gates', q('gates').stdout.includes('agent, plan, question'));
   const unknown = q('gates', 'nope');
-  ok('an unknown gate exits 1 and names the valid ones', unknown.status === 1 && unknown.stderr.includes('agent, question'));
+  ok('an unknown gate exits 1 and names the valid ones', unknown.status === 1 && unknown.stderr.includes('agent, plan, question'));
   ok('gateText of an unknown name is null', gateText('nope') === null);
-  ok('q --help lists the gates verb', q('--help').stdout.includes('gates [agent|question]'));
+  ok('q --help lists the gates verb', q('--help').stdout.includes('gates [agent|plan|question]'));
 
   const orient = hook('orient.mjs', { hook_event_name: 'SessionStart' }, adopted(false));
-  ok('orient points at q gates in the identity block', orient.out.includes('q gates agent|question'));
+  ok('orient points at q gates in the identity block', orient.out.includes('q gates agent|plan|question'));
 
   const repo = adopted(false);
   const twoWrong = hook('dispatch-guard.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'general-purpose', model: 'sonnet', isolation: 'worktree', description: 'x', prompt: 'do a thing' } }, repo);

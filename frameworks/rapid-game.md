@@ -7,6 +7,7 @@ detect:
     - rapid-game/rust
   cargo: rg-meshkit
 lessons: rapid-game/docs/LESSONS.md
+crates: rapid-game/docs/CRATES.md
 conformance: framework_conformance
 ---
 

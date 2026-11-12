@@ -99,6 +99,10 @@
         ]
       },
       {
+        "matcher": "ExitPlanMode",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" plan-exit-gate.mjs" }]
+      },
+      {
         "matcher": "Task|Agent",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" dispatch-guard.mjs" }]
       },

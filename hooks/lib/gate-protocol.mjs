@@ -17,6 +17,7 @@ import { HOLDER_CHECK } from '../dispatch-holder.mjs';
 import { JOB_CHECK } from '../dispatch-job.mjs';
 import { LESSONS_CHECK } from '../dispatch-lessons.mjs';
 import { RULINGS_CHECK } from '../dispatch-rulings.mjs';
+import { FRAMEWORK_CHECK } from '../dispatch-framework.mjs';
 import { UI_CHECK } from '../dispatch-ui.mjs';
 import { WORKER_CHECK, DEFAULT_WRITER_CAP } from '../dispatch-worker.mjs';
 import { BRIEF_CHECK, GROUNDED_CHECK, GROUNDED_MIN_SHARED, GROUNDED_MIN_TITLE, GROUNDED_MIN_WORD, GROUNDED_PER_OPTION, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
@@ -52,7 +53,15 @@ export const GATES = {
       { check: UI_CHECK, wants: ['UI sizing or layout work goes to claude-kit:rg-ui-engineer or names the framework mechanism it reuses'], tokens: [T.uiFrameworkChecked] },
       { check: BRIEF_GROUNDED_CHECK, wants: ['a feature or request ticket brief quotes the maintainer; a variant also names what it reuses'], tokens: [T.maintainerWords, T.reuses] },
       { check: RULINGS_CHECK, wants: ['a design or plan brief (job plan, or an analyst or researcher briefed with design words) cites the inbox search for maintainer rulings while the inbox holds un-triaged notes'], tokens: [T.rulingsChecked] },
+      { check: FRAMEWORK_CHECK, wants: ['in a repo that uses a framework with a crate index (rapid-game: docs/CRATES.md), a plan or design brief names the indexed crates it read for each mechanism it proposes, or says none apply and why'], tokens: [T.frameworkChecked] },
       { check: HANDOFF_CHECK, wants: ['a dispatch that replaces an agent flagged for waste waits until that agent wrote its Handoff block in the ticket Notes'], tokens: [T.handoffWaived, T.writeHandoff] },
+    ],
+  },
+  plan: {
+    title: 'ExitPlanMode',
+    hooks: ['plan-exit-gate (adopted repos)'],
+    checks: [
+      { check: FRAMEWORK_CHECK, wants: ['the plan text, in a repo that uses a framework with a crate index (rapid-game: docs/CRATES.md), names the indexed crates read for each mechanism the plan proposes, or says none apply and why'], tokens: [T.frameworkChecked] },
     ],
   },
   question: {
@@ -111,7 +120,7 @@ function digestEntries(gate) {
  */
 export function gateDigest(gates = GATES) {
   return [
-    'GATE DIGEST (after a compaction the per-type tags are not remembered; read q gates agent|question before the first call):',
+    `GATE DIGEST (after a compaction the per-type tags are not remembered; read q gates ${Object.keys(gates).join('|')} before the first call):`,
     ...Object.entries(gates).flatMap(([name, gate]) => {
       const entries = digestEntries(gate);
       return entries.length ? wrapWords([`${name}:`, ...entries.map((e, i) => (i < entries.length - 1 ? `${e};` : e))], DIGEST_WIDTH, '  ') : [];
