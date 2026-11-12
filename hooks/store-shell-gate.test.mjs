@@ -67,6 +67,15 @@ try {
   check('KIT-T1012 control: a stderr redirect into the store still blocks', blocked("cargo test 2>.ai/SESSION.md ; echo $'x'"));
   check('KIT-T1012 control: an ambiguous pipe with a store rm still blocks', blocked("cargo test 2>&1 | grep -E $'^ok' ; rm .ai/tickets/X-T001-a.md"));
 
+  const chained = (body) => `t notes RDG-T015 "flyover <rings> -> tuned"; git add a.rs b.rs .ai; git commit -q -m @'\n${body}\n'@; git log --oneline -3; git status --short`;
+  const MESSAGE = "fix: ancestors' copy -> rename (implements RDG-T015)";
+  check('KIT-T1096: a t verb, git add of .ai and a here-string commit message whose body holds an apostrophe, a write word and an arrow passes', !blocked(chained(MESSAGE)), run(chained(MESSAGE)).stderr.slice(0, 160));
+  check('KIT-T1096 control: a store rm chained after the here-string commit still blocks', blocked(`${chained(MESSAGE)}; rm .ai/decisions/X-D001-a.md`));
+  check('KIT-T1096 control: a Set-Content of a ticket with a here-string value still blocks', blocked("git add .ai; Set-Content .ai/tickets/X-T001-a.md @'\nit's\n'@"));
+  const span = run("echo ok ; echo it's ; rm .ai/decisions/X-D001-a.md");
+  check('KIT-T1096: the block names the ambiguous construct, its position, the text around it and the write word', span.status === 2
+    && /Ambiguous span: a quote that never closes at character 17, near "[^"]*it's[^"]*"/.test(span.stderr) && /write word that made it a hit: "rm"/.test(span.stderr), span.stderr.slice(0, 300));
+
   check('KIT-T705 negative control: node -e with escaped quotes and no write passes',!blocked('node -e "console.log(\\"x\\")"'));
 
   const READS = [

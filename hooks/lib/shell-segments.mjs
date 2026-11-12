@@ -7,7 +7,7 @@
 // bash, a backtick in PowerShell, `$'…'` strings), so a line with an escape character directly before a
 // quote, a `$'` or `$"` string (a quote OPENED right after `$`; a `$` that ends a quoted span, as in the
 // grep pattern '^\s*$', is plain text) or a quote that never closes is ambiguous: the returned array carries
-// `ambiguous: true` and its segments cannot be trusted. A deny gate that sees the flag skips per-segment
+// `ambiguous: true` and `ambiguity: { reason, at, span }` (what, where, the text around it) and its segments cannot be trusted. A deny gate that sees the flag skips per-segment
 // parsing and tests the raw command for its own target words anywhere (KIT-T705, KIT-D117), or judges the
 // pieces from `blindSegments`, which split on every operator whatever the quoting.
 //
@@ -37,15 +37,16 @@ function split(cmd, blind = false, shell = '') {
   let q = '';
   let escaped = false;
   let dollarQuoted = false;
+  const at = { open: -1, escaped: -1, dollar: -1 };
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i];
     if (shell === 'bash' && !blind && ch === '\\' && q !== "'" && i + 1 < cmd.length) { cur += ch + cmd[++i]; continue; }
     const escapeChar = ch === '`' || (shell === 'powershell' && ch === '\\');
-    if (shell && escapeChar && q !== "'" && QUOTE.test(cmd[i + 1] || '')) escaped = true;
+    if (shell && escapeChar && q !== "'" && QUOTE.test(cmd[i + 1] || '')) { if (!escaped) at.escaped = i; escaped = true; }
     if (q) { cur += ch; if (ch === q) q = ''; continue; }
     if (!blind && (ch === '"' || ch === "'")) {
-      if (cmd[i - 1] === '$') dollarQuoted = true;
-      q = ch; cur += ch; continue;
+      if (cmd[i - 1] === '$') { if (!dollarQuoted) at.dollar = i - 1; dollarQuoted = true; }
+      q = ch; at.open = i; cur += ch; continue;
     }
     if (ch === '&' && (cmd[i - 1] === '>' || cmd[i + 1] === '>')) { cur += ch; continue; }
     if (ch === '|' || ch === '&' || ch === ';' || ch === '\n') {
@@ -60,13 +61,30 @@ function split(cmd, blind = false, shell = '') {
     cur += ch;
   }
   out.push({ text: cur, after: op });
-  return { out, open: q !== '', escaped, dollarQuoted };
+  return { out, open: q !== '', escaped, dollarQuoted, at };
+}
+
+const SPAN_RADIUS = 24;
+
+function describe(text, reason, index) {
+  const span = text.slice(Math.max(0, index - SPAN_RADIUS), index + SPAN_RADIUS).replace(/\r?\n/g, '\\n');
+  return { reason, at: index, span };
+}
+
+// The first construct that made the line ambiguous: what it is, where it starts, and the text around it.
+function ambiguityOf(text, found, shell) {
+  if (found.dollarQuoted) return describe(text, "a $' or $\" string", found.at.dollar);
+  const escapeAt = shell ? found.at.escaped : text.search(ESCAPE_BEFORE_QUOTE);
+  if (escapeAt >= 0) return describe(text, 'an escape character before a quote', escapeAt);
+  return describe(text, 'a quote that never closes', found.at.open);
 }
 
 export function segments(cmd, { shell = '' } = {}) {
   const text = inertText(cmd);
-  const { out, open, escaped, dollarQuoted } = split(text, false, shell);
+  const found = split(text, false, shell);
+  const { out, open, escaped, dollarQuoted } = found;
   out.ambiguous = open || dollarQuoted || (shell ? escaped : ESCAPE_BEFORE_QUOTE.test(text));
+  out.ambiguity = out.ambiguous ? ambiguityOf(text, found, shell) : null;
   out.text = text;
   return out;
 }

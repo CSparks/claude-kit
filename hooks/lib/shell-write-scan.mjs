@@ -174,26 +174,31 @@ const WRITE_TOKEN = new RegExp(`\\b(?:${wordsOf(WRITING_CMD, COPY_CMD, IN_PLACE_
 const HARMLESS_REDIRECT = /\d*>&(?:\d+|-)|\d*&?>>?\s*\/dev\/null\b/g;
 
 // With ambiguous quoting no segment can be trusted: a write-tool word, a `>` or a filesystem write call
-// anywhere in the command is a hit, and `ambiguous()` builds the gate's result for it. Pieces cut on every
+// anywhere in the command is a hit, and `ambiguous({ reason, at, span, trigger })` builds the gate's result for it. Pieces cut on every
 // operator, quoting ignored, that a kit verb leads are read-only searches: a write token in a `q` pattern is
 // not a write, but a redirect in one is still judged by its target, and a write behind an operator is its own
 // piece and still tested.
+// Returns the write word that made it a hit ('' for none), so a block can name it.
 const ambiguousWrite = (text, hit) => {
   const pieces = blindSegments(text);
   const kitPieces = pieces.filter((s) => kitLed(s.text));
-  if (kitPieces.some((s) => redirectTargets(s.text, false).some((target) => hit(target)))) return true;
+  const kitRedirect = kitPieces.flatMap((s) => redirectTargets(s.text, false)).find((target) => hit(target));
+  if (kitRedirect) return `> ${kitRedirect}`;
   const rest = pieces
     .filter((s) => !kitPieces.includes(s))
     .map((s) => s.text)
     .join(' ; ')
     .replace(HARMLESS_REDIRECT, ' ');
-  return WRITE_TOKEN.test(rest) || appliesPatch(rest) || FS_WRITE.test(rest);
+  return WRITE_TOKEN.exec(rest)?.[0] || (appliesPatch(rest) ? 'a patch apply' : '') || FS_WRITE.exec(rest)?.[0] || '';
 };
 
 export function scanAllShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false, exemptByDestination = false, shell = '' }) {
   const parts = segments(String(command || ''), { shell });
   const text = parts.text;
-  if (parts.ambiguous && ambiguous) return ambiguousWrite(text, hit) ? [ambiguous()] : [];
+  if (parts.ambiguous && ambiguous) {
+    const trigger = ambiguousWrite(text, hit);
+    return trigger ? [ambiguous({ ...parts.ambiguity, trigger })] : [];
+  }
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
   const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell, raw: String(command || '') };
   const variables = assignedValues(parts, shell);

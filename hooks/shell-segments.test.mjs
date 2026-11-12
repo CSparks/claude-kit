@@ -78,5 +78,21 @@ for (const [name, cmd] of stays) check(`KIT-T784 control: ${name} is not cut`, s
 check('KIT-T784 control: the body of a shell reader stays parsed (hidden command seen)', texts("bash <<'EOF'\ngrep -r x src\nEOF").includes('grep -r x src'));
 check('KIT-T784 control: an escaped-quote head keeps the line ambiguous', segments("echo \\\" ; cat <<'EOF'\nx\nEOF\ngrep -r a src").ambiguous === true);
 
+// KIT-T1096: a PowerShell single-quoted here-string given to a data consumer is inert data.
+const hereString = (head, body2 = "ancestors' copy -> rename") => `${head} @'\n${body2}\n'@`;
+check('KIT-T1096: a git commit -m here-string with an apostrophe is not ambiguous', segments(hereString('git commit -q -m')).ambiguous === false);
+check('KIT-T1096: the here-string body adds no segment', texts(hereString('git commit -q -m', "a ; rm x > y")).filter(Boolean).join('|') === "git commit -q -m ''");
+check('KIT-T1096: commands after the closing marker are still parsed', texts(`${hereString('git commit -m')}; grep -r x src`).includes('grep -r x src'));
+check('KIT-T1096 control: a here-string given to a shell stays', segments(hereString('powershell -c')).text === hereString('powershell -c'));
+check('KIT-T1096 control: a double-quoted here-string stays', segments('git commit -m @"\nit\'s $(x)\n"@').text === 'git commit -m @"\nit\'s $(x)\n"@');
+check('KIT-T1096 control: a here-string with no closing marker stays', segments("git commit -m @'\nit's").text === "git commit -m @'\nit's");
+
+// KIT-T1096: an ambiguous result names the construct, where it starts and the text around it.
+const unclosed = segments("echo ok ; echo it's ; rm x");
+check('KIT-T1096: an unclosed quote is named with its position and surrounding text', unclosed.ambiguity?.reason === 'a quote that never closes' && unclosed.ambiguity.at === 17 && unclosed.ambiguity.span.includes("it's"));
+check('KIT-T1096: a $ string and an escape before a quote are named', segments("echo $'a' ; ls").ambiguity.reason === "a $' or $\" string" && segments('echo \\" ; ls').ambiguity.reason === 'an escape character before a quote');
+check('KIT-T1096: the span is one line', !/\n/.test(segments("echo it's\nrm x").ambiguity.span));
+check('KIT-T1096 control: a clean command carries no ambiguity', segments('echo "a" ; ls').ambiguity === null);
+
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
