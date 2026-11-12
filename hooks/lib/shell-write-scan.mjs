@@ -28,7 +28,8 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
 import { copyTargets } from './shell-copy-target.mjs';
-import { touchPlaceKnown, touchTargets } from './touch-target.mjs';
+import { touchTargets } from './touch-target.mjs';
+import { touchPlaceKnown } from './touch-place.mjs';
 import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
 import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
@@ -197,8 +198,7 @@ export function scanAllShellWrites(command, { hit, codeHit, readScript = readTem
   const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell, raw: String(command || '') };
   const variables = assignedValues(parts, shell);
   const all = [...parts];
-  const texts = all.map((seg) => seg.text);
-  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(texts, i) }));
+  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw) }));
 }
 
 export const scanShellWrites = (command, options) => scanAllShellWrites(command, options)[0] || null;

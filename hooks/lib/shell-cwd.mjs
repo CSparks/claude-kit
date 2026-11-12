@@ -3,11 +3,13 @@
 // repo from the hook's own cwd then sees no repo and no-ops. Following the command's `cd` segments names
 // the repo the command really touches.
 //
-//   commandCwd(command, start?) -> the directory after every existing `cd <dir>` segment; `start` when none
+//   commandCwd(command, start?) -> the directory after every `cd <dir>` segment naming an existing directory; `start` when none
 
-import { existsSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { cdTarget, segments } from './shell-segments.mjs';
+
+export const isDirectory = (path) => { try { return statSync(path).isDirectory(); } catch { return false; } };
 
 export function commandCwd(command, start = process.cwd()) {
   let cwd = start;
@@ -15,7 +17,7 @@ export function commandCwd(command, start = process.cwd()) {
     const target = cdTarget(text.trim());
     if (!target) continue;
     const next = resolve(cwd, target);
-    if (existsSync(next)) cwd = next;
+    if (isDirectory(next)) cwd = next;
   }
   return cwd;
 }

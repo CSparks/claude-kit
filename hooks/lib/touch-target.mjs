@@ -7,10 +7,6 @@
 //     null      any token outside the allowlist: a glob, variable, substitution, unquoted backslash, an option
 //               other than -a -m -c -d DATE -t STAMP -r REF (exact forms, -a -m -c clustered) and their long
 //               forms --date --reference --no-create, a glued short value, a quoted option, no operand
-//   touchPlaceKnown(texts, at) -> boolean
-//     the touch at segment `at` runs where the hook looks: every earlier segment is a cd, assignment, echo, ls,
-//     pwd, true or another touch with nothing evaluated (so none can remove a file or move the shell), and no
-//     later segment changes the directory the existence check resolves against.
 //   touchLifted(found, cwd) -> boolean
 //     the gate's verdict on a hit tagged `mtimeOnly`: lifted when the file exists, or -c creates nothing.
 
@@ -25,11 +21,6 @@ const VALUE_LONG = ['--date', '--reference'];
 const JOINED_LONG = /^--(?:date|reference)=(.+)$/;
 const NO_CREATE_LONG = '--no-create';
 const NO_CREATE_SHORT = 'c';
-const PRELUDE_LEADERS = new Set(['cd', 'set-location', 'echo', 'true', 'pwd', 'ls', 'dir', 'get-childitem', 'touch']);
-const BARE_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=[^\s$`(){}<>|&;]*$/;
-const EVALUATING = /[$`(){}]/;
-const DIRECTORY_CHANGE = /^\s*(?:cd|chdir|pushd|popd|set-location|sl)(?![\w.-])/i;
-const FIRST_WORD = /^\S+/;
 
 // The option's value is the next token, taken as a whole: a value that itself starts with a dash is refused.
 function takesValue(token) {
@@ -54,14 +45,6 @@ export function touchTargets(argText, powershell = false) {
   }
   return files.length ? { files, noCreate } : null;
 }
-
-function isPrelude(text) {
-  const trimmed = text.trim();
-  if (!trimmed || EVALUATING.test(trimmed)) return false;
-  return BARE_ASSIGNMENT.test(trimmed) || PRELUDE_LEADERS.has(FIRST_WORD.exec(trimmed)[0].toLowerCase());
-}
-
-export const touchPlaceKnown = (texts, at) => texts.slice(0, at).every(isPrelude) && !texts.slice(at + 1).some((t) => DIRECTORY_CHANGE.test(t));
 
 export function touchLifted(found, cwd) {
   if (!found.mtimeOnly) return false;
