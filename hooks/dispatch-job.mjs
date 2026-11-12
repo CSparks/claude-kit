@@ -16,6 +16,7 @@ import { familyOf } from '../scripts/dispatch-outcomes.mjs';
 import { definitionJob } from './model-tag.mjs';
 import { declaredJob } from './agent-outcome.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
+import { RESOLVE_COMMAND } from './lib/gate-jobs.mjs';
 
 export const JOB_CHECK = 'dispatch-job';
 const OVERRIDE_TOKEN = TOKENS.modelOverride.pattern;
@@ -46,7 +47,7 @@ export function jobBlock({ root, input, prompt, footer }) {
       'The capability table routes by job type; a dispatch with no job is free-hand routing.',
       `Job ids: ${ids.join(', ')}.`,
       'Fix: add [job: <id>] to the prompt or description (an agent definition may carry a default job:).',
-      `Resolve the family: node scripts/dispatch-ladder.mjs resolve --job <id>`,
+      `Resolve the family: ${RESOLVE_COMMAND} --job <id>`,
       '',
       footer,
     ].join('\n');

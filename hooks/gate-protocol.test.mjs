@@ -3,7 +3,7 @@
 // Run: node hooks/gate-protocol.test.mjs
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENV, ROOT, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
@@ -65,6 +65,33 @@ try {
     expected.length > 0 && conformanceRow(game).length === 1 && expected.every((n) => conformanceRow(game)[0].includes(`\`${n}\``)));
   ok('negative control: a checkout with no framework conformance test prints no name', conformanceRow(plain).length === 0 && conformanceRow(undefined).length === 0);
   ok('q gates agent run from that checkout prints the name', spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), 'gates', 'agent', '--root', game], { cwd: game, encoding: 'utf8', env: ENV }).stdout.includes(`\`${expected[0]}\``));
+  const fixtureKit = (family) => {
+    const kit = tmpDir('gate-jobs-kit-');
+    mkdirSync(join(kit, '.ai'));
+    writeFileSync(join(kit, '.ai', 'config.yml'), `dispatch:\n  jobs:\n    probe:\n      family: ${family}\n      fallback: haiku\n      use: "fixture job; second sentence"\n    research:\n      family: ${family}\n      use: "read-only investigation"\n  default_job:\n    "*": probe\n`);
+    return kit;
+  };
+  const withLadder = (kit, fn) => {
+    const prior = process.env.CLAUDE_KIT_LADDER_ROOT;
+    process.env.CLAUDE_KIT_LADDER_ROOT = kit;
+    try { return fn(); } finally { if (prior === undefined) delete process.env.CLAUDE_KIT_LADDER_ROOT; else process.env.CLAUDE_KIT_LADDER_ROOT = prior; }
+  };
+  const agentRoot = tmpDir('gate-jobs-root-');
+  mkdirSync(join(agentRoot, '.claude', 'agents'), { recursive: true });
+  writeFileSync(join(agentRoot, '.claude', 'agents', 'zz-fixture-agent.md'), '---\nname: zz-fixture-agent\njob: probe\n---\nbody\n');
+  const jobLines = (kit) => withLadder(kit, () => gateText('agent', { root: agentRoot })).split('\n');
+  const rowOf = (lines, id) => lines.find((l) => l.startsWith(`  ${id} `)) || '';
+  const sonnetKit = jobLines(fixtureKit('sonnet'));
+  ok('q gates agent lists a job with its family, fallback and one-line use from the capability table',
+    /^ {2}probe\s+sonnet \(fallback haiku\)\s+fixture job$/.test(rowOf(sonnetKit, 'probe')));
+  ok('q gates agent lists an agent type with its default job and that job\'s family',
+    sonnetKit.some((l) => /^ {2}claude-kit:visual-reviewer\s+research -> sonnet$/.test(l)) && sonnetKit.some((l) => /^ {2}zz-fixture-agent\s+probe -> sonnet \(fallback haiku\)$/.test(l)));
+  const opusKit = jobLines(fixtureKit('opus'));
+  ok('a capability table change changes the printout: family of the job and of the types defaulting to it',
+    /probe\s+opus \(fallback haiku\)/.test(rowOf(opusKit, 'probe')) && opusKit.some((l) => /claude-kit:visual-reviewer\s+research -> opus$/.test(l)) && opusKit.some((l) => /zz-fixture-agent\s+probe -> opus/.test(l)));
+  ok('the jobs section names the resolver in the form a project session runs', sonnetKit.some((l) => l.includes('resolve --job <job>') && l.includes('claude-kit-runtime/current/scripts/dispatch-ladder.mjs')));
+  ok('no second copy of the table: gate-jobs.mjs and gate-protocol.mjs name no job id or family row', !/\b(targeted-change|greenfield|forensic|ui-creative)\b/.test(read('hooks/lib/gate-jobs.mjs') + read('hooks/lib/gate-protocol.mjs')));
+  ok('q gates plan and q gates question carry no jobs section', !gateText('plan').includes('JOBS (') && !gateText('question').includes('JOBS ('));
   const question = q('gates', 'question');
   ok('q gates question prints the summary-first rule, the readiness rules and the re-ask tag',
     question.status === 0 && question.stdout.includes('summary first, then the questionnaire') && question.stdout.includes('exploring:') && question.stdout.includes(TOKENS.reAsk.form));

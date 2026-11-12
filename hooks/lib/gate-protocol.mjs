@@ -3,11 +3,13 @@
 // enforce them, tag forms from gate-tokens.mjs, the summary rule from question-brief.mjs.
 //   GATES -> { agent, question }: { title, hooks, checks: [{ check, wants[], tokens[] }] }
 //   gateText(name, { root }) -> the printable protocol, or null for an unknown name; with a root, the conformance row
-//     names the test the check matches in that checkout (KIT-T1098);  gateNames() -> the gate names
+//     names the test the check matches in that checkout (KIT-T1098); the agent gate ends with the capability table's jobs
+//     and each agent type's default job (KIT-T1105);  gateNames() -> the gate names
 //   gateDigest(gates?) -> the few lines a compaction start prints: per gate, each check's tag form (KIT-T1053)
 
 import { LABEL_CHECK, LABEL_REQUIREMENTS } from './dispatch-label.mjs';
 import { TOKENS } from './gate-tokens.mjs';
+import { jobsSection } from './gate-jobs.mjs';
 import { STALE_TABLE_CHECK } from './capability-stale.mjs';
 import { BRIEF_CHECK as BRIEF_GROUNDED_CHECK } from '../dispatch-brief.mjs';
 import { BROKER_OWNED_CHECK } from '../dispatch-broker.mjs';
@@ -147,6 +149,7 @@ export function gateText(name, { root } = {}) {
     'REQUIREMENTS',
     ...gate.checks.flatMap((c) => checkLines(c, root)),
     ...(tags.length ? ['', 'ACCEPTED TAG FORMS (exact; in the prompt unless noted)', ...tags.map((t) => `  ${t.form}  `.padEnd(TAG_COLUMN) + t.meaning)] : []),
+    ...(name === 'agent' ? ['', ...jobsSection({ root })] : []),
     '',
   ].join('\n');
 }

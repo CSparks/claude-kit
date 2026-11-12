@@ -164,7 +164,8 @@ in a block message or a decision file is a defect.
   main thread that is not on the coordination family and names the `/model` switch.
 - **Dispatch checklist — every Agent call (exact forms: `q gates agent`):** `description` =
   `[<Family N.M>] <label>` (the hook names the value; never hand-written, KIT-T897); prompt carries
-  `[job: <id>]`; an agent that writes no repo file (design/artifact: scratchpad only) adds
+  `[job: <id>]` and `model` is that job's table family (the agent type's default job when untagged; both listed by `q gates agent`,
+  one lookup: `node "<kit>/scripts/dispatch-ladder.mjs" resolve --job <job>`); an agent that writes no repo file (design/artifact: scratchpad only) adds
   `[read-only: <why>]`, one in another git checkout adds `[tree: <its root>]`; a feature/request
   brief adds `[maintainer-words: "<his sentence>"]` and `[reuses: <mechanism>|none: <why>]` (KIT-T703);
   a design or plan brief (job `plan`, or an analyst or researcher briefed with design words) adds
