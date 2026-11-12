@@ -2,7 +2,7 @@
 id: KIT-T1089
 title: dispatch-guard capability-table-stale gate deadlocks its own fix (KIT-T339): when a row goes stale it blocks EVERY Agent dispatch, including
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-12T01:25:30Z
-updated: 2026-11-12T01:25:30Z
+updated: 2026-11-12T01:39:00Z
 ---
 
 ## Description
@@ -32,3 +32,6 @@ Decision: a new tag [model-refresh: <date>], not file-name detection. gate-token
 
 ## History
 - [2026-11-12 01:25] (created) bug — dispatch-guard capability-table-stale gate deadlocks its own fix (KIT-T339): when a row goes stale it blocks EVERY Agent dispatch, including
+- [2026-11-12 01:38] (landed) 9103c28 dispatch-guard: capability-table-stale exempts the [model-refresh: <date>] research reassessment (job research, brief na
+- [2026-11-12 01:39] (status) todo → review
+- [2026-11-12 01:39] (comment) @kit-agent: fixed 9103c28, runtime published at 9103c28
