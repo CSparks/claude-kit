@@ -9,7 +9,7 @@
 
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { itemTitle } from './lib/item-title.mjs';
-import { stems } from './lib/stems.mjs';
+import { stems, stemWords } from './lib/stems.mjs';
 import { IDS_CHECK as CHECK_ID, IDS_MIN_HITS as MIN_HITS } from './lib/question-checks.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
@@ -26,17 +26,24 @@ function undescribed(root, q) {
   for (const id of new Set(text.match(ID) || [])) {
     const title = itemTitle(root, id);
     if (!title) continue;
-    const wanted = [...stems(title.replace(ID, ' '))];
-    const needed = Math.min(MIN_HITS, wanted.length);
-    if (wanted.filter((w) => said.has(w)).length < needed) lacking.push({ id, title });
+    const wanted = stemWords(title.replace(ID, ' '));
+    const needed = Math.min(MIN_HITS, wanted.size);
+    const found = [...wanted].filter(([stem]) => said.has(stem)).map(([, word]) => word);
+    if (found.length < needed) lacking.push({ id, title, needed, looked: [...wanted.values()], found });
   }
   return lacking;
 }
 
+const wordList = (words) => (words.length ? words.join(', ') : 'none');
+
 function blockMessage(found) {
   return [
     'BLOCKED: this questionnaire names an item by id without saying what it is (KIT-D128: the maintainer does not know items by id).',
-    ...found.map((f) => `  ${f.id} — "${f.title.slice(0, MAX_TITLE_SHOWN)}"`),
+    ...found.flatMap((f) => [
+      `  ${f.id} — "${f.title.slice(0, MAX_TITLE_SHOWN)}"`,
+      `    looked for ${f.needed} of its title words: ${wordList(f.looked)} (plural and hyphen forms match)`,
+      `    found: ${wordList(f.found)}`,
+    ]),
     '',
     'Fix: describe each item in plain words in the same question (its subject and what it does), then the id may follow as a pointer.',
     '',

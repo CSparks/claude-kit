@@ -6,6 +6,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOOKS, adopted, cleanup, hook, reporter } from './test-harness.mjs';
+import { stems } from './lib/stems.mjs';
 
 const { ok, done } = reporter('ids-described-gate');
 const OPTIONS = [{ label: '(Recommended) Block', description: 'refuse the dispatch' }, { label: 'Warn', description: 'print only' }];
@@ -31,6 +32,17 @@ try {
   ok('the description may sit in an option', ask('Block or warn for KIT-T703?', 'Scope', [{ label: 'Block', description: 'orchestrator briefs that invent requirements get refused' }, { label: 'Warn' }]).code === 0);
   ok('negative control: a question with no id passes', ask('Should the check block or only warn?').code === 0);
   ok('negative control: an id the store does not hold passes', ask('Which scope for KIT-T999?').code === 0);
+
+  writeFileSync(join(d, '.ai', 'tickets', 'RDG-T024-settlements.md'), "---\nid: RDG-T024\ntitle: Settlements are cut off from the highways: no off-ramp or on-ramp leads from a motorway into a settlement's streets\ntype: bug\n---\n");
+  const ramps = ask('Which first?', 'Scope', [{ label: 'the settlement access work (off-ramps and on-ramps into settlements, RDG-T024)' }, { label: 'Skip' }]);
+  ok('KIT-T1102: plural and hyphenated words of the title describe the id', ramps.code === 0);
+  ok('KIT-T1102: the singular form of a plural title word counts', ask('Does RDG-T024 about the settlement and its motorway access matter now?').code === 0);
+  const bareRamp = ask('Which first, RDG-T024?');
+  ok('KIT-T1102 negative control: an id with no description still blocks', bareRamp.code === 2);
+  ok('KIT-T1102: the block prints the title words it looked for and those it found',
+    bareRamp.out.includes('looked for 2 of its title words: settlements, highways, off-ramp') && bareRamp.out.includes('found: none')
+    && ask('Which first, RDG-T024, the settlement work?').out.includes('found: settlements'));
+  ok('KIT-T1102: stems join a hyphenated word and cut a plural', [...stems('off-ramps and queries')].sort().join() === 'offra,query,ramp');
 
   writeFileSync(join(d, '.claude-kit-ignore.yaml'), 'ids-described:\n  - "**"\n');
   ok('the ignore file lifts the gate', ask('Which ticket types should the KIT-T703 brief check cover?').code === 0);
