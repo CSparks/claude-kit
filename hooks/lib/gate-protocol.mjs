@@ -7,6 +7,7 @@
 
 import { LABEL_CHECK, LABEL_REQUIREMENTS } from './dispatch-label.mjs';
 import { TOKENS } from './gate-tokens.mjs';
+import { STALE_TABLE_CHECK } from './capability-stale.mjs';
 import { BRIEF_CHECK as BRIEF_GROUNDED_CHECK } from '../dispatch-brief.mjs';
 import { BROKER_OWNED_CHECK } from '../dispatch-broker.mjs';
 import { CONFORMANCE_CHECK } from '../dispatch-conformance.mjs';
@@ -39,6 +40,7 @@ export const GATES = {
       { check: LABEL_CHECK, wants: LABEL_REQUIREMENTS.map((r) => `${r.part}: ${r.wants}`), tokens: [] },
       { check: LADDER_CHECK, wants: ["a model resolvable to a known family: pass model:'sonnet' | 'opus' | 'haiku' | 'fable' on every call; a model-less call that would inherit a fable session is refused"], tokens: [T.allowFable] },
       { check: JOB_CHECK, wants: ["a job: [job: <id>] in the prompt or description (an agent definition may carry a default job:); a model outside the job row's families needs the override tag"], tokens: [T.job, T.modelOverride] },
+      { check: STALE_TABLE_CHECK, wants: ['no dispatch while a capability table row is older than dispatch.refresh_days (a reminder prints from 2 days before); the weekly reassessment is exempt: [job: research], a brief naming research/models-capability-<date>.md, [paths:] only under research/, .ai/config.yml, .ai/decisions/, .ai/model-lineup.json'], tokens: [T.modelRefresh] },
       { check: ESCALATION_CHECK, wants: ['a job no dearer than the default of the ticket type the brief names'], tokens: [T.escalate] },
       { check: COLD_BUILD_CHECK, wants: ['no worktree, clone or second checkout: one checkout, on main'], tokens: [T.maintainerWorktree] },
       { check: SHARED_TREE_CHECK, wants: ['one read/write agent per checkout; research agents are read-only types or carry the read-only tag', 'claude-kit checkout (KIT-D155): only a writer whose declared [paths:] overlap an in-flight writer\'s counts'], tokens: [T.readOnly, T.tree, T.maintainerParallel] },

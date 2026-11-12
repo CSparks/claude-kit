@@ -9,6 +9,7 @@ import { ENV, ROOT, adopted, cleanup, hook, reporter, tmpDir } from './test-harn
 import { TOKENS } from './lib/gate-tokens.mjs';
 import { GATES, gateText } from './lib/gate-protocol.mjs';
 import * as protocol from './lib/gate-protocol.mjs';
+import * as capabilityStale from './lib/capability-stale.mjs';
 import * as brief from './dispatch-brief.mjs';
 import * as broker from './dispatch-broker.mjs';
 import * as conformance from './dispatch-conformance.mjs';
@@ -24,7 +25,7 @@ import { REAL_QUESTIONS, SHORT_QUESTIONS } from './question-brief-real-fixtures.
 
 const { ok, done } = reporter('gate-protocol');
 const dir = tmpDir('gate-protocol-');
-const WARN_ONLY = new Set(['WASTE_CHECK', 'AGENT_LOADED_CHECK', 'STALE_TABLE_CHECK']);
+const WARN_ONLY = new Set(['WASTE_CHECK', 'AGENT_LOADED_CHECK']);
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const q = (...args) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), ...args], { cwd: ROOT, encoding: 'utf8', env: ENV });
 
@@ -35,7 +36,7 @@ try {
 
   const ids = new Set(GATES.agent.checks.map((c) => c.check));
   const exported = {};
-  for (const mod of [brief, broker, conformance, context, escalation, holder, job, lessons, rulings, ui, worker, protocol]) {
+  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, holder, job, lessons, rulings, ui, worker, protocol]) {
     for (const [name, value] of Object.entries(mod)) if (name.endsWith('_CHECK') && typeof value === 'string') exported[name] = value;
   }
   const guardNames = [...new Set([...read('hooks/dispatch-guard.mjs').matchAll(/pathExcluded\(root, ([A-Z_]+_CHECK), root\)/g)].map((m) => m[1]))];

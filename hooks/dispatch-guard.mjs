@@ -28,7 +28,7 @@ import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, par
 import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
 import { declaredReadOnly, ownsWork, readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
 import { ladderRoot } from '../scripts/dispatch-ladder.mjs';
-import { capabilityStatus } from '../scripts/model-lineup.mjs';
+import { STALE_TABLE_CHECK, staleBlock, staleWarning } from './lib/capability-stale.mjs';
 import { JOB_CHECK, jobBlock } from './dispatch-job.mjs';
 import { ESCALATION_CHECK, escalationBlock } from './dispatch-escalation.mjs';
 import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loaded.mjs';
@@ -51,7 +51,6 @@ import { TOKENS } from './lib/gate-tokens.mjs';
 import { LADDER_CHECK, COLD_BUILD_CHECK, SHARED_TREE_CHECK } from './lib/gate-protocol.mjs';
 import { labelBlockText, labelProblems } from './lib/dispatch-label.mjs';
 
-const STALE_TABLE_CHECK = 'capability-table-stale';
 // The only escapes are the maintainer's own words, quoted (KIT-D074). An agent cannot grant itself
 // a worktree or a second writer; an empty token does not count.
 const MAINTAINER_PARALLEL = TOKENS.maintainerParallel.pattern;
@@ -88,7 +87,7 @@ try {
     unlabelledBlock(root, input, p),
     jobCheck(root, input, prompt, p),
     escalationCheck(root, input, prompt, p),
-    staleTableBlock(root, p),
+    staleTableBlock(root, input, prompt, p),
     coldWorktreeBlock(root, input, prompt),
     sharedTreeBlock(root, input, prompt),
     holderBlockFor(root, input, prompt, p),
@@ -105,6 +104,8 @@ try {
     registerWriterDispatch(root, input, prompt, p);
     const warning = agentRegistryWarning(root, input, p);
     if (warning) console.error(warning);
+    const stale = staleTableWarning(root, p);
+    if (stale) console.error(stale);
     const advice = workerAdviceText(root, input, prompt, p);
     if (advice) console.error(advice);
     const waste = pathExcluded(root, WASTE_CHECK, root) ? null : wasteWarning(root);
@@ -286,26 +287,16 @@ function escalationCheck(root, input, prompt, p) {
 // --- capability-table-stale (KIT-T339) --------------------------------------------
 // Model routing reads only the kit capability table; a table older than dispatch.refresh_days or
 // behind a newer known model is guessing. The fix is the research refresh, not an override.
-function staleTableBlock(root, p) {
+// The weekly reassessment ([model-refresh:], KIT-T1089) is exempt; a table two days from the block warns once per session.
+function staleTableBlock(root, input, prompt, p) {
   if (!p.tool_input) return null;
   if (pathExcluded(root, STALE_TABLE_CHECK, root)) return null;
-  let status;
-  try {
-    status = capabilityStatus();
-  } catch {
-    return null;
-  }
-  if (!status.stale) return null;
-  return [
-    'BLOCKED: the model capability table is stale (KIT-T339).',
-    ...status.reasons.map((r) => `  - ${r}`),
-    '',
-    'Dispatch routes by cost and capability per model; a stale table routes by guesswork.',
-    `Fix: run the refresh — node ${join(ladderRoot(), 'scripts', 'model-refresh.mjs')} — then review the proposed`,
-    'decision in .ai/decisions/ and move the aliases in .ai/config.yml dispatch.aliases if a newer model landed.',
-    '',
-    excludeFooter(STALE_TABLE_CHECK),
-  ].join('\n');
+  return staleBlock({ root, input, prompt, footer: excludeFooter(STALE_TABLE_CHECK) });
+}
+
+function staleTableWarning(root, p) {
+  if (!p.tool_input || pathExcluded(root, STALE_TABLE_CHECK, root)) return null;
+  return staleWarning({ root, sessionId: p.session_id });
 }
 
 // --- cold-worktree-build (KIT-T176, KIT-D074) -----------------------------------
