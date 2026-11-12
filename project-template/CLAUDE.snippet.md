@@ -198,12 +198,12 @@ monolith file.
 ### Every store write goes through a command (KIT-T509)
 A hand Write/Edit of a store file is a defect: the command mints the id, validates, stamps
 History and regenerates the views. The pre-write hook (check-id `store-write`) refuses a hand
-**creation** of a typed-store file and any write to `SESSION.md`, the generated views and the
-hook-owned logs, and names the command. A new item type gets its own verb or joins `t`.
+**creation** of a typed-store file, a hand Edit/Write of an existing item (KIT-D120), and any write to
+`SESSION.md`, the generated views and the hook-owned logs, and names the command. A new item type gets its own verb or joins `t`.
 | Write | Command |
 |---|---|
 | ticket | `t new <type> "<title>" [--description|--file]`, `t status`, `t tick`/`untick`/`criterion`, `t link`, `t comment` |
-| ticket/epic/request/note Notes prose | `t notes <id> "<prose>"` (an Edit of an existing item's prose also stays allowed, KIT-D037) |
+| ticket/epic/request/note Notes prose | `t notes <id> "<prose>"` appends; `t edit <id> --section Description\|Plan\|Notes --file <path>` replaces (a hand Edit of an existing item is refused, KIT-D120) |
 | decision | `t decide --file <draft.md>` |
 | question | `t question "<q>"`, `t ask`, `t resolve` |
 | note / epic / request | `t note` / `t epic` / `t request "<title>" [--body|--file]`; `t status`/`t tick` also address epics and requests |

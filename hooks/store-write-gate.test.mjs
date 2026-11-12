@@ -6,7 +6,7 @@
 // Run: node hooks/store-write-gate.test.mjs
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,6 +79,12 @@ try {
       const r = call(file);
       check(`${tool} of ${name} is refused, names ${cmd} and the check id`, r.status === 2 && r.stderr.includes(cmd) && r.stderr.includes('store-write') && r.stderr.includes('KIT-D120'), `(exit ${r.status}) ${r.stderr.slice(0, 120)}`);
     }
+  }
+  const notesEdit = edit(join(ai, 'tickets', 'ZZ-T001-x.md'));
+  check('an Edit confined to an existing ticket Notes is refused and names t notes and t edit --section Notes', notesEdit.status === 2 && notesEdit.stderr.includes('t notes <id>') && /t edit <id> --section Description\|Plan\|Notes/.test(notesEdit.stderr));
+  for (const doc of ['CLAUDE.md', 'project-template/CLAUDE.snippet.md']) {
+    const text = readFileSync(fileURLToPath(new URL(`../${doc}`, import.meta.url)), 'utf8');
+    check(`${doc} states a hand Edit of an existing item is refused (KIT-D120), never allowed`, !/stays allowed/.test(text) && /hand Edit of an existing item is refused, KIT-D120/.test(text));
   }
   check('the footer names both exclusion surfaces', /claude-kit-ignore\.yaml/.test(edit(join(ai, 'tickets', 'ZZ-T001-x.md')).stderr) && /claude-kit-ignore-file store-write/.test(edit(join(ai, 'tickets', 'ZZ-T001-x.md')).stderr));
 
