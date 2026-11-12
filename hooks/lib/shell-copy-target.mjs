@@ -20,6 +20,7 @@
 // backslash, install, the `copy` alias) is uncertain: `writes` then lists every operand, every value glued to an
 // option, and `<operand>/any.rs` (anything may land under a directory operand), so a gate judging them fails closed.
 // A redirect (`> f`, `2>&1`, `< f`) is cut out of the tokens with its target; the caller judges redirects itself.
+// `tokenize` and `isOption` are shared with touch-target.mjs.
 
 const SAFE_SHORT = { cp: 'fpvnrR', mv: 'fvn' };
 const SAFE_LONG = { cp: ['--force', '--preserve', '--verbose', '--no-clobber', '--recursive'], mv: ['--force', '--verbose', '--no-clobber'] };
@@ -41,7 +42,7 @@ const OPTION_START = /^[-–—―]/;
 const ANY_SOURCE_NAME = 'any.rs';
 
 /** Tokens `{ v, quoted, impure }` of `text` with redirects cut out; `open` when a quote never closes. */
-function tokenize(text, powershell) {
+export function tokenize(text, powershell) {
   const special = powershell ? PS_UNQUOTED_SPECIAL : GNU_UNQUOTED_SPECIAL;
   const out = [];
   let cur = null;
@@ -83,7 +84,7 @@ function tokenize(text, powershell) {
 
 const stripSlash = (p) => String(p).replace(/[\\/]+$/, '');
 const baseName = (p) => stripSlash(p).replace(/.*[\\/]/, '');
-const isOption = (t) => OPTION_START.test(t.v);
+export const isOption = (t) => OPTION_START.test(t.v);
 const shapeOf = (source, destination) => ({ sources: [source], destination, landings: [destination], under: [`${stripSlash(destination)}/${baseName(source)}`], recursive: false });
 
 // Sources copied into a directory: each lands at DIR/<its name>. A lone source named by -t has DIR/<name> as destination.

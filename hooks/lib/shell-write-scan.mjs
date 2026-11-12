@@ -21,12 +21,14 @@
 // An applier is the command a segment leads with, past wrappers and grouping words, also in a command another runs
 // (`bash -c "..."`, `find -exec`, `ssh host`, a `trap` string, a `$(...)` substitution: patch-apply.mjs); a copy
 // destination holding a variable the command assigns once and literally is judged by the value (shell-variables.mjs).
+// A segment led by a `touch` with only mtime options tags its hits `mtimeOnly` for the caller (touch-target.mjs).
 
 import { readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
 import { copyTargets } from './shell-copy-target.mjs';
+import { touchPlaceKnown, touchTargets } from './touch-target.mjs';
 import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
 import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
@@ -34,7 +36,8 @@ import { assignedValues, expandVariables } from './shell-variables.mjs';
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
 const WRITING_CMD = /^(?:rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
-const DELETE_CMD = /^(?:rm|del|erase|unlink|remove-item)$/i;
+const TOUCH_CMD = /^touch$/i;
+const DELETE_CMD =/^(?:rm|del|erase|unlink|remove-item)$/i;
 const MOVE_CMD = /^(?:mv|move-item)$/i;
 const COPY_CMD = /^(?:cp|copy|copy-item|install|mv|move-item)$/i;
 const IN_PLACE_TOOL = /^(?:sed|perl)$/i;
@@ -128,6 +131,15 @@ export function kitLed(text) {
   return /^node$/i.test(leader) ? KIT_TOOL.test(nodeScriptName(args.slice(1))) : KIT_TOOL.test(leader);
 }
 
+// A segment led by `touch` whose arguments are provably mtime-only: its file hits carry `mtimeOnly: { noCreate }`
+// for a caller that can show the file exists. Null for any other touch, which is judged as a write tool.
+function judgeTouch(argText, ctx) {
+  if (!ctx.touchPlaceKnown) return null;
+  const proven =touchTargets(expandVariables(argText, ctx.vars, ctx.shell), ctx.shell === 'powershell');
+  if (!proven) return null;
+  return proven.files.map(ctx.hit).filter(Boolean).map((h) => ({ ...h, mtimeOnly: { noCreate: proven.noCreate } }));
+}
+
 function judgeSegment(text, ctx) {
   const words = wordsIn(text);
   if (!words.length) return [];
@@ -137,6 +149,8 @@ function judgeSegment(text, ctx) {
   const hits = redirectTargets(text, quotedArgsInert, ctx.shell === 'bash').map(ctx.hit).filter(Boolean);
   hits.push(...patchApplyHits(text, ctx));
   if (quotedArgsInert || READER.test(leader)) return hits;
+  const touched = TOUCH_CMD.test(leader) ? judgeTouch(text.slice(words[0].at + words[0].w.length), ctx) : null;
+  if (touched) return [...hits, ...touched];
   for (let i = 0; i < words.length; i++) {
     hits.push(...listed(judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length))));
   }
@@ -182,7 +196,9 @@ export function scanAllShellWrites(command, { hit, codeHit, readScript = readTem
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
   const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell, raw: String(command || '') };
   const variables = assignedValues(parts, shell);
-  return [...parts].flatMap((seg) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg) }));
+  const all = [...parts];
+  const texts = all.map((seg) => seg.text);
+  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(texts, i) }));
 }
 
 export const scanShellWrites = (command, options) => scanAllShellWrites(command, options)[0] || null;

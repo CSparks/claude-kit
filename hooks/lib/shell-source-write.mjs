@@ -7,6 +7,7 @@
 //     ambiguous: the quoting could not be split and the command holds a write token (KIT-T705)
 //     outsideTo: a proven cp/mv source operand; the gate lifts it when that destination leaves the repo
 //     deletes: an operand of rm, del, erase, unlink or Remove-Item; the gate lifts it for an untracked file the caller wrote
+//     mtimeOnly: { noCreate } an operand of a provably mtime-only `touch`; the gate lifts it for an existing file (touch-target.mjs)
 //   shellSourceWrite(command, options) -> the first hit without outsideTo, or null
 //   isSourcePath(path, tempDir) -> boolean   a hand-authored source path (not temp, build output or a vendored tree)
 
