@@ -2,7 +2,8 @@
 // gated tool (KIT-T898, KIT-D147). `q gates <gate>` prints gateText(name); check ids come from the modules that
 // enforce them, tag forms from gate-tokens.mjs, the summary rule from question-brief.mjs.
 //   GATES -> { agent, question }: { title, hooks, checks: [{ check, wants[], tokens[] }] }
-//   gateText(name) -> the printable protocol, or null for an unknown name;  gateNames() -> the gate names
+//   gateText(name, { root }) -> the printable protocol, or null for an unknown name; with a root, the conformance row
+//     names the test the check matches in that checkout (KIT-T1098);  gateNames() -> the gate names
 //   gateDigest(gates?) -> the few lines a compaction start prints: per gate, each check's tag form (KIT-T1053)
 
 import { LABEL_CHECK, LABEL_REQUIREMENTS } from './dispatch-label.mjs';
@@ -10,7 +11,7 @@ import { TOKENS } from './gate-tokens.mjs';
 import { STALE_TABLE_CHECK } from './capability-stale.mjs';
 import { BRIEF_CHECK as BRIEF_GROUNDED_CHECK } from '../dispatch-brief.mjs';
 import { BROKER_OWNED_CHECK } from '../dispatch-broker.mjs';
-import { CONFORMANCE_CHECK } from '../dispatch-conformance.mjs';
+import { CONFORMANCE_CHECK, conformanceTestsFor } from '../dispatch-conformance.mjs';
 import { HANDOFF_CHECK } from '../dispatch-context.mjs';
 import { ESCALATION_CHECK } from '../dispatch-escalation.mjs';
 import { HOLDER_CHECK } from '../dispatch-holder.mjs';
@@ -80,8 +81,14 @@ export const GATES = {
 
 export const gateNames = () => Object.keys(GATES);
 
-function checkLines({ check, wants, tokens }) {
-  const [first, ...rest] = wants;
+function projectWants(check, root) {
+  if (check !== CONFORMANCE_CHECK || !root) return [];
+  const names = conformanceTestsFor(root).map((n) => `\`${n}\``);
+  return names.length ? [`in this project: name ${names.length > 1 ? 'one of ' : ''}${names.join(', ')} in the brief (the exact string the check matches)`] : [];
+}
+
+function checkLines({ check, wants, tokens }, root) {
+  const [first, ...rest] = [...wants, ...projectWants(check, root)];
   const indent = ' '.repeat(CHECK_COLUMN);
   return [
     `  ${check}`.padEnd(CHECK_COLUMN) + first,
@@ -128,7 +135,7 @@ export function gateDigest(gates = GATES) {
   ];
 }
 
-export function gateText(name) {
+export function gateText(name, { root } = {}) {
   const gate = GATES[name];
   if (!gate) return null;
   const tags = [...new Map(gate.checks.flatMap((c) => c.tokens).map((t) => [t.form, t])).values()];
@@ -138,7 +145,7 @@ export function gateText(name) {
     'A rejection lists every requirement that failed; satisfy all of them, then resend once. A block is satisfied, never routed around.',
     '',
     'REQUIREMENTS',
-    ...gate.checks.flatMap(checkLines),
+    ...gate.checks.flatMap((c) => checkLines(c, root)),
     ...(tags.length ? ['', 'ACCEPTED TAG FORMS (exact; in the prompt unless noted)', ...tags.map((t) => `  ${t.form}  `.padEnd(TAG_COLUMN) + t.meaning)] : []),
     '',
   ].join('\n');

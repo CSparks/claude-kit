@@ -13,6 +13,7 @@ import * as capabilityStale from './lib/capability-stale.mjs';
 import * as brief from './dispatch-brief.mjs';
 import * as broker from './dispatch-broker.mjs';
 import * as conformance from './dispatch-conformance.mjs';
+import { conformanceTestsFor } from './dispatch-conformance.mjs';
 import * as context from './dispatch-context.mjs';
 import * as escalation from './dispatch-escalation.mjs';
 import * as framework from './dispatch-framework.mjs';
@@ -55,6 +56,15 @@ try {
   ok('q gates agent prints every check id', agent.status === 0 && [...ids].every((id) => agent.stdout.includes(id)));
   ok('q gates agent prints every tag form exactly', Object.values(TOKENS).filter((t) => GATES.agent.checks.some((c) => c.tokens.includes(t))).every((t) => agent.stdout.includes(t.form)));
   ok('q gates agent states the canonical description form', agent.stdout.includes('[Sonnet 5.5]'));
+  const game = tmpDir('gate-game-');
+  writeFileSync(join(game, '.gitmodules'), '[submodule "rapid-game"]\n\tpath = rapid-game\n');
+  const plain = tmpDir('gate-plain-');
+  const expected = conformanceTestsFor(game);
+  const conformanceRow = (root) => gateText('agent', { root }).split('\n').filter((l) => /in this project: name/.test(l));
+  ok('q gates agent in a framework checkout names the conformance test the check matches',
+    expected.length > 0 && conformanceRow(game).length === 1 && expected.every((n) => conformanceRow(game)[0].includes(`\`${n}\``)));
+  ok('negative control: a checkout with no framework conformance test prints no name', conformanceRow(plain).length === 0 && conformanceRow(undefined).length === 0);
+  ok('q gates agent run from that checkout prints the name', spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), 'gates', 'agent', '--root', game], { cwd: game, encoding: 'utf8', env: ENV }).stdout.includes(`\`${expected[0]}\``));
   const question = q('gates', 'question');
   ok('q gates question prints the summary-first rule, the readiness rules and the re-ask tag',
     question.status === 0 && question.stdout.includes('summary first, then the questionnaire') && question.stdout.includes('exploring:') && question.stdout.includes(TOKENS.reAsk.form));

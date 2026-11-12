@@ -5,6 +5,8 @@
 //
 //   conformanceBlock({ root, input, prompt, footer }) -> block message | null (check `conformance-named`)
 //
+//   conformanceTests(frameworks) -> the test names the check matches;  conformanceTestsFor(root) -> the same for a checkout
+//
 // Escape: name the test in the brief, or `[conformance: not affected: <why>]`.
 // Read-only agents other than the patch-worker are never asked. Same work words as lessons-checked.
 // A brief whose `[tree: <path>]` names another checkout is judged by that checkout's frameworks.
@@ -19,11 +21,14 @@ export const CONFORMANCE_CHECK = 'conformance-named';
 const NOT_AFFECTED = TOKENS.conformanceNotAffected.pattern;
 const PATCH_WORKER = /(?:^|:)patch-worker$/i;
 
+export const conformanceTests = (frameworks) => frameworks.map((f) => f.conformance).filter(Boolean);
+export const conformanceTestsFor = (root) => conformanceTests(frameworksFor(root));
+
 export function conformanceBlock({ root, input, prompt, footer, frameworks = frameworksFor(declaredTreeRoot(input) || root) }) {
   const type = String(input.subagent_type || input.agent_type || '').trim();
   if (!PATCH_WORKER.test(type) && readOnlyDispatch(root, type, prompt)) return null;
   if (!lessonsWork(prompt)) return null;
-  const tests = frameworks.map((f) => f.conformance).filter(Boolean);
+  const tests = conformanceTests(frameworks);
   if (!tests.length) return null;
   const text = String(prompt || '');
   if (NOT_AFFECTED.test(text) || tests.some((t) => text.includes(t))) return null;

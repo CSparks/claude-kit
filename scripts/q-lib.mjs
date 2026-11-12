@@ -460,7 +460,7 @@ async function main() {
 
   if (cmd === 'gates') {
     const { runGates } = await import('./q-gates.mjs');
-    process.exit(runGates(rawArgs));
+    process.exit(runGates(rawArgs, { root: cwdRoot }));
   }
 
   const args = scopeFlagToPositional(cmd, rawArgs);
