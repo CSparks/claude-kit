@@ -26,7 +26,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, partitionAgents } from './lib.mjs';
-import { isWorktreeIsolation, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
+import { isWorktreeIsolation, dispatchTarget, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
 import { declaredReadOnly, ownsWork, readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
 import { ladderRoot } from '../scripts/dispatch-ladder.mjs';
 import { STALE_TABLE_CHECK, staleBlock, staleWarning } from './lib/capability-stale.mjs';
@@ -336,21 +336,21 @@ function coldWorktreeBlock(root, input, prompt) {
 
 // --- shared-tree-dispatch (KIT-T176) --------------------------------------------
 // ONE read/write agent per checkout (KIT-D077). The checkout is the dispatch's `[tree: …]` token,
-// else the path its brief names, else the session's. Read-only dispatches and rows never count.
+// else the session's (KIT-T1103). Read-only dispatches and rows never count.
 function sharedTreeBlock(root, input, prompt) {
   if (isWorktreeIsolation(input.isolation)) return null; // not this tree — cold-worktree-build rules on it
   if (MAINTAINER_PARALLEL.test(prompt)) return null;
   if (readOnlyDispatch(root, label(input), prompt)) return null;
   if (pathExcluded(root, SHARED_TREE_CHECK, root)) return null;
   const now = Date.now();
-  const tree = dispatchTargetRoot(root, input);
+  const { root: tree, source } = dispatchTarget(root, input);
   const writers = liveAgents(root, now, tree).filter((r) => !readOnlyRow(root, r));
   const live = isKitCheckout(tree) ? writers.filter((r) => sameFiles(workerPaths(prompt, tree), r.paths)) : writers;
   if (!live.length) return null;
 
   return [
     `BLOCKED: ${live.length} read/write agent(s) already in flight in this working tree.`,
-    `  agent: ${label(input)}   tree: ${tree}   roster: .ai/agents.jsonl`,
+    `  agent: ${label(input)}   tree: ${tree} (from ${source})   roster: .ai/agents.jsonl`,
     ...live.map((r) => `    • ${r.id} (${r.scope || 'general'}${rosterModel(r)}, ${minutesAgo(r, now)}m ago) — ${String(r.task || '(no description)').slice(0, ROSTER_TASK_CHARS)}`),
     '',
     'The rule: one read/write agent per checkout; read-only agents are unrestricted. Two writers',

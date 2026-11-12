@@ -1,24 +1,17 @@
-// Which working TREE a delegation lands in — the single fact `shared-tree-dispatch` compares on
-// (KIT-T177). The roster is written by the DISPATCHING session, so a row's mere presence says
-// nothing about whether its agent is a colleague in THIS checkout: an `isolation: worktree` agent
-// has its own, and a brief that names another repo sends the agent there. agent-roster.mjs stamps
-// both facts on the row at dispatch time; dispatch-guard resolves the same facts for the incoming
-// dispatch and compares. One resolver, so a row and a live dispatch can never disagree.
-//
-// FAIL-OPEN, and when it fails it fails toward the HALT: an unresolvable target is the session's
-// own tree, and a row missing the fields (written before KIT-T177) still counts as a tree-mate.
+// Which working TREE a delegation lands in — the one fact `shared-tree-dispatch`, checkout-holder,
+// broker-owned-tree and the roster compare on. It is the `[tree: <path>]` tag when that path is a
+// repo root, else the session checkout; a path a brief merely mentions in prose retargets nothing
+// (KIT-T1103). An unresolvable target is the session's tree: the side that keeps the halt.
 
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitRoot } from './lib.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 
-// A brief names its target repo as an absolute path, quoted (`D:\dev\claude-kit`) or bare. Quoted
-// is tried first because a checkout under a spaced path ("D:\my repos\app") survives only quoted.
-const QUOTED_PATH = /[`'"]([^`'"\n]+)[`'"]/g;
-const BARE_PATH = /(?:[A-Za-z]:[\\/]|\/)[^\s"'`)\],;]+/g;
 const ABSOLUTE = /^(?:[A-Za-z]:[\\/]|\/|\\\\)/;
-const TRAILING_PUNCT = /[.,;:!?)\]}"'`]+$/;
+
+export const TREE_FROM_TAG = 'the tree tag';
+export const TREE_FROM_SESSION = 'the session checkout';
 
 export function isWorktreeIsolation(value) {
   return /^worktree$/i.test(String(value ?? '').trim());
@@ -34,26 +27,19 @@ export function declaredTreeRoot(input) {
   }
 }
 
-// The repo root the dispatched agent will actually work in. Only a path that IS a repo root
-// counts — a passing mention of a file inside another checkout must not retarget the dispatch —
-// and the answer is canonicalized through git so it compares equal to a row that repo wrote.
+// The repo root the dispatched agent works in, and where that answer came from. The root is
+// canonicalized through git so it compares equal to a row that repo wrote.
+export function dispatchTarget(sessionRoot, input) {
+  const declared = declaredTreeRoot(input);
+  return declared ? { root: declared, source: TREE_FROM_TAG } : { root: sessionRoot, source: TREE_FROM_SESSION };
+}
+
 export function dispatchTargetRoot(sessionRoot, input) {
-  try {
-    const declared = treeToken(input);
-    if (declared && isRepoRoot(declared)) return gitRoot(declared) || declared;
-    for (const candidate of candidates(input)) {
-      if (!isRepoRoot(candidate)) continue;
-      const resolved = gitRoot(candidate) || candidate;
-      if (!sameTree(resolved, sessionRoot)) return resolved;
-    }
-  } catch {
-    /* unresolvable — the session's own tree is the answer that keeps the halt */
-  }
-  return sessionRoot;
+  return dispatchTarget(sessionRoot, input).root;
 }
 
 // Is this roster row a colleague in `targetRoot`'s checkout? A worktree-isolated agent never is.
-// A row with no targetRoot predates KIT-T177: counted, the conservative side of the halt.
+// A row with no targetRoot predates the field: counted, the conservative side of the halt.
 export function rowSharesTree(row, targetRoot) {
   if (!row) return false;
   if (isWorktreeIsolation(row.isolation)) return false;
@@ -73,22 +59,10 @@ function normalizeTree(p) {
   return String(p ?? '').trim().replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
-// `[tree: <absolute path>]` — the dispatcher's declaration of the checkout the agent writes in.
 function treeToken(input) {
   const m = String(input?.prompt ?? input?.message ?? '').match(TOKENS.tree.pattern);
   const path = m ? m[1].trim().replace(/^["'`]|["'`]$/g, '') : '';
   return ABSOLUTE.test(path) ? path : '';
-}
-
-function candidates(input) {
-  const out = [];
-  for (const v of [input?.cwd, input?.working_directory, input?.workdir, input?.directory]) {
-    if (typeof v === 'string' && v.trim()) out.push(v);
-  }
-  const prompt = String(input?.prompt ?? input?.message ?? '');
-  for (const m of prompt.matchAll(QUOTED_PATH)) out.push(m[1]);
-  for (const m of prompt.matchAll(BARE_PATH)) out.push(m[0]);
-  return out.map((s) => s.trim().replace(TRAILING_PUNCT, '')).filter((s) => ABSOLUTE.test(s));
 }
 
 // A worktree's .git is a FILE, a normal checkout's a directory — existsSync accepts both.

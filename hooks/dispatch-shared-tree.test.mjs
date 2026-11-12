@@ -38,7 +38,7 @@ const wtRow = roster(makeRepo({ cargo: true }), [inFlightRow(0, { isolation: 'wo
 expect('a worktree-isolated live row does not count', run(wtRow, shared).code, 0);
 expect('a live row targeting another repo does not count', run(roster(makeRepo({ cargo: true }), [inFlightRow(0, { targetRoot: elsewhere })]), shared).code, 0);
 expect('blocks when the live row targets THIS tree', run(sameTree, shared).code, 2);
-expect('a new dispatch aimed at another repo root is a different checkout', run(sameTree, { ...shared, prompt: `implement KIT-T177 in \`${elsewhere}\`` }).code, 0);
+expect('a new dispatch tagged to another repo root is a different checkout', run(sameTree, { ...shared, prompt: `implement KIT-T177 [tree: ${elsewhere}]` }).code, 0);
 expect('blocks an old-format row with neither field (conservative)', run(roster(makeRepo(), [inFlightRow()]), shared).code, 2);
 expect('an old-format row still ages out at 2h', run(roster(makeRepo(), [inFlightRow(3 * HOURS, { targetRoot: undefined })]), shared).code, 0);
 expect('a row with an unparseable isolation value still counts (fail toward the halt)', run(roster(makeRepo(), [inFlightRow(0, { isolation: 42 })]), shared).code, 2);
@@ -74,6 +74,21 @@ expect('blocks in a non-Rust repo too (the rule is per checkout)', run(roster(ma
   expect('a [tree:] that is not a repo falls back to the session checkout', run(stiletto, { ...one, prompt: `${one.prompt} [tree: ${join(other, 'nope')}]` }).code, 2);
   const wrongRow = roster(makeRepo({ cargo: true }), [inFlightRow(0, { targetRoot: other })]);
   expect('a session writer beside a writer row aimed at [tree:] is blocked when they share it', run(wrongRow, { ...one, prompt: `${one.prompt} [tree: ${other}]` }).code, 2);
+}
+
+// The tree comes from the [tree:] tag alone, else the session checkout; a path in prose retargets nothing (KIT-T1103).
+{
+  const other = gitTop(makeRepo());
+  const mention = `${one.prompt}; another agent in ${other} is switching that game over`;
+  const otherBusy = () => roster(makeRepo({ cargo: true }), [inFlightRow(0, { targetRoot: other })]);
+  expect('prose naming another checkout, no tag: the session checkout, passes beside a writer only in that other checkout', run(otherBusy(), { ...one, prompt: mention }).code, 0);
+  expect('quoted prose naming another checkout is no tag either', run(otherBusy(), { ...one, prompt: `${one.prompt}; see \`${other}\`` }).code, 0);
+  expect('a [tree:] tag to the busy checkout is still blocked', run(otherBusy(), { ...one, prompt: `${mention} [tree: ${other}]` }).code, 2);
+  const own = roster(makeRepo({ cargo: true }), [inFlightRow(0, { targetRoot: undefined })]);
+  expect('no tag while the session checkout itself has a writer is blocked, whatever the prose names', run(own, { ...one, prompt: mention }).code, 2);
+  expect('the block says the tree came from the session checkout', /tree: .* \(from the session checkout\)/.test(run(own, { ...one, prompt: mention }).err) ? 1 : 0, 1);
+  const tagged = run(otherBusy(), { ...one, prompt: `${one.prompt} [tree: ${other}]` });
+  expect('the block says the tree came from the tree tag, and names that tree', tagged.err.includes(`tree: ${other}`) && /\(from the tree tag\)/.test(tagged.err) ? 1 : 0, 1);
 }
 
 // [read-only: reason] on a writer-capable type.

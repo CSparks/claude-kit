@@ -157,10 +157,18 @@ try {
       const other = gitTop(makeRepo());
       hook(ROSTER_HOOK, {
         hook_event_name: 'PostToolUse', tool_name: 'Task',
-        tool_input: { prompt: `Implement KIT-T177 in \`${other}\``, subagent_type: 'general-purpose', model: 'opus' },
+        tool_input: { prompt: `Implement KIT-T177 [tree: ${other}]`, subagent_type: 'general-purpose', model: 'opus' },
         tool_response: { agent_id: 'tgt01' },
       }, dh);
-      ok('tree: a brief naming another repo root records THAT tree', sameTree(readAgents(dh)[0].targetRoot, other));
+      ok('tree: a [tree:] tag naming another repo root records THAT tree', sameTree(readAgents(dh)[0].targetRoot, other));
+
+      const dp = makeRepo();
+      hook(ROSTER_HOOK, {
+        hook_event_name: 'PostToolUse', tool_name: 'Task',
+        tool_input: { prompt: `Implement KIT-T177; another agent in \`${other}\` works on the game`, subagent_type: 'general-purpose', model: 'opus' },
+        tool_response: { agent_id: 'tgt04' },
+      }, dp);
+      ok('tree: another repo root named in prose records the dispatching tree', sameTree(readAgents(dp)[0].targetRoot, gitTop(dp)));
 
       const dn = makeRepo();
       const nested = join(gitTop(makeRepo()), 'src', 'thing.mjs');
