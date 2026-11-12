@@ -51,11 +51,14 @@ test('negative: once disarmed a throw is a real failure (exit 1) and the wait is
 });
 
 test('the window is the asked timeout cut to the tool window minus the margin', () => {
-  assert.deepEqual(waitWindow({ timeout: '280' }), { seconds: DEFAULT_TOOL_TIMEOUT_S - TOOL_MARGIN_S, clamped: true, asked: 280, ceiling: DEFAULT_TOOL_TIMEOUT_S - TOOL_MARGIN_S });
+  assert.deepEqual(waitWindow({ timeout: '280' }), { seconds: DEFAULT_TOOL_TIMEOUT_S - TOOL_MARGIN_S, clamped: true, asked: 280, ceiling: DEFAULT_TOOL_TIMEOUT_S - TOOL_MARGIN_S, capped: false });
   assert.equal(waitWindow({ timeout: '120', 'tool-timeout': '180' }).seconds, 120);
   assert.equal(waitWindow({ timeout: '170', 'tool-timeout': '180' }).clamped, false);
-  assert.equal(waitWindow({ timeout: '280', 'tool-timeout': '290' }).seconds, MAX_FOREGROUND_WAIT_S, 'the harness cap, not the named tool timeout, bounds the wait');
-  assert.equal(waitWindow({ timeout: '300', 'tool-timeout': '600' }).seconds, MAX_FOREGROUND_WAIT_S);
+  assert.equal(waitWindow({ timeout: '280', 'tool-timeout': '290' }, { subagent: true }).seconds, MAX_FOREGROUND_WAIT_S, 'the harness cap, not the named tool timeout, bounds a subagent wait');
+  assert.equal(waitWindow({ timeout: '300', 'tool-timeout': '600' }, { subagent: true }).seconds, MAX_FOREGROUND_WAIT_S);
+  assert.equal(waitWindow({ timeout: '900', 'tool-timeout': '910' }).seconds, 900, 'a main-thread background wait keeps its named window');
+  assert.equal(waitWindow({ timeout: '900', 'tool-timeout': '910' }).clamped, false);
+  assert.equal(waitWindow({ timeout: '280', 'tool-timeout': '290' }).seconds, 280);
   assert.equal(MAX_FOREGROUND_WAIT_S, 170);
   assert.equal(waitWindow({}).seconds, 100);
   assert.equal(waitWindow({ timeout: '30' }).clamped, false);

@@ -26,7 +26,7 @@ import { announce, selfCheck } from './health.mjs';
 import { heartbeatLine } from './heartbeat.mjs';
 import { restartIfWedged } from './stall.mjs';
 import { holdAge, holdLine, holdReport } from './hand-hold.mjs';
-import { subagentRefusal } from './agent.mjs';
+import { agentOf, subagentRefusal } from './agent.mjs';
 import { heartbeatKey, repeatPrinter } from './collapse-repeats.mjs';
 import { armWaitGuard } from './wait-guard.mjs';
 import { HARNESS_FOREGROUND_S, waitWindow } from './wait-limits.mjs';
@@ -49,9 +49,14 @@ if (!id) {
 const refusal = subagentRefusal('wait', flags);
 if (refusal) { console.error(`wait: ${refusal}`); process.exit(2); }
 const { root, cfg: rootCfg } = loadCfg(flags);
-const window = waitWindow(flags);
+const subagent = Boolean(agentOf(flags));
+const window = waitWindow(flags, { subagent });
 const timeoutMs = window.seconds * 1000;
-if (window.clamped) console.error(`wait: --timeout ${window.asked} cut to ${window.seconds} s to end inside the Bash call's window; the harness moves any foreground call to the background at ${HARNESS_FOREGROUND_S} s, so a job that outlasts it is handed off, not waited on again`);
+const CUT_ADVICE = {
+  true: `the harness moves any foreground call to the background at ${HARNESS_FOREGROUND_S} s, so a job that outlasts it is handed off, not waited on again`,
+  false: 'pass --tool-timeout <s> with a matching Bash timeout for longer',
+};
+if (window.clamped) console.error(`wait: --timeout ${window.asked} cut to ${window.seconds} s to end inside the Bash call's window; ${CUT_ADVICE[subagent]}`);
 const pollMs = Number(flags.poll) || rootCfg.pollMs;
 const graceMs = flags['grace-ms'] === undefined ? NO_BROKER_GRACE_MS : Number(flags['grace-ms']);
 const beatMs = (flags.heartbeat === undefined ? DEFAULT_HEARTBEAT_S : Number(flags.heartbeat)) * 1000;

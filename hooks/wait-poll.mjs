@@ -18,6 +18,7 @@ import { withoutDataArguments } from './lib/command-leads.mjs';
 import { segments, toPath } from './lib/shell-segments.mjs';
 import { exited } from './orphan-shells.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
+import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../scripts/broker/wait-limits.mjs';
 
 const CHECK_ID = 'wait-poll';
 const FREE_READS = 2;
@@ -76,8 +77,8 @@ function message(n, what) {
     'Every tool call re-sends the whole transcript; waiting by polling costs hundreds of thousands of tokens (KIT-T355).',
     'Rule (docs/wait-rule.md):',
     '  - Run a long build/test in ONE foreground Bash call within the broker-wait-gate timeout ceiling (KIT-D104).',
-    '    The harness moves any foreground call to the background at 180 s whatever its timeout. A subagent never backgrounds a',
-    '    build to wait on it; one that cannot finish in about 170 s is scoped down, else a Handoff block in the ticket Notes',
+    `    The harness moves any foreground call to the background at ${HARNESS_FOREGROUND_S} s whatever its timeout. A subagent never backgrounds a`,
+    `    build to wait on it; one that cannot finish in about ${MAX_FOREGROUND_WAIT_S} s is scoped down, else a Handoff block in the ticket Notes`,
     '    names the exact command and the agent ends (the orchestrator runs it and resumes it).',
     '  - A call the harness already moved to the background: Read its output file at most once, never sleep, poll or wait on',
     '    it; a subagent writes the Handoff block and ends, the main thread reads the one finish notice.',
