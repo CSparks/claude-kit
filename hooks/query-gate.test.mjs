@@ -20,9 +20,9 @@ function makeRepo({ adopt = true } = {}) {
   return dir;
 }
 
-function run(dir, command) {
+function run(dir, command, tool_name) {
   const r = spawnSync(process.execPath, [HOOK], {
-    cwd: dir, input: JSON.stringify({ tool_input: { command } }), encoding: 'utf8',
+    cwd: dir, input: JSON.stringify({ tool_name, tool_input: { command } }), encoding: 'utf8',
   });
   return { code: r.status, err: r.stderr || '' };
 }
@@ -63,6 +63,19 @@ expect('KIT-T1100: that source redirect names q code with the pattern', sourceTr
 const storeTarget = run(d, 'grep -rn "fly_probe" .ai/tickets/');
 expect('KIT-T1100: a store target is still store-grep and names q fts', storeTarget.code === 2 && storeTarget.err.includes('searching the .ai work store') && storeTarget.err.includes('fts'), true);
 expect('KIT-T1100: a PowerShell Select-String over a store path is still store-grep', run(d, 'Select-String -Path .ai\\tickets\\* -Pattern x').err.includes('searching the .ai work store'), true);
+
+// KIT-T1106: a bash `\"` inside a double-quoted filter pattern is a literal quote, not an ambiguity.
+const escapedFilter = 'cargo test -p dirt-empire 2>&1 | grep -E "test result|\\"Ambiguous shell quoting\\"|FAILED" | tail -20';
+expect('KIT-T1106: a cargo test pipeline whose grep filter holds an escaped double quote passes in Bash', run(d, escapedFilter, 'Bash').code, 0);
+expect('KIT-T1106: the same pipeline passes with no tool name (bash is the default shell)', run(d, escapedFilter).code, 0);
+expect('KIT-T1106 control: a recursive source grep with escaped quotes is still source discovery', run(d, 'grep -rn \\"PhysicsSim\\" src/', 'Bash').err.includes('grepping the source tree to discover code'), true);
+expect('KIT-T1106 control: a store grep with escaped quotes is still store-grep', run(d, 'grep -rn \\"physics\\" .ai/decisions/', 'Bash').err.includes('searching the .ai work store'), true);
+const psFilter = run(d, escapedFilter, 'PowerShell');
+expect('KIT-T1106 control: PowerShell escape rules keep the line ambiguous and the block names the span', psFilter.code === 2 && psFilter.err.includes('Ambiguous span: an escape character before a quote'), true);
+const singleQuoted = 'cargo test -p dirt-empire 2>&1 | grep -E \'test result|"Ambiguous shell quoting"|FAILED\' | tail -20';
+expect('KIT-T1106: the single-quoted rewrite the block names passes in Bash and PowerShell', run(d, singleQuoted, 'Bash').code === 0 && run(d, singleQuoted, 'PowerShell').code === 0, true);
+expect('KIT-T1106: the PowerShell block names the single-quote rewrite', psFilter.err.includes('single-quoted pattern is never ambiguous'), true);
+expect("KIT-T1106 control: a $'…' string around a search is still ambiguous", run(d, "echo $'a\\'' ; grep -rn x src/ ; echo $'\\''", 'Bash').code, 2);
 
 // KIT-T272 COVERAGE MODEL — a redirect fires only when the target can answer. `find … -name` is a
 // FILENAME lookup, outside code-graph's coverage (it has no filename query, and indexes no assets) —

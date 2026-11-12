@@ -19,7 +19,7 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, segments, shellOfTool } from './lib/shell-segments.mjs';
 import { commandLeads } from './lib/command-leads.mjs';
 import { fileOperands, hasGlob, isItemPath, isPatternSearch, itemEquivalent } from './lib/store-search.mjs';
 import { gitCommand } from './lib/git-subcommand.mjs';
@@ -122,9 +122,10 @@ async function main() {
   // A segment after a single `|` receives the previous command's OUTPUT, so a search
   // tool there with no path-ish args is filtering text (allowed); `||`/`&&`/`;` chains
   // run against the FILESYSTEM and are judged in full.
-  const parts = segments(cmd);
+  const parts = segments(cmd, { shell: shellOfTool(p.tool_name) });
   if (parts.ambiguous && leadsSearch(parts.text)) {
-    process.stderr.write(`\nBLOCKED: a search command cannot be judged (retrieval gate). ${AMBIGUOUS_MESSAGE}\n${excludeFooter('source-discovery')}`);
+    const { reason, at, span } = parts.ambiguity;
+    process.stderr.write(`\nBLOCKED: a search command cannot be judged (retrieval gate). ${AMBIGUOUS_MESSAGE}\n  Ambiguous span: ${reason} at character ${at}, near "${span}".\n  A single-quoted pattern is never ambiguous in either shell: grep -E 'test result|"quoted"|FAILED'.\n${excludeFooter('source-discovery')}`);
     process.exit(2);
   }
   let feedsFromItem = false; // the previous segment read an item file, so a piped search filters it
