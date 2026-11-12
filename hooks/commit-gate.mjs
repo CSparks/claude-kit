@@ -9,6 +9,7 @@ import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
+import { commitMessageText } from './lib/commit-message.mjs';
 import { isKitCheckout } from './lib/kit-checkout.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
@@ -44,6 +45,8 @@ function targetDir(cmd) {
 }
 
 const root = gitRoot(targetDir(command));
+// The message a `-F <file>` commit carries is part of what the commit cites (KIT-T1097).
+const cited = `${command}\n${commitMessageText(command, targetDir(command))}`;
 const dataRepo = isDataRepo(root);
 // A commit made inside a submodule marks its gitlink as this session's in the superproject.
 if (isCommit) {
@@ -195,7 +198,7 @@ try {
 // KIT-T407: block a commit carrying source this SESSION never wrote — a directory-wide `git add`
 // sweeping another session's WIP (596d1fc). Judged only when the session has a writes ledger
 // (hooks/turn-writes.mjs); `[commit-foreign: <reason>]` or the commit-foreign ignore key lifts it.
-if (!COMMIT_FOREIGN_ESCAPE.test(command)) {
+if (!COMMIT_FOREIGN_ESCAPE.test(cited)) {
   try {
     const judged = spec.mode === 'tree' ? uniq(lines(git(['-C', root, 'diff', '--cached', '--name-only']))) : changed;
     const kit = isKitCheckout(root);
@@ -369,7 +372,7 @@ const touchesCode = changed.some(
 
 // KIT-T799: a code commit's cited key must belong to this repo's store or a submodule it touches.
 // Judged before the plan-of-record early-allow: a foreign key alone blocks even beside a ticket edit.
-const foreignCite = touchesCode && !/\[no-log/.test(command) ? foreignCiteProblem(root, changed, command) : null;
+const foreignCite = touchesCode && !/\[no-log/.test(cited) ? foreignCiteProblem(root, changed, cited) : null;
 if (foreignCite) {
   const expected = foreignCite.expected.map((k) => `${k}-T###`).join(' / ');
   process.stderr.write(
@@ -387,7 +390,7 @@ if (changed.some((f) => /(^|\/)(ROADMAP|DECISIONS)\.md$/i.test(f) || /\.ai\/(tic
 }
 // Commit cites a logged item, or explicitly overrides? Scheme <KEY>-<TYPE><NUM> (HOD-T045,
 // KIT-D010) via the shared atom (KIT-T059) · or [no-log:].
-if (new RegExp(String.raw`\b${ID_CITE_SRC}\b|\[no-log`).test(command)) process.exit(0);
+if (new RegExp(String.raw`\b${ID_CITE_SRC}\b|\[no-log`).test(cited)) process.exit(0);
 if (!touchesCode) process.exit(0);
 
 const blockedLine = centralized

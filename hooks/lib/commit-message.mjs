@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 const COMMIT = /\bgit\s+(?:-C\s+(?:"[^"]+"|'[^']+'|\S+)\s+|--?\S+\s+)*commit\b/;
 const MAX_MESSAGE_BYTES = 1 << 20;
 const STDIN = '-';
+const MSYS_DRIVE = /^\/([A-Za-z])\//;
 
 // Whitespace-split tokens of the commit segment, a quoted span kept whole; the segment ends at an unquoted `;`, `|` or `&`.
 function commitTokens(command) {
@@ -57,7 +58,7 @@ export function commitMessageText(command, cwd) {
   const file = commitMessageFile(command);
   if (!file || file.stdin) return '';
   try {
-    return readFileSync(resolve(cwd, file.path), 'utf8').slice(0, MAX_MESSAGE_BYTES);
+    return readFileSync(resolve(cwd, file.path.replace(MSYS_DRIVE, '$1:/')), 'utf8').slice(0, MAX_MESSAGE_BYTES);
   } catch {
     return '';
   }
