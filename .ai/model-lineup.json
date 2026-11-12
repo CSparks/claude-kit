@@ -1,11 +1,12 @@
 {
-  "refreshed": "2026-11-05",
+  "refreshed": "2026-11-11",
   "source": "https://docs.claude.com/en/docs/about-claude/models/overview",
   "models": [
-    "claude-fable-5-1",
+    "claude-fable-5-2",
     "claude-opus-5-5",
     "claude-sonnet-5-5",
     "claude-haiku-5-5",
+    "claude-fable-5-1",
     "claude-fable-5",
     "claude-opus-5",
     "claude-opus-4-8",
@@ -23,14 +24,17 @@
     "claude-sonnet-3-5",
     "claude-haiku-3-5",
     "claude-opus-3",
-    "claude-haiku-3"
+    "claude-haiku-3",
+    "claude-mythos-5-2",
+    "claude-mythos-5-1",
+    "claude-mythos-5"
   ],
   "costs": {
     "fable": {
-      "version": 5.1,
-      "model": "fable 5.1",
-      "inputPerMTok": 10,
-      "outputPerMTok": 50
+      "version": 5.2,
+      "model": "fable 5.2",
+      "inputPerMTok": 8,
+      "outputPerMTok": 40
     },
     "opus": {
       "version": 5.5,
