@@ -55,6 +55,15 @@ expect('KIT-T784 control: a leading sed hidden behind escaped quotes is still bl
 expect('blocks git grep discovery', run(d, 'git grep usePhysics').code, 2);
 expect('blocks rg with --include=*.ts (indexed ext)', run(d, 'rg --include=*.ts "useState" src/').code, 2);
 
+// KIT-T1100: the target decides store or source, never a store word inside the pattern.
+expect('KIT-T1100: a store word in the pattern of a one-file source grep passes', run(d, 'grep -n "notes/ or .ai/ paths" crates/x/src/fly_probe.rs').code, 0);
+const sourceTree = run(d, 'grep -rn "notes/" src/');
+expect('KIT-T1100: a recursive source grep with a store word is source discovery, not store-grep', sourceTree.code === 2 && !sourceTree.err.includes('searching the .ai work store') && sourceTree.err.includes('source-discovery'), true);
+expect('KIT-T1100: that source redirect names q code with the pattern', sourceTree.err.includes('code') && sourceTree.err.includes('notes/'), true);
+const storeTarget = run(d, 'grep -rn "fly_probe" .ai/tickets/');
+expect('KIT-T1100: a store target is still store-grep and names q fts', storeTarget.code === 2 && storeTarget.err.includes('searching the .ai work store') && storeTarget.err.includes('fts'), true);
+expect('KIT-T1100: a PowerShell Select-String over a store path is still store-grep', run(d, 'Select-String -Path .ai\\tickets\\* -Pattern x').err.includes('searching the .ai work store'), true);
+
 // KIT-T272 COVERAGE MODEL — a redirect fires only when the target can answer. `find … -name` is a
 // FILENAME lookup, outside code-graph's coverage (it has no filename query, and indexes no assets) —
 // so it passes; Glob is the tool for it. Reading ONE named store file is the maintainer's allowed case.

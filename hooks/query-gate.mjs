@@ -205,7 +205,8 @@ function judge(c, piped = false) {
   // and a heredoc/redirect WRITE whose body merely names a store path is not a store read at all
   // (the memory-file false positive, inbox 2026-08-31-0346).
   const isStoreWrite = isRead && /(?:>>?|<<)/.test(c.replace(/'[^']*'|"[^"]*"/g, ' '));
-  if ((isSearch || isRead || isFind) && STORE.test(c) && !isStoreWrite) {
+  const naming = isSearch && tool !== 'select-string' && tool !== 'sls' ? searchPaths(argv, { git: gitGrep }).join(' ') : c;
+  if ((isSearch || isRead || isFind) && STORE.test(naming) && !isStoreWrite) {
     // A search tool's first positional is its pattern, not a path; flag VALUES (`head -n 50`) aren't
     // FILEISH — so count the concrete store FILES among the args, not bare positionals.
     const positionals = argv.filter((a) => !a.startsWith('-')).map((a) => a.replace(/^["']|["']$/g, ''));
