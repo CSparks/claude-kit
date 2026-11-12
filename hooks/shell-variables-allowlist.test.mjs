@@ -8,7 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assignedValues } from './lib/shell-variables.mjs';
+import { assignedValues, expandVariables } from './lib/shell-variables.mjs';
 import { segments } from './lib/shell-segments.mjs';
 import { cleanup, reporter, tmpDir } from './test-harness.mjs';
 
@@ -172,7 +172,23 @@ try {
     ['C:\\source as an operand', "cp 'C:\\source' \"$SP/x.bak\""],
     ['a file named eval-utils.cpp', 'cp src/eval-utils.cpp "$SP/x.bak"'],
     ['a file named unset-x.cpp', 'cp src/unset-x.cpp "$SP/x.bak"'],
+    ['rm', 'rm "$SP/c.bak"'],
+    ['rm -rf', 'rm -rf "$SP/d"'],
+    ['rmdir', 'rmdir "$SP/d"'],
+    ['a bash child', 'bash "$SP/run.sh"'],
+    ['an sh child', 'sh "$SP/run.sh"'],
+    ['a node child', 'node "$SP/run.mjs"'],
+    ['a whole subshell around a child', '(bash "$SP/run.sh")'],
+    ['a whole subshell around cd', '(cd src)'],
+    ['a child whose own script text names no variable', 'bash -c "echo hi"'],
   ]);
+  ok('cp passes: rm, a recursive copy and a subshell child in one chain', gate(`SP="${scratch}"; rm -rf "$SP/after" && cp -r "$SP/base" "$SP/after" && (bash "$SP/after/run.sh")`, 'Bash') === PASS);
+  ok('cp blocks: an assignment inside a subshell does not reach the parent', gate(`(true; SP="${scratch}"); cp src/a.cpp "$SP/b.cpp"`, 'Bash') === BLOCK);
+  ok('cp blocks: a subshell split across segments is not trusted', gate(`SP="${scratch}"; (true; echo hi); cp src/a.cpp "$SP/b.cpp"`, 'Bash') === BLOCK);
+  ok('cp blocks: a nested subshell is not trusted', gate(`SP="${scratch}"; ((bash x)); cp src/a.cpp "$SP/b.cpp"`, 'Bash') === BLOCK);
+  ok('cp blocks: an assignment alone in a subshell is no command', gate(`SP="${scratch}"; (A=1); cp src/a.cpp "$SP/b.cpp"`, 'Bash') === BLOCK);
+  ok('cp blocks: a function named like a safe child', gate(`SP="${scratch}"; bash() { SP=src; }; cp src/a.cpp "$SP/b.cpp"`, 'Bash') === BLOCK);
+  ok('rm blocks: its operand is judged as written, never through a variable', gate(`SP="${scratch}"; rm -rf $SP/after.cpp`, 'Bash') === BLOCK);
   ok('cp passes: a trailing semicolon after the copy', gate(`SP="${scratch}"; cp src/a.cpp "$SP/b.cpp";`, 'Bash') === PASS);
   ok('cp passes: only the assignment and the copy', gate(`SP="${scratch}"; cp src/a.cpp "$SP/b.cpp"`, 'Bash') === PASS);
   ok('cp blocks: an unresolved destination variable', gate('cp src/a.cpp "$UNKNOWN/b.cpp"', 'Bash') === BLOCK);
@@ -193,6 +209,18 @@ try {
     ['a preference variable assignment', "$ErrorActionPreference = 'Stop'"],
     ['a file named like a cmdlet', "Copy-Item 'src\\Set-Variable.cpp' \"$sp\\x.bak\""],
     ['a file named source', "Copy-Item 'src\\source.cpp' \"$sp\\x.bak\""],
+    ['rm', 'rm "$sp\\c.bak"'],
+    ['Remove-Item', 'Remove-Item "$sp\\c.bak" -Force'],
+    ['an upper-case RM', 'RM "$sp\\c.bak"'],
+    ['a node child', 'node "$sp\\run.mjs"'],
+  ]);
+  blocked('powershell', 'Copy-Item', [
+    ['the rm alias on variable:', 'rm variable:sp'],
+    ['Remove-Item on a Variable:: path', 'Remove-Item Microsoft.PowerShell.Core\\Variable::sp'],
+    ['rm -OutVariable', 'rm x -OutVariable sp'],
+    ['rm of an alias drive', 'rm Alias:cp'],
+    ['rm of a function drive', 'rm function:cp'],
+    ['rm inside parentheses', 'echo (rm x)'],
   ]);
   ok('Copy-Item blocks: an unresolved variable', gate('Copy-Item src/a.cpp "$sp\\b.cpp"', 'PowerShell') === BLOCK);
 
@@ -205,6 +233,14 @@ try {
   ok('assignedValues: a command word is judged after quotes are removed', values("A=x; e'c'ho hi; cp a b").join() === 'A,x');
   ok('assignedValues: ambiguous quoting leaves nothing visible', values("A=x; echo $'y'; cp a b").length === 0);
   ok('assignedValues: PWD is never resolved', values('PWD=x; cp a b').length === 0);
+  ok('assignedValues: rm keeps the assignment visible', values('A=x; rm -rf a; cp a b').join() === 'A,x');
+  ok('assignedValues: a whole-subshell child keeps the assignment visible', values('A=x; (bash run); cp a b').join() === 'A,x');
+  ok('assignedValues: a half-open subshell leaves nothing visible', values('A=x; (true; echo hi); cp a b').length === 0);
+  ok('assignedValues: an assignment inside a subshell is not visible', values('(true; A=x); cp a b').length === 0);
+  ok('assignedValues: PowerShell rm on variable: leaves nothing visible', values('$a = "x"; rm variable:a; cp a b', 'powershell').length === 0);
+  const expands = (text, value) => expandVariables(text, new Map([['S', value]]), 'bash');
+  ok('expandVariables: an unquoted value with an inner tilde expands', expands('$S/b', '/c/Users/CHRISS~1/t') === '/c/Users/CHRISS~1/t/b');
+  ok('expandVariables: an unquoted value that starts with a tilde stays unexpanded', expands('$S/b', '~/t') === '$S/b');
 } finally {
   cleanup();
 }

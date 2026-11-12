@@ -80,7 +80,6 @@ const BLOCKED = [
   ['an unquoted variable destination', 'cp src/a.cpp $DEST'],
   ['a brace expansion', `cp src/a.cpp ${temp}/{a,b}.cpp`],
   ['a command substitution', 'cp src/a.cpp "$(pwd)/a.cpp"'],
-  ['several sources', `cp x.cpp dir/c.cpp ${temp}`],
   ['a copy onto a source file', `cp ${temp}/x.cpp src/a.cpp`],
   ['a copy between source files', 'cp src/a.cpp src/b.cpp'],
   ['a backup next to the original inside the repo', 'cp src/a.cpp src/a.cpp.bak'],
@@ -121,7 +120,7 @@ blocks('rm of a source file', 'rm src/a.cpp');
 const proven = (tool, args) => copyTargets(tool, args).proven;
 check('the strict grammar proves the one plain shape', proven('cp', `src/a.cpp ${temp}/a.cpp`)?.destination === `${temp}/a.cpp`);
 check('-t DIR names DIR/<source name>', proven('cp', `-t ${temp} src/a.cpp`)?.destination === `${temp}/a.cpp`);
-check('the strict grammar refuses -r', proven('cp', `-r dir ${temp}/d`) === null);
+check('the strict grammar refuses -a', proven('cp', `-a dir ${temp}/d`) === null);
 check('the strict grammar refuses install', proven('install', `x.cpp ${temp}/x.cpp`) === null);
 check('the strict grammar refuses a trailing-slash destination', proven('cp', `x.cpp ${temp}/`) === null);
 

@@ -92,13 +92,13 @@ function judgeNodeModules(rest, text, { codeHit, readScript }) {
 }
 
 // The destination of a copy or move is judged as a write. A proven shape also yields its source hits tagged with the
-// destination, for a caller that can show the destination leaves the repo; anything else judges every operand.
+// path each source lands at, for a caller that can show that path leaves the repo; anything else judges every operand.
 function judgeCopy(tool, argText, ctx) {
   const { proven, writes } = copyTargets(tool, expandVariables(argText, ctx.vars, ctx.shell));
   const { hit } = ctx;
   if (!proven) return writes.map(hit).filter(Boolean);
   const tagged = ctx.exemptByDestination
-    ? proven.sources.map(hit).filter(Boolean).map((h) => ({ ...h, outsideTo: proven.destination }))
+    ? proven.sources.flatMap((source, i) => { const h = hit(source); return h ? [{ ...h, outsideTo: proven.landings[i] }] : []; })
     : [];
   return [proven.destination, ...proven.under].map(hit).concat(tagged).filter(Boolean);
 }
