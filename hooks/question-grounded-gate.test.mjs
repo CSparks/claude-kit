@@ -3,9 +3,10 @@
 // file, a store error and garbage stdin pass.
 // Run: node hooks/question-grounded-gate.test.mjs
 
+import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { HOOKS, adopted, cleanup, hook, reporter } from './test-harness.mjs';
+import { ENV, HOOKS, ROOT, adopted, cleanup, hook, reporter } from './test-harness.mjs';
 import { optionStems } from './lib/question-grounding.mjs';
 
 const { ok, done } = reporter('question-grounded-gate');
@@ -51,6 +52,19 @@ try {
   ok('negative control: routine options (Yes / Defer) pass', ask([{ label: '(Recommended) Yes' }, { label: 'Defer' }], 'Proceed with it?', 'Go').code === 0);
   ok('the escape tag with a reason passes; without one it does not', ask(SHARE, 'Flora geometry. [options-checked: none apply: read both, neither governs this]').code === 0
     && ask(SHARE, 'Flora geometry. [options-checked: none apply]').code === 2);
+
+  const dry = (...labels) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), 'gates', 'question', '--check', ...labels, '--root', d], { cwd: d, encoding: 'utf8', env: ENV });
+  const hit = dry('Share meshes across cells');
+  ok('the dry run lists the decision and the ticket a matching label finds, id and title', hit.status === 0
+    && hit.stdout.includes(`${DECISION} (decision) "Foliage and rocks are framework crates shared with Stiletto"`) && hit.stdout.includes(`${TICKET} (ticket) "Share one mesh per flora kind across cells"`));
+  ok('the dry run finds exactly the ids the gate blocks on for the same label', [...hit.stdout.matchAll(/DE-[DT]\d+/g)].map((m) => m[0]).sort().join() === [...missed.out.matchAll(/^ {2}(DE-[DT]\d+) /gm)].map((m) => m[1]).sort().join());
+  const none = dry('(Recommended) Rename the stadium sign');
+  ok('negative control: a label that matches nothing prints none and no id', none.status === 0 && none.stdout.includes('none') && !/DE-[DT]\d+/.test(none.stdout));
+  const two = dry('Share meshes across cells', 'Rename the stadium sign');
+  ok('several labels are answered one after the other', two.stdout.indexOf('Share meshes across cells') < two.stdout.indexOf(`${TICKET} (ticket)`) && two.stdout.indexOf(`${TICKET} (ticket)`) < two.stdout.indexOf('Rename the stadium sign'));
+  ok('the dry run never lists a closed ticket', !hit.stdout.includes('DE-T100'));
+  ok('--check with no label exits 1', dry().status === 1);
+  ok('q gates question names the dry run', spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), 'gates', 'question', '--root', d], { cwd: d, encoding: 'utf8', env: ENV }).stdout.includes('q gates question --check'));
 
   writeFileSync(join(d, '.claude-kit-ignore.yaml'), 'question-grounded:\n  - "**"\n');
   ok('the ignore file lifts the gate', ask(SHARE).code === 0);

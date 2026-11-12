@@ -4,6 +4,7 @@
 // GROUNDED_PER_OPTION matches per option must be cited by id in the questionnaire text or the readable turn prose.
 //
 //   optionStems(label)                    -> Set of stems: words of GROUNDED_MIN_WORD letters or more, stopwords dropped, suffixes cut
+//   groundingMatches(docs, label)         -> [{ id, kind, title }] what one label matches (the dry run of `q gates question --check`)
 //   groundingMisses(docs, questions, cited) -> [{ option, id, kind, title }] matches not named in `cited`
 
 import { GROUNDED_MIN_SHARED, GROUNDED_MIN_TITLE, GROUNDED_MIN_WORD, GROUNDED_PER_OPTION, RECOMMENDED_MARKER } from './question-checks.mjs';
@@ -21,10 +22,13 @@ const CITE = new RegExp(ID_CITE_SRC, 'g');
 
 export const optionStems = (text) => new Set((String(text).toLowerCase().match(WORD) || []).filter((w) => !STOPWORDS.has(w)).map((w) => w.replace(SUFFIX, '')));
 
-const labelOf = (option) => String(option?.label || '').replace(RECOMMENDED_MARKER, '').trim();
+export const groundingLabel = (option) => String(option?.label || '').replace(RECOMMENDED_MARKER, '').trim();
 const overlap = (a, b) => [...a].filter((s) => b.has(s)).length;
+const indexDocs = (docs) => docs.map((d) => ({ ...d, titleStems: optionStems(d.title), allStems: optionStems(`${d.title} ${d.text}`) }));
 
-function matchesFor(indexed, wanted) {
+function matchesFor(indexed, label) {
+  const wanted = optionStems(label);
+  if (wanted.size < GROUNDED_MIN_SHARED) return [];
   return indexed
     .map((d) => ({ d, shared: overlap(wanted, d.allStems), inTitle: overlap(wanted, d.titleStems) }))
     .filter((m) => m.shared >= GROUNDED_MIN_SHARED && m.inTitle >= GROUNDED_MIN_TITLE)
@@ -33,16 +37,18 @@ function matchesFor(indexed, wanted) {
     .map((m) => m.d);
 }
 
+export function groundingMatches(docs, label) {
+  return matchesFor(indexDocs(docs), groundingLabel({ label })).map(({ id, kind, title }) => ({ id, kind, title }));
+}
+
 export function groundingMisses(docs, questions, cited) {
   const named = new Set(String(cited).match(CITE) || []);
-  const indexed = docs.map((d) => ({ ...d, titleStems: optionStems(d.title), allStems: optionStems(`${d.title} ${d.text}`) }));
+  const indexed = indexDocs(docs);
   const misses = new Map();
   for (const q of Array.isArray(questions) ? questions : []) {
     for (const option of Array.isArray(q?.options) ? q.options : []) {
-      const label = labelOf(option);
-      const wanted = optionStems(label);
-      if (wanted.size < GROUNDED_MIN_SHARED) continue;
-      for (const d of matchesFor(indexed, wanted)) {
+      const label = groundingLabel(option);
+      for (const d of matchesFor(indexed, label)) {
         if (!named.has(d.id) && !misses.has(d.id)) misses.set(d.id, { option: label, id: d.id, kind: d.kind, title: d.title });
       }
     }
