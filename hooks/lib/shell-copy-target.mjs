@@ -10,11 +10,11 @@
 //     their long forms with --recursive; mv: -f -v -n; Copy-Item/Move-Item: -Path -Destination -Force, exact names),
 //     plus `-t DIR` / `--target-directory DIR|=DIR` in their exact forms; a quoted token that starts with a dash is an
 //     unknown option;
-//   - one source and one destination (no trailing slash), or several sources into a directory (the last operand, or
-//     -t DIR); each source lands at DIR/<its name>.
+//   - one source and one destination, or several sources into a directory (the last operand, or -t DIR, or a lone
+//     destination named with a trailing slash; cp and mv only); each source lands at DIR/<its name>.
 // `landings[i]` is where `sources[i]` lands (the destination itself for a pair). `under` is where a source would land
-// if the destination turns out to be a directory; a recursive copy adds `<landing>/any.rs`, since anything may land
-// beneath it. The caller must still show a landing resolves outside every adopted repo and is no existing directory.
+// if the destination turns out to be a directory; a recursive copy adds `<landing>/any.rs` (and `<directory>/any.rs`
+// for a copy into a directory), since anything may land beneath it. The caller must still show a landing resolves outside every adopted repo and is no existing directory.
 //
 // Everything else (any other option or cluster, -a --parents, links, a glob, an unquoted
 // backslash, install, the `copy` alias) is uncertain: `writes` then lists every operand, every value glued to an
@@ -91,12 +91,14 @@ const shapeOf = (source, destination) => ({ sources: [source], destination, land
 function directoryShape(sources, dir) {
   const root = stripSlash(dir);
   const landings = sources.map((s) => `${root}/${baseName(s)}`);
-  return { sources, destination: sources.length === 1 ? landings[0] : root, landings, under: landings, recursive: false };
+  return { sources, destination: sources.length === 1 ? landings[0] : root, landings, under: landings, recursive: false, directory: root };
 }
 
-// A recursive copy writes anything beneath its landing path, so each landing is also judged as a directory.
+// A recursive copy writes anything beneath its landing path, so each landing is also judged as a directory; a copy into a
+// directory that does not exist yet writes the copied tree straight into it, so the directory is judged too.
 function recursiveShape(shape) {
-  const beneath = [...shape.landings, ...shape.under].map((p) => `${p}/${ANY_SOURCE_NAME}`);
+  const places = [...shape.landings, ...shape.under, ...(shape.directory ? [shape.directory] : [])];
+  const beneath = places.map((p) => `${p}/${ANY_SOURCE_NAME}`);
   return { ...shape, recursive: true, under: [...shape.under, ...beneath] };
 }
 
@@ -128,12 +130,13 @@ function gnuProven(tool, tokens) {
 }
 
 // -t DIR takes every operand as a source; otherwise the last of several operands is the directory, and two operands
-// are a source and a destination that may be a file or a directory (never named with a trailing slash).
+// are a source and a destination that may be a file or a directory. A pair whose destination ends in a slash is a copy
+// into that directory.
 function plainShape(positional, dir) {
   if (dir !== null) return positional.length ? directoryShape(positional, dir) : null;
   if (positional.length >= SEVERAL_OPERANDS) return directoryShape(positional.slice(0, -1), positional.at(-1));
-  if (positional.length !== PAIR || ENDS_IN_SLASH.test(positional[1])) return null;
-  return shapeOf(positional[0], positional[1]);
+  if (positional.length !== PAIR) return null;
+  return ENDS_IN_SLASH.test(positional[1]) ? directoryShape([positional[0]], positional[1]) : shapeOf(positional[0], positional[1]);
 }
 
 function psProven(tokens) {

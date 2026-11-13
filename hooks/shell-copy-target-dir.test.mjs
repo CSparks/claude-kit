@@ -45,6 +45,18 @@ try {
   allows('several sources through a variable', into('cp x.cpp dir/c.cpp "$S/"'));
   allows('the ticket line: rm, recursive copy, three sources, a child in a subshell', into('rm -rf $S/after && cp -r $S/base $S/after && cp x.cpp dir/c.cpp src/a.cpp $S/after/lib/ && (bash $S/after/run.sh)'));
 
+  allows('KIT-T1127: a recursive copy of a repo directory into a generated target/ folder named with a slash', 'cp -r dir target/backup/');
+  allows('KIT-T1127: the same copy followed by a read-only command', 'cp -r dir target/backup/ && ls target/backup');
+  allows('KIT-T1127: a source file copied into a generated target/ folder', 'cp x.cpp target/x.cpp');
+  allows('KIT-T1127: a source file copied into a generated target/ folder named with a slash', 'cp x.cpp target/new/');
+  allows('KIT-T1127: a recursive copy into scratch named with a slash', `cp -r src ${scratch}/export/`);
+  blocks('KIT-T1127 control: a recursive copy of a scratch directory into the repo named with a slash', `cp -r ${scratch}/base src/`);
+  blocks('KIT-T1127 control: a recursive copy of a repo directory into another repo directory with a slash', 'cp -r dir src/');
+  blocks('KIT-T1127 control: a recursive copy into a repo path that is not ignored', `cp -r ${scratch}/base keep/new/`);
+  blocks('KIT-T1127 control: a source file copied into the repo named with a slash', `cp ${scratch}/x.cpp src/`);
+  blocks('KIT-T1127 control: a repo source file copied beside the original, not into an ignored folder', 'cp x.cpp keep/x.cpp');
+  blocks('KIT-T1127 control: a copy into a folder that only looks like target/', 'cp x.cpp targets/x.cpp');
+  blocks('KIT-T1127 control: a copy whose destination is a source file with target/ only as a source operand', 'cp target/x.cpp src/a.cpp');
   blocks('several sources into a repo directory', `cp ${scratch}/x.cpp ${scratch}/y.cpp src/`);
   blocks('several repo sources into a repo directory', 'cp x.cpp dir/c.cpp src/');
   blocks('several sources with -t into the repo', `cp -t src/ ${scratch}/x.cpp ${scratch}/y.cpp`);
@@ -82,7 +94,10 @@ try {
   ok('mv never takes -r', proven('mv', `-r src ${scratch}/export`) === null);
   ok('a quoted cluster is no option', proven('cp', `"-r" src ${scratch}/export`) === null);
   ok('a lone operand is no shape', proven('cp', `x.cpp`) === null);
-  ok('a pair with a trailing-slash destination is no shape', proven('cp', `x.cpp ${scratch}/`) === null);
+  const slashed = proven('cp', `x.cpp ${scratch}/`);
+  ok('a pair with a trailing-slash destination lands at DIR/<name>', slashed?.landings.join() === `${scratch}/x.cpp`);
+  ok('a recursive pair with a trailing-slash destination also judges the directory itself', proven('cp', `-r src ${scratch}/new/`)?.under.includes(`${scratch}/new/any.rs`));
+  ok('mv with a trailing-slash destination lands at DIR/<name>', proven('mv', `x.cpp ${scratch}/`)?.landings.join() === `${scratch}/x.cpp`);
 } finally {
   cleanup();
 }

@@ -122,7 +122,7 @@ check('the strict grammar proves the one plain shape', proven('cp', `src/a.cpp $
 check('-t DIR names DIR/<source name>', proven('cp', `-t ${temp} src/a.cpp`)?.destination === `${temp}/a.cpp`);
 check('the strict grammar refuses -a', proven('cp', `-a dir ${temp}/d`) === null);
 check('the strict grammar refuses install', proven('install', `x.cpp ${temp}/x.cpp`) === null);
-check('the strict grammar refuses a trailing-slash destination', proven('cp', `x.cpp ${temp}/`) === null);
+check('the strict grammar lands a trailing-slash destination at DIR/<name>', proven('cp', `x.cpp ${temp}/`)?.destination === `${temp}/x.cpp`);
 
 console.log(`\nshell-copy-target: ${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

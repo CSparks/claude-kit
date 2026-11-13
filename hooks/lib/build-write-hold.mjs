@@ -2,7 +2,7 @@
 // slot of the machine build budget; the hold records the paths the build compiles (`scope`) and the agent that started it
 // (`writer`, scripts/broker/build-run.mjs). A write by ANOTHER writer to a build input inside that scope, while the hold
 // is not yet in its test phase, is refused: the build would compile half of two edits. A write elsewhere, a build input
-// outside the scope, and the writer's own writes pass. A hold with no recorded scope (an older shim, a broker job) never
+// outside the scope, the writer's own writes, and the creation of a new .rs file no module names pass. A hold with no recorded scope (an older shim, a broker job) never
 // refuses. The hook only refuses; it never waits (KIT-D115).
 //
 //   buildHoldConflict({ file, writer, holds? }) -> the hold that compiles `file`, or null
@@ -11,6 +11,7 @@
 import { resolve } from 'node:path';
 import { liveHolds } from '../../scripts/broker/build-slot-store.mjs';
 import { isBuildInput } from '../../scripts/broker/build-globs.mjs';
+import { isUnreferencedNewSource } from './unreferenced-new-source.mjs';
 
 const TESTING_PHASE = 'running';
 const MS_PER_SECOND = 1000;
@@ -18,8 +19,9 @@ const slash = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCa
 const within = (file, scope) => file === slash(scope) || file.startsWith(`${slash(scope)}/`);
 
 export function buildHoldConflict({ file, writer = '', holds }) {
-  const abs = slash(resolve(file));
-  if (!isBuildInput(abs)) return null;
+  const path = resolve(file);
+  const abs = slash(path);
+  if (!isBuildInput(path) || isUnreferencedNewSource(path)) return null;
   const live = holds || liveHolds();
   return live.find((h) => h.phase !== TESTING_PHASE && (h.writer || '') !== writer && Array.isArray(h.scope) && h.scope.some((s) => within(abs, s))) || null;
 }

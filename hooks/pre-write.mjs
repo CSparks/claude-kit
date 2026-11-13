@@ -43,7 +43,7 @@ const NATIVE_LINTED = new Set(['rs', 'py', 'go', 'sh', 'bash', 'zsh']);
 const DOC = new Set(['md', 'markdown', 'mdx', 'txt', 'rst', 'adoc']);
 // KIT-T114: `conf`/`properties`/`env` join the config family. An nginx `listen 443 ssl;`
 // or a `rsa_key_size=4096` is a required literal, not an extractable constant.
-const DATA = new Set(['json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'csv', 'ini', 'cfg', 'conf', 'properties', 'env', 'caddy']);
+const DATA = new Set(['json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'csv', 'ini', 'cfg', 'conf', 'properties', 'env', 'caddy', 'ron']);
 // A path token such as `/2018/02/26/post/`: a slash that follows no operand, with path characters straight after it.
 // Division (`a/60`, `a / 60`) is left to the magic-number scan.
 const URL_PATH_TOKEN = /(?<![\w)\]])\/[\w.~-]*\d[\w.~-]*(?:\/[\w.~-]*)*/g;

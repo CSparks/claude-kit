@@ -10,6 +10,7 @@
 //     mtimeOnly: { noCreate } an operand of a provably mtime-only `touch`; the gate lifts it for an existing file (touch-target.mjs)
 //   shellSourceWrite(command, options) -> the first hit without outsideTo, or null
 //   isSourcePath(path, tempDir) -> boolean   a hand-authored source path (not temp, build output or a vendored tree)
+//   isGeneratedPath(path) -> boolean   a path under target, node_modules, dist, build or .git
 
 import { existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -43,6 +44,9 @@ function expandShortNames(p) {
   }
   try { return [slashed(realpathSync.native(head)), ...tail].join('/'); } catch { return p; }
 }
+
+/** A path under a build-output or vendored directory (target, node_modules, dist, build, .git): nothing hand-authored lives there. */
+export const isGeneratedPath = (path) => GENERATED_DIR.test(slashed(toPath(path)));
 
 export function isSourcePath(path, tempDir = tmpdir()) {
   const p = expandShortNames(slashed(toPath(path)));

@@ -4,14 +4,15 @@
 // that writes a source file, because only Edit and Write run pre-write's length, comment and literal
 // checks (check-id source-shell-write, KIT-T648). The store's twin is store-shell-gate.
 // Every hit of the command is judged on its own: a source operand of a proven cp or mv is lifted only when
-// its destination provably lands outside the hit's repo (lands-outside-repo.mjs), never the rest of the command.
+// its destination provably lands outside the hit's repo (lands-outside-repo.mjs) or in a build-output directory such as
+// target/ (isGeneratedPath), never the rest of the command.
 // A rm of an untracked file this caller's own Edit or Write left is no source edit and passes (owns-untracked-file.mjs).
 // A touch that only stamps the mtime of an existing file authors no content and passes (touch-target.mjs).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fails open on any error.
 
 import { resolve } from 'node:path';
 import { payload, gitRootOfFile, adopted, excludeFooter, pathExcluded } from './lib.mjs';
-import { shellSourceWrites } from './lib/shell-source-write.mjs';
+import { isGeneratedPath, shellSourceWrites } from './lib/shell-source-write.mjs';
 import { AMBIGUOUS_MESSAGE, shellOfTool, toPath } from './lib/shell-segments.mjs';
 import { commandCwd } from './lib/shell-cwd.mjs';
 import { landsOutsideRepo } from './lib/lands-outside-repo.mjs';
@@ -33,7 +34,7 @@ try {
   for (const found of hits) {
     const root = gitRootOfFile(resolve(cwd, toPath(found.path)));
     if (!adopted(root) || pathExcluded(root, CHECK, found.path)) continue;
-    if (found.outsideTo && landsOutsideRepo(found.outsideTo, root, cwd)) continue;
+    if (found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
     if (touchLifted(found, cwd)) continue;
     if (found.deletes &&ownsUntrackedFile(root, repoRelative(root, resolve(cwd, toPath(found.path))), caller)) continue;
     process.stderr.write(`

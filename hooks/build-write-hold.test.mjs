@@ -4,7 +4,7 @@
 // Run: node hooks/build-write-hold.test.mjs
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,15 @@ const hold = (extra) => writeFileSync(join(slots, 'slot-1'), JSON.stringify({ pi
 const edit = (session, agent, ...segments) => {
   const file = join(tree, ...segments);
   writeFileSync(file, 'x\n');
+  return guard(session, agent, file);
+};
+const create = (agent, ...segments) => {
+  const file = join(tree, ...segments);
+  mkdirSync(join(file, '..'), { recursive: true });
+  rmSync(file, { force: true });
+  return guard('S1', agent, file);
+};
+const guard = (session, agent, file) => {
   return spawnSync(process.execPath, [fileURLToPath(new URL('./holder-beat.mjs', import.meta.url))], { cwd: tree, encoding: 'utf8', input: JSON.stringify({ session_id: session, ...(agent ? { agent_id: agent } : {}), tool_input: { file_path: file } }) });
 };
 
@@ -37,6 +46,26 @@ expect('negative control: the build\'s own writer edits freely', edit('S1', 'age
 expect('negative control: an edit in a crate the build does not compile passes', edit('S1', 'agentOther', 'crates', 'b', 'src', 'lib.rs').status, 0);
 expect('negative control: a doc in the repo passes', edit('S1', 'agentOther', 'docs', 'x.md').status, 0);
 expect('a file in the building crate that no compile reads (not a build input) passes', edit('S1', 'agentOther', 'crates', 'a', 'README.md').status, 0);
+
+// KIT-T1123: the creation of a Rust file no module names cannot change the running build.
+writeFileSync(join(crate, 'Cargo.toml'), '[package]\nname = "a"\n');
+writeFileSync(join(crate, 'src', 'lib.rs'), 'pub mod wired;\nmod model;\n');
+mkdirSync(join(crate, 'src', 'model'), { recursive: true });
+writeFileSync(join(crate, 'src', 'model', 'mod.rs'), 'mod known_child;\n');
+expect('KIT-T1123: creating a new .rs file no module names passes', create('agentOther', 'crates', 'a', 'src', 'model', 'window.rs').status, 0);
+expect('KIT-T1123: creating a new top-level .rs file no module names passes', create('agentOther', 'crates', 'a', 'src', 'fresh.rs').status, 0);
+expect('KIT-T1123 control: an Edit to an existing referenced source file stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'lib.rs').status, 2);
+expect('KIT-T1123 control: overwriting an existing unreferenced file stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'model', 'window.rs').status, 2);
+rmSync(join(crate, 'src', 'model', 'window.rs'), { force: true });
+writeFileSync(join(crate, 'src', 'lib.rs'), 'pub mod wired;\nmod model;\n');
+expect('KIT-T1123 control: creating the file a mod declaration names stays refused', create('agentOther', 'crates', 'a', 'src', 'wired.rs').status, 2);
+expect('KIT-T1123 control: creating the file a nested mod.rs declares stays refused', create('agentOther', 'crates', 'a', 'src', 'model', 'known_child.rs').status, 2);
+expect('KIT-T1123 control: a name that only starts like a declared module is unreferenced', create('agentOther', 'crates', 'a', 'src', 'wire.rs').status, 0);
+expect('KIT-T1123 control: a new src/bin target is discovered by cargo and stays refused', create('agentOther', 'crates', 'a', 'src', 'bin', 'tool.rs').status, 2);
+expect('KIT-T1123 control: a new integration test is discovered by cargo and stays refused', create('agentOther', 'crates', 'a', 'tests', 'it.rs').status, 2);
+expect('KIT-T1123 control: a new build.rs stays refused', create('agentOther', 'crates', 'a', 'build.rs').status, 2);
+expect('KIT-T1123 control: a new Cargo.toml stays refused', create('agentOther', 'crates', 'a', 'Cargo.toml').status, 2);
+writeFileSync(join(crate, 'Cargo.toml'), '[package]\nname = "a"\n');
 
 hold({ scope: [crate], writer: OWNER, phase: 'running' });
 expect('a hold in its test phase no longer compiles: the edit passes', edit('S1', 'agentOther', 'crates', 'a', 'src', 'two.rs').status, 0);

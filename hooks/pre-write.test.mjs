@@ -102,6 +102,10 @@ try {
     pw({ file_path: '/x/a.ts', content: 'const FACTOR = 1337;\nconst r = compute(seed) * FACTOR;\n' }).code === 0);
   ok('pre-write: data file skipped',
     pw({ file_path: '/x/a.json', content: '{ "n": 1337 }' }).code === 0);
+  ok('pre-write: RON data table skipped (KIT-T1125)',
+    pw({ file_path: '/x/assets/roads/materials.ron', content: '(\n  materials: [\n    Material(name: "asphalt", colour: (0.31, 0.32, 0.35, 1.0)),\n    (0.12, 0.44, 0.91),\n  ],\n)\n' }).code === 0);
+  ok('pre-write: the same colour row in code STILL blocks (KIT-T1125 control)',
+    pw({ file_path: '/x/materials.ts', content: 'function colour() {\n  return mix(0.31, 0.32, 0.35);\n}\n' }).code === 2);
   ok('pre-write: doc never blocks',
     pw({ file_path: '/x/a.md', content: '# note 1337\n' }).code === 0);
   ok('pre-write: markup (.html) skips code checks (regression: brand "GTA 7")',
