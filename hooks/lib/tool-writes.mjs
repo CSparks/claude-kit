@@ -17,13 +17,13 @@
 //   recordToolWrite(root, rel, hash, now, writer)                    -> add a confirmed entry
 //   recordPredictedWrite(root, rel, file, toolInput, writer, now)    -> add the unconfirmed entries for the content `toolInput` leaves
 //   toolWriteProves(root, rel, sinceMs, currentHash, byWriter)       -> true when another writer's tool left `currentHash` in `rel` since `sinceMs`
-//   movedWrite(root, rel, session)                                   -> true when `rel` holds what `session`'s tool wrote at a path since moved away
+//   movedWrite(root, rel, session)                                   -> true when git stages `rel` as the rename of a path whose confirmed entry holds exactly the staged content
 //   cleanWriters(root, rel, currentHash)                             -> writers whose predicted write left `currentHash` and started from committed or their own clean-based text
 //   predictedHashes(current, toolInput)                             -> hashes of the content an Edit or Write leaves ([] when unknown)
 
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { readFileSync, statSync } from 'node:fs';
 import { gitTry } from './exec.mjs';
 import { readTurnState, writeTurnState } from './turn-state.mjs';
 
@@ -98,16 +98,37 @@ export function recordPredictedWrite(root, rel, file, toolInput, writer = '', no
 export const cleanWriters = (root, rel, currentHash) => entriesOf(root)
   .filter((e) => e && e.p === rel && e.h === currentHash && e.k === true).map((e) => e.w);
 
+// The path git's staged rename detection says `rel` was renamed from, '' when it reports none.
+function stagedRenameSource(root, rel) {
+  const listing = gitTry(['diff', '--cached', '-M', '--name-status', '-z'], root);
+  if (!listing.ok) return '';
+  const parts = listing.out.split('\0');
+  for (let i = 0; i < parts.length; i++) {
+    const status = parts[i];
+    if (/^[RC]/.test(status)) {
+      if (status.startsWith('R') && parts[i + 2] === rel) return parts[i + 1];
+      i += 2;
+    } else {
+      i += 1;
+    }
+  }
+  return '';
+}
+
 /**
- * True when `rel` holds exactly what a tool of `session` left at a DIFFERENT path that has since vanished: the session wrote
- * the file and then moved it (git mv, mv), so it is still the session's work (KIT-T1134).
+ * True when git reports `rel` as the staged rename of a path whose CONFIRMED ledger entry says a tool of `session` left
+ * exactly the staged content there: the session wrote the file and moved it with git mv, so it is still the session's work
+ * (KIT-T1134). One rename names one destination; an empty file, an unconfirmed prediction and a staged blob the tool did
+ * not leave credit nothing.
  */
 export function movedWrite(root, rel, session) {
   try {
-    const file = join(root, rel);
-    if (!session || statSync(file).size > HASH_MAX_BYTES) return false;
-    const hash = hashOf(readFileSync(file));
-    return entriesOf(root).some((e) => e && e.h === hash && e.p !== rel && writerSession(e.w) === session && !existsSync(join(root, e.p)));
+    const from = session ? stagedRenameSource(root, rel) : '';
+    if (!from) return false;
+    const staged = execFileSync('git', ['-C', root, 'cat-file', 'blob', `:${rel}`], { maxBuffer: HASH_MAX_BYTES, stdio: ['ignore', 'pipe', 'ignore'] });
+    if (!staged.length) return false;
+    const hash = hashOf(staged);
+    return entriesOf(root).some((e) => e && e.c === true && e.p === from && e.h === hash && writerSession(e.w) === session);
   } catch {
     return false;
   }
