@@ -15,6 +15,8 @@
 //   - a targeted grep of a SPECIFIC named non-store file, or a config/state file under .ai
 //   - a plain read (cat, head, sed line range) of ONE named store item file (the Read tool's case)
 //   - piped filtering of a command's OUTPUT (`q sql ... | grep x`, `git log | grep y`)
+//   - a search of a file outside every adopted repo (a scratchpad log), a variable the command assigns as one literal
+//     counting as its value; an unresolvable variable stays blocked and the block names it (search-outside.mjs, KIT-T1157)
 //
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fail-open on any error.
 
@@ -31,6 +33,7 @@ import { classifyCalls } from './lib/search-shape.mjs';
 import { registryLine, registryTarget } from './lib/registry-target.mjs';
 import { grepToolCommand } from './lib/grep-tool-command.mjs';
 import { pipedTreeMsg, pipedTreeSearch, targetsOnlyScratch } from './lib/pipe-tree-search.mjs';
+import { resolvedSegments, targetsOutsideRepos, unresolvedTargetNote } from './lib/search-outside.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { FAMILIES } from '../scripts/code-graph-families.mjs';
 
@@ -130,8 +133,10 @@ async function main() {
     process.exit(2);
   }
   let feedsFromItem = false; // the previous segment read an item file, so a piped search filters it
-  for (const { text, after } of parts) {
-    const c = text.trim();
+  const resolved = parts.ambiguous ? new Map() : resolvedSegments(parts, shellOfTool(p.tool_name));
+  for (const seg of parts) {
+    const { text, after } = seg;
+    const c = (resolved.get(seg) ?? text).trim();
     if (!c) continue;
     const verdict = (after === '|' && feedsFromItem && leadsSearch(c)) ? { id: 'store-grep', msg: storeMsg(c) } : judge(c, after === '|');
     feedsFromItem = readsItemFile(c);
@@ -233,9 +238,10 @@ function judge(c, piped = false) {
     // read `-Pattern` as `-r`. Select-String is tree-wide only with -Recurse, a wildcard or a directory path.
     const psSearch = tool === 'select-string' || tool === 'sls';
     // Targeted = every path operand is a concrete file, or a scratch dir: one file never launders a directory beside it (KIT-T1069).
-    const targetsOneFile = (psSearch ? args.some((a) => FILEISH.test(a)) : targetsOnlyFiles(searchPaths(argv, { git: gitGrep }))) || targetsOnlyScratch(args);
+    const paths = searchPaths(argv, { git: gitGrep });
+    const targetsOneFile = (psSearch ? args.some((a) => FILEISH.test(a)) : targetsOnlyFiles(paths)) || targetsOnlyScratch(args) || targetsOutsideRepos(paths, repoRoot, process.cwd());
     const psTreeWide = /s-recurse/i.test(c) || args.some((a) => /[*?]|[\/]$/.test(a));
-    const recursive = psSearch ? psTreeWide : RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep || searchPaths(argv, { git: gitGrep }).some(hasGlob);
+    const recursive = psSearch ? psTreeWide : RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep || paths.some(hasGlob);
     const dependency = recursive && registryTarget(c); // a crate dir looks like a file (`rapier3d-0.25.1`), so judge it first
     if (dependency) return { id: 'registry-grep', msg: registryMsg(c, dependency) };
     if (recursive && !targetsOneFile) {
@@ -243,9 +249,10 @@ function judge(c, piped = false) {
       // The code index answers a language-scoped grep exactly (KIT-T101): redirect those and keep
       // allowing the shapes it cannot answer (unmodelled flags, foreign regex dialects).
       const eq = indexEquivalent(c, { qPath: Q, root: repoRoot, cwd: process.cwd() });
-      if (eq) return { id: 'source-discovery', msg: indexMsg(c, eq) };
+      const unresolved = unresolvedTargetNote(paths);
+      if (eq) return { id: 'source-discovery', msg: indexMsg(c, eq) + unresolved };
       if (targetsOnlyNonIndexedExtensions(c)) return null; // no exact index answer — allow
-      return { id: 'source-discovery', msg: graphMsg(c) };
+      return { id: 'source-discovery', msg: graphMsg(c) + unresolved };
     }
   }
   // A `find … -name/-path` is a FILENAME lookup — OUTSIDE code-graph's coverage entirely (it answers
