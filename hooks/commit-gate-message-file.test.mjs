@@ -27,6 +27,22 @@ try {
   ok('control: -F - with no citation in the command text still blocks', gate('git commit -q -F -') === 2);
   ok('control: a citation in the command text passes beside an uncited file', gate(`git commit -q -m "x (implements KIT-T1097)" -F ${uncited}`) === 0);
   ok('control: -m without a file still blocks when uncited', gate('git commit -q -m "fix the rings"') === 2);
+
+  const dirOf = (path) => path.slice(0, path.lastIndexOf('/'));
+  const dir = dirOf(cited);
+  const viaVariable = (assign, command, tool = 'Bash') => hook('commit-gate.mjs', { tool_name: tool, tool_input: { command: `${assign}\n${command}` } }, target);
+  ok('KIT-T1131: -F "$S/cited.txt" with S assigned on an earlier line passes', viaVariable(`S="${dir}"`, `cd ${target} && git commit -q -F "$S/cited.txt"`).code === 0);
+  ok('KIT-T1131: the assignment may share the && chain with cd and the commit', hook('commit-gate.mjs', { tool_input: { command: `cd ${target} && S="${dir}" && git commit -q -F "$S/cited.txt"` } }, target).code === 0);
+  ok('KIT-T1131: ${S} braces and an unquoted plain path resolve', hook('commit-gate.mjs', { tool_input: { command: `S=${dir}; cd ${target} && git commit -q -F \${S}/cited.txt` } }, target).code === 0);
+  ok('KIT-T1131: a PowerShell $S = ... assignment resolves', viaVariable(`$S = '${dir}'`, `cd ${target}; git commit -q -F "$S/cited.txt"`, 'PowerShell').code === 0);
+  ok('KIT-T1131 control: an uncited file reached through a variable still blocks', viaVariable(`S="${dir}"`, `cd ${target} && git commit -q -F "$S/uncited.txt"`).code === 2);
+  ok('KIT-T1131 control: a prefix assignment is not visible to its own command', hook('commit-gate.mjs', { tool_input: { command: `cd ${target} && S="${dir}" git commit -q -F "$S/cited.txt"` } }, target).code === 2);
+  ok('KIT-T1131 control: a value computed by command substitution stays unresolved', viaVariable(`S="$(echo ${dir})"`, `cd ${target} && git commit -q -F "$S/cited.txt"`).code === 2);
+  ok('KIT-T1131 control: a variable assigned twice stays unresolved', viaVariable(`S="${dir}"; S="${dir}/nope"`, `cd ${target} && git commit -q -F "$S/cited.txt"`).code === 2);
+  const unresolved = viaVariable('', `cd ${target} && git commit -q -F "$NOWHERE/msg.txt"`);
+  ok('KIT-T1131: the block names the -F file it could not read', unresolved.code === 2 && unresolved.out.includes('$NOWHERE/msg.txt') && /could not be read/.test(unresolved.out));
+  const readableButUncited = viaVariable('', `cd ${target} && git commit -q -F ${uncited}`);
+  ok('KIT-T1131 control: an uncited but readable file blocks without an unreadable-file line', readableButUncited.code === 2 && !/could not be read/.test(readableButUncited.out));
 } finally {
   cleanup();
 }

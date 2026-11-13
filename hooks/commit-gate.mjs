@@ -9,7 +9,8 @@ import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
-import { commitMessageText } from './lib/commit-message.mjs';
+import { commitMessageText, unreadableMessageFile } from './lib/commit-message.mjs';
+import { shellOfTool } from './lib/shell-segments.mjs';
 import { isKitCheckout } from './lib/kit-checkout.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
@@ -46,7 +47,8 @@ function targetDir(cmd) {
 
 const root = gitRoot(targetDir(command));
 // The message a `-F <file>` commit carries is part of what the commit cites (KIT-T1097).
-const cited = `${command}\n${commitMessageText(command, targetDir(command))}`;
+const shell = shellOfTool(p.tool_name);
+const cited = `${command}\n${commitMessageText(command, targetDir(command), shell)}`;
 const dataRepo = isDataRepo(root);
 // A commit made inside a submodule marks its gitlink as this session's in the superproject.
 if (isCommit) {
@@ -407,8 +409,12 @@ const options = centralized
       "  - cite the item in the message (e.g. 'implements HOD-T041' / 'KIT-T007'), or",
       "  - if genuinely not trackable work, include '[no-log: <reason>]'.",
     ];
+const unread = unreadableMessageFile(command, targetDir(command), shell);
+const unreadLines = unread
+  ? [`The -F file ${unread} could not be read, so its message was not judged: it is missing, or its path is built from a`, 'variable the gate cannot resolve. Name the file by a literal path, or cite the ticket in the command text.', '']
+  : [];
 process.stderr.write(
-  ['', blockedLine, '', 'Before committing, do ONE of:', ...options, '', 'Unlogged work is lost across sessions. This gate is the enforcement, not memory.', ''].join('\n') +
+  ['', blockedLine, '', ...unreadLines, 'Before committing, do ONE of:', ...options, '', 'Unlogged work is lost across sessions. This gate is the enforcement, not memory.', ''].join('\n') +
     excludeFooter('commit-log'),
 );
 process.exit(2);

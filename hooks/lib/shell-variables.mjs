@@ -6,6 +6,7 @@
 // does not recognise leaves every variable unresolved and the copy stays fail-closed.
 //
 //   assignedValues(parts, shell) -> Map<segment, Map<name, value>>   the variables each segment of `parts` can read
+//   precedingValues(parts, shell) -> Map<segment, Map<name, value>>  the same, judged leniently for naming a file (not a write)
 //   expandVariables(text, values, shell) -> text   `$NAME` and `${NAME}` replaced where the shell would expand them
 //
 // A value is expanded unquoted only when the shell would not split or glob it (no whitespace, no glob character);
@@ -117,6 +118,15 @@ function writesTo(text, name, shell) {
   return [...text.matchAll(new RegExp(pattern, power ? 'gi' : 'g'))].length;
 }
 
+// Records each provable assignment of `found` into `known`: a plain literal, not a name the shell rewrites, the only
+// write to that name in the whole command.
+function remember(known, found, whole, shell) {
+  for (const [name, value] of found || []) {
+    if (IMPURE_VALUE.test(value) || SHELL_OWNED_NAMES.test(name) || writesTo(whole, name, shell) !== 1) continue;
+    known.set(isPowershell(shell) ? name.toLowerCase() : name, value);
+  }
+}
+
 /**
  * The variables each segment of `parts` (segments() output; `parts.text` is the whole command) can read. Keys of a
  * PowerShell map are lower-case (names are case-insensitive there).
@@ -124,18 +134,28 @@ function writesTo(text, name, shell) {
 export function assignedValues(parts, shell) {
   const reads = new Map();
   const known = new Map();
-  const whole = parts.text;
   const trusted = !parts.ambiguous && parts.every((seg) => leavesVariablesAlone(seg.text, shell));
   parts.forEach((seg, i) => {
     reads.set(seg, new Map(known));
     const next = parts[i + 1];
     const visible = UNCONDITIONAL_BEFORE.has(seg.after) && next && SEQUENTIAL_AFTER.has(next.after);
-    const found = visible && trusted ? assignmentsOf(seg.text, shell) : null;
-    for (const [name, value] of found || []) {
-      if (IMPURE_VALUE.test(value) || SHELL_OWNED_NAMES.test(name) || writesTo(whole, name, shell) !== 1) continue;
-      known.set(isPowershell(shell) ? name.toLowerCase() : name, value);
-    }
+    remember(known, visible && trusted ? assignmentsOf(seg.text, shell) : null, parts.text, shell);
   });
+  return reads;
+}
+
+/**
+ * Like assignedValues, for judging what a command NAMES (a commit message file), never what it may write: every
+ * provable bare assignment in an earlier segment counts, whatever connector or command surrounds it. A skipped
+ * assignment can only leave the named file unreadable, so the judge errs toward "unread", never toward a write.
+ */
+export function precedingValues(parts, shell) {
+  const reads = new Map();
+  const known = new Map();
+  for (const seg of parts) {
+    reads.set(seg, new Map(known));
+    remember(known, assignmentsOf(seg.text, shell), parts.text, shell);
+  }
   return reads;
 }
 
