@@ -1,9 +1,10 @@
 // Tests for the SESSION-cited artifact check in hooks/flush.mjs (KIT-T215): an existing
 // cited path is silent, a missing one warns (never blocks), and an unadopted repo no-ops.
+// Also the Stop anchor nudge and the landing notes it writes first (KIT-T1150).
 // Run: node hooks/flush.test.mjs
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, utimesSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, utimesSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -121,7 +122,10 @@ ok('absolute path outside the repo is not reported', !/other-project/.test(rFore
 ok('a missing in-repo path beside it is still reported', /docs\/own-missing\.md/.test(rForeign.err));
 
 // --- Stop anchor nag: bookkeeping-only turns stay silent (KIT-D126) -----------------------
-function runStopWithTurn(dir, files) {
+const git = (dir, args) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: dir, stdio: 'ignore' });
+
+// Starts a turn a minute ago, writes `files`, makes the anchor stale, commits as `author`.
+function landInTurn(dir, files, { subject = 'work', author = 't' } = {}) {
   const turnStart = new Date(Date.now() - 60_000);
   const tx = join(mkdtempSync(join(tmpdir(), 'flush-tx-')), 'transcript.jsonl');
   writeFileSync(tx, JSON.stringify({ type: 'user', timestamp: turnStart.toISOString(), message: { role: 'user', content: 'go' } }) + '\n');
@@ -131,19 +135,87 @@ function runStopWithTurn(dir, files) {
   }
   const longAgo = new Date(Date.now() - 600_000);
   utimesSync(join(dir, '.ai', 'SESSION.md'), longAgo, longAgo);
-  execFileSync('git', ['add', '-A'], { cwd: dir });
-  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'work'], { cwd: dir });
+  git(dir, ['add', '-A']);
+  git(dir, ['-c', `user.name=${author}`, 'commit', '-qm', subject]);
+  return tx;
+}
+function stopOn(dir, tx) {
   const r = spawnSync(process.execPath, [HOOK], {
     cwd: dir, input: JSON.stringify({ hook_event_name: 'Stop', session_id: 's', transcript_path: tx }), encoding: 'utf8',
     env: { ...process.env, CLAUDE_KIT_REGISTRY: NO_REGISTRY, CLAUDE_KIT_UNBOUNDED_AI: '' },
   });
   return { code: r.status, err: r.stderr || '' };
 }
+const runStopWithTurn = (dir, files, opts) => stopOn(dir, landInTurn(dir, files, opts));
+const anchorOf = (dir) => readFileSync(join(dir, '.ai', 'SESSION.md'), 'utf8');
+const landedLines = (dir) => anchorOf(dir).split('\n').filter((l) => /\blanded [\w/@-]*[0-9a-f]{7} /.test(l));
+
 const bookkeeping = runStopWithTurn(makeRepo({ session: '# S\n' }), { '.ai/tickets/X-T001-a.md': '---\nid: X-T001\n---\n' });
 ok('a commit that only changes .ai tickets does not nag', bookkeeping.code === 0 && !/resume anchor/.test(bookkeeping.err));
-const realWork = runStopWithTurn(makeRepo({ session: '# S\n' }), { 'src/app.mjs': 'export {};\n' });
-ok('a commit that changes project files still nags once', realWork.code === 2 && /resume anchor/.test(realWork.err));
-ok('the nag states the rule: every commit, landing receipt and decision, before replying', /every commit, landing receipt and decision, the same turn, before replying/.test(realWork.err) && /t session "<state \+ next steps>"/.test(realWork.err));
+const bookkeepingRepo = makeRepo({ session: '# S\n' });
+runStopWithTurn(bookkeepingRepo, { '.ai/tickets/X-T001-a.md': '---\nid: X-T001\n---\n' });
+ok('a commit that only changes .ai tickets is not noted in the anchor', landedLines(bookkeepingRepo).length === 0);
+
+// --- Stop: a landed commit is noted in the anchor and counts as a touch (KIT-T1150) -----------
+const noted = makeRepo({ session: '# S\n\n## Now\n\n- [2026-01-01 00:00] earlier entry\n' });
+const notedTx = landInTurn(noted, { 'src/app.mjs': 'export {};\n' }, { subject: 'add app (implements ZZ-T001, ZZ-T002)', author: 'subagent' });
+const notedRun = stopOn(noted, notedTx);
+ok('a commit that changes project files, made by another author, is noted and does not nag', notedRun.code === 0 && !/resume anchor/.test(notedRun.err));
+ok('the note is one dated line: short sha, subject, ticket ids, push state', landedLines(noted).length === 1
+  && /^- \[\d{4}-\d{2}-\d{2} \d{2}:\d{2}\] landed [0-9a-f]{7} add app \(implements ZZ-T001, ZZ-T002\) \(ZZ-T001, ZZ-T002\): local only \(no remote\)$/.test(landedLines(noted)[0]));
+ok('the note adds to the anchor: earlier lines are kept, the note sits under the top section', anchorOf(noted).includes('earlier entry') && anchorOf(noted).indexOf('landed') < anchorOf(noted).indexOf('earlier entry'));
+stopOn(noted, notedTx);
+ok('the same sha twice adds one line', landedLines(noted).length === 1);
+ok('a second commit adds a second line, the first stays', (() => {
+  const tx = landInTurn(noted, { 'src/b.mjs': 'export {};\n' }, { subject: 'add b' });
+  stopOn(noted, tx);
+  return landedLines(noted).length === 2;
+})());
+ok('a commit the broker already noted (broker landed <sha>) is not noted again', (() => {
+  const dir = makeRepo({ session: '# S\n' });
+  const tx = landInTurn(dir, { 'src/c.mjs': 'export {};\n' }, { subject: 'broker work' });
+  const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+  writeFileSync(join(dir, '.ai', 'SESSION.md'), `# S\n\n- [2026-11-13 10:00] broker landed ${sha.slice(0, 10)} ZZ-T003 broker work\n`);
+  const longAgo = new Date(Date.now() - 600_000);
+  utimesSync(join(dir, '.ai', 'SESSION.md'), longAgo, longAgo);
+  const r = stopOn(dir, tx);
+  return landedLines(dir).length === 1 && /broker landed/.test(landedLines(dir)[0]) && r.code === 0;
+})());
+ok('the anchor backup folder is untouched by notes', !existsSync(join(noted, '.ai', '.session-backups')));
+
+const withDecision = makeRepo({ session: '# S\n' });
+const decisionRun = runStopWithTurn(withDecision, { 'src/app.mjs': 'export {};\n', '.ai/decisions/ZZ-D001-x.md': '---\nid: ZZ-D001\n---\n' });
+ok('control: a commit plus a decision edit with a stale anchor still nags for a real t session', decisionRun.code === 2 && /resume anchor/.test(decisionRun.err) && /decisions edit/.test(decisionRun.err));
+ok('control: the nag states the rule: every commit, landing receipt and decision, before replying', /every commit, landing receipt and decision, the same turn, before replying/.test(decisionRun.err) && /t session "<state \+ next steps>"/.test(decisionRun.err));
+ok('the commit is still noted when the nag fires', landedLines(withDecision).length === 1);
+
+const unadopted = makeRepo({ adopt: false });
+writeFileSync(join(unadopted, 'a.mjs'), 'export {};\n');
+git(unadopted, ['add', '-A']);
+git(unadopted, ['commit', '-qm', 'x']);
+const unadoptedTx = join(mkdtempSync(join(tmpdir(), 'flush-tx-')), 'transcript.jsonl');
+writeFileSync(unadoptedTx, JSON.stringify({ type: 'user', timestamp: new Date(Date.now() - 60_000).toISOString(), message: { role: 'user', content: 'go' } }) + '\n');
+const unadoptedRun = stopOn(unadopted, unadoptedTx);
+ok('a repo without .ai is untouched by a landing', unadoptedRun.code === 0 && !existsSync(join(unadopted, '.ai')));
+
+const unwritable = makeRepo({ session: null });
+mkdirSync(join(unwritable, '.ai', 'SESSION.md'));
+const unwritableRun = runStopWithTurn(unwritable, { 'src/app.mjs': 'export {};\n' });
+ok('an unwritable anchor does not crash the hook and the Stop check still nags', unwritableRun.code === 2 && /resume anchor/.test(unwritableRun.err) && !/TypeError|EISDIR|at .*\.mjs:\d+/.test(unwritableRun.err));
+
+const sub = makeRepo({ adopt: false, files: { 'lib.mjs': 'export {};\n' } });
+git(sub, ['add', '-A']);
+git(sub, ['commit', '-qm', 'seed']);
+const parent = makeRepo({ session: '# S\n' });
+git(parent, ['-c', 'protocol.file.allow=always', 'submodule', 'add', sub.replace(/\\/g, '/'), 'sub']);
+git(parent, ['commit', '-qm', 'add sub']);
+const subTx = landInTurn(parent, { 'src/p.mjs': 'export {};\n' }, { subject: 'parent change' });
+writeFileSync(join(parent, 'sub', 'next.mjs'), 'export {};\n');
+git(join(parent, 'sub'), ['add', '-A']);
+git(join(parent, 'sub'), ['commit', '-qm', 'sub change (implements ZZ-T009)']);
+stopOn(parent, subTx);
+ok('a commit inside a submodule is noted in the parent anchor with the submodule path', landedLines(parent).some((l) => /landed sub@[0-9a-f]{7} sub change \(implements ZZ-T009\) \(ZZ-T009\): /.test(l)));
+ok('the submodule has no anchor of its own written', !existsSync(join(parent, 'sub', '.ai')));
 
 console.log(`\n${count - failures}/${count} passed`);
 process.exit(failures ? 1 : 0);

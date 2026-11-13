@@ -1,8 +1,10 @@
 // landed-commits — which commits count as landed work, and where each stands (KIT-T021, KIT-T1144).
 // Shared by the landing-alert Stop hook and the `t receipt` command, so both list the same commits.
 //
-//   landedSince(root, { sinceMs, skewMs, author })  -> newest-first { sha, shortSha, subject, ids[], authorEmail }
-//                                                      real-work commits committed at/after sinceMs - skewMs
+//   commitsSince(root, { sinceMs, skewMs, author }) -> newest-first { sha, shortSha, subject, ids[], authorEmail }
+//                                                      every commit committed at/after sinceMs - skewMs
+//   landedSince(root, window)                       -> commitsSince narrowed to real-work commits
+//   touchesProjectFiles(root, sha)                  -> false for a commit that changed only the .ai store
 //   landedThisTurn(root, turnStartMs)               -> landedSince with the turn-start clock-skew tolerance
 //   isPushed(root)                                  -> true when the repo has a remote and nothing is unpushed anywhere
 //   commitState(root, sha)                          -> PUSHED | NOT_PUSHED | LOCAL_ONLY for one commit
@@ -42,9 +44,15 @@ function isRealWork(root, sha, subject) {
   return files.some((f) => CODE.has((f.split('.').pop() || '').toLowerCase()));
 }
 
+// A commit that changed only the .ai store is bookkeeping: the anchor has nothing new to point at.
+export function touchesProjectFiles(root, sha = 'HEAD') {
+  const names = git(['-C', root, 'show', '--name-only', '--format=', sha]).split('\n').filter(Boolean);
+  return names.some((n) => !n.startsWith('.ai/'));
+}
+
 // The author-time filter runs in JS rather than via `git log --since`, so it does not depend on
 // commits being in date order. `author`, when set, keeps only commits by that email.
-export function landedSince(root, { sinceMs, skewMs = 0, author = '' }) {
+export function commitsSince(root, { sinceMs, skewMs = 0, author = '' }) {
   const tol = sinceMs - skewMs;
   const raw = git(['-C', root, 'log', `--pretty=%H${FIELD_SEP}%h${FIELD_SEP}%ct${FIELD_SEP}%ae${FIELD_SEP}%s`, '-n', String(LOG_DEPTH)]);
   const out = [];
@@ -53,11 +61,12 @@ export function landedSince(root, { sinceMs, skewMs = 0, author = '' }) {
     const [sha, shortSha, ct, authorEmail, subject = ''] = line.split(FIELD_SEP);
     if (!sha || Number(ct) * MS_PER_SEC < tol) continue;
     if (author && authorEmail !== author) continue;
-    if (!isRealWork(root, sha, subject)) continue;
     out.push({ sha, shortSha, subject, authorEmail, ids: [...new Set(subject.match(CITE_ALL) || [])] });
   }
   return out;
 }
+
+export const landedSince = (root, window) => commitsSince(root, window).filter((c) => isRealWork(root, c.sha, c.subject));
 
 export const landedThisTurn = (root, turnStartMs) => landedSince(root, { sinceMs: turnStartMs, skewMs: TURN_SKEW_MS });
 

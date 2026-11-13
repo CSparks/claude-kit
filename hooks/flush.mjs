@@ -9,6 +9,9 @@
 //    written at PreCompact, so a mid-work /clear resumes from a stale anchor. This nudges ONCE
 //    when meaningful work landed THIS turn (a commit touching project files, or a decision/note/question) but SESSION.md
 //    wasn't touched — flipping the burden from "remember to flush" to "clear the gate".
+//    First it adds a dated line per landed commit to the anchor (lib/anchor-landings.mjs, KIT-T1150), whoever made
+//    the commit; a noted commit no longer counts as unflushed work, but the nudge judges "touched" by the anchor's
+//    mtime from BEFORE those lines, so a decision or note edit still needs a real `t session`.
 //  • Stop also blocks once on a maintainer ruling captured this turn that still rests in the inbox, and warns
 //    on every older one until `t decide --from` / `t triage` moves it out (KIT-T938).
 //
@@ -26,13 +29,12 @@ import { verifyOrphans } from './orphan-verify.mjs';
 import { rulingStop } from './lib/ruling-stop.mjs';
 import { unpromotedRulings } from './lib/inbox-rulings.mjs';
 import { staleWarning } from './lib/ruling-messages.mjs';
+import { isNoted, noteLandings } from './lib/anchor-landings.mjs';
+import { TURN_SKEW_MS, touchesProjectFiles } from './lib/landed-commits.mjs';
 
 // Cap the dead-citation list so a badly-drifted SESSION.md can't swamp the flush output.
 const CITATION_LIST_MAX = 8;
 
-// A commit whose subject lands within this slack of the turn start counts as "this turn" — the
-// same small clock-skew tolerance the request-gate uses for store mtimes.
-const TURN_SKEW_MS = 1500;
 const MS_PER_SEC = 1000; // git %ct is epoch SECONDS; compare in ms
 // Stores whose writes count as "meaningful work this turn" for the anchor nudge. tickets and
 // inbox are EXCLUDED: status flips and captures are bookkeeping the anchor need not track.
@@ -160,9 +162,9 @@ After compaction, trust .ai/ + git (${branch}@${head}) over the summary.
 // --- Stop: the block-once ratchets, one block message, one exit (mirrors request-gate.mjs) ---
 
 // SESSION-anchor ratchet: a turn that landed work without touching SESSION.md. Empty when current or unbounded.
-function anchorNudgeText(root, turnStartMs) {
+function anchorNudgeText(root, turnStartMs, touchedMs) {
   if (!turnStartMs) return '';
-  if (sessionMtimeMs(root) >= turnStartMs - TURN_SKEW_MS) return '';  // the anchor is current
+  if (touchedMs >= turnStartMs - TURN_SKEW_MS) return '';  // the anchor is current
   const work = workSince(root, turnStartMs);                           // a no-op turn stays silent
   if (!work) return '';
   return `⚠ SESSION.md is the resume anchor and wasn't updated this turn, but ${work} landed.\n` +
@@ -175,7 +177,9 @@ function stopBlockOnce(store, p, unbounded) {
   const turnStartMs = tx && existsSync(tx) ? lastUserTurnMs(tx) : 0;  // no bounded turn: stay silent (fail-open)
   const rulings = rulingStop(store, { turnStartMs, stopActive: !!p.stop_hook_active });
   if (rulings.warn) process.stderr.write(`${rulings.warn}\n`);
-  const anchor = unbounded || p.stop_hook_active ? '' : anchorNudgeText(store, turnStartMs);
+  const touchedMs = sessionMtimeMs(store);  // read before the landing notes below move it
+  if (!unbounded) noteLandings(store, turnStartMs);
+  const anchor = unbounded || p.stop_hook_active ? '' : anchorNudgeText(store, turnStartMs, touchedMs);
   const blocks = [rulings.block, anchor].filter(Boolean);
   if (!blocks.length) return;
   process.stderr.write(`${blocks.join('\n')}${triageFooter()}`);
@@ -216,20 +220,14 @@ function isSystemNotice(text) {
   return /^\s*(?:<task-notification\b|<system-reminder\b|\[SYSTEM NOTIFICATION\b|Stop hook feedback:)/i.test(text);
 }
 
-// A commit that changed only the .ai store is bookkeeping: the anchor has nothing new to point at.
-function touchesProjectFiles(root) {
-  const names = git(['-C', root, 'show', '--name-only', '--format=', 'HEAD']).split('\n').filter(Boolean);
-  return names.some((n) => !n.startsWith('.ai/'));
-}
-
 // What meaningful work landed since `ms`? A short label naming the first kind found (a commit
-// authored this turn, or a write into a durable .ai store), else '' for "nothing to anchor".
+// authored this turn and not yet noted in the anchor, or a write into a durable .ai store), else ''
+// for "nothing to anchor".
 function workSince(root, ms) {
   const tol = ms - TURN_SKEW_MS;
-  // A commit whose author-time is at/after the turn start. (Local commits are the canonical
-  // "work landed" signal; the gate exists precisely so the anchor tracks them.)
   const lastCommit = git(['-C', root, 'log', '-1', '--format=%ct']).trim();
-  if (lastCommit && Number(lastCommit) * MS_PER_SEC >= tol && touchesProjectFiles(root)) return 'a commit';
+  if (lastCommit && Number(lastCommit) * MS_PER_SEC >= tol && touchesProjectFiles(root)
+    && !isNoted(root, git(['-C', root, 'rev-parse', 'HEAD']).trim())) return 'a commit';
   // A durable store write this turn (a decision/note/question file changed).
   for (const store of WORK_STORES) {
     const dir = join(root, '.ai', store);

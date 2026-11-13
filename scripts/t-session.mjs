@@ -9,7 +9,8 @@
 // Every write first copies the previous file to `.ai/.session-backups/SESSION-<timestamp>.md`
 // (the last 20 are kept; the folder ignores itself in git).
 //
-//   writeSession(root, text, { append, replace, fromFile, now }) -> { path, lines, backup }
+//   writeSession(root, text, { append, replace, fromFile, now, backup }) -> { path, lines, backup }
+//                      backup: false skips the copy, for an automatic one-line note that only adds a line
 //   editSession(root, { fix: [old, new] | drop: text, all, now }) -> { path, changed, backup }
 
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -59,7 +60,7 @@ export function writeSession(root, text, opts = {}) {
   const dir = join(root, '.ai');
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'SESSION.md');
-  const saved = backup(dir, path, now);
+  const saved = opts.backup === false ? null : backup(dir, path, now);
   if (opts.replace) writeFileSync(path, `${body}\n`);
   else if (!existsSync(path)) writeFileSync(path, `# SESSION\n\n${datedLine(body, now)}\n`);
   else if (opts.append) appendFileSync(path, `\n${body}\n`);
