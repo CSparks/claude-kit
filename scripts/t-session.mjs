@@ -6,6 +6,7 @@
 //   --fix <old> <new>  the one place <old> occurs becomes <new> (zero or several occurrences refuse);
 //                      with --all every occurrence becomes <new> (re-anchoring a path cited on several lines)
 //   --drop <text>      every entry whose first line holds <text> goes, with its indented continuation lines
+// A write refuses a linked `.ai/SESSION.md`, and a linked `.ai` unless it is a data-repo project mount (anchor-guard.mjs).
 // Every write first copies the previous file to `.ai/.session-backups/SESSION-<timestamp>.md`
 // (the last 20 are kept; the folder ignores itself in git).
 //
@@ -15,6 +16,7 @@
 
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { assertSafeAnchor } from '../hooks/lib/anchor-guard.mjs';
 
 const KEEP_BACKUPS = 20;
 const SECTION = /^##\s/;
@@ -58,6 +60,7 @@ export function writeSession(root, text, opts = {}) {
   if (opts.replace && !opts.fromFile) throw new Error('t session: --replace replaces the whole anchor and needs a complete draft: t session --replace --file <path>');
   const now = opts.now || new Date();
   const dir = join(root, '.ai');
+  assertSafeAnchor(root);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, 'SESSION.md');
   const saved = opts.backup === false ? null : backup(dir, path, now);
@@ -84,6 +87,7 @@ function dropEntries(text, needle) {
 export function editSession(root, { fix, drop, all = false, now = new Date() }) {
   const dir = join(root, '.ai');
   const path = join(dir, 'SESSION.md');
+  assertSafeAnchor(root);
   if (!existsSync(path)) throw new Error('t session: there is no .ai/SESSION.md to edit');
   const current = readFileSync(path, 'utf8');
   let next;

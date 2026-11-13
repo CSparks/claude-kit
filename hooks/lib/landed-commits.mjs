@@ -3,7 +3,8 @@
 //
 //   commitsSince(root, { sinceMs, skewMs, author }) -> newest-first { sha, shortSha, subject, ids[], authorEmail }
 //                                                      every commit committed at/after sinceMs - skewMs
-//   landedSince(root, window)                       -> commitsSince narrowed to real-work commits
+//   madeLocally(root, { sinceMs, skewMs })          -> Set of shas this clone committed itself in the window (HEAD reflog)
+//   landedSince(root, window)                     -> commitsSince narrowed to real-work commits
 //   touchesProjectFiles(root, sha)                  -> false for a commit that changed only the .ai store
 //   landedThisTurn(root, turnStartMs)               -> landedSince with the turn-start clock-skew tolerance
 //   isPushed(root)                                  -> true when the repo has a remote and nothing is unpushed anywhere
@@ -61,9 +62,22 @@ export function commitsSince(root, { sinceMs, skewMs = 0, author = '' }) {
     const [sha, shortSha, ct, authorEmail, subject = ''] = line.split(FIELD_SEP);
     if (!sha || Number(ct) * MS_PER_SEC < tol) continue;
     if (author && authorEmail !== author) continue;
-    out.push({ sha, shortSha, subject, authorEmail, ids: [...new Set(subject.match(CITE_ALL) || [])] });
+    out.push({ sha, shortSha, subject, authorEmail, committedMs: Number(ct) * MS_PER_SEC, ids: [...new Set(subject.match(CITE_ALL) || [])] });
   }
   return out;
+}
+
+// The shas this clone made itself at/after sinceMs - skewMs: HEAD's reflog records `commit…` for a commit made
+// here, and other messages (`pull`, `fetch`, `checkout`, `rebase`, `merge`) for history that arrived from elsewhere.
+export function madeLocally(root, { sinceMs, skewMs = 0 }) {
+  const raw = git(['-C', root, 'log', '-g', '--date=unix', `--pretty=%H${FIELD_SEP}%gd${FIELD_SEP}%gs`, '-n', String(LOG_DEPTH), 'HEAD']);
+  const made = new Set();
+  for (const line of raw.split('\n')) {
+    const [sha, selector = '', message = ''] = line.split(FIELD_SEP);
+    const at = Number((/@\{(\d+)\}/.exec(selector) || [])[1]) * MS_PER_SEC;
+    if (sha && /^commit\b/.test(message) && at >= sinceMs - skewMs) made.add(sha);
+  }
+  return made;
 }
 
 export const landedSince = (root, window) => commitsSince(root, window).filter((c) => isRealWork(root, c.sha, c.subject));
