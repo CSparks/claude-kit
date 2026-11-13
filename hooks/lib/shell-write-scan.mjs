@@ -2,7 +2,7 @@
 // a heredoc, a scratch script, `git apply` / `git am` / `patch` of a diff: patch-apply.mjs) aimed at a path some gate
 // protects. Callers supply the policy:
 //
-//   scanAllShellWrites(command, { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell }) -> every hit
+//   scanAllShellWrites(command, { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, removals, shell }) -> every hit
 //     shell ('bash' | 'powershell'): the escape rules segments() applies; omitted, any escape before a quote is ambiguous
 //   scanShellWrites(command, options) -> the first hit, or null
 //     hit(path)     judge one operand path of a writing command or redirect
@@ -15,6 +15,10 @@
 //     exemptByDestination  a cp/mv whose shape is proven by shell-copy-target.mjs returns its source hits tagged
 //       `outsideTo: <destination>`; the CALLER exempts exactly those when the destination lands outside every
 //       adopted repo. Any other copy or move judges every operand as a write.
+//     removals  { unresolved(operand) -> hit, sweep({ verb, path, what }) -> hit }: a gate that judges what a call removes.
+//       A delete's operands are read after the command's own literal variables expand; an operand whose last path component
+//       a variable or substitution still supplies goes to `unresolved`. A git call that deletes or hides files
+//       (git-discards.mjs) yields its named files through `hit` and, when it may take unnamed ones, a `sweep`.
 //
 // A write tool counts WHEREVER its name appears as a word (`sudo -u root sed -i`, `ssh -i k host tee x`): no wrapper
 // is parsed and no text blanked, so a deny gate cannot be steered by how a wrapper takes its options. A segment led by
@@ -30,6 +34,7 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
 import { moveLinesCall } from './move-lines-call.mjs';
+import { discardHits, discardsBlind } from './git-discards.mjs';
 import { copyTargets } from './shell-copy-target.mjs';
 import { commandCwd } from './shell-cwd.mjs';
 import { touchTargets } from './touch-target.mjs';
@@ -111,10 +116,28 @@ function judgeCopy(tool, argText, ctx) {
   return [proven.destination, ...proven.under].map(hit).concat(tagged).filter(Boolean);
 }
 
+const lastComponent = (operand) => operand.replace(/^.*[\\/]/, '');
+
+// The hits of a delete. With `removals` the operands are read after the command's own literal variables expand, and an
+// operand whose last path component a variable or substitution still supplies, or a backtick substitution, is unprovable.
+function deleteHits(rest, ctx, argText) {
+  const { hit, removals } = ctx;
+  const deleting = (h) => ({ ...h, deletes: true });
+  if (!removals) return rest.map((r) => r.w).map(hit).filter(Boolean).map(deleting);
+  const operands = wordsIn(expandVariables(argText, ctx.vars, ctx.shell)).map((x) => x.w);
+  const open = operands.filter((o) => lastComponent(o).includes('$'));
+  const substituted = ctx.shell !== 'powershell' && argText.includes('`') ? ['`...`'] : [];
+  const shown = (o) => (o === '$' ? '$(...)' : o);
+  return [
+    ...operands.filter((o) => !open.includes(o)).map(hit).filter(Boolean).map(deleting),
+    ...[...open.map(shown), ...substituted].map((o) => deleting(removals.unresolved(o))),
+  ];
+}
+
 function judgeTool(tool, rest, text, ctx, argText) {
   const { hit, codeHit, readScript } = ctx;
   const operands = rest.map((r) => r.w);
-  if (DELETE_CMD.test(tool)) return operands.map(hit).filter(Boolean).map((h) => ({ ...h, deletes: true }));
+  if (DELETE_CMD.test(tool)) return deleteHits(rest, ctx, argText);
   if (WRITING_CMD.test(tool)) return operands.map(hit).find(Boolean) || null;
   if (MOVE_CMD.test(tool) && ctx.judgeMoveSources) return operands.map(hit).find(Boolean) || null;
   if (COPY_CMD.test(tool)) return judgeCopy(tool, argText, ctx);
@@ -158,6 +181,7 @@ function judgeSegment(text, ctx) {
 
   const hits = redirectTargets(text, quotedArgsInert, ctx.shell === 'bash').map(ctx.hit).filter(Boolean);
   hits.push(...patchApplyHits(text, ctx));
+  if (ctx.removals) hits.push(...discardHits(text, ctx));
   const move = moveLinesCall(text, ctx.cwd);
   if (move && move.problem) hits.push(...move.paths.map(ctx.hit).filter(Boolean).map((h) => ({ ...h, moveLinesProblem: move.problem })));
   if (quotedArgsInert || READER.test(leader)) return hits;
@@ -190,7 +214,7 @@ const HARMLESS_REDIRECT = /\d*>&(?:\d+|-)|\d*&?>>?\s*\/dev\/null\b/g;
 // not a write, but a redirect in one is still judged by its target, and a write behind an operator is its own
 // piece and still tested.
 // Returns the write word that made it a hit ('' for none), so a block can name it.
-const ambiguousWrite = (text, hit, cwd) => {
+const ambiguousWrite = (text, hit, cwd, removals) => {
   const pieces = blindSegments(text);
   const kitPieces = pieces.filter((s) => kitLed(s.text, cwd));
   const kitRedirect = kitPieces.flatMap((s) => redirectTargets(s.text, false)).find((target) => hit(target));
@@ -200,18 +224,18 @@ const ambiguousWrite = (text, hit, cwd) => {
     .map((s) => s.text)
     .join(' ; ')
     .replace(HARMLESS_REDIRECT, ' ');
-  return WRITE_TOKEN.exec(rest)?.[0] || (appliesPatch(rest) ? 'a patch apply' : '') || FS_WRITE.exec(rest)?.[0] || '';
+  return WRITE_TOKEN.exec(rest)?.[0] || (appliesPatch(rest) ? 'a patch apply' : '') || (removals && discardsBlind(rest) ? 'a git discard' : '') || FS_WRITE.exec(rest)?.[0] || '';
 };
 
-export function scanAllShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false, exemptByDestination = false, shell = '' }) {
+export function scanAllShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false, exemptByDestination = false, removals = null, shell = '' }) {
   const parts = segments(String(command || ''), { shell });
   const text = parts.text;
   if (parts.ambiguous && ambiguous) {
-    const trigger = ambiguousWrite(text, hit, commandCwd(String(command || ''), process.cwd(), { shell }));
+    const trigger = ambiguousWrite(text, hit, commandCwd(String(command || ''), process.cwd(), { shell }), removals);
     return trigger ? [ambiguous({ ...parts.ambiguity, trigger })] : [];
   }
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
-  const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell, raw: String(command || '') };
+  const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, removals, shell, raw: String(command || '') };
   const variables = assignedValues(parts, shell);
   const all = [...parts];
   return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw), cwd: commandCwd(ctx.raw, process.cwd(), { upto: i, shell }) })

@@ -7,8 +7,10 @@
 // its destination provably lands outside the hit's repo (lands-outside-repo.mjs) or in a build-output directory such as
 // target/ (isGeneratedPath), never the rest of the command.
 // A rm of an untracked file this caller's own Edit or Write left is no source edit and passes (owns-untracked-file.mjs);
-// a refused delete says why and names the way out (delete-guidance.mjs). A relative path resolves against the `cd`
-// segments before its own segment (shell-cwd.mjs).
+// so do the git calls that delete or hide files (`git clean`, `git rm -f`, `git stash -u`: git-discards.mjs) for files
+// that caller wrote, and a sweep of unnamed files while no other writer is live (delete-judge.mjs). A delete operand a
+// variable supplies that the command does not resolve is refused. A refused delete says why and names the way out
+// (delete-guidance.mjs). A relative path resolves against the `cd` segments before its own segment (shell-cwd.mjs).
 // A touch that only stamps the mtime of an existing file authors no content and passes (touch-target.mjs).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fails open on any error.
 
@@ -18,7 +20,7 @@ import { isGeneratedPath, shellSourceWrites } from './lib/shell-source-write.mjs
 import { AMBIGUOUS_MESSAGE, shellOfTool, toPath } from './lib/shell-segments.mjs';
 import { commandCwd } from './lib/shell-cwd.mjs';
 import { landsOutsideRepo } from './lib/lands-outside-repo.mjs';
-import { deleteRefusal } from './lib/owns-untracked-file.mjs';
+import { deleteJudgement } from './lib/delete-judge.mjs';
 import { deleteGuidance } from './lib/delete-guidance.mjs';
 import { touchLifted } from './lib/touch-target.mjs';
 import { writerId } from './lib/tool-writes.mjs';
@@ -41,14 +43,14 @@ try {
     if (!adopted(root) || pathExcluded(root, CHECK, found.path)) continue;
     if (found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
     if (touchLifted(found, cwd)) continue;
-    const refusal = found.deletes ? deleteRefusal(root, repoRelative(root, file), caller) : '';
+    const refusal = deleteJudgement(found, root, repoRelative(root, file), caller);
     if (found.deletes && !refusal) continue;
     const what = found.moveLinesProblem
       ? `a move-lines call the guard refuses writes a source file by hand: ${found.moveLinesProblem}`
       : `a shell command ${found.deletes ? 'deletes' : 'writes'} a source file by hand (${found.path}).`;
     process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : what}
-${deleteGuidance(refusal, { path: found.path, cwd })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
+${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
   \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
   pre-write gate (file length, comment prose, literals, rot markers).
   A change too large for one Edit is a Write of the new file or several Edits, never a script.

@@ -7,7 +7,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { patchTargets, withoutRedirects } from './lib/patch-apply.mjs';
+import { withoutRedirects } from './lib/lead-command-walk.mjs';
+import { patchTargets } from './lib/patch-apply.mjs';
 import { cleanup, reporter, tmpDir } from './test-harness.mjs';
 
 const { ok, done } = reporter('patch-apply');

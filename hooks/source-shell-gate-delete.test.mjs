@@ -104,6 +104,25 @@ try {
   check('no session id: says the call is unattributable', /carries no session id/.test(said('rm anon.rs', '')));
   check('a refused write that is no delete prints no delete rule', !/Delete rule/.test(said('echo x > mover.rs', 'S1')));
   rmSync(elsewhere, { recursive: true, force: true });
+
+  // A delete operand a variable supplies is judged by the literal the command assigns it, or refused (KIT-T1162).
+  check('a variable naming tracked source is blocked', blocked(rmBy('F=tracked.rs; rm "$F"', 'S1')));
+  check('a variable naming another writer\'s file is blocked', blocked(rmBy('F=theirs.rs; rm "$F"', 'S1')));
+  check('a variable naming a file the caller wrote passes', !blocked(rmBy('F=mine.rs; rm "$F"', 'S1')));
+  check('a variable behind && and a flag is still resolved', blocked(rmBy('F=theirs.rs && rm -f "$F"', 'S1')));
+  check('a variable in a directory part resolves', blocked(rmBy('D=sub; rm "$D/../theirs.rs"', 'S1')));
+  check('PowerShell: a variable naming tracked source is blocked', blocked(rmBy("$f = 'tracked.rs'; Remove-Item $f", 'S1', '', 'PowerShell')));
+  check('PowerShell: a variable naming a file the caller wrote passes', !blocked(rmBy("$f = 'mine.rs'; Remove-Item $f", 'S1', '', 'PowerShell')));
+  check('an unassigned variable operand is blocked', blocked(rmBy('rm "$UNSET"', 'S1')));
+  check('a loop variable operand is blocked', blocked(rmBy('for f in a b; do rm "$f"; done', 'S1')));
+  check('a command substitution operand is blocked', blocked(rmBy('rm $(git ls-files -o)', 'S1')));
+  check('a backtick substitution operand is blocked', blocked(rmBy('rm `git ls-files -o`', 'S1')));
+  check('a variable assigned twice is unresolved and blocked', blocked(rmBy('F=mine.rs; F=theirs.rs; rm "$F"', 'S1')));
+  check('control: a variable only in the directory part of a non-source name passes', !blocked(rmBy('rm -rf "$SCRATCH/out"', 'S1')));
+  check('control: a variable naming a scratch directory with a literal file passes outside source', !blocked(rmBy('rm "$SCRATCH/a.txt"', 'S1')));
+  const unresolved = said('rm "$UNSET"', 'S1');
+  check('the block names the variable and the way out', /names \$UNSET[^]*NAME=value[^]*rm "\$NAME"/.test(unresolved), unresolved);
+  check('the block of a substitution names it', /names \$\(\.\.\.\)/.test(said('rm $(git ls-files -o)', 'S1')));
 } finally {
   rmSync(repo, { recursive: true, force: true });
   rmSync(state, { recursive: true, force: true });

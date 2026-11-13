@@ -5,6 +5,9 @@
 //
 //   deleteRefusal(root, rel, writer) -> '' when the caller may delete, else why not: one of DELETE_REFUSALS
 //   ownsUntrackedFile(root, rel, writer) -> boolean   deleteRefusal(...) === ''; any failure answers false
+//   ledgerRefusal(root, rel, writer) -> '' when the file's bytes are exactly what this writer's tool left and no other writer's
+//     tool left them too, else unrecorded or other-writer (the part of a delete judgement every discard verb shares)
+//   isTracked(root, rel) -> boolean
 
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,9 +25,17 @@ export const DELETE_REFUSALS = Object.freeze({
   tracked: 'tracked',
   unrecorded: 'unrecorded',
   otherWriter: 'other-writer',
+  unresolved: 'unresolved',
+  sweep: 'sweep',
 });
 
-const isTracked = (root, rel) => gitTry(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', rel], root).ok;
+export const isTracked = (root, rel) => gitTry(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', rel], root).ok;
+
+export function ledgerRefusal(root, rel, writer) {
+  const hash = contentHashOf(root, rel);
+  if (!toolWriteProves(root, rel, ANY_TIME_MS, hash)) return DELETE_REFUSALS.unrecorded;
+  return toolWriteProves(root, rel, ANY_TIME_MS, hash, writer) ? DELETE_REFUSALS.otherWriter : '';
+}
 
 export function deleteRefusal(root, rel, writer) {
   try {
@@ -33,9 +44,7 @@ export function deleteRefusal(root, rel, writer) {
     if (GLOB_CHARS.test(rel)) return DELETE_REFUSALS.glob;
     if (!lstatSync(join(root, rel)).isFile()) return DELETE_REFUSALS.missing;
     if (isTracked(root, rel)) return DELETE_REFUSALS.tracked;
-    const hash = contentHashOf(root, rel);
-    if (!toolWriteProves(root, rel, ANY_TIME_MS, hash)) return DELETE_REFUSALS.unrecorded;
-    return toolWriteProves(root, rel, ANY_TIME_MS, hash, writer) ? DELETE_REFUSALS.otherWriter : '';
+    return ledgerRefusal(root, rel, writer);
   } catch {
     return DELETE_REFUSALS.missing;
   }

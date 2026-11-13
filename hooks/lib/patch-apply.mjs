@@ -13,9 +13,7 @@
 // (`sudo`, `env A=1`, `command`, `timeout 5`...), never in the arguments of another command.
 // A call that only checks or reports (`git apply --check|--stat|--numstat|--summary`, `patch --dry-run`) writes nothing.
 // `git checkout <rev> -- <path>` restores content a commit or stash already holds, gated when it was written: not judged.
-// A command another command runs is split into segments and judged by the same rules: the string a shell takes
-// (`bash -c "..."`, `sh -lc`, `pwsh -Command`, `eval`, `su -c`), the clauses of `find -exec|-execdir|-ok|-okdir`, the remote
-// command of `ssh`, the string of a `trap`, and every `$(...)`, backtick and `<(...)` substitution.
+// A command another command runs is judged by the same rules (lead-command-walk.mjs).
 //
 //   appliesPatch(text) -> boolean
 //     the shell-write-scan fallback for a command whose quoting cannot be trusted: true when any piece, cut on every
@@ -25,18 +23,13 @@ import { readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { commandName, leadIndex } from './command-lead.mjs';
 import { gitCommand } from './git-subcommand.mjs';
+import { cleaned, leadCommandHits, MAX_NESTING } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
-import { blindSegments, segments, shellArgs, shellTokens } from './shell-segments.mjs';
+import { blindSegments } from './shell-segments.mjs';
 
 const WORD = /"([^"]*)"|'([^']*)'|([^\s"'|;&<>()]+)/g;
 const PATH_LIKE = /[\\/]|\.[A-Za-z0-9]{1,6}$/;
 const PATH_WORD_LIMIT = 32;
-const MAX_NESTING = 4;
-const QUOTE_START = /^["']/;
-const QUOTE_CHAR = /["']/;
-const REDIRECT_TOKEN = /^\d*[<>]{1,2}&?(.*)$/;
-const GROUP_START = /^[$({`]+/;
-const GROUP_END = /[)}`]+$/;
 const BLIND_SEPARATOR = /[\s"'`]+/;
 const SUBSTITUTION_START = /[<>$]?\(|`/;
 
@@ -55,12 +48,7 @@ const PATCH_VALUE_LONG = /^--(?:directory|input|output|reject-file|prefix|suffix
 const PATCH_STRIP_FLAG = /^(?:-p|--strip=)(\d+)$/;
 const HEADER_TEXT_LIMIT = 1 << 22;
 
-const REDIRECTION = /\d*[<>]{1,2}&?\s*(?:"[^"]*"|'[^']*'|[^\s|;&]+)/g;
-
 const unquote = (s) => String(s).replace(/^["']|["']$/g, '');
-
-/** The segment text without its redirections (`< f`, `<<'EOF'`, `> f`): what is left is the command's own arguments. */
-export const withoutRedirects = (text) => String(text).replace(REDIRECTION, ' ');
 
 function strippedPath(token, strip) {
   const parts = unquote(token).split('/');
@@ -135,9 +123,6 @@ const isApplier = (name, rest) => /^patch$/i.test(name) || (/^git$/i.test(name) 
 
 const leadsCommand = (name, rest) => isApplier(name, rest) || runnerTexts(name, rest, { blind: true }).length > 0;
 
-const cleanWord = (word) => (QUOTE_START.test(word) ? word : word.replace(GROUP_START, '').replace(GROUP_END, ''));
-const cleaned = (words) => words.map(cleanWord).filter(Boolean);
-
 function applierHits(words, ctx) {
   const [applier, ...rest] = words;
   let dir = '';
@@ -151,83 +136,8 @@ function applierHits(words, ctx) {
   return targets.map((p) => ctx.hit(dir ? `${dir}/${p}` : p)).filter(Boolean);
 }
 
-/** The segment's quote-aware tokens without its redirections (`< f`, `<<'EOF'`, `2>&1`): a quoted `<` stays in its token. */
-function commandTokens(text) {
-  const tokens = shellTokens(text);
-  const kept = [];
-  for (let i = 0; i < tokens.length; i++) {
-    const redirect = REDIRECT_TOKEN.exec(tokens[i]);
-    if (!redirect) kept.push(tokens[i]);
-    else if (!redirect[1]) i++;
-  }
-  return kept;
-}
-
-/** The command strings a shell word list's lead command runs from its operands (runnerTexts), each with the shell it is written for. */
-function runnerCommands(tokens, shellName) {
-  const at = leadIndex(tokens, (name, rest) => runnerTexts(name, rest, { shell: shellName }).length > 0);
-  return at < 0 ? [] : runnerTexts(commandName(tokens[at]), tokens.slice(at + 1), { shell: shellName });
-}
-
-/** The index of the `)` closing the parenthesis opened before `from`, quotes respected; the end of `text` when it never closes. */
-function closingParen(text, from, escapes) {
-  let depth = 1;
-  let quote = '';
-  for (let i = from; i < text.length; i++) {
-    const ch = text[i];
-    if (escapes && ch === '\\' && quote !== "'") i++;
-    else if (quote) quote = ch === quote ? '' : quote;
-    else if (QUOTE_CHAR.test(ch)) quote = ch;
-    else if (ch === '(') depth++;
-    else if (ch === ')' && --depth === 0) return i;
-  }
-  return text.length;
-}
-
-/**
- * The command text inside every `$(...)`, `<(...)`, `>(...)` and backtick pair of `text` that a shell runs: none in a
- * single-quoted span or behind an escape. PowerShell has `$(...)` only. An unclosed one runs to the end; `$((1 + 2))` yields a harmless `(1 + 2)`.
- */
-function substitutions(text, shellName) {
-  const bash = shellName !== 'powershell';
-  const found = [];
-  let quote = '';
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    const next = text[i + 1];
-    if ((bash ? ch === '\\' : ch === '`') && quote !== "'") i++;
-    else if (quote === "'") quote = ch === "'" ? '' : quote;
-    else if (ch === quote) quote = '';
-    else if (!quote && QUOTE_CHAR.test(ch)) quote = ch;
-    else if ((ch === '$' && next === '(') || (bash && !quote && next === '(' && (ch === '<' || ch === '>'))) {
-      const end = closingParen(text, i + 2, bash);
-      found.push(text.slice(i + 2, end));
-      i = end;
-    } else if (bash && ch === '`') {
-      const close = text.indexOf('`', i + 1);
-      const end = close < 0 ? text.length : close;
-      found.push(text.slice(i + 1, end));
-      i = end;
-    }
-  }
-  return found;
-}
-
-/**
- * The hits of one segment's applier, found past wrappers and grouping words, and of every applier in a command the
- * segment runs from its operands or a substitution, judged by the same rules to MAX_NESTING levels.
- */
-export function patchApplyHits(text, ctx, depth = 0) {
-  const words = cleaned(shellArgs(withoutRedirects(text)));
-  const at = leadIndex(words, isApplier);
-  const own = at >= 0 ? applierHits(words.slice(at), { ...ctx, text }) : [];
-  if (depth >= MAX_NESTING) return own;
-  const runs = [
-    ...(at >= 0 ? [] : runnerCommands(cleaned(commandTokens(text)), ctx.shell)),
-    ...substitutions(text, ctx.shell).map((inner) => ({ text: inner, shell: ctx.shell })),
-  ];
-  return [...own, ...runs.flatMap((run) => [...segments(run.text, { shell: run.shell })].flatMap((seg) => patchApplyHits(seg.text, { ...ctx, shell: run.shell }, depth + 1)))];
-}
+/** The hits of every applier in the segment `text`, found past wrappers and in commands the segment runs (lead-command-walk.mjs). */
+export const patchApplyHits = (text, ctx) => leadCommandHits(text, ctx, { isLead: isApplier, hitsOf: applierHits });
 
 const blindWords = (text) => cleaned(String(text).split(BLIND_SEPARATOR));
 
