@@ -23,13 +23,14 @@ import { assistantTextOf } from './lib/assistant-text.mjs';
 import { unannouncedIn } from './lib/announced-landings.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
 import { LAND_SLOT, isPushed, landedThisTurn } from './lib/landed-commits.mjs';
+import { FILL_LINE, commitLine } from './lib/receipt-lines.mjs';
 import {
   gitRoot, adopted, payload, git, remoteCommitUrl, readTurnState, writeTurnState,
 } from './lib.mjs';
 
 // Cap how many landed commits we enumerate, so a turn that lands a long series stays one screen;
 // the rest collapse to a "+N more" tail.
-const MAX_LISTED = 8;
+const MAX_LISTED = 12;
 
 // The reply already told the maintainer the work landed → the alert is satisfied (the release
 // valve, mirroring request-gate's RECEIPT). Any of: a landing verb (landed/pushed/deployed/live/
@@ -107,14 +108,14 @@ function renderAlert(root, landed, pushed, hasLanding, hasTest) {
     ? 'PUSHED (building) — confirm it is LIVE once the deploy completes'
     : 'COMMITTED locally — NOT pushed yet (push at the task boundary, then confirm)';
   const lines = ['', `⚑ LANDING ALERT — work landed this turn. Tell the maintainer WHAT landed + WHAT CAN BE TESTED.`, `  State: ${state}.`, ''];
+  lines.push('Receipt skeleton (the lines `t receipt` prints; complete the reply from them):');
   for (const c of landed.slice(0, MAX_LISTED)) {
+    lines.push(commitLine(root, c));
     const url = pushed ? remoteCommitUrl(root, c.sha) : null;
-    const cite = c.ids.length ? `  [${c.ids.join(', ')}]` : '';
-    lines.push(`  • ${c.shortSha} ${c.subject}${cite}`);
     if (url) lines.push(`      ${url}`);
   }
-  if (landed.length > MAX_LISTED) lines.push(`  • …+${landed.length - MAX_LISTED} more`);
-  lines.push('', '`t receipt` prints this landing as a receipt skeleton (sha, ticket, pushed state, the UAT line to fill).');
+  if (landed.length > MAX_LISTED) lines.push(`  …+${landed.length - MAX_LISTED} more (t receipt lists them)`);
+  lines.push(FILL_LINE, '');
   lines.push('This alert is structural (KIT-T021/T099), not optional. To clear the gate:');
   if (!hasLanding) {
     lines.push('  - announce the landing — WHAT + the ticket + the link ("pushed"/"deployed"/the sha);');

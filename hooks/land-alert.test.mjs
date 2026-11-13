@@ -290,5 +290,25 @@ function writeTranscriptReplies(dir, userTs, replies) {
   expect('the block records the turn start', String(Number.isFinite(recorded.turnStartMs)), 'true');
 }
 
+// ─── KIT-T1164: the block carries the receipt skeleton itself ───
+{
+  const d = makeRepo();
+  const userTs = new Date(Date.now() - 10000).toISOString();
+  const sha = makeCommit(d, 'src/s.ts', 'export {}', 'feat: s HOD-T032');
+  const tx = writeTranscript(d, 'go', 'Done.', userTs);
+  const r = run(d, { transcript_path: tx }, makeTurnStateDir());
+  expect('the block holds the receipt line: sha, subject, ticket, push state (a repo with no remote)', String(r.err.includes(`  ${sha.slice(0, 7)} feat: s HOD-T032 | HOD-T032 | local only`)), 'true');
+  expect('the block holds the line to fill', String(r.err.includes('UAT / no-test (fill one):')), 'true');
+}
+{
+  const d = makeRepo();
+  const userTs = new Date(Date.now() - 10000).toISOString();
+  const total = 15;
+  for (let i = 0; i < total; i++) makeCommit(d, `src/m${i}.ts`, `export const n = ${i}`, `feat: m${i} HOD-T${100 + i}`);
+  const r = run(d, { transcript_path: writeTranscript(d, 'go', 'Done.', userTs) }, makeTurnStateDir());
+  expect('a long series lists the 12 newest receipt lines', String(r.err.split('\n').filter((l) => / \| HOD-T\d+ \| /.test(l)).length), '12');
+  expect('a long series says how many more', String(r.err.includes('…+3 more')), 'true');
+}
+
 console.log(`\n${testCount} tests — ${failures ? `${failures} FAILED` : 'ALL PASS'}`);
 process.exit(failures ? 1 : 0);

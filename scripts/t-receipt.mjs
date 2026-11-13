@@ -16,16 +16,14 @@ import { basename, relative } from 'node:path';
 import { git } from '../hooks/lib/exec.mjs';
 import { gitRoot } from '../hooks/lib/paths.mjs';
 import { readTurnState } from '../hooks/lib/turn-state.mjs';
-import { LAND_SLOT, TURN_SKEW_MS, commitState, landedSince, submodulesOf } from '../hooks/lib/landed-commits.mjs';
+import { LAND_SLOT, TURN_SKEW_MS, landedSince, submodulesOf } from '../hooks/lib/landed-commits.mjs';
+import { FILL_LINE, commitLine } from '../hooks/lib/receipt-lines.mjs';
 
 const MS_PER_SEC = 1000;
 const MS_PER_MIN = 60 * MS_PER_SEC;
 const DEFAULT_WINDOW_MS = 60 * MS_PER_MIN;
 const UNIT_MS = { s: MS_PER_SEC, m: MS_PER_MIN, h: 60 * MS_PER_MIN, d: 24 * 60 * MS_PER_MIN };
-const SUBJECT_MAX = 100;
-const FILL_LINE = 'UAT / no-test (fill one): <what the maintainer can try as a user, or [no-test: <reason>]>';
 
-const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const clock = (ms) => new Date(ms).toISOString().slice(11, 16);
 
 function parseDuration(text) {
@@ -54,11 +52,6 @@ function resolveBoundary(root, since, nowMs) {
 
 function reposOf(root) {
   return [[root, basename(root)], ...submodulesOf(root).map((abs) => [abs, `submodule ${relative(root, abs).replace(/\\/g, '/')}`])];
-}
-
-function commitLine(root, c) {
-  const tickets = c.ids.length ? c.ids.join(', ') : 'no ticket cited';
-  return `  ${c.shortSha} ${clip(c.subject, SUBJECT_MAX)} | ${tickets} | ${commitState(root, c.sha)}`;
 }
 
 export function buildReceipt(cwd, { since } = {}, nowMs = Date.now()) {
