@@ -26,6 +26,7 @@ import { TREE_PROJECT_CHECK } from '../dispatch-tree-project.mjs';
 import { WORKER_CHECK, DEFAULT_WRITER_CAP } from '../dispatch-worker.mjs';
 import { BRIEF_CHECK, GROUNDED_CHECK, GROUNDED_MIN_SHARED, GROUNDED_MIN_TITLE, GROUNDED_MIN_WORD, GROUNDED_PER_OPTION, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
 import { BRIEF_RULE } from './question-brief.mjs';
+import { DELETE_RULE } from './delete-guidance.mjs';
 import { READINESS_STANDARD } from './question-ready.mjs';
 
 export const LADDER_CHECK = 'dispatch-ladder';
@@ -92,6 +93,7 @@ export const GATES = {
         'source changes through Edit and Write, which run the pre-write checks; a redirect, tee, sed -i, `node -e` or scratch script that writes a source file is refused',
         'moving EXISTING lines between files (a file split) is the kit verb move-lines, not a script: move-lines <source> <ranges>=<dest> [<ranges>=<dest> ...] [--append] [--dry-run]; it moves the lines verbatim, refuses a result over the hard file-length limit and proves the move with an empty sorted line diff',
         'add the includes or imports of a new file afterwards with Edit, which judges it',
+        DELETE_RULE,
       ], tokens: [] },
     ],
   },

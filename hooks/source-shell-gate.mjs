@@ -6,7 +6,9 @@
 // Every hit of the command is judged on its own: a source operand of a proven cp or mv is lifted only when
 // its destination provably lands outside the hit's repo (lands-outside-repo.mjs) or in a build-output directory such as
 // target/ (isGeneratedPath), never the rest of the command.
-// A rm of an untracked file this caller's own Edit or Write left is no source edit and passes (owns-untracked-file.mjs).
+// A rm of an untracked file this caller's own Edit or Write left is no source edit and passes (owns-untracked-file.mjs);
+// a refused delete says why and names the way out (delete-guidance.mjs). A relative path resolves against the `cd`
+// segments before its own segment (shell-cwd.mjs).
 // A touch that only stamps the mtime of an existing file authors no content and passes (touch-target.mjs).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fails open on any error.
 
@@ -16,7 +18,8 @@ import { isGeneratedPath, shellSourceWrites } from './lib/shell-source-write.mjs
 import { AMBIGUOUS_MESSAGE, shellOfTool, toPath } from './lib/shell-segments.mjs';
 import { commandCwd } from './lib/shell-cwd.mjs';
 import { landsOutsideRepo } from './lib/lands-outside-repo.mjs';
-import { ownsUntrackedFile } from './lib/owns-untracked-file.mjs';
+import { deleteRefusal } from './lib/owns-untracked-file.mjs';
+import { deleteGuidance } from './lib/delete-guidance.mjs';
 import { touchLifted } from './lib/touch-target.mjs';
 import { writerId } from './lib/tool-writes.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
@@ -27,19 +30,22 @@ const CHECK = 'source-shell-write';
 try {
   const p = await payload();
   const command = String((p.tool_input && p.tool_input.command) || '');
-  const hits = command ? shellSourceWrites(command, { shell: shellOfTool(p.tool_name) }) : [];
-  // A hit's own repo (a relative path is relative to where the command `cd`s), not the hook's cwd.
-  const cwd = hits.length ? commandCwd(command) : '';
+  const shell = shellOfTool(p.tool_name);
+  const hits = command ? shellSourceWrites(command, { shell }) : [];
   const caller = writerId(p.session_id, subagentId(p));
   for (const found of hits) {
-    const root = gitRootOfFile(resolve(cwd, toPath(found.path)));
+    // The hit's own directory: the `cd` segments before its segment, not where the whole command ends.
+    const cwd = commandCwd(command, process.cwd(), { upto: found.segment, shell });
+    const file = resolve(cwd, toPath(found.path));
+    const root = gitRootOfFile(file);
     if (!adopted(root) || pathExcluded(root, CHECK, found.path)) continue;
     if (found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
     if (touchLifted(found, cwd)) continue;
-    if (found.deletes &&ownsUntrackedFile(root, repoRelative(root, resolve(cwd, toPath(found.path))), caller)) continue;
+    const refusal = found.deletes ? deleteRefusal(root, repoRelative(root, file), caller) : '';
+    if (found.deletes && !refusal) continue;
     process.stderr.write(`
-BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : `a shell command writes a source file by hand (${found.path}).`}
-  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
+BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : `a shell command ${found.deletes ? 'deletes' : 'writes'} a source file by hand (${found.path}).`}
+${deleteGuidance(refusal, { path: found.path, cwd })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
   \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
   pre-write gate (file length, comment prose, literals, rot markers).
   A change too large for one Edit is a Write of the new file or several Edits, never a script.

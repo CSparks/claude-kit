@@ -3,7 +3,8 @@
 // A deletion writes nothing the pre-write checks could judge, so a scratch file the caller authored is its own to remove;
 // tracked source, a file another session or agent wrote and a file changed since the tool left it stay with the gate.
 //
-//   ownsUntrackedFile(root, rel, writer) -> boolean   false for an unknown writer; any failure answers false
+//   deleteRefusal(root, rel, writer) -> '' when the caller may delete, else why not: one of DELETE_REFUSALS
+//   ownsUntrackedFile(root, rel, writer) -> boolean   deleteRefusal(...) === ''; any failure answers false
 
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
@@ -14,15 +15,30 @@ import { toolWriteProves } from './tool-writes.mjs';
 const ANY_TIME_MS = 0;
 const GLOB_CHARS = /[*?[\]]/;
 
+export const DELETE_REFUSALS = Object.freeze({
+  noWriter: 'no-writer',
+  glob: 'glob',
+  missing: 'missing',
+  tracked: 'tracked',
+  unrecorded: 'unrecorded',
+  otherWriter: 'other-writer',
+});
+
 const isTracked = (root, rel) => gitTry(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', rel], root).ok;
 
-export function ownsUntrackedFile(root, rel, writer) {
+export function deleteRefusal(root, rel, writer) {
   try {
-    if (!root || !rel || !writer || GLOB_CHARS.test(rel)) return false;
-    if (!lstatSync(join(root, rel)).isFile() || isTracked(root, rel)) return false;
+    if (!writer) return DELETE_REFUSALS.noWriter;
+    if (!root || !rel) return DELETE_REFUSALS.missing;
+    if (GLOB_CHARS.test(rel)) return DELETE_REFUSALS.glob;
+    if (!lstatSync(join(root, rel)).isFile()) return DELETE_REFUSALS.missing;
+    if (isTracked(root, rel)) return DELETE_REFUSALS.tracked;
     const hash = contentHashOf(root, rel);
-    return toolWriteProves(root, rel, ANY_TIME_MS, hash) && !toolWriteProves(root, rel, ANY_TIME_MS, hash, writer);
+    if (!toolWriteProves(root, rel, ANY_TIME_MS, hash)) return DELETE_REFUSALS.unrecorded;
+    return toolWriteProves(root, rel, ANY_TIME_MS, hash, writer) ? DELETE_REFUSALS.otherWriter : '';
   } catch {
-    return false;
+    return DELETE_REFUSALS.missing;
   }
 }
+
+export const ownsUntrackedFile = (root, rel, writer) => deleteRefusal(root, rel, writer) === '';

@@ -9,6 +9,8 @@
 //     codeHit(code) judge inline code, a heredoc body or a scratch script that writes files
 //     readScript(p) the text of a script the command runs ('' when unreadable)
 //     hit results of rm, del, erase, unlink and Remove-Item (every operand) carry `deletes: true`: a caller may exempt a file it owns
+//     every hit of a segment carries `segment`, its index in the command's segments (a relative path is relative to the
+//       directory after the `cd` segments before that index: shell-cwd.mjs)
 //     judgeMoveSources  judge every operand of a mv (a gate that protects its files from removal)
 //     exemptByDestination  a cp/mv whose shape is proven by shell-copy-target.mjs returns its source hits tagged
 //       `outsideTo: <destination>`; the CALLER exempts exactly those when the destination lands outside every
@@ -203,7 +205,8 @@ export function scanAllShellWrites(command, { hit, codeHit, readScript = readTem
   const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell, raw: String(command || '') };
   const variables = assignedValues(parts, shell);
   const all = [...parts];
-  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw) }));
+  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw) })
+    .map((found) => ({ ...found, segment: i })));
 }
 
 export const scanShellWrites = (command, options) => scanAllShellWrites(command, options)[0] || null;

@@ -81,6 +81,29 @@ try {
   check('a redirect into an owned file stays blocked', blocked(rmBy('echo x > mover.rs', 'S1')));
   check('node unlinkSync of an owned file stays blocked', blocked(rmBy(`node -e "require('fs').unlinkSync('mover.rs')"`, 'S1')));
   check('sed -i on an owned file stays blocked', blocked(rmBy("sed -i 's/a/b/' mover.rs", 'S1')));
+
+  // A relative path belongs to the directory the `cd` segments before it reach, never to where the command ends (KIT-T1156).
+  mkdirSync(join(repo, 'sub', '.ai'), { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: join(repo, 'sub') });
+  const elsewhere = mkdtempSync(join(tmpdir(), 'kit-shelldel-away-'));
+  check('rm of an owned file before a cd into another repo passes', !blocked(rmBy('rm mine.rs && cd sub && git status --short', 'S1')));
+  check('rm of an owned file before a cd into another repo passes, absolute cd', !blocked(rmBy(`rm -f mine.rs && cd ${join(repo, 'sub').replace(/\\/g, '/')} && git status`, 'S1')));
+  check('rm after the cd is judged in the cd directory: no such file there', blocked(rmBy('cd sub && rm mine.rs', 'S1')));
+  check('tracked source before a cd stays blocked', blocked(rmBy('rm tracked.rs && cd sub && git status', 'S1')));
+  check("another writer's file before a cd stays blocked", blocked(rmBy('rm theirs.rs && cd sub && git status', 'S1')));
+  check('a write into the repo before a cd out of it stays blocked', blocked(rmBy(`echo x > fresh.rs && cd ${elsewhere.replace(/\\/g, '/')}`, 'S1')));
+  check('a write after the cd out of the repo is outside it', !blocked(rmBy(`cd ${elsewhere.replace(/\\/g, '/')} && echo x > fresh.rs`, 'S1')));
+
+  // A refused delete says why and names the way out that fits (KIT-T1156).
+  const said = (command, session) => rmBy(command, session).stderr;
+  check('tracked: names git rm of the path', /git rm -- tracked\.rs/.test(said('rm tracked.rs', 'S1')));
+  check("another writer's file: left to its writer, no shell verb", /Another session or agent wrote this file[^]*No shell verb is sanctioned/.test(said('rm theirs.rs', 'S1')));
+  check('a file no tool wrote: left to its writer', /No Edit or Write of this caller left these bytes/.test(said('rm never-ledgered.rs', 'S1')));
+  check('a glob: name each file', /A glob is not expanded: name each file/.test(said('rm glob-*.rs', 'S1')));
+  check('a missing file: prints the resolved path and the directory at that point', new RegExp(`No such file at [^\\n]*/sub/mine\\.rs[^\\n]*in [^\\n]*/sub at this point`).test(said('cd sub && rm mine.rs', 'S1')));
+  check('no session id: says the call is unattributable', /carries no session id/.test(said('rm anon.rs', '')));
+  check('a refused write that is no delete prints no delete rule', !/Delete rule/.test(said('echo x > mover.rs', 'S1')));
+  rmSync(elsewhere, { recursive: true, force: true });
 } finally {
   rmSync(repo, { recursive: true, force: true });
   rmSync(state, { recursive: true, force: true });
