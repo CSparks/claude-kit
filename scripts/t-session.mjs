@@ -6,7 +6,7 @@
 //   --fix <old> <new>  the one place <old> occurs becomes <new> (zero or several occurrences refuse);
 //                      with --all every occurrence becomes <new> (re-anchoring a path cited on several lines)
 //   --drop <text>      every entry whose first line holds <text> goes, with its indented continuation lines
-// A write refuses a linked `.ai/SESSION.md`, and a linked `.ai` unless it is a data-repo project mount (anchor-guard.mjs).
+// A write refuses a linked `.ai/SESSION.md` or `.session-backups`, and a linked `.ai` unless the registry configures it (anchor-guard.mjs).
 // Every write first copies the previous file to `.ai/.session-backups/SESSION-<timestamp>.md`
 // (the last 20 are kept; the folder ignores itself in git).
 //
@@ -16,7 +16,7 @@
 
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { assertSafeAnchor } from '../hooks/lib/anchor-guard.mjs';
+import { assertSafeAnchor, assertSafeBackupFolder, lexists } from '../hooks/lib/anchor-guard.mjs';
 
 const KEEP_BACKUPS = 20;
 const SECTION = /^##\s/;
@@ -27,11 +27,12 @@ const stamp = (d) => d.toISOString().slice(0, 16).replace('T', ' ');
 function backup(dir, path, now) {
   if (!existsSync(path)) return null;
   const folder = join(dir, '.session-backups');
+  assertSafeBackupFolder(dir, folder);
   mkdirSync(folder, { recursive: true });
   writeFileSync(join(folder, '.gitignore'), '*\n');
   const base = `SESSION-${now.toISOString().replace(/[:.]/g, '-')}`;
   let file = join(folder, `${base}.md`);
-  for (let n = 1; existsSync(file); n++) file = join(folder, `${base}-${n}.md`);
+  for (let n = 1; lexists(file); n++) file = join(folder, `${base}-${n}.md`);
   copyFileSync(path, file);
   const all = readdirSync(folder).filter((f) => /^SESSION-.*\.md$/.test(f)).sort();
   for (const f of all.slice(0, Math.max(0, all.length - KEEP_BACKUPS))) rmSync(join(folder, f), { force: true });

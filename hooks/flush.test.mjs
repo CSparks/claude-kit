@@ -5,7 +5,7 @@
 
 import { spawnSync, execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync, mkdirSync, utimesSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, relative } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { citedPaths } from './session-citations.mjs';
@@ -140,10 +140,10 @@ function landInTurn(dir, files, { subject = 'work', author = 't' } = {}) {
   git(dir, ['-c', `user.name=${author}`, 'commit', '-qm', subject]);
   return tx;
 }
-function stopOn(dir, tx) {
+function stopOn(dir, tx, registry = NO_REGISTRY) {
   const r = spawnSync(process.execPath, [HOOK], {
     cwd: dir, input: JSON.stringify({ hook_event_name: 'Stop', session_id: 's', transcript_path: tx }), encoding: 'utf8',
-    env: { ...process.env, CLAUDE_KIT_REGISTRY: NO_REGISTRY, CLAUDE_KIT_UNBOUNDED_AI: '' },
+    env: { ...process.env, CLAUDE_KIT_REGISTRY: registry, CLAUDE_KIT_UNBOUNDED_AI: '' },
   });
   return { code: r.status, err: r.stderr || '' };
 }
@@ -298,8 +298,39 @@ mkdirSync(join(dataRepo, 'projects', 'proj'), { recursive: true });
 writeFileSync(join(dataRepo, 'projects', 'proj', 'SESSION.md'), '# S\n');
 const centralized = makeRepo({ adopt: false });
 symlinkSync(join(dataRepo, 'projects', 'proj'), join(centralized, '.ai'), 'junction');
-const centralRun = stopOn(centralized, landInTurn(centralized, { 'src/app.mjs': 'export {};\n' }));
-ok('control: a .ai mounted from the data repo (projects/<name>) is written through', centralRun.code === 0 && readFileSync(join(dataRepo, 'projects', 'proj', 'SESSION.md'), 'utf8').includes('landed '));
+const registryFile = join(mkdtempSync(join(tmpdir(), 'flush-reg-')), 'registry.json');
+writeFileSync(registryFile, JSON.stringify({ dataRoot: dataRepo, projects: { proj: centralized } }));
+const centralTx = landInTurn(centralized, { 'src/app.mjs': 'export {};\n' });
+const unconfiguredRun = stopOn(centralized, centralTx);
+ok('a .ai linked into a data-repo-shaped folder the registry does not configure is refused', unconfiguredRun.code === 2
+  && !readFileSync(join(dataRepo, 'projects', 'proj', 'SESSION.md'), 'utf8').includes('landed '));
+const centralRun = stopOn(centralized, centralTx, registryFile);
+ok('control: a .ai mounted from the configured data repo (projects/<registered name>) is written through', centralRun.code === 0 && readFileSync(join(dataRepo, 'projects', 'proj', 'SESSION.md'), 'utf8').includes('landed '));
+
+// --- a submodule path is repo content: only a plain relative path becomes a note label ----------
+const relativeTo = (from, to) => relative(from, to).replace(/\\/g, '/');
+const nested = (parentDir, rel) => {
+  const abs = join(parentDir, rel);
+  mkdirSync(abs, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: abs });
+  execFileSync('git', ['config', 'user.email', 't@t'], { cwd: abs });
+  writeFileSync(join(abs, 'n.mjs'), 'export {};\n');
+  git(abs, ['add', '-A']);
+  git(abs, ['commit', '-qm', `nested ${rel}`]);
+  return abs;
+};
+const hostilePaths = makeRepo({ session: '# S\n' });
+const outerDir = mkdtempSync(join(tmpdir(), 'flush-outer-'));
+const escaped = join(outerDir, 'escaped');
+const hostileTx = landInTurn(hostilePaths, { 'src/app.mjs': 'export {};\n', '.gitmodules': `[submodule "a"]\n\tpath = a[b]\n\turl = x\n[submodule "b"]\n\tpath = ${relativeTo(hostilePaths, escaped)}\n\turl = y\n[submodule "c"]\n\tpath = plain-sub\n\turl = z\n` });
+nested(hostilePaths, 'a[b]');
+nested(hostilePaths, 'plain-sub');
+nested(outerDir, 'escaped');
+makeStale(hostilePaths);
+stopOn(hostilePaths, hostileTx);
+const hostileLines = landedLines(hostilePaths);
+ok('a submodule path with markup or leaving the repo is left out of the anchor', !hostileLines.some((l) => /\[|\]|\.\.|escaped/.test(l.replace(/^- \[[^\]]*\] /, ''))) && hostileLines.length >= 2);
+ok('control: a plain submodule path in the same .gitmodules is still labelled', hostileLines.some((l) => /landed plain-sub@[0-9a-f]{7} "nested plain-sub"/.test(l)));
 
 console.log(`\n${count - failures}/${count} passed`);
 process.exit(failures ? 1 : 0);
