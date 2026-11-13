@@ -12,13 +12,11 @@
 // Check-id: broker-log (path glob subject: the log path; in-source marker `# claude-kit-ignore broker-log`).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fail-open on any error.
 
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
+import { BROKER_DIR } from './lib/broker-dir.mjs';
 import { payload, gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
 
 const CHECK_ID = 'broker-log';
-const BROKER_DIR = join(dirname(dirname(fileURLToPath(import.meta.url))), 'scripts', 'broker').replace(/\\/g, '/');
 
 const LOGS_PATH = /broker[\\/](?:lanes[\\/][^\\/\s"']+[\\/])?logs(?:[\\/]|$)|\blanes[\\/][^\\/\s"']+[\\/]logs(?:[\\/]|$)/i;
 const READ_TOOLS = 'grep|egrep|fgrep|rg|ag|ack|sed|awk|findstr|select-string|sls|cat|head|tail|type|get-content|gc|less|more';

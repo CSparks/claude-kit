@@ -23,6 +23,7 @@ import { withoutDataArguments, withoutInlineCode } from './lib/command-leads.mjs
 import { subagentId } from './lib/subagent-id.mjs';
 import { waitSlot, jobId, digest } from './lib/broker-wait-state.mjs';
 import { longWaits } from './lib/long-waits.mjs';
+import { BROKER_DIR } from './lib/broker-dir.mjs';
 import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../scripts/broker/wait-limits.mjs';
 
 const CHECK_ID = 'broker-wait';
@@ -66,10 +67,12 @@ const message = (found) => [
   'BLOCKED: waiting on the broker the wrong way (KIT-D115).',
   ...found.map((f) => `  - ${f}`),
   '',
-  `A subagent submits, may wait ONCE with \`wait.mjs <id> --root <tree> --timeout ${MAX_FOREGROUND_WAIT_S}\` in the foreground, and otherwise`,
+  `A subagent submits, may wait ONCE with \`node "${BROKER_DIR}/wait.mjs" <id> --root <tree> --timeout ${MAX_FOREGROUND_WAIT_S}\` in the foreground, and otherwise`,
   'writes its handoff (job ids, state, next steps, file pointers in the ticket Notes) and ends with nothing running;',
   "the orchestrator resumes it from the broker's finished-job line (target/broker/finished.log). No polling, no loops,",
   'no background waits, no re-running a job to read it.',
+  'An edit refused because another writer\'s cargo build is compiling the file waits with the one call that refusal names:',
+  `\`builds --wait "<file>" --timeout ${MAX_FOREGROUND_WAIT_S} --tool-timeout ${HARNESS_FOREGROUND_S}\` (KIT-T1142), never a sleep or a loop.`,
   `The harness moves any foreground call to the background at ${HARNESS_FOREGROUND_S} s whatever its timeout (at most 300000 ms is`,
   'the ceiling, KIT-D104), so a build or test that cannot finish in one foreground call of about that length is scoped',
   'down (a narrower target, one test by name); if it still cannot fit, write a Handoff block in the ticket Notes naming',

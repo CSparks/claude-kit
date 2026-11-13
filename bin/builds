@@ -1,3 +1,4 @@
 #!/bin/sh
 # Who is building on this machine, how many cores each holds, who waits (KIT-D135). `builds --audit` adds project settings over the budget.
+# `builds --wait <file>` waits once until no build compiles that file (KIT-T1142).
 exec node "$(dirname "$0")/../scripts/broker/build-status.mjs" "$@"

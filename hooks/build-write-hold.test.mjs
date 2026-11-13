@@ -4,11 +4,14 @@
 // Run: node hooks/build-write-hold.test.mjs
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, finish, makeRepo } from './dispatch-guard-harness.mjs';
+import { buildWaitCommand } from './lib/build-write-hold.mjs';
+
+const kitRoot = fileURLToPath(new URL('..', import.meta.url));
 
 const slots = mkdtempSync(join(tmpdir(), 'bw-slots-'));
 process.env.CLAUDE_KIT_BUILD_SLOT_DIR = slots;
@@ -40,7 +43,14 @@ const guard = (session, agent, file) => {
 hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
 const refused = edit('S1', 'agentOther', 'crates', 'a', 'src', 'lib.rs');
 expect('another agent\'s edit of a source file in the building crate is refused', refused.status, 2);
-expect('the refusal says to retry after the build and names the build and its starter', /Retry after the build/.test(refused.stderr) && /cargo test -p a/.test(refused.stderr) && /S1\|agentBuilder/.test(refused.stderr) ? 1 : 0, 1);
+expect('the refusal names the build and its starter', /cargo test -p a/.test(refused.stderr) && /S1\|agentBuilder/.test(refused.stderr) ? 1 : 0, 1);
+const abs = join(crate, 'src', 'lib.rs').replace(/\\/g, '/');
+const named = refused.stderr.split('\n').find((l) => l.trim().startsWith('builds --wait')) || '';
+expect('KIT-T1142: the refusal names the one-call wait for the refused file, its cap and its Bash timeout', named.trim() === buildWaitCommand(join(crate, 'src', 'lib.rs')) && named.includes(`"${abs}"`) && /--timeout 170 --tool-timeout 180/.test(named) && /Bash timeout 180000/.test(refused.stderr) ? 1 : 0, 1);
+const subagentGate = (command) => spawnSync(process.execPath, [fileURLToPath(new URL('./broker-wait-gate.mjs', import.meta.url))], { cwd: tree, encoding: 'utf8', input: JSON.stringify({ tool_name: 'Bash', session_id: 'S1', agent_id: 'a1b2c3d4e5f6a7b8c', tool_input: { command, timeout: 180000 } }) });
+expect('KIT-T1142: the wait the refusal names passes the subagent broker-wait gate', subagentGate(named.trim()).status, 0);
+expect('KIT-T1142 control: the same gate refuses a sleep wait, so the pass above is not vacuous', subagentGate('sleep 60').status, 2);
+expect('KIT-T1142: the wait script the shim runs is where the hook looks for it', existsSync(join(kitRoot, 'scripts', 'broker', 'build-status.mjs')) && readFileSync(join(kitRoot, 'bin', 'builds'), 'utf8').includes('scripts/broker/build-status.mjs') ? 1 : 0, 1);
 expect('another session\'s edit is refused too', edit('S2', '', 'crates', 'a', 'src', 'lib.rs').status, 2);
 expect('negative control: the build\'s own writer edits freely', edit('S1', 'agentBuilder', 'crates', 'a', 'src', 'lib.rs').status, 0);
 expect('negative control: an edit in a crate the build does not compile passes', edit('S1', 'agentOther', 'crates', 'b', 'src', 'lib.rs').status, 0);

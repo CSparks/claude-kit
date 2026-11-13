@@ -36,7 +36,7 @@ function refusal({ tree, file, rel, session, agent }) {
   const sessions = overlappingHolders({ tree, session, paths: [rel] });
   if (sessions.length) return { text: sessionMessage(rel, sessions, tree), session: true };
   const hold = buildHoldConflict({ file, writer: writerId(session, agent) });
-  return hold ? { text: buildHoldMessage({ file: rel, hold, footer: excludeFooter(HOLDER_CHECK) }) } : null;
+  return hold ? { text: buildHoldMessage({ file: rel, absFile: file, hold, footer: excludeFooter(HOLDER_CHECK) }) } : null;
 }
 
 try {

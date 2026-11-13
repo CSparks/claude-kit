@@ -212,7 +212,8 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   `[paths: <files or folders>]` (alone it needs none) and is refused only when they overlap
   an in-flight writer's. The write guard refuses an Edit/Write to a file another live agent
   changed and has not committed, and to a build input of a crate another writer's running
-  cargo build compiles (retry after the build); an agent's own files and builds always pass.
+  cargo build compiles (the refusal names the one wait, `builds --wait "<file>"`: foreground,
+  returns when no build compiles the file or after 170 s); an agent's own files and builds always pass.
   The next ticket of the signed bill still goes to the SAME agent after it lands (warm build,
   warm context). Read-only = no Edit/Write in the definition's `tools:` (`claude-kit:analyst`,
   `researcher`, Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in

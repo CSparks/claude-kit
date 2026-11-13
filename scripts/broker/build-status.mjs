@@ -8,6 +8,7 @@
 //   describeHolder(hold, budget?) -> one line: pid, cores, age, root (cwd), job and phase of a hold
 //   phaseText(hold) -> "running tests, 0 rustc (charged 2 of 14, using 1.9 now, live cpu 1351s)", '' without a phase
 // `--audit` also lists project settings that ask for more cores than the budget (read only; build-audit.mjs).
+// `--wait <file>` blocks once until no build compiles that file (build-wait.mjs, KIT-T1142): the wait a refused edit names.
 
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,6 +57,10 @@ export function formatSnapshot({ physical, reserve, full, budget, game, holds, w
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (process.argv.includes('--wait')) {
+    const { runWait } = await import('./build-wait.mjs');
+    process.exit(await runWait(process.argv.slice(2)));
+  }
   const snap = snapshot();
   console.log(formatSnapshot(snap));
   if (process.argv.includes('--audit')) console.log(`\n${formatAudit(auditProjects(snap.budget))}`);

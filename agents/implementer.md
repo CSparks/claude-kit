@@ -45,6 +45,7 @@ Cost is per tool call, so a wait is ONE call and one read of the result.
 - A call that returns "moved to the background" outlived that window. Read its output file at most once, never sleep, poll or wait on it: a subagent writes the `Handoff` block and ends, the main thread waits for the one finish notice.
 - Pipe the output through a filter that keeps only failures, panics, assertion lines and the `test result` totals.
 - Never poll an output file, never sleep-loop, and never re-run a whole suite to see one test: run that test by name.
+- An edit refused because another writer's cargo build is compiling that file: wait with the ONE call the refusal names (`builds --wait "<file>"`, foreground, Bash timeout 180000, returns when no build compiles the file or after 170 s), then retry the edit; never a sleep, Wait-Process or retry loop (KIT-T1142).
 
 ## Search — q first (the kit's search tool)
 Search with bare `q` (fallback: `node "<kit>/scripts/q.mjs"`, always quoted), never grep or rg: it indexes the repo and its
