@@ -86,6 +86,8 @@ try {
   check("a bash -c string with git clean of another writer's file is blocked", stops('bash -c "git clean -f -- theirs.rs"'));
   check("a chained git clean of another writer's file is blocked", stops('echo ok && git clean -f -- theirs.rs'));
   check('git -c k=v clean is read past the option', stops('git -c core.x=1 clean -f -- theirs.rs'));
+  check("an alias given with -c names another writer's file: blocked", stops("git -c alias.x='clean -f' x -- theirs.rs"));
+  check('an alias given with -c names the caller\'s own file: passes', passes_("git -c alias.x='clean -f' x -- mine.rs"));
 
   // git rm: plain stays the documented way to delete a tracked file; -f is judged.
   check('plain git rm of a tracked file passes', passes_('git rm -- tracked.rs'));
@@ -121,7 +123,23 @@ try {
     ['git stash push -um wip', 'git stash push -um'],
     ['git stash save -u wip', 'git stash save -u'],
     ['git rm -rf -- sub', 'git rm -rf of a directory'],
+    ['git rm -f --pathspec-from-file=list.txt', 'git rm -f --pathspec-from-file='],
+    ['git rm -f --pathspec-from-file list.txt', 'git rm -f --pathspec-from-file <file>'],
+    ['git rm -f --pathspec-from-file=list.txt --pathspec-file-nul', 'git rm -f --pathspec-file-nul'],
+    ['git stash push -u --pathspec-from-file=list.txt', 'git stash push -u --pathspec-from-file='],
+    ['git stash push -u --pathspec-from-file list.txt', 'git stash push -u --pathspec-from-file <file>'],
+    ['git clean -f --pathspec-from-file=list.txt', 'git clean --pathspec-from-file='],
+    ["git -c alias.x='clean -fdx' x", 'an alias given with -c'],
+    ["git -c alias.x='stash -u' x", 'a stash alias given with -c'],
+    ['git wipe', 'a configured alias of git clean'],
+    ['git wipe2', 'an alias of an alias'],
+    ['git sh anything', 'a configured shell alias'],
+    ["git -c alias.y='!rm -rf' y", 'a shell alias given with -c'],
   ];
+  git('config', 'alias.wipe', 'clean -fd');
+  git('config', 'alias.wipe2', 'wipe');
+  git('config', 'alias.sh', '!rm -rf');
+  git('config', 'alias.st', 'status -s');
   for (const [command, name] of sweeps) check(`${name}: passes while no other writer is live`, passes_(command));
 
   freshHolders();
@@ -135,6 +153,11 @@ try {
   const said = run('git clean -fd', 'S1').stderr;
   check('the block names the verb, the live writer and the way out', /git clean here may take files it does not name[^]*another writer is live[^]*raise it to the main thread/.test(said), said);
   check('a named file of the caller still passes beside a live writer', passes_('git clean -f -- mine.rs'));
+  check('control: git rm --pathspec-from-file without -f passes beside a live writer', passes_('git rm --pathspec-from-file=list.txt'));
+  check('control: git stash push --pathspec-from-file without -u passes beside a live writer', passes_('git stash push --pathspec-from-file=list.txt'));
+  check('control: an alias of a harmless command passes beside a live writer', passes_('git st') && passes_("git -c alias.z='log -1' z"));
+  check('control: a git command that is no alias and no built-in passes beside a live writer', passes_('git lfs ls-files'));
+  check('control: a built-in git command passes without an alias lookup', passes_('git status --short'));
   check('a plain git rm still passes beside a live writer', passes_('git rm -- tracked.rs'));
   check('a plain git stash still passes beside a live writer', passes_('git stash'));
   check('a dry run still passes beside a live writer', passes_('git clean -nd'));
