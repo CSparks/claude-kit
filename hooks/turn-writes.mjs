@@ -10,6 +10,7 @@ import { basename, dirname } from 'node:path';
 import { git, readTurnState, writeTurnState } from './lib.mjs';
 import { appendTurnRecord, readTurnRecords, turnSlotNames } from './lib/turn-state.mjs';
 import { clearHandWrite } from './lib/hand-writes.mjs';
+import { movedWrite } from './lib/tool-writes.mjs';
 
 export const TURN_WRITES_SLOT = 'writes';
 const TURN_WRITES_MAX = 300;
@@ -107,7 +108,7 @@ const isStorePath = (p) => p.startsWith('.ai/') || p.includes('/.ai/');
 export function foreignPaths(root, paths, sessionId) {
   const mine = sessionWrites(root, sessionId);
   if (!mine.size) return [];
-  return paths.filter((p) => !isStorePath(p) && !mine.has(p));
+  return paths.filter((p) => !isStorePath(p) && !mine.has(p) && !movedWrite(root, p, sessionId));
 }
 
 // Record a path a non-Write tool changed (a Bash/PowerShell/node script) as this session's own.

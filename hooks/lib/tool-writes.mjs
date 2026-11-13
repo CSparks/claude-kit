@@ -17,11 +17,13 @@
 //   recordToolWrite(root, rel, hash, now, writer)                    -> add a confirmed entry
 //   recordPredictedWrite(root, rel, file, toolInput, writer, now)    -> add the unconfirmed entries for the content `toolInput` leaves
 //   toolWriteProves(root, rel, sinceMs, currentHash, byWriter)       -> true when another writer's tool left `currentHash` in `rel` since `sinceMs`
+//   movedWrite(root, rel, session)                                   -> true when `rel` holds what `session`'s tool wrote at a path since moved away
 //   cleanWriters(root, rel, currentHash)                             -> writers whose predicted write left `currentHash` and started from committed or their own clean-based text
 //   predictedHashes(current, toolInput)                             -> hashes of the content an Edit or Write leaves ([] when unknown)
 
 import { createHash } from 'node:crypto';
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { gitTry } from './exec.mjs';
 import { readTurnState, writeTurnState } from './turn-state.mjs';
 
@@ -95,6 +97,21 @@ export function recordPredictedWrite(root, rel, file, toolInput, writer = '', no
 /** The writers whose clean-based predicted write left exactly `currentHash` in `rel` (a Write, or an Edit on committed text). */
 export const cleanWriters = (root, rel, currentHash) => entriesOf(root)
   .filter((e) => e && e.p === rel && e.h === currentHash && e.k === true).map((e) => e.w);
+
+/**
+ * True when `rel` holds exactly what a tool of `session` left at a DIFFERENT path that has since vanished: the session wrote
+ * the file and then moved it (git mv, mv), so it is still the session's work (KIT-T1134).
+ */
+export function movedWrite(root, rel, session) {
+  try {
+    const file = join(root, rel);
+    if (!session || statSync(file).size > HASH_MAX_BYTES) return false;
+    const hash = hashOf(readFileSync(file));
+    return entriesOf(root).some((e) => e && e.h === hash && e.p !== rel && writerSession(e.w) === session && !existsSync(join(root, e.p)));
+  } catch {
+    return false;
+  }
+}
 
 /** True when a tool of a writer other than `byWriter` wrote `rel` at or after `sinceMs` and `currentHash` is what it left. */
 export const toolWriteProves = (root, rel, sinceMs, currentHash, byWriter = '') => Boolean(currentHash)
