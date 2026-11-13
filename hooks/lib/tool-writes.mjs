@@ -30,7 +30,7 @@ import { appendToolWriteEntries, toolWriteEntries } from './tool-write-ledger.mj
 const HASH_MAX_BYTES = 1 << 20;
 const CONFIRMED_SLACK_MS = 5000;
 
-const hashOf = (data) => createHash('sha1').update(data).digest('hex');
+export const hashOf = (data) => createHash('sha1').update(data).digest('hex');
 const toLf = (s) => s.replace(/\r\n/g, '\n');
 const toCrlf = (s) => toLf(s).replace(/\n/g, '\r\n');
 

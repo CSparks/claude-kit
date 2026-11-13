@@ -31,7 +31,9 @@ const command = (p.tool_input && p.tool_input.command) || '';
 const isCommit = /\bgit\s+(?:-C\s+\S+\s+|--?\S+\s+)*commit\b/.test(command);
 // `git add -A` / `git add .` with no pathspec limit. -A is TREE-WIDE regardless of cwd, so in
 // the shared data repo it stages every project's subtree, not the one being worked (KIT-T230).
-const isBareAdd = /\bgit\s+(?:-C\s+(?:"[^"]+"|'[^']+'|\S+)\s+)?add\s+(?:-[A-Za-z-]+\s+)*(?:-A\b|--all\b|\.\s*(?:$|[;|&]))/.test(command);
+// KIT-T1159: one parser (commit-files.mjs) reads every add, `-c k=v`, `--git-dir` and `stage` forms included.
+const adds = sameCommandAdds(command);
+const isBareAdd = adds.includes('.');
 if (!isCommit && !isBareAdd) process.exit(0);
 
 // The commit runs in the repo the command targets, not the session cwd: resolve a
@@ -134,23 +136,22 @@ function commitSpec(cmd) {
 }
 
 // KIT-T1158: a `git add` earlier in the same command has not run when this hook does; its pathspecs name files the
-// commit will carry, listed one by one (-uall), so a brand-new directory is judged by its files, not as `dir/`.
-const adds = sameCommandAdds(command);
+// commit will carry. -uall lists an untracked directory file by file, so it is judged by its files, not as `dir/`.
+// Untracked entries stay in every judged set (fail-closed, KIT-T1159).
 const statusAll = (paths) => git(['-C', root, 'status', '--porcelain', '-uall', '--', ...paths]);
+const addedFiles = () => (adds.length ? pathspecFiles(statusAll(adds), { staged: true }) : []);
 
 const spec = commitSpec(command);
 let changed;
 if (spec.mode === 'paths') {
-  changed = uniq(pathspecFiles(statusAll(spec.paths), { staged: adds.length > 0 }));
+  changed = uniq(pathspecFiles(statusAll(spec.paths), { staged: true }));
 } else if (spec.mode === 'staged') {
-  changed = uniq([
-    ...lines(git(['-C', root, 'diff', '--cached', '--name-only'])),
-    ...(adds.length ? pathspecFiles(statusAll(adds), { staged: true }) : []),
-  ]);
+  changed = uniq([...lines(git(['-C', root, 'diff', '--cached', '--name-only'])), ...addedFiles()]);
 } else if (spec.mode === 'all') {
   changed = uniq([
     ...lines(git(['-C', root, 'diff', '--name-only', 'HEAD'])),
     ...lines(git(['-C', root, 'diff', '--cached', '--name-only'])),
+    ...addedFiles(),
   ]);
 } else {
   changed = uniq([

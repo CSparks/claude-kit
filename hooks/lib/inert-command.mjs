@@ -10,6 +10,7 @@
 // (KIT-D117). Command substitutions are classified as the commands they run; a quoting that cannot be trusted is
 // judged piece by piece with every operator splitting (shell-segments.mjs blindSegments).
 
+import { moveLinesCall } from './move-lines-call.mjs';
 import { KIT_TOOL, redirectTargets } from './shell-write-scan.mjs';
 import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 import { nodeScriptName, nodeTestFiles } from './node-args.mjs';
@@ -86,6 +87,8 @@ function inertSegment(text, ctx) {
   if (!inner.every((c) => isInert(c, ctx))) return false;
   const words = leadingWords(outer);
   if (!words.length || KEYWORD_ONLY.test(words[0])) return true;
+  const move = moveLinesCall(outer, ctx.cwd);
+  if (move) return !move.problem;
   const leader = nameOf(words[0]);
   if (GENERATORS.test(leader) || KIT_TOOL.test(leader)) return true;
   if (READERS.test(leader) || (/^sed$/i.test(leader) && !SED_IN_PLACE.test(outer))) return !ctx.intoSource;

@@ -41,9 +41,45 @@ try {
   const foreignBare = verdict('S1', ownBare);
   ok('negative control: the bare commit after the add refuses it too', foreignBare.code === 2 && foreignBare.out.includes('src/wav/theirs.rs'), foreignBare.out.trim());
 
-  ok('lib: untracked entries are dropped unless the command stages them', pathspecFiles('?? src/wav/a.rs\n M x.rs\n').join() === 'x.rs' && pathspecFiles('?? src/wav/a.rs\n M x.rs\n', { staged: true }).join() === 'src/wav/a.rs,x.rs');
+  ok('lib: untracked entries are dropped unless the caller says the command takes them', pathspecFiles('?? src/wav/a.rs\n M x.rs\n').join() === 'x.rs' && pathspecFiles('?? src/wav/a.rs\n M x.rs\n', { staged: true }).join() === 'src/wav/a.rs,x.rs');
   ok('lib: sameCommandAdds reads the pathspecs of each add, a bare add or -A as the whole tree', sameCommandAdds('git add a b && git commit -m x').join() === 'a,b'
     && sameCommandAdds('git add -A && git commit').join() === '.' && sameCommandAdds('git add -- src/wav; git commit').join() === 'src/wav' && sameCommandAdds('git commit -m x').length === 0);
+  const adds = (command) => sameCommandAdds(command).join();
+  ok('lib: git global options before add are walked (-c, -C, --git-dir, --work-tree, --no-pager)',
+    adds('git -c core.x=y add -A') === '.' && adds('git -c core.x=y add src/a') === 'src/a' && adds('git --no-pager add src/a') === 'src/a'
+    && adds('git --git-dir=.git --work-tree=. add src/b') === 'src/b' && adds('git --git-dir .git add src/c') === 'src/c' && adds('git -C "my dir" -c a=b add src/d') === 'src/d');
+  ok('lib: stage is an add, and an add inside a bash -c string is read', adds('git stage src/e') === 'src/e' && adds('bash -c "git add src/f && git commit -m x"') === 'src/f');
+  ok('lib: an add it cannot place is the whole tree (unknown global option, variable subcommand, xargs, pathspec file)',
+    adds('git --odd-option add src/g') === '.' && adds('git $SUB src/g') === '.' && adds('ls | xargs git add') === '.' && adds('git add --pathspec-from-file=list.txt') === '.');
+  ok('negative control: a commit message or another subcommand naming add stages nothing',
+    adds('git commit -m "add foo and git add bar"') === '' && adds('git status') === '' && adds('git -c core.x=y commit -m "stage it"') === '' && adds('git log --oneline') === '');
+
+  const fresh = (dir, session) => { written(`${dir}/a.rs`, body(10), session); written(`${dir}/b.rs`, body(11), session); };
+  const refusedByFile = (v, file) => v.code === 2 && v.out.includes(file) && !v.out.includes(`${file.split('/').slice(0, -1).join('/')}/\n`);
+  const T = target;
+  fresh('src/dashc', 'S1');
+  const dashC = `git -C ${T} -c core.x=y add src/dashc && git -C ${T} commit -m "${MSG}"`;
+  ok('a git -c add of the session\'s own new directory passes', verdict('S1', dashC).code === 0, verdict('S1', dashC).out.trim());
+  put('src/dashc/theirs.rs', body(12));
+  ok('negative control: the same add with a foreign file inside is refused by file', refusedByFile(verdict('S1', dashC), 'src/dashc/theirs.rs'), verdict('S1', dashC).out.trim());
+  const dashCPaths = `git -C ${T} -c core.x=y add src/dashc && git -C ${T} commit -m "${MSG}" -- src/dashc`;
+  ok('negative control: the pathspec commit after the unparsed-form add refuses it too', refusedByFile(verdict('S1', dashCPaths), 'src/dashc/theirs.rs'));
+
+  fresh('src/stg', 'S1');
+  const stage = `git -C ${T} stage src/stg && git -C ${T} commit -m "${MSG}"`;
+  ok('a git stage of the session\'s own new directory passes', verdict('S1', stage).code === 0, verdict('S1', stage).out.trim());
+  put('src/stg/theirs.rs', body(13));
+  ok('negative control: git stage with a foreign file inside is refused by file', refusedByFile(verdict('S1', stage), 'src/stg/theirs.rs'));
+
+  fresh('src/all', 'S1');
+  const commitAll = `git -C ${T} add src/all && git -C ${T} commit -am "${MSG}"`;
+  ok('commit -a after an add of the session\'s own new directory passes', verdict('S1', commitAll).code === 0, verdict('S1', commitAll).out.trim());
+  put('src/all/theirs.rs', body(14));
+  ok('negative control: commit -a after the add refuses a foreign file in the directory', refusedByFile(verdict('S1', commitAll), 'src/all/theirs.rs'));
+
+  put('src/loose/theirs.rs', body(15));
+  const noAdd = `git -C ${T} commit -m "${MSG}" -- src/loose`;
+  ok('a pathspec commit judges an untracked foreign file even when no add stages it', refusedByFile(verdict('S1', noAdd), 'src/loose/theirs.rs'), verdict('S1', noAdd).out.trim());
 } finally {
   cleanup();
 }

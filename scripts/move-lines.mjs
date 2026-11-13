@@ -9,32 +9,22 @@
 //     <dest>    a file to create (parent directories are made); with --append an existing file takes the lines at its end
 //     --dry-run print the plan and the counts, write nothing
 //
-// Refuses: a destination that exists (without --append), overlapping ranges, a range past the end, a result over the hard
+// Refuses (move-lines/guard.mjs): a source or destination outside the git root, not a source path, behind a symlink, or a
+// hook, config or settings file; a source git does not track (unless an Edit or Write tool left it as it is). Also: a
+// destination that exists (without --append), overlapping ranges, a range past the end, a result over the hard
 // file-length limit (hooks/lib/limits.mjs). The moved lines carry no header: add includes or imports with Edit afterwards,
-// which judges the new file. The shell gates treat this verb as a kit verb, and the session's writes ledger credits the
-// files it changed, so a commit of them is the session's own.
+// which judges the new file. The shell gates treat a call that passes the guard as a kit verb (hooks/lib/move-lines-call.mjs).
 // Exit 0 done, 1 refused or proof failed (every file put back).
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname } from 'node:path';
 import { fileLengthVerdict } from '../hooks/lib/limits.mjs';
 import { isMain } from './is-main.mjs';
-import { joinLines, parseRanges, planMoves, sortedDiff, splitLines } from './move-lines/plan.mjs';
+import { parseMoveLinesArgs } from './move-lines/args.mjs';
+import { moveLinesProblem } from './move-lines/guard.mjs';
+import { joinLines, planMoves, sortedDiff, splitLines } from './move-lines/plan.mjs';
 
 const DIFF_SHOWN = 10;
-
-function parseArgs(argv) {
-  const flags = new Set(argv.filter((a) => a === '--append' || a === '--dry-run'));
-  const rest = argv.filter((a) => !flags.has(a));
-  const [source, ...specTexts] = rest;
-  if (!source || !specTexts.length) throw new Error('usage: move-lines [--append] [--dry-run] <source> <ranges>=<dest> [<ranges>=<dest> ...]');
-  const specs = specTexts.map((t) => {
-    const at = t.indexOf('=');
-    if (at < 1 || at === t.length - 1) throw new Error(`bad spec '${t}': use <ranges>=<dest>, e.g. 10-120=src/part.cpp`);
-    return { ranges: parseRanges(t.slice(0, at)), dest: resolve(t.slice(at + 1)) };
-  });
-  return { source: resolve(source), specs, append: flags.has('--append'), dryRun: flags.has('--dry-run') };
-}
 
 function destPlan(dest, movedLines, sourceEol, append) {
   if (!existsSync(dest)) return { dest, before: [], text: joinLines(movedLines, sourceEol, true), created: true };
@@ -60,11 +50,12 @@ export function verify(sourceBefore, sourceAfterPath, plans, movedAll) {
   return '';
 }
 
-export function moveLines(argv, { out = process.stdout, err = process.stderr } = {}) {
+export function moveLines(argv, { out = process.stdout, err = process.stderr, cwd = process.cwd() } = {}) {
   let args;
-  try { args = parseArgs(argv); } catch (e) { err.write(`move-lines: ${e.message}\n`); return 1; }
+  try { args = parseMoveLinesArgs(argv, cwd); } catch (e) { err.write(`move-lines: ${e.message}\n`); return 1; }
   const { source, specs, append, dryRun } = args;
-  if (!existsSync(source)) { err.write(`move-lines: ${source} does not exist\n`); return 1; }
+  const problem = moveLinesProblem({ source, dests: specs.map((s) => s.dest), cwd });
+  if (problem) { err.write(`move-lines: refused, nothing written: ${problem}\n`); return 1; }
   const sourceText = readFileSync(source, 'utf8');
   const { lines, eol } = splitLines(sourceText);
   let plans;

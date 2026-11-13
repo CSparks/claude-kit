@@ -29,14 +29,16 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
+import { moveLinesCall } from './move-lines-call.mjs';
 import { copyTargets } from './shell-copy-target.mjs';
+import { commandCwd } from './shell-cwd.mjs';
 import { touchTargets } from './touch-target.mjs';
 import { touchPlaceKnown } from './touch-place.mjs';
 import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
 import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
 
-export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|move-lines|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs|move-lines\.mjs)$/i;
+export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
 const WRITING_CMD = /^(?:rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
 const TOUCH_CMD = /^touch$/i;
@@ -126,8 +128,13 @@ function judgeTool(tool, rest, text, ctx, argText) {
   return script ? codeHit(readScript(script)) : null;
 }
 
-/** True when the segment runs a kit verb: `q ...` or `node [flags] <kit script> ...`, never `node -e <code>` whatever the code names. */
-export function kitLed(text) {
+/**
+ * True when the segment runs a kit verb: `q ...` or `node [flags] <kit script> ...`, never `node -e <code>` whatever the code names.
+ * `move-lines` counts only when its arguments pass the move-lines guard from `cwd` (move-lines-call.mjs, KIT-T1159).
+ */
+export function kitLed(text, cwd = process.cwd()) {
+  const move = moveLinesCall(text, cwd);
+  if (move) return !move.problem;
   const args = shellArgs(text);
   if (!args.length) return false;
   const leader = nameOf(args[0]);
@@ -147,10 +154,12 @@ function judgeSegment(text, ctx) {
   const words = wordsIn(text);
   if (!words.length) return [];
   const leader = nameOf(words[0].w);
-  const quotedArgsInert = kitLed(text) || /^git$/i.test(leader);
+  const quotedArgsInert = kitLed(text, ctx.cwd) || /^git$/i.test(leader);
 
   const hits = redirectTargets(text, quotedArgsInert, ctx.shell === 'bash').map(ctx.hit).filter(Boolean);
   hits.push(...patchApplyHits(text, ctx));
+  const move = moveLinesCall(text, ctx.cwd);
+  if (move && move.problem) hits.push(...move.paths.map(ctx.hit).filter(Boolean));
   if (quotedArgsInert || READER.test(leader)) return hits;
   const touched = TOUCH_CMD.test(leader) ? judgeTouch(text.slice(words[0].at + words[0].w.length), ctx) : null;
   if (touched) return [...hits, ...touched];
@@ -181,9 +190,9 @@ const HARMLESS_REDIRECT = /\d*>&(?:\d+|-)|\d*&?>>?\s*\/dev\/null\b/g;
 // not a write, but a redirect in one is still judged by its target, and a write behind an operator is its own
 // piece and still tested.
 // Returns the write word that made it a hit ('' for none), so a block can name it.
-const ambiguousWrite = (text, hit) => {
+const ambiguousWrite = (text, hit, cwd) => {
   const pieces = blindSegments(text);
-  const kitPieces = pieces.filter((s) => kitLed(s.text));
+  const kitPieces = pieces.filter((s) => kitLed(s.text, cwd));
   const kitRedirect = kitPieces.flatMap((s) => redirectTargets(s.text, false)).find((target) => hit(target));
   if (kitRedirect) return `> ${kitRedirect}`;
   const rest = pieces
@@ -198,14 +207,14 @@ export function scanAllShellWrites(command, { hit, codeHit, readScript = readTem
   const parts = segments(String(command || ''), { shell });
   const text = parts.text;
   if (parts.ambiguous && ambiguous) {
-    const trigger = ambiguousWrite(text, hit);
+    const trigger = ambiguousWrite(text, hit, commandCwd(String(command || ''), process.cwd(), { shell }));
     return trigger ? [ambiguous({ ...parts.ambiguity, trigger })] : [];
   }
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
   const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, shell, raw: String(command || '') };
   const variables = assignedValues(parts, shell);
   const all = [...parts];
-  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw) })
+  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw), cwd: commandCwd(ctx.raw, process.cwd(), { upto: i, shell }) })
     .map((found) => ({ ...found, segment: i })));
 }
 
