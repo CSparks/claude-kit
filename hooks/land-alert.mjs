@@ -22,33 +22,14 @@ import { join } from 'node:path';
 import { assistantTextOf } from './lib/assistant-text.mjs';
 import { unannouncedIn } from './lib/announced-landings.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
+import { LAND_SLOT, isPushed, landedThisTurn } from './lib/landed-commits.mjs';
 import {
-  gitRoot, adopted, payload, git, wipSummary, remoteCommitUrl, ID_CITE_SRC, readTurnState, writeTurnState,
+  gitRoot, adopted, payload, git, remoteCommitUrl, readTurnState, writeTurnState,
 } from './lib.mjs';
 
-// A commit whose subject lands within this slack of the turn start counts as "this turn" — the
-// same small clock-skew tolerance request-gate/flush use for their turn bounding.
-const TURN_SKEW_MS = 1500;
-const MS_PER_SEC = 1000; // git %ct is epoch SECONDS; the turn start is ms
 // Cap how many landed commits we enumerate, so a turn that lands a long series stays one screen;
 // the rest collapse to a "+N more" tail.
 const MAX_LISTED = 8;
-
-// Code extensions whose presence makes a commit "real work" (vs docs/config-only noise). Kept in
-// lock-step with commit-gate.mjs's CODE set — the SAME "does this commit touch code?" question the
-// gate already answers, so the alert fires on exactly the commits the gate considers trackable.
-const CODE = new Set(
-  'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
-);
-
-// The id-citation atom, shared (KIT-T059). A landed commit citing a ticket is real work even when
-// it touches no code file (e.g. a pure plan-of-record / .ai store change with a citation). `CITE`
-// is non-global (a stateless boolean test); `CITE_ALL` extracts every id for the "ticket" field.
-const CITE = new RegExp(ID_CITE_SRC);
-const CITE_ALL = new RegExp(ID_CITE_SRC, 'g');
-// Recent commits scanned for the turn window — generous enough to cover a burst of landings, small
-// enough to stay cheap; older ones are filtered out by author-time anyway.
-const LOG_DEPTH = 50;
 
 // The reply already told the maintainer the work landed → the alert is satisfied (the release
 // valve, mirroring request-gate's RECEIPT). Any of: a landing verb (landed/pushed/deployed/live/
@@ -108,51 +89,15 @@ async function main() {
   const reply = lastAssistant || '';
   const hasLanding = LANDED_RECEIPT.test(reply);
   const hasTest = TEST_RECEIPT.test(reply);
+  const listing = { listed: landed.map((c) => c.sha), turnStartMs, at: Date.now() };
   if (hasLanding && hasTest) {
-    recordAlerted(root, head, pushed);
+    recordAlerted(root, head, pushed, listing);
     process.exit(0);
   }
 
-  recordAlerted(root, head, pushed);
+  recordAlerted(root, head, pushed, listing);
   process.stderr.write(renderAlert(root, landed, pushed, hasLanding, hasTest) + triageFooter());
   process.exit(2); // block-once (rigid) — the same ratchet as request-gate / flush
-}
-
-// --- what landed this turn ------------------------------------------------------
-
-// Commits authored at/after the turn start that are "real work" (touch code OR cite a ticket).
-// Docs-only / [no-log:] commits are the "noise" KIT-T021 excludes. The author-time filter is done
-// in JS (like flush.mjs) rather than via `git log --since`, so it doesn't depend on a recent git or
-// on commits being in date order. Returns newest-first { sha, shortSha, subject, ids[] }.
-function landedThisTurn(root, turnStartMs) {
-  const tol = turnStartMs - TURN_SKEW_MS;
-  const SEP = '\x1f'; // unit separator — safe inside a commit subject
-  const raw = git(['-C', root, 'log', `--pretty=%H${SEP}%h${SEP}%ct${SEP}%s`, '-n', String(LOG_DEPTH)]);
-  const out = [];
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) continue;
-    const [sha, shortSha, ct, subject = ''] = line.split(SEP);
-    if (!sha || Number(ct) * MS_PER_SEC < tol) continue;
-    if (!isRealWork(root, sha, subject)) continue;
-    out.push({ sha, shortSha, subject, ids: [...new Set(subject.match(CITE_ALL) || [])] });
-  }
-  return out;
-}
-
-// A commit is real work iff it touches a code file OR cites a ticket id (matches the commit-gate's
-// own notion of trackable work). A docs/config-only, un-cited commit is noise → not alerted.
-function isRealWork(root, sha, subject) {
-  if (CITE.test(subject)) return true;
-  const files = git(['-C', root, 'show', '--name-only', '--pretty=format:', sha]).split('\n');
-  return files.some((f) => CODE.has((f.split('.').pop() || '').toLowerCase()));
-}
-
-// Is HEAD on a remote tracking branch (pushed), or only local? wipSummary's unpushed list is the
-// shared push-state source (D-010). A remote-less repo reports nothing unpushed → treated as
-// "committed locally" (there is nowhere to push to, so we never falsely claim "pushed/building").
-function isPushed(root) {
-  if (!git(['-C', root, 'remote']).trim()) return false; // no remote → can't be pushed
-  return wipSummary(root).unpushed.length === 0;
 }
 
 // --- the alert ------------------------------------------------------------------
@@ -169,7 +114,8 @@ function renderAlert(root, landed, pushed, hasLanding, hasTest) {
     if (url) lines.push(`      ${url}`);
   }
   if (landed.length > MAX_LISTED) lines.push(`  • …+${landed.length - MAX_LISTED} more`);
-  lines.push('', 'This alert is structural (KIT-T021/T099), not optional. To clear the gate:');
+  lines.push('', '`t receipt` prints this landing as a receipt skeleton (sha, ticket, pushed state, the UAT line to fill).');
+  lines.push('This alert is structural (KIT-T021/T099), not optional. To clear the gate:');
   if (!hasLanding) {
     lines.push('  - announce the landing — WHAT + the ticket + the link ("pushed"/"deployed"/the sha);');
   }
@@ -187,7 +133,7 @@ function renderAlert(root, landed, pushed, hasLanding, hasTest) {
 // --- once-per-landing marker (own turn-state slot; KIT-T021) ---------------------
 // Stored in the 'land' slot so housekeeping's full-overwrite of the default turn-state object
 // can't clobber it (the two Stop hooks would otherwise race on one file).
-const SLOT = 'land';
+const SLOT = LAND_SLOT;
 
 function markerFor(head, pushed) {
   return `${head}:${pushed ? 'pushed' : 'local'}`;
@@ -196,8 +142,9 @@ function alreadyAlerted(root, head, pushed) {
   const st = readSlot(root);
   return !!st && st.alerted === markerFor(head, pushed);
 }
-function recordAlerted(root, head, pushed) {
-  writeSlot(root, { alerted: markerFor(head, pushed) });
+// `listing` (the shas this alert listed, the turn start, when) is what `t receipt` reads back as its default boundary.
+function recordAlerted(root, head, pushed, listing = {}) {
+  writeSlot(root, { alerted: markerFor(head, pushed), ...listing });
 }
 
 // Both slot accessors fail-open (a miss → no marker → the alert simply fires, the safe direction

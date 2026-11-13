@@ -26,6 +26,7 @@
 //                                                   ticket returns to its prior status)
 //   t edit <id> --section Description|Plan|Notes --file <path>   replace one section of an item (History line stamped)
 //   t move <id> <repo-path>                         promote an item into an adopted repo's .ai/
+//   t receipt [--since <sha|30m|2h>]                print the landing receipt skeleton (writes nothing; scripts/t-receipt.mjs)
 //
 // IDs are NEVER hand-picked — `t new` mints via id-reserve.reserveNextId (KIT-D011). Every subcommand
 // fails loudly on an unknown id rather than inventing one. After a mutation the CLI refreshes
@@ -346,6 +347,7 @@ function parseArgs(argv) {
     else if (a === '--replace') flags.replace = true;
     else if (a === '--skip') flags.skip = true;
     else if (a === '--not-dup') flags.notDup = String(argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
+    else if (a === '--since') flags.since = argv[++i];
     else if (a === '--regressed-from') flags.regressedFrom = argv[++i];
     else if (a === '--causing-commit') flags.causingCommit = argv[++i];
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
@@ -363,7 +365,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|note|notes|epic|request|question|session|config|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move> …  (t new <type> "<title>" [--description "<text>" | --file <path>] [--regressed-from <id> --causing-commit <sha>: both required for a regression] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t config get <dotted.key> | t config set <dotted.key> <value>… | t decide --file <draft.md> [--from <inbox-id,...>] | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<id|none (why)>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] [--skip] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|note|notes|epic|request|question|session|config|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move|receipt> …  (t receipt [--since <sha|30m|2h>]: the landing receipt skeleton for the commits landed in this repo and its submodules | t new <type> "<title>" [--description "<text>" | --file <path>] [--regressed-from <id> --causing-commit <sha>: both required for a regression] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t config get <dotted.key> | t config set <dotted.key> <value>… | t decide --file <draft.md> [--from <inbox-id,...>] | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<id|none (why)>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] [--skip] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
@@ -501,6 +503,11 @@ async function main() {
     await refresh(root);
     await refresh(r.destRoot);
     process.stdout.write(`move: ${r.from} → ${r.to} in ${r.destRoot} (pointer left at ${r.pointer})\n`);
+    return;
+  }
+  if (cmd === 'receipt') {
+    const { runReceipt } = await import('./t-receipt.mjs');
+    runReceipt(flags);
     return;
   }
   if (cmd === 'ack') {

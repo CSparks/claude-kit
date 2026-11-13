@@ -81,7 +81,7 @@ Questions → ${CODEX ? 'structured user input when available' : 'AskUserQuestio
 QUERY don't grep: q open|governing|trail|fts; code-graph importers-of|defines|surface|duplicate-defines.
 PROVENANCE FIRST (KIT-T079): git log -- <path> + code-graph BEFORE any runtime theory.
 Read plan-of-record + DECISIONS before non-trivial work. On-disk record and git are AUTHORITATIVE.
-Log work to a ticket (gate enforces). Record decisions in DECISIONS the turn they happen.
+Log work to a ticket (gate enforces); decisions to DECISIONS at once. Landing reply: \`t receipt\`.
 Full rules: read ${CODEX ? 'AGENTS.md' : 'CLAUDE.md'} | q governing <hook-file> | code-graph --query surface
 ================================================================================`);
 let text = budgeted(out.join('\n'));

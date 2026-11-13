@@ -5,7 +5,7 @@
 // Run: node hooks/land-alert.test.mjs
 
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -274,6 +274,20 @@ function writeTranscriptReplies(dir, userTs, replies) {
   const sha = makeCommit(d, 'src/f.ts', 'export {}', 'feat: f HOD-T026');
   const tx = writeTranscriptReplies(d, userTs, [`pushed ${sha.slice(0, 7)}.`]);
   expect('a sha named only in the reply being judged is not counted as announced earlier', run(d, { transcript_path: tx }, makeTurnStateDir()).code, 2);
+}
+
+// ─── KIT-T1144: the block names `t receipt`, and records what it listed for the command's default boundary ───
+{
+  const d = makeRepo();
+  const tsDir = makeTurnStateDir();
+  const userTs = new Date(Date.now() - 10000).toISOString();
+  const sha = makeCommit(d, 'src/r.ts', 'export {}', 'feat: r HOD-T031');
+  const tx = writeTranscript(d, 'go', 'Done.', userTs);
+  const r = run(d, { transcript_path: tx }, tsDir);
+  expect('the block text names the t receipt command', String(r.err.includes('t receipt')), 'true');
+  const recorded = JSON.parse(readFileSync(readdirSync(tsDir).map((f) => join(tsDir, f)).find((f) => f.endsWith('.land.json')), 'utf8'));
+  expect('the block records the shas it listed', String(recorded.listed.includes(sha)), 'true');
+  expect('the block records the turn start', String(Number.isFinite(recorded.turnStartMs)), 'true');
 }
 
 console.log(`\n${testCount} tests — ${failures ? `${failures} FAILED` : 'ALL PASS'}`);
