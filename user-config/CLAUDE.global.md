@@ -129,6 +129,11 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   call", "want me to X?", "fold it in?" — is a BUG. Trivial or reversible: decide
   yourself and report. Genuinely the maintainer's: AskUserQuestion. Open discussion
   is exempt — there, prose questions ARE the medium.
+- **Anything you need from him is a questionnaire (KIT-D168; KIT-T1130, KIT-T1136).** "If you need something,
+  that needs to be a questionnaire or it's a process failure." The Stop gate `prose-ask` blocks a closing reply
+  that asks him for approval, a decision or an action in prose ("needs your say", "waiting on you", "want me
+  to") when no questionnaire reached him that turn: put it in an AskUserQuestion, summary first, recommended
+  option first. Exempt: a subagent's report, his own question, quoted words and code.
 
 ## ⛔ QUESTIONNAIRE PROTOCOL — a plain summary, then the questionnaire (KIT-D153)
 Every decision put to the maintainer is a plain summary (what is being decided, what each option
@@ -350,8 +355,12 @@ process failure when you: propose or start building something that ALREADY EXIST
 lose or re-derive a fact already in the durable record; contradict the on-disk
 record — almost always from not grounding first. Trigger → immediately, unprompted:
 (1) STOP the work resting on the lost/duplicated fact; (2) capture a KIT issue
-(`cap bug …`) naming the ROOT CAUSE, not the symptom; (3) keep this trigger codified
-here and push toward hook enforcement. The antidote is upstream: **ground before you
+(`cap bug …`) naming the ROOT CAUSE, not the symptom; (3) DISPATCH an agent the same
+turn to fix the cause or build the prevention — "Every process failure needs to be followed
+up by dispatching an agent to attempt to fix/prevent future failures" (KIT-D168, extends
+KIT-D145 from kit bugs to every process failure); a capture alone closes nothing, and the
+Stop gate `process-failure-dispatch` blocks once on a capture with no dispatch; (4) keep
+this trigger codified here and push toward hook enforcement. The antidote is upstream: **ground before you
 propose** — query the work store, code graph, dependency manifest, and the governing
 framework/base-layer contract; assume it exists until checked. Before anchoring a
 PORT, enumerate EVERY candidate implementation (other languages and native crates

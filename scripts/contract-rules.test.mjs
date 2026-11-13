@@ -36,6 +36,10 @@ try {
   for (const f of ['agents/README.md', 'agents/implementer.md', 'agents/perf-tuner.md', 'agents/rg-ui-engineer.md']) {
     ok(`${f} names the unique commit message file (KIT-T1135)`, read(f).includes(MESSAGE_FILE_NAME));
   }
+  ok('the base contract names the prose-ask gate and his rule that a need from him is a questionnaire (KIT-D168)',
+    /Anything you need from him is a questionnaire \(KIT-D168/.test(base) && base.includes('`prose-ask`') && base.includes('or it\'s a process failure'));
+  ok('the base contract makes a dispatch the third step of a process failure and names its gate (KIT-D168)',
+    /\(3\) DISPATCH an agent the same\s+turn[\s\S]{0,400}`process-failure-dispatch`/.test(base));
   const gates = read('hooks/lib/gate-tokens.mjs');
   ok('the tree and read-only token meanings say a scratchpad path is read-only work, not a [tree:]', /a non-git path such as the scratchpad is ignored: use \[read-only:\]/.test(gates));
 
