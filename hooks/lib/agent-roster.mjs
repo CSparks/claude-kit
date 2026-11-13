@@ -53,7 +53,7 @@ export function updateAgent(root, id, patch) {
 
 // The statuses that mean an agent's life is OVER. Terminal is a RATCHET: once an id reaches one,
 // no later row can move it back to a live status (see readAgents).
-const AGENT_TERMINAL = new Set(['done', 'error', 'collected', 'merged', 'killed', 'stale']);
+export const AGENT_TERMINAL = new Set(['done', 'error', 'collected', 'merged', 'killed', 'stale']);
 
 // Parse the roster's tail into the COLLAPSED current view: the latest row per id, with
 // `firstSeen` carried from the id's earliest row so age can be measured from delegation, not

@@ -138,6 +138,10 @@
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" agent-roster.mjs" }]
       },
       {
+        "matcher": "TaskStop",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" agent-roster.mjs" }]
+      },
+      {
         "matcher": "Bash|PowerShell",
         "hooks": [
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" git-pull-hydrate.mjs" },

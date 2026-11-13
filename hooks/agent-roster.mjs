@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// PostToolUse(Task) + SubagentStop — record every delegated subagent into the durable on-disk
+// PostToolUse(Task) + SubagentStop + PostToolUse(TaskStop) — record every delegated subagent into the durable on-disk
 // roster (.ai/agents.jsonl), so a /clear can never orphan delegated work (KIT-T014 / KIT-D015).
 //
 // This is the AUTOMATIC capture the ticket prefers: the orchestrator doesn't have to remember
@@ -12,7 +12,7 @@
 // FAIL-OPEN on EVERYTHING (try/catch, exit 0). A durability hook must never wedge a session or
 // block a delegation; the worst case is a missing/extra roster row the orchestrator reconciles.
 
-import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, ID_CITE_SRC } from './lib.mjs';
+import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, ID_CITE_SRC, AGENT_ROSTER_TAIL, AGENT_TERMINAL } from './lib.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { declaredReadOnly } from './dispatch-readonly.mjs';
@@ -40,6 +40,8 @@ async function main() {
   const event = p.hook_event_name || '';
   if (event === 'SubagentStop') {
     recordStop(root, p);
+  } else if (p.tool_name === 'TaskStop') {
+    recordKill(root, p);
   } else {
     // PostToolUse(Task) (the default wiring) — a delegation just dispatched.
     if (!recordDispatch(root, p)) process.exit(2);
@@ -119,6 +121,24 @@ function recordStop(root, p) {
     if (flag) process.stderr.write(`RETIRE ${id}:${flag}
 `);
     appendOutcome(root, outcomeRow({ id, rosterRow, stop: p, outcome }));
+  } catch {
+    /* fail-open */
+  }
+}
+
+// A TaskStop killed a task (KIT-T362). The harness fires no SubagentStop for a kill, so close the roster row
+// whose id is the stopped task_id; a task with no row here (a background shell) leaves the roster untouched.
+function recordKill(root, p) {
+  try {
+    const inp = p.tool_input || {};
+    const resp = p.tool_response && typeof p.tool_response === 'object' ? p.tool_response : {};
+    const id = firstString(inp.task_id, inp.shell_id, resp.task_id);
+    if (!id) return;
+    const row = readAgents(root, AGENT_ROSTER_TAIL, { reconcile: false }).find((r) => r.id === id);
+    if (!row) return;
+    releaseAgent(id);
+    if (AGENT_TERMINAL.has(row.status)) return;
+    updateAgent(root, id, { status: 'killed', reason: 'taskstop', source: 'taskstop' });
   } catch {
     /* fail-open */
   }

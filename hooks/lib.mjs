@@ -39,6 +39,6 @@ export { scanReminders } from './lib/reminders.mjs';
 export { readTurnState, writeTurnState } from './lib/turn-state.mjs';
 export { sessionStale, sessionMtimeMs } from './lib/session.mjs';
 export {
-  AGENT_ROSTER_REL, AGENT_STALE_MS, AGENT_ROSTER_TAIL,
+  AGENT_ROSTER_REL, AGENT_STALE_MS, AGENT_ROSTER_TAIL, AGENT_TERMINAL,
   agentsPath, recordAgent, updateAgent, readAgents, partitionAgents,
 } from './lib/agent-roster.mjs';
