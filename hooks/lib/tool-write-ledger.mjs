@@ -3,7 +3,8 @@
 // read before the records. Every path fails open.
 //
 //   appendToolWriteEntries(root, entries) -> add `entries`, oldest first
-//   toolWriteEntries(root)                -> the newest TOOL_WRITE_ENTRIES_MAX entries, oldest first
+//   toolWriteEntries(root, rel)           -> the newest TOOL_WRITE_ENTRIES_MAX entries of `rel`, oldest first; the cap counts
+//                                            that path's entries only, so a busy checkout never evicts another path's owner
 
 import { appendTurnRecord, readTurnRecords, readTurnState } from './turn-state.mjs';
 
@@ -14,7 +15,9 @@ export const appendToolWriteEntries = (root, entries) => {
   for (const entry of entries) appendTurnRecord(root, SLOT, entry);
 };
 
-export function toolWriteEntries(root) {
+export function toolWriteEntries(root, rel) {
   const legacy = (readTurnState(root, SLOT) || {}).entries;
-  return [...(Array.isArray(legacy) ? legacy : []), ...readTurnRecords(root, SLOT)].slice(-TOOL_WRITE_ENTRIES_MAX);
+  return [...(Array.isArray(legacy) ? legacy : []), ...readTurnRecords(root, SLOT)]
+    .filter((e) => e && e.p === rel)
+    .slice(-TOOL_WRITE_ENTRIES_MAX);
 }

@@ -37,8 +37,6 @@ const toCrlf = (s) => toLf(s).replace(/\n/g, '\r\n');
 export const writerId = (session, agent) => (session ? `${session}|${agent || ''}` : '');
 export const writerSession = (writer) => String(writer || '').split('|')[0];
 
-const entriesOf = toolWriteEntries;
-
 const addEntries = (root, hashes, rel, now, writer, confirmed, clean = false) => {
   appendToolWriteEntries(root, hashes.map((h) => ({ p: rel, h, ts: now, w: writer, c: confirmed, ...(clean ? { k: true } : {}) })));
 };
@@ -72,7 +70,7 @@ const committedAndClean = (root, rel) => gitTry(['ls-files', '--error-unmatch', 
 // Did the edit start from content no other session's uncommitted work is in: the committed text, or the text this
 // session's own earlier clean-based write left?
 const startsClean = (root, rel, currentHash, session) => committedAndClean(root, rel)
-  || entriesOf(root).some((e) => e.p === rel && e.h === currentHash && e.k === true && writerSession(e.w) === session);
+  || toolWriteEntries(root, rel).some((e) => e.h === currentHash && e.k === true && writerSession(e.w) === session);
 
 export function recordPredictedWrite(root, rel, file, toolInput, writer = '', now = Date.now()) {
   try {
@@ -89,8 +87,8 @@ export function recordPredictedWrite(root, rel, file, toolInput, writer = '', no
 }
 
 /** The writers whose clean-based predicted write left exactly `currentHash` in `rel` (a Write, or an Edit on committed text). */
-export const cleanWriters = (root, rel, currentHash) => entriesOf(root)
-  .filter((e) => e && e.p === rel && e.h === currentHash && e.k === true).map((e) => e.w);
+export const cleanWriters = (root, rel, currentHash) => toolWriteEntries(root, rel)
+  .filter((e) => e.h === currentHash && e.k === true).map((e) => e.w);
 
 // The path git's staged rename detection says `rel` was renamed from, '' when it reports none.
 function stagedRenameSource(root, rel) {
@@ -122,7 +120,7 @@ export function movedWrite(root, rel, session) {
     const staged = execFileSync('git', ['-C', root, 'cat-file', 'blob', `:${rel}`], { maxBuffer: HASH_MAX_BYTES, stdio: ['ignore', 'pipe', 'ignore'] });
     if (!staged.length) return false;
     const hash = hashOf(staged);
-    return entriesOf(root).some((e) => e && e.c === true && e.p === from && e.h === hash && writerSession(e.w) === session);
+    return toolWriteEntries(root, from).some((e) => e.c === true && e.h === hash && writerSession(e.w) === session);
   } catch {
     return false;
   }
@@ -130,5 +128,5 @@ export function movedWrite(root, rel, session) {
 
 /** True when a tool of a writer other than `byWriter` wrote `rel` at or after `sinceMs` and `currentHash` is what it left. */
 export const toolWriteProves = (root, rel, sinceMs, currentHash, byWriter = '') => Boolean(currentHash)
-  && entriesOf(root).some((e) => e && e.p === rel && e.h === currentHash && !(byWriter && e.w === byWriter)
+  && toolWriteEntries(root, rel).some((e) => e.h === currentHash && !(byWriter && e.w === byWriter)
     && (e.ts || 0) >= sinceMs - (e.c ? CONFIRMED_SLACK_MS : 0));

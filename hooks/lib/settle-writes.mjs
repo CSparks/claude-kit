@@ -23,7 +23,7 @@ export const settleMsFromEnv = () => {
 };
 
 export function hasPendingPrediction(root, rel, hash, caller, sinceMs) {
-  return Boolean(hash) && toolWriteEntries(root).some((e) => e && e.p === rel && e.h === hash && e.c !== true
+  return Boolean(hash) && toolWriteEntries(root, rel).some((e) => e.h === hash && e.c !== true
     && e.w !== caller && (e.ts || 0) >= sinceMs - PREDICTION_LEAD_MS);
 }
 

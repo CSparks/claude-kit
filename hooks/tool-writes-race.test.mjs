@@ -41,6 +41,16 @@ for (let i = 0; i < Number(count); i++) recordToolWrite(root, 'crate/' + who + '
   ok('negative control: an entry never exempts its own writer', !toolWriteProves(root, 'crate/own.rs', SINCE_MS, 'own-hash', 'S1|'));
   ok('negative control: a hash no writer recorded proves nothing', !toolWriteProves(root, 'crate/0-0.rs', SINCE_MS, 'unrecorded', 'OTHER|'));
   ok('negative control: a path no writer recorded proves nothing', !toolWriteProves(root, 'crate/none.rs', SINCE_MS, HASH(0, 0), 'OTHER|'));
+
+  // Entries of other paths never evict an owner's entry (KIT-T1167).
+  const { TOOL_WRITE_ENTRIES_MAX, toolWriteEntries } = await import('./lib/tool-write-ledger.mjs');
+  const busy = tmpDir('twrites-busy-');
+  recordToolWrite(busy, 'crate/owned.rs', 'owned-hash', Date.now(), 'S1|');
+  for (let i = 0; i < TOOL_WRITE_ENTRIES_MAX + 1; i++) recordToolWrite(busy, `crate/noise-${i}.rs`, `noise-${i}`, Date.now(), 'S2|');
+  ok(`an entry survives ${TOOL_WRITE_ENTRIES_MAX + 1} later entries of other paths`, toolWriteProves(busy, 'crate/owned.rs', SINCE_MS, 'owned-hash', 'S2|'));
+  for (let i = 0; i < TOOL_WRITE_ENTRIES_MAX + 1; i++) recordToolWrite(busy, 'crate/owned.rs', `rewrite-${i}`, Date.now(), 'S1|');
+  ok('negative control: the cap still bounds one path', toolWriteEntries(busy, 'crate/owned.rs').length === TOOL_WRITE_ENTRIES_MAX);
+  ok('negative control: a path read holds only its own entries', toolWriteEntries(busy, 'crate/noise-0.rs').every((e) => e.p === 'crate/noise-0.rs'));
 } finally {
   cleanup();
 }

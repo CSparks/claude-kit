@@ -67,8 +67,8 @@ function inObjectStore(root, ids) {
 }
 
 function sessionHashes(root, rel, session, now) {
-  return new Set(toolWriteEntries(root)
-    .filter((e) => e && e.p === rel && e.c === true && sessionOf(e.w) === session && now - (e.ts || 0) <= RESTORE_WINDOW_MS)
+  return new Set(toolWriteEntries(root, rel)
+    .filter((e) => e.c === true && sessionOf(e.w) === session && now - (e.ts || 0) <= RESTORE_WINDOW_MS)
     .map((e) => e.h));
 }
 
