@@ -15,6 +15,8 @@
 //   all of `jobs`. `cmd` that is not cargo build-shaped (and not `force`) gets a no-op slot at once. While queued the
 //   call beats the daemon's heartbeat (pulse) and polls `shouldCancel()`; `holder` names the hold it first waited on.
 //   `probes` = { physicalCores, commitFreeBytes, gameRunning } replaces the OS readings (tests).
+//   `meta` = extra fields for the record: `scope` (absolute paths the build compiles) and `writer` (the agent that started
+//   it); a write by another agent into the scope while the hold compiles is refused (hooks/lib/build-write-hold.mjs).
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
@@ -36,12 +38,12 @@ const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 
 
 const NO_SLOT = { cancelled: false, waitedMs: 0, holder: null, granted: 0, update() {}, release() {} };
 
-export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false, elastic = false, cwd = process.cwd(), shouldCancel = () => false, probes = {}, pollMs = POLL_MS } = {}) {
+export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false, elastic = false, cwd = process.cwd(), shouldCancel = () => false, probes = {}, pollMs = POLL_MS, meta = {} } = {}) {
   if (!force && !isCargoBuild(cmd)) return NO_SLOT;
   const dir = slotDir();
   const queue = queueDir(dir);
   mkdirSync(queue, { recursive: true });
-  const record = { pid: process.pid, host: hostname(), label, cwd, jobs: Math.max(1, Number(jobs) || 1), ts: new Date().toISOString() };
+  const record = { ...meta, pid: process.pid, host: hostname(), label, cwd, jobs: Math.max(1, Number(jobs) || 1), ts: new Date().toISOString() };
   const name = `${Date.now().toString().padStart(TICKET_WIDTH, '0')}-${process.pid}-${Math.random().toString(RADIX).slice(2, 8)}`;
   const ticketPath = join(queue, name);
   const ticket = { ...record, elastic, ...(slotPriority() || {}) };

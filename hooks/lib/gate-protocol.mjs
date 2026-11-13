@@ -22,6 +22,7 @@ import { LESSONS_CHECK } from '../dispatch-lessons.mjs';
 import { RULINGS_CHECK } from '../dispatch-rulings.mjs';
 import { FRAMEWORK_CHECK } from '../dispatch-framework.mjs';
 import { UI_CHECK } from '../dispatch-ui.mjs';
+import { TREE_PROJECT_CHECK } from '../dispatch-tree-project.mjs';
 import { WORKER_CHECK, DEFAULT_WRITER_CAP } from '../dispatch-worker.mjs';
 import { BRIEF_CHECK, GROUNDED_CHECK, GROUNDED_MIN_SHARED, GROUNDED_MIN_TITLE, GROUNDED_MIN_WORD, GROUNDED_PER_OPTION, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
 import { BRIEF_RULE } from './question-brief.mjs';
@@ -47,8 +48,9 @@ export const GATES = {
       { check: STALE_TABLE_CHECK, wants: ['no dispatch while a capability table row is older than dispatch.refresh_days (a reminder prints from 2 days before); the weekly reassessment is exempt: [job: research], a brief naming research/models-capability-<date>.md, [paths:] only under research/, .ai/config.yml, .ai/decisions/, .ai/model-lineup.json'], tokens: [T.modelRefresh] },
       { check: ESCALATION_CHECK, wants: ['a job no dearer than the default of the ticket type the brief names'], tokens: [T.escalate] },
       { check: COLD_BUILD_CHECK, wants: ['no worktree, clone or second checkout: one checkout, on main'], tokens: [T.maintainerWorktree] },
-      { check: SHARED_TREE_CHECK, wants: ['one read/write agent per checkout; research agents are read-only types or carry the read-only tag', 'claude-kit checkout (KIT-D155): only a writer whose declared [paths:] overlap an in-flight writer\'s counts'], tokens: [T.readOnly, T.tree, T.maintainerParallel] },
-      { check: HOLDER_CHECK, wants: ['no writer into a checkout another session holds with a live writer (read from the holder registry; dirty files are never a writer)', 'claude-kit checkout (KIT-D155): other live sessions are normal; a writer\'s declared [paths:] or an edit is refused only when it touches a file another live session changed and has not committed'], tokens: [T.readOnly, T.maintainerParallel] },
+      { check: SHARED_TREE_CHECK, wants: ['any number of writers share a checkout (KIT-T1114); a writer dispatched while another is in flight there declares [paths:] (alone it needs none), and is refused only when its paths overlap an in-flight writer\'s', 'two things are guarded at write time, per file and per build: one file, one writer; no write into the files a running build compiles', 'research agents are read-only types or carry the read-only tag'], tokens: [T.paths, T.pathsUnknown, T.readOnly, T.tree, T.maintainerParallel] },
+      { check: TREE_PROJECT_CHECK, wants: ['a [tree:] that is another registered project\'s checkout needs a brief that cites a ticket of that project (a checkout inside the session\'s own is never judged)'], tokens: [T.tree, T.maintainerTree] },
+      { check: HOLDER_CHECK, wants: ['other live sessions are normal in any checkout (KIT-D155, KIT-T1114): a writer\'s declared [paths:] or an edit is refused only when it touches a file another live session or agent changed and has not committed, or the crate a running build of another writer compiles'], tokens: [T.paths, T.readOnly, T.maintainerParallel] },
       { check: BROKER_OWNED_CHECK, wants: ['a writer-capable agent never edits a lane a broker daemon owns: use the read-only patch-worker, or declare paths in another lane'], tokens: [T.paths, T.maintainerParallel] },
       { check: WORKER_CHECK, wants: [`at most ${DEFAULT_WRITER_CAP} live patch workers (broker.writer_cap) and declared, non-overlapping paths`], tokens: [T.paths, T.pathsUnknown, T.maintainerParallel] },
       { check: LESSONS_CHECK, wants: ['rendering, performance, asset or streaming work cites the framework lessons ledger ids it checked'], tokens: [T.lessonsChecked] },

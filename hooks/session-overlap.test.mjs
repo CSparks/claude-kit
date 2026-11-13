@@ -1,6 +1,6 @@
-// Other live sessions in the claude-kit checkout raise no flag unless two sessions write the same file (KIT-D155): the
-// holder guard (writer dispatch and edit) and the commit-foreign gate judge the kit checkout per file; any other repo
-// keeps the whole-checkout rule. A session that is not live (its registry entry lapsed) never blocks.
+// Other live sessions in a checkout raise no flag unless two sessions write the same file (KIT-D155, KIT-T1114): the
+// holder guard (writer dispatch and edit) judges every checkout per file; the commit-foreign gate judges the kit checkout
+// per file. A session that is not live (its registry entry lapsed) never blocks.
 // Run: node hooks/session-overlap.test.mjs
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -106,7 +106,11 @@ expect('kit edit: a lapsed session never blocks an edit', edit('SB', kit, 'b.js'
 
 freshRegistry();
 holdBy(other, 'SA', ['a.js']);
-expect('another repo: a live holder still blocks a writer on a different file', dispatch(makeRepo(), 'SB', other, 'b.js').code, 2);
-expect('another repo: a live holder still blocks a writer declaring no paths', dispatch(makeRepo(), 'SB', other).code, 2);
+expect('any repo: a live holder never blocks a writer on a different file', dispatch(makeRepo(), 'SB', other, 'b.js').code, 0);
+expect('any repo: a live holder never blocks a writer declaring no paths', dispatch(makeRepo(), 'SB', other).code, 0);
+expect('any repo: a writer declaring the file the live holder changed and has not committed is blocked', dispatch(makeRepo(), 'SB', other, 'a.js').code, 2);
+expect('any repo edit: a different file passes', edit('SB', other, 'b.js').status, 0);
+expect('any repo edit: the file another live session changed and has not committed is blocked', edit('SB', other, 'a.js').status, 2);
+expect('any repo edit: the holder editing its own file passes', edit('SA', other, 'a.js').status, 0);
 
 finish();

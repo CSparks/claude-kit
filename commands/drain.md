@@ -70,9 +70,10 @@ status flip becomes a zombie that nags every session start. For every ticket you
 stall the rest of the signed bill — continue the other signed items while that thread waits. An
 unsigned item is never pulled in to fill the gap; it is raised.
 
-**SUBAGENTS — ONE READ/WRITE AGENT PER CHECKOUT (KIT-D077, KIT-D039):** every writing agent
-works in the one checkout, on main, serially — the next signed ticket goes to the same agent once the
-last one lands. No worktrees, clones, branches or second directories. Read-only agents
+**SUBAGENTS — SEVERAL WRITERS SHARE ONE CHECKOUT (KIT-T1114, KIT-D039):** every writing agent
+works in the one checkout, on main; a writer dispatched beside another declares `[paths: <files or folders>]` and is
+refused only on overlap, and the write guard refuses a same-file write or a write into a running build. The next signed
+ticket goes to the same agent once the last one lands. No worktrees, clones, branches or second directories. Read-only agents
 (`claude-kit:analyst`, `researcher`, Explore, or `[read-only: <reason>]`)
 are unrestricted; a writer in another checkout declares `[tree: <absolute path>]`. Batch all maintainer decisions into one AskUserQuestion questionnaire rather
 than surfacing them piecemeal. Never `git stash` (KIT-T233); baseline via `git diff > <file>` +

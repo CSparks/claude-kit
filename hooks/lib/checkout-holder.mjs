@@ -10,23 +10,32 @@
 //   noteLegacyClaims({ tree, session, files, now })  -> { file: firstSeenMs } for claims with no recorded write HEAD (live-claims.mjs bounds them)
 //   liveHolders(tree, now)                         -> [{ tree, session, label, agent, origin, since, beatAt, file }] inside the window
 //   releaseTree(tree, session)                       -> drop that session's hold (a synchronous writer finished)
-//   releaseAgent(agent)                              -> drop every hold whose last writer was that agent (SubagentStop)
+//   releaseAgent(agent)                              -> drop every hold and file claim whose last writer was that agent (SubagentStop)
+//   claimFile({ tree, session, agent, label, rel, head, now }) -> record that the writer changed `rel` at `head` (KIT-T1114)
+//   liveClaimants(tree, session, now)                -> [{ session, agent, label, beatAt, claims }] writers of `session` with standing claims
 //   HOLDER_WINDOW_MS, holdersDir()                   -> CLAUDE_KIT_HOLDERS_DIR overrides the directory (tests)
 
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 export const HOLDER_WINDOW_MS = 15 * 60 * 1000;
 const PRUNE_AFTER_MS = 24 * 60 * 60 * 1000;
 const HASH_CHARS = 16;
 const MAX_REFUSED = 200;
 
+const AGENT_CLAIM_WINDOW_MS = 2 * 60 * 60 * 1000;
+const MAX_CLAIMS = 500;
+const CLAIMS_DIR = '_claims';
+
 export const holdersDir = () => process.env.CLAUDE_KIT_HOLDERS_DIR || join(homedir(), '.claude', 'claude-kit-holders');
+const claimsRoot = () => join(holdersDir(), CLAIMS_DIR);
 const normTree = (tree) => String(tree || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 const treeDir = (tree) => join(holdersDir(), createHash('sha1').update(normTree(tree)).digest('hex').slice(0, HASH_CHARS));
 const entryFile = (tree, session) => join(treeDir(tree), `${String(session).replace(/[^\w.-]/g, '_')}.json`);
+const claimTreeDir = (tree) => join(claimsRoot(), createHash('sha1').update(normTree(tree)).digest('hex').slice(0, HASH_CHARS));
+const claimEntryFile = (tree, session, agent) => join(claimTreeDir(tree), `${String(`${session}.${agent}`).replace(/[^\w.-]/g, '_')}.json`);
 
 function readEntry(file) {
   try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
@@ -97,16 +106,54 @@ export function releaseTree(tree, session) {
   try { rmSync(entryFile(tree, session), { force: true }); } catch { /* nothing held */ }
 }
 
+function eachFile(dir, visit) {
+  for (const name of readdirSync(dir)) visit(join(dir, name));
+}
+
 export function releaseAgent(agent) {
   try {
     if (!agent) return;
     for (const dir of readdirSync(holdersDir())) {
-      for (const name of readdirSync(join(holdersDir(), dir))) {
-        const file = join(holdersDir(), dir, name);
-        if (readEntry(file)?.agent === agent) rmSync(file, { force: true });
-      }
+      if (dir === CLAIMS_DIR) continue;
+      eachFile(join(holdersDir(), dir), (file) => { if (readEntry(file)?.agent === agent) rmSync(file, { force: true }); });
+    }
+    for (const dir of readdirSync(claimsRoot())) {
+      eachFile(join(claimsRoot(), dir), (file) => { if (readEntry(file)?.agent === agent) rmSync(file, { force: true }); });
     }
   } catch {
     /* nothing held */
+  }
+}
+
+// Per-writer file claims (KIT-T1114): which files each writer (a session's main thread or one of its subagents) has
+// changed, with the HEAD at its latest write. One record per tree and writer, apart from the session-level holds above.
+export function claimFile({ tree, session, agent = '', label = '', rel, head = '', now = Date.now() }) {
+  try {
+    if (!tree || !session || !rel) return;
+    const file = claimEntryFile(tree, session, agent);
+    const prev = readEntry(file) || {};
+    const claims = { ...(prev.claims || {}) };
+    delete claims[rel];
+    claims[rel] = head;
+    const kept = Object.fromEntries(Object.entries(claims).slice(-MAX_CLAIMS));
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify({ tree, session, agent, label: label || prev.label || '', beatAt: now, claims: kept }));
+  } catch {
+    /* a claim record never breaks the tool call that carried it */
+  }
+}
+
+// The writers of `session` in `tree` with a claim still standing: a subagent until it stops or AGENT_CLAIM_WINDOW_MS pass
+// without a write, the main thread for HOLDER_WINDOW_MS.
+export function liveClaimants(tree, session, now = Date.now()) {
+  try {
+    const dir = claimTreeDir(tree);
+    return readdirSync(dir).flatMap((name) => {
+      const entry = readEntry(join(dir, name));
+      const window = entry?.agent ? AGENT_CLAIM_WINDOW_MS : HOLDER_WINDOW_MS;
+      return entry && entry.session === session && now - entry.beatAt < window ? [entry] : [];
+    });
+  } catch {
+    return [];
   }
 }

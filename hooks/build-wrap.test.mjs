@@ -25,6 +25,17 @@ test('PowerShell gets the same prefix in its own syntax', () => {
   assert.match(shimmedCommand('cargo build', 'PowerShell'), /^\$env:PATH = '.*build-shims;' \+ \$env:PATH; cargo build$/);
 });
 
+test('a writer is exported to the build, in each shell\'s syntax, and absent when none is known (KIT-T1114)', () => {
+  assert.match(shimmedCommand('cargo test', 'Bash', undefined, 'S1|agent-7'), /^export CLAUDE_KIT_BUILD_WRITER='S1\|agent-7'; export PATH=.*build-shims.*; cargo test$/);
+  assert.match(shimmedCommand('cargo test', 'PowerShell', undefined, 'S1|'), /^\$env:CLAUDE_KIT_BUILD_WRITER = 'S1\|'; \$env:PATH = /);
+  assert.ok(!shimmedCommand('cargo test', 'Bash', undefined, '').includes('CLAUDE_KIT_BUILD_WRITER'));
+  assert.ok(!shimmedCommand('cargo test', 'Bash', undefined, "x'; rm -rf /; '").includes("rm -rf /;"), 'a writer id cannot break out of its quotes');
+  const r = hook(HOOK, 'Bash', { command: 'cargo test' });
+  assert.ok(!r.out.command.includes('CLAUDE_KIT_BUILD_WRITER'), 'a payload with no session names no writer');
+  const withSession = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Bash', session_id: 'S9', agent_id: 'agent-3', tool_input: { command: 'cargo build' } }), encoding: 'utf8' });
+  assert.match(JSON.parse(withSession.stdout).hookSpecificOutput.updatedInput.command, /CLAUDE_KIT_BUILD_WRITER='S9\|agent-3'/);
+});
+
 test('commands that build nothing, and broker calls that name cargo in a test, are left alone', () => {
   for (const cmd of ['ls -la', 'git status', 'q code "cargo test"', 'node scripts/broker/submit.mjs --test "cargo t -p x"', 'node scripts/broker/wait.mjs abc']) {
     assert.equal(shimmedCommand(cmd, 'Bash'), null, cmd);

@@ -10,7 +10,9 @@
 // runs untouched. A build queued past MAX_WAIT_S exits EXIT_QUEUED with one line naming who holds the cores, from which
 // root and for how long, then the readout; never waits in silence. A hold past the 5-minute ceiling is filed once as a
 // kit bug (build-long-hold.mjs). A held build that reaches its test run phase has its hold shrunk to what the tests use
-// (build-phase.mjs), so the cores it no longer compiles on go to the next build.
+// (build-phase.mjs), so the cores it no longer compiles on go to the next build. The hold records the paths the build
+// compiles (cargo-scope-dirs.mjs) and the agent that started it (CLAUDE_KIT_BUILD_WRITER), so another agent's write into
+// them while it compiles is refused (KIT-T1114).
 
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -26,6 +28,7 @@ import { PHASE_POLL_MS, phaseWatch } from './build-phase.mjs';
 import { HELD_ENV, heldEnv } from './build-env.mjs';
 import { cargoConfigJobs } from './cargo-config-jobs.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
+import { compiledPaths } from './cargo-scope-dirs.mjs';
 
 const EXIT_QUEUED = 75;
 const EXIT_NOT_FOUND = 127;
@@ -84,7 +87,8 @@ async function runGated(real, tool, args, verdict, cwd) {
     }
     return Date.now() > deadline;
   };
-  const slot = acquireBuildSlot(`${tool} ${verdict.sub}`, { jobs: requested, elastic: true, force: true, label, cwd, shouldCancel });
+  const meta = { scope: compiledPaths(args, cwd, findReal('cargo') || 'cargo'), writer: process.env.CLAUDE_KIT_BUILD_WRITER || '' };
+  const slot = acquireBuildSlot(`${tool} ${verdict.sub}`, { jobs: requested, elastic: true, force: true, label, cwd, shouldCancel, meta });
   await flagLongHolds(liveHolds());
   if (slot.cancelled) {
     const state = snapshot();

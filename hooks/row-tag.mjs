@@ -17,6 +17,8 @@ import { payload } from './lib.mjs';
 import { latestAssistantModel, modelDisplay, stripModelTag } from './model-tag.mjs';
 import { MODEL_UNKNOWN } from './lib/agent-format.mjs';
 import { shimmedCommand } from './lib/build-wrap.mjs';
+import { writerId } from './lib/tool-writes.mjs';
+import { subagentId } from './lib/subagent-id.mjs';
 
 const ROW_TOOLS = new Set(['Bash', 'PowerShell', 'Monitor']);
 const LABEL_MAX = 60;
@@ -33,7 +35,7 @@ async function main() {
   const display = modelDisplay(ownerModel(p));
   const tag = display ? `[${display}]` : MODEL_UNKNOWN;
   const label = `${tag} ${stripModelTag(description)}`;
-  const wrapped = p.tool_name === 'Monitor' ? null : shimmedCommand(input.command, p.tool_name);
+  const wrapped = p.tool_name === 'Monitor' ? null : shimmedCommand(input.command, p.tool_name, undefined, writerId(p.session_id, subagentId(p)));
   if (label === input.description && !wrapped) process.exit(0);
   process.stdout.write(JSON.stringify({
     hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...input, description: label, ...(wrapped ? { command: wrapped } : {}) } },

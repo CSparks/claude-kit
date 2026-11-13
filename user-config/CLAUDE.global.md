@@ -180,10 +180,11 @@ in a block message or a decision file is a defect.
 ## Delegation COST — scale the ceremony, isolate the checkout
 Cost tracks the **tool-call count**, not the size of the change: every call re-sends
 the accumulated transcript, so 100 calls is roughly quadratic.
-- **NEVER run two agents in one working tree** — serialize them. **NO worktrees, clones,
-  feature branches or second work directories, ever** (KIT-D039): every agent works in
-  the maintainer's one checkout, on main, one at a time, keeping it building by testing
-  each step. Separate copies duplicate effort and strand work.
+- **Several agents share one working tree; the kit guards two collisions only (KIT-T1114).**
+  **NO worktrees, clones, feature branches or second work directories, ever** (KIT-D039):
+  every agent works in the maintainer's one checkout, on main, keeping it building by
+  testing each step. Separate copies duplicate effort and strand work. Never borrow
+  another project's checkout as a scratch copy.
 - **A gate-forced restructure gets PRESENTED FIRST.** When a lint/length gate turns a
   small edit into a module split, show the maintainer before doing it.
 - **Don't turn a subjective judgement into thresholds to hit.** Where the
@@ -198,14 +199,22 @@ the accumulated transcript, so 100 calls is roughly quadratic.
 - **Scale verification to BLAST RADIUS**, stated in the brief: shared/load-bearing →
   golden record + mutation-check the key invariant; contained feature → assert the
   new behaviour, one negative control; leaf/mechanical → measure, assert, done.
-- **One read/write agent per checkout; read-only agents unrestricted — gate-enforced
-  (KIT-D077, supersedes the KIT-T256 gate).** Two writers in one checkout are slower AND
-  dearer (2026-08-25: four lanes, ~300–600k tokens each, then killed). The next ticket of
-  the signed bill goes to the SAME agent after it lands (warm build, warm context). Read-only = no Edit/Write in
-  the definition's `tools:` (`claude-kit:analyst`, `researcher`,
-  Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in a
-  different git checkout declares `[tree: <its root>]`. Two writers in ONE checkout need
-  the maintainer's quoted words: `[maintainer-asked-parallel: <his words>]`.
+- **Any number of writers share a checkout; only a same-file write and a write into a
+  running build are refused — gate-enforced (KIT-T1114, supersedes KIT-D077 and KIT-D144's
+  one-writer limit).** The maintainer: "The aim was NEVER to stop multiple fucking writers."
+  "The aim was to stop MULTIPLE WRITERS ON THE SAME FUCKING FILE OR WHILE A BUILD WAS RUNNING."
+  A writer dispatched while another is in flight in the checkout declares
+  `[paths: <files or folders>]` (alone it needs none) and is refused only when they overlap
+  an in-flight writer's. The write guard refuses an Edit/Write to a file another live agent
+  changed and has not committed, and to a build input of a crate another writer's running
+  cargo build compiles (retry after the build); an agent's own files and builds always pass.
+  The next ticket of the signed bill still goes to the SAME agent after it lands (warm build,
+  warm context). Read-only = no Edit/Write in the definition's `tools:` (`claude-kit:analyst`,
+  `researcher`, Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in
+  a different git checkout declares `[tree: <its root>]`; that root must be the session's
+  project or the brief cites a ticket of it, else the maintainer's words:
+  `[maintainer-asked-tree: <his words>]`. Overlapping paths on purpose need the maintainer's
+  quoted words: `[maintainer-asked-parallel: <his words>]`.
 - **No context size limit; waste is the limit (KIT-D149, KIT-D158, supersedes KIT-D116).** An agent is
   never retired, blocked or replaced for the size of its context: real work is fine at any size.
   The session coordinator tracks the waste share per agent (bash dumps, repeated lines, raw-log

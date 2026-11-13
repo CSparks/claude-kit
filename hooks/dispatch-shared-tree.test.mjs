@@ -1,6 +1,7 @@
-// shared-tree-dispatch (KIT-T176, KIT-D077): BLOCK a writing dispatch while the roster shows a live writer IN THIS TREE; ALLOW
-// a read-only agent type, [maintainer-asked-parallel: <his words>], an empty/stale/finished/corrupt roster, and (KIT-T177) a
-// row that is worktree-isolated or aimed at another repo. [tree:] keys the count by the checkout the agent writes in.
+// shared-tree-dispatch (KIT-T176, KIT-T1114): any number of writers share a checkout. A writing dispatch while the roster shows
+// a live writer IN THIS TREE must declare [paths:] and is refused only when they overlap that writer's. ALLOW a writer alone,
+// disjoint paths, a read-only agent type, [maintainer-asked-parallel: <his words>], an empty/stale/finished/corrupt roster, and
+// (KIT-T177) a row that is worktree-isolated or aimed at another repo. [tree:] keys the roster by the checkout the agent writes in.
 // Run: node hooks/dispatch-shared-tree.test.mjs
 
 import { spawnSync } from 'node:child_process';
@@ -46,7 +47,8 @@ expect('the tree-scoped filter still fails open on a corrupt roster (the worktre
 expect('block message names the tree it scoped to', run(sameTree, shared).err.includes(gitTop(sameTree)) ? 1 : 0, 1);
 
 const sharedMsg = run(busy, shared).err;
-expect('shared-tree message names the one-agent-per-tree rule', /one read\/write agent per checkout/i.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message says writers share a checkout and asks for the [paths:] tag', /Several writers share one checkout/.test(sharedMsg) && /\[paths: <repo-relative files or folders/.test(sharedMsg) ? 1 : 0, 1);
+expect('shared-tree message no longer states a one-writer limit', /one read\/write agent per checkout/i.test(sharedMsg) ? 1 : 0, 0);
 expect('shared-tree message lists the in-flight agent', /agent-live/.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message never steers to worktree isolation', /isolation: ?"worktree"|git worktree add/.test(sharedMsg) ? 1 : 0, 0);
 expect('shared-tree message names the maintainer escape, not the retired note', /\[maintainer-asked-parallel:/.test(sharedMsg) && !/shared-tree-ok/.test(sharedMsg) ? 1 : 0, 1);
@@ -54,8 +56,25 @@ expect('shared-tree message names the read-only agent types', /claude-kit:analys
 expect('shared-tree message points a scratchpad-only design agent at [read-only:], and [tree:] at a git root', /artifact agent that writes only the scratchpad/.test(sharedMsg) && /git checkout[\s\S]*\[tree: <absolute path of its root>\]/.test(sharedMsg) ? 1 : 0, 1);
 expect('shared-tree message carries the exclude footer', /id: shared-tree-dispatch/.test(sharedMsg) ? 1 : 0, 1);
 
-// One read/write agent per checkout (KIT-D077).
-const one = { subagent_type: 'general-purpose', model: 'opus', prompt: 'implement the next ticket (KIT-T256)' };
+// Several writers in one checkout: [paths:] decides (KIT-T1114).
+{
+  const withPaths = (p) => ({ subagent_type: 'general-purpose', model: 'opus', prompt: `implement the ore seam (KIT-T256) [paths: ${p}]` });
+  const rowWith = (paths) => roster(makeRepo({ cargo: true }), [inFlightRow(0, paths ? { paths } : {})]);
+  expect('two writers with disjoint [paths:] share the checkout', run(rowWith(['crates/a']), withPaths('crates/b, docs/x.md')).code, 0);
+  expect('overlapping [paths:] (a file under the other writer\'s folder) are refused', run(rowWith(['crates/a']), withPaths('crates/a/src/lib.rs')).code, 2);
+  expect('the same file is refused', run(rowWith(['crates/a/src/lib.rs']), withPaths('crates/a/src/lib.rs')).code, 2);
+  const clash = run(rowWith(['crates/a']), withPaths('crates/a/src/lib.rs'));
+  expect('the overlap refusal names the in-flight writer and its paths', /agent-live/.test(clash.err) && /paths crates\/a/.test(clash.err) && /overlap an in-flight writer/.test(clash.err) ? 1 : 0, 1);
+  expect('an in-flight writer that declared no paths blocks nobody who declares paths', run(rowWith(null), withPaths('crates/b')).code, 0);
+  expect('a writer in flight with [paths: *] overlaps everyone', run(rowWith(['*']), withPaths('crates/b')).code, 2);
+  expect('a writer that declares no paths is asked to, naming the tag, while another is in flight', /\[paths: <repo-relative files or folders, comma separated>\]/.test(run(rowWith(['crates/a']), { subagent_type: 'general-purpose', model: 'opus', prompt: 'implement the ore seam (KIT-T256)' }).err) ? 1 : 0, 1);
+  expect('[paths: *] is not a declaration while another writer is in flight', run(rowWith(['crates/a']), withPaths('*')).code, 2);
+  expect('[paths: *] and no paths pass a checkout with no writer in flight', run(roster(makeRepo({ cargo: true }), []), withPaths('*')).code, 0);
+  expect('[maintainer-asked-parallel:] still lifts an overlap', run(rowWith(['crates/a']), { ...withPaths('crates/a'), prompt: `${withPaths('crates/a').prompt} ${PAR}` }).code, 0);
+  expect('a read-only agent in flight with overlapping paths blocks nobody', run(roster(makeRepo({ cargo: true }), [inFlightRow(0, { paths: ['crates/a'], readOnly: 'research' })]), withPaths('crates/a')).code, 0);
+}
+
+const one ={ subagent_type: 'general-purpose', model: 'opus', prompt: 'implement the next ticket (KIT-T256)' };
 const live = () => roster(makeRepo({ cargo: true }), [inFlightRow()]);
 expect('the retired [allow-parallel: …] token does not escape', run(live(), { ...one, prompt: `${one.prompt} ${RETIRED_PAR}` }).code, 2);
 expect('the maintainer token does not lift a worktree dispatch', run(live(), { ...one, isolation: 'worktree', prompt: `${one.prompt} ${PAR}` }).code, 2);

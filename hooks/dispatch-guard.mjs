@@ -6,8 +6,9 @@
 //   agent-registry-stale (KIT-T431) — WARNS when a plugin agent type post-dates the session start
 //   dispatch-escalation  (KIT-T432) — a job dearer than the ticket type's default, no [escalate:]
 //   cold-worktree-build  (KIT-T176, KIT-D074) — any worktree dispatch, any project
-//   shared-tree-dispatch (KIT-T176, KIT-D077) — a second read/write agent into a checkout that has one
-//   checkout-holder      (KIT-T811, KIT-D123) — a writer into a checkout another session already holds with a live writer
+//   shared-tree-dispatch (KIT-T176, KIT-T1114) — a second writer beside an in-flight one: [paths:] required, refused on overlap only
+//   tree-project-dispatch (KIT-T1114) — a [tree:] that is another registered project's checkout, no ticket of that project cited
+//   checkout-holder      (KIT-T811, KIT-T1114) — a writer whose [paths:] touch a file another live session changed and has not committed
 //   broker-owned-tree    (KIT-T276) — a writer-capable agent into a checkout a broker daemon owns
 //   patch-worker-discipline (KIT-T687) — worker cap, required/overlapping [paths:], train rules
 //   lessons-checked      (KIT-T690) — rendering/perf/asset/streaming work briefed without citing the framework lessons ledger
@@ -36,8 +37,8 @@ import { AGENT_LOADED_CHECK, unloadedAgentWarning } from './dispatch-agent-loade
 import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage, brokerConfig } from './dispatch-broker.mjs';
 import { WORKER_CHECK, overlapOnlyBlocker, workerAdvice, workerBlock, workerPaths } from './dispatch-worker.mjs';
 import { queueDispatch } from './lib/queued-dispatch.mjs';
-import { isKitCheckout } from './lib/kit-checkout.mjs';
-import { sameFiles } from './lib/path-overlap.mjs';
+import { sharedTreeBlock } from './dispatch-shared-tree.mjs';
+import { TREE_PROJECT_CHECK, treeProjectBlock } from './dispatch-tree-project.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
@@ -48,7 +49,7 @@ import { FRAMEWORK_CHECK, frameworkBlock } from './dispatch-framework.mjs';
 import { WASTE_CHECK, HANDOFF_CHECK, wasteWarning, handoffBlock, ticketsCited } from './dispatch-context.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
-import { latestAssistantModel, modelDisplay, rowModel, isKnownModel } from './model-tag.mjs';
+import { latestAssistantModel, rowModel, isKnownModel } from './model-tag.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 import { LADDER_CHECK, COLD_BUILD_CHECK, SHARED_TREE_CHECK } from './lib/gate-protocol.mjs';
 import { labelBlockText, labelProblems } from './lib/dispatch-label.mjs';
@@ -61,21 +62,6 @@ const MAINTAINER_WORKTREE = TOKENS.maintainerWorktree.pattern;
 // harness cannot always report a background agent's completion, so an uncollected row would
 // otherwise wedge every later dispatch in the repo.
 const SHARED_TREE_WINDOW_MS = 2 * 60 * 60 * 1000;
-const MS_PER_MIN = 60 * 1000;
-const ROSTER_TASK_CHARS = 80; // one scannable line per in-flight agent in the block message
-const SERIAL_FIX = [
-  'Fix — pick one (never a worktree or second checkout — KIT-D074):',
-  '  • serialize: wait for the in-flight agent, collect its result, then hand THAT agent',
-  '    (or one new one) the next ticket — warm build, warm context;',
-  '  • research only: dispatch a READ-ONLY agent type (no Edit/Write in its tools:',
-  '    claude-kit:researcher, claude-kit:analyst, Explore, Plan),',
-  '    or add [read-only: <reason>] to the prompt of a writer-capable type — also for a design or',
-  '    artifact agent that writes only the scratchpad, no repo file;',
-  '  • writing in a DIFFERENT git checkout: add [tree: <absolute path of its root>] to the prompt',
-  '    (a path that is not a git root is ignored);',
-  '  • two writers in one checkout only on the maintainer words: include',
-  '    [maintainer-asked-parallel: <his words>] in the prompt.',
-];
 
 try {
   const p = await payload();
@@ -91,7 +77,8 @@ try {
     escalationCheck(root, input, prompt, p),
     staleTableBlock(root, input, prompt, p),
     coldWorktreeBlock(root, input, prompt),
-    sharedTreeBlock(root, input, prompt),
+    sharedTreeCheck(root, input, prompt),
+    treeProjectCheck(root, input, prompt, p),
     holderBlockFor(root, input, prompt, p),
     brokerOwnedBlock(root, input, prompt),
     workerCheck(root, input, prompt, p),
@@ -326,18 +313,18 @@ function coldWorktreeBlock(root, input, prompt) {
     'cold build (2026-08-04: 30+ min silent; 2026-09-28: an agent moved half-done work into',
     'D:/dev/stiletto-d2 and force-deleted it).',
     '',
-    'Fix: drop isolation:"worktree" and run in the main checkout, one writing agent at a time;',
-    'keep the tree building by testing each step. Only if the maintainer explicitly asked for',
+    'Fix: drop isolation:"worktree" and run in the main checkout (writers share it by declaring',
+    '[paths:]); keep the tree building by testing each step. Only if the maintainer explicitly asked for',
     'a worktree: include [maintainer-asked-worktree: <his words>] in the prompt.',
     '',
     excludeFooter(COLD_BUILD_CHECK),
   ].join('\n');
 }
 
-// --- shared-tree-dispatch (KIT-T176) --------------------------------------------
-// ONE read/write agent per checkout (KIT-D077). The checkout is the dispatch's `[tree: …]` token,
-// else the session's (KIT-T1103). Read-only dispatches and rows never count.
-function sharedTreeBlock(root, input, prompt) {
+// --- shared-tree-dispatch (KIT-T176, KIT-T1114) ----------------------------------
+// Several writers share a checkout; one dispatched beside another declares [paths:] and is refused only on overlap.
+// The checkout is the dispatch's `[tree: …]` token, else the session's (KIT-T1103). Read-only dispatches and rows never count.
+function sharedTreeCheck(root, input, prompt) {
   if (isWorktreeIsolation(input.isolation)) return null; // not this tree — cold-worktree-build rules on it
   if (MAINTAINER_PARALLEL.test(prompt)) return null;
   if (readOnlyDispatch(root, label(input), prompt)) return null;
@@ -345,33 +332,24 @@ function sharedTreeBlock(root, input, prompt) {
   const now = Date.now();
   const { root: tree, source } = dispatchTarget(root, input);
   const writers = liveAgents(root, now, tree).filter((r) => !readOnlyRow(root, r));
-  const live = isKitCheckout(tree) ? writers.filter((r) => sameFiles(workerPaths(prompt, tree), r.paths)) : writers;
-  if (!live.length) return null;
-
-  return [
-    `BLOCKED: ${live.length} read/write agent(s) already in flight in this working tree.`,
-    `  agent: ${label(input)}   tree: ${tree} (from ${source})   roster: .ai/agents.jsonl`,
-    ...live.map((r) => `    • ${r.id} (${r.scope || 'general'}${rosterModel(r)}, ${minutesAgo(r, now)}m ago) — ${String(r.task || '(no description)').slice(0, ROSTER_TASK_CHARS)}`),
-    '',
-    'The rule: one read/write agent per checkout; read-only agents are unrestricted. Two writers',
-    "share one HEAD and one index: they poll each other's half-written files, and a branch/stage",
-    "op by one sweeps the other's work into the wrong commit.",
-    '',
-    ...SERIAL_FIX,
-    '',
-    excludeFooter(SHARED_TREE_CHECK),
-  ].join('\n');
+  return sharedTreeBlock({ agent: label(input), tree, source, prompt, writers, now, footer: excludeFooter(SHARED_TREE_CHECK) });
 }
 
 // --- checkout-holder (KIT-T811) ------------------------------------------------
 // Another session's live writer in the target checkout (machine-wide registry), which the per-project roster
 // above cannot see. An allowed writer dispatch registers the dispatching session as the holder.
 function writerDispatch(root, input, prompt) {
-  return !isWorktreeIsolation(input.isolation) && !MAINTAINER_PARALLEL.test(prompt) && !readOnlyDispatch(root, label(input), prompt);
+  return !isWorktreeIsolation(input.isolation) && !readOnlyDispatch(root, label(input), prompt);
+}
+
+// --- tree-project-dispatch (KIT-T1114) -------------------------------------------
+function treeProjectCheck(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, TREE_PROJECT_CHECK, root)) return null;
+  return treeProjectBlock({ root, input, prompt, readOnly: readOnlyDispatch(root, label(input), prompt), footer: excludeFooter(TREE_PROJECT_CHECK) });
 }
 
 function holderBlockFor(root, input, prompt, p) {
-  if (!p.tool_input || !p.session_id || !writerDispatch(root, input, prompt) || pathExcluded(root, HOLDER_CHECK, root)) return null;
+  if (!p.tool_input || !p.session_id || MAINTAINER_PARALLEL.test(prompt) || !writerDispatch(root, input, prompt) || pathExcluded(root, HOLDER_CHECK, root)) return null;
   const tree = dispatchTargetRoot(root, input);
   return holderBlock({ tree, session: p.session_id, paths: workerPaths(prompt, tree), footer: excludeFooter(HOLDER_CHECK) });
 }
@@ -431,18 +409,6 @@ function liveAgents(root, nowMs, tree) {
   } catch {
     return [];
   }
-}
-
-function minutesAgo(row, nowMs) {
-  const t = Date.parse(row.firstSeen || row.ts || '');
-  return Number.isFinite(t) ? Math.max(0, Math.round((nowMs - t) / MS_PER_MIN)) : 0;
-}
-
-// ` [Opus 5]` for a roster row that recorded one; '' for a pre-KIT-T179 row, which therefore
-// renders exactly as it always did.
-function rosterModel(row) {
-  const display = modelDisplay(row && row.model);
-  return display ? ` [${display}]` : '';
 }
 
 function label(input) {

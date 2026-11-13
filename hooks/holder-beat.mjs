@@ -1,20 +1,24 @@
 #!/usr/bin/env node
-// PreToolUse (Write|Edit) — the heartbeat of the checkout-holder registry (KIT-T811). Every edit marks its session as
-// the live writer of the file's checkout, so dispatch-guard can refuse a second session's writer dispatch there.
-// Store (.ai/) files are record-keeping, not a writer's source: they never beat.
-// In the claude-kit checkout (KIT-D155) an edit is refused only when another live session has uncommitted changes to
-// that same file; every other edit beats and passes. Fails open on any error.
+// PreToolUse (Write|Edit) — the write-time guard of a shared checkout (KIT-T811, KIT-D155, KIT-T1114). The kit never limits
+// how many writers share a checkout; it refuses exactly three collisions, every one per file or per build:
+//   - another live SESSION has uncommitted changes to this file (lib/session-overlap.mjs, the session write ledger);
+//   - another live agent of this session has uncommitted changes to this file (lib/agent-claims.mjs, per-writer claims);
+//   - another writer's cargo build is compiling the crate this file belongs to (lib/build-write-hold.mjs).
+// A passing edit beats the session's checkout-holder entry and records the writer's claim on the file. Store (.ai/) files
+// never count. Fails open on any error.
 
-import { payload, gitRoot, gitRootOfFile, isStorePath, pathExcluded, excludeFooter } from './lib.mjs';
-import { beatHolder, refuseEdit } from './lib/checkout-holder.mjs';
+import { payload, gitRoot, gitRootOfFile, isStorePath, pathExcluded, excludeFooter, git } from './lib.mjs';
+import { beatHolder, claimFile, refuseEdit } from './lib/checkout-holder.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
-import { isKitCheckout } from './lib/kit-checkout.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
+import { claimConflicts, claimMessage } from './lib/agent-claims.mjs';
+import { buildHoldConflict, buildHoldMessage } from './lib/build-write-hold.mjs';
+import { writerId } from './lib/tool-writes.mjs';
 import { repoRelative } from './turn-writes.mjs';
 import { HOLDER_CHECK } from './dispatch-holder.mjs';
 
-const blockMessage = (file, found, tree) => [
+const sessionMessage = (file, found, tree) => [
   `BLOCKED: another live session has uncommitted changes to ${file} (KIT-D155).`,
   `  tree: ${tree}`,
   ...overlapLines(found),
@@ -24,22 +28,34 @@ const blockMessage = (file, found, tree) => [
   excludeFooter(HOLDER_CHECK),
 ].join('\n');
 
+// The refusal for this write, as { text, session }: `session` marks a refusal the session ledger must disown.
+function refusal({ tree, file, rel, session, agent }) {
+  const sessions = overlappingHolders({ tree, session, paths: [rel] });
+  if (sessions.length) return { text: sessionMessage(rel, sessions, tree), session: true };
+  const claimants = claimConflicts({ tree, session, agent, rel });
+  if (claimants.length) return { text: claimMessage({ rel, tree, claimants, footer: excludeFooter(HOLDER_CHECK) }) };
+  const hold = buildHoldConflict({ file, writer: writerId(session, agent) });
+  return hold ? { text: buildHoldMessage({ file: rel, hold, footer: excludeFooter(HOLDER_CHECK) }) } : null;
+}
+
 try {
   const p = await payload();
   const file = (p.tool_input && (p.tool_input.file_path || p.tool_input.path)) || '';
   const tree = file && !isStorePath(file) ? gitRootOfFile(file) : '';
   const agent = subagentId(p);
   if (tree && p.session_id) {
-    const rel = isKitCheckout(tree) ? repoRelative(tree, file) : '';
-    const found = rel && !pathExcluded(tree, HOLDER_CHECK, file) ? overlappingHolders({ tree, session: p.session_id, paths: [rel] }) : [];
-    if (found.length) {
-      refuseEdit({ tree, session: p.session_id, path: rel });
-      process.stderr.write(blockMessage(rel, found, tree));
+    const rel = repoRelative(tree, file);
+    const refused = rel && !pathExcluded(tree, HOLDER_CHECK, file) ? refusal({ tree, file, rel, session: p.session_id, agent }) : null;
+    if (refused) {
+      if (refused.session) refuseEdit({ tree, session: p.session_id, path: rel });
+      process.stderr.write(refused.text);
       process.exit(2);
     }
-    beatHolder({ tree, session: p.session_id, agent, origin: gitRoot(), edited: rel, label: agent ? String(p.agent_type || 'subagent') : 'main thread' });
+    const label = agent ? String(p.agent_type || 'subagent') : 'main thread';
+    beatHolder({ tree, session: p.session_id, agent, origin: gitRoot(), edited: rel, label });
+    claimFile({ tree, session: p.session_id, agent, label, rel, head: git(['rev-parse', 'HEAD'], tree).trim() });
   }
 } catch {
-  /* a heartbeat never wedges an edit */
+  /* a guard never wedges an edit */
 }
 process.exit(0);

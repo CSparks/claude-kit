@@ -7,6 +7,7 @@
 //   overlappingHolders({ tree, session, paths, now }) -> [{ holder, files }] for every OTHER live session whose uncommitted
 //                                                        files touch `paths` (repo-relative, POSIX; '*' and .ai/ never count)
 //   overlapLines(overlaps, now)                       -> the lines a block message prints for those sessions
+//   stillDirty(tree, files), committedSince(tree, file, head) -> the two git tests a claim on a file stands on
 
 import { git } from './exec.mjs';
 import { liveHolders } from './checkout-holder.mjs';
@@ -18,7 +19,7 @@ const MS_PER_MIN = 60 * 1000;
 const lines = (out) => String(out).split('\n').map((l) => l.trim()).filter(Boolean);
 
 // Of `files`, those with changes against HEAD or not tracked: git is asked about only these, never the whole tree.
-function stillDirty(tree, files) {
+export function stillDirty(tree, files) {
   if (!files.length) return new Set();
   const changed = lines(git(['-c', 'core.quotepath=off', 'diff', '--name-only', 'HEAD', '--', ...files], tree));
   const untracked = lines(git(['-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard', '--', ...files], tree));
@@ -28,7 +29,7 @@ function stillDirty(tree, files) {
 // Was the holder's write of `file` committed? Only when a commit that touches the file lies between the HEAD recorded at the
 // write and the current HEAD: graph order, never clock time, so a same-second commit made before the write releases nothing.
 // No recorded HEAD, or a recorded HEAD no longer behind this one (rebase, reset), is ambiguous and keeps the hold.
-function committedSince(tree, file, wroteAtHead) {
+export function committedSince(tree, file, wroteAtHead) {
   if (!wroteAtHead) return false;
   return git(['rev-list', '-1', `${wroteAtHead}..HEAD`, '--', file], tree).trim() !== '';
 }

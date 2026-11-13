@@ -1,5 +1,6 @@
 // kit-checkout.mjs — is a directory the claude-kit checkout (its package.json is named claude-kit). Several live sessions
-// there is normal (KIT-D155), so the checkout-holder guard and the commit-foreign gate judge it per file, not per tree.
+// there is normal (KIT-D155), so the commit-foreign gate judges it per file, not per tree. The checkout-holder guard judges
+// every checkout per file (KIT-T1114).
 //
 //   isKitCheckout(tree) -> true when tree/package.json names claude-kit
 
