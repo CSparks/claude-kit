@@ -19,6 +19,8 @@ invariants; only read CLAUDE.md / `.ai/` if the task explicitly needs that detai
 - No magic numbers, no SELECT *, no backstory comments, no TODO markers.
 
 ## Discipline
+- Source edits go only through Edit and Write, several Edits for a many-part change; never `node -e`, a heredoc or a shell redirect
+  on a repo path (the source-shell-write gate refuses it; KIT-T1119).
 - Understand the full flow before touching anything; find every caller first
   (`code-graph --query importers-of`, `defines`, `surface`).
 - Write the test that fails first, then the code. Run ONLY the test modules you touched

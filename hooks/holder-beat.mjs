@@ -28,12 +28,13 @@ const sessionMessage = (file, found, tree) => [
   excludeFooter(HOLDER_CHECK),
 ].join('\n');
 
-// The refusal for this write, as { text, session }: `session` marks a refusal the session ledger must disown.
+// The refusal for this write, as { text, session }: `session` marks a refusal the session ledger must disown. A per-agent claim
+// is checked first: it names the agent and outlives the 15-minute window of the session ledger.
 function refusal({ tree, file, rel, session, agent }) {
+  const claimants = claimConflicts({ tree, session, agent, rel });
+  if (claimants.length) return { text: claimMessage({ rel, tree, claimants, footer: excludeFooter(HOLDER_CHECK) }), session: true };
   const sessions = overlappingHolders({ tree, session, paths: [rel] });
   if (sessions.length) return { text: sessionMessage(rel, sessions, tree), session: true };
-  const claimants = claimConflicts({ tree, session, agent, rel });
-  if (claimants.length) return { text: claimMessage({ rel, tree, claimants, footer: excludeFooter(HOLDER_CHECK) }) };
   const hold = buildHoldConflict({ file, writer: writerId(session, agent) });
   return hold ? { text: buildHoldMessage({ file: rel, hold, footer: excludeFooter(HOLDER_CHECK) }) } : null;
 }

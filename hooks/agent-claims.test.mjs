@@ -46,5 +46,28 @@ git('commit', '-qam', 'B work');
 expect('after a commit the file is clean: agent C edits a.js though B claimed it', edit('agentC', 'a.js').status, 0);
 git('commit', '-qam', 'C work');
 expect('a committed claim never refuses another writer', edit('agentB', 'a.js').status, 0);
+git('commit', '-qam', 'B again');
+
+// Another session's live agent: its claim outlives the 15-minute session window and the refusal names the agent.
+const { claimFile } = await import('./lib/checkout-holder.mjs');
+const MS_PER_MIN = 60 * 1000;
+const LONG_RUN_MIN = 20;
+const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: tree, encoding: 'utf8' }).trim();
+const editAs = (session, agent, file) => {
+  writeFileSync(join(tree, file), `export const x = ${(n += 1)};\n`);
+  return hook('./holder-beat.mjs', { session_id: session, ...(agent ? { agent_id: agent } : {}), tool_input: { file_path: join(tree, file) } });
+};
+writeFileSync(join(tree, 'a.js'), 'export const x = 99;\n');
+claimFile({ tree: execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: tree, encoding: 'utf8' }).trim(), session: 'S1', agent: 'agentX', label: 'claude-kit:agent', rel: 'a.js', head, now: Date.now() - LONG_RUN_MIN * MS_PER_MIN });
+const other = editAs('S2', '', 'a.js');
+expect('another session\'s main thread editing a file an agent of S1 holds after 20 quiet minutes is refused', other.status, 2);
+expect('the refusal names that agent and its session', /agent agentX/.test(other.stderr) && /session S1/.test(other.stderr) ? 1 : 0, 1);
+expect('negative control: another file passes', editAs('S2', '', 'b.js').status, 0);
+spawnSync(process.execPath, [fileURLToPath(new URL('./agent-roster.mjs', import.meta.url))], { cwd: tree, encoding: 'utf8', input: JSON.stringify({ hook_event_name: 'SubagentStop', session_id: 'S1', agent_id: 'agentX' }) });
+expect('negative control: once that agent stops, S2 edits the file', editAs('S2', '', 'a.js').status, 0);
+git('commit', '-qam', 'S2');
+claimFile({ tree: execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: tree, encoding: 'utf8' }).trim(), session: 'S1', agent: '', label: 'main thread', rel: 'a.js', head, now: Date.now() - LONG_RUN_MIN * MS_PER_MIN });
+writeFileSync(join(tree, 'a.js'), 'export const x = 100;\n');
+expect('negative control: a lapsed main-thread claim (20 min) refuses nobody', editAs('S2', '', 'a.js').status, 0);
 
 finish();

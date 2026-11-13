@@ -12,7 +12,7 @@
 //   releaseTree(tree, session)                       -> drop that session's hold (a synchronous writer finished)
 //   releaseAgent(agent)                              -> drop every hold and file claim whose last writer was that agent (SubagentStop)
 //   claimFile({ tree, session, agent, label, rel, head, now }) -> record that the writer changed `rel` at `head` (KIT-T1114)
-//   liveClaimants(tree, session, now)                -> [{ session, agent, label, beatAt, claims }] writers of `session` with standing claims
+//   liveClaimants(tree, now)                         -> [{ session, agent, label, beatAt, claims }] writers of every session with standing claims
 //   HOLDER_WINDOW_MS, holdersDir()                   -> CLAUDE_KIT_HOLDERS_DIR overrides the directory (tests)
 
 import { createHash } from 'node:crypto';
@@ -143,15 +143,15 @@ export function claimFile({ tree, session, agent = '', label = '', rel, head = '
   }
 }
 
-// The writers of `session` in `tree` with a claim still standing: a subagent until it stops or AGENT_CLAIM_WINDOW_MS pass
-// without a write, the main thread for HOLDER_WINDOW_MS.
-export function liveClaimants(tree, session, now = Date.now()) {
+// The writers of every session in `tree` with a claim still standing: a subagent until it stops or AGENT_CLAIM_WINDOW_MS pass
+// without a write, a main thread for HOLDER_WINDOW_MS.
+export function liveClaimants(tree, now = Date.now()) {
   try {
     const dir = claimTreeDir(tree);
     return readdirSync(dir).flatMap((name) => {
       const entry = readEntry(join(dir, name));
       const window = entry?.agent ? AGENT_CLAIM_WINDOW_MS : HOLDER_WINDOW_MS;
-      return entry && entry.session === session && now - entry.beatAt < window ? [entry] : [];
+      return entry && now - entry.beatAt < window ? [entry] : [];
     });
   } catch {
     return [];
