@@ -47,6 +47,7 @@ const PASSES = [
   ['rg of a variable holding an outside log', `S=${logTxt}; rg "^(Hamlet|Town|City):|^error" $S`],
   ['the reported shape: build into the variable, then rg it twice', `S=${logTxt}; cargo test > $S 2>&1; rg "^error" $S; rg -v "overlap" $S | rg -A3 "^Town:"`],
   ['an assignment joined by && before the rg', `S=${logTxt} && rg Town $S`],
+  ['an assignment behind a cd chained with && to the rg', `cd ${slashed(repo)} && S=${logTxt} && rg Town $S`],
   ['a braced variable', `S=${logTxt}; rg Town \${S}`],
   ['a quoted variable', `S=${logTxt}; rg Town "$S"`],
   ['an outside file with no extension, named literally', `rg Town ${log}`],

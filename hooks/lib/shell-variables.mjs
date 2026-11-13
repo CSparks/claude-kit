@@ -2,8 +2,9 @@
 // A cp whose destination is `"$SCRATCH/a.cpp.bak"` is judged by where it lands; the gate cannot see the shell's
 // environment, so it resolves a variable only from an assignment it can prove: one literal `NAME=value` (bash) or
 // `$name = 'value'` (PowerShell) segment that runs unconditionally before the use, the only write to that name in the
-// whole command, in a command whose every segment is known to leave variables alone (KIT-T1082). Anything the allowlist
-// does not recognise leaves every variable unresolved and the copy stays fail-closed.
+// whole command, in a command whose every segment is known to leave variables alone (KIT-T1082). An assignment behind
+// `cd dir &&` (or any && chain) is visible only to segments joined to it by && alone: a segment that runs only when the
+// assignment ran. Anything the allowlist does not recognise leaves every variable unresolved and the copy stays fail-closed.
 //
 //   assignedValues(parts, shell) -> Map<segment, Map<name, value>>   the variables each segment of `parts` can read
 //   precedingValues(parts, shell) -> Map<segment, Map<name, value>>  the same, judged leniently for naming a file (not a write)
@@ -24,12 +25,13 @@ const PLAIN_VALUE = /^(?!~)[\w@%+=:,./~-]+$/;
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*/;
 const UNCONDITIONAL_BEFORE = new Set(['start', ';']);
 const SEQUENTIAL_AFTER = new Set([';', '&&']);
+const CHAIN = '&&';
 
 // Commands that read, write or delete files, or run as a child process, and never bind a shell variable (a child cannot
 // reach its parent's variables; what a delete or a child's script writes is judged by the write scan, not here). The word
 // is judged after its quotes are removed; bash matches it case-sensitively, PowerShell case-insensitively. A
 // path-qualified or variable-named command is not here.
-const SAFE_COMMANDS = new Set(['cp', 'copy', 'copy-item', 'mv', 'move-item', 'rm', 'rmdir', 'remove-item', 'install', 'touch', 'mkdir', 'md', 'echo', 'cd', 'set-location', 'ls', 'dir', 'get-childitem', 'pwd', 'true', 'bash', 'sh', 'node', 'cargo', 'rg', 'grep', 'head', 'tail', 'cat', 'wc']);
+const SAFE_COMMANDS = new Set(['cp', 'copy', 'copy-item', 'mv', 'move-item', 'rm', 'rmdir', 'remove-item', 'install', 'touch', 'mkdir', 'md', 'echo', 'cd', 'set-location', 'ls', 'dir', 'get-childitem', 'pwd', 'true', 'bash', 'sh', 'node', 'cargo', 'git', 'rg', 'grep', 'head', 'tail', 'cat', 'wc']);
 const WHOLE_SUBSHELL = /^\s*\(([^()]*)\)\s*$/;
 // Text that evaluates code or assigns while it expands: command, process and arithmetic substitution and
 // `${NAME:=x}` in bash; in PowerShell a parenthesis, brace, backtick escape or splat.
@@ -134,12 +136,15 @@ function remember(known, found, whole, shell) {
 export function assignedValues(parts, shell) {
   const reads = new Map();
   const known = new Map();
+  let chained = new Map();
   const trusted = !parts.ambiguous && parts.every((seg) => leavesVariablesAlone(seg.text, shell));
   parts.forEach((seg, i) => {
-    reads.set(seg, new Map(known));
+    if (seg.after !== CHAIN) chained = new Map();
+    reads.set(seg, new Map([...known, ...chained]));
     const next = parts[i + 1];
-    const visible = UNCONDITIONAL_BEFORE.has(seg.after) && next && SEQUENTIAL_AFTER.has(next.after);
-    remember(known, visible && trusted ? assignmentsOf(seg.text, shell) : null, parts.text, shell);
+    const sequential = trusted && next && SEQUENTIAL_AFTER.has(next.after);
+    const into = UNCONDITIONAL_BEFORE.has(seg.after) ? known : seg.after === CHAIN ? chained : null;
+    remember(into || new Map(), sequential && into ? assignmentsOf(seg.text, shell) : null, parts.text, shell);
   });
   return reads;
 }
