@@ -9,6 +9,7 @@
 //
 //   - a text tool searching/reading the .ai store      -> BLOCK, hand back the `q` query
 //   - a recursive / tree-wide source search (discovery) -> BLOCK, hand back code-graph
+//   - a search fed a SET of source files through a pipe (find|xargs grep, cat src/*.rs|grep) -> BLOCK (lib/pipe-tree-search.mjs, KIT-T1121)
 //
 // ALLOWED (the maintainer's rule — grep is fine when you know exactly where + what):
 //   - a targeted grep of a SPECIFIC named non-store file, or a config/state file under .ai
@@ -29,6 +30,7 @@ import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
 import { registryLine, registryTarget } from './lib/registry-target.mjs';
 import { grepToolCommand } from './lib/grep-tool-command.mjs';
+import { pipedTreeMsg, pipedTreeSearch, targetsOnlyScratch } from './lib/pipe-tree-search.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { FAMILIES } from '../scripts/code-graph-families.mjs';
 
@@ -49,13 +51,6 @@ const STORE = /\.ai[\\/]|(?:^|[\s"'=])\.?[\\/]?(?:tickets|decisions|inbox|questi
 const RECURSIVE_FLAG = /(?:^|\s)(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive|--include\b|--include-dir\b)/;
 const QUOTED_TOKENS = /"[^"]*"|'[^']*'|\S+/g;
 const FILEISH = /\.[A-Za-z0-9]{1,6}$/; // a concrete file arg (has an extension)
-// Session scratchpad dirs hold logs and tool output, never source: searching them is not
-// discovery (KIT-T464).
-const SCRATCH = /(?:^|[\\/])scratchpad(?:[\\/]|$)/i;
-function targetsOnlyScratch(args) {
-  const paths = args.map((a) => a.replace(/^["']|["']$/g, '')).filter((a) => /[\\/]/.test(a));
-  return paths.length > 0 && paths.every((a) => SCRATCH.test(a));
-}
 // Extensions where code-graph resolves the MODULE graph (relative-import edges: JS/TS), so a
 // grep q cannot answer exactly still has a full code-graph answer and is blocked. Other source
 // (Rust, Python, Go, C-family: definitions only, no import edges; WGSL, GLSL, TOML: not at all)
@@ -126,6 +121,12 @@ async function main() {
   if (parts.ambiguous && leadsSearch(parts.text)) {
     const { reason, at, span } = parts.ambiguity;
     process.stderr.write(`\nBLOCKED: a search command cannot be judged (retrieval gate). ${AMBIGUOUS_MESSAGE}\n  Ambiguous span: ${reason} at character ${at}, near "${span}".\n  A single-quoted pattern is never ambiguous in either shell: grep -E 'test result|"quoted"|FAILED'.\n${excludeFooter('source-discovery')}`);
+    process.exit(2);
+  }
+  const laundered = parts.ambiguous ? null : pipedTreeSearch(parts);
+  if (laundered && !excludedByConfig(root, 'source-discovery', laundered.search)) {
+    logSearch(root, { event: 'blocked', rule: 'source-discovery', ...(classifyCalls('Bash', { command: laundered.search })[0] || {}) });
+    process.stderr.write(pipedTreeMsg({ ...laundered, exact: exactLine(laundered.search, 'code'), q: Q }) + excludeFooter('source-discovery'));
     process.exit(2);
   }
   let feedsFromItem = false; // the previous segment read an item file, so a piped search filters it
@@ -234,7 +235,7 @@ function judge(c, piped = false) {
     // Targeted = every path operand is a concrete file, or a scratch dir: one file never launders a directory beside it (KIT-T1069).
     const targetsOneFile = (psSearch ? args.some((a) => FILEISH.test(a)) : targetsOnlyFiles(searchPaths(argv, { git: gitGrep }))) || targetsOnlyScratch(args);
     const psTreeWide = /s-recurse/i.test(c) || args.some((a) => /[*?]|[\/]$/.test(a));
-    const recursive = psSearch ? psTreeWide : RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep;
+    const recursive = psSearch ? psTreeWide : RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep || searchPaths(argv, { git: gitGrep }).some(hasGlob);
     const dependency = recursive && registryTarget(c); // a crate dir looks like a file (`rapier3d-0.25.1`), so judge it first
     if (dependency) return { id: 'registry-grep', msg: registryMsg(c, dependency) };
     if (recursive && !targetsOneFile) {
