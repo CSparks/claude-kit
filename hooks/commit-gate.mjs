@@ -8,6 +8,7 @@ import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SR
 import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
+import { pathspecFiles, sameCommandAdds } from './lib/commit-files.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
 import { commitMessagePath, commitMessageText, unreadableMessageFile } from './lib/commit-message.mjs';
 import { messageFileProblem } from './lib/message-file-owner.mjs';
@@ -132,20 +133,20 @@ function commitSpec(cmd) {
   return { mode: all ? 'all' : 'staged' };
 }
 
-// porcelain v1: two status columns + space, renames as `R  old -> new`
-const porcelainFiles = (raw) =>
-  raw.split('\n').filter(Boolean).map((l) => {
-    let p = l.slice('XY '.length);
-    if (p.includes(' -> ')) p = p.split(' -> ').pop();
-    return p.replace(/^"|"$/g, '');
-  });
+// KIT-T1158: a `git add` earlier in the same command has not run when this hook does; its pathspecs name files the
+// commit will carry, listed one by one (-uall), so a brand-new directory is judged by its files, not as `dir/`.
+const adds = sameCommandAdds(command);
+const statusAll = (paths) => git(['-C', root, 'status', '--porcelain', '-uall', '--', ...paths]);
 
 const spec = commitSpec(command);
 let changed;
 if (spec.mode === 'paths') {
-  changed = uniq(porcelainFiles(git(['-C', root, 'status', '--porcelain', '--', ...spec.paths])));
+  changed = uniq(pathspecFiles(statusAll(spec.paths), { staged: adds.length > 0 }));
 } else if (spec.mode === 'staged') {
-  changed = uniq(lines(git(['-C', root, 'diff', '--cached', '--name-only'])));
+  changed = uniq([
+    ...lines(git(['-C', root, 'diff', '--cached', '--name-only'])),
+    ...(adds.length ? pathspecFiles(statusAll(adds), { staged: true }) : []),
+  ]);
 } else if (spec.mode === 'all') {
   changed = uniq([
     ...lines(git(['-C', root, 'diff', '--name-only', 'HEAD'])),
