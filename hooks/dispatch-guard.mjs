@@ -40,6 +40,7 @@ import { queueDispatch } from './lib/queued-dispatch.mjs';
 import { sharedTreeBlock } from './dispatch-shared-tree.mjs';
 import { TREE_PROJECT_CHECK, treeProjectBlock } from './dispatch-tree-project.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
+import { BACKGROUND_RUN_CHECK, backgroundRunBlock } from './dispatch-background-run.mjs';
 import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
@@ -85,6 +86,7 @@ try {
     lessonsCheck(root, input, prompt, p),
     conformanceCheck(root, input, prompt, p),
     uiCheck(root, input, prompt, p),
+    backgroundRunCheck(root, prompt, p),
     briefCheck(root, input, prompt, p),
     rulingsCheck(root, input, prompt, p),
     frameworkCheck(root, input, prompt, p),
@@ -236,6 +238,12 @@ function conformanceCheck(root, input, prompt, p) {
 function uiCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, UI_CHECK, root)) return null;
   return uiBlock({ root, input, prompt, footer: excludeFooter(UI_CHECK) });
+}
+
+// --- background-run (KIT-T1161) ---------------------------------------------------
+function backgroundRunCheck(root, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, BACKGROUND_RUN_CHECK, root)) return null;
+  return backgroundRunBlock({ prompt, footer: excludeFooter(BACKGROUND_RUN_CHECK) });
 }
 
 // --- brief-grounded (KIT-T703) ----------------------------------------------------
