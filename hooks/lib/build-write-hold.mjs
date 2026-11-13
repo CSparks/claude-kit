@@ -15,19 +15,17 @@
 import { resolve } from 'node:path';
 import { liveHolds } from '../../scripts/broker/build-slot-store.mjs';
 import { isBuildInput } from '../../scripts/broker/build-globs.mjs';
+import { inScope } from '../../scripts/broker/cargo-scope-dirs.mjs';
 import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../../scripts/broker/wait-limits.mjs';
 import { isUnreferencedNewSource } from './unreferenced-new-source.mjs';
 
 const TESTING_PHASE = 'running';
 const MS_PER_SECOND = 1000;
-const slash = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
-const within = (file, scope) => file === slash(scope) || file.startsWith(`${slash(scope)}/`);
 
 export function compilingHolds({ file, holds }) {
   const path = resolve(file);
-  const abs = slash(path);
   if (!isBuildInput(path) || isUnreferencedNewSource(path)) return [];
-  return (holds || liveHolds()).filter((h) => h.phase !== TESTING_PHASE && Array.isArray(h.scope) && h.scope.some((s) => within(abs, s)));
+  return (holds || liveHolds()).filter((h) => h.phase !== TESTING_PHASE && Array.isArray(h.scope) && inScope(path, h.scope));
 }
 
 export const buildHoldConflict = ({ file, writer = '', holds }) => compilingHolds({ file, holds }).find((h) => (h.writer || '') !== writer) || null;

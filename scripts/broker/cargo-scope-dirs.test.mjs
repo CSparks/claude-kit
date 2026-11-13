@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { acquireBuildSlot } from './build-slot.mjs';
-import { compiledPaths, selection } from './cargo-scope-dirs.mjs';
+import { compiledPaths, inScope, selection } from './cargo-scope-dirs.mjs';
 
 const lower = (list) => list.map((p) => resolve(p).replace(/\\/g, '/').toLowerCase());
 
@@ -23,13 +23,14 @@ function workspace() {
     writeFileSync(join(root, 'crates', name, 'tests', 'it.rs'), '');
   }
   writeFileSync(join(root, 'crates', 'b', 'build.rs'), 'fn main() {}\n');
+  mkdirSync(join(root, 'crates', 'a', 'src', 'bin'), { recursive: true });
+  writeFileSync(join(root, 'crates', 'a', 'src', 'bin', 'probe.rs'), 'fn main() {}\n');
+  mkdirSync(join(root, 'crates', 'a', 'examples'), { recursive: true });
+  writeFileSync(join(root, 'crates', 'a', 'examples', 'ex.rs'), 'fn main() {}\n');
   return root;
 }
 
-const covers = (scope, file) => {
-  const target = resolve(file).replace(/\\/g, '/').toLowerCase();
-  return lower(scope).some((s) => target === s || target.startsWith(`${s}/`));
-};
+const covers = (scope, file) => inScope(resolve(file), scope);
 
 test('selection reads -p, --package, --workspace and --all from the command line', () => {
   assert.deepEqual(selection(['test', '-p', 'a', '--package=b', '-p=c']), { names: ['a', 'b', 'c'], workspace: false });
@@ -46,16 +47,39 @@ test('-p a scopes a and the library inputs of its path dependency b, never c, pl
 
 test('KIT-T1132: a dependency\'s integration tests are no input of the dependent\'s build; the built package\'s own are', () => {
   const root = workspace();
-  const scope = compiledPaths(['run', '-p', 'a'], root);
+  const scope = compiledPaths(['test', '-p', 'a'], root);
   assert.ok(!covers(scope, join(root, 'crates/b/tests/it.rs')), 'b is a dependency: its tests/ are not compiled');
-  assert.ok(covers(scope, join(root, 'crates/a/tests/it.rs')), 'negative control: a is built, so its tests/ stay held');
+  assert.ok(covers(scope, join(root, 'crates/a/tests/it.rs')), 'negative control: a is built by cargo test, so its tests/ stay held');
   assert.ok(covers(scope, join(root, 'crates/b/src/lib.rs')), 'negative control: b\'s library source stays held');
   assert.ok(covers(compiledPaths(['test', '-p', 'b'], root), join(root, 'crates/b/tests/it.rs')), 'negative control: building b itself holds its tests/');
 });
 
+test('KIT-T1143: a --bin or run build holds the package\'s source, not its tests/ or examples/; a test build holds them', () => {
+  const root = workspace();
+  const tests = join(root, 'crates/a/tests/it.rs');
+  const example = join(root, 'crates/a/examples/ex.rs');
+  for (const args of [['run', '-p', 'a', '--bin', 'probe'], ['build', '-p', 'a'], ['check', '-p', 'a', '--bin', 'probe'], ['test', '-p', 'a', '--lib']]) {
+    const scope = compiledPaths(args, root);
+    assert.ok(!covers(scope, tests), `${args.join(' ')}: tests/ is not compiled`);
+    assert.ok(!covers(scope, example), `${args.join(' ')}: examples/ is not compiled`);
+    for (const want of ['crates/a/src/lib.rs', 'crates/a/src/bin/probe.rs', 'crates/a/Cargo.toml', 'crates/b/src/lib.rs']) assert.ok(covers(scope, join(root, want)), `${args.join(' ')}: ${want} stays held`);
+  }
+  for (const args of [['test', '-p', 'a'], ['test', '-p', 'a', '--test', 'it'], ['check', '-p', 'a', '--tests'], ['check', '-p', 'a', '--all-targets'], ['nextest', 'run', '-p', 'a'], ['bench', '-p', 'a']]) {
+    assert.ok(covers(compiledPaths(args, root), tests), `negative control: ${args.join(' ')} holds tests/`);
+  }
+  assert.ok(covers(compiledPaths(['test', '-p', 'a', '--example', 'ex'], root), example), 'negative control: --example holds examples/');
+});
+
+test('KIT-T1143: a dev-only path dependency is held only when a test, bench or example is built', () => {
+  const root = workspace();
+  writeFileSync(join(root, 'crates', 'c', 'Cargo.toml'), '[package]\nname = "c"\nversion = "0.1.0"\nedition = "2021"\n\n[dev-dependencies]\nb = { path = "../b" }\n');
+  assert.ok(!covers(compiledPaths(['run', '-p', 'c'], root), join(root, 'crates/b/src/lib.rs')), 'run does not compile dev-dependencies');
+  assert.ok(covers(compiledPaths(['test', '-p', 'c'], root), join(root, 'crates/b/src/lib.rs')), 'negative control: test compiles them');
+});
+
 test('--workspace scopes every member whole; no selection inside a member scopes that member and its dependencies', () => {
   const root = workspace();
-  const all = compiledPaths(['check', '--workspace'], root);
+  const all = compiledPaths(['test', '--workspace'], root);
   assert.ok(['a', 'b', 'c'].every((n) => covers(all, join(root, 'crates', n, 'tests', 'it.rs'))));
   const inB = compiledPaths(['check'], join(root, 'crates', 'b'));
   assert.ok(covers(inB, join(root, 'crates/b/src/lib.rs')) && !covers(inB, join(root, 'crates/a/src/lib.rs')));

@@ -57,6 +57,13 @@ expect('negative control: an edit in a crate the build does not compile passes',
 expect('negative control: a doc in the repo passes', edit('S1', 'agentOther', 'docs', 'x.md').status, 0);
 expect('a file in the building crate that no compile reads (not a build input) passes', edit('S1', 'agentOther', 'crates', 'a', 'README.md').status, 0);
 
+mkdirSync(join(crate, 'tests'), { recursive: true });
+hold({ scope: [crate, `!${join(crate, 'tests')}`], writer: OWNER, phase: 'compiling' });
+expect('KIT-T1143: an edit of a test file the build does not compile passes', edit('S1', 'agentOther', 'crates', 'a', 'tests', 'it.rs').status, 0);
+expect('KIT-T1143 control: an edit of the same crate\'s source is still refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'lib.rs').status, 2);
+hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
+expect('KIT-T1143 control: with no excluded directory the test file is held', edit('S1', 'agentOther', 'crates', 'a', 'tests', 'it.rs').status, 2);
+
 // KIT-T1123: the creation of a Rust file no module names cannot change the running build.
 writeFileSync(join(crate, 'Cargo.toml'), '[package]\nname = "a"\n');
 writeFileSync(join(crate, 'src', 'lib.rs'), 'pub mod wired;\nmod model;\n');
