@@ -38,6 +38,8 @@ try {
   }
   ok('the base contract names the prose-ask gate and his rule that a need from him is a questionnaire (KIT-D168)',
     /Anything you need from him is a questionnaire \(KIT-D168/.test(base) && base.includes('`prose-ask`') && base.includes('or it\'s a process failure'));
+  ok('the base contract bans prose "waiting on you" wording without a questionnaire and cites GG-D088 (KIT-T1151)',
+    /KIT-T1151; GG-D088\)/.test(base) && base.includes('"waiting on you", "your call"') && base.includes('without a questionnaire the same turn'));
   ok('the base contract makes a dispatch the third step of a process failure and names its gate (KIT-D168)',
     /\(3\) DISPATCH an agent the same\s+turn[\s\S]{0,400}`process-failure-dispatch`/.test(base));
   const gates = read('hooks/lib/gate-tokens.mjs');

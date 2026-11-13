@@ -96,6 +96,8 @@ try {
   const question = q('gates', 'question');
   ok('q gates question prints the summary-first rule, the readiness rules and the re-ask tag',
     question.status === 0 && question.stdout.includes('summary first, then the questionnaire') && question.stdout.includes('exploring:') && question.stdout.includes(TOKENS.reAsk.form));
+  ok('q gates question lists the prose-ask check and its Stop hook (KIT-T1151)',
+    question.stdout.includes('prose-ask-gate (Stop') && /^ {2}prose-ask\s+no closing reply says or implies that work waits on the maintainer/m.test(question.stdout));
   ok('q gates with no name lists the gates', q('gates').stdout.includes('agent, plan, question'));
   const unknown = q('gates', 'nope');
   ok('an unknown gate exits 1 and names the valid ones', unknown.status === 1 && unknown.stderr.includes('agent, plan, question'));

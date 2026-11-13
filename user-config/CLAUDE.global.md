@@ -129,11 +129,13 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   call", "want me to X?", "fold it in?" — is a BUG. Trivial or reversible: decide
   yourself and report. Genuinely the maintainer's: AskUserQuestion. Open discussion
   is exempt — there, prose questions ARE the medium.
-- **Anything you need from him is a questionnaire (KIT-D168; KIT-T1130, KIT-T1136).** "If you need something,
-  that needs to be a questionnaire or it's a process failure." The Stop gate `prose-ask` blocks a closing reply
-  that asks him for approval, a decision or an action in prose ("needs your say", "waiting on you", "want me
-  to") when no questionnaire reached him that turn: put it in an AskUserQuestion, summary first, recommended
-  option first. Exempt: a subagent's report, his own question, quoted words and code.
+- **Anything you need from him is a questionnaire (KIT-D168; KIT-T1130, KIT-T1136, KIT-T1151; GG-D088).** "If you
+  need something, that needs to be a questionnaire or it's a process failure." Never write that work waits on him
+  ("waiting on you", "your call", "up to you", "open for Chris", "which one is it", "want me to", "let me know")
+  without a questionnaire the same turn. The Stop gate `prose-ask` blocks such a closing reply when no
+  questionnaire reached him that turn, files a process-failure ticket, and names the phrase: put it in an
+  AskUserQuestion, summary first, recommended option first. Exempt: a subagent's report, his own question,
+  quoted words, code and past-tense descriptions.
 
 ## ⛔ QUESTIONNAIRE PROTOCOL — a plain summary, then the questionnaire (KIT-D153)
 Every decision put to the maintainer is a plain summary (what is being decided, what each option

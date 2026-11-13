@@ -1,8 +1,8 @@
-// prose-ask-gate (KIT-T1130, KIT-T1136): a closing reply that asks the maintainer for approval, a decision or an action
-// in prose blocks the stop once, unless a questionnaire reached him, the reply quotes him, the turn is a subagent's, or
+// prose-ask-gate (KIT-T1130, KIT-T1136, KIT-T1151): a closing reply that asks the maintainer for approval, a decision, an
+// action, or says work waits on him, in prose blocks the stop once, unless a questionnaire reached him, the reply quotes him, the turn is a subagent's, or
 // he asked a question himself. Run: node hooks/prose-ask-gate.test.mjs
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { ENV, HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
@@ -48,6 +48,45 @@ try {
     ok(`blocks: ${phrase}`, blocked(stop(turn(phrase))));
   }
 
+  const WAITING_PHRASES = [
+    'Still waiting on you.', 'Waiting for you on the mesher.', 'Waiting on Chris for the go.', 'This one is your call.', 'It is up to you.',
+    'That is for you to decide.', 'Two items are open for Chris.', 'I need your decision on the lane.', 'I need your call on the lane.',
+    'Which one is it?', 'Do you want the second lane wired?', 'Want me to wire the second lane?', 'Let me know.',
+    'Awaiting your sign-off.', 'Once you sign the bill I start.', 'Say the word and I wire it.', 'Tell me which lane to wire.',
+  ];
+  const asked2 = [toolUse('toolu_Q3', 'AskUserQuestion', { questions: [{ question: 'Which lane?', options: [] }] }), toolResult('toolu_Q3', 'answered')];
+  for (const phrase of WAITING_PHRASES) {
+    const hit = stop(turn(`Landed in 1a2b3c4. ${phrase}`));
+    ok(`KIT-T1151 blocks and names the phrase: ${phrase}`, blocked(hit) && hit.out.includes('your closing reply says "'));
+    ok(`KIT-T1151 negative control, questionnaire in the same turn: ${phrase}`, passed(stop(turn(`Landed in 1a2b3c4. ${phrase}`, { extra: asked2 }))));
+  }
+  for (const [name, reply] of [
+    ['inside a code fence', 'Output:\n```\nwaiting on you\nyour call\n```\nDone.'],
+    ['inside an inline code span', 'The block prints `which one is it` and nothing else.'],
+    ['inside double quotes', 'Chris wrote "it is up to you" about the lane, so I picked A.'],
+    ['past tense', 'The worker was waiting on you for a day before the ticket closed.'],
+    ['a past ask', 'You told me to let me know nothing more; the ticket landed.'],
+    ['a negated want', 'He did not want me to wire the lane.'],
+    ['a plain landing', 'Landed in 1a2b3c4: 12 passed. Nothing is waiting.'],
+  ]) ok(`KIT-T1151 passes: ${name}`, passed(stop(turn(reply))));
+  const MARKED = 'Landed.\n// claude-kit-ignore-line prose-ask\nThis one is your call.';
+  ok('KIT-T1151 an in-source marker line is not read', passed(stop(turn(MARKED))));
+  ok('KIT-T1151 an unmarked line next to it still blocks', blocked(stop(turn('// claude-kit-ignore-line prose-ask\nFine.\nThis one is your call.'))));
+
+  const store = tmpDir('prose-ask-store-');
+  mkdirSync(join(store, '.ai', 'tickets'), { recursive: true });
+  writeFileSync(join(store, '.ai', 'config.yml'), 'ids:\n  key: "KIT"\nuat:\n  default: manual\n');
+  const filed = () => readdirSync(join(store, '.ai', 'tickets')).filter((f) => f.endsWith('.md') && f !== 'INDEX.md');
+  const fsid = `file-${RUN}`;
+  const fileCase = (text) => hook(GATE, { hook_event_name: 'Stop', session_id: fsid, transcript_path: turn(text) }, d, { CLAUDE_KIT_BUG_STORE: store });
+  const firstBlock = fileCase('Landed. This one is your call.');
+  ok('KIT-T1151 the block files one process-failure ticket in the kit store', firstBlock.code === 2 && filed().length === 1
+    && /PROCESS FAILURE/.test(readFileSync(join(store, '.ai', 'tickets', filed()[0]), 'utf8')) && firstBlock.out.includes('filed as a process failure'));
+  fileCase('Landed. It is up to you.');
+  ok('KIT-T1151 a second block in the same session adds no second ticket', filed().length === 1);
+  const otherSession = hook(GATE, { hook_event_name: 'Stop', session_id: `other-${RUN}`, transcript_path: turn('Landed. Waiting on you.') }, d, { CLAUDE_KIT_BUG_STORE: store });
+  ok('KIT-T1151 another session files its own ticket', otherSession.code === 2 && filed().length === 2);
+
   const sid = `repeat-${RUN}`;
   const file = turn(TICKET_REPLY);
   const first = hook(GATE, { hook_event_name: 'Stop', session_id: sid, transcript_path: file }, d);
@@ -77,6 +116,8 @@ try {
   writeFileSync(join(d, '.claude-kit-ignore.yaml'), '');
 
   ok('fail-open on a missing transcript', passed(stop('/no/such/file.jsonl')));
+  ok('fail-open on a transcript of garbage', passed(stop(transcript(['{{{ not json', '\u0000\u0001', '[]', 'null']))));
+  ok('fail-open on a payload whose last_assistant_message is not text', passed(stop(turn('Done.'), { last_assistant_message: { x: 1 } })));
   ok('fail-open on malformed stdin', spawnSync(process.execPath, [join(HOOKS, GATE)], { input: '{not json', cwd: d, encoding: 'utf8', env: ENV }).status === 0);
   ok('lib: proseAsks lists the matched sentences only', proseAsks('Fine. Should I go? Done.').length === 1 && proseAsks('').length === 0);
   ok('wired into the Stop list, not SubagentStop', (() => {

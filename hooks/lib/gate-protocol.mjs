@@ -32,6 +32,7 @@ export const LADDER_CHECK = 'dispatch-ladder';
 export const COLD_BUILD_CHECK = 'cold-worktree-build';
 export const SHARED_TREE_CHECK = 'shared-tree-dispatch';
 export const RECOMMENDATION_CHECK = 'question-recommendation';
+export const PROSE_ASK_CHECK = 'prose-ask';
 
 const CHECK_COLUMN = 30;
 const TAG_COLUMN = 60;
@@ -71,7 +72,7 @@ export const GATES = {
   },
   question: {
     title: 'AskUserQuestion / request_user_input',
-    hooks: ['question-gate', 'reask-gate', 'ids-described-gate', 'question-grounded-gate', 'question-brief-gate (readiness)', 'question-brief-audit (after the call)'],
+    hooks: ['question-gate', 'reask-gate', 'ids-described-gate', 'question-grounded-gate', 'question-brief-gate (readiness)', 'question-brief-audit (after the call)', 'prose-ask-gate (Stop: a prose ask without a questionnaire)'],
     checks: [
       { check: RECOMMENDATION_CHECK, wants: [`every question marks its recommended option on the LABEL with ${RECOMMENDED_MARKER} as the prefix (a suffix for request_user_input), and a single-select recommendation is the first option; the description never carries it`], tokens: [] },
       { check: REASK_CHECK, wants: [`no question another session asked and left unresolved within ${REASK_WINDOW_DAYS} days`], tokens: [T.reAsk] },
@@ -79,6 +80,7 @@ export const GATES = {
       { check: GROUNDED_CHECK, wants: [`an option label is matched (words of ${GROUNDED_MIN_WORD}+ letters, stems, stopwords dropped) against the project's decisions and open tickets; a document sharing ${GROUNDED_MIN_SHARED}+ stems with the label, ${GROUNDED_MIN_TITLE}+ in its title (best ${GROUNDED_PER_OPTION} per option), must be cited by id with what it is in plain words, in the question text or an option description (the same-reply summary is unreadable before the call). Fails open on a store error.`, 'dry run before the call, with the gate\'s own matcher: q gates question --check "<label>" ["<label>" ...] prints per label the decisions and open tickets it matches (id and title)'], tokens: [T.optionsChecked] },
       { check: BRIEF_CHECK, wants: [`summary first, then the questionnaire (KIT-D153): ${BRIEF_RULE}. Text or narration of the turn before the call counts, as does the questionnaire's own question text; no wording or labels are required. Judged AFTER the call by a PostToolUse audit (Stop is the backstop): a missing summary is reported to you and you re-ask.`], tokens: [] },
       { check: READY_CHECK, wants: READINESS_STANDARD, tokens: [] },
+      { check: PROSE_ASK_CHECK, wants: ['no closing reply says or implies that work waits on the maintainer ("waiting on you", "your call", "up to you", "open for Chris", "which one is it", "want me to", "let me know" ...) unless a questionnaire reached him the same turn (Stop gate prose-ask, GG-D088): the block names the phrase and files a process-failure ticket; quoted words, code and past-tense descriptions pass'], tokens: [] },
     ],
   },
 };
