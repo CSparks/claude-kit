@@ -22,7 +22,7 @@ const repo = mkdtempSync(join(tmpdir(), 'kit-shellstore-'));
 const plain = mkdtempSync(join(tmpdir(), 'kit-shellstore-plain-'));
 execFileSync('git', ['init', '-q'], { cwd: repo });
 mkdirSync(join(repo, '.ai', 'decisions'), { recursive: true });
-const run = (command, cwd = repo) => spawnSync(process.execPath, [HOOK], { cwd, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }), encoding: 'utf8' });
+const run = (command, cwd = repo, tool = 'Bash') => spawnSync(process.execPath, [HOOK], { cwd, input: JSON.stringify({ tool_name: tool, tool_input: { command } }), encoding: 'utf8' });
 const blocked = (command) => run(command).status === 2;
 
 try {
@@ -77,6 +77,20 @@ try {
     && /Ambiguous span: a quote that never closes at character 17, near "[^"]*it's[^"]*"/.test(span.stderr) && /write word that made it a hit: "rm"/.test(span.stderr), span.stderr.slice(0, 300));
 
   check('KIT-T705 negative control: node -e with escaped quotes and no write passes',!blocked('node -e "console.log(\\"x\\")"'));
+
+  const powershellBlocked = (command) => run(command, repo, 'PowerShell').status === 2;
+  const TEST_RM = 'rm rapid-game/rust/world/rg-townplan/tests/tmp_drive.rs; cargo test -p rg-townplan 2>&1 | grep -E "test result|\\"FAILED\\"" | tail -20';
+  const POWERSHELL_FILTER = 'rm out/a.txt; cargo test 2>&1 | powershell -NoProfile -Command "Where-Object { \\$_ -match \\"ok\\" }"';
+  check('KIT-T1154: an rm of a source test file then a cargo test grep with an escaped quote passes under bash rules', !blocked(TEST_RM), run(TEST_RM).stderr.slice(0, 160));
+  check('KIT-T1118: an rm then an inline powershell -Command filter with escaped quotes passes under bash rules', !blocked(POWERSHELL_FILTER), run(POWERSHELL_FILTER).stderr.slice(0, 160));
+  check('KIT-T1154 control: the same command redirected into the store still blocks', blocked(`${TEST_RM} > .ai/SESSION.md`));
+  check('KIT-T1154 control: an escaped-quote grep followed by sed -i on a ticket still blocks', blocked('cargo test 2>&1 | grep -E "a|\\"b\\"" ; sed -i s/todo/doing/ .ai/tickets/X-T001-a.md'));
+  check('KIT-T1154 control: an escaped-quote grep followed by an rm of a decision still blocks', blocked('cargo test 2>&1 | grep -E "a|\\"b\\"" ; rm .ai/decisions/X-D001-a.md'));
+  check('KIT-T1154 control: a command bash cannot close (unclosed quote) with a redirect still blocks', blocked("echo it's ; echo x >> .ai/SESSION.md"));
+  check('KIT-T1154 control: a command bash cannot close (unclosed quote) with an in-place editor still blocks', blocked("echo it's ; sed -i s/a/b/ src/lib.rs"));
+  check('KIT-T1154 policy: the PowerShell tool keeps an escape before a quote ambiguous, so a write word in it blocks', powershellBlocked(TEST_RM));
+  check('KIT-T1154 policy: the PowerShell tool with no write word and an escaped quote passes', !powershellBlocked('cargo test 2>&1 | grep -E "a|\\"b\\"" | tail -20'));
+  check('KIT-T1154 control: the PowerShell tool with an escaped quote and a store redirect blocks', powershellBlocked('cargo test 2>&1 | grep -E "a|\\"b\\"" > .ai/SESSION.md'));
 
   const READS = [
     ['cat of a ticket', 'cat .ai/tickets/X-T001-a.md'],

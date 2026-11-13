@@ -7,7 +7,7 @@
 
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { describeAmbiguity, shellStoreWrite } from './lib/store-shell-write.mjs';
-import { AMBIGUOUS_MESSAGE } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, shellOfTool } from './lib/shell-segments.mjs';
 
 const CHECK = 'store-shell-write';
 
@@ -16,7 +16,7 @@ try {
   const command = String((p.tool_input && p.tool_input.command) || '');
   const root = gitRoot();
   if (command && adopted(root)) {
-    const found = shellStoreWrite(command);
+    const found = shellStoreWrite(command, { shell: shellOfTool(p.tool_name) });
     if (found && !pathExcluded(root, CHECK, found.path)) {
       process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write the .ai work store by hand. ${AMBIGUOUS_MESSAGE}\n  ${describeAmbiguity(found.ambiguity)}` : `a shell command writes the .ai work store by hand (${found.path}).`}

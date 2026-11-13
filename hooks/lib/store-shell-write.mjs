@@ -2,7 +2,8 @@
 // PowerShell cmdlet, `node -e`, a heredoc or scratch script). The store changes through t, cap and rem;
 // this is the shell twin of pre-write's `store-write` check.
 //
-//   shellStoreWrite(command, { readScript }) -> null | { path, hint, ambiguous?, ambiguity? }
+//   shellStoreWrite(command, { readScript, shell }) -> null | { path, hint, ambiguous?, ambiguity? }
+//     shell ('bash' | 'powershell', shellOfTool of the hook payload): the escape rules that settle quoting; omitted, any escape before a quote is ambiguous
 //   ambiguity (quoting that could not be split) = { reason, at, span, trigger }: the construct, where, its text, the write word found
 //   describeAmbiguity(ambiguity) -> the one line a block prints to name the offending span
 
@@ -45,6 +46,6 @@ function codeWrites(code) {
 
 export const describeAmbiguity = (a) => (a ? `Ambiguous span: ${a.reason} at character ${a.at}, near "${a.span}"; the write word that made it a hit: "${a.trigger}".` : '');
 
-export function shellStoreWrite(command, { readScript = readTempScript } = {}) {
-  return scanShellWrites(command, { hit, codeHit: codeWrites, readScript, judgeMoveSources: true, ambiguous: (ambiguity) => ({ path: '.ai/…', hint: HINTS.other, ambiguous: true, ambiguity }) });
+export function shellStoreWrite(command, { readScript = readTempScript, shell = '' } = {}) {
+  return scanShellWrites(command, { hit, codeHit: codeWrites, readScript, shell, judgeMoveSources: true, ambiguous: (ambiguity) => ({ path: '.ai/…', hint: HINTS.other, ambiguous: true, ambiguity }) });
 }
