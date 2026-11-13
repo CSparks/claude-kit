@@ -7,6 +7,7 @@
 // The search reads the markdown store, never the shared SQLite cache: a hint nobody needs must not
 // wait on a write lock another session holds (stacked lock waits ran a capture for minutes, KIT-T1040).
 
+import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { dirname, basename, join } from 'node:path';
 import { query } from './q-lib.mjs';
@@ -15,6 +16,13 @@ import { readIdConfig } from './id-utils.mjs';
 
 const MAX_HINTS = 5;
 const MIN_TEXT_CHARS = 3;
+const SHAPE_HASH_CHARS = 8;
+
+/** The dedup key of a kit capture: the readable slug plus a digest of the whole normalized text, so two captures that only share an opening phrase are two tickets. */
+export function captureShape(kind, slug, text) {
+  const words = String(text).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return `cap:${kind}:${slug}:${createHash('sha1').update(words).digest('hex').slice(0, SHAPE_HASH_CHARS)}`;
+}
 
 /** Receipt lines naming likely duplicates of `text` for the store at `aiDir` (+ frameworks). */
 export async function dedupHints(aiDir, text, { skip = [] } = {}) {
@@ -58,7 +66,7 @@ export async function asKitBug(aiDir, text, slug, kind = 'bug', notDup = []) {
     const kit = kitStoreRoot();
     if (!kit || realpathSync.native(join(kit, '.ai')).toLowerCase() !== realpathSync.native(aiDir).toLowerCase()) return null;
     const checked = notDup.length ? `\n\nChecked as possible duplicates and judged different work (--not-dup): ${notDup.join(', ')}` : '';
-    return fileKitBug({ shape: `cap:${kind}:${slug}`, title: text, detail: `${text}${checked}`, project: basename(process.cwd()), kind, repeatAsk: true });
+    return fileKitBug({ shape: captureShape(kind, slug, text), title: text, detail: `${text}${checked}`, project: basename(process.cwd()), kind, repeatAsk: true });
   } catch {
     return null;
   }
