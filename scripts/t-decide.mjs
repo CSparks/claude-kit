@@ -17,7 +17,9 @@
 // A decision that settles a framework concern in a game store is also mirrored into the framework store as an open ticket
 // (KIT-T943); the decision gains `promoted: <ticket>`.
 //
-// `recordDecision(root, draftText, { from })` → { id, path, cleared, mirrored?: { ticket, aiDir }, mirrorError? }.
+// The decision also adds a dated `decided <id>: <title>` line to `.ai/SESSION.md` through `t session`'s writer (KIT-T1139).
+//
+// `recordDecision(root, draftText, { from })` → { id, path, cleared, mirrored?: { ticket, aiDir }, mirrorError?, sessionError? }.
 
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -28,6 +30,7 @@ import { maxStoreNum, readIdConfig } from './id-utils.mjs';
 import { resolveInboxNotes } from '../hooks/lib/inbox-rulings.mjs';
 import { moveCapToTriaged } from './triage/write-item.mjs';
 import { mirrorDecision } from './framework-mirror.mjs';
+import { writeSession } from './t-session.mjs';
 
 const SLUG_MAX = 64;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -73,6 +76,17 @@ function mirrored(root, path) {
   }
 }
 
+// The decision's id and title go onto the SESSION.md anchor the way `t session` writes a note, so the anchor is never stale
+// after a decision (KIT-T1139); a failed anchor write never loses the decision, it is reported.
+function anchored(root, id, title) {
+  try {
+    writeSession(root, `decided ${id}: ${title}`);
+    return {};
+  } catch (e) {
+    return { sessionError: e.message };
+  }
+}
+
 export function recordDecision(root, text, { from = [] } = {}) {
   const draft = parseDraft(text);
   const notes = resolveInboxNotes(root, from);
@@ -85,5 +99,5 @@ export function recordDecision(root, text, { from = [] } = {}) {
   const head = [`id: ${id}`, `title: ${draft.title}`, `summary: ${draft.summary}`, `date: ${date}`, `supersedes: ${draft.supersedes}`, `source: ${draft.source}`];
   writeFileSync(path, `---\n${head.join('\n')}\n---\n\n${draft.body}\n`);
   const cleared = notes.map((file) => moveCapToTriaged(join(root, '.ai'), join('inbox', file)));
-  return { id, path, cleared, ...mirrored(root, path) };
+  return { id, path, cleared, ...mirrored(root, path), ...anchored(root, id, draft.title) };
 }

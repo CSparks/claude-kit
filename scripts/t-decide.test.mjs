@@ -78,6 +78,30 @@ try {
     assert.deepEqual(auditDecisions(s.root).map((d) => d.id), [`${s.key}-D009`]);
   });
 
+  ok('a recorded decision adds a dated one-line note, its id and title, to the SESSION.md anchor (KIT-T1139)', () => {
+    const s = store();
+    const anchor = join(s.root, '.ai', 'SESSION.md');
+    writeFileSync(anchor, '# SESSION\n\n## State\n\n- [2026-11-01 09:00] earlier work\n');
+    const r = recordDecision(s.root, draft('title: Anchor follows decisions'));
+    const lines = readFileSync(anchor, 'utf8').split('\n');
+    assert.match(lines.find((l) => l.includes(r.id)), new RegExp(`^- \\[\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d\\] decided ${r.id}: Anchor follows decisions$`));
+    assert.ok(lines.indexOf('- [2026-11-01 09:00] earlier work') > lines.findIndex((l) => l.includes(r.id)), 'newest first, under the top section');
+    assert.equal(r.sessionError, undefined);
+  });
+
+  ok('negative: a refused draft leaves the anchor untouched, and an unwritable anchor never loses the decision', () => {
+    const s = store();
+    const anchor = join(s.root, '.ai', 'SESSION.md');
+    writeFileSync(anchor, '# SESSION\n');
+    assert.throws(() => recordDecision(s.root, draft('summary: no title')), /title: is required/);
+    assert.equal(readFileSync(anchor, 'utf8'), '# SESSION\n');
+    rmSync(anchor);
+    mkdirSync(anchor);
+    const r = recordDecision(s.root, draft('title: anchor is a folder'));
+    assert.ok(readdirSync(s.dir).some((f) => f.startsWith(`${r.id}-`)), 'the decision file landed');
+    assert.ok(r.sessionError, 'the failed anchor note is reported');
+  });
+
   ok('the CLI records a draft file and prints the id', () => {
     const s = store();
     const file = join(s.root, 'draft.md');
