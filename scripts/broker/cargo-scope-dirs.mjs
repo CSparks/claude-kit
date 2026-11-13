@@ -2,7 +2,8 @@
 // The build-budget shim records the answer in its hold; hooks/lib/build-write-hold.mjs reads it.
 //
 //   compiledPaths(args, cwd, cargo?) -> absolute directories and files the build reads: the selected packages' directories
-//     and those of every path dependency they reach (from `cargo metadata --offline`), plus the workspace's Cargo.toml,
+//     and, of every path dependency they reach (from `cargo metadata --offline`), its manifest, build script and library
+//     source directories (never its tests, benches or examples), plus the workspace's Cargo.toml,
 //     Cargo.lock and .cargo. The selection is `-p`/`--package` names, `--workspace`/`--all`, else the member holding `cwd`,
 //     else the default members. When metadata cannot be read the scope is `cwd` whole: the side that keeps the guard.
 //   selection(args)                  -> { names, workspace } as the command line states it
@@ -14,6 +15,8 @@ import { dirname, join, resolve } from 'node:path';
 const METADATA_TIMEOUT_MS = 20000;
 const METADATA_BUFFER_BYTES = 1 << 28;
 const ROOT_FILES = ['Cargo.toml', 'Cargo.lock', '.cargo', 'rust-toolchain', 'rust-toolchain.toml'];
+const NOT_COMPILED_KINDS = new Set(['test', 'bench', 'example', 'bin']);
+const BUILD_SCRIPT_KIND = 'custom-build';
 const slash = (p) => String(p).replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 
 export function selection(args) {
@@ -64,8 +67,19 @@ export function scopeOf(meta, picked, cwd) {
     seen.add(id);
     for (const dep of (nodes.get(id) || {}).deps || []) stack.push(dep.pkg);
   }
-  const dirs = [...seen].map((id) => manifestDir(byId.get(id)));
+  const built = new Set((start.length ? start : meta.workspace_members.map((id) => byId.get(id)).filter(Boolean)).map((p) => p.id));
+  const dirs = [...seen].flatMap((id) => (built.has(id) ? [manifestDir(byId.get(id))] : dependencyInputs(byId.get(id))));
   return [...new Set([...dirs, ...ROOT_FILES.map((f) => join(meta.workspace_root, f))].map((p) => resolve(p)))];
+}
+
+// A dependency of a built package compiles as a library: its manifest, build script and the source directory of each
+// library-kind target. Its tests, benches, examples and bins are no input of the build. A target rooted in the package
+// directory itself makes the whole directory the input.
+function dependencyInputs(pkg) {
+  const dir = manifestDir(pkg);
+  const compiled = pkg.targets.filter((t) => !t.kind.every((k) => NOT_COMPILED_KINDS.has(k)));
+  const sources = compiled.map((t) => (t.kind.includes(BUILD_SCRIPT_KIND) ? t.src_path : dirname(t.src_path)));
+  return sources.some((s) => slash(s) === slash(dir)) ? [dir] : [pkg.manifest_path, ...sources];
 }
 
 export function compiledPaths(args, cwd, cargo = 'cargo') {
