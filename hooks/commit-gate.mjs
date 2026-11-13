@@ -8,7 +8,7 @@ import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SR
 import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
-import { pathspecFiles, sameCommandAdds } from './lib/commit-files.mjs';
+import { pathspecFiles, pathspecStatus, sameCommandAdds } from './lib/commit-files.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
 import { commitMessagePath, commitMessageText, unreadableMessageFile } from './lib/commit-message.mjs';
 import { messageFileProblem } from './lib/message-file-owner.mjs';
@@ -110,7 +110,7 @@ function commitSpec(cmd) {
   for (const ch of cmd.slice(m.index + m[0].length)) {
     if (q) { seg += ch; if (ch === q) q = ''; continue; }
     if (ch === '"' || ch === "'") { q = ch; seg += ch; continue; }
-    if (ch === ';' || ch === '|' || ch === '&') break;
+    if (ch === ';' || ch === '|' || ch === '&' || ch === ')') break;
     seg += ch;
   }
   // options whose value arrives as the NEXT token (long form without '=')
@@ -138,7 +138,7 @@ function commitSpec(cmd) {
 // KIT-T1158: a `git add` earlier in the same command has not run when this hook does; its pathspecs name files the
 // commit will carry. -uall lists an untracked directory file by file, so it is judged by its files, not as `dir/`.
 // Untracked entries stay in every judged set (fail-closed, KIT-T1159).
-const statusAll = (paths) => git(['-C', root, 'status', '--porcelain', '-uall', '--', ...paths]);
+const statusAll = (paths) => pathspecStatus(root, paths);
 const addedFiles = () => (adds.length ? pathspecFiles(statusAll(adds), { staged: true }) : []);
 
 const spec = commitSpec(command);

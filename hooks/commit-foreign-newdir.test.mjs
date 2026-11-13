@@ -5,7 +5,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { adopted, cleanup, git, hook, identify, reporter, tmpDir } from './test-harness.mjs';
-import { pathspecFiles, sameCommandAdds } from './lib/commit-files.mjs';
+import { pathspecFiles, pathspecStatus, sameCommandAdds } from './lib/commit-files.mjs';
 
 const { ok, done } = reporter('commit-foreign-newdir');
 
@@ -51,6 +51,8 @@ try {
   ok('lib: stage is an add, and an add inside a bash -c string is read', adds('git stage src/e') === 'src/e' && adds('bash -c "git add src/f && git commit -m x"') === 'src/f');
   ok('lib: an add it cannot place is the whole tree (unknown global option, variable subcommand, xargs, pathspec file)',
     adds('git --odd-option add src/g') === '.' && adds('git $SUB src/g') === '.' && adds('ls | xargs git add') === '.' && adds('git add --pathspec-from-file=list.txt') === '.');
+  ok('lib: an add inside a group or a substitution is read through the grouping', adds('(git add -A && git commit -m x)') === '.' && adds('echo $(git add -A)') === '.' && adds('{ git add src/h; git commit -m x; }') === 'src/h');
+  ok('lib: a pathspec no status can match (a variable, a find placeholder) is the whole tree', adds('git add "$f"') === '.' && adds('find . -exec git add {} +').split(',').includes('.') && adds('git add `ls`') === '.');
   ok('negative control: a commit message or another subcommand naming add stages nothing',
     adds('git commit -m "add foo and git add bar"') === '' && adds('git status') === '' && adds('git -c core.x=y commit -m "stage it"') === '' && adds('git log --oneline') === '');
 
@@ -76,6 +78,21 @@ try {
   ok('commit -a after an add of the session\'s own new directory passes', verdict('S1', commitAll).code === 0, verdict('S1', commitAll).out.trim());
   put('src/all/theirs.rs', body(14));
   ok('negative control: commit -a after the add refuses a foreign file in the directory', refusedByFile(verdict('S1', commitAll), 'src/all/theirs.rs'));
+
+  const grouped = `(git -C ${T} add src/grp && git -C ${T} commit -m "${MSG}")`;
+  fresh('src/grp', 'S1');
+  ok('an add inside a group of the session\'s own new directory passes', verdict('S1', grouped).code === 0, verdict('S1', grouped).out.trim());
+  put('src/grp/theirs.rs', body(16));
+  ok('negative control: the grouped add with a foreign file inside is refused by file', refusedByFile(verdict('S1', grouped), 'src/grp/theirs.rs'));
+  const viaVariable = `f=src/grp; git -C ${T} add "$f" && git -C ${T} commit -m "${MSG}"`;
+  ok('negative control: an add of an unresolved pathspec is judged as the whole tree', refusedByFile(verdict('S1', viaVariable), 'src/grp/theirs.rs'));
+
+  const wide = join('src', 'wide', 'a-directory-name-long-enough-to-pad-every-status-line');
+  const WIDE_FILES = 16000;
+  mkdirSync(abs(wide), { recursive: true });
+  for (let i = 0; i < WIDE_FILES; i++) writeFileSync(abs(join(wide, `file-${String(i).padStart(8, '0')}.txt`)), '');
+  const wideStatus = pathspecStatus(T, ['src/wide']);
+  ok('a status listing past a megabyte is read whole, never dropped', wideStatus.length > (1 << 20) && wideStatus.split('\n').filter(Boolean).length === WIDE_FILES, `${wideStatus.length} bytes`);
 
   put('src/loose/theirs.rs', body(15));
   const noAdd = `git -C ${T} commit -m "${MSG}" -- src/loose`;

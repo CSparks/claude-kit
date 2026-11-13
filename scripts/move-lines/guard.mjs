@@ -1,5 +1,6 @@
 // guard.mjs — which files move-lines may read lines from and write lines into (KIT-T1159).
 //
+//   creditMove({ files, cwd })   record the content of each file a finished move wrote in the accepted-writes ledger
 //   moveLinesProblem({ source, dests, cwd }) -> string   '' when the move is allowed, else the first reason it is not
 //     source and every dest (absolute paths): inside the git root of `cwd` by real path, a hand-authored source path
 //     (isSourcePath, judged on the root-relative path), no symlink or junction on the way from the root to it, and
@@ -13,8 +14,9 @@ import { fileURLToPath } from 'node:url';
 import { gitTry } from '../../hooks/lib/exec.mjs';
 import { isKitCheckout } from '../../hooks/lib/kit-checkout.mjs';
 import { isSourcePath, slashed } from '../../hooks/lib/source-path.mjs';
-import { hashOf, toolWriteProves } from '../../hooks/lib/tool-writes.mjs';
+import { hashOf, recordToolWrite, toolWriteProves } from '../../hooks/lib/tool-writes.mjs';
 
+const MOVE_WRITER = 'move-lines|';
 const PROTECTED_DIR = /^(?:\.claude|\.claude-plugin|\.githooks|\.husky|\.ai)\//i;
 const KIT_HOOKS_DIR = /^hooks\//;
 const INSTALL_HOOKS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'hooks');
@@ -66,9 +68,23 @@ function sourceProblem(source, realRoot) {
     ? '' : `${source} is neither tracked by git nor a file an Edit or Write tool left as it is: commit it, or save it with Write first`;
 }
 
-export function moveLinesProblem({ source, dests, cwd = process.cwd() }) {
+function gitRootOf(cwd) {
   const top = gitTry(['rev-parse', '--show-toplevel'], cwd);
-  const realRoot = top.ok ? realOrNull(top.out.trim()) : null;
+  return top.ok ? realOrNull(top.out.trim()) : null;
+}
+
+/** Credit the files a finished move wrote to the accepted-writes ledger, so the shell-call attribution does not blame the call for them. */
+export function creditMove({ files, cwd = process.cwd() }) {
+  const realRoot = gitRootOf(cwd);
+  if (realRoot === null) return;
+  for (const file of files) {
+    const real = realOrNull(file);
+    if (real !== null) recordToolWrite(realRoot, slashed(relative(realRoot, real)), hashOf(readFileSync(real)), Date.now(), MOVE_WRITER);
+  }
+}
+
+export function moveLinesProblem({ source, dests, cwd = process.cwd() }) {
+  const realRoot = gitRootOf(cwd);
   if (realRoot === null) return `${cwd} is not inside a git repository`;
   for (const path of [source, ...dests]) {
     const problem = writableProblem(path, realRoot);

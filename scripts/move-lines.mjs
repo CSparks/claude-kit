@@ -13,7 +13,8 @@
 // hook, config or settings file; a source git does not track (unless an Edit or Write tool left it as it is). Also: a
 // destination that exists (without --append), overlapping ranges, a range past the end, a result over the hard
 // file-length limit (hooks/lib/limits.mjs). The moved lines carry no header: add includes or imports with Edit afterwards,
-// which judges the new file. The shell gates treat a call that passes the guard as a kit verb (hooks/lib/move-lines-call.mjs).
+// which judges the new file. The shell gates treat a call that passes the guard as a kit verb (hooks/lib/move-lines-call.mjs),
+// and the accepted-writes ledger credits the files it wrote, so shell-call attribution does not blame the call for them.
 // Exit 0 done, 1 refused or proof failed (every file put back).
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -21,7 +22,7 @@ import { dirname } from 'node:path';
 import { fileLengthVerdict } from '../hooks/lib/limits.mjs';
 import { isMain } from './is-main.mjs';
 import { parseMoveLinesArgs } from './move-lines/args.mjs';
-import { moveLinesProblem } from './move-lines/guard.mjs';
+import { creditMove, moveLinesProblem } from './move-lines/guard.mjs';
 import { joinLines, planMoves, sortedDiff, splitLines } from './move-lines/plan.mjs';
 
 const DIFF_SHOWN = 10;
@@ -82,6 +83,7 @@ export function moveLines(argv, { out = process.stdout, err = process.stderr, cw
     const failure = verify(lines, source, plans, movedAll);
     if (failure) { restore(); err.write(`move-lines: verbatim proof failed, every file put back: ${failure}\n`); return 1; }
   } catch (e) { restore(); err.write(`move-lines: ${e.message}; every file put back\n`); return 1; }
+  creditMove({ files: [source, ...plans.map((p) => p.dest)], cwd });
   out.write(`move-lines: moved ${movedAll.length} lines verbatim\n  ${summary.join('\n  ')}\n  proof: sorted line diff of the source before against the source after plus the moved lines is empty (${lines.length} lines)\n`);
   return 0;
 }

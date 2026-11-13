@@ -130,10 +130,11 @@ try {
   const impostor = join(tmpDir('move-lines-impostor-'), 'move-lines.mjs');
   writeFileSync(impostor, "import { writeFileSync } from 'node:fs';\nwriteFileSync('src/gate.cpp', '');\n");
   const verb = 'move-lines src/gate.cpp 1-3=src/gate-part.cpp';
-  const fresh = 'move-lines src/fresh-new.cpp 1=src/x.cpp';
+  const fresh = 'move-lines fresh.cpp 1=src/x.cpp';
   const call = (command) => moveLinesCall(command, dir);
   ok('the bare verb with a tracked source and in-repo destinations is the kit verb', call(verb).problem === '');
   ok('node on the kit script is the kit verb too', call(`node ${KIT_SCRIPT} src/gate.cpp 1-3=src/gate-part.cpp`).problem === '');
+  ok('the .cmd and .mjs spellings of the bare verb are the kit verb', call('move-lines.cmd src/gate.cpp 1-3=src/gate-part.cpp').problem === '' && call('move-lines.mjs src/gate.cpp 1-3=src/gate-part.cpp').problem === '');
   ok('a command that names no move-lines is no call', moveLinesCall('q code move', dir) === null && moveLinesCall('git status', dir) === null);
   ok('negative control: a source outside the repo is no kit verb', call(`move-lines ${slashed(join(outside, 'far.cpp'))} 1=src/x.cpp`).problem !== '');
   ok('negative control: an untracked source is no kit verb', call(fresh).problem !== '');
@@ -161,7 +162,18 @@ try {
   ok('negative control: the shell gate refuses a scratch script named move-lines.mjs that writes the source', gate(`node ${slashed(impostor)} src/gate.cpp 1-3=src/gate-part.cpp`).code === 2);
   ok('negative control: the shell gate still refuses a redirect that writes the same source file', gate('cat src/gate.cpp > src/gate-part.cpp').code === 2);
 
+  const elsewhere = tmpDir('move-lines-elsewhere-');
+  const gateRefusal = hook('source-shell-gate.mjs', { tool_name: 'Bash', tool_input: { command: fresh } }, dir, { TEMP: elsewhere, TMP: elsewhere, TMPDIR: elsewhere });
+  ok('the block text names the reason the guard gave', gateRefusal.code === 2 && /neither tracked/.test(gateRefusal.out), gateRefusal.out.trim());
+
   ok('the verb is inert to the hand-write detector, so the call is not blamed for a changed file', isInertCommand(verb, { root: dir }));
+  const ranTracked = run([at('src/gate.cpp'), '1-3=' + at('src/gate-part.cpp')]);
+  ok('after the verb really ran on a tracked source, the same call is still inert', ranTracked.code === 0 && isInertCommand(verb.replace('1-3=src/gate-part.cpp', '1=src/gate-more.cpp'), { root: dir }), ranTracked.err);
+  writer('src/ledgered.cpp', numbered(6));
+  const ledgeredCall = 'move-lines src/ledgered.cpp 1-2=src/ledgered-part.cpp';
+  ok('a ledgered source is inert before the verb runs', isInertCommand(ledgeredCall, { root: dir }));
+  ok('the verb moves the ledgered source', run([at('src/ledgered.cpp'), '1-2=' + at('src/ledgered-part.cpp')]).code === 0);
+  ok('after the verb really ran on a ledgered source, the same call is still inert and the source passes the guard', isInertCommand('move-lines src/ledgered.cpp 1=src/ledgered-more.cpp', { root: dir }) && moveLinesCall('move-lines src/ledgered.cpp 1=src/ledgered-more.cpp', dir).problem === '');
   ok('negative control: a node scratch script is not the kit verb', !isInertCommand('node slice.mjs src/gate.cpp', { root: dir }));
   ok('negative control: a scratch script named move-lines.mjs is not inert', !isInertCommand(`node ${slashed(impostor)} src/gate.cpp 1-3=src/gate-part.cpp`, { root: dir }));
   ok('negative control: a move-lines call the guard rejects is not inert', !isInertCommand(fresh, { root: dir }));

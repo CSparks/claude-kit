@@ -159,7 +159,7 @@ function judgeSegment(text, ctx) {
   const hits = redirectTargets(text, quotedArgsInert, ctx.shell === 'bash').map(ctx.hit).filter(Boolean);
   hits.push(...patchApplyHits(text, ctx));
   const move = moveLinesCall(text, ctx.cwd);
-  if (move && move.problem) hits.push(...move.paths.map(ctx.hit).filter(Boolean));
+  if (move && move.problem) hits.push(...move.paths.map(ctx.hit).filter(Boolean).map((h) => ({ ...h, moveLinesProblem: move.problem })));
   if (quotedArgsInert || READER.test(leader)) return hits;
   const touched = TOUCH_CMD.test(leader) ? judgeTouch(text.slice(words[0].at + words[0].w.length), ctx) : null;
   if (touched) return [...hits, ...touched];

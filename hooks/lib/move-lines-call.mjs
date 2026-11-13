@@ -21,7 +21,8 @@ const PLAN_SIBLING = join('move-lines', 'plan.mjs');
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const NOT_THE_VERB = 'this is not the kit verb: run the bare command move-lines';
 
-const nameOf = (word) => basename(word).replace(/\.exe$/i, '');
+const PATH_SEPARATOR = /[\\/]/;
+const nameOf = (word) => basename(word).replace(/\.(?:exe|cmd|bat)$/i, '');
 
 function isKitScript(path, cwd) {
   try {
@@ -32,7 +33,7 @@ function isKitScript(path, cwd) {
 
 // { args } for the kit verb, { impostor } for something named like it, null for any other command.
 function readCall(words, cwd) {
-  if (VERB.test(nameOf(words[0]))) return nameOf(words[0]) === words[0] ? { args: words.slice(1) } : { impostor: true };
+  if (VERB.test(nameOf(words[0]))) return PATH_SEPARATOR.test(words[0]) ? { impostor: true } : { args: words.slice(1) };
   if (!/^node$/i.test(nameOf(words[0])) || nodeScriptName(words.slice(1)).toLowerCase() !== SCRIPT) return null;
   const at = words.findIndex((w, i) => i > 0 && nameOf(w).toLowerCase() === SCRIPT);
   return at > 0 && isKitScript(words[at], cwd) ? { args: words.slice(at + 1) } : { impostor: true };
