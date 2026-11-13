@@ -15,8 +15,8 @@
 //   all of `jobs`. `cmd` that is not cargo build-shaped (and not `force`) gets a no-op slot at once. While queued the
 //   call beats the daemon's heartbeat (pulse) and polls `shouldCancel()`; `holder` names the hold it first waited on.
 //   `probes` = { physicalCores, commitFreeBytes, gameRunning } replaces the OS readings (tests).
-//   `meta` = extra fields for the record: `scope` (absolute paths the build compiles) and `writer` (the agent that started
-//   it); a write by another agent into the scope while the hold compiles is refused (hooks/lib/build-write-hold.mjs).
+//   `meta` = extra fields for the record: `scope` (absolute paths the build compiles), `scopeVia` (path -> dependency chain),
+//   `scopeReason` (why a scope is wide) and `writer` (the agent that started it); a write by another agent into the scope while the hold compiles is refused (hooks/lib/build-write-hold.mjs).
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';

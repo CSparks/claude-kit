@@ -6,18 +6,23 @@
 //     source directories (never its tests, benches or examples), plus the workspace's Cargo.toml,
 //     Cargo.lock and .cargo. A selected package holds its whole directory minus the tests/, benches/ and examples/
 //     directories of the target kinds the command does not compile (cargo-build-kinds.mjs), each recorded as a "!path"
-//     entry; dev-only path dependencies are skipped when no test, bench or example is built. The selection is `-p`/`--package` names, `--workspace`/`--all`, else the member holding `cwd`,
-//     else the default members. When metadata cannot be read the scope is `cwd` whole: the side that keeps the guard.
+//     entry; dev-only path dependencies are skipped when no test, bench or example is built. The selection is
+//     `-p`/`--package` names (any package of the dependency graph, member or not), `--workspace`/`--all`, else the member
+//     holding `cwd`, else the default members. A `--manifest-path` or `-C` flag moves the workspace (cargo-metadata-read.mjs).
+//     Two forms the parser cannot resolve keep the guard wide and say why in `reason`: metadata that cannot be read holds the
+//     workspace directory whole, a `-p` name outside the graph holds every member.
+//   compiledScope(args, cwd, cargo?) -> { scope, via, reason }: the same paths, `via` mapping each held path to the
+//     dependency chain that reaches it ("rg-reflections -> rg-graphics -> rg-engine"), `reason` the wide-hold cause or ''
 //   selection(args)                  -> { names, workspace } as the command line states it
-//   scopeOf(metadata, picked, cwd, kinds?) -> the paths for an already-read metadata document
+//   scopeOf(metadata, picked, cwd, kinds?) -> { scope, via, reason } for an already-read metadata document
 //   inScope(file, scope)             -> whether a write to `file` lands in a recorded scope (held paths minus "!" paths)
+//   scopeVia(file, via)              -> the chain of the most specific held path covering `file`, or ''
 
-import { spawnSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
 import { ALL_KINDS, builtKinds } from './cargo-build-kinds.mjs';
+import { readMetadata, workspaceArgs } from './cargo-metadata-read.mjs';
 
-const METADATA_TIMEOUT_MS = 20000;
-const METADATA_BUFFER_BYTES = 1 << 28;
+const CHAIN_SEPARATOR = ' -> ';
 const ROOT_FILES = ['Cargo.toml', 'Cargo.lock', '.cargo', 'rust-toolchain', 'rust-toolchain.toml'];
 const NOT_COMPILED_KINDS = new Set(['test', 'bench', 'example', 'bin']);
 const TARGET_DIR_KINDS = new Set(['test', 'bench', 'example']);
@@ -41,46 +46,77 @@ export function selection(args) {
   return { names: names.filter(Boolean), workspace };
 }
 
-function readMetadata(cwd, cargo) {
-  const r = spawnSync(cargo, ['metadata', '--offline', '--format-version', '1'], { cwd, encoding: 'utf8', timeout: METADATA_TIMEOUT_MS, maxBuffer: METADATA_BUFFER_BYTES, windowsHide: true, shell: /\.(cmd|bat)$/i.test(cargo) });
-  if (r.status !== 0) return null;
-  try { return JSON.parse(r.stdout); } catch { return null; }
-}
-
 const manifestDir = (pkg) => dirname(pkg.manifest_path);
 const holdsCwd = (pkg, cwd) => slash(cwd) === slash(manifestDir(pkg)) || slash(cwd).startsWith(`${slash(manifestDir(pkg))}/`);
+const specName = (spec) => String(spec).split('#').pop().split('@')[0];
 
+// The packages a command line builds, and the reason when the selection cannot be resolved against the graph.
 function roots(meta, { names, workspace }, cwd) {
   const byId = new Map(meta.packages.map((p) => [p.id, p]));
   const members = meta.workspace_members.map((id) => byId.get(id)).filter(Boolean);
-  if (workspace) return members;
-  if (names.length) return members.filter((m) => names.includes(m.name));
+  if (workspace) return { picked: members, reason: '' };
+  if (names.length) {
+    const wanted = names.map(specName);
+    const found = meta.packages.filter((p) => wanted.includes(p.name));
+    const missing = wanted.filter((n) => !found.some((p) => p.name === n));
+    if (!missing.length) return { picked: found, reason: '' };
+    return { picked: [], reason: `-p ${missing.join(', ')} is not a package of the dependency graph at ${meta.workspace_root}, so every workspace member is held` };
+  }
   const here = members.filter((m) => holdsCwd(m, cwd)).sort((a, b) => manifestDir(b).length - manifestDir(a).length)[0];
-  if (here) return [here];
+  if (here) return { picked: [here], reason: '' };
   const defaults = (meta.workspace_default_members || []).map((id) => byId.get(id)).filter(Boolean);
-  return defaults.length ? defaults : members;
+  return { picked: defaults.length ? defaults : members, reason: '' };
 }
 
 const isDevOnly = (dep) => (dep.dep_kinds || []).length > 0 && dep.dep_kinds.every((k) => k.kind === DEV_DEPENDENCY);
 
+// Breadth-first from the built packages: every local package reached, with the parent that first reached it.
+function closure(start, byId, nodes, buildsTests) {
+  const parent = new Map();
+  const order = [];
+  const queue = start.map((id) => [id, null]);
+  for (let i = 0; i < queue.length; i += 1) {
+    const [id, from] = queue[i];
+    const pkg = byId.get(id);
+    if (parent.has(id) || !pkg || pkg.source) continue;
+    parent.set(id, from);
+    order.push(id);
+    for (const dep of (nodes.get(id) || {}).deps || []) if (buildsTests || !isDevOnly(dep)) queue.push([dep.pkg, id]);
+  }
+  return { order, parent };
+}
+
+const markedResolve = (p) => (p.startsWith(NOT_COMPILED_MARK) ? NOT_COMPILED_MARK + resolve(p.slice(1)) : resolve(p));
+
 export function scopeOf(meta, picked, cwd, kinds = new Set(ALL_KINDS)) {
   const byId = new Map(meta.packages.map((p) => [p.id, p]));
   const nodes = new Map(((meta.resolve && meta.resolve.nodes) || []).map((n) => [n.id, n]));
-  const start = roots(meta, picked, cwd);
-  const seen = new Set();
-  const stack = start.length ? start.map((p) => p.id) : meta.workspace_members;
+  const { picked: chosen, reason } = roots(meta, picked, cwd);
+  const start = chosen.length ? chosen.map((p) => p.id) : meta.workspace_members;
   const buildsTests = kinds.has('test') || kinds.has('bench') || kinds.has('example');
-  while (stack.length) {
-    const id = stack.pop();
-    const pkg = byId.get(id);
-    if (seen.has(id) || !pkg || pkg.source) continue;
-    seen.add(id);
-    for (const dep of (nodes.get(id) || {}).deps || []) if (buildsTests || !isDevOnly(dep)) stack.push(dep.pkg);
-  }
-  const built = new Set((start.length ? start : meta.workspace_members.map((id) => byId.get(id)).filter(Boolean)).map((p) => p.id));
-  const dirs = [...seen].flatMap((id) => (built.has(id) ? builtInputs(byId.get(id), kinds) : dependencyInputs(byId.get(id))));
-  const files = ROOT_FILES.map((f) => join(meta.workspace_root, f));
-  return [...new Set([...dirs, ...files].map((p) => (p.startsWith(NOT_COMPILED_MARK) ? NOT_COMPILED_MARK + resolve(p.slice(1)) : resolve(p))))];
+  const { order, parent } = closure(start, byId, nodes, buildsTests);
+  const built = new Set(start);
+  const chainOf = (id) => {
+    const names = [];
+    for (let at = id; at; at = parent.get(at)) names.unshift(byId.get(at).name);
+    return names.join(CHAIN_SEPARATOR);
+  };
+  const via = {};
+  const dirs = order.flatMap((id) => {
+    const paths = (built.has(id) ? builtInputs(byId.get(id), kinds) : dependencyInputs(byId.get(id))).map(markedResolve);
+    for (const p of paths) if (!p.startsWith(NOT_COMPILED_MARK)) via[p] = chainOf(id);
+    return paths;
+  });
+  const files = ROOT_FILES.map((f) => resolve(join(meta.workspace_root, f)));
+  for (const f of files) via[f] = `workspace root file of ${start.map((id) => byId.get(id).name).join(', ')}`;
+  return { scope: [...new Set([...dirs, ...files])], via, reason };
+}
+
+export function scopeVia(file, via = {}) {
+  const target = slash(file);
+  const covering = Object.keys(via).filter((p) => target === slash(p) || target.startsWith(`${slash(p)}/`));
+  covering.sort((a, b) => slash(b).length - slash(a).length);
+  return covering.length ? via[covering[0]] : '';
 }
 
 // A built package holds its whole directory except the directories of the target kinds the command does not compile.
@@ -111,11 +147,16 @@ function dependencyInputs(pkg) {
   return sources.some((s) => slash(s) === slash(dir)) ? [dir] : [pkg.manifest_path, ...sources];
 }
 
-export function compiledPaths(args, cwd, cargo = 'cargo') {
+export function compiledScope(args, cwd, cargo = 'cargo') {
+  const where = workspaceArgs(args, cwd);
+  const whole = resolve(where.manifest ? dirname(where.manifest) : where.cwd);
+  const unread = (reason) => ({ scope: [whole], via: { [whole]: 'the whole workspace directory' }, reason });
   try {
-    const meta = readMetadata(cwd, cargo);
-    return meta ? scopeOf(meta, selection(args), cwd, builtKinds(args)) : [resolve(cwd)];
-  } catch {
-    return [resolve(cwd)];
+    const { meta, reason } = readMetadata(args, cwd, cargo);
+    return meta ? scopeOf(meta, selection(args), where.cwd, builtKinds(args)) : unread(reason);
+  } catch (e) {
+    return unread(`scope computation failed in ${where.cwd}: ${e && e.message}`);
   }
 }
+
+export const compiledPaths = (args, cwd, cargo = 'cargo') => compiledScope(args, cwd, cargo).scope;

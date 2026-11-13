@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { acquireBuildSlot } from './build-slot.mjs';
-import { compiledPaths, inScope, selection } from './cargo-scope-dirs.mjs';
+import { compiledPaths, compiledScope, inScope, scopeVia, selection } from './cargo-scope-dirs.mjs';
 
 const lower = (list) => list.map((p) => resolve(p).replace(/\\/g, '/').toLowerCase());
 
@@ -88,6 +88,66 @@ test('--workspace scopes every member whole; no selection inside a member scopes
 test('metadata that cannot be read leaves the whole working directory as the scope', () => {
   const root = mkdtempSync(join(tmpdir(), 'csd-none-'));
   assert.deepEqual(lower(compiledPaths(['test'], root)), lower([root]));
+});
+
+// The demo layout: an outer workspace (app) that excludes `inner/`, a second workspace holding x -> z and y; app depends on x and y.
+function twoWorkspaces() {
+  const root = mkdtempSync(join(tmpdir(), 'csd-two-'));
+  const crate = (dir, name, deps) => {
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'lib.rs'), '');
+    writeFileSync(join(dir, 'Cargo.toml'), `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\n${deps.map(([d, path]) => `${d} = { path = "${path}" }`).join('\n')}\n`);
+  };
+  writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nresolver = "2"\nmembers = ["app"]\nexclude = ["inner"]\n');
+  mkdirSync(join(root, 'inner'), { recursive: true });
+  writeFileSync(join(root, 'inner', 'Cargo.toml'), '[workspace]\nresolver = "2"\nmembers = ["x", "y", "z"]\n');
+  crate(join(root, 'app'), 'app', [['x', '../inner/x'], ['y', '../inner/y']]);
+  crate(join(root, 'inner', 'x'), 'x', [['z', '../z']]);
+  crate(join(root, 'inner', 'y'), 'y', []);
+  crate(join(root, 'inner', 'z'), 'z', []);
+  return root;
+}
+
+test('KIT-T1147: -p on a package outside the outer workspace\'s members holds that package and its dependencies, never a sibling', () => {
+  const root = twoWorkspaces();
+  const { scope, via, reason } = compiledScope(['test', '-p', 'x', '--lib'], root);
+  for (const want of ['inner/x/src/lib.rs', 'inner/z/src/lib.rs']) assert.ok(covers(scope, join(root, want)), want);
+  for (const not of ['inner/y/src/lib.rs', 'app/src/lib.rs']) assert.ok(!covers(scope, join(root, not)), `${not} is not compiled by -p x`);
+  assert.equal(reason, '');
+  assert.equal(scopeVia(join(root, 'inner/z/src/lib.rs'), via), 'x -> z');
+  assert.equal(scopeVia(join(root, 'inner/x/src/lib.rs'), via), 'x');
+  assert.ok(covers(compiledPaths(['test', '-p', 'app'], root), join(root, 'inner/y/src/lib.rs')), 'negative control: building app holds y');
+});
+
+test('KIT-T1147: --manifest-path and -C point the metadata read at the other workspace', () => {
+  const root = twoWorkspaces();
+  for (const args of [['test', '--manifest-path', join(root, 'inner', 'Cargo.toml'), '-p', 'x'], ['test', '-C', 'inner', '-p', 'x']]) {
+    const scope = compiledPaths(args, root);
+    assert.ok(covers(scope, join(root, 'inner/z/src/lib.rs')) && !covers(scope, join(root, 'inner/y/src/lib.rs')), args.join(' '));
+  }
+});
+
+test('KIT-T1147: a -p name outside the graph holds every member and says so; unreadable metadata holds the directory and says so', () => {
+  const root = twoWorkspaces();
+  const unknown = compiledScope(['test', '-p', 'nope'], root);
+  assert.ok(covers(unknown.scope, join(root, 'app/src/lib.rs')) && covers(unknown.scope, join(root, 'inner/y/src/lib.rs')), 'fail closed: every member and its dependencies');
+  assert.match(unknown.reason, /-p nope is not a package of the dependency graph/);
+  const broken = compiledScope(['test', '-p', 'x'], root, join(root, process.platform === 'win32' ? 'no-such-cargo.cmd' : 'no-such-cargo'));
+  assert.deepEqual(lower(broken.scope), lower([root]));
+  assert.match(broken.reason, /cargo metadata failed in/);
+  assert.equal(scopeVia(join(root, 'inner/y/src/lib.rs'), broken.via), 'the whole workspace directory');
+});
+
+test('KIT-T1147: metadata that fails for every platform is read again for the host triple', () => {
+  const root = twoWorkspaces();
+  const stubDir = mkdtempSync(join(tmpdir(), 'csd-stub-'));
+  const script = join(stubDir, 'stub.mjs');
+  writeFileSync(script, `import { spawnSync } from 'node:child_process';\nconst a = process.argv.slice(2);\nif (!a.includes('--filter-platform')) { console.error('failed to download js-sys'); process.exit(101); }\nconst r = spawnSync('cargo', a, { stdio: 'inherit' });\nprocess.exit(r.status ?? 1);\n`);
+  const stub = join(stubDir, process.platform === 'win32' ? 'cargo.cmd' : 'cargo');
+  writeFileSync(stub, process.platform === 'win32' ? `@node "%~dp0stub.mjs" %*\r\n` : '#!/bin/sh\nexec node "$(dirname "$0")/stub.mjs" "$@"\n', { mode: 0o755 });
+  const { scope, reason } = compiledScope(['test', '-p', 'x'], root, stub);
+  assert.equal(reason, '');
+  assert.ok(covers(scope, join(root, 'inner/z/src/lib.rs')) && !covers(scope, join(root, 'inner/y/src/lib.rs')), 'the platform-filtered read scopes the closure, not the directory');
 });
 
 test('a build hold carries the scope and writer it was acquired with', () => {

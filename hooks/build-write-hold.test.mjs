@@ -64,6 +64,16 @@ expect('KIT-T1143 control: an edit of the same crate\'s source is still refused'
 hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
 expect('KIT-T1143 control: with no excluded directory the test file is held', edit('S1', 'agentOther', 'crates', 'a', 'tests', 'it.rs').status, 2);
 
+hold({ scope: [crate], scopeVia: { [crate]: 'a -> core -> engine' }, writer: OWNER, phase: 'compiling' });
+const chained = edit('S1', 'agentOther', 'crates', 'a', 'src', 'chain.rs');
+expect('KIT-T1147: the refusal is the build hold\'s, not a claim', chained.status, 2);
+expect('KIT-T1147: the refusal names the dependency chain that puts the file in the build\'s scope', /why this file: it is reached through a -> core -> engine/.test(chained.stderr) ? 1 : 0, 1);
+expect('KIT-T1147 control: a precise hold prints no wide-scope line', /wider than the build's dependency closure/.test(chained.stderr) ? 1 : 0, 0);
+hold({ scope: [tree], scopeVia: { [tree]: 'the whole workspace directory' }, scopeReason: 'cargo metadata failed in /w: error: failed to download js-sys', writer: OWNER, phase: 'compiling' });
+const wide = edit('S1', 'agentOther', 'crates', 'a', 'src', 'wide.rs');
+expect('KIT-T1147: a wide hold names why the scope is wide in the refusal', /wider than the build's dependency closure because cargo metadata failed in \/w: error: failed to download js-sys/.test(wide.stderr) && /through the whole workspace directory/.test(wide.stderr) ? 1 : 0, 1);
+hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
+
 // KIT-T1123: the creation of a Rust file no module names cannot change the running build.
 writeFileSync(join(crate, 'Cargo.toml'), '[package]\nname = "a"\n');
 writeFileSync(join(crate, 'src', 'lib.rs'), 'pub mod wired;\nmod model;\n');

@@ -28,7 +28,7 @@ import { PHASE_POLL_MS, phaseWatch } from './build-phase.mjs';
 import { HELD_ENV, heldEnv } from './build-env.mjs';
 import { cargoConfigJobs } from './cargo-config-jobs.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
-import { compiledPaths } from './cargo-scope-dirs.mjs';
+import { compiledScope } from './cargo-scope-dirs.mjs';
 
 const EXIT_QUEUED = 75;
 const EXIT_NOT_FOUND = 127;
@@ -87,7 +87,8 @@ async function runGated(real, tool, args, verdict, cwd) {
     }
     return Date.now() > deadline;
   };
-  const meta = { scope: compiledPaths(args, cwd, findReal('cargo') || 'cargo'), writer: process.env.CLAUDE_KIT_BUILD_WRITER || '' };
+  const { scope, via, reason } = compiledScope(args, cwd, findReal('cargo') || 'cargo');
+  const meta = { scope, scopeVia: via, scopeReason: reason, writer: process.env.CLAUDE_KIT_BUILD_WRITER || '' };
   const slot = acquireBuildSlot(`${tool} ${verdict.sub}`, { jobs: requested, elastic: true, force: true, label, cwd, shouldCancel, meta });
   await flagLongHolds(liveHolds());
   if (slot.cancelled) {

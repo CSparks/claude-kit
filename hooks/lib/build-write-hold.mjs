@@ -10,12 +10,14 @@
 //   buildHoldConflict({ file, writer, holds? }) -> the hold of ANOTHER writer that compiles `file`, or null
 //   describeHold(hold, now?) / holdStarter(hold) -> "pid 7, 12s, root R, cargo test" / "writer S1|a"
 //   buildWaitCommand(file)                      -> the exact one-call wait for `file`, with the Bash timeout it needs
+//   holdScopeLines({ absFile, hold })           -> the refusal lines saying which dependency chain puts `absFile` in the
+//                                                  build's scope and, for a wide hold, why the scope is wide (KIT-T1147)
 //   buildHoldMessage({ file, absFile, hold, footer }) -> the block message
 
 import { resolve } from 'node:path';
 import { liveHolds } from '../../scripts/broker/build-slot-store.mjs';
 import { isBuildInput } from '../../scripts/broker/build-globs.mjs';
-import { inScope } from '../../scripts/broker/cargo-scope-dirs.mjs';
+import { inScope, scopeVia } from '../../scripts/broker/cargo-scope-dirs.mjs';
 import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../../scripts/broker/wait-limits.mjs';
 import { isUnreferencedNewSource } from './unreferenced-new-source.mjs';
 
@@ -39,11 +41,20 @@ export function describeHold(hold, now = Date.now()) {
 
 export const buildWaitCommand = (file) => `builds --wait "${resolve(file).replace(/\\/g, '/')}" --timeout ${MAX_FOREGROUND_WAIT_S} --tool-timeout ${HARNESS_FOREGROUND_S}`;
 
+export function holdScopeLines({ absFile, hold }) {
+  const chain = scopeVia(absFile, hold.scopeVia);
+  return [
+    ...(chain ? [`  why this file: it is reached through ${chain}`] : []),
+    ...(hold.scopeReason ? [`  scope: wider than the build's dependency closure because ${hold.scopeReason}`] : []),
+  ];
+}
+
 export function buildHoldMessage({ file, absFile = file, hold, footer }) {
   return [
     `BLOCKED: a cargo build is compiling ${file}'s crate and another writer started it (KIT-T1114).`,
     `  build: ${describeHold(hold)}`,
     `  started by: ${holdStarter(hold)}`,
+    ...holdScopeLines({ absFile, hold }),
     '',
     'A write now lands in the sources that build reads; this edit is refused, not queued. Edits outside what the build',
     'compiles, and your own builds, are never held. Wait once, in ONE foreground call, then retry the edit:',
