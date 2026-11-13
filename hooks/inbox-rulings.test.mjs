@@ -32,6 +32,9 @@ try {
   ok('a four-word quote is not', !isRuling("note he said nothing but 'maybe later, not now'", ''));
   ok('another user name does not match the maintainer rule', !isRuling('note Dana said hello to the build', USER));
   ok('the maintainer role without a speech verb is no ruling', !isRuling('note the maintainer checklist lives in docs', USER));
+  ok('a typed bug carrying a **Maintainer:** paragraph is a ruling', isRuling('(bug) scan misfire\n\n**Maintainer:** "the scan must only trust my own words, never yours"', USER));
+  ok('a typed bug marked verbatim is a ruling', isRuling("(bug) Chris 2026-11-13, verbatim: 'the scan must only trust my own words'", USER));
+  ok('a typed process-failure naming the maintainer is no ruling', !isRuling("(process-failure) told Chris 'I am waiting on you for three things'", USER));
 
   const repo = adopted(false);
   const files = seedInbox(repo, [...REAL_RULINGS, ...NOT_RULINGS.map((n, i) => ({ file: `2026-11-09-10${i}0-n${i}.md`, text: n.text }))], { secondsAgo: HALF_HOUR_S });

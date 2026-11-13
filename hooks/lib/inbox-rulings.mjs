@@ -23,7 +23,8 @@ const DATE_REACH = 12;
 const MIN_QUOTE_WORDS = 5;
 const QUOTED = /(?:^|[\s(:[])(?:"([^"]+)"|“([^”]+)”|'([^']+)'(?=[\s.,;:)\]]|$)|‘([^’]+)’)/g;
 const TYPE_TAG = /^\(([a-z][\w-]*)\)\s*/i;
-const TICKET_TYPES = new Set(['bug', 'feature', 'task']);
+const TICKET_TYPES = new Set(['bug', 'feature', 'task', 'process-failure']);
+const VERBATIM_MARK = /\*\*Maintainer:\*\*|\bverbatim\b/i;
 const WORDS = /\S+/g;
 const HOURS_PER_DAY = 24;
 
@@ -44,13 +45,14 @@ function namesSpeaker(text, user) {
 
 const quotesASentence = (text) => [...text.matchAll(QUOTED)].some((m) => wordCount(m[1] || m[2] || m[3] || m[4]) >= MIN_QUOTE_WORDS);
 
-// A bug, feature or task capture quotes error text and labels, so only an explicit phrase makes it a ruling.
+// A bug, feature, task or process-failure capture is the assistant's report: it quotes error text, labels and its own
+// words, so only the maintainer's verbatim words (a **Maintainer:** paragraph or the word verbatim) make it a ruling.
 export function isRuling(text, user = resolveUser()) {
   const body = String(text || '').trim();
   const type = (TYPE_TAG.exec(body) || [])[1];
   const prose = body.replace(TYPE_TAG, '');
-  if (EXPLICIT.test(prose) || namesSpeaker(prose, user)) return true;
-  return !(type && TICKET_TYPES.has(type.toLowerCase())) && quotesASentence(prose);
+  if (type && TICKET_TYPES.has(type.toLowerCase())) return VERBATIM_MARK.test(prose);
+  return EXPLICIT.test(prose) || namesSpeaker(prose, user) || quotesASentence(prose);
 }
 
 const inboxDir = (root) => join(root, '.ai', 'inbox');

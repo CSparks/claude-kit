@@ -22,6 +22,7 @@ export const NOT_RULINGS = [
   { name: 'a plain bug capture', text: '(bug) login redirect loops after SSO\n' },
   { name: 'a bug capture quoting error text', text: '(bug) the console prints "could not open the project file for writing" on save\n' },
   { name: 'a kit gap with no speaker', text: '(feature) q: code has no --file flag\n' },
+  { name: 'an assistant process-failure bug naming the maintainer and quoting its own words', text: "(bug) process failure 2026-11-13 (groovegrid main thread): told Chris 'I am waiting on you for three things' in prose, then fired the questionnaire only after he objected (the id gate had blocked it twice, my cause). Root cause: stated pending decisions as prose before the AskUserQuestion existed. Prevention: when decisions are pending, the AskUserQuestion is the first thing sent\n" },
   { name: 'an untyped idea', text: 'form double-submits on slow network\n' },
 ];
 
