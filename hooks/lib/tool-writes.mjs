@@ -10,8 +10,8 @@
 // content, so a write that was refused, or that a shell call changed afterwards, matches no entry. An entry names the
 // writer (session and agent) and never exempts that writer's own shell call.
 //
-// Machine-local turn state shared by every session of the checkout, capped; every path fails open (a lost entry costs
-// a missing exemption, never a missed hand write).
+// Machine-local turn state shared by every session of the checkout, an append-only ledger read capped
+// (tool-write-ledger.mjs); every path fails open (a lost entry costs a missing exemption, never a missed hand write).
 //
 //   writerId(session, agent)                                         -> the identity an entry carries ('' when unknown)
 //   recordToolWrite(root, rel, hash, now, writer)                    -> add a confirmed entry
@@ -25,10 +25,8 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { gitTry } from './exec.mjs';
-import { readTurnState, writeTurnState } from './turn-state.mjs';
+import { appendToolWriteEntries, toolWriteEntries } from './tool-write-ledger.mjs';
 
-const SLOT = 'toolwrites';
-const ENTRIES_MAX = 300;
 const HASH_MAX_BYTES = 1 << 20;
 const CONFIRMED_SLACK_MS = 5000;
 
@@ -39,14 +37,10 @@ const toCrlf = (s) => toLf(s).replace(/\n/g, '\r\n');
 export const writerId = (session, agent) => (session ? `${session}|${agent || ''}` : '');
 export const writerSession = (writer) => String(writer || '').split('|')[0];
 
-const entriesOf = (root) => {
-  const state = readTurnState(root, SLOT) || {};
-  return Array.isArray(state.entries) ? state.entries : [];
-};
+const entriesOf = toolWriteEntries;
 
 const addEntries = (root, hashes, rel, now, writer, confirmed, clean = false) => {
-  const added = hashes.map((h) => ({ p: rel, h, ts: now, w: writer, c: confirmed, ...(clean ? { k: true } : {}) }));
-  writeTurnState(root, { entries: [...entriesOf(root), ...added].slice(-ENTRIES_MAX) }, SLOT);
+  appendToolWriteEntries(root, hashes.map((h) => ({ p: rel, h, ts: now, w: writer, c: confirmed, ...(clean ? { k: true } : {}) })));
 };
 
 export function recordToolWrite(root, rel, hash, now = Date.now(), writer = '') {

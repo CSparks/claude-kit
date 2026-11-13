@@ -17,13 +17,12 @@ import { join } from 'node:path';
 import { gitTry } from './exec.mjs';
 import { segments } from './shell-segments.mjs';
 import { leaderOf } from './inert-command.mjs';
-import { readTurnState } from './turn-state.mjs';
+import { toolWriteEntries } from './tool-write-ledger.mjs';
 
 const CHUNK = 100;
 const GIT_LEADER = /^git$/i;
 const HASH_MAX_BYTES = 1 << 20;
 const RESTORE_WINDOW_MS = 30 * 60 * 1000;
-const LEDGER_SLOT = 'toolwrites';
 const REGULAR_FILE_MODE = /^100(?:644|755)$/;
 
 const runsGit = (command) => segments(String(command || '')).some(({ text }) => GIT_LEADER.test(leaderOf(text)));
@@ -68,9 +67,7 @@ function inObjectStore(root, ids) {
 }
 
 function sessionHashes(root, rel, session, now) {
-  const state = readTurnState(root, LEDGER_SLOT) || {};
-  const entries = Array.isArray(state.entries) ? state.entries : [];
-  return new Set(entries
+  return new Set(toolWriteEntries(root)
     .filter((e) => e && e.p === rel && e.c === true && sessionOf(e.w) === session && now - (e.ts || 0) <= RESTORE_WINDOW_MS)
     .map((e) => e.h));
 }

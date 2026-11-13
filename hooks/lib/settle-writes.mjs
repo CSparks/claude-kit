@@ -10,9 +10,8 @@
 //     `pending` or `maxMs` ran out
 //   settleMsFromEnv() -> maxMs from CLAUDE_KIT_WRITE_SETTLE_MS, default WRITE_SETTLE_MS
 
-import { readTurnState } from './turn-state.mjs';
+import { toolWriteEntries } from './tool-write-ledger.mjs';
 
-const SLOT = 'toolwrites';
 export const WRITE_SETTLE_MS = 30000;
 export const SETTLE_POLL_MS = 100;
 const PREDICTION_LEAD_MS = 30000;
@@ -24,8 +23,7 @@ export const settleMsFromEnv = () => {
 };
 
 export function hasPendingPrediction(root, rel, hash, caller, sinceMs) {
-  const entries = (readTurnState(root, SLOT) || {}).entries;
-  return Boolean(hash) && Array.isArray(entries) && entries.some((e) => e && e.p === rel && e.h === hash && e.c !== true
+  return Boolean(hash) && toolWriteEntries(root).some((e) => e && e.p === rel && e.h === hash && e.c !== true
     && e.w !== caller && (e.ts || 0) >= sinceMs - PREDICTION_LEAD_MS);
 }
 
