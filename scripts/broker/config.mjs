@@ -25,7 +25,7 @@
 //                                                    # touches); other dirty tracked files are left alone.
 //                                                    # Cargo.lock never pauses: patch.mjs journals it.
 //     repos:
-//       - { name: stiletto,   path: ., main: main, remote: origin }
+//       - { name: stiletto,   path: ., main: main, remote: origin }   # remote: none = no git remote (no-remote.mjs): a landing is a local commit
 //       - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: .,
 //           pre_push: true,                       # the daemon runs the repo's pre-push gate before git push (prepush.mjs)
 //           gate_prebuild: "cd rust && cargo t --no-run",  # a landing's check also builds what that gate runs (prebuild.mjs)
@@ -37,6 +37,7 @@ import { join, resolve, isAbsolute } from 'node:path';
 import { resolveJobs } from './jobs.mjs';
 import { pipelineConfig } from './pipeline-config.mjs';
 import { PAUSE_GLOBS } from './build-globs.mjs';
+import { noRemoteRefusal } from './no-remote.mjs';
 
 const MS_PER_S = 1000;
 const DEFAULT_TIMEOUT_MULTIPLE = 4;
@@ -91,7 +92,7 @@ export function normalizeBroker(root, broker) {
 
 function normalizeRepo(r) {
   const o = r && typeof r === 'object' ? r : {};
-  return {
+  const repo = {
     name: String(o.name || ''),
     path: o.path == null ? '.' : String(o.path),
     main: String(o.main || 'main'),
@@ -103,6 +104,9 @@ function normalizeRepo(r) {
     gatePrebuild: o.gate_prebuild ? String(o.gate_prebuild) : null,
     suite: o.suite == null ? [] : [].concat(o.suite).map(String).filter(Boolean),
   };
+  const refusal = noRemoteRefusal(repo);
+  if (refusal) throw new Error(refusal);
+  return repo;
 }
 
 export function repoByName(cfg, name) {

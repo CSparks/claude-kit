@@ -3,13 +3,16 @@
 // (autostash keeps a hand-driven writer's uncommitted edits). A rebase that cannot apply cleanly
 // is aborted, which restores the tree, and the files are reported as a conflict.
 //
-// `syncPush(cwd, remote, branch, { verify })` -> { ok, rebased, conflict?, verifyFailed?, error? }
+// `syncPush(cwd, remote, branch, { verify })` -> { ok, rebased, local?, conflict?, verifyFailed?, error? }
+//   A remote-less repo (`remote: none`, no-remote.mjs) fetches, rebases and pushes nothing: the local commit is the
+//   landing (`local: true`).
 //   verify(incoming) runs the caller's tests after a rebase that pulled in non-doc files and
 //   returns { ok }; it is skipped when only documentation arrived. beforePush() runs right before
 //   each push attempt and returns { ok, error }; a refusal ends the sync (gateRefused). env goes to
 //   git push, so the repo's pre-push hook sees it.
 
 import { dirtyPaths, git, push } from './git.mjs';
+import { hasRemote } from './no-remote.mjs';
 
 const MAX_ATTEMPTS = 3;
 const DOCS_ONLY = /\.(?:md|txt)$/i;
@@ -17,6 +20,7 @@ const DOCS_ONLY = /\.(?:md|txt)$/i;
 const lines = (out) => (out ? out.split('\n').map((l) => l.trim()).filter(Boolean) : []);
 
 export function syncPush(cwd, remote, branch, { verify, env, beforePush, onPhase = () => {} } = {}) {
+  if (!hasRemote(remote)) return { ok: true, rebased: false, local: true };
   let rebased = false;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const fetched = git(['fetch', remote, branch], cwd);

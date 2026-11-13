@@ -278,6 +278,8 @@ broker:
     - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }
 ```
 
+**A repo with no git remote** (KIT-T1122, `no-remote.mjs`): `remote: none` on its `repos:` entry. A landing is a local commit on `main`: nothing is fetched, rebased or pushed (`sync-push.mjs` returns at once), so no landing can fail on a push. A `submodule: true` lane with a remote pushes as always, and its pin lands in the remote-less root as a local commit (a root `--pin <sub>=<sha>` job, or `repinSuperproject`). An absent `remote` key still means `origin`. Refused at config read: `remote: none` on a submodule lane (a pin names a commit on the submodule's remote) and with `pre_push: true` (nothing is pushed for the gate to precede). The gitlink rule is unchanged: a pin needs the framework sha on the framework's own remote.
+
 Defaults: `target_dir` `<root>/target`; `jobs` auto (`scripts/broker/jobs.mjs`); `verify_default` none (the approved suite's default is `["cargo test --no-fail-fast"]`);
 `land_gate` check; `patch_check` touched; `poll_ms` 2000.
 
