@@ -136,6 +136,15 @@ try {
   ok('pre-write: comparison to a magic number STILL blocks (KIT-T077 non-regression)',
     pw({ file_path: '/x/a.ts', content: 'export function gone(s) {\n  return s.status === 404;\n}\n' }).code === 2);
 
+  // KIT-T1117 — float spellings of 0, 1 and -1 are neutral; other floats still block.
+  const floatLit = (lit, ext = 'ts') => pw({ file_path: `/x/a.${ext}`, content: `export function f(x) {\n  return x > ${lit};\n}\n` }).code;
+  for (const lit of ['0.0', '1.0', '0.0f', '1.0f', '0.f', '1.f', '-1.0']) {
+    ok(`pre-write: neutral float literal ${lit} passes (KIT-T1117)`, floatLit(lit, 'h') === 0);
+  }
+  for (const lit of ['0.5', '2.0', '3.14']) {
+    ok(`pre-write: float literal ${lit} STILL blocks (KIT-T1117)`, floatLit(lit, 'h') === 2);
+  }
+
   ok('pre-write: a .caddy redirect with a dated URL path passes (KIT-T732)',
     pw({ file_path: '/x/site.caddy', content: 'redir /2018/02/26/thing-hasnt-taken-russian-hackers-yet-ok-lets-update/ /posts/ permanent\nheader Cache-Control max-age=31536000\n' }).code === 0);
   ok('pre-write: digits in a URL path token in code pass (KIT-T732)',

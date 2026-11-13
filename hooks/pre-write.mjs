@@ -38,6 +38,7 @@ process.on('unhandledRejection', failOpen);
 const MAX_SHOWN = 5;
 const MAX_SQL = 3;
 const ALLOWED = new Set(['-1', '0', '1', '2']);
+const NEUTRAL_FLOAT = /^-?[01]\.0+$/; // 0.0, 1.0, -1.0: the neutral integers in float spelling
 const NATIVE_LINTED = new Set(['rs', 'py', 'go', 'sh', 'bash', 'zsh']);
 const DOC = new Set(['md', 'markdown', 'mdx', 'txt', 'rst', 'adoc']);
 // KIT-T114: `conf`/`properties`/`env` join the config family. An nginx `listen 443 ssl;`
@@ -486,7 +487,7 @@ if (!NATIVE_LINTED.has(ext) && !SHELL_LIKE.has(ext) && !isTest && !isMig && !exc
     if (/\b(parseInt|toString)\s*\([^)]*\d+\s*\)/.test(raw)) continue; // radix argument
     const stripped = code.replace(URL_PATH_TOKEN, '').replace(/\d+(px|em|rem)/g, '');
     const m = stripped.match(/[^A-Za-z0-9_.](-?\d+(\.\d+)?)/);
-    if (m && !ALLOWED.has(m[1])) hits.push(`${i + 1}: ${raw.trim()}`);
+    if (m && !ALLOWED.has(m[1]) && !NEUTRAL_FLOAT.test(m[1])) hits.push(`${i + 1}: ${raw.trim()}`);
   }
   if (hits.length) {
     viols.push({ id: 'magic-numbers', msg: 'Magic numbers (allowed bare: -1, 0, 1, 2). Extract named constants:\n' + hits.join('\n') });
