@@ -8,7 +8,7 @@
 
 import { basename, dirname } from 'node:path';
 import { git, readTurnState, writeTurnState } from './lib.mjs';
-import { readTurnSlots } from './lib/turn-state.mjs';
+import { appendTurnRecord, readTurnRecords, turnSlotNames } from './lib/turn-state.mjs';
 import { clearHandWrite } from './lib/hand-writes.mjs';
 
 export const TURN_WRITES_SLOT = 'writes';
@@ -29,7 +29,7 @@ export function repoRelative(root, file) {
   return `${prefix}${basename(raw)}`;
 }
 
-const SESSION_WRITES_MAX = 3000;
+const SESSION_RECORDS_MAX = 20000;
 const sessionSlot = (sid) => `swrites-${String(sid).replace(/[^A-Za-z0-9_-]/g, '_')}`;
 
 export function recordTurnWrite(root, file, sessionId = '') {
@@ -57,17 +57,25 @@ export function turnStartMs(root) {
 }
 
 // SESSION ledger (KIT-T407): every repo-relative path this SESSION's Write/Edit calls touched,
-// kept per session id so a second session in the same checkout is never mistaken for this one.
+// kept per session id so a second session in the same checkout is never mistaken for this one. One appended record per
+// write, so the several writers of a session recording at once never drop each other's paths (KIT-T1133); a state
+// file an older hook version wrote is read alongside.
 function recordSessionWrite(root, rel, sessionId) {
-  const slot = sessionSlot(sessionId);
-  const prev = readTurnState(root, slot) || {};
-  const files = Array.isArray(prev.files) ? prev.files : [];
-  if (!files.includes(rel)) files.push(rel);
-  const kept = files.slice(-SESSION_WRITES_MAX);
-  const heads = Object.fromEntries(Object.entries(prev.heads || {}).filter(([p]) => kept.includes(p)));
   const head = git(['rev-parse', 'HEAD'], root).trim();
-  if (head) heads[rel] = head;
-  writeTurnState(root, { files: kept, heads }, slot);
+  appendTurnRecord(root, sessionSlot(sessionId), head ? { p: rel, h: head } : { p: rel });
+}
+
+// The paths of a session slot and the HEAD each was last written at.
+function sessionLedger(root, slot) {
+  const legacy = readTurnState(root, slot) || {};
+  const files = new Set(Array.isArray(legacy.files) ? legacy.files : []);
+  const heads = { ...(legacy.heads || {}) };
+  for (const record of readTurnRecords(root, slot).slice(-SESSION_RECORDS_MAX)) {
+    if (!record || !record.p) continue;
+    files.add(record.p);
+    if (record.h) heads[record.p] = record.h;
+  }
+  return { files, heads };
 }
 
 // Activity inside a submodule (a Write/Edit there, or a commit made in it) counts as this session
@@ -84,14 +92,11 @@ export function recordSubmoduleActivity(subRoot, sessionId) {
 // The HEAD commit at this session's latest write of each path, by repo-relative path; a path recorded before heads
 // were kept, or in a repo with no commit, has none.
 export function sessionWriteHeads(root, sessionId) {
-  if (!sessionId) return {};
-  return (readTurnState(root, sessionSlot(sessionId)) || {}).heads || {};
+  return sessionId ? sessionLedger(root, sessionSlot(sessionId)).heads : {};
 }
 
 export function sessionWrites(root, sessionId) {
-  if (!sessionId) return new Set();
-  const state = readTurnState(root, sessionSlot(sessionId)) || {};
-  return new Set(Array.isArray(state.files) ? state.files : []);
+  return sessionId ? sessionLedger(root, sessionSlot(sessionId)).files : new Set();
 }
 
 // Workflow-store paths are written by cap/t through Bash, so no Write hook sees them.
@@ -119,9 +124,8 @@ const SESSION_SLOT_PREFIX = 'swrites-';
 export function sessionsWriting(root, paths) {
   const wanted = new Set(paths);
   const found = [];
-  for (const [slot, state] of readTurnSlots(root, SESSION_SLOT_PREFIX)) {
-    const files = Array.isArray(state.files) ? state.files : [];
-    const count = files.filter((f) => wanted.has(f)).length;
+  for (const slot of turnSlotNames(root, SESSION_SLOT_PREFIX)) {
+    const count = [...sessionLedger(root, slot).files].filter((f) => wanted.has(f)).length;
     if (count) found.push({ session: slot.slice(SESSION_SLOT_PREFIX.length), count });
   }
   return found.sort((a, b) => b.count - a.count);
