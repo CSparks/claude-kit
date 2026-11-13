@@ -52,6 +52,7 @@ const PASSES = [
   ['an outside file with no extension, named literally', `rg Town ${log}`],
   ['a variable holding an outside file with no extension', `S=${log}; rg Town $S`],
   ['grep -r of an outside file', `S=${logTxt}; grep -rn Town $S`],
+  ['one named source file behind a prefix assignment', 'FOO=1 rg fn crates/a/src/lib.rs'],
 ];
 for (const [name, cmd] of PASSES) expect(`KIT-T1157: passes ${name}`, run(repo, cmd).code, 0);
 expect('KIT-T1157: PowerShell passes a variable holding an outside log', run(repo, `$S = '${logTxt}'; rg Town $S`, 'PowerShell').code, 0);
@@ -64,6 +65,16 @@ const BLOCKS = [
   ['an outside log beside a repo directory', `S=${logTxt}; rg Town $S crates/`],
   ['a file inside another adopted repo', `S=${inOther}; rg x $S`],
   ['a variable the command computes', `S=$(echo ${logTxt}); rg Town $S`],
+  ['a conditional assignment', `false && S=${logTxt}; rg Town "$S"`],
+  ['an assignment after the search', `rg Town $S; S=${logTxt}`],
+  ['a prefix assignment', `S=${logTxt} rg Town $S`],
+  ['an assignment in a subshell', `(S=${logTxt}); rg Town $S`],
+  ['an assignment behind a cd with &&', `cd ${slashed(repo)} && S=${logTxt}; rg Town $S`],
+  ['a variable set empty', 'S=; rg Town "$S"'],
+  ['a tree search behind a prefix assignment', 'FOO=1 rg fn crates/'],
+  ['a recursive grep behind a prefix assignment', 'FOO=1 BAR=2 grep -rn fn crates'],
+  ['a tree search behind env', 'env FOO=1 rg fn crates/'],
+  ['an unset variable beside a pattern', 'rg Town "$UNSET"'],
   ['a variable holding the store tickets directory', 'D=.ai/tickets; grep -r x $D'],
 ];
 for (const [name, cmd] of BLOCKS) expect(`KIT-T1157: still blocks ${name}`, run(repo, cmd).code, 2);

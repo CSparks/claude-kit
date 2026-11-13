@@ -54,6 +54,7 @@ const STORE = /\.ai[\\/]|(?:^|[\s"'=])\.?[\\/]?(?:tickets|decisions|inbox|questi
 const RECURSIVE_FLAG = /(?:^|\s)(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive|--include\b|--include-dir\b)/;
 const QUOTED_TOKENS = /"[^"]*"|'[^']*'|\S+/g;
 const FILEISH = /\.[A-Za-z0-9]{1,6}$/; // a concrete file arg (has an extension)
+const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/; // `FOO=1 rg x crates/` runs rg: the prefix names no tool
 // Extensions where code-graph resolves the MODULE graph (relative-import edges: JS/TS), so a
 // grep q cannot answer exactly still has a full code-graph answer and is blocked. Other source
 // (Rust, Python, Go, C-family: definitions only, no import edges; WGSL, GLSL, TOML: not at all)
@@ -174,6 +175,7 @@ function excludedByConfig(root, id, c) {
 // `piped` = this segment reads the previous command's stdout.
 function judge(c, piped = false) {
   let tok = c.match(QUOTED_TOKENS) || [];
+  while (tok.length && (ENV_ASSIGNMENT.test(tok[0]) || tok[0] === 'env')) tok = tok.slice(1);
   if (!tok.length) return null;
   let tool = tok[0].replace(/.*[\\/]/, '').toLowerCase(); // basename, lower
   // xargs feeds stdin as FILENAMES to its command — that command reads files, so

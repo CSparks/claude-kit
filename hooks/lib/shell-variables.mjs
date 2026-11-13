@@ -29,7 +29,7 @@ const SEQUENTIAL_AFTER = new Set([';', '&&']);
 // reach its parent's variables; what a delete or a child's script writes is judged by the write scan, not here). The word
 // is judged after its quotes are removed; bash matches it case-sensitively, PowerShell case-insensitively. A
 // path-qualified or variable-named command is not here.
-const SAFE_COMMANDS = new Set(['cp', 'copy', 'copy-item', 'mv', 'move-item', 'rm', 'rmdir', 'remove-item', 'install', 'touch', 'mkdir', 'md', 'echo', 'cd', 'set-location', 'ls', 'dir', 'get-childitem', 'pwd', 'true', 'bash', 'sh', 'node']);
+const SAFE_COMMANDS = new Set(['cp', 'copy', 'copy-item', 'mv', 'move-item', 'rm', 'rmdir', 'remove-item', 'install', 'touch', 'mkdir', 'md', 'echo', 'cd', 'set-location', 'ls', 'dir', 'get-childitem', 'pwd', 'true', 'bash', 'sh', 'node', 'cargo', 'rg', 'grep', 'head', 'tail', 'cat', 'wc']);
 const WHOLE_SUBSHELL = /^\s*\(([^()]*)\)\s*$/;
 // Text that evaluates code or assigns while it expands: command, process and arithmetic substitution and
 // `${NAME:=x}` in bash; in PowerShell a parenthesis, brace, backtick escape or splat.
