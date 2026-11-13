@@ -7,9 +7,10 @@
 // properly, and a process-failure ticket is filed in the kit store (one open ticket per session).
 //
 // Exempt: a subagent's report (its requests go to the orchestrator, which relays them as a questionnaire), a turn
-// with a questionnaire that reached him, and a turn whose maintainer message was itself a question (open
-// discussion). Quoted text, code and past-tense descriptions never count (lib/prose-ask.mjs). `stop_hook_active`
-// allows; fails open on any error.
+// with a questionnaire that reached him, and, for the soft asks only ("want me to", "let me know"), a turn whose
+// maintainer message was itself a question (open discussion). A hard phrase ("waiting on you", "your call", "up to
+// you", "which one is it") blocks there too (GG-D093). Quoted text, code and past-tense descriptions never count
+// (lib/prose-ask.mjs). `stop_hook_active` allows; fails open on any error.
 // Check-id: prose-ask (path glob matched against the project root, `.`). In a reply, a line under
 // `// claude-kit-ignore-line prose-ask` (or a start/end block) is not read.
 
@@ -65,8 +66,8 @@ try {
   const root = gitRoot();
   if (!adopted(root) || pathExcluded(root, CHECK_ID, '.')) process.exit(0);
   const turn = p.transcript_path ? turnText(p.transcript_path) : null;
-  if (/\?$/.test(turn?.lastUser || '')) process.exit(0);
-  const [match] = proseAskMatches(unmarked(closingText(p, turn)));
+  const discussion = /\?$/.test(turn?.lastUser || '');
+  const [match] = proseAskMatches(unmarked(closingText(p, turn))).filter((m) => m.hard || !discussion);
   if (!match) process.exit(0);
   if (p.transcript_path && turnCalls(p.transcript_path, QUESTION_TOOLS).some((c) => !c.denied)) process.exit(0);
   const sessionId = p.session_id || 'nosession';

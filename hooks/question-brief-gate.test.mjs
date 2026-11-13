@@ -54,6 +54,10 @@ try {
   ok('KIT-T929: a newest message that is a question answered in an earlier prose reply passes', ask(transcript(NEWEST, prose(ANSWER))).code === 0);
   ok('KIT-T929 control: the same question with no assistant reply still blocks', ask(transcript(NEWEST)).code === 2);
   ok('KIT-T929 control: the same question with only a one-word narration still blocks', ask(transcript(NEWEST, prose('Checking.'))).code === 2);
+  ok('GG-D093: a short prior reply saying work waits on him lets the questionnaire through his question', ask(transcript(NEWEST, prose('Waiting on you.'))).code === 0);
+  ok('GG-D093: "your call" and "which one is it" do the same', ask(transcript(NEWEST, prose('This is your call.'))).code === 0 && ask(transcript(NEWEST, prose('Which one is it?'))).code === 0);
+  ok('GG-D093 control: a soft ask ("want me to") in a short reply still blocks', ask(transcript(NEWEST, prose('Want me to wire it?'))).code === 2);
+  ok('GG-D093 control: a quoted hard phrase does not count', ask(transcript(NEWEST, prose('He wrote "waiting on you".'))).code === 2);
   const YELLED = 'TWO FUCKING LEADS. EVER HEAR TWO FUCKING LEAD GUITARS DO CALL AND RESPONSE OVER EVERYTHING ELSE?';
   ok('KIT-T929: a yelled rhetorical question passes', ask(transcript(YELLED)).code === 0);
   ok('KIT-T929: a profane question with no question word passes', ask(transcript('Two fucking leads on one bus, ever hear that work?')).code === 0);

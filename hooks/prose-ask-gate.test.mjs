@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { ENV, HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
-import { proseAsks } from './lib/prose-ask.mjs';
+import { hasHardAsk, proseAsks } from './lib/prose-ask.mjs';
 import { TRIAGE_LINE } from './lib/block-triage.mjs';
 
 const { ok, done } = reporter('prose-ask-gate');
@@ -101,7 +101,12 @@ try {
   ok('negative control: a blockquote and a code block pass', passed(stop(turn('Pasted back:\n> should I wire it\n\n```\nwaiting on you\n```\nDone.'))));
   ok('negative control: a UAT receipt passes', passed(stop(turn(UAT_RECEIPT))));
   ok('negative control: a plain landing report passes', passed(stop(turn('Fixed in 1a2b3c4: 12 passed. Next up: RDG-T061 (needs your bill of work signed in).'))));
-  ok('negative control: a reply to his own question is open discussion and passes', passed(stop(turn(TICKET_REPLY, { user: 'What is blocking the mesher?' }))));
+  ok('negative control: a soft ask in a reply to his own question is open discussion and passes', passed(stop(turn('The mesher is idle. Want me to wire the second lane?', { user: 'What is blocking the mesher?' }))));
+  for (const hard of ['Still waiting on you.', 'This is your call.', 'It is up to you.', 'Which one is it?', 'Two items are open for Chris.']) {
+    ok(`GG-D093 a hard phrase blocks even when his newest message ends in a question: ${hard}`, blocked(stop(turn(`The mesher is idle. ${hard}`, { user: 'What is blocking the mesher?' }))));
+  }
+  ok('GG-D093 control: a hard phrase after his question passes when a questionnaire reached him', passed(stop(turn(TICKET_REPLY, { user: 'What is blocking the mesher?', extra: asked }))));
+  ok('lib: hasHardAsk is true for waiting wording only', hasHardAsk('Waiting on you.') && !hasHardAsk('Want me to wire it?') && !hasHardAsk('He wrote "your call".'));
   ok('negative control: a subagent payload (agent_id) is exempt', passed(stop(turn(TICKET_REPLY), { agent_id: 'a1b2c3d4e5f6a7b8c' })));
   ok('negative control: a sidechain transcript name is exempt', (() => {
     const sub = join(dir, 'agent-a1b2c3d4e5f6a7b8c.jsonl');

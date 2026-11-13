@@ -2,22 +2,29 @@
 // work waits on him, in prose (KIT-T1130, KIT-T1136, KIT-T1151, GG-D088). A request to him goes in an
 // AskUserQuestion; the prose-ask-gate Stop hook uses this.
 //
-//   proseAskMatches(text) -> [{ sentence, phrase }] the matched sentences, oldest first, with the phrase that matched
+//   proseAskMatches(text) -> [{ sentence, phrase, hard }] the matched sentences, oldest first, with the phrase that matched
 //   proseAsks(text)       -> the matched sentences only ([] when none)
+//   hasHardAsk(text)      -> true when a sentence says work waits on him (waiting on you, your call, up to you, which one is it ...)
 //
 // Text that is not the reply's own voice never counts: fenced and inline code, blockquote lines, and text inside
 // double quotes (the maintainer's words, a message quoted back). A sentence in the past tense, or one that negates the
 // ask ("he didn't want me to"), describes and needs nothing from him.
 
-const ASK_PHRASES = [
-  /\bneeds? (?:your|chris'?s?) (?:say|call|go|go-ahead|approval|decision|input|answer|ok|sign-?off)\b/i,
-  /\bneed (?:\w+ )?from (?:you|chris)\b/i,
+// HARD phrases say work waits on him; they block even when his newest message was a question (GG-D093), and a
+// reply carrying one lets the questionnaire gate pass a questionnaire.
+const HARD_PHRASES = [
   /\b(?:waiting|awaiting) (?:on |for )?(?:you|your|chris)\b/i,
-  /\b(?:your|chris'?s?) (?:approval|go-ahead|sign-?off|call)\b/i,
+  /\b(?:your|chris'?s?) call\b/i,
   /\bup to (?:you|chris)\b/i,
   /\bfor (?:you|chris) to (?:decide|choose|pick|say|call|sign)\b/i,
   /\bopen for (?:you|chris)\b/i,
   /\bwhich (?:one )?is it\b/i,
+];
+
+const SOFT_PHRASES = [
+  /\bneeds? (?:your|chris'?s?) (?:say|call|go|go-ahead|approval|decision|input|answer|ok|sign-?off)\b/i,
+  /\bneed (?:\w+ )?from (?:you|chris)\b/i,
+  /\b(?:your|chris'?s?) (?:approval|go-ahead|sign-?off)\b/i,
   /\b(?:want me to|do you want|should I|shall I|would you like me to)\b/i,
   /\blet me know\b/i,
   /\bonce you (?:sign|approve|say|confirm)\b/i,
@@ -48,9 +55,12 @@ export function proseAskMatches(text) {
     .map((s) => s.replace(/\s+/g, ' ').trim())
     .filter((s) => s && !DESCRIPTIVE.some((re) => re.test(s)))
     .flatMap((sentence) => {
-      const hit = ASK_PHRASES.map((re) => re.exec(sentence)).find(Boolean);
-      return hit ? [{ sentence, phrase: hit[0] }] : [];
+      const hard = HARD_PHRASES.map((re) => re.exec(sentence)).find(Boolean);
+      const hit = hard || SOFT_PHRASES.map((re) => re.exec(sentence)).find(Boolean);
+      return hit ? [{ sentence, phrase: hit[0], hard: Boolean(hard) }] : [];
     });
 }
+
+export const hasHardAsk = (text) => proseAskMatches(text).some((m) => m.hard);
 
 export const proseAsks = (text) => proseAskMatches(text).map((m) => m.sentence);
