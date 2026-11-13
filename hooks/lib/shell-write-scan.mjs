@@ -34,7 +34,7 @@ import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
 import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
 
-export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
+export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|move-lines|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs|move-lines\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
 const WRITING_CMD = /^(?:rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
 const TOUCH_CMD = /^touch$/i;

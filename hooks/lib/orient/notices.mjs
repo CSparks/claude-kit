@@ -16,7 +16,7 @@ import { clip } from './common.mjs';
 const REPEAT_ASKS_SHOWN = 8;
 const DIRECTIVES_SHOWN = 5;
 const PAYLOAD_WAIT_MS = 500;
-const GATES_LINE = 'GATES: q gates agent|plan|question (read before use, KIT-D147)';
+const GATES_LINE = 'GATES: q gates agent|plan|question|source (read first, KIT-D147)';
 
 export function header({ out, root }) {
   out.push('=== PROJECT ORIENTATION (on-disk record — trust over any summary or your memory) ===');

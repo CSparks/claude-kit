@@ -63,8 +63,8 @@ export const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <qu
   regressions [scope]         regression chain data (index-tickets)
   supersedes [scope]          supersede chain data (index-tickets)
   integrity                   orphan parents / dangling links / gaps — cross-scope
-  gates [agent|plan|question] every requirement and exact accepted tag form of a gated tool (Agent dispatch, ExitPlanMode, AskUserQuestion),
-                              read from the gate code; read it before the first call to that tool (KIT-D147)
+  gates [agent|plan|question|source] every requirement and exact accepted tag form of a gated tool (Agent dispatch, ExitPlanMode, AskUserQuestion,
+                              a shell call that changes source), read from the gate code; read it before the first call to that tool (KIT-D147)
   sql 'SELECT ...'            ad-hoc read-only SQL
   verify [scope]              cache staleness self-check (exit 1 = stale)
   sessions [--project <s>]    list Claude Code terminal sessions, newest first (KIT-T100)

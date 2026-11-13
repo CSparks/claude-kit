@@ -43,6 +43,7 @@ BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. $
   \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
   pre-write gate (file length, comment prose, literals, rot markers).
   A change too large for one Edit is a Write of the new file or several Edits, never a script.
+  Moving EXISTING lines into other files (a file split) is the kit verb: move-lines <source> <ranges>=<dest> ... (q gates source).
   Generated output a tool writes (cargo, a formatter, a codegen) is not a hand write: run the tool.
 ${excludeFooter(CHECK)}`);
     process.exit(2);

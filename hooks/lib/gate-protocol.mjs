@@ -33,6 +33,7 @@ export const COLD_BUILD_CHECK = 'cold-worktree-build';
 export const SHARED_TREE_CHECK = 'shared-tree-dispatch';
 export const RECOMMENDATION_CHECK = 'question-recommendation';
 export const PROSE_ASK_CHECK = 'prose-ask';
+export const SOURCE_SHELL_CHECK = 'source-shell-write';
 
 const CHECK_COLUMN = 30;
 const TAG_COLUMN = 60;
@@ -81,6 +82,17 @@ export const GATES = {
       { check: BRIEF_CHECK, wants: [`summary first, then the questionnaire (KIT-D153): ${BRIEF_RULE}. Text or narration of the turn before the call counts, as does the questionnaire's own question text; no wording or labels are required. Judged AFTER the call by a PostToolUse audit (Stop is the backstop): a missing summary is reported to you and you re-ask.`], tokens: [] },
       { check: READY_CHECK, wants: READINESS_STANDARD, tokens: [] },
       { check: PROSE_ASK_CHECK, wants: ['no closing reply says or implies that work waits on the maintainer ("waiting on you", "your call", "up to you", "open for Chris", "which one is it", "want me to", "let me know" ...) unless a questionnaire reached him the same turn (Stop gate prose-ask, GG-D088): the block names the phrase and files a process-failure ticket; quoted words, code and past-tense descriptions pass'], tokens: [] },
+    ],
+  },
+  source: {
+    title: 'Bash / PowerShell call that changes source',
+    hooks: ['source-shell-gate (before the call)', 'hand-write-detect (after the call)'],
+    checks: [
+      { check: SOURCE_SHELL_CHECK, wants: [
+        'source changes through Edit and Write, which run the pre-write checks; a redirect, tee, sed -i, `node -e` or scratch script that writes a source file is refused',
+        'moving EXISTING lines between files (a file split) is the kit verb move-lines, not a script: move-lines <source> <ranges>=<dest> [<ranges>=<dest> ...] [--append] [--dry-run]; it moves the lines verbatim, refuses a result over the hard file-length limit and proves the move with an empty sorted line diff',
+        'add the includes or imports of a new file afterwards with Edit, which judges it',
+      ], tokens: [] },
     ],
   },
 };
@@ -133,7 +145,7 @@ function digestEntries(gate) {
  */
 export function gateDigest(gates = GATES) {
   return [
-    `GATE DIGEST (after a compaction the per-type tags are not remembered; read q gates ${Object.keys(gates).join('|')} before the first call):`,
+    `GATE DIGEST (after a compaction the tags are not remembered; read q gates ${Object.keys(gates).join('|')} before the first call):`,
     ...Object.entries(gates).flatMap(([name, gate]) => {
       const entries = digestEntries(gate);
       return entries.length ? wrapWords([`${name}:`, ...entries.map((e, i) => (i < entries.length - 1 ? `${e};` : e))], DIGEST_WIDTH, '  ') : [];

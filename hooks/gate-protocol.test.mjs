@@ -102,7 +102,11 @@ try {
   const unknown = q('gates', 'nope');
   ok('an unknown gate exits 1 and names the valid ones', unknown.status === 1 && unknown.stderr.includes('agent, plan, question'));
   ok('gateText of an unknown name is null', gateText('nope') === null);
-  ok('q --help lists the gates verb', q('--help').stdout.includes('gates [agent|plan|question]'));
+  ok('q --help lists the gates verb', q('--help').stdout.includes('gates [agent|plan|question|source]'));
+  const source = q('gates', 'source');
+  ok('q gates source names the check and the move-lines verb for a file split (KIT-T1155)',
+    source.status === 0 && /^ {2}source-shell-write\s+source changes through Edit and Write/m.test(source.stdout) && source.stdout.includes('move-lines <source> <ranges>=<dest>'));
+  ok('the source-shell-write block message points at move-lines (KIT-T1155)', hook('source-shell-gate.mjs', { tool_name: 'Bash', tool_input: { command: 'echo x > src/a.rs' } }, adopted(false)).out.includes('move-lines'));
 
   const orient = hook('orient.mjs', { hook_event_name: 'SessionStart' }, adopted(false));
   ok('orient points at q gates in the identity block', orient.out.includes('q gates agent|plan|question'));

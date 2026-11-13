@@ -59,7 +59,7 @@ claude-kit/                     # public plugin + marketplace (MIT)
 ├── hooks/                      # Node enforcement hooks + hooks.json (plugin wiring) + lib.mjs
 ├── scripts/                    # .mjs scripts: cap, check-ids, code-graph, db-cache, db-engine,
 │                               #   db-parse, dev-link, hydrate-db, id-utils, index-tickets,
-│                               #   init-project, next-id, q, reconcile-supersede, rekey-ids, rem,
+│                               #   init-project, move-lines, next-id, q, reconcile-supersede, rekey-ids, rem,
 │                               #   survey, sync-tasks, t, treesitter, triage, …
 ├── user-config/                # statusline, settings.recommended.json, CLAUDE.global.md (base)
 ├── project-template/           # scaffolded into a repo by init-project
