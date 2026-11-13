@@ -2,11 +2,11 @@
 // commit-gate (KIT-T407) passes it without [commit-foreign]; a file changed outside any session
 // call, or inside another session's call, still blocks. Run: node hooks/shell-writes.test.mjs
 
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { ENV, HOOKS, adopted, cleanup, git, reporter, repo, tmpDir } from './test-harness.mjs';
+import { ENV, HOOKS, adopted, cleanup, git, identify, reporter, repo, tmpDir } from './test-harness.mjs';
 
 const { ok, done } = reporter('shell-writes');
 const CLOCK_GAP_MS = 300;
@@ -84,6 +84,35 @@ try {
   git(['add', 'rewritten.js'], d);
   r = gate(d, 'A');
   ok("KIT-T953 control: a file this call rewrote after another session's Edit left it is credited", r.code === 0, r.out.trim());
+
+  // KIT-T1110: a tracked file this session removed with `git rm` is its own deletion; another session's, or one made
+  // outside any session call, is not.
+  const dr = identify(adopted());
+  for (const f of ['mine.js', 'theirs.js', 'nobody.js', 'plain.js']) writeFileSync(join(dr, f), `export const f = '${f}';\n`);
+  git(['add', '.'], dr);
+  git(['commit', '-q', '-m', 'seed'], dr);
+  spawnHook('pre-write.mjs', { session_id: 'A', tool_input: { file_path: join(dr, 'own.js'), content: 'export const o = 1;\n' } }, dr);
+  writeFileSync(join(dr, 'own.js'), 'export const o = 1;\n');
+  await sleep(CLOCK_GAP_MS);
+
+  shell(dr, 'A', 'd1', () => git(['rm', '-q', 'mine.js'], dr));
+  r = gate(dr, 'A');
+  ok('KIT-T1110: a file this session removed with git rm commits without [commit-foreign]', r.code === 0, r.out.trim());
+
+  shell(dr, 'B', 'd2', () => git(['rm', '-q', 'theirs.js'], dr));
+  r = gate(dr, 'A');
+  ok("KIT-T1110 control: a file another session's call removed still blocks and is named", r.code === 2 && r.out.includes('theirs.js') && !r.out.includes('mine.js'), r.out.trim());
+
+  git(['reset', '-q'], dr);
+  git(['rm', '-q', '--cached', 'nobody.js'], dr);
+  r = gate(dr, 'A');
+  ok('KIT-T1110 control: a file removed outside any session call still blocks', r.code === 2 && r.out.includes('nobody.js'), r.out.trim());
+
+  git(['reset', '-q'], dr);
+  shell(dr, 'A', 'd3', () => unlinkSync(join(dr, 'plain.js')));
+  git(['add', '-u', 'plain.js'], dr);
+  r = gate(dr, 'A');
+  ok('KIT-T1110: a file this session deleted with a plain rm commits without [commit-foreign]', r.code === 0, r.out.trim());
 
   const un = repo();
   writeFileSync(join(un, 'x.js'), 'x\n');
