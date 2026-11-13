@@ -12,6 +12,7 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, realpathSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 export function registryPath() {
   return process.env.CLAUDE_KIT_REGISTRY || join(homedir(), '.claude', 'claude-kit-projects.json');
@@ -72,11 +73,44 @@ function isTempCheckout(repoRoot) {
   } catch { return false; }
 }
 
+const realDir = (path) => {
+  try { return realpathSync.native(String(path)); } catch { return null; }
+};
+const sameDir = (a, b) => !!realDir(a) && realDir(a) === realDir(b);
+
+export const SET_COMMAND = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'scripts', 'registry-set.mjs');
+
+export function writeRegistry(reg) {
+  const p = registryPath();
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, JSON.stringify(reg, null, 2) + '\n');
+}
+
+// The registry decides which `.ai` links the anchor writer trusts, and recordProject runs on repo content
+// (the `.claude-project` name, where `.ai` points). So an existing dataRoot is never replaced, and an existing
+// name is never moved to another repo while its recorded path still exists; the maintainer does either on purpose.
+// Returns the refusal line, or '' when the record may go ahead.
+function conflictWith(reg, name, repoRoot, dataRoot) {
+  if (dataRoot && reg.dataRoot && !sameDir(dataRoot, reg.dataRoot)) {
+    return `registry: this repo's .ai leads to data repo ${dataRoot} but the registry names ${reg.dataRoot}; nothing recorded. To change it on purpose: node "${SET_COMMAND}" data-root "${dataRoot}"`;
+  }
+  const known = reg.projects[name];
+  if (known && !sameDir(known, repoRoot) && realDir(known)) {
+    return `registry: project ${name} is recorded at ${known} and this repo is ${repoRoot}; nothing recorded. To move it on purpose: node "${SET_COMMAND}" project ${name} "${repoRoot}"`;
+  }
+  return '';
+}
+
 export function recordProject(name, repoRoot, dataRoot) {
   if (!name || !repoRoot) return;
   if (!process.env.CLAUDE_KIT_REGISTRY && isTempCheckout(repoRoot)) return;
   try {
     const reg = readRegistry();
+    const refusal = conflictWith(reg, name, repoRoot, dataRoot);
+    if (refusal) {
+      process.stderr.write(`${refusal}\n`);
+      return;
+    }
     let changed = false;
     if (reg.projects[name] !== repoRoot) {
       reg.projects[name] = repoRoot;
@@ -86,10 +120,7 @@ export function recordProject(name, repoRoot, dataRoot) {
       reg.dataRoot = dataRoot;
       changed = true;
     }
-    if (!changed) return;
-    const p = registryPath();
-    mkdirSync(dirname(p), { recursive: true });
-    writeFileSync(p, JSON.stringify(reg, null, 2) + '\n');
+    if (changed) writeRegistry(reg);
   } catch {
     /* registry is best-effort — never break a hook */
   }
@@ -103,9 +134,7 @@ export function recordUnbounded(aiDir) {
     const reg = readRegistry();
     if (reg.unbounded === aiDir) return;
     reg.unbounded = aiDir;
-    const p = registryPath();
-    mkdirSync(dirname(p), { recursive: true });
-    writeFileSync(p, JSON.stringify(reg, null, 2) + '\n');
+    writeRegistry(reg);
   } catch {
     /* registry is best-effort — never break a hook */
   }

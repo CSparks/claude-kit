@@ -9,15 +9,18 @@
 //   lexists(path)                       -> true when anything, a dangling link included, sits at `path`
 //
 // The only link target allowed for `.ai` is a configured one: realpath(.ai) equals
-// realpath(<registry dataRoot>/projects/<name>) for a project the registry maps to this repo root, or the
-// configured unbounded store (registry `unbounded`, CLAUDE_KIT_UNBOUNDED_AI). Nothing is inferred from layout.
+// realpath(<registry dataRoot>/projects/<name>) for a project the registry maps to this repo root (a plain name,
+// the folder really under realpath(dataRoot)/projects), or, for the unbounded store's own root, that store.
+// Nothing is inferred from layout. The registry is not repo-writable: hooks/lib/registry.mjs never replaces its
+// dataRoot or moves a recorded project from repo content.
 
 import { lstatSync, realpathSync } from 'node:fs';
-import { join, relative, isAbsolute, sep } from 'node:path';
+import { dirname, join, relative, isAbsolute, sep } from 'node:path';
 import { readRegistry } from './registry.mjs';
 import { unboundedAiDir } from './unbounded.mjs';
 
 const DATA_PROJECTS_DIR = 'projects';
+const PROJECT_NAME = /^\w[\w.-]*$/;
 
 export function lexists(path) {
   try { lstatSync(path); return true; } catch { return false; }
@@ -36,16 +39,29 @@ const sameDir = (a, b) => {
   return !!x && x === real(b);
 };
 
+// <dataRoot>/projects/<name> as a real path, only for a plain name whose folder really sits under
+// realpath(dataRoot)/projects; null otherwise.
+function projectMount(dataRoot, name) {
+  if (!PROJECT_NAME.test(name) || name.includes('..')) return null;
+  const dataReal = real(dataRoot);
+  const projects = real(join(dataRoot, DATA_PROJECTS_DIR));
+  const mount = real(join(dataRoot, DATA_PROJECTS_DIR, name));
+  if (!dataReal || !projects || !mount || projects !== join(dataReal, DATA_PROJECTS_DIR)) return null;
+  const rel = relative(projects, mount);
+  return rel && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel) ? mount : null;
+}
+
 function configuredMounts(root) {
   const reg = readRegistry();
   const mounts = [];
   if (reg.dataRoot) {
     for (const [name, repo] of Object.entries(reg.projects)) {
-      if (sameDir(repo, root)) mounts.push(join(reg.dataRoot, DATA_PROJECTS_DIR, name));
+      const mount = sameDir(repo, root) ? projectMount(reg.dataRoot, name) : null;
+      if (mount) mounts.push(mount);
     }
   }
   const unbounded = unboundedAiDir();
-  if (unbounded) mounts.push(unbounded);
+  if (unbounded && sameDir(root, dirname(unbounded))) mounts.push(unbounded);
   return mounts;
 }
 
