@@ -9,7 +9,10 @@ import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
-import { commitMessageText, unreadableMessageFile } from './lib/commit-message.mjs';
+import { commitMessagePath, commitMessageText, unreadableMessageFile } from './lib/commit-message.mjs';
+import { messageFileProblem } from './lib/message-file-owner.mjs';
+import { writerId } from './lib/tool-writes.mjs';
+import { subagentId } from './lib/subagent-id.mjs';
 import { shellOfTool } from './lib/shell-segments.mjs';
 import { isKitCheckout } from './lib/kit-checkout.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
@@ -74,6 +77,15 @@ if (isBareAdd && dataRepo) {
 }
 if (!isCommit) process.exit(0);
 if (!adopted(root) && !dataRepo) process.exit(0);
+// KIT-T1135: a message file another agent of the session last wrote is not this agent's message.
+const messageFile = commitMessagePath(command, targetDir(command), shell);
+const messageOwnedByAnother = messageFile && !pathExcluded(root, 'commit-message-file', messageFile)
+  ? messageFileProblem(messageFile, writerId(p.session_id, subagentId(p)), excludeFooter('commit-message-file'))
+  : '';
+if (messageOwnedByAnother) {
+  process.stderr.write(messageOwnedByAnother);
+  process.exit(2);
+}
 // Centralized data (D-008): the plan-of-record lives in claude-kit-data, not this repo,
 // so it can't be touched in this commit — the gate is cite-only here.
 const centralized = existsSync(join(root, '.claude-project'));

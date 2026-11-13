@@ -31,6 +31,11 @@ try {
   ok('the base contract carries the escalate tag in the dispatch checklist (KIT-T940)', /Dispatch checklist[\s\S]{0,1600}\[escalate: <reason>\]/.test(base));
   for (const f of ['agents/analyst.md', 'agents/analyst-max.md']) ok(`${f} names the escalate tag for the dispatcher (KIT-T940)`, /\[escalate: <reason>\]/.test(read(f)));
   ok('the owning commands carry the promotion protocol', read('commands/cap.md').includes('RULING CAPTURED') && read('commands/decide.md').includes('--from <inbox id>') && read('commands/triage.md').includes('t decide --file <draft.md> --from <cap id>'));
+  const MESSAGE_FILE_NAME = 'commit-<ticket id>-<six random characters>.txt';
+  ok('the base contract tells agents to write a unique commit message file in the shared scratchpad (KIT-T1135)', base.includes(MESSAGE_FILE_NAME) && /agents of one session share one\s+scratchpad/.test(base));
+  for (const f of ['agents/README.md', 'agents/implementer.md', 'agents/perf-tuner.md', 'agents/rg-ui-engineer.md']) {
+    ok(`${f} names the unique commit message file (KIT-T1135)`, read(f).includes(MESSAGE_FILE_NAME));
+  }
   const gates = read('hooks/lib/gate-tokens.mjs');
   ok('the tree and read-only token meanings say a scratchpad path is read-only work, not a [tree:]', /a non-git path such as the scratchpad is ignored: use \[read-only:\]/.test(gates));
 

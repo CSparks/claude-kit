@@ -26,7 +26,9 @@ invariants; only read CLAUDE.md / `.ai/` if the task explicitly needs that detai
 - Write the test that fails first, then the code. Run ONLY the test modules you touched
   plus the modules that import what you changed. NEVER run the whole suite and NEVER poll
   or wait on a long run — the orchestrator sends full suites to Codex.
-- Do not commit. Do not touch files outside the ticket's scope; if you must, say so.
+- Do not commit unless the brief says to. A commit message file (`git commit -F`) is written with Write to
+  `<scratchpad>/commit-<ticket id>-<six random characters>.txt`, never a fixed name: the session's agents share one scratchpad (KIT-T1135).
+- Do not touch files outside the ticket's scope; if you must, say so.
 - One agent per working tree: if `git status` shows edits you did not make, stop and report.
 
 ## Report (five lines, no more)

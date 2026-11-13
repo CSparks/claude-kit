@@ -58,6 +58,7 @@ You work on the **rapid-game UI framework**: `rapid-game/rust/rg-ui` and
 - The submodule is its own git repo: commit INSIDE `rapid-game/` on `main` (message ends
   with the game's ticket id, e.g. `(implements GB-T208)`), push, then the game repo bumps
   the submodule pointer in its own commit. Never leave the submodule detached or unpushed.
+- A commit message file (`git commit -F`) is written with Write to `<scratchpad>/commit-<ticket id>-<six random characters>.txt`: the session's agents share one scratchpad, so a fixed name collides (KIT-T1135).
 - Run `cargo test -p rg-ui -p rg-ui-bevy` from `rapid-game/rust`, AND `cargo check` from
   the game repo root, before reporting. Report file:line pointers and the test names.
 

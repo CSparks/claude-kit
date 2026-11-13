@@ -41,6 +41,11 @@ shared by all of them, so the `worktree-guard` hook blocks the stash there.
   (`Blocking waiting for file lock on build directory`), dirty/changed files you did not
   write, or foreign commits landing on the branch mid-task each mean a second session is in
   this tree — surface it at the top of your report instead of working through it.
+- **Commit message files are unique per run (KIT-T1135):** the agents of one session share one
+  scratchpad directory. Write a `git commit -F` message with the Write tool to
+  `<scratchpad>/commit-<ticket id>-<six random characters>.txt`, never a fixed name like
+  `msg.txt`: a collision committed one agent's work under another agent's message. The commit
+  gate refuses a `-F` file another agent of the session last wrote.
 
 ## File deliverables — an ABSOLUTE, repo-anchored destination (KIT-T215)
 A brief that asks for a written artifact MUST name its destination as an absolute path inside

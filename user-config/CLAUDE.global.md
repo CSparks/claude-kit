@@ -227,6 +227,11 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   wait the agent writes its handoff and ends; inside the signed bill, resume it from
   `target/broker/finished.log` (one Monitor), not by keeping it alive. Outside the bill the
   handoff is an OPEN notice for the maintainer (KIT-D132).
+- **Commit message files are unique per run (KIT-T1135).** The agents of one session share one
+  scratchpad directory. A message file for `git commit -F` is written with the Write tool to
+  `<scratchpad>/commit-<ticket id>-<six random characters>.txt`, never to a fixed name such as
+  `msg.txt`; every dispatch brief that has an agent commit says so. The commit gate refuses a `-F`
+  file another agent of the session last wrote.
 
 ## Specialists over `general-purpose` — CREATE the missing specialist
 `general-purpose` is the last resort. Before every delegation: (1) pick `model` AND

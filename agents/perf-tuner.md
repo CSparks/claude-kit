@@ -40,6 +40,7 @@ undressed frame, different pixels) is LISTED in the doc, status `visible`, and n
 - Framework level by default (the shared engine crates). Game-only changes only for a game's
   own setup mistake.
 - Framework change: commit and push in the framework repo first, then re-pin in the game.
+- A commit message file (`git commit -F`) is written with Write to `<scratchpad>/commit-<ticket id>-<six random characters>.txt`: the session's agents share one scratchpad, so a fixed name collides (KIT-T1135).
 - Respect standing architecture rules named by the ticket (e.g. no generation on the frame
   thread); a lever that undoes one is rejected.
 - Build a tuning tool only when the existing probe kit, hitch log, trace split or benches

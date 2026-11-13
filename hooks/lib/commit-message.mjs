@@ -3,6 +3,7 @@
 //   commitMessageFile(command, shell?) -> { path } | { stdin: true } | null   the file the command names, `-` meaning stdin
 //   commitMessageText(command, cwd, shell?) -> string                         that file's text, '' when none, stdin or unreadable
 //   unreadableMessageFile(command, cwd, shell?) -> string                     the -F path as the gate resolved it, '' when readable
+//   commitMessagePath(command, cwd, shell?) -> string                         the -F file as an absolute path, '' for none or stdin
 // A path built from a variable the command assigns as a plain literal (`S=/x; git commit -F "$S/m.txt"`) is expanded
 // first; `shell` is 'powershell' or 'bash' (default). A stdin message (`-F -`) cannot be read ahead of the commit: the
 // caller judges the command text alone, which carries a heredoc body, and never blocks a citation the text already holds.
@@ -65,9 +66,17 @@ export function commitMessageFile(command, shell = 'bash') {
   return null;
 }
 
+const absolutePath = (file, cwd) => resolve(cwd, file.path.replace(MSYS_DRIVE, '$1:/'));
+
+/** The absolute path of the file a `-F` names, '' for no file or stdin. */
+export function commitMessagePath(command, cwd, shell = 'bash') {
+  const file = commitMessageFile(command, shell);
+  return file && !file.stdin ? absolutePath(file, cwd) : '';
+}
+
 const readMessage = (file, cwd) => {
   try {
-    return readFileSync(resolve(cwd, file.path.replace(MSYS_DRIVE, '$1:/')), 'utf8').slice(0, MAX_MESSAGE_BYTES);
+    return readFileSync(absolutePath(file, cwd), 'utf8').slice(0, MAX_MESSAGE_BYTES);
   } catch {
     return null;
   }
