@@ -1,10 +1,12 @@
 # Build broker — a single-checkout patch queue
 
 KIT-T270 built it; KIT-T276 reworked it (design: `docs/design/broker-patch-queue.md`).
-ONE Node daemon per checkout is the only writer: it applies queued patches, runs the gates,
-builds and tests with the checkout's shared `CARGO_TARGET_DIR`, and lands green patches on
-`main` by explicit paths. Any number of read-only `patch-worker` agents read the tree and
-queue patches; none writes or builds. No worktrees, no lane branches. The daemon costs no
+ONE Node daemon per checkout is the only writer of the build inputs it owns: it applies queued patches, runs the
+pre-write gate, compile-checks the touched packages with the checkout's shared `CARGO_TARGET_DIR`, runs exactly the
+test commands a patch's envelope names, and lands green patches on `main` by explicit paths. **It never starts a test
+on its own** (KIT-D162, KIT-D163, KIT-T1115): a patch that names no test gets no test; see "Implicit runs" for every
+run that starts without a request and the one setting that turns it on. Any number of read-only `patch-worker` agents
+read the tree and queue patches; none writes or builds. No worktrees, no lane branches. The daemon costs no
 tokens; stuck patches escalate to the orchestrator.
 
 Worker workflow: the `patch-worker` skill. This page is for the OPERATOR.
@@ -19,7 +21,7 @@ rather than giving it a second write path.
 
 - `broker.mjs` — the daemon; also `pause` / `resume`, and `clean <path...> | --pycache` (removes untracked
   leftovers such as a stray `__pycache__`; tracked files are refused, a patch deletes those).
-- `submit.mjs` — a worker pipes a patch envelope on stdin; prints the job id. It never waits. Before queueing, the pre-write gate runs on the patch and (with `broker.precheck`, default on) `precheck.mjs` runs `affected.check` in the broker's own `precheck` tree and persistent target dir (`broker.precheck_timeout_s`, default 90): a gate failure or a rustc error prints the failed result, exit 1, and the job never takes a queue slot; a timeout or any other trouble queues the job as before. `--measure` queues a measurement job (see below). `--agent <id>` names the submitting subagent.
+- `submit.mjs` — a worker pipes a patch envelope on stdin; prints the job id. It never waits. Before queueing, the pre-write gate runs on the patch and (with `broker.precheck`, default on) `precheck.mjs` runs `affected.check` (a compile check, never a test) in the broker's own `precheck` tree and persistent target dir (`broker.precheck_timeout_s`, default 90): a gate failure or a rustc error prints the failed result, exit 1, and the job never takes a queue slot; a timeout or any other trouble queues the job as before. `--measure` queues a measurement job (see below). `--agent <id>` names the submitting subagent.
 - `wait.mjs` — blocks on a result (default 100 s, under the 120 s a foreground Bash call survives; `--timeout`
   is cut to the Bash call's window minus 10 s: pass `--tool-timeout <s>` equal to the Bash timeout for a longer wait, up to 540 with the Bash timeout
   at 600000; a subagent: at most 300, once; the hook adds both), exits with the status, prints the queue position on timeout (exit 2:
@@ -69,10 +71,12 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
 3. `gate` — `hooks/pre-write.mjs` runs per surviving file on a synthesized Write payload
    (file length, comments, magic numbers, forbidden paths). Failure → `gate`, tree untouched.
 4. `run` — pre-images go to the object database and `inflight.json`; the files are written;
-   the commands run (`-j <jobs>`, `--no-fail-fast` for `cargo test`/`cargo t`; the `t`/`b`/`r`
-   aliases compose too). A check-only patch restores byte for byte afterwards.
+   the commands run: the compile check of the touched packages (`patch_check`), then the envelope's own `--test` commands and
+   nothing else (`-j <jobs>`, `--no-fail-fast` for `cargo test`/`cargo t`; the `t`/`b`/`r`
+   aliases compose too). A patch with no command runs the compile check alone; with `patch_check: off` it runs no process at all.
+   A check-only patch restores byte for byte afterwards.
 
-   **Failure attribution** (`attribute.mjs`): a command that fails with named failed tests and
+   **Failure attribution** (`attribute.mjs`; only with `attribute_failures: true`, default off): a command that fails with named failed tests and
    no rustc error is re-run on the pre-patch tree (the journal restores it; untouched dirty
    files stay as they are), filtered to those tests (nextest `-E "test(=a) or test(=b)"`, else
    libtest `-- --exact a b`), then the patch is re-applied. A test that also fails without the
@@ -80,7 +84,7 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
    reason}]` is recorded and printed. A test that passes without the patch fails the job; a
    build error is never attributed.
 
-   **Deferred** (`deferred.mjs`): each foreign test is also written to
+   **Deferred** (`deferred.mjs`; recorded only under `attribute_failures: true`, re-run only under `recheck_deferred: true`, both default off): each foreign test is also written to
    `target/broker/deferred.json` (test, command, repo, job, reason, dirty paths). While idle the
    daemon re-runs just those tests when HEAD moves or a recorded dirty path turns clean: a pass
    drops the entry; a failure with none of its recorded paths dirty is a real break, filed with
@@ -99,7 +103,14 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
 - **Green cache** (`green.mjs`): a passed check-only run is keyed by HEAD, the tracked edits in
   the tree, the patch's files, its pins and its commands. A `--land` with the same key lands on
   that evidence (`reusedFrom` in the result) without building or testing again.
-- **Affected gate** (`land_gate: affected`; `affected.mjs`, `landgate.mjs`): a landing runs
+- **Check gate** (`land_gate: check`, the default since KIT-T1115; `landgate.mjs`): a landing, and a patch that names no command, runs the compile
+  check of `patch_check` (default `touched`: `affected.check` narrowed to `-p <crate>` for each package the patch touches, one command per
+  workspace, `--features` dropped inside a nested workspace; `workspace`: the whole `affected.check`; `off`: nothing; a `.rs`/`Cargo.toml`/lock outside every crate
+  falls back to the whole check; a doc-only patch runs nothing), then only the envelope's own commands (suite-shaped ones still leave the gate, listed in
+  `selection.dropped`), plus `affected.conformance` when the project configured one. It maps no tests, runs no dependents' tests, and never waits on a test it was not asked
+  for, so a landing never blocks on tests (KIT-D162). A landing that reuses a green check-only run adds the missing compile checks only.
+  The result's `selection.check` names the mode; the `Broker-Gate:` trailer says `compile check (touched), no tests`.
+- **Affected gate** (opt-in: `land_gate: affected`; `affected.mjs`, `landgate.mjs`): a landing runs
   `affected.check` (default `cargo check --workspace --all-targets`) plus `affected.test -p <crate>`
   over the targets its changed paths map to (`tests/x.rs` → `--test x`; a `src` module →
   `--lib` + the tests naming it; a shared test module or asset → the tests naming it;
@@ -145,9 +156,38 @@ Stop at the first failure; each writes `target/broker/results/<id>.json`.
 - **Command timeout and running cancel** (KIT-T676, `command-limit.mjs`, `cancel-running.mjs`, `run-abort.mjs`): a job command the daemon runs has a budget of `command_timeout_multiple` (default 4) times the longest passing run of that exact command in the results, never below `command_timeout_floor_s` (default 600; 0 turns the timeout off). The budget is checked, not a blind kill (KIT-D137, `build-checkpoint.mjs`): every 5 minutes (`CLAUDE_KIT_CHECKPOINT_MS` moves it; a budget under 5 minutes is the interval) the broker looks at the command's process tree and log and writes a line to the command's log, its stderr and the waiter's heartbeat (`wait.mjs`) saying what is building (crates compiled so far, the test target running), cold or warm against the recorded passing run with the time left by it, and which foreign cargo builds share the machine. A command whose log grew or whose tree used CPU since the last check continues, however long it has run; one with neither is stopped at the check, so a stalled build never sits for half an hour. Past its budget a command that prints nothing and runs no compiler is a hung test and is stopped. The command entry carries `aborted: { kind: "timeout", message }` (the message says `stalled` and the reason for a stop at a check), its log ends with a `[broker] timed out` line and the job fails `timed out`; a train that times out fails whole, without bisection. `broker.mjs cancel <id> --running` kills the running job's command tree the same way; the job ends `cancelled` (in a train only the named member does and the rest rebuild without it). A job in its landing phases (commit, pre-push gate, push, pin) is never cancelled or timed out by this: the cancel is refused.
 - **File-lock retry** (KIT-T675, `file-lock.mjs`): a command whose log shows cargo's `failed to remove file `<path>` … Access is denied (os error 5)` runs again after 1 s, 3 s and 8 s; each retry logs the processes running that executable (Win32_Process by path) or says none does (a scanner). The result's `recovered` carries the notes.
 - **Batch window** (KIT-T683, `batch-window.mjs`; `batch_window_s`, default 0 = off): with a value above 0 a lone trainable job waits up to that long for a peer while two or more sessions have been active in the last 10 minutes; a second queued job, an expired window, a single active session or a non-trainable job (manifest, pin, test-only) releases it at once. Replaying the 2026-10-28 dirt-empire queue (247 jobs) at 60 s and 90 s saves 1 build of 238 and raises the median wait: only 20 of 134 trainable jobs had a disjoint peer within 60 s (36 within 5 min), so the default stays off.
-- **Tiered tests are the default** (KIT-D110, promoting ST-D254/ST-D255): without a `broker:` setting a project gets `land_gate: affected` (compile every target, the tests the changed paths map to, and the whole test run of each workspace crate that depends on a touched crate through Cargo.lock; `affected.dependents: false` drops the dependents) and a nightly suite slot (`nightly_at`, default "02:00" local): once a day, when the queue is idle, the daemon runs `suite` and then the `nightly:` commands (the GPU, golden and performance tiers, e.g. `cargo t -P render -j 1`) on the committed HEAD, and files a regression naming the causing commit on red. A project keeps those tiers out of its default test profile. Opt out with `land_gate: full` or `suite_every: N` (the landing-count cadence, no nightly tiers). A render-crate trigger for the tiers is not built. `decision-promotion.mjs` (KIT-D111) lists project decisions about kit or framework concerns that no KIT/RG decision cites.
+- **Tiered tests, on request** (KIT-D110, promoting ST-D254/ST-D255; superseded as a default by KIT-D162, KIT-D163, KIT-T1115): without a `broker:` setting a project gets `land_gate: check` (compile check, the envelope's own tests) and a nightly SUITE SLOT (`nightly_at`, default "02:00" local) that only marks the full suite due: it runs after `approve-suite`, when the queue is idle, then the `nightly:` commands (the GPU, golden and performance tiers, e.g. `cargo t -P render -j 1`) on the committed HEAD, and files a regression naming the causing commit on red. `land_gate: affected` brings back the tests the changed paths map to and the whole test run of each workspace crate that depends on a touched crate through Cargo.lock (`affected.dependents: false` drops the dependents). A project keeps the tiers out of its default test profile. `land_gate: full` or `suite_every: N` (the landing-count cadence, no nightly tiers) are the other choices. A render-crate trigger for the tiers is not built. `decision-promotion.mjs` (KIT-D111) lists project decisions about kit or framework concerns that no KIT/RG decision cites.
 - **Check tree** (KIT-T698, KIT-D114; `check-tree.mjs`, `check-run.mjs`, `live-patch.mjs`): the maintainer's checkout holds landed code only. A check-only job, a train of them and the gate of a landing apply the patch, build and test in a git worktree the broker owns at `target/broker/check/<repo>` (synced to the live HEAD between jobs and kept for incremental builds; a superproject's submodules are worktrees at the recorded sha; a submodule lane has its own). A landing runs its gate there first, then writes the live tree once and lands on that evidence (the green cache) without building again. `broker status` and orient print `live tree: landed code only` or `live tree: PATCHED by <job> (<why>)`; the marker (`live-patched.json`) is set only for a landing write or a fallback run and cleared when it ends, and `phase.json` is removed when a job finishes. If the worktree cannot be made the job runs in the live checkout and the marker says so; `check_tree: false` turns it off. Check-only jobs no longer take the live submodule tree lock, so a root job does not wait on a submodule job for them.
 - **Heartbeat** (`heartbeat.mjs`): `wait.mjs` prints the job's queue position, or its running time and command, every `--heartbeat` seconds (default 60).
+
+## Implicit runs (KIT-D162, KIT-D163, KIT-T1115)
+
+The broker starts no test the worker did not name. Every run that starts a test without being asked is listed here with the ONE
+setting that turns it on; every such setting is off by default. Tests run to troubleshoot, once per body of work (the one that
+measures the change), and in a full run the maintainer approves. A `cargo check` is a build, not a test, and is listed
+too because Rust builds are slow.
+
+| Run | Starts a test? | Default | Setting |
+| --- | --- | --- | --- |
+| a patch's own `--test` commands | yes, the ones named | on: the worker asked | none (name no `--test` to run none) |
+| a patch that names no command | none; the compile check only (a patch can run no process: `patch_check: off`) | compile check of the touched packages | `patch_check: touched \| workspace \| off`; `verify_default: [cmds]` makes every no-command patch run those (the old default was `cargo test --no-fail-fast`) |
+| landing gate | mapped tests + dependents' tests only under `affected` | `land_gate: check`: compile check + named tests | `land_gate: affected` (mapped tests, dependents, `affected.mandatory`), `full` (the job's commands as given) |
+| `affected.conformance` | yes, the configured framework conformance test, on a landing that touches `.rs`/`.toml` | off (no command configured) | `affected.conformance: "<cmd>"` |
+| submit precheck | no: `cargo check` + `node --check` of the patch in its own tree | on | `precheck: false` |
+| auto-pin job in a consumer | no: its landing gate is the compile check; tests only under `land_gate: affected`/`full` with `pin_test_args` | compile check | `land_gate`, `pin_test_args` |
+| failure attribution and known-red baselines | a re-run of a failed command on the pre-patch tree | off: a failed named test fails the job | `attribute_failures: true` |
+| deferred foreign tests, idle re-run | yes | off (and none recorded without attribution) | `recheck_deferred: true` (with `attribute_failures: true`) |
+| full suite (`suite`, `nightly:`, a lane's `suite:`) | yes | never by itself: a due suite is recorded `AWAITING APPROVAL` | `node broker.mjs approve-suite --root <checkout>` approves ONE run (KIT-D160) |
+| `gate_prebuild` | no: builds the pre-push gate's test binaries (`--no-run`) | off (no command configured) | repo entry `gate_prebuild` |
+| repo pre-push gate | the repo's own hook, whatever it runs | off | repo entry `pre_push: true` |
+| `submit.mjs --measure` | yes, the named commands, in an idle slot | the worker asked | none |
+| a landing's re-verify after a rebase | the same commands the landing already ran (the compile check and the named tests) | on | none |
+| train bisection after a red | the members' own commands again | on | `batch: 1` (no trains) |
+
+The default config after KIT-T1115 (no `broker:` setting for any of these): `verify_default` empty, `land_gate: check`,
+`patch_check: touched`, `attribute_failures: false`, `recheck_deferred: false`, the full suite approval-only. A project gets the old
+behaviour with `land_gate: affected` (or `full`), `verify_default: ["cargo test --no-fail-fast"]`, `attribute_failures: true` and
+`recheck_deferred: true`. The cargo-free test fixtures set `BROKER_LEGACY_DEFAULTS=1`, which restores the pre-KIT-T1115 defaults for them only.
 
 ## Coexistence with a hand-driven writer
 
@@ -218,11 +258,14 @@ broker:
   target_dir: D:/dev/stiletto-2349/target   # the shared CARGO_TARGET_DIR
   parallelism:
     jobs: auto                               # default: every core the RAM feeds at 4 GiB a job (os error 1455 = pagefile); a number pins it
-  verify_default:
-    - cargo t                                # the project's fastdev alias
+  verify_default:                            # absent = none: a patch that names no --test runs the compile check only
+    - cargo t                                # the project's fastdev alias; every no-command patch would run it
   # untracked_blocks: ["crates/**/*.rs"]   # absent = derived from the cargo layout (see above)
   dirty_blocks: ["**/*.rs", "**/Cargo.toml", "**/Cargo.lock"]   # tracked edits that pause the queue
-  land_gate: affected                        # default full; affected = check + mapped tests (Fast landing)
+  land_gate: check                           # default check = compile check + the job's own tests; affected = + mapped tests and dependents; full = the job's commands as given
+  patch_check: touched                       # touched (default) | workspace | off: the compile check of a patch, never a test
+  attribute_failures: false                  # default false; true re-runs failed named tests on the pre-patch tree
+  recheck_deferred: false                    # default false; true re-runs deferred foreign tests while idle
   affected: { check: "cargo check --offline --workspace --all-targets", test: "cargo t --offline" }
   suite: ["cargo t --offline", "cargo run --offline --release --bin probe"]   # default verify_default
   suite_every: 3                             # landings between suite runs; default 1
@@ -235,8 +278,8 @@ broker:
     - { name: rapid-game, path: rapid-game, main: main, remote: origin, submodule: true, pin_in: . }
 ```
 
-Defaults: `target_dir` `<root>/target`; `jobs` auto (`scripts/broker/jobs.mjs`); `verify_default` `["cargo test --no-fail-fast"]`;
-`poll_ms` 2000.
+Defaults: `target_dir` `<root>/target`; `jobs` auto (`scripts/broker/jobs.mjs`); `verify_default` none (the approved suite's default is `["cargo test --no-fail-fast"]`);
+`land_gate` check; `patch_check` touched; `poll_ms` 2000.
 
 ## Guards
 

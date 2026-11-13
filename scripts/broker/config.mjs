@@ -9,7 +9,7 @@
 //   broker:
 //     target_dir: <shared CARGO_TARGET_DIR>        # default <root>/target
 //     parallelism: { jobs: auto }                  # default auto (jobs.mjs: the cores RAM can feed); a number pins it
-//     verify_default: [ "cargo test --no-fail-fast" ]  # commands a job may omit
+//     verify_default: [ "cargo test --no-fail-fast" ]  # commands a job that names none runs; absent = none (KIT-T1115)
 //     poll_ms: 2000                                # daemon queue poll interval
 //     coalesce_ms: 2000                            # a drain waits until the queue has been quiet this long (0 starts at once), so
 //                                                    # back-to-back submits form one train; capped at 5x this from the oldest job
@@ -67,7 +67,7 @@ export function normalizeBroker(root, broker) {
   const testThreads = Number.isInteger(threads) && threads >= 1 ? threads : null;
   const verifyDefault = Array.isArray(broker.verify_default) && broker.verify_default.length
     ? broker.verify_default.map(String)
-    : DEFAULT_VERIFY.slice();
+    : process.env.BROKER_LEGACY_DEFAULTS ? DEFAULT_VERIFY.slice() : [];
   const repos = (Array.isArray(broker.repos) ? broker.repos : []).map(normalizeRepo);
   return {
     root,

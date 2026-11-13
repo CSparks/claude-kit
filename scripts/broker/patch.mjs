@@ -18,7 +18,7 @@ import { addDeferred, forgetPassed } from './deferred.mjs';
 import { findGreen, greenKey, recordGreen } from './green.mjs';
 import { hashKey, treeState } from './cache.mjs';
 import { makeBaseline } from './baseline.mjs';
-import { landGate } from './landgate.mjs';
+import { landChecks, landGate } from './landgate.mjs';
 import { coalesce } from './coalesce.mjs';
 import { testRecord } from './test-record.mjs';
 import { phaseTracker } from './phase.mjs';
@@ -53,7 +53,7 @@ function runCommands(cfg, job, cwd, hooks) {
     if (r.exit === 0) continue;
     if (!(job.ops || []).length) continue; // a test-only job already runs on the baseline: its failures are the baseline's
     if (Object.keys(entry.errors).length) {
-      const red = hooks.knownRed ? hooks.knownRed(entry, n) : null;
+      const red = cfg.attributeFailures && hooks.knownRed ? hooks.knownRed(entry, n) : null;
       if (red) entry.knownRed = red;
       if (red && red.clean) continue;
       break;
@@ -61,6 +61,7 @@ function runCommands(cfg, job, cwd, hooks) {
     if (!entry.failedTests.length) break;
     const pins = pairedPins(cwd, job.base, job.ticket);
     if (pins.length) { entry.suspect = suspects(entry.failed, pins); break; }
+    if (!cfg.attributeFailures) break;
     const attributed = hooks.baseline((run) => attribute({ command: entry, runBaseline: (cmd) => run(cmd, `${n}-base`) }));
     if (attributed && attributed.skipped) entry.unattributed = attributed.skipped;
     if (!attributed || attributed.skipped || attributed.caused.length) break;
@@ -71,11 +72,13 @@ function runCommands(cfg, job, cwd, hooks) {
   return out;
 }
 
-// A landing that reuses a check-only run still compiles every target under the affected gate (KIT-T677): the
-// check-only run's own commands may build only the targets they name.
-function compileCheckMissing(cfg, job, cwd, reused) {
-  if (cfg.landGate !== 'affected' || reused.commands.some((c) => c.cmd === cfg.affected.check)) return [];
-  return runCommands(cfg, { ...job, commands: [cfg.affected.check] }, cwd, { baseline: () => null });
+// A landing that reuses a check-only run still compiles under the check and affected gates (KIT-T677, KIT-T1115): the
+// check-only run's own commands may build only the targets they name. Compile checks only, never a test.
+function compileCheckMissing(cfg, job, cwd, reused, files) {
+  if (cfg.landGate === 'full') return [];
+  const wanted = cfg.landGate === 'check' ? landChecks(cfg, cwd, files) : [cfg.affected.check];
+  const missing = wanted.filter((cmd) => !reused.commands.some((c) => c.cmd === cmd));
+  return missing.length ? runCommands(cfg, { ...job, commands: missing }, cwd, { baseline: () => null }) : [];
 }
 
 // `opts.gated` runs a landing's gate without landing (the check-tree run of a landing, check-run.mjs); `opts.write` replaces
@@ -149,7 +152,7 @@ export function processPatch(cfg, job, repo, opts = {}) {
     });
     record = reused ? null : testRecord(cfg, job, hashKey([key, ...jobCommands(cfg, runJob)]));
     const replayedFrom = reused && reused.job !== job.id ? reused.job : null;
-    const commands = reused ? [...reused.commands.map((c) => ({ ...c, ...(replayedFrom ? { reusedFrom: replayedFrom } : {}) })), ...compileCheckMissing(cfg, job, cwd, reused)] : runCommands(cfg, runJob, cwd, { baseline, knownRed, record });
+    const commands = reused ? [...reused.commands.map((c) => ({ ...c, ...(replayedFrom ? { reusedFrom: replayedFrom } : {}) })), ...compileCheckMissing(cfg, job, cwd, reused, plan.files)] : runCommands(cfg, runJob, cwd, { baseline, knownRed, record });
     const green = isGreen(commands);
     const foreign = foreignOf(commands);
     if (green && !job.land && (job.ops || []).length) recordGreen(cfg, key, { job: job.id, commands, foreign });

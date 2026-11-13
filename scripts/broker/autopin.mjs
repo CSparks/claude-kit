@@ -38,11 +38,11 @@ export function consumersOf(repo, { projects = readRegistry().projects, from = n
   return found;
 }
 
-// Under land_gate: affected a pin-only job must name its check: submit refuses a --no-patch job with no --test.
+// Under every land_gate but full a pin-only job must name its check (a compile check, never a test): submit refuses a --no-patch job with no --test.
 function checkArgs(root) {
   try {
     const cfg = readBrokerConfig(root);
-    return cfg.landGate === 'affected' && cfg.affected && cfg.affected.check ? ['--test', cfg.affected.check] : [];
+    return cfg.landGate !== 'full' && cfg.affected && cfg.affected.check ? ['--test', cfg.affected.check] : [];
   } catch { return []; }
 }
 

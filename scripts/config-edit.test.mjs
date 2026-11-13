@@ -107,7 +107,7 @@ try {
     const root = project();
     for (const [key, words, re] of [
       ['broker.affected.conformence', ['x'], /not a key the broker reads/],
-      ['broker.land_gate', ['sometimes'], /must be one of affected \| full/],
+      ['broker.land_gate', ['sometimes'], /must be one of check \| affected \| full/],
       ['broker.check_tree', ['yes'], /true or false/],
       ['broker.nightly_at', ['25:00'], /HH:MM/],
       ['broker.batch', ['0'], />= 1/],

@@ -62,7 +62,7 @@ test('an affected landing runs the check and the mapped tests, drops the suite, 
   try {
     const r = t.land(CAMERA, [t.suiteCmd]);
     assert.equal(r.status, 'landed', JSON.stringify(r));
-    assert.deepEqual(t.ran(), ['CHECK', 'TEST -p app --lib --test alpha', 'SUITE'], 'the gate, then the suite on the idle cadence');
+    assert.deepEqual(t.ran(), ['CHECK', 'TEST -p app --lib --test alpha'], 'the gate; the suite waits for the maintainer\'s approval (KIT-D160)');
     assert.deepEqual(r.selection.dropped, [t.suiteCmd]);
     assert.deepEqual(r.selection.reasons, [{ path: 'crates/app/src/camera.rs', crate: 'app', picks: ['--lib', '--test alpha'] }]);
     const body = g(['log', '-1', '--pretty=%B'], t.s.root);
@@ -80,7 +80,7 @@ test('negative: land_gate full runs the job commands as given, and an unmapped .
   try {
     const r = stray.land('*** write tools/stray.rs\nfn main() {}\n', [stray.rec('JOB')]);
     assert.equal(r.status, 'landed');
-    assert.deepEqual(stray.ran(), ['JOB', 'SUITE'], 'the job commands as given, then the cadence');
+    assert.deepEqual(stray.ran(), ['JOB'], 'the job commands as given');
     assert.equal(r.selection, null);
   } finally { stray.done(); }
 });
@@ -90,7 +90,7 @@ test('a landing that deletes a bin and a test runs no target for them (KIT-T475)
   try {
     const r = t.land('*** delete crates/app/src/bin/probe.rs\n*** delete crates/app/tests/beta.rs\n', [t.suiteCmd]);
     assert.equal(r.status, 'landed', JSON.stringify(r));
-    assert.deepEqual(t.ran(), ['CHECK', 'SUITE'], 'no --bin probe, no --test beta');
+    assert.deepEqual(t.ran(), ['CHECK'], 'no --bin probe, no --test beta');
     assert.deepEqual(r.selection.reasons.map((x) => x.picks), [[], []]);
   } finally { t.done(); }
 });

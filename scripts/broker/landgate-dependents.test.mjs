@@ -112,7 +112,8 @@ test('negative controls: dependents off, a leaf crate and a registry dependent a
 test('dependents are on by default and `dependents: false` in the config turns them off', () => {
   assert.equal(pipelineConfig({}, ['x'], {}).affected.dependents, true);
   assert.equal(pipelineConfig({ affected: { dependents: false } }, ['x'], {}).affected.dependents, false);
-  assert.equal(pipelineConfig({}, ['x'], {}).landGate, 'affected', 'the new default');
+  assert.equal(pipelineConfig({}, ['x'], {}).landGate, 'check', 'the default compiles and runs only the named tests (KIT-T1115)');
+  assert.equal(pipelineConfig({ land_gate: 'affected' }, ['x'], {}).landGate, 'affected', 'the mapped tests are an explicit opt-in');
   assert.equal(pipelineConfig({ land_gate: 'full' }, ['x'], {}).landGate, 'full', 'an explicit opt-out');
   assert.equal(pipelineConfig({}, ['x'], {}).suiteSchedule, 'nightly');
   assert.equal(pipelineConfig({ suite_every: 5 }, ['x'], {}).suiteSchedule, 'cadence', 'suite_every opts out of the nightly slot');

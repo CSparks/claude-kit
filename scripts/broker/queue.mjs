@@ -121,7 +121,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
   }
   if (held.size) return { processed, paused: true, pausedOn: [...held.values()][0], pausedRepos: [...held.keys()], reason: 'dirty' };
   if (waiting.size || holds.length) return { processed, paused: false, waiting: [...waiting.values(), ...holds] };
-  // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired.
+  // Idle: re-run deferred foreign failures whose trigger (HEAD move, dirty path cleaned) fired, only under `recheck_deferred`.
   const dirtyLane = idleSubtrees(cfg).find((sub) => pausedOnDirt(withLane(cfg, sub.name), sub));
   if (dirtyLane) return { processed, paused: false, deferred: null, suite: null, waiting: [`${dirtyLane.name} is paused on uncommitted changes; idle work stays off its tree`] };
   const idle = takeSubtrees(cfg, idleSubtrees(cfg), 'idle', { idle: true });
@@ -131,7 +131,7 @@ export function processOnce(cfg, { onResult, fileBug, coalesceMs = 0, batchWindo
   let measured;
   try {
     measured = runMeasurements(cfg);
-    deferred = measured.cancelled ? { dropped: [], filed: [], kept: [], cancelled: true } : recheckDeferred(cfg, fileBug ? { fileBug } : {});
+    deferred = measured.cancelled ? { dropped: [], filed: [], kept: [], cancelled: true } : cfg.recheckDeferred ? recheckDeferred(cfg, fileBug ? { fileBug } : {}) : { dropped: [], filed: [], kept: [] };
     suite = deferred.cancelled ? null : runSuite(cfg, fileBug ? { fileBug } : {});
   } finally { idle.release(); }
   if (suite && !suite.cancelled && !suite.deferred && suite.status !== 'partial') suite.pruned = pruneAfterSuite(cfg);

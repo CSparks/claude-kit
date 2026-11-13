@@ -5,10 +5,12 @@ description: Work a ticket as a broker patch worker — read the tree, author th
 
 # patch-worker — queue patches, never write the tree
 
-The broker daemon (`scripts/broker/broker.mjs`) is the ONLY writer in the checkout. It
-applies your patch, runs the kit's pre-write gate on every file, builds and tests with the
-one warm `CARGO_TARGET_DIR`, and with `--land` commits by explicit paths and pushes. Your
-Write tool reaches only the system temp dir (envelopes, drafts); you never run cargo. Operator setup + schemas: `docs/BROKER.md`.
+The broker daemon (`scripts/broker/broker.mjs`) is the ONLY writer of the build inputs it owns. It
+applies your patch, runs the kit's pre-write gate on every file, compile-checks the packages you touched
+with the one warm `CARGO_TARGET_DIR`, runs EXACTLY the `--test` commands you name (no others), and with `--land` commits by
+explicit paths and pushes. It never starts a test you did not name (KIT-D162, KIT-D163): tests slow every project on the
+machine, so they run to troubleshoot, once per body of work (the one that measures your change), or in a full run the
+maintainer approves. Your Write tool reaches only the system temp dir (envelopes, drafts); you never run cargo. Operator setup + schemas: `docs/BROKER.md`.
 
 ## The loop
 
@@ -38,9 +40,11 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
    - An `edit` block applies while its SEARCH text matches exactly once. Include enough
      context lines to be unique. One `*** edit` header may carry several blocks.
    - `write` creates a new file; it refuses a path that already exists.
-   - `--test` is repeatable; omit it to run the project's `verify_default`. Use the
-     project's cargo aliases (`cargo t`, `cargo b`); the broker adds `-j` and
-     `--no-fail-fast`.
+   - `--test` is repeatable and names the commands the broker runs for this patch. Omit it and the broker
+     runs only the compile check of the touched packages (`patch_check`) and no test; a project that set
+     `verify_default` gets those commands too. Name a test only when it is the one that measures this
+     change (scoped to the crate and target the change reaches), never a suite, a whole package or "affected" tests.
+     Use the project's cargo aliases (`cargo t`, `cargo b`); the broker adds `-j` and `--no-fail-fast`.
    - `--repo rapid-game` targets the submodule; paths are relative to it.
 
 3. **Read the result.** `submit` answers in seconds when the patch fails the pre-write gate, does not apply
@@ -69,9 +73,10 @@ Write tool reaches only the system temp dir (envelopes, drafts); you never run c
 4. **Land** when green: resubmit the same patch with the same `--test` and `--land --ticket
    <id>`; on an unchanged HEAD it lands on the check's evidence without re-running, unless the
    check shared its build with other patches (a train), which leaves no reusable evidence. A confident
-   small change may skip the check and submit `--land` first: a red run lands nothing, and under
-   `land_gate: affected` the broker gates it on a compile check plus the tests its paths map to,
-   with the full suite on a separate cadence (docs/BROKER.md "Fast landing"). The broker
+   small change may skip the check and submit `--land` first: a red run lands nothing, and the broker
+   gates the landing on the compile check of the touched packages plus the `--test` commands you named
+   (default `land_gate: check`, no test of its own; a project that opted into `land_gate: affected`
+   also gets the tests its paths map to). The full suite runs only when the maintainer approves it (docs/BROKER.md "Implicit runs"). The broker
    commits exactly the patch's paths (`<title> (implements <ticket>)`), pushes, and for a
    submodule repo pins the superproject. The result carries `landed.sha`.
 

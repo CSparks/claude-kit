@@ -16,7 +16,7 @@ import { GATE_CRASH, RUNTIME_GONE, gatePlan } from './gate.mjs';
 import { isSuiteShaped } from './landgate.mjs';
 import { parentWorkspaceCommand } from './lane-cargo.mjs';
 
-export const SUITE_REFUSAL = 'full suites run on the cadence; list the targets you touched (--test "cargo t -p <crate> --test <name>")';
+export const SUITE_REFUSAL = 'a full suite runs only when the maintainer approves it (broker.mjs approve-suite); name the one test that measures your change (--test "cargo t -p <crate> --test <name>"), or none for a compile check only';
 import { parsePins } from './pin.mjs';
 import { redRunRefusal } from './red-run.mjs';
 import { readInflight } from './preimage.mjs';
@@ -54,11 +54,11 @@ export function buildPatchJob(cfg, flags, text) {
     try { ops = parseEnvelope(text); } catch (e) { return { error: e.message }; }
   }
 
-  // Under the affected gate a worker job never runs the whole suite: it holds the one writer for
+  // Under the check and affected gates a worker job never runs the whole suite: it holds the one writer for
   // the suite's length (a 1,426 s check-only run blocked dirt-empire's queue for 24 min).
   const tests = asList(flags.test).map(String);
-  if (cfg.landGate === 'affected' && tests.some((c) => isSuiteShaped(c, cfg.suite))) return { error: SUITE_REFUSAL };
-  if (cfg.landGate === 'affected' && flags['no-patch'] && !tests.length) return { error: SUITE_REFUSAL };
+  if (cfg.landGate !== 'full' && tests.some((c) => isSuiteShaped(c, cfg.suite))) return { error: SUITE_REFUSAL };
+  if (cfg.landGate !== 'full' && flags['no-patch'] && !tests.length) return { error: SUITE_REFUSAL };
 
   if (flags.measure && flags.land) return { error: '--measure cannot --land: a measurement job prints numbers and never lands' };
   const red = flags.measure ? null : redRunRefusal(cfg, flags.ticket ? String(flags.ticket) : null, flags.diagnosed);

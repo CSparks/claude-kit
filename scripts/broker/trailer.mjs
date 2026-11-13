@@ -10,7 +10,8 @@ export function gateTrailer(job, commands, { reused = null, selection = null, tr
   const ran = `${commands.filter(PASSED).length}/${commands.length} commands green`;
   const from = reused ? `, reused check ${reused.job}` : '';
   const built = train ? `, one build with ${train.size - 1} other patch(es) in ${train.id}` : '';
-  const scope = selection ? `; ${selection.explicit ? "the job's own commands" : 'affected gate'}, full suite on the cadence` : '';
+  const checked = selection && selection.check ? `compile check (${selection.check})${selection.explicit ? " and the job's own commands" : ', no tests'}, full suite only on approval` : null;
+  const scope = selection ? `; ${checked || `${selection.explicit ? "the job's own commands" : 'affected gate'}, full suite on the cadence`}` : '';
   const why = note ? `; ${note}` : '';
   return `Broker-Gate: ${job.id} ${ran}${from}${built}${scope}${why} (target/broker/results/${job.id}.json)`;
 }

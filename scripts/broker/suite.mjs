@@ -99,10 +99,10 @@ function overdue(cfg, cwd, state, head, now) {
   return landings >= cfg.suiteMaxLandings || now - Date.parse(state.putOff.at) >= cfg.suiteMaxHours * 3600_000;
 }
 
-// What this daemon's suite covers: the root lane's `suite` over the checkout (under land_gate: affected), or a
+// What this daemon's suite covers: the root lane's `suite` over the checkout (under every land_gate but full), or a
 // submodule lane's own `suite:` over that submodule; null when the cadence is off here.
 function suiteScope(cfg) {
-  if (!cfg.lane) return cfg.landGate === 'affected' ? { cwd: cfg.root, suite: cfg.suite, parts: cfg.suitePartitions } : null;
+  if (!cfg.lane) return cfg.landGate !== 'full' ? { cwd: cfg.root, suite: cfg.suite, parts: cfg.suitePartitions } : null;
   const own = cfg.repos.find((r) => r.submodule && r.name === cfg.lane);
   return own && own.suite.length ? { cwd: join(cfg.root, own.path), suite: own.suite, parts: 1 } : null;
 }

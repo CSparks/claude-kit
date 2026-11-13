@@ -29,8 +29,9 @@ CLAUDE.md *section* on demand — don't ingest it wholesale.
   or shared mutable state. Seed randomness. Test behavior, not implementation detail.
 
 ## Verify
-- Actually run the tests (via Bash) and report the real output. Run the single new
-  test and the surrounding suite.
+- Actually run the tests you added (via Bash) and report the real output. Run the single new
+  test, and the tests of the crate or module you touched when the change reaches them; never a whole suite
+  (full runs are the maintainer's call, KIT-D162, KIT-D163).
 - Never report success from reading alone, and never substitute manual steps for an
   automated test — if the task says automate, the deliverable is automation.
 

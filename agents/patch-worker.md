@@ -39,7 +39,9 @@ you author the patch, you submit it, you wait ONCE at most, and you hand back. L
 
 ## Loop
 1. Read the ticket and the files it touches; restate the acceptance criteria.
-2. Submit with the narrowest `--test` that proves it, CHECK-ONLY (no `--land`) first. The queue is
+2. Submit CHECK-ONLY (no `--land`) first, with no `--test` unless one test measures this change: then the
+   narrowest one (the crate and target the change reaches). The broker compile-checks the touched packages itself and
+   runs only the tests you name; never name a suite, a whole package or a list "to be safe" (KIT-D162, KIT-D163). The queue is
    for changes you have read through for compile errors, not a compiler: re-read every symbol,
    match arm and signature your patch touches, and every other target that uses a type you
    changed, before you submit. A red run costs the whole lane a build (in one day 35 of 99 red or
@@ -52,8 +54,8 @@ you author the patch, you submit it, you wait ONCE at most, and you hand back. L
    Exit 2 (the wait ended, the job is still queued or running) -> do NOT wait again: write the handoff
    (step 6) and end. A compile error or gate failure is rejected at submit, before the job takes a queue slot.
 4. Green check -> resubmit the same patch with the same `--test` and `--land --ticket <id>`; on an
-   unchanged HEAD it lands on the check's evidence without re-running (under `land_gate:
-   affected` a landing also compiles every target of the workspace and runs the tests your paths map to). Report the landed sha.
+   unchanged HEAD it lands on the check's evidence without re-running (a landing also compile-checks the touched
+   packages; it runs no test you did not name unless the project opted into `land_gate: affected`). Report the landed sha.
 5. Stuck after two revisions of the same failure -> stop and report to the orchestrator
    with the result ids; do not guess a third time.
 6. HANDOFF, then end. Before you end with a job unfinished, write a `Handoff <your agent id>` block in the

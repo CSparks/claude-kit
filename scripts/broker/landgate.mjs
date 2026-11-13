@@ -119,10 +119,53 @@ function crateTests(cfg, workspace, name, specs) {
   return [...(plain.length ? [`${prefix} ${plain.join(' ')}`] : []), ...[...areas].map(([area, filters]) => `${prefix} --test ${area} -- ${[...new Set(filters)].join(' ')}`)];
 }
 
+const WORKSPACE_FLAGS = new Set(['--workspace', '--all']);
+const FEATURE_FLAGS = new Set(['--features', '-F']);
+const withoutFeatures = (tokens) => tokens.filter((t, i) => !FEATURE_FLAGS.has(t) && !FEATURE_FLAGS.has(tokens[i - 1]));
+
+// `affected.check` narrowed to `names`: --workspace becomes one -p per package; a command with none gets them at the end.
+function narrowed(check, names, nested) {
+  const tokens = String(check).trim().split(/\s+/);
+  const scope = names.flatMap((n) => ['-p', n]);
+  const at = tokens.findIndex((t) => WORKSPACE_FLAGS.has(t));
+  const out = at === -1 ? [...tokens, ...scope] : [...tokens.slice(0, at), ...scope, ...tokens.slice(at + 1).filter((t) => !WORKSPACE_FLAGS.has(t))];
+  return (nested ? withoutFeatures(out) : out).join(' ');
+}
+
+/**
+ * The compile checks a landing runs under `land_gate: check` (KIT-T1115): `patch_check` touched = `affected.check` over the
+ * packages the patch touches, one command per workspace (a nested workspace drops the superproject's --features); workspace, or a
+ * path the map cannot place = the whole `affected.check`; off = none. Never a test.
+ */
+export function compileChecks(cfg, sel) {
+  if (cfg.patchCheck === 'off') return [];
+  if (cfg.patchCheck === 'workspace' || sel.unmapped.length) return [cfg.affected.check];
+  const byWorkspace = new Map();
+  for (const name of sel.crates.keys()) {
+    const ws = sel.workspaces.get(name) || '';
+    byWorkspace.set(ws, [...(byWorkspace.get(ws) || []), name]);
+  }
+  return [...byWorkspace].map(([ws, names]) => `${inWorkspace(ws)}${narrowed(cfg.affected.check, names, !!ws)}`);
+}
+
+const selectionOf = (cwd, files, cfg) => selectAffected(cwd, [...files.keys()], { deleted: [...files].filter(([, f]) => f.text === null).map(([p]) => p), match: cfg.affected.match });
+
+/** The compile checks a landing of `files` needs under `land_gate: check` (patch.mjs: a landing that reuses a green check-only run). */
+export const landChecks = (cfg, cwd, files) => (cfg.landGate === 'check' ? compileChecks(cfg, selectionOf(cwd, files, cfg)) : []);
+
+// land_gate: check — the compile check, then only the commands the job names (or verify_default when the project set one).
+function checkGate(cfg, job, files, sel) {
+  const given = Array.isArray(job.commands) && job.commands.length ? job.commands : [];
+  const dropped = given.filter((c) => isSuiteShaped(c, cfg.suite));
+  const own = jobCommands(cfg, job).filter((c) => !dropped.includes(c));
+  const commands = withConformance(cfg, [...new Set([...compileChecks(cfg, sel), ...own])], files);
+  return { commands, selection: { reasons: sel.reasons, dropped, explicit: given.length > 0, check: cfg.patchCheck } };
+}
+
 export function landGate(cfg, cwd, job, files) {
-  if (cfg.landGate !== 'affected') return null;
-  const deleted = [...files].filter(([, f]) => f.text === null).map(([p]) => p);
-  const sel = selectAffected(cwd, [...files.keys()], { deleted, match: cfg.affected.match });
+  if (cfg.landGate !== 'affected' && cfg.landGate !== 'check') return null;
+  const sel = selectionOf(cwd, files, cfg);
+  if (cfg.landGate === 'check') return checkGate(cfg, job, files, sel);
   if (sel.unmapped.length) {
     const own = jobCommands(cfg, job);
     const commands = withConformance(cfg, own, files);
