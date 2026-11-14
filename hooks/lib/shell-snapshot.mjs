@@ -5,9 +5,10 @@
 //   headOf(root) -> the commit HEAD names, '' outside a repo
 //   changedSince(root, before, headBefore) -> paths the call created, modified, deleted or reverted; a path a
 //     HEAD move since headBefore committed (a broker landing) and that is clean now is the landing's, not the call's
-//   handWrittenSources(root, before, command, headBefore, { shell, since }) -> created or changed hand-authored source paths still
-//     on disk, none of it build output (build-output.mjs: a build-tree marker counts only when `before` held it and the call left
-//     it alone; a call that edited an ignore file also answers for the ignored sources it wrote since `since`); a deleted path is no write (nothing is left to re-save), and [] when the command cannot write a source
+//   handWrittenSources(root, before, command, headBefore, { shell, ignoreBefore }) -> created or changed hand-authored source paths
+//     still on disk, none of it build output (build-output.mjs: a build-tree marker counts only when `before` held it and the call
+//     left it alone; an ignore rule the call added or changed exempts nothing, ignore-state.mjs lists what it hid); a deleted path
+//     is no write (nothing is left to re-save), and [] when the command cannot write a source
 //     file (inert-command.mjs: generators, build and test runners, kit verbs, readers): a change that landed meanwhile
 //     (another agent's edit, a broker landing) is another writer's
 
@@ -18,6 +19,7 @@ import { git } from './exec.mjs';
 import { isSourcePath } from './shell-source-write.mjs';
 import { isInertCommand } from './inert-command.mjs';
 import { buildOutputJudge } from './build-output.mjs';
+import { newIgnoredSources } from './ignore-state.mjs';
 
 const ENTRIES_MAX = 5000;
 const MIN_ENTRY_LENGTH = 4;
@@ -82,21 +84,11 @@ export function changedSince(root, before, headBefore = '') {
     && (after[rel] ?? signature(root, rel)) !== (before[rel] ?? null));
 }
 
-const IGNORE_FILE = /(?:^|\/)\.gitignore$/;
-
-// Source files an ignore rule hides that the call wrote: git status no longer lists them, so a call that edited an ignore
-// file has them listed from the ignored set by mtime.
-function hiddenSourcesSince(root, since) {
-  return git(['ls-files', '-z', '--others', '--ignored', '--exclude-standard'], root).split('\0')
-    .filter((rel) => rel && isSourcePath(rel) && (() => { try { return statSync(join(root, rel)).mtimeMs >= since; } catch { return false; } })());
-}
-
-export function handWrittenSources(root, before, command, headBefore = '', { shell = '', since = 0 } = {}) {
+export function handWrittenSources(root, before, command, headBefore = '', { shell = '', ignoreBefore = null } = {}) {
   if (isInertCommand(command, { root, shell })) return [];
   const changed = changedSince(root, before, headBefore);
   const changedSet = new Set(changed);
-  const ignoreEdited = changed.some((rel) => IGNORE_FILE.test(rel));
-  const outputOf = buildOutputJudge(root, { markerStands: (marker) => marker in before && !changedSet.has(marker), ignoredStands: !ignoreEdited });
-  const hidden = ignoreEdited ? hiddenSourcesSince(root, since) : [];
-  return [...new Set([...changed, ...hidden])].filter((rel) => isSourcePath(rel) && signature(root, rel) !== GONE && !outputOf(rel));
+  const outputOf = buildOutputJudge(root, { markerStands: (marker) => marker in before && !changedSet.has(marker), ignoredStands: false });
+  return [...new Set([...changed, ...newIgnoredSources(root, ignoreBefore)])]
+    .filter((rel) => isSourcePath(rel) && signature(root, rel) !== GONE && !outputOf(rel));
 }

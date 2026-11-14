@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // PreToolUse + PostToolUse (Bash|PowerShell) — catches a hand write of source by its EFFECT (KIT-T706,
-// KIT-D117). Pre snapshots the repo's dirty files and HEAD (a HEAD move, as a broker landing makes, is no write of the call); Post diffs the snapshot. A hand-authored source file the
+// KIT-D117). Pre snapshots the repo's dirty files, ignore state and HEAD (a HEAD move, as a broker landing makes, is no write of the call); Post diffs the snapshot. A hand-authored source file the
 // call created, changed or deleted joins the session's hand-write ledger, and commit-gate refuses it until
 // Edit or Write re-saves it (pre-write judges length, comments and literals there). The call's command is
 // never parsed to find the write, only to rule it out: a command that cannot write source (a generator, a build or
@@ -15,6 +15,7 @@
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { clearTurnState, readTurnState, writeTurnState } from './lib/turn-state.mjs';
 import { snapshotDirty, handWrittenSources, headOf, contentHashOf } from './lib/shell-snapshot.mjs';
+import { ignoreSnapshot } from './lib/ignore-state.mjs';
 import { addHandWrites } from './lib/hand-writes.mjs';
 import { toolWriteProves, writerId } from './lib/tool-writes.mjs';
 import { restoredSources } from './lib/restored-content.mjs';
@@ -36,7 +37,7 @@ try {
   const isPost = p.hook_event_name === 'PostToolUse' || (p.hook_event_name === undefined && p.tool_response !== undefined);
 
   if (!isPost) {
-    writeTurnState(root, { files: snapshotDirty(root), head: headOf(root), ts: Date.now() }, slot);
+    writeTurnState(root, { files: snapshotDirty(root), ignore: ignoreSnapshot(root), head: headOf(root), ts: Date.now() }, slot);
     process.exit(0);
   }
 
@@ -49,7 +50,7 @@ try {
   const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller);
   const awaitsConfirmation = (rel) => hasPendingPrediction(root, rel, contentHashOf(root, rel), caller, since);
   const changed = await settleOwned(
-    handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name), since })
+    handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name), ignoreBefore: before.ignore })
       .filter((rel) => !pathExcluded(root, CHECK, rel)),
     { pending: awaitsConfirmation, proven: toolWrote, maxMs: settleMsFromEnv() },
   );
