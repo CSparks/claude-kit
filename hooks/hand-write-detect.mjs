@@ -49,7 +49,7 @@ try {
   const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller);
   const awaitsConfirmation = (rel) => hasPendingPrediction(root, rel, contentHashOf(root, rel), caller, since);
   const changed = await settleOwned(
-    handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name) })
+    handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name), since })
       .filter((rel) => !pathExcluded(root, CHECK, rel)),
     { pending: awaitsConfirmation, proven: toolWrote, maxMs: settleMsFromEnv() },
   );
