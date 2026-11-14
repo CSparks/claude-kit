@@ -9,7 +9,7 @@ import { ENV, HOOKS, cleanup, hook, reporter, repo } from './test-harness.mjs';
 import { GATES, gateDigest } from './lib/gate-protocol.mjs';
 
 const { ok, done } = reporter('gate-digest');
-const LINE_BUDGET = 14;
+const LINE_BUDGET = 15;
 const WIDTH_BUDGET = 130;
 
 try {

@@ -24,7 +24,8 @@ invariants; only read CLAUDE.md / `.ai/` if the task explicitly needs that detai
 - Understand the full flow before touching anything; find every caller first
   (`code-graph --query importers-of`, `defines`, `surface`).
 - Write the test that fails first, then the code. Run ONLY the test modules you touched
-  plus the modules that import what you changed. NEVER run the whole suite and NEVER poll
+  plus the modules that import what you changed (a Cargo workspace excepted: its tests are not run
+  implicitly, see the waiting rule below). NEVER run the whole suite and NEVER poll
   or wait on a long run — the orchestrator sends full suites to Codex.
 - Do not commit unless the brief says to. A commit message file (`git commit -F`) is written with Write to
   `<scratchpad>/commit-<ticket id>-<six random characters>.txt`, never a fixed name: the session's agents share one scratchpad (KIT-T1135).
@@ -47,6 +48,7 @@ Cost is per tool call, so a wait is ONE call and one read of the result.
 - Never poll an output file, never sleep-loop, and never re-run a whole suite to see one test: run that test by name.
 - A long run of a program (a probe, a server, the game) is the BUILT exe: build in the foreground (one call), start the built `target/debug/<name>.exe` in the background, then end your turn. Never `cargo run` or `cargo test` in the background: the broker-wait gate refuses it (KIT-D115, KIT-T1161).
 - An edit refused because another writer's cargo build is compiling that file: wait with the ONE call the refusal names (`builds --wait "<file>"`, foreground, Bash timeout 180000, returns when no build compiles the file or after 170 s), then retry the edit; never a sleep, Wait-Process or retry loop (KIT-T1142).
+- In a Cargo workspace a test run is never a routine step (KIT-D162, KIT-D163): write the tests, do not run them, verify with `cargo check`. Run one only when your brief carries `[tests: troubleshoot <fault>]` or `[tests: periodic batch]`, then the named test alone, once. The coordinator batches runs on a quiet machine.
 
 ## Search — q first (the kit's search tool)
 Search with bare `q` (fallback: `node "<kit>/scripts/q.mjs"`, always quoted), never grep or rg: it indexes the repo and its

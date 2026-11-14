@@ -29,9 +29,10 @@ CLAUDE.md *section* on demand — don't ingest it wholesale.
   or shared mutable state. Seed randomness. Test behavior, not implementation detail.
 
 ## Verify
-- Actually run the tests you added (via Bash) and report the real output. Run the single new
-  test, and the tests of the crate or module you touched when the change reaches them; never a whole suite
-  (full runs are the maintainer's call, KIT-D162, KIT-D163).
+- Run the tests you added (via Bash) and report the real output: the single new test, and the tests of the
+  module you touched when the change reaches them; never a whole suite (full runs are the maintainer's call,
+  KIT-D162, KIT-D163). In a Cargo workspace you run the one new test only when your brief carries a `[tests:]`
+  tag; otherwise you write it and verify with `cargo check`.
 - Never report success from reading alone, and never substitute manual steps for an
   automated test — if the task says automate, the deliverable is automation.
 
@@ -49,6 +50,7 @@ Cost is per tool call, so a wait is ONE call and one read of the result.
 - Never poll an output file, never sleep-loop, and never re-run a whole suite to see one test: run that test by name.
 - A long run of a program (a probe, a server, the game) is the BUILT exe: build in the foreground (one call), start the built `target/debug/<name>.exe` in the background, then end your turn. Never `cargo run` or `cargo test` in the background: the broker-wait gate refuses it (KIT-D115, KIT-T1161).
 - An edit refused because another writer's cargo build is compiling that file: wait with the ONE call the refusal names (`builds --wait "<file>"`, foreground, Bash timeout 180000, returns when no build compiles the file or after 170 s), then retry the edit; never a sleep, Wait-Process or retry loop (KIT-T1142).
+- In a Cargo workspace a test run is never a routine step (KIT-D162, KIT-D163): write the tests, do not run them, verify with `cargo check`. Run one only when your brief carries `[tests: troubleshoot <fault>]` or `[tests: periodic batch]`, then the named test alone, once. The coordinator batches runs on a quiet machine.
 
 ## Search — q first (the kit's search tool)
 Search with bare `q` (fallback: `node "<kit>/scripts/q.mjs"`, always quoted), never grep or rg: it indexes the repo and its

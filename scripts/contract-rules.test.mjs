@@ -2,12 +2,16 @@
 // must carry (KIT-D156): flush the anchor at every commit/landing/decision, the dispatch checklist, and store reads
 // through q show. Run: node scripts/contract-rules.test.mjs
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KIT_ROOT } from './dispatch-ladder.mjs';
 import { adopted, cleanup, hook, reporter } from '../hooks/test-harness.mjs';
+import { retiredDecisions, staleCitations } from './contract-rules/superseded-citations.mjs';
 
 const { ok, done } = reporter('contract-rules');
+// KIT-D165 moves a model alias and names KIT-D080 as superseded; the rule KIT-D080 sets (no model: line) stands (KIT-D088 retires only its rows).
+const CONTRACT_CITATION_EXEMPT = { 'KIT-D080': 'KIT-D165 refreshes the aliases; the no-model-line rule stands' };
 const read = (rel) => readFileSync(join(KIT_ROOT, rel), 'utf8');
 
 try {
@@ -42,6 +46,43 @@ try {
     /KIT-T1151; GG-D088\)/.test(base) && base.includes('"waiting on you", "your call"') && base.includes('without a questionnaire the same turn'));
   ok('the base contract makes a dispatch the third step of a process failure and names its gate (KIT-D168)',
     /\(3\) DISPATCH an agent the same\s+turn[\s\S]{0,400}`process-failure-dispatch`/.test(base));
+  ok('the base contract sets no context size limit, names the waste share and tells briefs to redirect long output to a file (KIT-D158)',
+    /No context size limit; waste is the limit \(KIT-D149, KIT-D158, supersedes KIT-D116\)/.test(base) && /real work is fine at any size/.test(base)
+    && /waste share per agent/.test(base) && /redirect long output to a file and read only what they need/.test(base) && !/context_ceiling_tokens|context ceiling/i.test(base));
+
+  ok('the base contract says tests are never run implicitly in the maintainer\'s words and names the [tests:] tags (KIT-D162, KIT-D163, KIT-T1186)',
+    ['Tests are never run implicitly (KIT-D162, KIT-D163)', '"Not implicitly."', 'one test per point', '[tests: troubleshoot <the fault>]', '[tests: periodic batch]', '[tests: none]', 'tests-not-implicit']
+      .every((s) => base.includes(s)));
+  const waitRule = read('docs/wait-rule.md');
+  ok('the wait rule tells agents not to run tests in a Cargo workspace without a [tests:] tag, and every agent carries it', /In a Cargo workspace a test run is never a routine step/.test(waitRule) && waitRule.includes('[tests: periodic batch]')
+    && ['implementer', 'perf-tuner', 'refactorer', 'game-asset-artist', 'light-and-shadow', 'rg-ui-engineer', 'test-author'].every((a) => read(`agents/${a}.md`).includes(waitRule)));
+
+  const store = mkdtempSync(join(tmpdir(), 'contract-rules-'));
+  try {
+    mkdirSync(join(store, '.ai', 'decisions'), { recursive: true });
+    const decide = (id, fm) => writeFileSync(join(store, '.ai', 'decisions', `KIT-${id}-x.md`), `---\nid: KIT-${id}\n${fm}\n---\nbody\n`);
+    decide('D116', 'title: ceiling');
+    decide('D158', 'supersedes: KIT-D116');
+    decide('D061', 'title: rows');
+    decide('D088', 'supersedes: KIT-D061 (the ui row)');
+    decide('D090', 'title: aliases');
+    decide('D166', 'status: rejected\nsupersedes: KIT-D090');
+    decide('D130', 'title: ask first');
+    decide('D132', 'supersedes: KIT-D130');
+    const retired = retiredDecisions(store);
+    ok('the store read retires only an unscoped supersede by a live decision', retired.has('KIT-D116') && retired.get('KIT-D116').join() === 'KIT-D158'
+      && !retired.has('KIT-D061') && !retired.has('KIT-D090'));
+    const planted = '- **Warm reuse has a context ceiling (KIT-D116, amends KIT-D077/D094).** An agent past it is retired.\n';
+    const hits = staleCitations(planted, retired);
+    ok('negative control: the old ceiling bullet cites a retired decision as its authority and is found', hits.length === 1 && hits[0].id === 'KIT-D116' && hits[0].by.join() === 'KIT-D158' && hits[0].line === 1);
+    ok('a "supersedes <id>" clause records the replacement and is not a stale citation', staleCitations('- **Bill of work (KIT-D132, supersedes KIT-D130).**', retired).length === 0);
+    ok('a scoped or rejected supersede leaves the citation standing', staleCitations('rows (KIT-D061) and aliases (KIT-D090)', retired).length === 0);
+    ok('an exemption with a stated reason keeps its citation', staleCitations(planted, retired, { 'KIT-D116': 'reason' }).length === 0);
+  } finally { rmSync(store, { recursive: true, force: true }); }
+
+  const stale = staleCitations(base, retiredDecisions(KIT_ROOT), CONTRACT_CITATION_EXEMPT);
+  ok(`the base contract cites no decision a later decision supersedes${stale.map((s) => `; ${s.id} (line ${s.line}) is superseded by ${s.by.join(', ')}`).join('')}`, stale.length === 0);
+
   const gates = read('hooks/lib/gate-tokens.mjs');
   ok('the tree and read-only token meanings say a scratchpad path is read-only work, not a [tree:]', /a non-git path such as the scratchpad is ignored: use \[read-only:\]/.test(gates));
 

@@ -24,6 +24,7 @@ import * as rulings from './dispatch-rulings.mjs';
 import * as treeProject from './dispatch-tree-project.mjs';
 import * as ui from './dispatch-ui.mjs';
 import * as backgroundRun from './dispatch-background-run.mjs';
+import * as testsNotImplicit from './dispatch-tests.mjs';
 import * as worker from './dispatch-worker.mjs';
 import { REAL_QUESTIONS, SHORT_QUESTIONS } from './question-brief-real-fixtures.mjs';
 
@@ -40,7 +41,7 @@ try {
 
   const ids = new Set(GATES.agent.checks.map((c) => c.check));
   const exported = {};
-  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, framework, holder, job, lessons, rulings, treeProject, ui, backgroundRun, worker, protocol]) {
+  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, framework, holder, job, lessons, rulings, treeProject, ui, backgroundRun, testsNotImplicit, worker, protocol]) {
     for (const [name, value] of Object.entries(mod)) if (name.endsWith('_CHECK') && typeof value === 'string') exported[name] = value;
   }
   const guardNames = [...new Set([...read('hooks/dispatch-guard.mjs').matchAll(/pathExcluded\(root, ([A-Z_]+_CHECK), root\)/g)].map((m) => m[1]))];
@@ -49,7 +50,7 @@ try {
   if (unlisted.length) console.log(`  unlisted: ${unlisted.join(', ')}`);
 
   const copies = ['dispatch-brief', 'dispatch-broker', 'dispatch-conformance', 'dispatch-context', 'dispatch-escalation', 'dispatch-framework', 'plan-exit-gate', 'dispatch-job', 'dispatch-lessons',
-    'dispatch-readonly', 'dispatch-rulings', 'dispatch-target', 'dispatch-ui', 'dispatch-worker', 'dispatch-guard', 'agent-outcome', 'reask-gate', 'lib/agent-context']
+    'dispatch-readonly', 'dispatch-rulings', 'dispatch-target', 'dispatch-ui', 'dispatch-tests', 'dispatch-worker', 'dispatch-guard', 'agent-outcome', 'reask-gate', 'lib/agent-context']
     .filter((f) => read(`hooks/${f}.mjs`).split('\n').some((l) => !l.trim().startsWith('//') && /\/\\\[[a-z-]+/.test(l)));
   ok('no gate keeps its own copy of a tag pattern: gate-tokens.mjs is the one definition', copies.length === 0);
   if (copies.length) console.log(`  local tag patterns: ${copies.join(', ')}`);

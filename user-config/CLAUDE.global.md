@@ -81,7 +81,12 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
 - **Automated tests are Claude's, end to end (KIT-D045).** Run suites AND act on the
   results. Never hand the maintainer a test command as the receipt — they do UAT
   only. Cite results as already-run evidence ("116 passed", the sha), never as
-  instructions.
+  instructions. **Tests are never run implicitly (KIT-D162, KIT-D163):** no gate on commit
+  ("There should not be a test gate for commit since multiple projects share this machine
+  and it's very taxing."); between daily full runs tests run on the touched crates only,
+  "As needed." and "Not implicitly." Rust builds are slow: a brief never orders a routine
+  test run ("one test per point" is still an implicit run); agents write tests, verify with
+  `cargo check`, and the coordinator batches runs on a quiet machine.
 - Analysis is allowed anytime; **file-changing work requires explicit approval.**
 - Run builds/tests inside Docker when the project uses it. Node.js for bulk scripts.
 - **Every session works from a bill of work (KIT-D132, supersedes KIT-D130).** The
@@ -181,7 +186,9 @@ in a block message or a decision file is a defect.
   names (a design/opus dispatch with no ticket) adds `[escalate: <reason>]` (KIT-T940). In a repo
   that uses a framework with a crate index (rapid-game: `docs/CRATES.md`), a plan brief and every plan
   leaving plan mode (in the plan text) add `[framework-checked: <indexed crates read, per mechanism>|none apply: <why>]`
-  (KIT-T1095; `q gates plan`).
+  (KIT-T1095; `q gates plan`). In a Cargo workspace a brief that orders test runs adds
+  `[tests: troubleshoot <the fault>]` or `[tests: periodic batch]`, or `[tests: none]` naming
+  `cargo check` (KIT-T1186; check `tests-not-implicit`).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout
@@ -227,9 +234,11 @@ the accumulated transcript, so 100 calls is roughly quadratic.
   never retired, blocked or replaced for the size of its context: real work is fine at any size.
   The session coordinator tracks the waste share per agent (bash dumps, repeated lines, raw-log
   reads, polled waits; the avoidable lines are named in the flag) and retires or redirects an agent
-  whose context is mostly avoidable. An agent retired for waste MUST write a `Handoff <agent id>`
-  block (Jobs:, State:, Next:, Files:) in the ticket Notes, never a scratchpad: request it
-  (`[write-handoff]`); the dispatch guard refuses a replacement until it exists.
+  whose context is mostly avoidable, naming the avoidable lines. Every brief tells the agent to
+  redirect long output to a file and read only what they need. An agent retired for waste MUST
+  write a `Handoff <agent id>` block (Jobs:, State:, Next:, Files:) in the ticket Notes, never a
+  scratchpad: request it (`[write-handoff]`); the dispatch guard refuses a replacement until it
+  exists.
 - **No agent waits (KIT-D115, KIT-D104's 5 minutes).** One foreground broker wait under 5 minutes
   is fine; polling, loops, background waits and re-running a job to read it are denied. Past the
   wait the agent writes its handoff and ends; inside the signed bill, resume it from

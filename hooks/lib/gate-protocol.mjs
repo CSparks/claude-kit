@@ -23,6 +23,7 @@ import { RULINGS_CHECK } from '../dispatch-rulings.mjs';
 import { FRAMEWORK_CHECK } from '../dispatch-framework.mjs';
 import { UI_CHECK } from '../dispatch-ui.mjs';
 import { BACKGROUND_RUN_CHECK } from '../dispatch-background-run.mjs';
+import { TESTS_CHECK } from '../dispatch-tests.mjs';
 import { TREE_PROJECT_CHECK } from '../dispatch-tree-project.mjs';
 import { WORKER_CHECK, DEFAULT_WRITER_CAP } from '../dispatch-worker.mjs';
 import { BRIEF_CHECK, GROUNDED_CHECK, GROUNDED_MIN_SHARED, GROUNDED_MIN_TITLE, GROUNDED_MIN_WORD, GROUNDED_PER_OPTION, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
@@ -61,6 +62,7 @@ export const GATES = {
       { check: LESSONS_CHECK, wants: ['rendering, performance, asset or streaming work cites the framework lessons ledger ids it checked'], tokens: [T.lessonsChecked] },
       { check: CONFORMANCE_CHECK, wants: ['the same work names the framework conformance test in the brief'], tokens: [T.conformanceNotAffected] },
       { check: BACKGROUND_RUN_CHECK, wants: ['a brief never tells an agent to run `cargo run` or `cargo test` in the background, nor to "start it in the background", without naming the built exe: build in the foreground, start `target/debug/<name>.exe` in the background, end the turn (docs/wait-rule.md)'], tokens: [] },
+      { check: TESTS_CHECK, wants: ['in a Cargo workspace a brief orders no test run as a routine step ("run the test", "one measuring test per point", "re-run the suite", `cargo test` as a step, "N passed" as evidence): verify with `cargo check`, write tests and do not run them, the coordinator batches runs on a quiet machine (KIT-D162, KIT-D163); a brief that forbids runs passes'], tokens: [T.tests, T.testsNone] },
       { check: UI_CHECK, wants: ['UI sizing or layout work goes to claude-kit:rg-ui-engineer or names the framework mechanism it reuses'], tokens: [T.uiFrameworkChecked] },
       { check: BRIEF_GROUNDED_CHECK, wants: ['a feature or request ticket brief quotes the maintainer; a variant also names what it reuses'], tokens: [T.maintainerWords, T.reuses] },
       { check: RULINGS_CHECK, wants: ['a design or plan brief (job plan, or an analyst or researcher briefed with design words) cites the inbox search for maintainer rulings while the inbox holds un-triaged notes'], tokens: [T.rulingsChecked] },
