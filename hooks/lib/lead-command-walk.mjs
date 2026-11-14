@@ -7,8 +7,10 @@
 //              assignments) and, inside a nested command, that command's `shell`
 //     isLead(name, restWords) -> boolean       the command the caller looks for
 //     hitsOf(words, ctx) -> [hit]              the hits of the command found; `words` start at the command word
-//   withoutRedirects(text) -> string           the segment text without its redirections (`< f`, `<<'EOF'`, `> f`)
+//   nestedSegments(text, shell) -> [{ text, after, shell }]   every segment of the command and of each command text it runs
+//   withoutRedirects(text) -> string          the segment text without its redirections (`< f`, `<<'EOF'`, `> f`)
 //   cleaned(words) -> string[]                 the words without grouping characters, empty ones dropped
+//   commandTokens(text) -> string[]            the quote-aware tokens (quotes kept) without redirections; a `>` inside a quoted string stays
 //
 // A command another command runs is split into segments and judged by the same rules: the string a shell takes
 // (`bash -c "..."`, `sh -lc`, `pwsh -Command`, `eval`, `su -c`), the clauses of `find -exec|-execdir|-ok|-okdir`, the remote
@@ -32,7 +34,7 @@ const cleanWord = (word) => (QUOTE_START.test(word) ? word : word.replace(GROUP_
 export const cleaned = (words) => words.map(cleanWord).filter(Boolean);
 
 /** The segment's quote-aware tokens without its redirections (`< f`, `<<'EOF'`, `2>&1`): a quoted `<` stays in its token. */
-function commandTokens(text) {
+export function commandTokens(text) {
   const tokens = shellTokens(text);
   const kept = [];
   for (let i = 0; i < tokens.length; i++) {
@@ -91,6 +93,20 @@ function substitutions(text, shellName) {
     }
   }
   return found;
+}
+
+/**
+ * Every segment of `text` and, to MAX_NESTING levels, of every command text a segment runs (a shell's `-c` string, `eval`,
+ * `su -c`, `find -exec`, `ssh`, `trap`, a substitution): [{ text, after, shell }], the nested ones after their parent.
+ */
+export function nestedSegments(text, shell, depth = 0) {
+  return [...segments(text, { shell })].flatMap((seg) => {
+    const runs = depth >= MAX_NESTING ? [] : [
+      ...runnerCommands(cleaned(commandTokens(seg.text)), shell),
+      ...substitutions(seg.text, shell).map((inner) => ({ text: inner, shell })),
+    ];
+    return [{ ...seg, shell }, ...runs.flatMap((run) => nestedSegments(run.text, run.shell, depth + 1))];
+  });
 }
 
 /**

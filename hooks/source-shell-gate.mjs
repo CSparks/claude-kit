@@ -11,7 +11,8 @@
 // that caller wrote, and a sweep of unnamed files while no other writer is live (delete-judge.mjs). A delete operand a
 // variable supplies that the command does not resolve is refused. A refused delete says why and names the way out
 // (delete-guidance.mjs); a cp or mv whose operand holds a variable the command does not resolve names it, why and the way out
-// (copy-variable.mjs). A relative path resolves against the `cd` segments before its own segment (shell-cwd.mjs).
+// (copy-variable.mjs); a command a git call runs (`rebase -x`, `bisect run`) is judged like one typed alone, from the top of
+// the work tree (git-inner-hits.mjs). A relative path resolves against the `cd` segments before its own segment (shell-cwd.mjs).
 // A touch that only stamps the mtime of an existing file authors no content and passes (touch-target.mjs).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fails open on any error.
 
@@ -39,7 +40,7 @@ try {
   const caller = writerId(p.session_id, subagentId(p));
   for (const found of hits) {
     // The hit's own directory: the `cd` segments before its segment, not where the whole command ends.
-    const cwd = commandCwd(command, process.cwd(), { upto: found.segment, shell });
+    const cwd = found.from || commandCwd(command, process.cwd(), { upto: found.segment, shell });
     const file = resolve(cwd, toPath(found.path));
     const root = gitRootOfFile(file);
     if (!adopted(root) || pathExcluded(root, CHECK, found.path)) continue;

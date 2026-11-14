@@ -43,6 +43,7 @@ import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
 import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
 import { copyVariable } from './copy-variable.mjs';
+import { gitInnerHits } from './git-inner-hits.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
@@ -205,7 +206,7 @@ function judgeSegment(text, ctx) {
 
   const hits = redirectTargets(text, quotedArgsInert, ctx.shell === 'bash').map(ctx.hit).filter(Boolean);
   hits.push(...patchApplyHits(text, ctx));
-  if (ctx.removals) hits.push(...discardHits(text, ctx));
+  if (ctx.removals) hits.push(...discardHits(text, ctx), ...gitInnerHits(expandVariables(text, ctx.vars, ctx.shell), ctx, judgeSegment));
   const move = moveLinesCall(text, ctx.cwd);
   if (move && move.problem) hits.push(...move.paths.map(ctx.hit).filter(Boolean).map((h) => ({ ...h, moveLinesProblem: move.problem })));
   if (quotedArgsInert || READER.test(leader)) return hits;

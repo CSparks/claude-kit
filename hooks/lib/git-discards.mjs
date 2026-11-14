@@ -1,8 +1,10 @@
 // git-discards.mjs — the git calls that delete, hide or overwrite files of the work tree, read the way a gate reads an `rm`
 // (KIT-T1163): `git clean` (untracked files), `git rm -f` (a tracked file whatever its local changes), `git stash` with
 // `-u` or `-a` (untracked files go into the stash), `git checkout [<rev>] -- <path>`, `git restore <path>` and `git reset
-// --hard` (local changes are overwritten). A plain `git rm`, `git rm --cached`, a `-n` dry run, `git restore --staged`, a
-// stash without `-u`/`-a` and a branch switch remove nothing another writer could lose, so they are not judged.
+// --hard` (local changes are overwritten), and the forcing forms `git switch -f|--discard-changes`, `git checkout-index -f`,
+// `git read-tree -u` with `--reset` or `-m`, `git worktree remove --force`, `git submodule update --force` (each a sweep of
+// every tracked file with local changes). A plain `git rm`, `git rm --cached`, a `-n` dry run, `git restore --staged`, a
+// stash without `-u`/`-a`, a branch switch and a `git submodule update` remove nothing another writer could lose, so they are not judged.
 //
 //   gitDiscard({ sub, args }, { dir, cwd }) -> null | { verb, files, sweep }
 //     files: the operands that name one file, as written (the caller joins `dir`, git's `-C`, in front)
@@ -21,6 +23,7 @@ import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { commandName } from './command-lead.mjs';
 import { gitCallProblem } from './git-call-policy.mjs';
+import { rawGitCall } from './git-run-commands.mjs';
 import { gitCommand } from './git-subcommand.mjs';
 import { leadCommandHits } from './lead-command-walk.mjs';
 import { blindSegments, toPath } from './shell-segments.mjs';
@@ -139,7 +142,17 @@ function resetOf(args) {
   return parse(args).flags.has('hard') ? { verb: 'git reset --hard', files: [], sweep: LOCAL_CHANGES } : null;
 }
 
-const JUDGES = { clean: cleanOf, rm: removeOf, stash: stashOf, checkout: checkoutOf, restore: restoreOf, reset: resetOf };
+// Calls that overwrite local changes only in their forcing form, each a sweep of every tracked file with local changes.
+const FORCING = {
+  switch: { verb: 'git switch -f', forces: ({ flags }) => forced(flags) || flags.has('discard-changes') },
+  'checkout-index': { verb: 'git checkout-index -f', forces: ({ flags }) => forced(flags) },
+  'read-tree': { verb: 'git read-tree -u', forces: ({ flags }) => flags.has('u') && (flags.has('reset') || flags.has('m')) },
+  worktree: { verb: 'git worktree remove --force', forces: ({ flags, operands }) => operands[0] === 'remove' && forced(flags) },
+  submodule: { verb: 'git submodule update --force', forces: ({ flags, operands }) => operands[0] === 'update' && forced(flags) },
+};
+const forcingOf = (sub) => (args) => (FORCING[sub].forces(parse(args)) ? { verb: FORCING[sub].verb, files: [], sweep: LOCAL_CHANGES } : null);
+
+const JUDGES = { clean: cleanOf, rm: removeOf, stash: stashOf, checkout: checkoutOf, restore: restoreOf, reset: resetOf, ...Object.fromEntries(Object.keys(FORCING).map((sub) => [sub, forcingOf(sub)])) };
 
 /** The call's judgement: null when it removes nothing a writer could lose, else { verb, files, sweep }. */
 export function gitDiscard({ sub, args }, ctx) {
@@ -153,7 +166,7 @@ function hitsOfCall(words, ctx) {
   const open = UNRESOLVED.test(ctx.text);
   const base = git.dir && !open ? git.dir : '.';
   const sweep = (verb, what) => ctx.removals.sweep({ verb, path: `${base}/*`, what });
-  const problem = gitCallProblem(git, { lead: ctx.lead, raw: ctx.raw, shell: ctx.shell });
+  const problem = gitCallProblem(rawGitCall(ctx.text) || git, { lead: ctx.lead, raw: ctx.raw, shell: ctx.shell });
   const outside = problem ? [sweep(OUTSIDE_ALLOW_LIST, problem)] : [];
   const found = gitDiscard(git, { dir: git.dir, cwd: ctx.cwd });
   if (!found) return outside;
@@ -168,8 +181,9 @@ export const discardHits = (text, ctx) => leadCommandHits(expandVariables(text, 
 // A discard by sub name and flags, for a line whose structure is unknown: any `restore` except index-only, a hard reset, a
 // checkout that forces or names paths after `--`.
 function discardsBlindly({ sub, args }) {
-  const { flags, separated } = parse(args);
-  return sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && includesUntracked(flags))
+  const parsed = parse(args);
+  const { flags, separated } = parsed;
+  return (Object.hasOwn(FORCING, sub) && FORCING[sub].forces(parsed)) || sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && includesUntracked(flags))
     || (sub === 'reset' && flags.has('hard')) || (sub === 'restore' && !flags.has('staged') && !flags.has('S'))
     || (sub === 'checkout' && (forced(flags) || separated));
 }
@@ -181,6 +195,6 @@ export function discardsBlind(text) {
     if (at < 0) return false;
     const git = gitCommand(words.slice(at + 1));
     const lead = words.slice(0, at).filter((w) => ENV_ASSIGN.test(w) || w.startsWith('-') || /^env$/i.test(commandName(w)));
-    return Boolean(gitCallProblem(git, { lead, raw: text })) || discardsBlindly(git);
+    return Boolean(gitCallProblem(git, { lead, raw: text, blind: true })) || discardsBlindly(git);
   });
 }
