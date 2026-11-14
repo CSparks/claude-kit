@@ -13,6 +13,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { classify } from '../../scripts/code-index-extract.mjs';
 import { gitCommand } from './git-subcommand.mjs';
+import { unquoteSpans } from './shell-segments.mjs';
 
 const GREP_TOOLS = new Set(['grep', 'egrep', 'fgrep', 'rg']);
 const RG_TYPE = { rust: 'rust', py: 'py', python: 'py', md: 'md', markdown: 'md', toml: 'toml', json: 'json', yaml: 'yaml', sh: 'sh', css: 'css', html: 'html', go: 'go', java: 'java', c: 'c', cpp: 'cpp' };
@@ -31,9 +32,8 @@ function canon(p) {
 }
 const quote = (s) => (/^[\w./:=-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
 
-function tokens(c) {
-  return (c.trim().match(/"(?:[^"\\]|\\.)*"|'[^']*'|\S+/g) || []).map((t) => t.replace(/^["']|["']$/g, ''));
-}
+const WORD = /(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s"'])+/g;
+const tokens = (c) => (c.trim().match(WORD) || []).map(unquoteSpans);
 
 /** The `q code` equivalent of a recursive grep/rg `command`, or null when not answerable exactly. */
 export function indexEquivalent(command, { qPath, root, cwd = process.cwd() }) {

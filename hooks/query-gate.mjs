@@ -22,7 +22,7 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AMBIGUOUS_MESSAGE, segments, shellOfTool } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, segments, shellOfTool, shellTokens } from './lib/shell-segments.mjs';
 import { commandLeads } from './lib/command-leads.mjs';
 import { fileOperands, hasGlob, isItemPath, isPatternSearch, itemEquivalent } from './lib/store-search.mjs';
 import { gitCommand } from './lib/git-subcommand.mjs';
@@ -52,7 +52,6 @@ const leadsSearch = (cmd) => commandLeads(cmd).some(({ tool, args }) => SEARCH.t
 const STORE = /\.ai[\\/]|(?:^|[\s"'=])\.?[\\/]?(?:tickets|decisions|inbox|questions|notes)[\\/]|[\\/]projects[\\/][^\\/\s"']+[\\/](?:tickets|decisions|inbox|questions|notes)[\\/]|\b(?:ROADMAP|DECISIONS)\.md\b/i;
 // A recursive/tree-wide grep is DISCOVERY ("find me where X is"), the code-graph's job.
 const RECURSIVE_FLAG = /(?:^|\s)(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive|--include\b|--include-dir\b)/;
-const QUOTED_TOKENS = /"[^"]*"|'[^']*'|\S+/g;
 const FILEISH = /\.[A-Za-z0-9]{1,6}$/; // a concrete file arg (has an extension)
 const ENV_ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/; // `FOO=1 rg x crates/` runs rg: the prefix names no tool
 // Extensions where code-graph resolves the MODULE graph (relative-import edges: JS/TS), so a
@@ -106,12 +105,15 @@ function targetsOnlyNonIndexedExtensions(c) {
 }
 
 let repoRoot = '';
+let grepInput = null; // the Grep tool's own fields: its pattern is read from here, never parsed back out of the rendered `rg` line
+const callOf = (c) => (grepInput ? classifyCalls('Grep', grepInput) : classifyCalls('Bash', { command: c }))[0];
 main().catch(() => process.exit(0)); // fail-open — never wedge a tool call on a parse slip
 
 async function main() {
   const p = await payload();
   const input = p.tool_input || {};
-  const cmd = (p.tool_name === 'Grep' ? grepToolCommand(input) : input.command || '').trim();
+  grepInput = p.tool_name === 'Grep' ? input : null;
+  const cmd = (grepInput ? grepToolCommand(input) : input.command || '').trim();
   if (!cmd) process.exit(0);
   const root = gitRoot();
   if (!adopted(root)) process.exit(0); // opt-in: only KIT-adopted repos
@@ -129,7 +131,7 @@ async function main() {
   }
   const laundered = parts.ambiguous ? null : pipedTreeSearch(parts);
   if (laundered && !excludedByConfig(root, 'source-discovery', laundered.search)) {
-    logSearch(root, { event: 'blocked', rule: 'source-discovery', ...(classifyCalls('Bash', { command: laundered.search })[0] || {}) });
+    logSearch(root, { event: 'blocked', rule: 'source-discovery', ...(callOf(laundered.search) || {}) });
     process.stderr.write(pipedTreeMsg({ ...laundered, exact: exactLine(laundered.search, 'code'), q: Q }) + excludeFooter('source-discovery'));
     process.exit(2);
   }
@@ -146,7 +148,7 @@ async function main() {
       // .claude-kit-ignore.yaml lets a command through (e.g. allow grepping a generated
       // tree). Match any path-ish token in the command against that id. Fail-open.
       if (excludedByConfig(root, verdict.id, c)) continue;
-      logSearch(root, { event: 'blocked', rule: verdict.id, ...(classifyCalls('Bash', { command: c })[0] || {}) });
+      logSearch(root, { event: 'blocked', rule: verdict.id, ...(callOf(c) || {}) });
       process.stderr.write(verdict.msg + excludeFooter(verdict.id));
       process.exit(2);
     }
@@ -156,7 +158,7 @@ async function main() {
 
 // A segment feeds a piped search only when it names an item FILE; a sed script such as /Notes/,/History/p is not one.
 function readsItemFile(c) {
-  const tok = c.match(QUOTED_TOKENS) || [];
+  const tok = shellTokens(c);
   const tool = (tok[0] || '').replace(/.*[\\/]/, '').toLowerCase();
   return (READ.test(tool) || tool === 'sed') && fileOperands(tool, tok.slice(1)).some((a) => STORE.test(a) && isItemPath(a));
 }
@@ -174,7 +176,7 @@ function excludedByConfig(root, id, c) {
 // Return a block message, or null to allow. One simple command (no pipe/chain).
 // `piped` = this segment reads the previous command's stdout.
 function judge(c, piped = false) {
-  let tok = c.match(QUOTED_TOKENS) || [];
+  let tok = shellTokens(c);
   while (tok.length && (ENV_ASSIGNMENT.test(tok[0]) || tok[0] === 'env')) tok = tok.slice(1);
   if (!tok.length) return null;
   let tool = tok[0].replace(/.*[\\/]/, '').toLowerCase(); // basename, lower
@@ -268,7 +270,7 @@ function judge(c, piped = false) {
 
 // The exact q command for the blocked search: its pattern, ready to run.
 function exactLine(c, verb) {
-  const call = classifyCalls('Bash', { command: c })[0];
+  const call = callOf(c);
   const pattern = call && call.pattern;
   if (!pattern) return [];
   const quoted = /^[\w.-]+$/.test(pattern) ? pattern : `'${pattern.replace(/'/g, `'\\''`)}'`;
@@ -304,7 +306,7 @@ function storeMsg(c, itemPath) {
 }
 
 function registryMsg(c, { spec }) {
-  const call = classifyCalls('Bash', { command: c })[0];
+  const call = callOf(c);
   return [
     '',
     'BLOCKED: grepping dependency sources (cargo registry / vendor dir) — q searches one crate directly.',

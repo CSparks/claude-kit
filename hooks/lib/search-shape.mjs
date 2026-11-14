@@ -8,7 +8,7 @@
 // target: 'store' (the .ai work store) | 'code'
 // shape (grep-likes only): identifier | definition | path-ish | phrase | regex
 
-import { segments } from './shell-segments.mjs';
+import { segments, shellTokens, unquoteSpans } from './shell-segments.mjs';
 import { gitCommand } from './git-subcommand.mjs';
 
 const LANG_BY_EXT = {
@@ -52,13 +52,13 @@ function positionals(toks, skip) {
       if (/^(?:-[ABCmgtjd]|--(?:include|glob|type|max-count|context|exclude|regexp))$/.test(t)) i++;
       continue;
     }
-    out.push(t.replace(/^["']|["']$/g, ''));
+    out.push(unquoteSpans(t));
   }
   return out;
 }
 
 function fromSegment(text, piped) {
-  const toks = text.trim().match(/"[^"]*"|'[^']*'|\S+/g) || [];
+  const toks = shellTokens(text.trim());
   if (!toks.length) return null;
   let tool = toks[0].replace(/.*[\\/]/, '').toLowerCase();
   let skip = 1;

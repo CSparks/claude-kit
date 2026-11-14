@@ -105,6 +105,11 @@ export const shellTokens = (text) => [...String(text).matchAll(ARG)].map((m) => 
 /** One token without its quotes: only the outer pair when the token is one quoted span, so an inner quote survives. */
 export const dequoted = (token) => (WHOLLY_QUOTED.test(token) ? token.slice(1, -1) : token.replace(QUOTES, ''));
 
+const QUOTED_SPAN = /"((?:[^"\\]|\\.)*)"|'([^']*)'/g;
+
+/** A token with each quoted span replaced by its content: `'it'"'"'s'` and `'it''s'` read back as the words they spell. */
+export const unquoteSpans = (token) => String(token).replace(QUOTED_SPAN, (_, double, single) => double ?? single);
+
 /** Whitespace-split arguments with a quoted span kept whole and its quotes dropped. */
 export const shellArgs = (text) => shellTokens(text).map((t) => t.replace(QUOTES, '')).filter(Boolean);
 
