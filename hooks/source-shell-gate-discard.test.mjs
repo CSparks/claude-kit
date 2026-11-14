@@ -135,7 +135,22 @@ try {
     ['git wipe2', 'an alias of an alias'],
     ['git sh anything', 'a configured shell alias'],
     ["git -c alias.y='!rm -rf' y", 'a shell alias given with -c'],
+    ['git frobnicate', 'a subcommand that is no git command and no alias'],
+    ["git config alias.z 'clean -fdx' && git z", 'an alias written earlier in the same command'],
+    ["git config alias.st 'clean -fdx' && git st", 'a configured alias rewritten earlier in the same command'],
+    ["git config --add alias.st 'clean -fdx'; git st", 'a configured alias added earlier in the same command'],
+    ["git config -f other.cfg alias.st x; git st", 'an alias file written earlier in the same command'],
+    ["echo '[alias]' >> .git/config; git st", 'a config file edited earlier in the same command'],
+    ['git c1', 'an alias chain past the depth limit'],
+    ["git --config-env=alias.st=VAR st", 'an alias taken from --config-env'],
+    ["GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.st GIT_CONFIG_VALUE_0='clean -fdx' git st", 'an alias taken from the GIT_CONFIG environment'],
+    ['export GIT_CONFIG_GLOBAL=other.cfg; git st', 'an alias taken from GIT_CONFIG_GLOBAL'],
+    ['git -c include.path=other.cfg st', 'an alias taken from an include'],
+    ['git -c includeIf.gitdir:/.path=other.cfg st', 'an alias taken from a conditional include'],
+    ['git --git-dir=.git st', 'an alias read with --git-dir'],
+    ['git --work-tree=sub clean -fd', 'git clean in another work tree'],
   ];
+  for (const [alias, value] of [['c1', 'c2'], ['c2', 'c3'], ['c3', 'c4'], ['c4', 'c5'], ['c5', 'clean -fd']]) git('config', `alias.${alias}`, value);
   git('config', 'alias.wipe', 'clean -fd');
   git('config', 'alias.wipe2', 'wipe');
   git('config', 'alias.sh', '!rm -rf');
@@ -156,8 +171,14 @@ try {
   check('control: git rm --pathspec-from-file without -f passes beside a live writer', passes_('git rm --pathspec-from-file=list.txt'));
   check('control: git stash push --pathspec-from-file without -u passes beside a live writer', passes_('git stash push --pathspec-from-file=list.txt'));
   check('control: an alias of a harmless command passes beside a live writer', passes_('git st') && passes_("git -c alias.z='log -1' z"));
-  check('control: a git command that is no alias and no built-in passes beside a live writer', passes_('git lfs ls-files'));
-  check('control: a built-in git command passes without an alias lookup', passes_('git status --short'));
+  const everyday = ['git status --short', 'git log -1', 'git diff HEAD', 'git add .', 'git commit -m wip', 'git push', 'git fetch', 'git show HEAD', 'git rev-parse HEAD',
+    'git ls-tree HEAD', 'git ls-files', 'git mv tracked.rs moved.rs', 'git checkout -- tracked.rs', 'git submodule status', 'git branch', 'git config user.name x', 'git remote -v'];
+  for (const command of everyday) check(`control: ${command} passes beside a live writer`, passes_(command));
+  check('control: git-core commands outside the built-in list pass beside a live writer', passes_('git ls-remote .') && passes_('git check-ignore x') && passes_('git notes list'));
+  check('control: a built-in command with --git-dir passes', passes_('git --git-dir=.git status'));
+  check('control: an alias chain within the depth limit resolves and passes when harmless', passes_("git -c alias.a='b' -c alias.b='status' a"));
+  check('control: a config call beside a built-in command passes', passes_('git config user.name x && git commit -m wip'));
+  check('the block of an unknown subcommand says why', /git frobnicate: not a git command or alias/.test(run('git frobnicate', 'S1').stderr));
   check('a plain git rm still passes beside a live writer', passes_('git rm -- tracked.rs'));
   check('a plain git stash still passes beside a live writer', passes_('git stash'));
   check('a dry run still passes beside a live writer', passes_('git clean -nd'));

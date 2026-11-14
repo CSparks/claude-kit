@@ -50,7 +50,7 @@ try {
       : `a shell command ${found.deletes ? 'deletes' : 'writes'} a source file by hand (${found.path}).`;
     process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : what}
-${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
+${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
   \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
   pre-write gate (file length, comment prose, literals, rot markers).
   A change too large for one Edit is a Write of the new file or several Edits, never a script.

@@ -2,8 +2,8 @@
 // rule, then the one way out that fits why this file was refused.
 //
 //   DELETE_RULE                                 the rule in one sentence (also printed by `q gates source`)
-//   deleteGuidance(refusal, { path, cwd, operand, verb })   the lines for a refusal in DELETE_REFUSALS; '' for an unknown refusal
-//     operand: the unresolved delete operand; verb: the git call that was refused
+//   deleteGuidance(refusal, { path, cwd, operand, verb, what })   the lines for a refusal in DELETE_REFUSALS; '' for an unknown refusal
+//     operand: the unresolved delete operand; verb: the git call that was refused; what: the part of it that names no file
 
 import { resolve } from 'node:path';
 import { DELETE_REFUSALS as R } from './owns-untracked-file.mjs';
@@ -18,7 +18,7 @@ const WAYS_OUT = {
   [R.unrecorded]: () => 'No Edit or Write of this caller left these bytes (never written by a tool, or changed since): it stays with its writer; raise it to the main thread.',
   [R.otherWriter]: () => 'Another session or agent wrote this file: it stays with its writer; raise it to the main thread. No shell verb is sanctioned for it.',
   [R.unresolved]: ({ operand }) => `This delete names ${operand}, which this command does not assign as one literal NAME=value segment before it, so the file it holds is unknown. Spell the path out, or assign the variable in the same command (NAME=path; rm "$NAME").`,
-  [R.sweep]: ({ verb }) => `${verb || 'This git call'} here may take files it does not name, and another writer is live in this checkout: its untracked or changed files could go. Name each file you wrote yourself (\`git clean -f -- <path>\`, \`rm <path>\`), or raise it to the main thread. No shell verb is sanctioned for another writer's files.`,
+  [R.sweep]: ({ verb, what }) => `${verb || 'This git call'} here may take files it does not name${what ? ` (${what})` : ''}, and another writer is live in this checkout: its untracked or changed files could go. Name each file you wrote yourself (\`git clean -f -- <path>\`, \`rm <path>\`), or raise it to the main thread. No shell verb is sanctioned for another writer's files.`,
 };
 
 export function deleteGuidance(refusal, ctx) {

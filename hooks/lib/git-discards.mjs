@@ -32,6 +32,7 @@ const SUBSTITUTION_START = /[<>$]?\(|`/;
 const WORD_SEPARATOR = /[\s"'`]+/;
 const NO_VALUE = '';
 const WHOLE_TREE = 'every file under the directory';
+const REDIRECTED = 'a call that moves git to another tree or configuration';
 
 const flagNames = (token) => (token.startsWith('--') ? [token.slice(2).split('=')[0]] : [...token.slice(1)]);
 
@@ -111,10 +112,18 @@ function stashOf(args, ctx) {
 
 const JUDGES = { clean: cleanOf, rm: removeOf, stash: stashOf };
 
-/** The call's judgement after aliases resolve: null when it removes nothing a writer could lose, else { verb, files, sweep }. */
-export function gitDiscard(git, cwd) {
-  const call = expandGitAlias(git, cwd);
-  if (call.shellAlias) return { verb: 'a git shell alias', files: [], sweep: call.shellAlias };
+// Text that may write or redirect the configuration git reads aliases from: a `git config` call, the config files, the
+// GIT_CONFIG*, GIT_DIR, GIT_WORK_TREE environment. It only matters to a subcommand that is not built in.
+const CONFIG_TOUCH = /\bgit(?:\.exe)?\b[^;&|\n]*\bconfig\b|\.git[\\/]config|gitconfig|\bGIT_(?:CONFIG\w*|DIR|WORK_TREE|COMMON_DIR|EXEC_PATH)\b/i;
+export const touchesGitConfig = (text) => CONFIG_TOUCH.test(String(text));
+
+/**
+ * The call's judgement after aliases resolve: null when it removes nothing a writer could lose, else { verb, files, sweep }.
+ * A call whose subcommand cannot be shown to be a known git command is a sweep.
+ */
+export function gitDiscard(git, cwd, { untrusted = false } = {}) {
+  const call = expandGitAlias(git, cwd, { untrusted });
+  if (call.unresolved) return { verb: 'an unresolved git call', files: [], sweep: call.unresolved };
   const judge = JUDGES[call.sub];
   return judge ? judge(call.args, { dir: call.dir, cwd }) : null;
 }
@@ -126,14 +135,15 @@ const isDiscarder = (name, rest) => {
 
 function hitsOfCall(words, ctx) {
   const git = gitCommand(words.slice(1));
-  const found = gitDiscard(git, ctx.cwd);
+  const found = gitDiscard(git, ctx.cwd, { untrusted: touchesGitConfig(ctx.raw) });
   if (!found) return [];
   const at = (p) => (git.dir ? `${git.dir}/${p}` : p);
   const files = found.files.map((p) => ctx.hit(at(p))).filter(Boolean).map((h) => ({ ...h, deletes: true, discard: found.verb }));
   // The walker strips a leading `$` from a word, so a variable no segment assigned shows only in the call's own text.
   const open = UNRESOLVED.test(ctx.text);
-  const wide = found.sweep || (open ? WHOLE_TREE : '');
-  const base = git.dir && !open ? git.dir : '.';
+  const wide = found.sweep || (open ? WHOLE_TREE : '') || (git.redirected ? REDIRECTED : '');
+  const tree = git.workTree && !UNRESOLVED.test(git.workTree) ? git.workTree : '';
+  const base = tree || (git.dir && !open ? git.dir : '.');
   return wide ? [...files, ctx.removals.sweep({ verb: found.verb, path: `${base}/*`, what: wide })] : files;
 }
 
@@ -144,8 +154,8 @@ export function discardsBlind(text) {
     const words = piece.split(WORD_SEPARATOR).filter(Boolean);
     const at = words.findIndex((w) => /^git$/i.test(commandName(w)));
     if (at < 0) return false;
-    const { sub, args, shellAlias } = expandGitAlias(gitCommand(words.slice(at + 1)), process.cwd());
+    const { sub, args, unresolved } = expandGitAlias(gitCommand(words.slice(at + 1)), process.cwd(), { untrusted: touchesGitConfig(text) });
     const { flags } = parse(args, { shortValue: NO_VALUE, longValues: [] });
-    return Boolean(shellAlias) || sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && includesUntracked(flags));
+    return Boolean(unresolved) || sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && includesUntracked(flags));
   });
 }
