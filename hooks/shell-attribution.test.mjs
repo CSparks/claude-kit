@@ -49,12 +49,36 @@ try {
     ok(`${name}: a concurrent writer's change is not blamed on the call`, spared(run('Bash', command)));
   }
 
+  const CARGO_SPARED = [
+    ['Bash', 'cargo check in a directory, output tailed', 'cd rapid-game/rust && cargo check -p rg-terrain-bevy 2>&1 | tail -30'],
+    ['Bash', 'cargo check with a grep filter and a timeout wrapper', 'timeout 160 cargo check -p rg-townplan --examples 2>&1 | grep -E "^(error|warning)" | head -20'],
+    ['Bash', 'cargo build of one example with env prefixes', 'RUSTFLAGS=-Awarnings CARGO_TARGET_DIR=target/x cargo build --example terrain_stress -p rg-terrain-bevy 2>&1 | tail -5'],
+    ['Bash', 'cargo run of an example', 'cargo run -q -p rg-terrain-bevy --example terrain_stress -- --frames 3'],
+    ['Bash', 'running a built exe', './target/debug/road-generator.exe --probe 2>&1 | tail -20'],
+    ['Bash', 'running a built release exe by absolute path', `D:/dev/road-generator/target/release/probe.exe > "${join(scratch, 'probe.log').replace(/\\/g, '/')}" 2>&1`],
+    ['Bash', 'a built exe after a cargo build', 'cargo build --bin probe && target/debug/probe.exe'],
+    ['PowerShell', 'Set-Location then cargo check with Select-Object', 'Set-Location D:\\dev\\road-generator\\rapid-game\\rust; cargo check -p rg-terrain-bevy 2>&1 | Select-Object -Last 30'],
+    ['PowerShell', 'cargo check with a Select-String filter', 'cargo check -p rg-townplan 2>&1 | Select-String -Pattern "error"'],
+    ['PowerShell', 'cargo build with Out-String', 'cargo build -p rg-flora 2>&1 | Out-String'],
+    ['PowerShell', 'a built exe with Where-Object filtering', '& .\\target\\debug\\probe.exe 2>&1 | Where-Object { $_ -match "ok" }'],
+  ];
+  for (const [tool, name, command] of CARGO_SPARED) {
+    ok(`KIT-T1196 (${tool}): ${name}: a concurrent writer's change is not blamed on the call`, spared(run(tool, command)));
+  }
+
   const BLAMED = [
     ['Bash', 'a scratch script run', 'node scratch.js'],
     ['Bash', 'a for loop whose body is sed -i', 'for t in 1; do sed -i s/a/b/ src/a.mjs; done'],
     ['Bash', 'a heredoc into a repo source file', "cat > src/a.mjs <<'EOF'\nexport const a = 1;\nEOF"],
     ['Bash', 'a reader redirected into a repo source file', 'cat src/b.mjs > src/a.mjs'],
     ['Bash', 'a verb followed by sed -i', 'cap request "ok" ; sed -i s/a/b/ src/a.mjs'],
+    ['Bash', 'KIT-T1196 control: a built exe redirected into a source file', './target/debug/probe.exe > src/a.mjs'],
+    ['Bash', 'KIT-T1196 control: an exe outside target/ is an unknown program', './tools/probe.exe --write'],
+    ['Bash', 'KIT-T1196 control: timeout around a scratch node script', 'timeout 60 node scratch.js'],
+    ['PowerShell', 'KIT-T1196 control: a Select-String pipeline that writes a file by Out-File', 'cargo check 2>&1 | Out-File src/a.mjs'],
+    ['PowerShell', 'KIT-T1196 control: Where-Object whose script block calls Set-Content', 'cargo check | Where-Object { Set-Content src/a.mjs x }'],
+    ['PowerShell', 'KIT-T1196 control: Select-String redirected into a source file', 'Select-String -Pattern x log.txt > src/a.mjs'],
+    ['PowerShell', 'KIT-T1196 control: ForEach-Object runs arbitrary code', 'cargo check | ForEach-Object { $_ }'],
     ['Bash', 'KIT-T1195 control: an awk print redirected inside the program', "awk '{ print > \"src/a.mjs\" }' src/b.mjs"],
     ['Bash', 'KIT-T1195 control: an awk print piped inside the program', "awk '{ print | \"tee src/a.mjs\" }' src/b.mjs"],
     ['Bash', 'KIT-T1195 control: awk system()', "awk 'BEGIN { system(\"cp src/b.mjs src/a.mjs\") }'"],
@@ -82,7 +106,7 @@ try {
 
   // KIT-T1010: two lanes of one orchestrator session (agent ids differ) share a checkout; lane X runs a program the
   // hook cannot rule out while lane Y's Edit lands. Y's pre-write ran before X's call began and Y's confirmation lags.
-  const CHECKER = 'rapid-game/rust/target/debug/meshkit-check.exe script.txt';
+  const CHECKER = 'rapid-game/tools/meshkit-check.exe script.txt';
   const CONFIRM_LAG_MS = 400;
   const lagged = async ({ command, confirm, rewriteByShell = false }) => {
     const d = fresh();

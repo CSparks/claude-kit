@@ -26,7 +26,16 @@ const SED_IN_PLACE = /\s(?:--in-place\b|-[A-Za-z]*i)/;
 const AWK = /^(?:awk|gawk|mawk|nawk)$/i;
 // An awk program writes through a redirect or pipe on print, system(), a getline pipe, gawk's inplace, or a program file it loads.
 const AWK_WRITES = /\bsystem\s*\(|\bprint(?:f)?\b[^;}\n]*[>|]|\|\s*getline\b|\bgetline\b[^;}\n]*<|\binplace\b|\s-f\b|--file\b|--source\b|\s-i\b/;
-const PURE_READERS = /^(?:nl|tac|rev|paste|comm|fold|column|basename|dirname|realpath|readlink|du|df|jq|sha1sum|sha256sum|md5sum|cksum|tree)$/i;
+const CALL_OPERATOR = /^[&.]$/;
+const TIMEOUT_WRAPPER = /^timeout$/i;
+const DURATION = /^\d+(?:\.\d+)?[smhd]?$/;
+// A program a cargo build left under target/<profile>/ (an example, a probe, a test exe): running it writes where its own
+// code says, never a source file by design; a redirect into a source file is still judged on its own.
+const BUILT_EXE = /(?:^|[\\/])target[\\/](?:[\w.-]+[\\/])?(?:debug|release)[\\/][^\\/]+$/i;
+// PowerShell cmdlets that only select, filter, format or print what flows through them, and the ones that move a location.
+const PS_READERS = /^(?:Set-Location|Push-Location|Pop-Location|Select-Object|Select-String|Where-Object|Out-String|Out-Host|Measure-Object|Sort-Object|Format-Table|Format-List|Get-Content|Get-ChildItem|Get-Item|Test-Path|Write-Output|Write-Host|sls|gc|gci|sl|select|where|measure)$/i;
+const PS_WRITES = /\b(?:Set-Content|Add-Content|Out-File|Tee-Object|Remove-Item|Copy-Item|Move-Item|New-Item|Rename-Item|Invoke-Expression|iex|WriteAll\w+|File\]::)|>/i;
+const PURE_READERS =/^(?:nl|tac|rev|paste|comm|fold|column|basename|dirname|realpath|readlink|du|df|jq|sha1sum|sha256sum|md5sum|cksum|tree)$/i;
 const BROKER_CLIENT = /^(?:submit|wait|watch|broker)\.mjs$/i;
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const KEYWORD_ONLY = /^(?:for|select|case|in|esac|done|fi|function|\{|\}|\(|\))$/;
@@ -39,10 +48,19 @@ const nameOf = (word) => String(word).replace(/.*[\\/]/, '').replace(/\.(?:exe|b
 
 const leadingWords = (text) => {
   const words = shellArgs(text);
-  while (words.length && ENV_ASSIGN.test(words[0])) words.shift();
-  while (words.length && KEYWORD_THEN_COMMAND.test(words[0])) words.shift();
-  return words;
+  for (;;) {
+    if (words.length && (ENV_ASSIGN.test(words[0]) || CALL_OPERATOR.test(words[0]))) words.shift();
+    else if (words.length && KEYWORD_THEN_COMMAND.test(words[0])) words.shift();
+    else if (words.length && TIMEOUT_WRAPPER.test(words[0])) dropTimeoutWrapper(words);
+    else return words;
+  }
 };
+
+function dropTimeoutWrapper(words) {
+  words.shift();
+  while (words.length && words[0].startsWith('-')) words.shift();
+  if (words.length && DURATION.test(words[0])) words.shift();
+}
 
 export const leaderOf = (text) => nameOf(leadingWords(text)[0] || '');
 
@@ -97,7 +115,8 @@ function inertSegment(text, ctx) {
   const leader = nameOf(words[0]);
   if (GENERATORS.test(leader) || KIT_TOOL.test(leader)) return true;
   const readsOnly = READERS.test(leader) || PURE_READERS.test(leader) || (/^sed$/i.test(leader) && !SED_IN_PLACE.test(outer)) || (AWK.test(leader) && !AWK_WRITES.test(outer));
-  if (readsOnly) return !ctx.intoSource;
+  const psReads = PS_READERS.test(leader) && !PS_WRITES.test(outer);
+  if (readsOnly || psReads || BUILT_EXE.test(words[0])) return !ctx.intoSource;
   if (!/^node$/i.test(leader)) return false;
   const args = words.slice(1);
   const script = nodeScriptName(args);
