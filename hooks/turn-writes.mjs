@@ -6,6 +6,7 @@
 // bound them to the current turn, the list is capped, and every path fails open — a lost
 // entry costs at most a missing warning.
 
+import { existsSync } from 'node:fs';
 import { basename, dirname } from 'node:path';
 import { git, readTurnState, writeTurnState } from './lib.mjs';
 import { appendTurnRecord, readTurnRecords, turnSlotNames } from './lib/turn-state.mjs';
@@ -20,14 +21,20 @@ const TURN_WRITES_MAX = 300;
 //
 // git answers this, not string arithmetic: the payload's path and the git root can be two
 // spellings of the same directory (a Windows 8.3 short name, a symlinked temp dir), which a
-// prefix test gets wrong. `rev-parse --show-prefix` is asked in the file's OWN directory, so
-// it also works for a file the Write is about to create.
+// prefix test gets wrong. `rev-parse --show-prefix` is asked in the file's nearest EXISTING
+// directory, so it also works for a file the Write is about to create inside new folders.
 export function repoRelative(root, file) {
   const raw = String(file || '');
   if (!raw) return '';
-  const prefix = git(['rev-parse', '--show-prefix'], dirname(raw)).trim();
-  if (prefix === '' && !git(['rev-parse', '--is-inside-work-tree'], dirname(raw)).trim()) return '';
-  return `${prefix}${basename(raw)}`;
+  let dir = dirname(raw);
+  const unborn = [basename(raw)];
+  while (!existsSync(dir) && dirname(dir) !== dir) {
+    unborn.unshift(basename(dir));
+    dir = dirname(dir);
+  }
+  const prefix = git(['rev-parse', '--show-prefix'], dir).trim();
+  if (prefix === '' && !git(['rev-parse', '--is-inside-work-tree'], dir).trim()) return '';
+  return `${prefix}${unborn.join('/')}`;
 }
 
 const SESSION_RECORDS_MAX = 20000;
