@@ -29,6 +29,7 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 
 ## Notes
 Fixed 95dc46b, f2bad4d, 4ac8290. hooks/source-shell-gate-discard.test.mjs 156 passed (35, 11, 14 failed before). Not judged, out of scope: checkout of a path, restore and reset --hard (discard tracked changes), plain stash (hides them), a program git-x on PATH that git lists.
+Allow-list round 8fc9c9a: git-call-policy.mjs replaces the deny-list and git-alias.mjs; hooks/source-shell-gate-discard.test.mjs 264 passed (49 failed before); patch-apply.test 77 passed (the two checkout and restore of a path cases moved from passes to blocks: they are discards now). Runtime published at 8fc9c9a.
 
 ## History
 - [2026-11-13 22:57] (created) bug — source-shell-gate: git clean -f -- <untracked path>, git rm -f and git stash push -u pass every kit gate, so they delete an untracked file a
@@ -38,3 +39,5 @@ Fixed 95dc46b, f2bad4d, 4ac8290. hooks/source-shell-gate-discard.test.mjs 156 pa
 - [2026-11-14 00:09] (comment) criterion added: git clean, git rm -f and git stash -u are judged like rm: a named file only when the caller wrote it (ledger), a sweep (no path, directory, glob, unresolved variable, pathspec file, unresolved alias or unknown subcommand) refused while another writer is live, controls for plain git rm, dry runs, git stash, everyday built-ins; hooks/source-shell-gate-discard.test.mjs 156 passed, 14 failed before (95dc46b, f2bad4d, 4ac8290)
 - [2026-11-14 00:09] (comment) ticked: git clean, git rm -f and git stash -u are judged like rm: a named file only when the caller wrote it (ledger), a sweep (no path, directory, glob, unresolved variable, pathspec file, unresolved alias or unknown subcommand) refused while another writer is live, controls for plain git rm, dry runs, git stash, everyday built-ins; hooks/source-shell-gate-discard.test.mjs 156 passed, 14 failed before (95dc46b, f2bad4d, 4ac8290)
 - [2026-11-14 00:10] (status) todo → review
+- [2026-11-14 00:10] (landed) 95313b6 tickets: KIT-T1162, KIT-T1163, KIT-T1167 and KIT-T1169 to review with fix shas 95dc46b, f2bad4d, 4ac8290, 9b0bd9c and bb
+- [2026-11-14 00:31] (landed) 8fc9c9a source-shell-gate: a git call is judged precisely only on an ALLOW-LIST (git-call-policy.mjs): a built-in subcommand, gl
