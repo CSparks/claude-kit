@@ -12,20 +12,25 @@
 //   buildWaitCommand(file)                      -> the exact one-call wait for `file`, with the Bash timeout it needs
 //   holdScopeLines({ absFile, hold })           -> the refusal lines saying which dependency chain puts `absFile` in the
 //                                                  build's scope and, for a wide hold, why the scope is wide (KIT-T1147)
-//   buildHoldMessage({ file, absFile, hold, footer }) -> the block message
+//   buildHoldMessage({ file, absFile, hold, footer, writer }) -> the block message; says whether a build that started after a
+//                                                  free `builds --wait` is NEW or the same one compiling again (KIT-T1175)
+//   noteRefusedEdit({ file, writer }) / noteEditLanded({ file, writer }) -> open / close the writer's write window on the file
+//                                                  (scripts/broker/write-window.mjs): a build start yields to it
 
 import { resolve } from 'node:path';
 import { liveHolds } from '../../scripts/broker/build-slot-store.mjs';
 import { isBuildInput } from '../../scripts/broker/build-globs.mjs';
 import { inScope, scopeVia } from '../../scripts/broker/cargo-scope-dirs.mjs';
 import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../../scripts/broker/wait-limits.mjs';
+import { FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, closeWindow, openWindow, windowFor } from '../../scripts/broker/write-window.mjs';
 import { isUnreferencedNewSource } from './unreferenced-new-source.mjs';
+import { toPath } from './shell-segments.mjs';
 
 const TESTING_PHASE = 'running';
 const MS_PER_SECOND = 1000;
 
 export function compilingHolds({ file, holds }) {
-  const path = resolve(file);
+  const path = resolve(toPath(file));
   if (!isBuildInput(path) || isUnreferencedNewSource(path)) return [];
   return (holds || liveHolds()).filter((h) => h.phase !== TESTING_PHASE && Array.isArray(h.scope) && inScope(path, h.scope));
 }
@@ -39,7 +44,37 @@ export function describeHold(hold, now = Date.now()) {
   return `pid ${hold.pid}, ${age}s, root ${hold.cwd}, ${String(hold.label).slice(String(hold.cwd).length + 2)}`;
 }
 
-export const buildWaitCommand = (file) => `builds --wait "${resolve(file).replace(/\\/g, '/')}" --timeout ${MAX_FOREGROUND_WAIT_S} --tool-timeout ${HARNESS_FOREGROUND_S}`;
+export const buildWaitCommand = (file, writer = '') => `builds --wait "${resolve(toPath(file)).replace(/\\/g, '/')}"${writer ? ` --writer "${writer}"` : ''} --timeout ${MAX_FOREGROUND_WAIT_S} --tool-timeout ${HARNESS_FOREGROUND_S}`;
+
+const clock = (iso) => String(iso).slice(11, 19);
+
+function lastWindow(file) {
+  try {
+    return windowFor({ file });
+  } catch {
+    return null;
+  }
+}
+
+/** The refusal line saying what happened since `builds --wait` last returned free for the file: a new build, or the same one compiling again. */
+export function afterWaitLines({ window, hold }) {
+  if (!window || window.kind !== KIND.FREE) return [];
+  return Date.parse(hold.ts) > Date.parse(window.ts)
+    ? [`  note: this build is NEW: it started at ${clock(hold.ts)}Z, after builds --wait returned free at ${clock(window.ts)}Z`]
+    : [`  note: this build was already running when builds --wait returned free at ${clock(window.ts)}Z; it began compiling again (the next target) since`];
+}
+
+/** Records the refused edit as a pending-edit window, so the next build start of another writer yields to it. */
+export function noteRefusedEdit({ file, writer }) {
+  try {
+    openWindow({ file, writer, seconds: REFUSED_WINDOW_S, kind: KIND.REFUSED });
+  } catch {
+    /* the refusal stands without its window */
+  }
+}
+
+/** The writer's edit of `file` passed: the window held for it ends. */
+export const noteEditLanded = ({ file, writer }) => closeWindow({ file, writer });
 
 export function holdScopeLines({ absFile, hold }) {
   const chain = scopeVia(absFile, hold.scopeVia);
@@ -49,18 +84,20 @@ export function holdScopeLines({ absFile, hold }) {
   ];
 }
 
-export function buildHoldMessage({ file, absFile = file, hold, footer }) {
+export function buildHoldMessage({ file, absFile = file, hold, footer, window = lastWindow(absFile), writer = '' }) {
   return [
     `BLOCKED: a cargo build is compiling ${file}'s crate and another writer started it (KIT-T1114).`,
     `  build: ${describeHold(hold)}`,
     `  started by: ${holdStarter(hold)}`,
     ...holdScopeLines({ absFile, hold }),
+    ...afterWaitLines({ window, hold }),
     '',
     'A write now lands in the sources that build reads; this edit is refused, not queued. Edits outside what the build',
     'compiles, and your own builds, are never held. Wait once, in ONE foreground call, then retry the edit:',
-    `  ${buildWaitCommand(absFile)}`,
+    `  ${buildWaitCommand(absFile, writer)}`,
     `(Bash timeout ${HARNESS_FOREGROUND_S * MS_PER_SECOND}. It returns the moment no build compiles the file, or after ${MAX_FOREGROUND_WAIT_S} s with exit 2,`,
-    'naming the holder and how long it held. Past that, write your handoff or do work that touches no file of that crate.)',
+    `naming the holder and how long it held. After it returns free, no other writer's build starts on the file for ${FREE_WINDOW_S} s: retry the edit at once.`,
+    'Past the cap, write your handoff or do work that touches no file of that crate.)',
     '',
     footer,
   ].join('\n');

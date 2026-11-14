@@ -12,7 +12,8 @@
 // kit bug (build-long-hold.mjs). A held build that reaches its test run phase has its hold shrunk to what the tests use
 // (build-phase.mjs), so the cores it no longer compiles on go to the next build. The hold records the paths the build
 // compiles (cargo-scope-dirs.mjs) and the agent that started it (CLAUDE_KIT_BUILD_WRITER), so another agent's write into
-// them while it compiles is refused (KIT-T1114).
+// them while it compiles is refused (KIT-T1114). A build takes its hold only after another writer's refused or released
+// edit has had START_WAIT_S to land (write-window.mjs, KIT-T1175).
 
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -29,6 +30,7 @@ import { HELD_ENV, heldEnv } from './build-env.mjs';
 import { cargoConfigJobs } from './cargo-config-jobs.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
 import { compiledScope } from './cargo-scope-dirs.mjs';
+import { START_WAIT_S, waitOutWindows } from './write-window.mjs';
 
 const EXIT_QUEUED = 75;
 const EXIT_NOT_FOUND = 127;
@@ -88,8 +90,10 @@ async function runGated(real, tool, args, verdict, cwd) {
     return Date.now() > deadline;
   };
   const { scope, via, reason } = compiledScope(args, cwd, findReal('cargo') || 'cargo');
-  const meta = { scope, scopeVia: via, scopeReason: reason, writer: process.env.CLAUDE_KIT_BUILD_WRITER || '' };
-  const slot = acquireBuildSlot(`${tool} ${verdict.sub}`, { jobs: requested, elastic: true, force: true, label, cwd, shouldCancel, meta });
+  const writer = process.env.CLAUDE_KIT_BUILD_WRITER || '';
+  const meta = { scope, scopeVia: via, scopeReason: reason, writer };
+  const beforeStart = () => waitOutWindows({ scope, writer, onWait: (w) => process.stderr.write(`[build-budget] holding the start up to ${START_WAIT_S}s: ${w.writer || 'another writer'} has an edit to ${w.file} to land first\n`) });
+  const slot = acquireBuildSlot(`${tool} ${verdict.sub}`, { jobs: requested, elastic: true, force: true, label, cwd, shouldCancel, meta, beforeStart });
   await flagLongHolds(liveHolds());
   if (slot.cancelled) {
     const state = snapshot();

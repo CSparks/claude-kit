@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, finish, makeRepo } from './dispatch-guard-harness.mjs';
 import { buildWaitCommand } from './lib/build-write-hold.mjs';
+import { FREE_WINDOW_S, KIND, openWindow, windowFor } from '../scripts/broker/write-window.mjs';
 
 const kitRoot = fileURLToPath(new URL('..', import.meta.url));
 
@@ -46,7 +47,7 @@ expect('another agent\'s edit of a source file in the building crate is refused'
 expect('the refusal names the build and its starter', /cargo test -p a/.test(refused.stderr) && /S1\|agentBuilder/.test(refused.stderr) ? 1 : 0, 1);
 const abs = join(crate, 'src', 'lib.rs').replace(/\\/g, '/');
 const named = refused.stderr.split('\n').find((l) => l.trim().startsWith('builds --wait')) || '';
-expect('KIT-T1142: the refusal names the one-call wait for the refused file, its cap and its Bash timeout', named.trim() === buildWaitCommand(join(crate, 'src', 'lib.rs')) && named.includes(`"${abs}"`) && /--timeout 170 --tool-timeout 180/.test(named) && /Bash timeout 180000/.test(refused.stderr) ? 1 : 0, 1);
+expect('KIT-T1142: the refusal names the one-call wait for the refused file, its cap and its Bash timeout', named.trim() === buildWaitCommand(join(crate, 'src', 'lib.rs'), 'S1|agentOther') && named.includes(`"${abs}"`) && /--timeout 170 --tool-timeout 180/.test(named) && /Bash timeout 180000/.test(refused.stderr) ? 1 : 0, 1);
 const subagentGate = (command) => spawnSync(process.execPath, [fileURLToPath(new URL('./broker-wait-gate.mjs', import.meta.url))], { cwd: tree, encoding: 'utf8', input: JSON.stringify({ tool_name: 'Bash', session_id: 'S1', agent_id: 'a1b2c3d4e5f6a7b8c', tool_input: { command, timeout: 180000 } }) });
 expect('KIT-T1142: the wait the refusal names passes the subagent broker-wait gate', subagentGate(named.trim()).status, 0);
 expect('KIT-T1142 control: the same gate refuses a sleep wait, so the pass above is not vacuous', subagentGate('sleep 60').status, 2);
@@ -105,5 +106,32 @@ expect('a build with no recorded writer (a terminal) is foreign to every agent',
 
 writeFileSync(join(slots, 'slot-1'), JSON.stringify({ pid: 2 ** 22 + 12345, host: hostname(), cwd: tree, label: 'dead', scope: [crate], ts: new Date().toISOString() }));
 expect('a dead build\'s hold refuses nothing', edit('S1', 'agentOther', 'crates', 'a', 'src', 'four.rs').status, 0);
+
+// KIT-T1175: the wait and the hold judge the same file at different moments; a free answer binds for a window.
+const RACER = 'S1|agentRacer';
+const raceFile = join(crate, 'src', 'race.rs');
+const raceNote = () => edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs').stderr;
+const FIVE_SECONDS_MS = 5000;
+hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
+const raced = edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs');
+expect('KIT-T1175: a refused edit opens the writer\'s pending-edit window on the file', raced.status === 2 && windowFor({ file: raceFile })?.kind === KIND.REFUSED && windowFor({ file: raceFile })?.writer === RACER ? 1 : 0, 1);
+expect('KIT-T1175: the refusal\'s wait command names the writer so its free answer opens that writer\'s window', raced.stderr.split('\n').some((l) => l.trim() === buildWaitCommand(raceFile, RACER)) ? 1 : 0, 1);
+openWindow({ file: raceFile, writer: RACER, seconds: FREE_WINDOW_S, kind: KIND.FREE, now: Date.now() - FIVE_SECONDS_MS });
+hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
+expect('KIT-T1175: a build that started after the free wait is named NEW in the refusal', /this build is NEW: it started at \S+, after builds --wait returned free at \S+/.test(raceNote()) ? 1 : 0, 1);
+openWindow({ file: raceFile, writer: RACER, seconds: FREE_WINDOW_S, kind: KIND.FREE });
+hold({ scope: [crate], writer: OWNER, phase: 'compiling', ts: new Date(Date.now() - FIVE_SECONDS_MS).toISOString() });
+const resumed = raceNote();
+expect('KIT-T1175: a build already running at the free wait is said to have compiled again', /already running when builds --wait returned free/.test(resumed) && !/this build is NEW/.test(resumed) ? 1 : 0, 1);
+openWindow({ file: raceFile, writer: RACER, seconds: FREE_WINDOW_S, kind: KIND.FREE });
+hold({ scope: [crate], writer: OWNER, phase: 'running' });
+expect('KIT-T1175: the edit after a free wait passes', edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs').status, 0);
+expect('KIT-T1175: the passing edit closes the writer\'s window', windowFor({ file: raceFile }) === null ? 1 : 0, 1);
+expect('KIT-T1175 control: a refusal with no free wait before it carries no wait note', /builds --wait returned free/.test(guardAfterNoWindow()) ? 1 : 0, 0);
+
+function guardAfterNoWindow() {
+  hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
+  return edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs').stderr;
+}
 
 finish();

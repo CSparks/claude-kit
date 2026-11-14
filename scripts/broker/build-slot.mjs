@@ -17,6 +17,7 @@
 //   `probes` = { physicalCores, commitFreeBytes, gameRunning } replaces the OS readings (tests).
 //   `meta` = extra fields for the record: `scope` (absolute paths the build compiles), `scopeVia` (path -> dependency chain),
 //   `scopeReason` (why a scope is wide) and `writer` (the agent that started it); a write by another agent into the scope while the hold compiles is refused (hooks/lib/build-write-hold.mjs).
+//   `beforeStart()` runs once the cores are granted and before the hold is written (the build-start wait of write-window.mjs).
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
@@ -38,7 +39,7 @@ const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 
 
 const NO_SLOT = { cancelled: false, waitedMs: 0, holder: null, granted: 0, update() {}, release() {} };
 
-export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false, elastic = false, cwd = process.cwd(), shouldCancel = () => false, probes = {}, pollMs = POLL_MS, meta = {} } = {}) {
+export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false, elastic = false, cwd = process.cwd(), shouldCancel = () => false, probes = {}, pollMs = POLL_MS, meta = {}, beforeStart = () => {} } = {}) {
   if (!force && !isCargoBuild(cmd)) return NO_SLOT;
   const dir = slotDir();
   const queue = queueDir(dir);
@@ -59,7 +60,10 @@ export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false
     if (head) {
       const free = probes.commitFreeBytes ? probes.commitFreeBytes() : holds.length ? commitFreeBytes() : null;
       const granted = grantFor({ requested: jobs, elastic, budget, held: holds, commitFreeBytes: free ?? Infinity });
-      if (granted) return hold(dir, name, ticketPath, { ...record, jobs: granted }, started, holder);
+      if (granted) {
+        beforeStart();
+        return hold(dir, name, ticketPath, { ...record, jobs: granted }, started, holder);
+      }
     }
     if (shouldCancel()) { rmSync(ticketPath, { force: true }); return { ...NO_SLOT, cancelled: true, waitedMs: Date.now() - started }; }
     holder ??= holds[0]?.label ?? null;

@@ -3,7 +3,8 @@
 // how many writers share a checkout; it refuses exactly three collisions, every one per file or per build:
 //   - another live SESSION has uncommitted changes to this file (lib/session-overlap.mjs, the session write ledger);
 //   - another live agent of this session has uncommitted changes to this file (lib/agent-claims.mjs, per-writer claims);
-//   - another writer's cargo build is compiling the crate this file belongs to (lib/build-write-hold.mjs).
+//   - another writer's cargo build is compiling the crate this file belongs to (lib/build-write-hold.mjs). A refused edit opens
+//     a write window on the file (scripts/broker/write-window.mjs) that the next build start yields to; the edit passing closes it.
 // A passing edit beats the session's checkout-holder entry and records the writer's claim on the file. Store (.ai/) files
 // never count. Fails open on any error.
 
@@ -13,7 +14,7 @@ import { subagentId } from './lib/subagent-id.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
 import { claimConflicts, claimMessage } from './lib/agent-claims.mjs';
-import { buildHoldConflict, buildHoldMessage } from './lib/build-write-hold.mjs';
+import { buildHoldConflict, buildHoldMessage, noteEditLanded, noteRefusedEdit } from './lib/build-write-hold.mjs';
 import { writerId } from './lib/tool-writes.mjs';
 import { repoRelative } from './turn-writes.mjs';
 import { HOLDER_CHECK } from './dispatch-holder.mjs';
@@ -35,8 +36,9 @@ function refusal({ tree, file, rel, session, agent }) {
   if (claimants.length) return { text: claimMessage({ rel, tree, claimants, footer: excludeFooter(HOLDER_CHECK) }), session: true };
   const sessions = overlappingHolders({ tree, session, paths: [rel] });
   if (sessions.length) return { text: sessionMessage(rel, sessions, tree), session: true };
-  const hold = buildHoldConflict({ file, writer: writerId(session, agent) });
-  return hold ? { text: buildHoldMessage({ file: rel, absFile: file, hold, footer: excludeFooter(HOLDER_CHECK) }) } : null;
+  const writer = writerId(session, agent);
+  const hold = buildHoldConflict({ file, writer });
+  return hold ? { text: buildHoldMessage({ file: rel, absFile: file, hold, writer, footer: excludeFooter(HOLDER_CHECK) }), build: true } : null;
 }
 
 try {
@@ -49,9 +51,11 @@ try {
     const refused = rel && !pathExcluded(tree, HOLDER_CHECK, file) ? refusal({ tree, file, rel, session: p.session_id, agent }) : null;
     if (refused) {
       if (refused.session) refuseEdit({ tree, session: p.session_id, path: rel });
+      if (refused.build) noteRefusedEdit({ file, writer: writerId(p.session_id, agent) });
       process.stderr.write(refused.text);
       process.exit(2);
     }
+    noteEditLanded({ file, writer: writerId(p.session_id, agent) });
     const label = agent ? String(p.agent_type || 'subagent') : 'main thread';
     beatHolder({ tree, session: p.session_id, agent, origin: gitRoot(), edited: rel, label });
     claimFile({ tree, session: p.session_id, agent, label, rel, head: git(['rev-parse', 'HEAD'], tree).trim() });
