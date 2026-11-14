@@ -310,5 +310,49 @@ function writeTranscriptReplies(dir, userTs, replies) {
   expect('a long series says how many more', String(r.err.includes('…+3 more')), 'true');
 }
 
-console.log(`\n${testCount} tests — ${failures ? `${failures} FAILED` : 'ALL PASS'}`);
+// ─── KIT-T1182: the sha in a table cell or code span announces the landing; the block names what is missing ───
+function replyRun(replyFor, subject = 'feat: terrain RDG-T057') {
+  const d = makeRepo();
+  const userTs = new Date(Date.now() - 10000).toISOString();
+  const sha = makeCommit(d, 'src/t.ts', 'export {}', subject);
+  const r = run(d, { transcript_path: writeTranscript(d, 'go', replyFor(sha.slice(0, 7)), userTs) }, makeTurnStateDir());
+  return { ...r, short: sha.slice(0, 7) };
+}
+const tableReply = (short) => [
+  '| Commit | Ticket | State | What it does |',
+  '|---|---|---|---|',
+  `| \`${short}\` | RDG-T057 (terrain meshing) | Local only; the demo has no remote | The demo's terrain file selects the old mesher again |`,
+  '',
+  "**To try:** `cargo run -p road-generator` should start again. I haven't run it.",
+].join('\n');
+{
+  const r = replyRun(tableReply);
+  expect('a sha in a backticked table cell with a To try line clears the gate', r.code, 0);
+}
+{
+  const r = replyRun((s) => `Landed work: \`${s}\` (RDG-T057).\n\n**To try:** open the demo and read the terrain.`);
+  expect('a sha in a code span and a bold To try line without a runner word clears the gate', r.code, 0);
+}
+{
+  const r = replyRun((s) => `Table row | ${s} | RDG-T057 |\n\nTo try: open the demo.`);
+  expect('a bare sha in a table cell and a To try line clears the gate', r.code, 0);
+}
+{
+  const r = replyRun(() => '**To try:** open the demo and read the terrain.');
+  expect('control: a To try line with no sha stays blocked', r.code, 2);
+  expect('the block names the sha it did not find', String(r.err.includes(`sha not found for ${r.short}`)), 'true');
+  expect('the block does not name a UAT gap when a UAT line is present', String(r.err.includes('no UAT step or no-test tag found')), 'false');
+}
+{
+  const r = replyRun((s) => `| \`${s}\` | RDG-T057 | local |`);
+  expect('control: a sha with no UAT line or no-test tag stays blocked', r.code, 2);
+  expect('the block names the missing UAT step', String(r.err.includes('no UAT step or no-test tag found')), 'true');
+  expect('the block does not name the sha when it was found', String(r.err.includes('sha not found')), 'false');
+}
+{
+  const r = replyRun(() => 'Done. Run the suite: `cargo test -p road-generator` passes.');
+  expect('control: an automated suite as the only try, with no sha, stays blocked', r.code, 2);
+}
+
+console.log(`\n${testCount} tests —${failures ? `${failures} FAILED` : 'ALL PASS'}`);
 process.exit(failures ? 1 : 0);

@@ -3,7 +3,9 @@
 //
 //   shasNamedBefore(transcriptLines)   -> string[]  every 7-40 hex token in the assistant prose of all
 //                                                   assistant entries except the last (the reply being judged)
-//   unannounced(landed, named)         -> the landings whose full sha no named token is a prefix of
+//   shasIn(text)                       -> string[]  every 7-40 hex token in a text
+//   namedInReply(landed, replyText)    -> the landings whose sha the reply being judged names
+//   unannounced(landed, named)        -> the landings whose full sha no named token is a prefix of
 //   unannouncedIn(transcriptFile, landed) -> unannounced() against a transcript file; unreadable names nothing
 
 import { readFileSync } from 'node:fs';
@@ -22,12 +24,19 @@ function assistantTexts(transcriptLines) {
   return texts;
 }
 
+export const shasIn = (text) => (String(text).match(SHA_TOKEN) || []).map((t) => t.toLowerCase());
+
 export function shasNamedBefore(transcriptLines) {
   const prior = assistantTexts(transcriptLines).slice(0, -1);
-  return prior.flatMap((text) => (text.match(SHA_TOKEN) || []).map((t) => t.toLowerCase()));
+  return prior.flatMap(shasIn);
 }
 
-export const unannounced = (landed, named) => landed.filter((c) => !named.some((token) => c.sha.toLowerCase().startsWith(token)));
+const isNamed = (commit, named) => named.some((token) => commit.sha.toLowerCase().startsWith(token));
+
+export const unannounced = (landed, named) => landed.filter((c) => !isNamed(c, named));
+
+// The landings whose sha the reply text names anywhere: a table cell, a code span, running prose.
+export const namedInReply = (landed, replyText) => landed.filter((c) => isNamed(c, shasIn(replyText)));
 
 export function unannouncedIn(transcriptFile, landed) {
   try {

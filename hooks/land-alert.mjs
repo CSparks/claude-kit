@@ -20,7 +20,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { assistantTextOf } from './lib/assistant-text.mjs';
-import { unannouncedIn } from './lib/announced-landings.mjs';
+import { namedInReply, unannouncedIn } from './lib/announced-landings.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
 import { LAND_SLOT, isPushed, landedThisTurn } from './lib/landed-commits.mjs';
 import { FILL_LINE, commitLine } from './lib/receipt-lines.mjs';
@@ -54,6 +54,7 @@ const LANDED_RECEIPT = new RegExp(
 const TEST_RECEIPT = new RegExp(
   String.raw`\[no-?(?:test|alert)\b` +
     String.raw`|\bUAT\b` +
+    String.raw`|\bto try\b` +
     String.raw`|\bnothing to test\b` +
     String.raw`|\bcan be tested\b` +
     String.raw`|\b(?:tested?|verif(?:y|ied|ies))\b` +
@@ -88,7 +89,7 @@ async function main() {
   // Satisfied only when the reply BOTH announces the landing AND says what can be tested
   // (KIT-T099 — the maintainer must always know what can be tested). Either missing → nag once.
   const reply = lastAssistant || '';
-  const hasLanding = LANDED_RECEIPT.test(reply);
+  const hasLanding = LANDED_RECEIPT.test(reply) || namedInReply(landed, reply).length > 0;
   const hasTest = TEST_RECEIPT.test(reply);
   const listing = { listed: landed.map((c) => c.sha), turnStartMs, at: Date.now() };
   if (hasLanding && hasTest) {
@@ -118,10 +119,11 @@ function renderAlert(root, landed, pushed, hasLanding, hasTest) {
   lines.push(FILL_LINE, '');
   lines.push('This alert is structural (KIT-T021/T099), not optional. To clear the gate:');
   if (!hasLanding) {
-    lines.push('  - announce the landing — WHAT + the ticket + the link ("pushed"/"deployed"/the sha);');
+    const unnamed = landed.slice(0, MAX_LISTED).map((c) => c.shortSha).join(', ');
+    lines.push(`  - MISSING: sha not found for ${unnamed} — name the sha (a table cell or code span counts) or say "pushed"/"deployed"/"landed";`);
   }
   if (!hasTest) {
-    lines.push('  - state WHAT THE MAINTAINER CAN UAT — a user-facing command/experience to try (open X, run Y and read it), or "[no-test: <reason>]"; automated suites are Claude\'s to run — cite results, never assign them (KIT-D045);');
+    lines.push('  - MISSING: no UAT step or no-test tag found — state WHAT THE MAINTAINER CAN UAT — a user-facing command/experience to try (open X, run Y and read it), or "[no-test: <reason>]"; automated suites are Claude\'s to run — cite results, never assign them (KIT-D045);');
   }
   lines.push(
     '  - if a deploy follows, confirm when it is LIVE (not just pushed);',
