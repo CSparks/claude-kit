@@ -1,7 +1,7 @@
 // gate-protocol — every requirement and accepted tag form of the gates a session meets before its first call to a
 // gated tool (KIT-T898, KIT-D147). `q gates <gate>` prints gateText(name); check ids come from the modules that
 // enforce them, tag forms from gate-tokens.mjs, the summary rule from question-brief.mjs.
-//   GATES -> { agent, question }: { title, hooks, checks: [{ check, wants[], tokens[], digest? }] }; `digest` lists the tags the compaction digest prints for a check that has more than one
+//   GATES -> { agent, question }: { title, hooks, reminder?, checks: [{ check, wants[], tokens[], digest? }] }; `digest` lists the tags the compaction digest prints for a check that has more than one
 //   gateText(name, { root }) -> the printable protocol, or null for an unknown name; with a root, the conformance row
 //     names the test the check matches in that checkout (KIT-T1098); the agent gate ends with the capability table's jobs
 //     and each agent type's default job (KIT-T1105);  gateNames() -> the gate names
@@ -26,7 +26,7 @@ import { BACKGROUND_RUN_CHECK } from '../dispatch-background-run.mjs';
 import { TESTS_CHECK } from '../dispatch-tests.mjs';
 import { TREE_PROJECT_CHECK } from '../dispatch-tree-project.mjs';
 import { WORKER_CHECK, DEFAULT_WRITER_CAP } from '../dispatch-worker.mjs';
-import { BRIEF_CHECK, GROUNDED_CHECK, GROUNDED_MIN_SHARED, GROUNDED_MIN_TITLE, GROUNDED_MIN_WORD, GROUNDED_PER_OPTION, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
+import { BRIEF_CHECK, GROUNDED_CHECK, GROUNDED_CLAUSE_SHARED, GROUNDED_MIN_SHARED, GROUNDED_MIN_TITLE, GROUNDED_MIN_WORD, GROUNDED_PER_OPTION, READY_CHECK, REASK_CHECK, IDS_CHECK, RECOMMENDED_MARKER, IDS_MIN_HITS, REASK_WINDOW_DAYS } from './question-checks.mjs';
 import { BRIEF_RULE } from './question-brief.mjs';
 import { DELETE_RULE } from './delete-guidance.mjs';
 import { GIT_ALLOW_RULE } from './git-call-policy.mjs';
@@ -42,11 +42,13 @@ export const SOURCE_SHELL_CHECK = 'source-shell-write';
 const CHECK_COLUMN = 30;
 const TAG_COLUMN = 60;
 const T = TOKENS;
+export const SUBAGENT_CLAIM_RULE = "a subagent's claim is verified in source (a file:line read) before it becomes a question to the maintainer (KIT-T1215)";
 
 export const GATES = {
   agent: {
     title: 'Agent / Task dispatch',
     hooks: ['dispatch-label (every repo)', 'dispatch-guard (adopted repos)'],
+    reminder: SUBAGENT_CLAIM_RULE,
     checks: [
       { check: LABEL_CHECK, wants: LABEL_REQUIREMENTS.map((r) => `${r.part}: ${r.wants}`), tokens: [] },
       { check: LADDER_CHECK, wants: ["a model resolvable to a known family: pass model:'sonnet' | 'opus' | 'haiku' | 'fable' on every call; a model-less call that would inherit a fable session is refused"], tokens: [T.allowFable] },
@@ -80,11 +82,12 @@ export const GATES = {
   question: {
     title: 'AskUserQuestion / request_user_input',
     hooks: ['question-gate', 'reask-gate', 'ids-described-gate', 'question-grounded-gate', 'question-brief-gate (readiness)', 'question-brief-audit (after the call)', 'prose-ask-gate (Stop: a prose ask without a questionnaire)'],
+    reminder: SUBAGENT_CLAIM_RULE,
     checks: [
       { check: RECOMMENDATION_CHECK, wants: [`every question marks its recommended option on the LABEL with ${RECOMMENDED_MARKER} as the prefix (a suffix for request_user_input), and a single-select recommendation is the first option; the description never carries it`], tokens: [] },
       { check: REASK_CHECK, wants: [`no question another session asked and left unresolved within ${REASK_WINDOW_DAYS} days`], tokens: [T.reAsk] },
       { check: IDS_CHECK, wants: [`a ticket, decision or question id comes with at least ${IDS_MIN_HITS} distinctive words of its title`], tokens: [] },
-      { check: GROUNDED_CHECK, wants: [`an option label is matched (words of ${GROUNDED_MIN_WORD}+ letters, stems, stopwords dropped) against the project's decisions and open tickets; a document sharing ${GROUNDED_MIN_SHARED}+ stems with the label, ${GROUNDED_MIN_TITLE}+ in its title (best ${GROUNDED_PER_OPTION} per option), must be cited by id with what it is in plain words, in the question text or an option description (the same-reply summary is unreadable before the call). Fails open on a store error.`, 'dry run before the call, with the gate\'s own matcher: q gates question --check "<label>" ["<label>" ...] prints per label the decisions and open tickets it matches (id and title)'], tokens: [T.optionsChecked] },
+      { check: GROUNDED_CHECK, wants: [`an option label is matched (words of ${GROUNDED_MIN_WORD}+ letters, stems, stopwords dropped) against the project's decisions and open tickets; a document sharing ${GROUNDED_MIN_SHARED}+ stems with the label, ${GROUNDED_MIN_TITLE}+ in its title (best ${GROUNDED_PER_OPTION} per option), must be cited by id with what it is in plain words, in the question text or an option description (the same-reply summary is unreadable before the call). Fails open on a store error.`, 'dry run before the call, with the gate\'s own matcher: q gates question --check "<label>" ["<label>" ...] prints per label the decisions and open tickets it matches (id and title)', `the question text, header and option descriptions are matched the same way against each decision's Decision clauses (numbered (1)..(n), or sentences); a clause sharing ${GROUNDED_CLAUSE_SHARED}+ stems with the text is a restatement of a ruled point: the block names the decision id and quotes the clause, and passes once the id is cited in the question text or the tag below is added`, 'dry run of the clause rule: q gates question --check-text "<question text>" ["<question text>" ...] prints the decisions and clauses it matches'], tokens: [T.optionsChecked] },
       { check: BRIEF_CHECK, wants: [`summary first, then the questionnaire (KIT-D153): ${BRIEF_RULE}. Text or narration of the turn before the call counts, as does the questionnaire's own question text; no wording or labels are required. Judged AFTER the call by a PostToolUse audit (Stop is the backstop): a missing summary is reported to you and you re-ask.`], tokens: [] },
       { check: READY_CHECK, wants: READINESS_STANDARD, tokens: [] },
       { check: PROSE_ASK_CHECK, wants: ['no closing reply says or implies that work waits on the maintainer ("waiting on you", "your call", "up to you", "open for Chris", "which one is it", "want me to", "let me know" ...) unless a questionnaire reached him the same turn (Stop gate prose-ask, GG-D088): the block names the phrase and files a process-failure ticket; quoted words, code and past-tense descriptions pass'], tokens: [] },
@@ -172,6 +175,7 @@ export function gateText(name, { root } = {}) {
     '',
     'REQUIREMENTS',
     ...gate.checks.flatMap((c) => checkLines(c, root)),
+    ...(gate.reminder ? ['', `REMEMBER: ${gate.reminder}`] : []),
     ...(tags.length ? ['', 'ACCEPTED TAG FORMS (exact; in the prompt unless noted)', ...tags.map((t) => `  ${t.form}  `.padEnd(TAG_COLUMN) + t.meaning)] : []),
     ...(name === 'agent' ? ['', ...jobsSection({ root })] : []),
     '',

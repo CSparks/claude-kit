@@ -8,11 +8,13 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENV, HOOKS, ROOT, adopted, cleanup, hook, reporter } from './test-harness.mjs';
 import { optionStems } from './lib/question-grounding.mjs';
+import { decisionClauses } from './lib/question-clause-grounding.mjs';
 
 const { ok, done } = reporter('question-grounded-gate');
 const GATE = 'question-grounded-gate.mjs';
 const DECISION = 'DE-D077';
 const TICKET = 'DE-T285';
+const RULED = 'DE-D080';
 
 const file = (id, title, extra, body) => `---\nid: ${id}\ntitle: ${title}\n${extra}---\n${body}\n`;
 
@@ -26,6 +28,8 @@ try {
   const dir = (name) => { mkdirSync(join(d, '.ai', name), { recursive: true }); return join(d, '.ai', name); };
   writeFileSync(join(dir('decisions'), `${DECISION}-foliage-and-rocks.md`), file(DECISION, 'Foliage and rocks are framework crates shared with Stiletto', 'date: 2026-11-02\n',
     '**Decision:** foliage and rock meshes are built once in rapid-game and shared by every cell and every game.'));
+  writeFileSync(join(dir('decisions'), `${RULED}-song-layers.md`), file(RULED, 'Generation layers: Song settings drive Scene settings', 'date: 2026-11-13\n',
+    '**Maintainer:** "that is the path"\n\n**Decision:** (1) Three layers, strictly ordered. (2) Event data is a pure function of its scene plus the scene seed; a scene render reads no Song tempo. (3) Presets set Song values only.\n\n**Why:** Chris.'));
   writeFileSync(join(dir('tickets'), `${TICKET}-share-mesh-reuse.md`), file(TICKET, 'Share one mesh per flora kind across cells', 'type: feature\nstatus: todo\n',
     'Build the shared mesh reuse the decision asked for.'));
   writeFileSync(join(dir('tickets'), 'DE-T100-old-mesh-sharing.md'), file('DE-T100', 'Shared mesh cells prototype', 'type: feature\nstatus: done\n', 'old'));
@@ -65,6 +69,32 @@ try {
   ok('the dry run never lists a closed ticket', !hit.stdout.includes('DE-T100'));
   ok('--check with no label exits 1', dry().status === 1);
   ok('q gates question names the dry run', spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), 'gates', 'question', '--root', d], { cwd: d, encoding: 'utf8', env: ENV }).stdout.includes('q gates question --check'));
+
+  const PLAIN = [{ label: '(Recommended) Allow it' }, { label: 'Refuse it' }];
+  const RESTATES = 'Should a scene render read the Song tempo when the event data is generated?';
+  const restating = ask(PLAIN, RESTATES, 'Tempo');
+  ok('a question text restating a Decision clause is blocked; the block names the decision id and quotes the clause',
+    restating.code === 2 && restating.out.includes(`${RULED} (decision)`) && restating.out.includes('restates its clause') && restating.out.includes('a scene render reads no Song tempo')
+    && !restating.out.includes('(1) Three layers'));
+  ok('the same restatement in an option description alone is blocked', ask([{ label: '(Recommended) Allow it', description: 'a scene render reads the Song tempo' }, PLAIN[1]], 'Which way?', 'Tempo').code === 2);
+  ok('citing the decision id in the question text passes', ask(PLAIN, `${RESTATES} Generation layers: Song settings drive Scene settings (${RULED}) rules it.`, 'Tempo').code === 0);
+  ok('the escape tag passes a restating question', ask(PLAIN, `${RESTATES} [options-checked: none apply: the ruling covers a different render]`, 'Tempo').code === 0);
+  ok('negative control: a question about other words passes with the decision present', ask(PLAIN, 'Which text should the stadium sign carry?', 'Sign').code === 0);
+  ok('negative control: two shared stems are below the clause threshold', ask(PLAIN, 'Does the Song seed matter?', 'Seed').code === 0);
+
+  const dryText = (...texts) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), 'gates', 'question', '--check-text', ...texts, '--root', d], { cwd: d, encoding: 'utf8', env: ENV });
+  const textHit = dryText(RESTATES);
+  ok('--check-text prints the decision id, title and matched clause', textHit.status === 0 && textHit.stdout.includes(`${RULED} (decision) "Generation layers`) && textHit.stdout.includes('clause: "Event data is a pure function') && textHit.stdout.includes('a scene render reads no Song tempo'));
+  ok('--check-text agrees with the gate on the decision id', textHit.stdout.includes(RULED) && restating.out.includes(RULED));
+  ok('negative control: --check-text on an unrelated text prints none', /none/.test(dryText('Which text should the stadium sign carry?').stdout) && !/DE-D\d+/.test(dryText('Which text should the stadium sign carry?').stdout));
+  ok('--check-text with no text exits 1', dryText().status === 1);
+  const clauses = decisionClauses('**Decision:** (1) First rule here. (2) Second rule; with more.\n\n**Why:** because');
+  ok('decisionClauses cuts the numbered clauses of the Decision paragraph only', clauses.length === 2 && clauses[1] === 'Second rule; with more.' && !clauses.join().includes('because'));
+  ok('decisionClauses falls back to sentences when no numbers; none without a Decision paragraph', decisionClauses('**Decision:** One thing. Two things.').length === 2 && decisionClauses('no paragraph').length === 0);
+
+  const gateOut = (name) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), 'gates', name, '--root', d], { cwd: d, encoding: 'utf8', env: ENV }).stdout;
+  ok('q gates question lists the clause rule and its dry run', gateOut('question').includes('Decision clauses') && gateOut('question').includes('--check-text'));
+  ok('q gates agent and q gates question remind that a subagent claim is verified in source', [gateOut('agent'), gateOut('question')].every((t) => t.includes('verified in source (a file:line read)')));
 
   writeFileSync(join(d, '.claude-kit-ignore.yaml'), 'question-grounded:\n  - "**"\n');
   ok('the ignore file lifts the gate', ask(SHARE).code === 0);

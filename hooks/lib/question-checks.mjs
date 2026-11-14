@@ -14,3 +14,6 @@ export const GROUNDED_MIN_WORD = 4;
 export const GROUNDED_MIN_SHARED = 2;
 export const GROUNDED_MIN_TITLE = 1;
 export const GROUNDED_PER_OPTION = 3;
+export const GROUNDED_CLAUSE_SHARED = 3;
+export const GROUNDED_CLAUSE_PER_QUESTION = 5;
+export const GROUNDED_CLAUSE_SHOWN = 160;

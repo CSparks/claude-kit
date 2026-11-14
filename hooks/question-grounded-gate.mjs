@@ -2,16 +2,19 @@
 // PreToolUse (AskUserQuestion|request_user_input) — an option the project already decided or ticketed is cited, not
 // offered fresh (KIT-T936). exit 2 = block. Check id: question-grounded.
 //
-// Each option label is matched against the store's decisions and open tickets (lib/question-grounding.mjs). A match
-// whose id the questionnaire text (header, question, option labels and descriptions) or the readable turn prose never
-// names blocks. The summary written in the same reply as the call is not on disk yet, so cite in the questionnaire.
+// Each option label is matched against the store's decisions and open tickets (lib/question-grounding.mjs), and the
+// question text (header, question, option descriptions) against the Decision clauses of the decisions
+// (lib/question-clause-grounding.mjs, KIT-T1215). A match whose id the questionnaire text (header, question, option
+// labels and descriptions) or the readable turn prose never names blocks. The summary written in the same reply as the
+// call is not on disk yet, so cite in the questionnaire.
 // Escape: `[options-checked: none apply: <why>]` in the questionnaire text. Fails open on any error.
 
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { groundingMisses } from './lib/question-grounding.mjs';
+import { clauseMisses } from './lib/question-clause-grounding.mjs';
 import { storeDocs } from './lib/store-docs.mjs';
 import { turnText } from './lib/turn-text.mjs';
-import { GROUNDED_CHECK } from './lib/question-checks.mjs';
+import { GROUNDED_CHECK, GROUNDED_CLAUSE_SHOWN } from './lib/question-checks.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
@@ -21,11 +24,12 @@ const MAX_SHOWN = 6;
 const optionText = (o) => `${o?.label || ''} ${o?.description || ''}`;
 const questionText = (q) => [q?.header, q?.question, ...(Array.isArray(q?.options) ? q.options.map(optionText) : [])].filter(Boolean).join(' ');
 
-function blockMessage(misses) {
-  const first = misses[0];
+function blockMessage(misses, restated) {
+  const first = misses[0] || restated[0];
   return [
-    'BLOCKED: an option matches a recorded decision or open ticket the questionnaire does not cite (KIT-T936).',
+    'BLOCKED: the questionnaire matches a recorded decision or open ticket it does not cite (KIT-T936, KIT-T1215).',
     ...misses.slice(0, MAX_SHOWN).map((m) => `  ${m.id} (${m.kind}) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — matched by the option "${m.option}"`),
+    ...restated.slice(0, MAX_SHOWN).map((m) => `  ${m.id} (decision) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — the question text restates its clause: "${m.clause.slice(0, GROUNDED_CLAUSE_SHOWN)}"`),
     '',
     'The maintainer already ruled on, or filed, work like this; offering it fresh makes him re-decide a settled point.',
     'Read each item (q show <id>), then in the question text or an option description say what it is in plain words and cite it:',
@@ -45,9 +49,11 @@ try {
   const turn = p.transcript_path ? turnText(p.transcript_path) : null;
   const cited = [...questions.map(questionText), turn?.prose || ''].join('\n');
   if (TOKENS.optionsChecked.pattern.test(cited)) process.exit(0);
-  const misses = groundingMisses(storeDocs(root), questions, cited);
-  if (misses.length) {
-    process.stderr.write(blockMessage(misses));
+  const docs = storeDocs(root);
+  const misses = groundingMisses(docs, questions, cited);
+  const restated = clauseMisses(docs, questions, cited);
+  if (misses.length || restated.length) {
+    process.stderr.write(blockMessage(misses, restated));
     process.exit(2);
   }
 } catch {
