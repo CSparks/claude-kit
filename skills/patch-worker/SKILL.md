@@ -42,8 +42,8 @@ maintainer approves. Your Write tool reaches only the system temp dir (envelopes
    - `write` creates a new file; it refuses a path that already exists.
    - `--test` is repeatable and names the commands the broker runs for this patch. Omit it and the broker
      runs only the compile check of the touched packages (`patch_check`) and no test; a project that set
-     `verify_default` gets those commands too. Name a test only when it is the one that measures this
-     change (scoped to the crate and target the change reaches), never a suite, a whole package or "affected" tests.
+     `verify_default` gets those commands too. Name a test only when the brief carries a `[tests:]` tag
+     (KIT-D162, KIT-D163), and then only the one test (scoped to the crate and target the change reaches), never a suite, a whole package or "affected" tests.
      Use the project's cargo aliases (`cargo t`, `cargo b`); the broker adds `-j` and `--no-fail-fast`.
    - `--repo rapid-game` targets the submodule; paths are relative to it.
 

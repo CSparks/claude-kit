@@ -58,9 +58,9 @@ Work ticket $ARGUMENTS per the contract:
      > and report the best result with its measurements — never keep sweeping.
      >
      > **Verify as the user plays:** after completing your change, exercise it as the user
-     > would — run the test suite, start the app, or hit the probe — and report empirical
-     > evidence (exit code, rendered output, probe readings). A compile-check alone is not
-     > verification.
+     > would — start the app or hit the probe — and report empirical evidence (exit code,
+     > rendered output, probe readings). In a Cargo workspace verify with `cargo check` and
+     > do not run tests unless this brief carries a `[tests:]` tag (KIT-D162, KIT-D163).
 4. Execute. Tick each criterion as satisfied with `node <kit>/scripts/t.mjs tick $ARGUMENTS
    <ordinal|match>`; append narrative progress to the ticket's Notes by hand (prose).
 5. When all criteria pass, use `node <kit>/scripts/end-task.mjs $ARGUMENTS review --root <repo>`
@@ -86,5 +86,5 @@ framework submodule — code in every language, docs, configs, tickets — and a
   (a ticket the kit team builds) — never fall back to grep silently.
 - Put this line in every dispatch brief: "Search with q (q code / sym / file / fts), never grep."
 - Put this line in every dispatch brief (KIT-D154): "On ANY hook block, say in your next reply: process failure (ticket root cause + prevention), kit bug (ticket + fix agent now), or known kit bug, fix in progress (name the open ticket and its agent; no new ticket or dispatch)."
-- Dispatch checklist, every Agent call (exact forms: `q gates agent`): `description` `[<Family N.M>] <label>`; prompt `[job: <id>]`; `[read-only: <why>]` when the agent writes no repo file (scratchpad/artifact only); `[tree: <git root>]` in another checkout; feature/request briefs `[maintainer-words: "<his sentence>"]` + `[reuses: <mechanism>|none: <why>]`; design/plan briefs `[rulings-checked: <q inbox or q fts run, or inbox ids read>|none apply: <why>]` (KIT-T938); a job dearer than the default of the ticket type the brief names (a design/opus dispatch with no ticket) `[escalate: <reason>]` (KIT-T940).
+- Dispatch checklist, every Agent call (exact forms: `q gates agent`): `description` `[<Family N.M>] <label>`; prompt `[job: <id>]`; `[read-only: <why>]` when the agent writes no repo file (scratchpad/artifact only); `[tree: <git root>]` in another checkout; feature/request briefs `[maintainer-words: "<his sentence>"]` + `[reuses: <mechanism>|none: <why>]`; design/plan briefs `[rulings-checked: <q inbox or q fts run, or inbox ids read>|none apply: <why>]` (KIT-T938); a job dearer than the default of the ticket type the brief names (a design/opus dispatch with no ticket) `[escalate: <reason>]` (KIT-T940); in a Cargo workspace a brief that orders test runs `[tests: troubleshoot <the fault>]` or `[tests: periodic batch]`, or `[tests: none]` naming cargo check (KIT-T1186).
 - Put this block in every dispatch brief (source: docs/wait-rule.md): wait ONCE per build or test — one foreground Bash call with a timeout of at most 300000 ms, never a background start to wait on (the harness moves any foreground call to the background at 180 s whatever its timeout; a build that cannot finish in about 170 s is scoped down, never given a longer timeout; if it still cannot fit, a Handoff block in the ticket Notes naming the exact command, and end: the orchestrator runs it in the background and resumes you; a call already moved to the background is read at most once, never polled, then the same Handoff), output filtered to failures/panics/assertions/`test result` totals, never poll or sleep-loop, re-run one test by name; an edit refused behind another writer's cargo build waits with the ONE `builds --wait "<file>"` call the refusal names, then retries.

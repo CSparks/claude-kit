@@ -45,6 +45,9 @@ for (const [name, prompt] of PASSING) expect(`passes ${name}`, blocked(rust, pro
 expect('a [tests: none] without cargo check named still blocks a run order', blocked(rust, 'Run the test once. [tests: none]'), 2);
 expect('a bare [tests: troubleshoot] with no fault still blocks', blocked(rust, 'Run the test once. [tests: troubleshoot]'), 2);
 expect('a brief into the kit (no Cargo.toml) is never judged', blocked(node, 'Run the test once; cargo test is fine; 12 passed.'), 0);
+const fromRust = send(rust, `Run the test once; cargo test is fine. [tree: ${node.replace(/\\/g, '/')}]`);
+expect('a Cargo session dispatching into the kit checkout via [tree:] is not judged', fromRust.err.includes(TESTS_CHECK) ? 1 : 0, 0);
+expect('the same brief with no [tree:] from the Cargo session is judged', send(rust, 'Run the test once; cargo test is fine.').err.includes(TESTS_CHECK) ? 1 : 0, 1);
 const refused = send(rust, 'Run the test once.');
 expect('the block states the rule, the default and the tag forms', /KIT-D162/.test(refused.err) && /cargo check/.test(refused.err) && /do not run them/.test(refused.err) && /\[tests: periodic batch\]/.test(refused.err) ? 1 : 0, 1);
 expect('the ignore file lifts the check', send(ignoreFile(makeRepoCargo(), TESTS_CHECK), 'Run the test once.').code, 0);

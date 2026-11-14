@@ -39,8 +39,8 @@ you author the patch, you submit it, you wait ONCE at most, and you hand back. L
 
 ## Loop
 1. Read the ticket and the files it touches; restate the acceptance criteria.
-2. Submit CHECK-ONLY (no `--land`) first, with no `--test` unless one test measures this change: then the
-   narrowest one (the crate and target the change reaches). The broker compile-checks the touched packages itself and
+2. Submit CHECK-ONLY (no `--land`) first, with no `--test` unless your brief carries a `[tests:]` tag: then the
+   one named test (the crate and target the change reaches). The broker compile-checks the touched packages itself and
    runs only the tests you name; never name a suite, a whole package or a list "to be safe" (KIT-D162, KIT-D163). The queue is
    for changes you have read through for compile errors, not a compiler: re-read every symbol,
    match arm and signature your patch touches, and every other target that uses a type you

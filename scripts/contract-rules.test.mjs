@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { KIT_ROOT } from './dispatch-ladder.mjs';
 import { adopted, cleanup, hook, reporter } from '../hooks/test-harness.mjs';
 import { retiredDecisions, staleCitations } from './contract-rules/superseded-citations.mjs';
+import { testRunOrders } from '../hooks/dispatch-tests.mjs';
 
 const { ok, done } = reporter('contract-rules');
 // KIT-D165 moves a model alias and names KIT-D080 as superseded; the rule KIT-D080 sets (no model: line) stands (KIT-D088 retires only its rows).
@@ -31,6 +32,9 @@ try {
       .every((s) => base.includes(s)));
   ok('the base contract puts [rulings-checked: ...] in the dispatch checklist for design and plan briefs', /design or plan brief[\s\S]{0,200}\[rulings-checked: <q inbox or q fts run, or inbox ids read>\|none apply: <why>\]/.test(base));
   for (const f of ['commands/work.md', 'commands/drain.md']) ok(`${f} carries the rulings-checked tag`, read(f).includes('[rulings-checked: <q inbox or q fts run, or inbox ids read>|none apply: <why>]'));
+  for (const f of ['commands/work.md', 'commands/drain.md']) ok(`${f} carries the [tests:] tags and no longer orders a test-suite run (KIT-T1186)`,
+    read(f).includes('[tests: periodic batch]') && !/run the\s+test suite/.test(read(f)));
+  for (const f of ['commands/work.md', 'commands/drain.md', 'agents/patch-worker.md']) ok(`${f} orders no test run by the gate's own matcher`, testRunOrders(read(f)).length === 0);
   for (const f of ['commands/work.md', 'commands/drain.md']) ok(`${f} carries the escalate tag for a job dearer than the ticket type's default (KIT-T940)`, /\[escalate: <reason>\]/.test(read(f)));
   ok('the base contract carries the escalate tag in the dispatch checklist (KIT-T940)', /Dispatch checklist[\s\S]{0,1600}\[escalate: <reason>\]/.test(base));
   for (const f of ['agents/analyst.md', 'agents/analyst-max.md']) ok(`${f} names the escalate tag for the dispatcher (KIT-T940)`, /\[escalate: <reason>\]/.test(read(f)));
