@@ -140,14 +140,18 @@ try {
   ok('pre-write: comparison to a magic number STILL blocks (KIT-T077 non-regression)',
     pw({ file_path: '/x/a.ts', content: 'export function gone(s) {\n  return s.status === 404;\n}\n' }).code === 2);
 
-  // KIT-T1117 — float spellings of 0, 1 and -1 are neutral; other floats still block.
+  // KIT-T1117, KIT-T1173 — 0, 1, 2 in any signed or float spelling are trivial; everything else blocks.
   const floatLit = (lit, ext = 'ts') => pw({ file_path: `/x/a.${ext}`, content: `export function f(x) {\n  return x > ${lit};\n}\n` }).code;
-  for (const lit of ['0.0', '1.0', '0.0f', '1.0f', '0.f', '1.f', '-1.0']) {
-    ok(`pre-write: neutral float literal ${lit} passes (KIT-T1117)`, floatLit(lit, 'h') === 0);
+  for (const lit of ['0', '1', '2', '-1', '-2', '0.0', '1.0', '2.0', '0.0f', '1.0f', '2.0f', '2.0F', '0.f', '1.f', '2.f', '-1.0', '-2.0f']) {
+    ok(`pre-write: trivial literal ${lit} passes (KIT-T1173)`, floatLit(lit, 'h') === 0);
   }
-  for (const lit of ['0.5', '2.0', '3.14']) {
-    ok(`pre-write: float literal ${lit} STILL blocks (KIT-T1117)`, floatLit(lit, 'h') === 2);
+  for (const lit of ['0.5', '3', '3.0', '3.14', '63.5', '0.37', '100', '-0.37', '1.5', '20.0', '1e3', '2e-5', '0xFF', '0x1', '0b101']) {
+    ok(`pre-write: magic literal ${lit} STILL blocks (KIT-T1173)`, floatLit(lit, 'h') === 2);
   }
+  ok('pre-write: 2.0 inside a smoothstep expression passes (KIT-T1173)',
+    pw({ file_path: '/x/Shapes.cpp', content: 'double smooth(double t) {\n  return t * t * (kSmoothBase - 2.0 * t);\n}\n' }).code === 0);
+  ok('pre-write: 63.5 in a multiplication blocks (KIT-T1173 control)',
+    pw({ file_path: '/x/Shapes.cpp', content: 'double f(double t) {\n  return 63.5 * t;\n}\n' }).code === 2);
 
   ok('pre-write: a .caddy redirect with a dated URL path passes (KIT-T732)',
     pw({ file_path: '/x/site.caddy', content: 'redir /2018/02/26/thing-hasnt-taken-russian-hackers-yet-ok-lets-update/ /posts/ permanent\nheader Cache-Control max-age=31536000\n' }).code === 0);

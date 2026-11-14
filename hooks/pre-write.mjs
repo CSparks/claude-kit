@@ -20,6 +20,7 @@ import { commentFindings } from './lib/comment-gate.mjs';
 import { storeWriteViolation } from './lib/store-write-gate.mjs';
 import { scratchOnlyViolation } from './lib/scratch-only.mjs';
 import { uiPixelViolation } from './lib/ui-pixel-gate.mjs';
+import { firstMagicLiteral, MAGIC_NUMBER_RULE } from './lib/pre-write-numbers.mjs';
 
 // Fail-open guard (KIT-T055): an unexpected throw anywhere below must never wedge a
 // write. The HOOK CONTRACT requires EXPLICIT fail-open; before this, an uncaught throw
@@ -37,8 +38,6 @@ process.on('unhandledRejection', failOpen);
 
 const MAX_SHOWN = 5;
 const MAX_SQL = 3;
-const ALLOWED = new Set(['-1', '0', '1', '2']);
-const NEUTRAL_FLOAT = /^-?[01]\.0+$/; // 0.0, 1.0, -1.0: the neutral integers in float spelling
 const NATIVE_LINTED = new Set(['rs', 'py', 'go', 'sh', 'bash', 'zsh']);
 const DOC = new Set(['md', 'markdown', 'mdx', 'txt', 'rst', 'adoc']);
 // KIT-T114: `conf`/`properties`/`env` join the config family. An nginx `listen 443 ssl;`
@@ -486,11 +485,10 @@ if (!NATIVE_LINTED.has(ext) && !SHELL_LIKE.has(ext) && !isTest && !isMig && !exc
     if (/[A-Za-z_$][\w$.\])]*\s*(?<![=!<>])[:=](?!=)\s*-?\.?\d/.test(raw)) continue; // `opts.timeout = 5000`, `(attempts = 5)`, `{retries: 3}` — comparisons excluded
     if (/\b(parseInt|toString)\s*\([^)]*\d+\s*\)/.test(raw)) continue; // radix argument
     const stripped = code.replace(URL_PATH_TOKEN, '').replace(/\d+(px|em|rem)/g, '');
-    const m = stripped.match(/[^A-Za-z0-9_.](-?\d+(\.\d+)?)/);
-    if (m && !ALLOWED.has(m[1]) && !NEUTRAL_FLOAT.test(m[1])) hits.push(`${i + 1}: ${raw.trim()}`);
+    if (firstMagicLiteral(stripped)) hits.push(`${i + 1}: ${raw.trim()}`);
   }
   if (hits.length) {
-    viols.push({ id: 'magic-numbers', msg: 'Magic numbers (allowed bare: -1, 0, 1, 2). Extract named constants:\n' + hits.join('\n') });
+    viols.push({ id: 'magic-numbers', msg: `Magic numbers (${MAGIC_NUMBER_RULE}). Extract named constants:\n` + hits.join('\n') });
   }
 }
 
