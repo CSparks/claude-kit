@@ -89,7 +89,7 @@ try {
   for (const rel of dirtyPaths(status)) {
     try {
       const touched = statSync(join(root, rel)).mtimeMs >= startedAt - CLOCK_SLACK_MS;
-      if (touched && !toolWriteProves(root, rel, startedAt, contentHashOf(root, rel), caller)) recordSessionPath(root, rel, sid);
+      if (touched && !toolWriteProves(root, rel, startedAt, contentHashOf(root, rel), caller, { ownConfirmed: true })) recordSessionPath(root, rel, sid);
     } catch { /* vanished or unreadable: not recorded */ }
   }
 } catch {

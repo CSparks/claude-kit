@@ -61,6 +61,12 @@ try {
   ok('the wait rule tells agents not to run tests in a Cargo workspace without a [tests:] tag, and every agent carries it', /In a Cargo workspace a test run is never a routine step/.test(waitRule) && waitRule.includes('[tests: periodic batch]')
     && ['implementer', 'perf-tuner', 'refactorer', 'game-asset-artist', 'light-and-shadow', 'rg-ui-engineer', 'test-author'].every((a) => read(`agents/${a}.md`).includes(waitRule)));
 
+  for (const a of ['implementer', 'perf-tuner', 'refactorer', 'game-asset-artist', 'light-and-shadow', 'rg-ui-engineer', 'test-author', 'audio-synthesist', 'editor-workbench']) {
+    const text = read(`agents/${a}.md`);
+    ok(`agents/${a}.md carries the shell delete rule: named files, never a directory or rm -r, git rm for tracked (KIT-T1213)`,
+      text.includes('## Shell deletes (KIT-T1213)') && text.includes('one named file per operand: never a directory, `rm -r` or a glob') && text.includes('`git rm -- <path>`'));
+  }
+
   const store = mkdtempSync(join(tmpdir(), 'contract-rules-'));
   try {
     mkdirSync(join(store, '.ai', 'decisions'), { recursive: true });

@@ -47,7 +47,7 @@ try {
   const command = String((p.tool_input && p.tool_input.command) || '');
   const since = before.ts || Date.now();
   const caller = writerId(sid, subagentId(p));
-  const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller);
+  const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller, { ownConfirmed: true });
   const awaitsConfirmation = (rel) => hasPendingPrediction(root, rel, contentHashOf(root, rel), caller, since);
   const changed = await settleOwned(
     handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name), ignoreBefore: before.ignore })

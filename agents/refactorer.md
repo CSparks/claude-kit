@@ -47,6 +47,9 @@ demand — don't ingest it wholesale.
   verification you ran with its result. If you stopped short (missing coverage, a
   latent bug found), say exactly why.
 
+## Shell deletes (KIT-T1213)
+- A shell delete of source (`rm`, `del`, `Remove-Item`) passes only for a file you wrote with Write or Edit and have not changed since, one named file per operand: never a directory, `rm -r` or a glob; a tracked file goes through `git rm -- <path>`; another writer's file is raised to the main thread (`q gates source`).
+
 ## Waiting on builds and tests (KIT-T355)
 Cost is per tool call, so a wait is ONE call and one read of the result.
 - Run a long build or test in ONE foreground Bash call with a `timeout` of at most 300000 ms (KIT-D104). The harness moves any foreground call to the background at 180 s whatever its `timeout`, so the run must finish in about 170 s. Never start it in the background to wait for it: a subagent cannot idle and its shells end with it (KIT-D115).

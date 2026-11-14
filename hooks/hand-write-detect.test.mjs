@@ -164,6 +164,27 @@ try {
   });
   ok('KIT-T888 control: a shell rewrite AFTER another writer\'s Edit changes the content, so the exemption lapses and it is flagged', viaOverwrite.status === 2 && viaOverwrite.stderr.includes('src/a.mjs'));
 
+  // KIT-T1212: an Edit the call's own writer issued in parallel with the call (one round of tool calls) is that tool's write.
+  const ownEdit = (d, sid, rel, text, { confirm }) => {
+    const input = { session_id: sid, tool_input: { file_path: join(d, rel), content: text } };
+    spawnHook('pre-write.mjs', input, d);
+    writeFileSync(join(d, rel), text);
+    if (confirm) spawnHook('tool-write-record.mjs', { ...input, hook_event_name: 'PostToolUse', tool_response: {} }, d);
+  };
+  const parallel = fresh();
+  const viaParallel = call(parallel, 'S22', 'node scratch.js', () => ownEdit(parallel, 'S22', 'src/a.mjs', 'export const a = 9;\n', { confirm: true }));
+  ok('KIT-T1212: the call\'s own writer\'s confirmed Edit landing during the call is not blamed on the call', viaParallel.status === 0 && !viaParallel.stderr.includes('HAND WRITE'));
+  ok('KIT-T1212: and the commit holding that file is not refused', !commit(parallel, 'S22', ['src/a.mjs']).out.includes('KIT-T706'));
+  const unconfirmedOwn = fresh();
+  const viaUnconfirmedOwn = call(unconfirmedOwn, 'S23', 'node scratch.js', () => ownEdit(unconfirmedOwn, 'S23', 'src/a.mjs', 'export const a = 9;\n', { confirm: false }));
+  ok('KIT-T1212 control: the writer\'s own unconfirmed prediction still leaves the file to its shell call', viaUnconfirmedOwn.status === 2 && viaUnconfirmedOwn.stderr.includes('src/a.mjs'));
+  const ownThenShell = fresh();
+  const viaOwnThenShell = call(ownThenShell, 'S24', 'node scratch.js', () => {
+    ownEdit(ownThenShell, 'S24', 'src/a.mjs', 'export const a = 7;\n', { confirm: true });
+    rewrite(ownThenShell, "fs.writeFileSync(p, 'export const a = 9;\\n')");
+  });
+  ok('KIT-T1212 control: a shell rewrite after the writer\'s own confirmed Edit changes the content and is flagged', viaOwnThenShell.status === 2 && viaOwnThenShell.stderr.includes('src/a.mjs'));
+
   // KIT-T949: a session started before the PostToolUse recorder was wired never runs it; its Edit is known from pre-write alone.
   const FILE_HARD_PLUS = 700;
   const CONFIRMED_AGE_MS = 1000;

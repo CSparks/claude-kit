@@ -58,6 +58,14 @@ expect('negative control: an edit in a crate the build does not compile passes',
 expect('negative control: a doc in the repo passes', edit('S1', 'agentOther', 'docs', 'x.md').status, 0);
 expect('a file in the building crate that no compile reads (not a build input) passes', edit('S1', 'agentOther', 'crates', 'a', 'README.md').status, 0);
 
+hold({ scope: [crate], writer: 'S1|', phase: 'compiling' });
+expect('KIT-T1210: a build whose writer names the session but no agent never refuses an agent of that session', edit('S1', 'agentOther', 'crates', 'a', 'src', 'main.rs').status, 0);
+expect('KIT-T1210 control: the same build still refuses an agent of another session', edit('S2', 'agentOther', 'crates', 'a', 'src', 'main.rs').status, 2);
+expect('KIT-T1210 control: and the main thread of another session', edit('S2', '', 'crates', 'a', 'src', 'main.rs').status, 2);
+hold({ scope: [crate], writer: 'S1|agentBuilder', phase: 'compiling' });
+expect('KIT-T1210 control: a build that names its agent still refuses another agent of the same session', edit('S1', 'agentOther', 'crates', 'a', 'src', 'main.rs').status, 2);
+hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
+
 mkdirSync(join(crate, 'tests'), { recursive: true });
 hold({ scope: [crate, `!${join(crate, 'tests')}`], writer: OWNER, phase: 'compiling' });
 expect('KIT-T1143: an edit of a test file the build does not compile passes', edit('S1', 'agentOther', 'crates', 'a', 'tests', 'it.rs').status, 0);

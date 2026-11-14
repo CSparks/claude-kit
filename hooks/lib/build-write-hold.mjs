@@ -25,6 +25,7 @@ import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../../scripts/broke
 import { FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, closeWindow, openWindow, windowFor } from '../../scripts/broker/write-window.mjs';
 import { isUnreachableSource } from './unreachable-source.mjs';
 import { toPath } from './shell-segments.mjs';
+import { writerSession } from './tool-writes.mjs';
 
 const TESTING_PHASE = 'running';
 const MS_PER_SECOND = 1000;
@@ -35,7 +36,13 @@ export function compilingHolds({ file, holds }) {
   return (holds || liveHolds()).filter((h) => h.phase !== TESTING_PHASE && Array.isArray(h.scope) && inScope(path, h.scope));
 }
 
-export const buildHoldConflict = ({ file, writer = '', holds }) => compilingHolds({ file, holds }).find((h) => (h.writer || '') !== writer) || null;
+// A hold whose writer names a session but no agent (`S|`) is that session's own build, started by its main thread or by an
+// agent whose id the harness did not hand the build: it never refuses an agent of the same session (KIT-T1210).
+const AGENTLESS = /^[^|]+\|$/;
+const sameSessionAgentless = (holdWriter, writer) => AGENTLESS.test(holdWriter) && writerSession(holdWriter) === writerSession(writer);
+const isOtherWriter = (hold, writer) => (hold.writer || '') !== writer && !sameSessionAgentless(hold.writer || '', writer);
+
+export const buildHoldConflict = ({ file, writer = '', holds }) => compilingHolds({ file, holds }).find((h) => isOtherWriter(h, writer)) || null;
 
 export const holdStarter = (hold) => (hold.writer ? `writer ${hold.writer}` : hold.by || 'unknown');
 

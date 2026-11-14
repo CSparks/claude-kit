@@ -51,6 +51,9 @@ const LANDED_RECEIPT = new RegExp(
 // (test/verify/repro), a runner/command mention (cargo, npm, pytest, race_sim, … — as evidence),
 // "N passed", an explicit "nothing to test", or "[no-test: <reason>]". Absent → the landing
 // reply never said what to try. ([no-alert:] still suppresses the whole gate.)
+const UAT_LEADS = ['To fly', 'To try', 'To look at', 'UAT'];
+// A line led by one of UAT_LEADS (bold, bulleted or quoted; an optional ", at <sha>" before the colon) and followed by text.
+const UAT_LINE = new RegExp(String.raw`(?:^|\n)[ \t>*-]*(?:${UAT_LEADS.join('|')})\b[^:\n]{0,60}:[*_\x60\s]*[^\s*_\x60]`, 'i');
 const TEST_RECEIPT = new RegExp(
   String.raw`\[no-?(?:test|alert)\b` +
     String.raw`|\bUAT\b` +
@@ -90,7 +93,7 @@ async function main() {
   // (KIT-T099 — the maintainer must always know what can be tested). Either missing → nag once.
   const reply = lastAssistant || '';
   const hasLanding = LANDED_RECEIPT.test(reply) || namedInReply(landed, reply).length > 0;
-  const hasTest = TEST_RECEIPT.test(reply);
+  const hasTest = TEST_RECEIPT.test(reply) || UAT_LINE.test(reply);
   const listing = { listed: landed.map((c) => c.sha), turnStartMs, at: Date.now() };
   if (hasLanding && hasTest) {
     recordAlerted(root, head, pushed, listing);
@@ -124,6 +127,7 @@ function renderAlert(root, landed, pushed, hasLanding, hasTest) {
   }
   if (!hasTest) {
     lines.push('  - MISSING: no UAT step or no-test tag found — state WHAT THE MAINTAINER CAN UAT — a user-facing command/experience to try (open X, run Y and read it), or "[no-test: <reason>]"; automated suites are Claude\'s to run — cite results, never assign them (KIT-D045);');
+    lines.push(`    accepted: a line led by ${UAT_LEADS.map((l) => `"${l}:"`).join(', ')} with the step after it (a bold lead, a bullet list below it and ", at <sha>" before the colon all count), or "[no-test: <reason>]";`);
   }
   lines.push(
     '  - if a deploy follows, confirm when it is LIVE (not just pushed);',

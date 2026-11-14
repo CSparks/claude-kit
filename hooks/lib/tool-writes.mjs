@@ -16,7 +16,7 @@
 //   writerId(session, agent)                                         -> the identity an entry carries ('' when unknown)
 //   recordToolWrite(root, rel, hash, now, writer)                    -> add a confirmed entry
 //   recordPredictedWrite(root, rel, file, toolInput, writer, now)    -> add the unconfirmed entries for the content `toolInput` leaves
-//   toolWriteProves(root, rel, sinceMs, currentHash, byWriter)       -> true when another writer's tool left `currentHash` in `rel` since `sinceMs`
+//   toolWriteProves(root, rel, sinceMs, currentHash, byWriter, { ownConfirmed }) -> true when another writer's tool (or, with ownConfirmed, `byWriter`'s confirmed one) left `currentHash` in `rel` since `sinceMs`
 //   movedWrite(root, rel, session)                                   -> true when git stages `rel` as the rename of a path whose confirmed entry holds exactly the staged content
 //   cleanWriters(root, rel, currentHash)                             -> writers whose predicted write left `currentHash` and started from committed or their own clean-based text
 //   predictedHashes(current, toolInput)                             -> hashes of the content an Edit or Write leaves ([] when unknown)
@@ -126,7 +126,11 @@ export function movedWrite(root, rel, session) {
   }
 }
 
-/** True when a tool of a writer other than `byWriter` wrote `rel` at or after `sinceMs` and `currentHash` is what it left. */
-export const toolWriteProves = (root, rel, sinceMs, currentHash, byWriter = '') => Boolean(currentHash)
-  && toolWriteEntries(root, rel).some((e) => e.h === currentHash && !(byWriter && e.w === byWriter)
+/**
+ * True when a tool of a writer other than `byWriter` wrote `rel` at or after `sinceMs` and `currentHash` is what it left.
+ * With `ownConfirmed`, `byWriter`'s own CONFIRMED entry counts too: the tool landed the file, as an Edit issued in
+ * parallel with a shell call does (KIT-T1212); the delete rule keeps the strict reading, where another writer's entry blocks.
+ */
+export const toolWriteProves = (root, rel, sinceMs, currentHash, byWriter = '', { ownConfirmed = false } = {}) => Boolean(currentHash)
+  && toolWriteEntries(root, rel).some((e) => e.h === currentHash && !(byWriter && e.w === byWriter && !(ownConfirmed && e.c === true))
     && (e.ts || 0) >= sinceMs - (e.c ? CONFIRMED_SLACK_MS : 0));

@@ -354,5 +354,30 @@ const tableReply = (short) => [
   expect('control: an automated suite as the only try, with no sha, stays blocked', r.code, 2);
 }
 
+// ─── KIT-T1214: a one-line UAT sentence led by To fly / To try / To look at / UAT counts, whatever words follow ───
+const withTable = (lead) => (short) => [`| \`${short}\` | RDG-T057 | local |`, '', lead].join('\n');
+for (const [name, lead] of [
+  ['a bold To fly line', '**To fly:** the demo at 935bf40. Ground should arrive sooner than at the previous commit.'],
+  ['a plain To fly line', 'To fly: the demo. Ground should arrive sooner.'],
+  ['a bold To look at line', '**To look at:** the demo ground at the first town; it should be closer to the road.'],
+  ['a UAT line', 'UAT: the demo ground at the first town.'],
+  ['a bold To fly, at <sha> lead with bullets', '**To fly, at `abc1234`:**\n- the demo, first town\n- the ground arrives sooner'],
+  ['a bulleted To try line', '- To try: the demo, first town.'],
+]) {
+  expect(`${name} clears the gate`, replyRun(withTable(lead)).code, 0);
+}
+for (const [name, lead] of [
+  ['no user-facing step', 'Refactored the mesher; nothing else changed.'],
+  ['a To fly lead with nothing after it', '**To fly:**'],
+  ['To fly inside a sentence, no colon', 'It is hard to fly the demo here.'],
+  ['a To fly lead far from its colon', 'To fly the other thing, which we dropped for good reasons of length and then more words follow here: no.'],
+]) {
+  expect(`control: ${name} stays blocked`, replyRun(withTable(lead)).code, 2);
+}
+{
+  const r = replyRun((s) => `| \`${s}\` | RDG-T057 | local |`);
+  expect('the block states the accepted UAT lead forms', ['"To fly:"', '"To try:"', '"To look at:"', '"UAT:"'].every((f) => r.err.includes(f)) && r.err.includes('[no-test: <reason>]') ? 1 : 0, 1);
+}
+
 console.log(`\n${testCount} tests —${failures ? `${failures} FAILED` : 'ALL PASS'}`);
 process.exit(failures ? 1 : 0);
