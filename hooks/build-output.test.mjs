@@ -4,8 +4,8 @@
 // do not turn hand-written source into output.
 // Run: node hooks/build-output.test.mjs
 
-import { mkdirSync, realpathSync, utimesSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 
 import { cleanup, git, reporter } from './test-harness.mjs';
 import { handWriteHarness } from './hand-write-harness.mjs';
@@ -130,6 +130,49 @@ try {
     mkdirSync(join(d, '.git', 'info'), { recursive: true });
     const r = call(d, 'D', 'node scratch.js', () => { edit(d); put(d, 'out/evil.cpp'); });
     ok(`detector: control, ${label} does not hide the source the call wrote`, named(r, 'out/evil.cpp'), r.stderr.slice(0, 200));
+  }
+
+  const seeded = (rules) => {
+    const d = fresh();
+    writeFileSync(join(d, '.gitignore'), 'out/\n*.log\n');
+    Object.entries(rules).forEach(([rel, text]) => put(d, rel, text));
+    commit(d, 'rules');
+    return d;
+  };
+
+  {
+    const d = seeded({});
+    const noise = join(d, 'logs');
+    const flood = () => { for (let i = 0; i < 5100; i++) writeFileSync(join(noise, `n${i}.log`), 'x'); };
+    put(d, 'logs/keep.txt', 'x');
+    flood();
+    ok('detector: a clean tree with more ignored entries than the snapshot holds passes', detect(d, ['out/gen.cpp']).status === 0);
+    const r = call(d, 'D', 'node scratch.js', () => { writeFileSync(join(d, '.git', 'info', 'exclude'), 'zzz/\n'); put(d, 'zzz/e.cpp'); });
+    ok('detector: control, an ignore rule added beside more ignored entries than the cap is caught', named(r, 'zzz/e.cpp'), r.stderr.slice(0, 200));
+  }
+
+  {
+    const d = seeded({ 'sub/.gitignore': 'keep\n' });
+    const r = call(d, 'D', 'node scratch.js', () => { rmSync(join(d, 'sub', '.gitignore')); put(d, 'out/evil.cpp'); });
+    ok('detector: control, a rule file the call deletes voids the exemption of a source another rule ignores', named(r, 'out/evil.cpp'), r.stderr.slice(0, 200));
+  }
+
+  {
+    const d = seeded({ 'sub/.gitignore': 'keep\n' });
+    const r = call(d, 'D', 'node scratch.js', () => { put(d, 'sub/.gitignore', 'keep\n*.cpp\n'); put(d, 'out/evil.cpp'); });
+    ok('detector: control, editing a rule file other than the one that ignores the source is caught', named(r, 'out/evil.cpp'), r.stderr.slice(0, 200));
+  }
+
+  {
+    const d = seeded({});
+    const first = join(d, '..', `${basename(d)}-excludes-a`);
+    const second = join(d, '..', `${basename(d)}-excludes-b`);
+    writeFileSync(first, 'evil/\n');
+    writeFileSync(second, 'evil/\n');
+    git(['config', 'core.excludesFile', first], d);
+    const r = call(d, 'D', 'node scratch.js', () => { git(['config', 'core.excludesFile', second], d); put(d, 'evil/e.cpp'); });
+    ok('detector: control, core.excludesFile re-pointed to an identical file is caught', named(r, 'evil/e.cpp'), r.stderr.slice(0, 200));
+    ok('detector: a call that changes no ignore rule and writes into an ignored dir passes', detect(d, ['out/gen.cpp']).status === 0);
   }
 
   {
