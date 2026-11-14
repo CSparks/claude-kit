@@ -9,6 +9,8 @@
 
 import { segments, cdTarget, toPath } from './shell-segments.mjs';
 import { tokenize } from './branch-ops.mjs';
+import { gitCommand } from './git-subcommand.mjs';
+import { MAX_NESTING, commandRuns } from './lead-command-walk.mjs';
 
 export const OWN_OWNERS = (process.env.CLAUDE_KIT_OWN_OWNERS || 'CSparks').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 
@@ -76,12 +78,20 @@ function pushTarget(toks, dir, ctx) {
 // [{ kind: 'gh pr create' | 'git push' | ..., slug, remote, dir }].
 export function foreignSubmissions(command, cwd, ctx) {
   const out = [];
+  collectSubmissions(String(command), cwd, ctx, out, 0);
+  return out;
+}
+
+// One command text: each segment, then the command strings it runs (`bash -c`, `ssh`, `eval`, substitutions), each from
+// the directory the segments before it reached.
+function collectSubmissions(command, cwd, ctx, out, depth) {
   let dir = cwd;
-  for (const { text } of segments(String(command))) {
+  for (const { text } of segments(command)) {
     const seg = text.trim();
     if (!seg) continue;
     const cd = cdTarget(seg);
     if (cd) { dir = ctx.resolveDir(dir, cd); continue; }
+    if (depth < MAX_NESTING) commandRuns(seg, '').forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1));
     const toks = tokenize(seg);
     const env = {};
     while (toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[0])) { const [k, ...v] = toks.shift().split('='); env[k] = v.join('='); }
@@ -92,14 +102,13 @@ export function foreignSubmissions(command, cwd, ctx) {
       const base = slug ? { slug, remote: ctx.remotes(dir).find((r) => slugOf(r.url).toLowerCase() === slug.toLowerCase()) || null } : ghDefaultRemote(dir, ctx);
       found = { kind: `gh ${toks[0]} ${toks[1]}`, ...base };
     } else if (bin === 'git') {
-      let segDir = dir;
-      while (toks.length && (toks[0] === '-C' || toks[0] === '-c')) { const f = toks.shift(); const v = toks.shift() || ''; if (f === '-C') segDir = ctx.resolveDir(segDir, toPath(v)); }
-      if (toks[0] === 'push') found = { kind: 'git push', ...pushTarget(toks.slice(1), segDir, ctx) };
+      const call = gitCommand(toks);
+      const segDir = call.options.filter(({ flag }) => flag === '-C').reduce((d, { value }) => ctx.resolveDir(d, toPath(value)), dir);
+      if (call.sub === 'push') found = { kind: 'git push', ...pushTarget(call.args, segDir, ctx) };
       if (found) found.dir = segDir;
     }
     if (found && found.slug && !isOwnSlug(found.slug)) out.push({ ...found, dir: found.dir || dir });
   }
-  return out;
 }
 
 export const CLAUDE_TRAILER = /^(?:co-authored-by:\s*claude\b|claude-session:)|noreply@anthropic\.com|generated with \[?claude code|claude\.ai\/code\/session/im;

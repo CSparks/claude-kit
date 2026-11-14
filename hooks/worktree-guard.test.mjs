@@ -100,6 +100,8 @@ ok('worktree-cwd: the warning names the check-id + how to fix', (() => {
 })());
 ok('worktree-cwd: read-only git command does NOT warn', run(wt, 'git log --oneline -5').err.includes('KIT-T115') === false);
 ok('worktree-cwd: explicit `git -C` target suppresses the warning', run(wt, `git -C ${wt.replace(/\\/g, '/')} commit -m x`).err.includes('KIT-T115') === false);
+ok('KIT-T1174: -c k=v and --no-pager before -C, and a quoted -C, still name the target', run(wt, `git -c core.pager=cat --no-pager -C "${wt.replace(/\\/g, '/')}" commit -m x`).err.includes('KIT-T115') === false);
+ok('KIT-T1174 control: a mutating call whose -C belongs to a different subcommand option still warns', run(wt, 'git commit -C HEAD').err.includes('KIT-T115'));
 ok('worktree-cwd: mutating command in the MAIN checkout does not warn', run(repo, 'git commit -m x').err.includes('KIT-T115') === false);
 ok('worktree-cwd: a sibling worktree (not under .claude/worktrees) does not warn', run(sib, 'git commit -m x').err.includes('KIT-T115') === false);
 ok('worktree-cwd: unadopted repo no-ops', run(unadoptedWt, 'git commit -m x').err.includes('KIT-T115') === false);

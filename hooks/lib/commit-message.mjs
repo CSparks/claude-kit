@@ -10,41 +10,28 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { commitCall } from './git-calls.mjs';
 import { expandVariables, precedingValues } from './shell-variables.mjs';
 import { segments } from './shell-segments.mjs';
 
-const COMMIT = /\bgit\s+(?:-C\s+(?:"[^"]+"|'[^']+'|\S+)\s+|--?\S+\s+)*commit\b/;
 const MAX_MESSAGE_BYTES = 1 << 20;
 const STDIN = '-';
 const MSYS_DRIVE = /^\/([A-Za-z])\//;
 
-// Whitespace-split tokens of the commit segment, a quoted span kept whole; the segment ends at an unquoted `;`, `|` or `&`.
-function commitTokens(command) {
-  const m = COMMIT.exec(command);
-  if (!m) return [];
-  let seg = '';
-  let quote = '';
-  for (const ch of command.slice(m.index + m[0].length)) {
-    if (quote) { seg += ch; if (ch === quote) quote = ''; continue; }
-    if (ch === '"' || ch === "'") { quote = ch; seg += ch; continue; }
-    if (ch === ';' || ch === '|' || ch === '&') break;
-    seg += ch;
-  }
-  return [...seg.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((t) => t[1] ?? t[2] ?? t[3]);
-}
-
 const VALUE_OPTIONS = new Set(['-m', '-t', '-c', '-C', '--message', '--template', '--author', '--date', '--cleanup', '--fixup', '--squash', '--reuse-message', '--reedit-message', '--trailer', '--pathspec-from-file']);
 const SHORT_VALUE_LETTERS = /[mtcC]/;
 
-// The commit segment with the variables the command assigned before it replaced; the command itself when it cannot be split.
-function expandedCommit(command, shell) {
+// The words after `commit`, from the segment holding the commit with the variables the command assigned before it replaced;
+// the command itself when it cannot be split.
+function commitTokens(command, shell) {
   const parts = segments(command, { shell });
-  const commit = parts.ambiguous ? null : parts.find((seg) => COMMIT.test(seg.text));
-  return commit ? expandVariables(commit.text, precedingValues(parts, shell).get(commit), shell) : command;
+  const home = parts.ambiguous ? null : parts.find((seg) => commitCall(seg.text, { shell }));
+  const text = home ? expandVariables(home.text, precedingValues(parts, shell).get(home), shell) : command;
+  return commitCall(text, { shell })?.args ?? [];
 }
 
 export function commitMessageFile(command, shell = 'bash') {
-  const tokens = commitTokens(expandedCommit(String(command || ''), shell));
+  const tokens = commitTokens(String(command || ''), shell);
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (t === '--') return null;

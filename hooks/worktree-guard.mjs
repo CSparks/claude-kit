@@ -13,21 +13,14 @@
 
 import { dirname } from 'node:path';
 import { payload, git, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
+import { gitCalls } from './lib/git-calls.mjs';
+import { shellOfTool } from './lib/shell-segments.mjs';
 
 const MUTATING = new Set(['commit', 'merge', 'push', 'rebase', 'reset', 'checkout', 'switch', 'cherry-pick', 'am', 'revert']);
-const GLOBAL_VALUE_OPTS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace']);
 const WORKTREE_DIR = /(^|[\\/])\.claude[\\/]worktrees[\\/]/i;
 
-const tokenize = (s) => [...s.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((t) => t[1] ?? t[2] ?? t[3]);
-const normalize = (p) => String(p).replace(/^["']|["']$/g, '').replace(/^\/([A-Za-z])\//, '$1:/');
-
-// The directory a command names explicitly (leading `cd <dir>` or `git -C <dir>`), or ''.
-function explicitDir(cmd) {
-  let m = cmd.match(/(?:^|&&|;)\s*cd\s+(\S[^&;|]*)/);
-  if (m) return normalize(m[1].trim());
-  m = cmd.match(/git\s+-C\s+("[^"]+"|'[^']+'|\S+)/);
-  return m ? normalize(m[1].trim()) : '';
-}
+// The directory a command names explicitly (a `cd <dir>` segment or `git -C <dir>` before the call), or ''.
+const explicitDir = (calls) => calls.find((call) => call.explicitDir)?.dir || '';
 
 // A LINKED worktree has a .git file pointing at the main repo, so --git-dir and
 // --git-common-dir differ. The path check catches the kit's own agent worktrees even
@@ -48,41 +41,22 @@ function mainRoot(dir) {
   return common ? dirname(common.replace(/\\/g, '/')) : '';
 }
 
-// Each `git …` segment of a shell line, reduced to its subcommand + remaining tokens.
-function gitSegments(command) {
-  const out = [];
-  for (const seg of command.split(/&&|\|\||[;&|]/).map((s) => s.trim()).filter(Boolean)) {
-    // The segment must BE a git invocation (env assignments / sudo may precede it) — a
-    // `git …` merely quoted inside another command is not one.
-    const m = seg.match(/^(?:\w+=\S*\s+)*(?:sudo\s+)?git\s+(.+)/s);
-    if (!m) continue;
-    const toks = tokenize(m[1]);
-    let i = 0;
-    while (i < toks.length) {
-      const t = toks[i];
-      if (GLOBAL_VALUE_OPTS.has(t)) { i += 2; continue; }
-      if (t.startsWith('-')) { i++; continue; }
-      break;
-    }
-    if (toks[i]) out.push({ sub: toks[i], rest: toks.slice(i + 1), seg });
-  }
-  return out;
-}
-
 try {
   const p = await payload();
   const command = (p.tool_input && p.tool_input.command) || '';
   if (!/\bgit\b/.test(command)) process.exit(0);
 
-  const named = explicitDir(command);
-  const dir = named || process.cwd();
+  const cwd = process.cwd();
+  const calls = gitCalls(command, { shell: shellOfTool(p.tool_name), cwd }).filter((call) => call.sub);
+  const named = explicitDir(calls);
+  const dir = named || cwd;
   // Adoption is a property of the REPO, not of the checkout: a linked worktree may not
   // carry .ai/ on its branch, so the main checkout answers for it.
   const root = gitRoot(dir);
   const main = mainRoot(dir);
   if (!adopted(root) && !adopted(main)) process.exit(0);
 
-  const segs = gitSegments(command);
+  const segs = calls;
   const allowStash = /\[allow-stash\b/i.test(command) || /^(1|true|yes)$/i.test(process.env.CLAUDE_KIT_ALLOW_STASH || '');
 
   const excluded = (id) => pathExcluded(root, id, dir) || (!!main && pathExcluded(main, id, dir));

@@ -47,6 +47,7 @@ try {
   ok('git branch -m <new> blocks', blocks('git branch -m renamed'));
   ok('git worktree add blocks', blocks('git worktree add ../wt -b feature-y'));
   ok('git -C <dir> worktree add blocks', blocks(`git -C "${bg}" worktree add ../wt2`, parent));
+  ok('KIT-T1174: -c k=v, --no-pager and a second -C before the subcommand still name the repo', blocks(`git -c core.pager=cat -C "${parent}" -C proj worktree add ../wt5`, tmpDir('kit-bg-away-')) && blocks(`git --no-pager -C "${bg}" worktree add ../wt6`, parent));
   ok('chained segment (… && git worktree add) blocks', blocks('git status && git worktree add ../wt3'));
   ok('git inside a quoted argument of another program is not a git command (after ; or &&)',
     !blocks('t session --append "tried this; git branch side-quest && git worktree add ../wt4"')

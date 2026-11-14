@@ -9,6 +9,8 @@ import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
 import { pathspecFiles, pathspecStatus, sameCommandAdds } from './lib/commit-files.mjs';
+import { commitSpec } from './lib/commit-spec.mjs';
+import { commitCall, firstGitCall } from './lib/git-calls.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
 import { commitMessagePath, commitMessageText, unreadableMessageFile } from './lib/commit-message.mjs';
 import { messageFileProblem } from './lib/message-file-owner.mjs';
@@ -25,10 +27,14 @@ const CODE = new Set(
 // Foreign staged paths listed before the warning collapses to a "+N more" tail.
 const MAX_FOREIGN = 10;
 const COMMIT_FOREIGN_ESCAPE = /\[commit-foreign:\s*[^\]\s][^\]]*\]/i;
+const ADD_SUBCOMMANDS = ['add', 'stage'];
 
 const p = await payload();
 const command = (p.tool_input && p.tool_input.command) || '';
-const isCommit = /\bgit\s+(?:-C\s+\S+\s+|--?\S+\s+)*commit\b/.test(command);
+const shell = shellOfTool(p.tool_name);
+// KIT-T1174: a commit is a parsed git call (git-calls.mjs), so every spelling of `-C`, global option and wrapper reaches the gate.
+const commit = commitCall(command, { shell });
+const isCommit = commit !== null;
 // `git add -A` / `git add .` with no pathspec limit. -A is TREE-WIDE regardless of cwd, so in
 // the shared data repo it stages every project's subtree, not the one being worked (KIT-T230).
 // KIT-T1159: one parser (commit-files.mjs) reads every add, `-c k=v`, `--git-dir` and `stage` forms included.
@@ -36,25 +42,11 @@ const adds = sameCommandAdds(command);
 const isBareAdd = adds.includes('.');
 if (!isCommit && !isBareAdd) process.exit(0);
 
-// The commit runs in the repo the command targets, not the session cwd: resolve a
-// leading `cd <path>` or `git -C <path>`. Translate an MSYS path (/d/dev/x) to a
-// Windows path (d:/dev/x) so `git -C` accepts it. Falls back to cwd.
-function targetDir(cmd) {
-  let m = cmd.match(/(?:^|&&|;)\s*cd\s+(\S[^&;|]*)/);
-  let path = m ? m[1].trim() : '';
-  if (!path) {
-    m = cmd.match(/git\s+-C\s+("[^"]+"|'[^']+'|\S+)/);
-    path = m ? m[1].trim() : '';
-  }
-  if (!path) return process.cwd();
-  path = path.replace(/^["']|["']$/g, '');
-  return path.replace(/^\/([A-Za-z])\//, '$1:/');
-}
-
-const root = gitRoot(targetDir(command));
+// The call runs in the repo the command targets, not the session cwd: the `cd` segments and `-C` options before it.
+const targetDir = (commit ?? firstGitCall(command, ADD_SUBCOMMANDS, { shell }))?.dir ?? process.cwd();
+const root = gitRoot(targetDir);
 // The message a `-F <file>` commit carries is part of what the commit cites (KIT-T1097).
-const shell = shellOfTool(p.tool_name);
-const cited = `${command}\n${commitMessageText(command, targetDir(command), shell)}`;
+const cited = `${command}\n${commitMessageText(command, targetDir, shell)}`;
 const dataRepo = isDataRepo(root);
 // A commit made inside a submodule marks its gitlink as this session's in the superproject.
 if (isCommit) {
@@ -81,7 +73,7 @@ if (isBareAdd && dataRepo) {
 if (!isCommit) process.exit(0);
 if (!adopted(root) && !dataRepo) process.exit(0);
 // KIT-T1135: a message file another agent of the session last wrote is not this agent's message.
-const messageFile = commitMessagePath(command, targetDir(command), shell);
+const messageFile = commitMessagePath(command, targetDir, shell);
 const messageOwnedByAnother = messageFile && !pathExcluded(root, 'commit-message-file', messageFile)
   ? messageFileProblem(messageFile, writerId(p.session_id, subagentId(p)), excludeFooter('commit-message-file'))
   : '';
@@ -96,52 +88,15 @@ const centralized = existsSync(join(root, '.claude-project'));
 const lines = (s) => s.split('\n').map((x) => x.trim()).filter(Boolean);
 const uniq = (a) => [...new Set(a)];
 
-// KIT-T052: judge the COMMIT'S file set, not the whole dirty tree.
-//   explicit pathspec -> git's own matching (`status --porcelain -- <paths>`)
-//   -a/--all          -> tracked modified + staged
-//   bare commit       -> staged set only
-// Shell parsing is heuristic: anything unrecognized falls back to the whole
-// dirty tree — the strict direction, so the gate may narrow but never leak.
-function commitSpec(cmd) {
-  const m = cmd.match(/\bgit\s+(?:-C\s+(?:"[^"]+"|'[^']+'|\S+)\s+|--?\S+\s+)*commit\b/);
-  if (!m) return { mode: 'tree' };
-  let seg = '';
-  let q = '';
-  for (const ch of cmd.slice(m.index + m[0].length)) {
-    if (q) { seg += ch; if (ch === q) q = ''; continue; }
-    if (ch === '"' || ch === "'") { q = ch; seg += ch; continue; }
-    if (ch === ';' || ch === '|' || ch === '&' || ch === ')') break;
-    seg += ch;
-  }
-  // options whose value arrives as the NEXT token (long form without '=')
-  const VALUE_OPTS = new Set(['-m', '-F', '-t', '-c', '-C', '--message', '--file', '--template', '--author', '--date', '--cleanup', '--fixup', '--squash', '--reuse-message', '--reedit-message', '--trailer', '--pathspec-from-file']);
-  const toks = [...seg.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((t) => t[1] ?? t[2] ?? t[3]);
-  const paths = [];
-  let all = false;
-  for (let i = 0; i < toks.length; i++) {
-    const t = toks[i];
-    if (t === '--') { paths.push(...toks.slice(i + 1)); break; }
-    if (t === '-a' || t === '--all') { all = true; continue; }
-    if (t.startsWith('--')) { if (VALUE_OPTS.has(t)) i++; continue; }
-    if (t.startsWith('-')) {
-      // short cluster (-am): 'a' flags all; a trailing value-taking letter consumes the next token
-      if (t.includes('a')) all = true;
-      if (/[mFtcC]$/.test(t)) i++;
-      continue;
-    }
-    paths.push(t);
-  }
-  if (paths.length) return { mode: 'paths', paths };
-  return { mode: all ? 'all' : 'staged' };
-}
-
 // KIT-T1158: a `git add` earlier in the same command has not run when this hook does; its pathspecs name files the
 // commit will carry. -uall lists an untracked directory file by file, so it is judged by its files, not as `dir/`.
 // Untracked entries stay in every judged set (fail-closed, KIT-T1159).
 const statusAll = (paths) => pathspecStatus(root, paths);
 const addedFiles = () => (adds.length ? pathspecFiles(statusAll(adds), { staged: true }) : []);
 
-const spec = commitSpec(command);
+// KIT-T052: judge the COMMIT'S file set, not the whole dirty tree (commit-spec.mjs): an explicit pathspec by git's own
+// matching, -a/--all by the tracked and staged changes, a bare commit by the staged set, an unread call by the whole tree.
+const spec = commitSpec(commit);
 let changed;
 if (spec.mode === 'paths') {
   changed = uniq(pathspecFiles(statusAll(spec.paths), { staged: true }));
@@ -423,7 +378,7 @@ const options = centralized
       "  - cite the item in the message (e.g. 'implements HOD-T041' / 'KIT-T007'), or",
       "  - if genuinely not trackable work, include '[no-log: <reason>]'.",
     ];
-const unread = unreadableMessageFile(command, targetDir(command), shell);
+const unread = unreadableMessageFile(command, targetDir, shell);
 const unreadLines = unread
   ? [`The -F file ${unread} could not be read, so its message was not judged: it is missing, or its path is built from a`, 'variable the gate cannot resolve. Name the file by a literal path, or cite the ticket in the command text.', '']
   : [];

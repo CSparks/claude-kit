@@ -35,8 +35,9 @@ function repoWith(name, key, ids) {
 }
 const here = repoWith('here', 'ZZA', ['ZZA-T001', 'ZZA-T002']);
 const other = repoWith('other', 'ZZB', ['ZZB-T001']);
+const spaced = repoWith('my spaced repo', 'ZZC', ['ZZC-T001', 'ZZC-T002']);
 const registry = join(base, 'registry.json');
-writeFileSync(registry, JSON.stringify({ projects: { here, other } }));
+writeFileSync(registry, JSON.stringify({ projects: { here, other, spaced } }));
 process.env.CLAUDE_KIT_REGISTRY = registry;
 
 let n = 0;
@@ -95,6 +96,20 @@ await test('a commit that cites no ticket, or is not a commit command, changes n
   const other = spawnSync(process.execPath, [HOOK], { cwd: here, encoding: 'utf8', input: JSON.stringify({ tool_input: { command: 'git status' } }) });
   assert.equal(other.status, 0);
   assert.equal(read(here, 'ZZA-T002'), before);
+});
+
+await test('KIT-T1174: a commit made as git -C "<dir with a space>" is stamped in that repo, from another cwd', () => {
+  put(join(spaced, 'g1.txt'), '1');
+  execFileSync('git', ['add', '-A'], { cwd: spaced });
+  const subject = 'spaced slice (implements ZZC-T001)';
+  execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', subject], { cwd: spaced });
+  const run = (command) => spawnSync(process.execPath, [HOOK], { cwd: other, encoding: 'utf8', env: process.env, input: JSON.stringify({ tool_input: { command } }) });
+  assert.equal(run(`git -C "${spaced}" log`).status, 0);
+  assert.equal(landed(read(spaced, 'ZZC-T001')).length, 0, 'control: git -C "<dir>" log is no commit, nothing is stamped');
+  assert.equal(run(`git -C "${spaced}" commit --dry-run -m "${subject}"`).status, 0);
+  assert.equal(landed(read(spaced, 'ZZC-T001')).length, 0, 'control: a dry run stamps nothing');
+  assert.equal(run(`git -C "${spaced}" commit -m "${subject}"`).status, 0);
+  assert.equal(landed(read(spaced, 'ZZC-T001')).length, 1);
 });
 
 await test('q show prints LANDED COMMITS: n (last <sha> <date>) from the History lines', () => {

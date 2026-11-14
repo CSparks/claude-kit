@@ -3,11 +3,11 @@
 // ai-allowed: no also rejects Claude trailers in the pending commits. Wiring asserted from hooks.json.
 // Run: node hooks/upstream-gate.test.mjs
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { ENV, HOOKS, cleanup, git, hook, identify, reporter, repo } from './test-harness.mjs';
+import { ENV, HOOKS, cleanup, git, hook, identify, reporter, repo, tmpDir } from './test-harness.mjs';
 import { hiddenBehindQuotes } from './hidden-command-cases.mjs';
 
 const { ok, done } = reporter('upstream-gate');
@@ -75,6 +75,18 @@ try {
   ok('git push to a foreign URL blocks', blocks('git push https://github.com/bevyengine/bevy.git HEAD:main'));
   ok('git -C <dir> push blocks', blocks(`git -C "${fork.replace(/\\/g, '/')}" push upstream main`, join(fork, '..')));
   ok('git push with the token clears', !blocks(`git push upstream main  # ${TOKEN_YES}`));
+
+  const spacedFork = join(tmpDir('kit spaced fork-'), 'my fork').replace(/\\/g, '/');
+  mkdirSync(spacedFork);
+  git(['init', '-q'], spacedFork);
+  git(['remote', 'add', 'upstream', 'https://github.com/bevyengine/bevy.git'], spacedFork);
+  const elsewhere = tmpDir('kit elsewhere-');
+  ok('KIT-T1174: git -C "<dir with a space>" push blocks', blocks(`git -C "${spacedFork}" push upstream main`, elsewhere));
+  ok('KIT-T1174: git -c k=v -C "<dir with a space>" push blocks', blocks(`git -c core.pager=cat -C '${spacedFork}' push upstream main`, elsewhere));
+  ok('KIT-T1174: git --no-pager and -P before push block', blocks('git --no-pager push upstream main') && blocks('git -P push upstream main'));
+  ok('KIT-T1174: a push inside bash -c blocks', blocks(`bash -c 'git push upstream main'`) && blocks(`bash -c "git -C '${spacedFork}' push upstream main"`, elsewhere));
+  ok('KIT-T1174 control: git -C "<dir with a space>" log and git --no-pager log pass', !blocks(`git -C "${spacedFork}" log`, elsewhere) && !blocks('git --no-pager log'));
+  ok('KIT-T1174 control: the words git push inside another command pass', !blocks('echo "git push upstream main"') && !blocks(`bash -c 'echo git push upstream main'`));
 
   ok('negative control: gh pr create --repo CSparks/x passes', !blocks('gh pr create --repo CSparks/other --title t'));
   ok('negative control: owner match is case-insensitive', !blocks('gh pr create --repo csparks/other --title t'));

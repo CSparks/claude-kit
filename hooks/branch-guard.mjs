@@ -14,16 +14,16 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { payload, git, gitRoot, adopted } from './lib.mjs';
 import { classifyGitSegment, tokenize } from './lib/branch-ops.mjs';
+import { gitCommand } from './lib/git-subcommand.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
 import { AMBIGUOUS_MESSAGE, cdTarget, segments, toPath } from './lib/shell-segments.mjs';
 
 const ESCAPE = /\[maintainer-asked-branch:\s*[^\]\s][^\]]*\]/i;
 
-// The directory one segment runs in: its `git -C <dir>`, else the cwd tracked through earlier `cd`s.
-const segmentDir = (seg, cwd) => {
-  const m = seg.match(/git(?:\.exe)?\s+-C\s+("[^"]+"|'[^']+'|\S+)/);
-  return m ? resolve(cwd, toPath(m[1].trim())) : cwd;
-};
+// The directory one segment runs in: each `-C <dir>` among git's global options in turn, else the cwd tracked through earlier `cd`s.
+const segmentDir = (toks, cwd) => gitCommand(toks).options
+  .filter(({ flag }) => flag === '-C')
+  .reduce((dir, { value }) => resolve(dir, toPath(value)), cwd);
 
 const isUrl = (s) => /^[a-z][a-z0-9+.-]*:\/\//i.test(s) || (/^[^/\\]+@[^:]+:/.test(s) && !/^[A-Za-z]:[\\/]/.test(s));
 
@@ -112,9 +112,10 @@ try {
     if (cdTo) { cwd = resolve(cwd, cdTo); continue; }
     const m = seg.match(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git(?:\.exe)?\s+(.+)/s); // a git INVOCATION, not git quoted inside another command
     if (!m) continue;
-    const dir = segmentDir(seg, cwd);
+    const toks = tokenize(m[1]);
+    const dir = segmentDir(toks, cwd);
     const root = gitRoot(dir);
-    const verdict = classifyGitSegment(tokenize(m[1]), lookupsFor(root));
+    const verdict = classifyGitSegment(toks, lookupsFor(root));
     let op = '';
     if (verdict.flip && adopted(root)) op = verdict.flip;
     if (verdict.clone) { const why = cloneReason(verdict.clone, dir); if (why) op = `${seg}   (${why})`; }

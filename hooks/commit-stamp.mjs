@@ -6,15 +6,17 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { payload, git, gitRoot, adopted } from './lib.mjs';
+import { commitCall } from './lib/git-calls.mjs';
+import { shellOfTool } from './lib/shell-segments.mjs';
 
-const COMMIT_CMD = /\bgit\b(?:\s+-\S+(?:\s+\S+)?)*\s+commit\b/;
 const FIELD_SEP = '\u0001';
 
 try {
   const p = await payload();
   const cmd = (p && p.tool_input && p.tool_input.command) || '';
-  if (!COMMIT_CMD.test(cmd) || /--dry-run/.test(cmd)) process.exit(0);
-  const root = gitRoot();
+  const commit = commitCall(cmd, { shell: shellOfTool(p && p.tool_name) });
+  if (!commit || commit.args.includes('--dry-run') || (commit.unparsed && /--dry-run/.test(cmd))) process.exit(0);
+  const root = gitRoot(commit.dir);
   if (!adopted(root)) process.exit(0);
 
   const [sha, subject] = git(['log', '-1', `--format=%h${FIELD_SEP}%s`], root).trim().split(FIELD_SEP);

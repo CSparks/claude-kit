@@ -9,7 +9,8 @@
 //     hitsOf(words, ctx) -> [hit]              the hits of the command found; `words` start at the command word
 //   nestedSegments(text, shell) -> [{ text, after, shell }]   every segment of the command and of each command text it runs
 //   withoutRedirects(text) -> string          the segment text without its redirections (`< f`, `<<'EOF'`, `> f`)
-//   cleaned(words) -> string[]                 the words without grouping characters, empty ones dropped
+//   commandRuns(text, shell) -> [{ text, shell }]   the command texts one segment runs from its operands and substitutions
+//   cleaned(words) -> string[]                 the words without grouping characters, empty ones dropped; a variable keeps its `$`
 //   commandTokens(text) -> string[]            the quote-aware tokens (quotes kept) without redirections; a `>` inside a quoted string stays
 //
 // A command another command runs is split into segments and judged by the same rules: the string a shell takes
@@ -24,13 +25,17 @@ export const MAX_NESTING = 4;
 const QUOTE_START = /^["']/;
 const QUOTE_CHAR = /["']/;
 const REDIRECT_TOKEN = /^\d*[<>]{1,2}&?(.*)$/;
-const GROUP_START = /^[$({`]+/;
+const GROUP_START = /^(?:\$\(|[({`])+/;
 const GROUP_END = /[)}`]+$/;
-const REDIRECTION = /\d*[<>]{1,2}&?\s*(?:"[^"]*"|'[^']*'|[^\s|;&]+)/g;
+const GROUP_END_KEEPING_BRACE = /[)`]+$/;
+const PARAMETER_OPEN = '${';
+const REDIRECTION_OR_QUOTED = /("[^"]*"|'[^']*')|\d*[<>]{1,2}&?\s*(?:"[^"]*"|'[^']*'|[^\s|;&]+)/g;
 
-export const withoutRedirects = (text) => String(text).replace(REDIRECTION, ' ');
+export const withoutRedirects = (text) => String(text).replace(REDIRECTION_OR_QUOTED, (_, quoted) => quoted ?? ' ');
 
-const cleanWord = (word) => (QUOTE_START.test(word) ? word : word.replace(GROUP_START, '').replace(GROUP_END, ''));
+// A variable (`$S`, `${S}`) keeps its `$`: only a grouping `$(`, `(`, `{` or backtick and the closers after a word are cut.
+const groupEnd = (word) => word.replace(word.includes(PARAMETER_OPEN) ? GROUP_END_KEEPING_BRACE : GROUP_END, '');
+const cleanWord = (word) => (QUOTE_START.test(word) ? word : groupEnd(word.replace(GROUP_START, '')));
 export const cleaned = (words) => words.map(cleanWord).filter(Boolean);
 
 /** The segment's quote-aware tokens without its redirections (`< f`, `<<'EOF'`, `2>&1`): a quoted `<` stays in its token. */
@@ -101,13 +106,16 @@ function substitutions(text, shellName) {
  */
 export function nestedSegments(text, shell, depth = 0) {
   return [...segments(text, { shell })].flatMap((seg) => {
-    const runs = depth >= MAX_NESTING ? [] : [
-      ...runnerCommands(cleaned(commandTokens(seg.text)), shell),
-      ...substitutions(seg.text, shell).map((inner) => ({ text: inner, shell })),
-    ];
+    const runs = depth >= MAX_NESTING ? [] : commandRuns(seg.text, shell);
     return [{ ...seg, shell }, ...runs.flatMap((run) => nestedSegments(run.text, run.shell, depth + 1))];
   });
 }
+
+/** The command texts one segment runs: its lead command's operand strings (runnerTexts) and every substitution, each with its shell. */
+export const commandRuns = (text, shell) => [
+  ...runnerCommands(cleaned(commandTokens(text)), shell),
+  ...substitutions(text, shell).map((inner) => ({ text: inner, shell })),
+];
 
 /**
  * The hits of one segment's lead command, found past wrappers and grouping words, and of every such command in a
