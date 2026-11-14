@@ -243,7 +243,7 @@ function judge(c, piped = false) {
     const psSearch = tool === 'select-string' || tool === 'sls';
     // Targeted = every path operand is a concrete file, or a scratch dir: one file never launders a directory beside it (KIT-T1069).
     const paths = searchPaths(argv, { git: gitGrep });
-    const targetsOneFile = (psSearch ? args.some((a) => FILEISH.test(a)) : targetsOnlyFiles(paths)) || targetsOnlyScratch(args) || targetsOutsideRepos(paths, repoRoot, process.cwd());
+    const targetsOneFile = (psSearch ? args.some((a) => FILEISH.test(a)) : targetsOnlyFiles(paths)) || targetsOnlyScratch(psSearch ? args : paths) || targetsOutsideRepos(paths, repoRoot, process.cwd());
     const psTreeWide = /s-recurse/i.test(c) || args.some((a) => /[*?]|[\/]$/.test(a));
     const recursive = psSearch ? psTreeWide : RECURSIVE_FLAG.test(c) || tool === 'rg' || tool === 'ag' || tool === 'ack' || gitGrep || paths.some(hasGlob);
     const dependency = recursive && registryTarget(c); // a crate dir looks like a file (`rapier3d-0.25.1`), so judge it first

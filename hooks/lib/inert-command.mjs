@@ -19,9 +19,14 @@ import { landsOutsideRepo } from './lands-outside-repo.mjs';
 import { commandCwd } from './shell-cwd.mjs';
 
 const GENERATORS = /^(?:git|cargo|rustc|rustfmt|clippy-driver|npm|npx|pnpm|yarn|bun|make|cmake|ninja|dotnet|go|gofmt|prettier|eslint|black|ruff|isort|tsc|vite|esbuild|wasm-pack|gradle|gradlew|mvn|mvnw|bazel|adb|pytest|jest|vitest|mocha|cd|true|false|:)$/i;
-// Commands that only read or print: with no redirect into a source file they cannot write one.
+// Commands that only read or print: with no redirect into a source file they cannot write one. sed is read-only without
+// in-place editing and awk without a write construct (AWK_WRITES); both are judged below, not listed here.
 const READERS = /^(?:cat|head|tail|less|more|wc|ls|stat|file|diff|cmp|grep|egrep|fgrep|rg|ag|ack|sort|uniq|cut|tr|echo|printf|pwd|date|sleep|which|whoami|tasklist|read|test|\[|\[\[|export|unset|local|declare)$/i;
 const SED_IN_PLACE = /\s(?:--in-place\b|-[A-Za-z]*i)/;
+const AWK = /^(?:awk|gawk|mawk|nawk)$/i;
+// An awk program writes through a redirect or pipe on print, system(), a getline pipe, gawk's inplace, or a program file it loads.
+const AWK_WRITES = /\bsystem\s*\(|\bprint(?:f)?\b[^;}\n]*[>|]|\|\s*getline\b|\bgetline\b[^;}\n]*<|\binplace\b|\s-f\b|--file\b|--source\b|\s-i\b/;
+const PURE_READERS = /^(?:nl|tac|rev|paste|comm|fold|column|basename|dirname|realpath|readlink|du|df|jq|sha1sum|sha256sum|md5sum|cksum|tree)$/i;
 const BROKER_CLIENT = /^(?:submit|wait|watch|broker)\.mjs$/i;
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const KEYWORD_ONLY = /^(?:for|select|case|in|esac|done|fi|function|\{|\}|\(|\))$/;
@@ -91,7 +96,8 @@ function inertSegment(text, ctx) {
   if (move) return !move.problem;
   const leader = nameOf(words[0]);
   if (GENERATORS.test(leader) || KIT_TOOL.test(leader)) return true;
-  if (READERS.test(leader) || (/^sed$/i.test(leader) && !SED_IN_PLACE.test(outer))) return !ctx.intoSource;
+  const readsOnly = READERS.test(leader) || PURE_READERS.test(leader) || (/^sed$/i.test(leader) && !SED_IN_PLACE.test(outer)) || (AWK.test(leader) && !AWK_WRITES.test(outer));
+  if (readsOnly) return !ctx.intoSource;
   if (!/^node$/i.test(leader)) return false;
   const args = words.slice(1);
   const script = nodeScriptName(args);

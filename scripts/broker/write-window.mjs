@@ -20,8 +20,8 @@ import { slotDir } from './build-slot-store.mjs';
 import { toPath } from '../../hooks/lib/shell-segments.mjs';
 
 export const REFUSED_WINDOW_S = 10;
-export const FREE_WINDOW_S = 20;
-export const START_WAIT_S = 20;
+export const FREE_WINDOW_S = 90;
+export const START_WAIT_S = 90;
 export const KIND = { REFUSED: 'refused', FREE: 'free' };
 const MS_PER_SECOND = 1000;
 const POLL_MS = 250;

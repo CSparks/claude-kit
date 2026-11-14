@@ -83,7 +83,7 @@ writeFileSync(join(crate, 'src', 'model', 'mod.rs'), 'mod known_child;\n');
 expect('KIT-T1123: creating a new .rs file no module names passes', create('agentOther', 'crates', 'a', 'src', 'model', 'window.rs').status, 0);
 expect('KIT-T1123: creating a new top-level .rs file no module names passes', create('agentOther', 'crates', 'a', 'src', 'fresh.rs').status, 0);
 expect('KIT-T1123 control: an Edit to an existing referenced source file stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'lib.rs').status, 2);
-expect('KIT-T1123 control: overwriting an existing unreferenced file stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'model', 'window.rs').status, 2);
+expect('KIT-T1190: an Edit of an existing file no module chain reaches passes', edit('S1', 'agentOther', 'crates', 'a', 'src', 'model', 'window.rs').status, 0);
 rmSync(join(crate, 'src', 'model', 'window.rs'), { force: true });
 writeFileSync(join(crate, 'src', 'lib.rs'), 'pub mod wired;\nmod model;\n');
 expect('KIT-T1123 control: creating the file a mod declaration names stays refused', create('agentOther', 'crates', 'a', 'src', 'wired.rs').status, 2);
@@ -94,6 +94,34 @@ expect('KIT-T1123 control: a new integration test is discovered by cargo and sta
 expect('KIT-T1123 control: a new build.rs stays refused', create('agentOther', 'crates', 'a', 'build.rs').status, 2);
 expect('KIT-T1123 control: a new Cargo.toml stays refused', create('agentOther', 'crates', 'a', 'Cargo.toml').status, 2);
 writeFileSync(join(crate, 'Cargo.toml'), '[package]\nname = "a"\n');
+
+// KIT-T1189, KIT-T1190: reachability follows the module chain, not a module's bare name.
+const groundDir = join(crate, 'src', 'ground');
+mkdirSync(join(crate, 'src', 'other'), { recursive: true });
+mkdirSync(groundDir, { recursive: true });
+writeFileSync(join(crate, 'src', 'lib.rs'), 'pub mod wired;\nmod model;\nmod ground;\nmod other;\nmod orphan_parent_not_declared_here;\n');
+writeFileSync(join(groundDir, 'mod.rs'), 'mod declared_child;\n');
+writeFileSync(join(crate, 'src', 'other', 'mod.rs'), 'mod surface;\n');
+writeFileSync(join(crate, 'src', 'other', 'surface.rs'), 'x\n');
+expect('KIT-T1189: a new file whose bare module name is declared elsewhere in the crate passes (ground/surface.rs, other/mod.rs declares surface)', create('agentOther', 'crates', 'a', 'src', 'ground', 'surface.rs').status, 0);
+expect('KIT-T1189 control: the file its own parent declares stays refused', create('agentOther', 'crates', 'a', 'src', 'ground', 'declared_child.rs').status, 2);
+expect('KIT-T1189 control: the file the other module declares stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'other', 'surface.rs').status, 2);
+mkdirSync(join(crate, 'src', 'orphan'), { recursive: true });
+writeFileSync(join(crate, 'src', 'orphan', 'mod.rs'), 'mod leaf;\n');
+expect('KIT-T1190: a module file nothing declares passes', edit('S1', 'agentOther', 'crates', 'a', 'src', 'orphan', 'mod.rs').status, 0);
+expect('KIT-T1190: a file only an undeclared module declares passes', edit('S1', 'agentOther', 'crates', 'a', 'src', 'orphan', 'leaf.rs').status, 0);
+writeFileSync(join(crate, 'src', 'ground.rs'), 'mod nested_child;\n');
+writeFileSync(join(crate, 'src', 'lib.rs'), 'mod ground_file;\n');
+writeFileSync(join(crate, 'src', 'ground_file.rs'), 'mod inner;\n');
+mkdirSync(join(crate, 'src', 'ground_file'), { recursive: true });
+expect('KIT-T1190 control: a file declared by a non-mod.rs parent (ground_file.rs declares inner) stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'ground_file', 'inner.rs').status, 2);
+expect('KIT-T1190 control: a file declared by a non-mod.rs parent that nothing declares passes (ground.rs declares nested_child)', edit('S1', 'agentOther', 'crates', 'a', 'src', 'ground', 'nested_child.rs').status, 0);
+writeFileSync(join(crate, 'src', 'lib.rs'), 'mod outer { mod inner; }\n');
+expect('KIT-T1190 control: a mod declared inside an inline block is not walked, so its file stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'outer', 'inner.rs').status, 2);
+writeFileSync(join(crate, 'src', 'lib.rs'), '#[path = "elsewhere.rs"]\nmod renamed;\n');
+expect('KIT-T1190 control: a crate using #[path] is not walked, a file it names stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'elsewhere.rs').status, 2);
+expect('KIT-T1190 control: in a #[path] crate a file no file of the crate names passes', edit('S1', 'agentOther', 'crates', 'a', 'src', 'stranger.rs').status, 0);
+writeFileSync(join(crate, 'src', 'lib.rs'), 'mod two;\nmod three;\nmod four;\nmod race;\n// mod "fake;" { }\nconst S: &str = "mod inside_a_string;";\n');
 
 hold({ scope: [crate], writer: OWNER, phase: 'running' });
 expect('a hold in its test phase no longer compiles: the edit passes', edit('S1', 'agentOther', 'crates', 'a', 'src', 'two.rs').status, 0);

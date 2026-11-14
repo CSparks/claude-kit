@@ -1,7 +1,7 @@
 // gate-protocol — every requirement and accepted tag form of the gates a session meets before its first call to a
 // gated tool (KIT-T898, KIT-D147). `q gates <gate>` prints gateText(name); check ids come from the modules that
 // enforce them, tag forms from gate-tokens.mjs, the summary rule from question-brief.mjs.
-//   GATES -> { agent, question }: { title, hooks, checks: [{ check, wants[], tokens[] }] }
+//   GATES -> { agent, question }: { title, hooks, checks: [{ check, wants[], tokens[], digest? }] }; `digest` lists the tags the compaction digest prints for a check that has more than one
 //   gateText(name, { root }) -> the printable protocol, or null for an unknown name; with a root, the conformance row
 //     names the test the check matches in that checkout (KIT-T1098); the agent gate ends with the capability table's jobs
 //     and each agent type's default job (KIT-T1105);  gateNames() -> the gate names
@@ -50,7 +50,7 @@ export const GATES = {
     checks: [
       { check: LABEL_CHECK, wants: LABEL_REQUIREMENTS.map((r) => `${r.part}: ${r.wants}`), tokens: [] },
       { check: LADDER_CHECK, wants: ["a model resolvable to a known family: pass model:'sonnet' | 'opus' | 'haiku' | 'fable' on every call; a model-less call that would inherit a fable session is refused"], tokens: [T.allowFable] },
-      { check: JOB_CHECK, wants: ["a job: [job: <id>] in the prompt or description (an agent definition may carry a default job:); a model outside the job row's families needs the override tag"], tokens: [T.job, T.modelOverride] },
+      { check: JOB_CHECK, wants: ["a job: [job: <id>] in the prompt or description (an agent definition may carry a default job:); a model outside the job row's families needs the override tag"], tokens: [T.job, T.modelOverride], digest: [T.job, T.modelOverride] },
       { check: STALE_TABLE_CHECK, wants: ['no dispatch while a capability table row is older than dispatch.refresh_days (a reminder prints from 2 days before); the weekly reassessment is exempt: [job: research], a brief naming research/models-capability-<date>.md, [paths:] only under research/, .ai/config.yml, .ai/decisions/, .ai/model-lineup.json'], tokens: [T.modelRefresh] },
       { check: ESCALATION_CHECK, wants: ['a job no dearer than the default of the ticket type the brief names'], tokens: [T.escalate] },
       { check: COLD_BUILD_CHECK, wants: ['no worktree, clone or second checkout: one checkout, on main'], tokens: [T.maintainerWorktree] },
@@ -138,10 +138,10 @@ function wrapWords(words, width, indent) {
 // One entry per distinct first tag form, as `check/check: form` for the checks that take it; the ladder entry also names the model parameter.
 function digestEntries(gate) {
   const byForm = new Map();
-  for (const { check, wants, tokens } of gate.checks) {
+  for (const { check, wants, tokens, digest } of gate.checks) {
     if (!tokens.length) continue;
     const model = check === LADDER_CHECK ? (MODEL_HINT.exec(wants[0]) || [])[1] : null;
-    const form = `${model ? `${model} or ` : ''}${tokens[0].form}`;
+    const form = `${model ? `${model} or ` : ''}${(digest || [tokens[0]]).map((t) => t.form).join(' or ')}`;
     byForm.set(form, [...(byForm.get(form) || []), check]);
   }
   return [...byForm].map(([form, checks]) => `${checks.join('/')}: ${form}`);

@@ -2,7 +2,7 @@
 // slot of the machine build budget; the hold records the paths the build compiles (`scope`) and the agent that started it
 // (`writer`, scripts/broker/build-run.mjs). A write by ANOTHER writer to a build input inside that scope, while the hold
 // is not yet in its test phase, is refused: the build would compile half of two edits. A write elsewhere, a build input
-// outside the scope, the writer's own writes, and the creation of a new .rs file no module names pass. A hold with no recorded scope (an older shim, a broker job) never
+// outside the scope, the writer's own writes, and any .rs file no module chain reaches (new or existing) pass. A hold with no recorded scope (an older shim, a broker job) never
 // refuses. The hook only refuses; it never waits (KIT-D115). The refusal names the one wait that clears it: `builds --wait`
 // (scripts/broker/build-wait.mjs, KIT-T1142).
 //
@@ -23,7 +23,7 @@ import { isBuildInput } from '../../scripts/broker/build-globs.mjs';
 import { inScope, scopeVia } from '../../scripts/broker/cargo-scope-dirs.mjs';
 import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../../scripts/broker/wait-limits.mjs';
 import { FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, closeWindow, openWindow, windowFor } from '../../scripts/broker/write-window.mjs';
-import { isUnreferencedNewSource } from './unreferenced-new-source.mjs';
+import { isUnreachableSource } from './unreachable-source.mjs';
 import { toPath } from './shell-segments.mjs';
 
 const TESTING_PHASE = 'running';
@@ -31,7 +31,7 @@ const MS_PER_SECOND = 1000;
 
 export function compilingHolds({ file, holds }) {
   const path = resolve(toPath(file));
-  if (!isBuildInput(path) || isUnreferencedNewSource(path)) return [];
+  if (!isBuildInput(path) || isUnreachableSource(path)) return [];
   return (holds || liveHolds()).filter((h) => h.phase !== TESTING_PHASE && Array.isArray(h.scope) && inScope(path, h.scope));
 }
 

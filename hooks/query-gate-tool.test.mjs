@@ -66,6 +66,27 @@ expect('Grep tool control: a relative source directory with an apostrophe still 
 expect('Grep tool control: an outside directory with an apostrophe still blocks', grepTool({ pattern: "it's", path: slashed(scratch) }), 2);
 expect('Grep tool control: one repo source file with an apostrophe passes as a named file', grepTool({ pattern: "it's", path: 'crates/a/src/lib.rs' }), 0);
 
+const scratchpad = join(mkdtempSync(join(tmpdir(), 'qgt-session-')), 'scratchpad');
+mkdirSync(scratchpad, { recursive: true });
+const pad = slashed(scratchpad);
+expect('KIT-T1183: Grep tool over a scratchpad directory passes', grepTool({ pattern: 'KIT-T1', path: pad }), 0);
+expect('KIT-T1183: Grep tool over a scratchpad directory with a glob passes', grepTool({ pattern: 'KIT-T1', path: pad, glob: '*.txt' }), 0);
+expect('KIT-T1183: Grep tool over a scratchpad directory with a recursive glob passes', grepTool({ pattern: 'KIT-T1', path: pad, glob: '**/*.txt' }), 0);
+expect('KIT-T1183: Grep tool over a scratchpad directory with a pattern holding a slash passes', grepTool({ pattern: 'a/b|crates/x', path: pad, glob: 'q-*.md' }), 0);
+expect('KIT-T1183: Grep tool over a scratchpad directory with type and output options passes', grepTool({ pattern: 'x', path: pad, glob: '**/*.md', type: 'md', output_mode: 'content', '-n': true }), 0);
+expect('KIT-T1183: Grep tool over a backslash scratchpad path with a recursive glob passes', grepTool({ pattern: 'KIT-T1', path: scratchpad, glob: '**/*.txt' }), 0);
+expect('KIT-T1183: Grep tool over a backslash scratchpad path with a spaced 8.3 name passes', grepTool({ pattern: 'KIT-T1', path: String.raw`C:\Users\CHRISS~1\AppData\Local\Temp\claude\d87a\bf05\scratchpad`, glob: '*.md' }), 0);
+expect('KIT-T1183: Grep tool over a spaced scratchpad path with a glob passes', grepTool({ pattern: 'KIT-T1', path: String.raw`C:\Users\Chris Sparks\AppData\Local\Temp\claude\d87a\bf05\scratchpad`, glob: '*.md' }), 0);
+for (const [name, pattern] of PATTERNS) {
+  for (const glob of ['*.txt', '**/*.md', '*.{txt,md}', 'q-*', '!*.log']) {
+    expect(`KIT-T1183: Grep tool over a scratchpad directory, glob ${glob}, pattern with ${name}`, grepTool({ pattern, path: scratchpad, glob }), 0);
+  }
+}
+expect('KIT-T1183 control: a recursive glob over the repo source tree still blocks', grepTool({ pattern: 'KIT-T1', path: join(repo, 'crates'), glob: '**/*.rs' }), 2);
+expect('KIT-T1183 control: a recursive glob with no path still blocks', grepTool({ pattern: 'KIT-T1', glob: '**/*.mjs' }), 2);
+expect('KIT-T1183 control: a scratchpad-looking glob does not launder a repo directory', grepTool({ pattern: 'x', path: join(repo, 'crates'), glob: `${pad}/*.txt` }), 2);
+expect('KIT-T1183: a shell rg over a scratchpad directory with a recursive glob passes', shell(`rg -g '**/*.txt' KIT-T1 ${pad}`), 0);
+
 const SHELL_PASSES = [
   ['a bash doubled-apostrophe pattern over an assigned variable', `S=${logTxt}; rg 'it''s' "$S"`],
   ['a bash apostrophe inside double quotes', `S=${logTxt}; rg "it's" "$S"`],
