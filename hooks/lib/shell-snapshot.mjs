@@ -6,7 +6,7 @@
 //   changedSince(root, before, headBefore) -> paths the call created, modified, deleted or reverted; a path a
 //     HEAD move since headBefore committed (a broker landing) and that is clean now is the landing's, not the call's
 //   handWrittenSources(root, before, command, headBefore, { shell }) -> created or changed hand-authored source paths still
-//     on disk; a deleted path is no write (nothing is left to re-save), and [] when the command cannot write a source
+//     on disk, none of it build output (build-output.mjs); a deleted path is no write (nothing is left to re-save), and [] when the command cannot write a source
 //     file (inert-command.mjs: generators, build and test runners, kit verbs, readers): a change that landed meanwhile
 //     (another agent's edit, a broker landing) is another writer's
 
@@ -16,6 +16,7 @@ import { join } from 'node:path';
 import { git } from './exec.mjs';
 import { isSourcePath } from './shell-source-write.mjs';
 import { isInertCommand } from './inert-command.mjs';
+import { isBuildOutput } from './build-output.mjs';
 
 const ENTRIES_MAX = 5000;
 const MIN_ENTRY_LENGTH = 4;
@@ -82,5 +83,5 @@ export function changedSince(root, before, headBefore = '') {
 
 export function handWrittenSources(root, before, command, headBefore = '', { shell = '' } = {}) {
   if (isInertCommand(command, { root, shell })) return [];
-  return changedSince(root, before, headBefore).filter((rel) => isSourcePath(rel) && signature(root, rel) !== GONE);
+  return changedSince(root, before, headBefore).filter((rel) => isSourcePath(rel) && signature(root, rel) !== GONE && !isBuildOutput(root, rel));
 }

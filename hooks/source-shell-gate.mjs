@@ -13,12 +13,14 @@
 // (delete-guidance.mjs); a cp or mv whose operand holds a variable the command does not resolve names it, why and the way out
 // (copy-variable.mjs); a command a git call runs (`rebase -x`, `bisect run`) is judged like one typed alone, from the top of
 // the work tree (git-inner-hits.mjs). A relative path resolves against the `cd` segments before its own segment (shell-cwd.mjs).
+// A write that lands in build output (gitignored, or below a CMake/Ninja build tree: build-output.mjs) is a tool's, not a hand write.
 // A touch that only stamps the mtime of an existing file authors no content and passes (touch-target.mjs).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fails open on any error.
 
 import { resolve } from 'node:path';
 import { payload, gitRootOfFile, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { isGeneratedPath, shellSourceWrites } from './lib/shell-source-write.mjs';
+import { isBuildOutput } from './lib/build-output.mjs';
 import { AMBIGUOUS_MESSAGE, shellOfTool, toPath } from './lib/shell-segments.mjs';
 import { commandCwd } from './lib/shell-cwd.mjs';
 import { landsOutsideRepo } from './lib/lands-outside-repo.mjs';
@@ -45,6 +47,7 @@ try {
     const root = gitRootOfFile(file);
     if (!adopted(root) || pathExcluded(root, CHECK, found.path)) continue;
     if (found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
+    if (!found.ambiguous && !found.moveLinesProblem && isBuildOutput(root, file)) continue;
     if (touchLifted(found, cwd)) continue;
     const refusal = deleteJudgement(found, root, repoRelative(root, file), caller);
     if (found.deletes && !refusal) continue;
