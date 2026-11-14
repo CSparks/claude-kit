@@ -2,7 +2,8 @@
 // `cargo test` in the background and a subagent cannot idle on a background job (KIT-D115), so a brief that tells an
 // agent to background one, or to "start it in the background" without naming the built exe, sends it into that refusal.
 // The sanctioned long-run form: build in the foreground, start the BUILT exe in the background, end the turn
-// (docs/wait-rule.md). A brief that names the built exe (a `target/debug/<name>.exe` path, "the built exe") passes.
+// (docs/wait-rule.md). A brief that names the built exe (a `target/debug/<name>.exe` path, "the built exe", "the built
+// test exe") or pairs a foreground build (`--no-run`, `cargo build`) with an exe it starts passes.
 //
 //   backgroundRunBlock({ prompt, footer }) -> block message | null (check `background-run`)
 
@@ -13,13 +14,18 @@ const CARGO_RUN = String.raw`cargo(?:\.exe)?\s+(?:run|test)\b`;
 const NEAR = String.raw`[^.\n]{0,100}`;
 const CARGO_IN_BACKGROUND = new RegExp(`${CARGO_RUN}${NEAR}${BACKGROUND}|${BACKGROUND}${NEAR}${CARGO_RUN}`, 'i');
 const START_IN_BACKGROUND = /\b(?:start|launch|run|kick off|spawn)\s+(?:it|the\s+(?:run|probe|game|app|server|binary|exe|program|capture))\b[^.\n]{0,40}\b(?:in the background|in background|run_in_background)\b/i;
-const BUILT_EXE = /\b(?:built|compiled)\s+(?:exe|binary|executable|program)\b|\btarget[\\/](?:debug|release)[\\/][\w.-]+/i;
+// A test exe lives at target/debug/deps/<name>-<hash>.exe, known only after the build, so a brief rarely spells the
+// path: "the built (test) exe", or a foreground build (--no-run, cargo build) that names the exe it starts, passes too.
+const BUILT_EXE = /\b(?:built|compiled)\s+(?:[\w-]+\s+){0,2}(?:exe|binary|executable|program)\b|\btarget[\\/](?:debug|release)[\\/][\w.-]+/i;
+const FOREGROUND_BUILD = /--no-run\b|\bcargo(?:\.exe)?\s+build\b/i;
+const EXE_WORD = /\b(?:exe|executable|binary)\b/i;
 // A clause that forbids the form ("never run cargo run in the background") is the rule itself, not an instruction.
 const FORBIDDEN_CLAUSE = new RegExp(String.raw`\b(?:never|don'?t|do not|must not|not)\b${NEAR}`, 'ig');
 
 export function backgroundRunBlock({ prompt, footer }) {
-  if (BUILT_EXE.test(String(prompt || ''))) return null;
-  const text = String(prompt || '').replace(FORBIDDEN_CLAUSE, ' ');
+  const brief = String(prompt || '');
+  if (BUILT_EXE.test(brief) || (FOREGROUND_BUILD.test(brief) && EXE_WORD.test(brief))) return null;
+  const text = brief.replace(FORBIDDEN_CLAUSE, ' ');
   if (!CARGO_IN_BACKGROUND.test(text) && !START_IN_BACKGROUND.test(text)) return null;
   return [
     'BLOCKED: this brief tells the agent to run a program in the background without the built exe.',
