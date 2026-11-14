@@ -3,7 +3,8 @@
 //
 //   leadCommandHits(text, ctx, { isLead, hitsOf }, depth) -> [hit]
 //     text:    one segment's text
-//     ctx:     the caller's context, passed to hitsOf with `text` and, inside a nested command, that command's `shell`
+//     ctx:     the caller's context, passed to hitsOf with `text`, `lead` (the words before the command: wrappers, env
+//              assignments) and, inside a nested command, that command's `shell`
 //     isLead(name, restWords) -> boolean       the command the caller looks for
 //     hitsOf(words, ctx) -> [hit]              the hits of the command found; `words` start at the command word
 //   withoutRedirects(text) -> string           the segment text without its redirections (`< f`, `<<'EOF'`, `> f`)
@@ -99,7 +100,7 @@ function substitutions(text, shellName) {
 export function leadCommandHits(text, ctx, lead, depth = 0) {
   const words = cleaned(shellArgs(withoutRedirects(text)));
   const at = leadIndex(words, lead.isLead);
-  const own = at >= 0 ? lead.hitsOf(words.slice(at), { ...ctx, text }) : [];
+  const own = at >= 0 ? lead.hitsOf(words.slice(at), { ...ctx, text, lead: words.slice(0, at) }) : [];
   if (depth >= MAX_NESTING) return own;
   const runs = [
     ...(at >= 0 ? [] : runnerCommands(cleaned(commandTokens(text)), ctx.shell)),

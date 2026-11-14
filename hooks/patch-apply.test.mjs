@@ -77,6 +77,8 @@ try {
     ['cat temp patch | patch -p1', `cat ${srcPatch} | patch -p1`],
     ['cat temp mbox | git am', `cat ${mbox} | git am`],
     ['cat temp patch | sudo git apply', `cat ${srcPatch} | sudo git apply`],
+    ['git checkout <rev> -- <path> of a file no tool of the caller wrote (judged as a discard, KIT-T1163)', 'git checkout stash@{0} -- src/ui/Main.h'],
+    ['git restore of a source file no tool of the caller wrote (judged as a discard, KIT-T1163)', 'git restore src/ui/Main.h'],
   ];
   for (const [name, command] of blocks) ok(`source gate blocks ${name}`, src(command) === BLOCK);
 
@@ -95,8 +97,6 @@ try {
     ['a stash diff piped from git', 'git stash show -p | git apply'],
     ['a commit message that mentions git apply', 'git commit -m "document git apply and patch usage"'],
     ['a log filtered for apply', 'git log --oneline | grep apply'],
-    ['git checkout <rev> -- <path> (restores committed content)', 'git checkout stash@{0} -- src/ui/Main.h'],
-    ['git restore of a source file', 'git restore src/ui/Main.h'],
     ['sudo git apply --check', `sudo git apply --check ${srcPatch}`],
     ['env A=1 git apply --stat of a heredoc', heredoc('env A=1 git apply --stat', SRC_DIFF)],
     ['command git apply --cached', `command git apply --cached ${srcPatch}`],

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// source-shell-gate-discard.test.mjs — `git clean`, `git rm -f` and `git stash -u` delete or hide files the way `rm` does, so the
-// source gate judges them the same way (KIT-T1163): a named file passes only when this caller wrote it; a call that may take
-// unnamed files passes only while no other writer is live in the checkout. A plain `git rm`, a dry run and a stash without
-// `-u` stay allowed.
+// source-shell-gate-discard.test.mjs — `git clean`, `git rm -f`, `git stash -u`, `git checkout -- <path>`, `git restore` and
+// `git reset --hard` delete, hide or overwrite files the way `rm` does, so the source gate judges them the same way
+// (KIT-T1163): a named file passes only when this caller wrote it; a call that may take unnamed files, and any git call
+// outside the allow-list (git-call-policy.mjs: built-in subcommand, short option and config lists, no environment change),
+// passes only while no other writer is live in the checkout. A plain `git rm`, a dry run and a stash without `-u` stay allowed.
 // Run: node hooks/source-shell-gate-discard.test.mjs
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -45,6 +46,7 @@ const run = (command, session, agent = '', tool = 'Bash') => spawnHook('source-s
 const blocked = (r) => r.status === 2 && /source-shell-write/.test(r.stderr);
 const passes_ = (command, session = 'S1', agent = '') => !blocked(run(command, session, agent));
 const stops = (command, session = 'S1', agent = '') => blocked(run(command, session, agent));
+const stops_ps = (command) => blocked(run(command, 'S1', '', 'PowerShell'));
 
 try {
   git('init', '-q');
@@ -86,8 +88,6 @@ try {
   check("a bash -c string with git clean of another writer's file is blocked", stops('bash -c "git clean -f -- theirs.rs"'));
   check("a chained git clean of another writer's file is blocked", stops('echo ok && git clean -f -- theirs.rs'));
   check('git -c k=v clean is read past the option', stops('git -c core.x=1 clean -f -- theirs.rs'));
-  check("an alias given with -c names another writer's file: blocked", stops("git -c alias.x='clean -f' x -- theirs.rs"));
-  check('an alias given with -c names the caller\'s own file: passes', passes_("git -c alias.x='clean -f' x -- mine.rs"));
 
   // git rm: plain stays the documented way to delete a tracked file; -f is judged.
   check('plain git rm of a tracked file passes', passes_('git rm -- tracked.rs'));
@@ -131,6 +131,7 @@ try {
     ['git clean -f --pathspec-from-file=list.txt', 'git clean --pathspec-from-file='],
     ["git -c alias.x='clean -fdx' x", 'an alias given with -c'],
     ["git -c alias.x='stash -u' x", 'a stash alias given with -c'],
+    ["git -c alias.x='clean -f' x -- theirs.rs", 'an alias given with -c that names a file'],
     ['git wipe', 'a configured alias of git clean'],
     ['git wipe2', 'an alias of an alias'],
     ['git sh anything', 'a configured shell alias'],
@@ -149,12 +150,46 @@ try {
     ['git -c includeIf.gitdir:/.path=other.cfg st', 'an alias taken from a conditional include'],
     ['git --git-dir=.git st', 'an alias read with --git-dir'],
     ['git --work-tree=sub clean -fd', 'git clean in another work tree'],
+    ['git --git-dir=.git status', 'a built-in command with --git-dir'],
+    ['git --work-tree=sub status', 'a built-in command with --work-tree'],
+    ['git --exec-path=/x status', 'a built-in command with --exec-path='],
+    ['git --exec-path status', 'a built-in command with --exec-path'],
+    ['git -c core.pager=x log', 'a core.pager key'],
+    ['git -c core.fsmonitor=x status', 'a core.fsmonitor key'],
+    ['git -c core.hookspath=/x commit -m x', 'a core.hooksPath key'],
+    ['git -c core.sshcommand=x fetch', 'a core.sshCommand key'],
+    ['git -c core.editor=x commit', 'a core.editor key'],
+    ['git -c credential.helper=x fetch', 'a credential.helper key'],
+    ['git --namespace=x status', 'the --namespace option'],
+    ['git --attr-source=x status', 'the --attr-source option'],
+    ['git --super-prefix=x status', 'the --super-prefix option'],
+    ['HOME=/tmp/x git status', 'a HOME prefix'],
+    ['XDG_CONFIG_HOME=/tmp/x git status', 'an XDG_CONFIG_HOME prefix'],
+    ['GIT_CONFIG_NOSYSTEM=1 git status', 'a GIT_CONFIG_NOSYSTEM prefix'],
+    ['GIT_EXEC_PATH=/x git status', 'a GIT_EXEC_PATH prefix'],
+    ['PREFIX=/x git status', 'a PREFIX prefix'],
+    ['PATH=/x:$PATH git status', 'a PATH prefix'],
+    ['env PATH=/x git status', 'an env PATH prefix'],
+    ['env -i git status', 'env options'],
+    ['export PATH=/x; git status', 'an exported PATH'],
+    ['PATH=/x; git status', 'a bare PATH assignment'],
+    ['export HOME=/x && git status', 'an exported HOME'],
+    ['declare -x XDG_CONFIG_HOME=/x; git status', 'a declare -x variable'],
+    ['set -a; X=1; git status', 'set -a'],
+    ['git checkout -f', 'git checkout -f'],
+    ['git checkout .', 'git checkout of the current directory'],
+    ['git checkout -- .', 'git checkout -- .'],
+    ['git checkout -- sub', 'git checkout of a directory'],
+    ['git checkout --pathspec-from-file=l', 'git checkout --pathspec-from-file'],
+    ['git restore .', 'git restore of the current directory'],
+    ['git restore -W -- sub', 'git restore of a directory'],
+    ['git restore --pathspec-from-file=l', 'git restore --pathspec-from-file'],
+    ['git reset --hard', 'git reset --hard'],
+    ['git reset --hard HEAD~1', 'git reset --hard to a commit'],
   ];
-  for (const [alias, value] of [['c1', 'c2'], ['c2', 'c3'], ['c3', 'c4'], ['c4', 'c5'], ['c5', 'clean -fd']]) git('config', `alias.${alias}`, value);
-  git('config', 'alias.wipe', 'clean -fd');
-  git('config', 'alias.wipe2', 'wipe');
-  git('config', 'alias.sh', '!rm -rf');
-  git('config', 'alias.st', 'status -s');
+  for (const [alias, value] of [['c1', 'c2'], ['c2', 'c3'], ['c3', 'c4'], ['c4', 'c5'], ['c5', 'clean -fd'], ['wipe', 'clean -fd'], ['wipe2', 'wipe'], ['sh', '!rm -rf'], ['st', 'status -s']]) {
+    git('config', `alias.${alias}`, value);
+  }
   for (const [command, name] of sweeps) check(`${name}: passes while no other writer is live`, passes_(command));
 
   freshHolders();
@@ -170,15 +205,33 @@ try {
   check('a named file of the caller still passes beside a live writer', passes_('git clean -f -- mine.rs'));
   check('control: git rm --pathspec-from-file without -f passes beside a live writer', passes_('git rm --pathspec-from-file=list.txt'));
   check('control: git stash push --pathspec-from-file without -u passes beside a live writer', passes_('git stash push --pathspec-from-file=list.txt'));
-  check('control: an alias of a harmless command passes beside a live writer', passes_('git st') && passes_("git -c alias.z='log -1' z"));
-  const everyday = ['git status --short', 'git log -1', 'git diff HEAD', 'git add .', 'git commit -m wip', 'git push', 'git fetch', 'git show HEAD', 'git rev-parse HEAD',
-    'git ls-tree HEAD', 'git ls-files', 'git mv tracked.rs moved.rs', 'git checkout -- tracked.rs', 'git submodule status', 'git branch', 'git config user.name x', 'git remote -v'];
+  check('an alias is refused even when it is harmless: the allow-list names built-ins only', stops('git st') && stops("git -c alias.z='log -1' z"));
+  const everyday = ['git status --short', 'git log -1', 'git diff HEAD', 'git add .', 'git commit -m wip', 'git commit -F msg.txt', 'git push', 'git fetch', 'git show HEAD',
+    'git rev-parse HEAD', 'git ls-tree HEAD', 'git ls-files', 'git mv tracked.rs moved.rs', 'git checkout -- tracked.rs', 'git checkout main', 'git checkout -b feature',
+    'git submodule status', 'git submodule update --init', 'git branch', 'git config user.name x', 'git remote -v', 'git -C sub log', 'git -c core.quotepath=off status',
+    'git -c user.name=t -c user.email=t@t commit -m x', 'git -c color.ui=never diff', 'git -c advice.detachedHead=false checkout main', 'git --no-pager log', 'git -P log',
+    'git --no-optional-locks status', 'git restore --staged tracked.rs', 'git reset --soft HEAD~1', 'git reset', 'git ls-remote .', 'git check-ignore x', 'git notes list',
+    'git -c commit.gpgsign=false commit -m x', 'git -c core.autocrlf=false add .', 'git log && git status', 'F=msg.txt; git commit -F "$F"', 'cd sub && git status'];
   for (const command of everyday) check(`control: ${command} passes beside a live writer`, passes_(command));
-  check('control: git-core commands outside the built-in list pass beside a live writer', passes_('git ls-remote .') && passes_('git check-ignore x') && passes_('git notes list'));
-  check('control: a built-in command with --git-dir passes', passes_('git --git-dir=.git status'));
-  check('control: an alias chain within the depth limit resolves and passes when harmless', passes_("git -c alias.a='b' -c alias.b='status' a"));
   check('control: a config call beside a built-in command passes', passes_('git config user.name x && git commit -m wip'));
-  check('the block of an unknown subcommand says why', /git frobnicate: not a git command or alias/.test(run('git frobnicate', 'S1').stderr));
+  check('control: a git call with no subcommand runs nothing and passes', passes_('git --version') && passes_('git'));
+  const blockText = run('git frobnicate', 'S1').stderr;
+  check('the block of an unknown subcommand names the part and the way out', /outside the allow-list[^]*git frobnicate, which is not a built-in[^]*written plainly/.test(blockText), blockText);
+  check('the block of an environment prefix names it', /HOME= in front of git/.test(run('HOME=/x git status', 'S1').stderr));
+  check('the block of an option names it', /global option --git-dir=\.git/.test(run('git --git-dir=.git status', 'S1').stderr));
+  check('the block of a config key names it', /git config key core\.pager given with -c/.test(run('git -c core.pager=x log', 'S1').stderr));
+  check('PowerShell: an environment change before a git call is refused', stops_ps("$env:PATH = 'x'; git status"));
+  check('PowerShell: a plain git call passes', !blocked(run('git status', 'S1', '', 'PowerShell')));
+  check('PowerShell: a PowerShell variable is no environment change', !blocked(run("$f = 'msg.txt'; git commit -F $f", 'S1', '', 'PowerShell')));
+  check('a discard of a file the caller wrote through checkout passes', passes_('git checkout -- dirty.rs', 'S1'));
+  check("a checkout -- of a file with another writer's changes is blocked", stops('git checkout -- dirty.rs', 'S2'));
+  check('a checkout with a revision and -- is judged the same', stops('git checkout HEAD -- dirty.rs', 'S2'));
+  check('a checkout of an existing path without -- is judged the same', stops('git checkout dirty.rs', 'S2'));
+  check("a restore of a file with another writer's changes is blocked", stops('git restore dirty.rs', 'S2'));
+  check('a restore of the caller\'s own changes passes', passes_('git restore dirty.rs', 'S1'));
+  check('a restore --source of a file with another writer\'s changes is blocked', stops('git restore --source=HEAD~1 dirty.rs', 'S2'));
+  check('a restore -S -W writes the work tree and is judged', stops('git restore -S -W dirty.rs', 'S2'));
+  check('control: a restore --staged touches no file and passes', passes_('git restore --staged dirty.rs', 'S2'));
   check('a plain git rm still passes beside a live writer', passes_('git rm -- tracked.rs'));
   check('a plain git stash still passes beside a live writer', passes_('git stash'));
   check('a dry run still passes beside a live writer', passes_('git clean -nd'));

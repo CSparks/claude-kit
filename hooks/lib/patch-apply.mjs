@@ -12,7 +12,7 @@
 // command); a file that cannot be read names nothing and stays allowed. The applier is found past wrappers
 // (`sudo`, `env A=1`, `command`, `timeout 5`...), never in the arguments of another command.
 // A call that only checks or reports (`git apply --check|--stat|--numstat|--summary`, `patch --dry-run`) writes nothing.
-// `git checkout <rev> -- <path>` restores content a commit or stash already holds, gated when it was written: not judged.
+// `git checkout <rev> -- <path>` and `git restore <path>` overwrite local changes: judged as discards (git-discards.mjs).
 // A command another command runs is judged by the same rules (lead-command-walk.mjs).
 //
 //   appliesPatch(text) -> boolean
