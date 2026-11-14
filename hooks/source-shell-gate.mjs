@@ -10,7 +10,8 @@
 // so do the git calls that delete or hide files (`git clean`, `git rm -f`, `git stash -u`: git-discards.mjs) for files
 // that caller wrote, and a sweep of unnamed files while no other writer is live (delete-judge.mjs). A delete operand a
 // variable supplies that the command does not resolve is refused. A refused delete says why and names the way out
-// (delete-guidance.mjs). A relative path resolves against the `cd` segments before its own segment (shell-cwd.mjs).
+// (delete-guidance.mjs); a cp or mv whose operand holds a variable the command does not resolve names it, why and the way out
+// (copy-variable.mjs). A relative path resolves against the `cd` segments before its own segment (shell-cwd.mjs).
 // A touch that only stamps the mtime of an existing file authors no content and passes (touch-target.mjs).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fails open on any error.
 
@@ -22,6 +23,7 @@ import { commandCwd } from './lib/shell-cwd.mjs';
 import { landsOutsideRepo } from './lib/lands-outside-repo.mjs';
 import { deleteJudgement } from './lib/delete-judge.mjs';
 import { deleteGuidance } from './lib/delete-guidance.mjs';
+import { copyVariableAdvice } from './lib/copy-variable.mjs';
 import { touchLifted } from './lib/touch-target.mjs';
 import { writerId } from './lib/tool-writes.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
@@ -50,7 +52,7 @@ try {
       : `a shell command ${found.deletes ? 'deletes' : 'writes'} a source file by hand (${found.path}).`;
     process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : what}
-${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
+${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
   \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
   pre-write gate (file length, comment prose, literals, rot markers).
   A change too large for one Edit is a Write of the new file or several Edits, never a script.

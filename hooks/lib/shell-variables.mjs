@@ -9,6 +9,7 @@
 //   assignedValues(parts, shell) -> Map<segment, Map<name, value>>   the variables each segment of `parts` can read
 //   precedingValues(parts, shell) -> Map<segment, Map<name, value>>  the same, judged leniently for naming a file (not a write)
 //   expandVariables(text, values, shell) -> text   `$NAME` and `${NAME}` replaced where the shell would expand them
+//   whyUnresolved(parts, index, name, shell, visible) -> one of UNRESOLVED   why `$name` read by segment `index` stayed unresolved
 //
 // A value is expanded unquoted only when the shell would not split or glob it (no whitespace, no glob character);
 // inside double quotes any literal is safe; inside single quotes and behind an escape nothing expands.
@@ -162,6 +163,37 @@ export function precedingValues(parts, shell) {
     remember(known, assignmentsOf(seg.text, shell), parts.text, shell);
   }
   return reads;
+}
+
+export const UNRESOLVED = Object.freeze({
+  visible: 'unquoted', unassigned: 'unassigned', exported: 'exported', repeated: 'repeated', embedded: 'embedded',
+  owned: 'owned', impure: 'impure', later: 'later', pipe: 'pipe', conditional: 'conditional', untrusted: 'untrusted', chain: 'chain',
+});
+
+const exportsName = (whole, name) => new RegExp(String.raw`(?:^|[\s;&|])(?:export|declare|typeset)\s+(?:-\w+\s+)*(?:\w+\s+)*${escapeRegex(name)}(?![\w=])`).test(whole);
+
+/**
+ * Why `$name`, read by the segment `parts[index]`, stays unresolved by assignedValues: one of UNRESOLVED. `visible` is that
+ * segment's variable map. The checks follow assignedValues in order, so the first one that would stop the value is the answer.
+ */
+export function whyUnresolved(parts, index, name, shell, visible) {
+  const power = isPowershell(shell);
+  const key = (n) => (power ? n.toLowerCase() : n);
+  if (visible && visible.has(key(name))) return UNRESOLVED.visible;
+  const writes = writesTo(parts.text, name, shell);
+  if (!writes) return exportsName(parts.text, name) ? UNRESOLVED.exported : UNRESOLVED.unassigned;
+  if (writes > 1) return UNRESOLVED.repeated;
+  const assigned = (seg) => (assignmentsOf(seg.text, shell) || []).find(([n]) => key(n) === key(name));
+  const at = parts.findIndex(assigned);
+  if (at < 0) return UNRESOLVED.embedded;
+  if (SHELL_OWNED_NAMES.test(name)) return UNRESOLVED.owned;
+  if (IMPURE_VALUE.test(assigned(parts[at])[1])) return UNRESOLVED.impure;
+  if (at > index) return UNRESOLVED.later;
+  const edges = [parts[at].after, parts[at + 1].after];
+  if (edges.includes('|')) return UNRESOLVED.pipe;
+  if (edges.some((e) => !SEQUENTIAL_AFTER.has(e) && e !== 'start')) return UNRESOLVED.conditional;
+  if (parts.ambiguous || !parts.every((seg) => leavesVariablesAlone(seg.text, shell))) return UNRESOLVED.untrusted;
+  return UNRESOLVED.chain;
 }
 
 /** `text` with `$NAME` / `${NAME}` replaced by their assigned literal wherever the shell would expand them to exactly that. */

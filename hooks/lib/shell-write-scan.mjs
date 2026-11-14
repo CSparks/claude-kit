@@ -42,6 +42,7 @@ import { touchPlaceKnown } from './touch-place.mjs';
 import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
 import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
+import { copyVariable } from './copy-variable.mjs';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
@@ -107,9 +108,13 @@ function judgeNodeModules(rest, text, { codeHit, readScript }) {
 // The destination of a copy or move is judged as a write. A proven shape also yields its source hits tagged with the
 // path each source lands at, for a caller that can show that path leaves the repo; anything else judges every operand.
 function judgeCopy(tool, argText, ctx) {
-  const { proven, writes } = copyTargets(tool, expandVariables(argText, ctx.vars, ctx.shell));
+  const expanded = expandVariables(argText, ctx.vars, ctx.shell);
+  const { proven, writes } = copyTargets(tool, expanded);
   const { hit } = ctx;
-  if (!proven) return writes.map(hit).filter(Boolean);
+  if (!proven) {
+    const open = copyVariable(tool.toLowerCase(), expanded, ctx.parts, ctx.at, ctx.vars, ctx.shell);
+    return writes.map(hit).filter(Boolean).map((h) => (open ? { ...h, copyVariable: open } : h));
+  }
   const tagged = ctx.exemptByDestination
     ? proven.sources.flatMap((source, i) => { const h = hit(source); return h ? [{ ...h, outsideTo: proven.landings[i] }] : []; })
     : [];
@@ -254,10 +259,10 @@ export function scanAllShellWrites(command, { hit, codeHit, readScript = readTem
     return trigger ? [ambiguous({ ...parts.ambiguity, trigger })] : [];
   }
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
-  const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, removals, shell, raw: String(command || '') };
+  const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, removals, shell, parts, raw: String(command || '') };
   const variables = assignedValues(parts, shell);
   const all = [...parts];
-  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw), cwd: commandCwd(ctx.raw, process.cwd(), { upto: i, shell }) })
+  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, at: i, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw), cwd: commandCwd(ctx.raw, process.cwd(), { upto: i, shell }) })
     .map((found) => ({ ...found, segment: i })));
 }
 

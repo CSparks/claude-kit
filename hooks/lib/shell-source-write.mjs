@@ -8,6 +8,7 @@
 //     outsideTo: a proven cp/mv source operand; the gate lifts it when that destination leaves the repo
 //     deletes: an operand of rm, del, erase, unlink or Remove-Item, or of a git call that deletes or hides files (`discard`: the
 //       verb, git-discards.mjs); the gate lifts it for an untracked file the caller wrote
+//     copyVariable: { tool, operand, name, reason } on the hits of a cp or mv that names a variable the command does not resolve (copy-variable.mjs)
 //     unresolved: a delete operand a variable or substitution supplies that the command does not resolve; never lifted
 //     sweep: a git call that may take files it does not name (`git clean`, `git stash -u` with no path); lifted while no other writer is live
 //     mtimeOnly: { noCreate } an operand of a provably mtime-only `touch`; the gate lifts it for an existing file (touch-target.mjs)
