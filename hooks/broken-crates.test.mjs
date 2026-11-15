@@ -91,6 +91,35 @@ expect('KIT-T1247: a refused edit of a crate the writer edited and did not check
 recordCheck(half.tree, { writer: 'S1|agentHalf', ok: true, scope: [half.crate], ts: Date.now() - 1000 });
 expect('KIT-T1247 control: after a passing check that covers the crate the refusal carries no half-edited line', /HALF EDITED/.test(refuse('agentHalf').stderr) ? 1 : 0, 0);
 
+const { crateCheckArgs, errorFiles } = await import('./lib/crate-checks.mjs');
+const { shimmedCommand } = await import('./lib/build-wrap.mjs');
+const shaped = (name, output, command) => {
+  const t = makeTree({ adopt: true });
+  recordToolWrite(t.tree, REL, 'hs', Date.now() - 5000, `S1|agent-${name}`);
+  hook('crate-check.mjs', { hook_event_name: 'PostToolUse', tool_name: 'PowerShell', cwd: t.crate, agent_id: 'agentVictim', tool_input: { command }, tool_response: { stdout: output, stderr: '' } }, t.tree);
+  return readBroken().find((m) => m.tree === t.tree);
+};
+const COULD_NOT = 'error: could not compile `a` (lib) due to 1 previous error';
+const piped = 'cargo check -p a 2>&1 | Select-String -Pattern "error"';
+expect('the command the build wrapper rewrites to is still a crate check', ['PowerShell', 'Bash'].every((tool) => crateCheckArgs(shimmedCommand('cargo check -p a', tool, undefined, 'S|a'))?.join(' ') === 'check -p a') ? 1 : 0, 1);
+expect('a check piped through a filter keeps its arguments, minus the redirect', crateCheckArgs(piped)?.join(' '), 'check -p a');
+expect('errorFiles reads the short message format', errorFiles(`${REL}:1:15: error[E0425]: cannot find value \`x\``, tree).length, 1);
+const filtered = shaped('filtered', `error[E0425]: cannot find value \`x\` in this scope\n${COULD_NOT}`, piped);
+expect('an output filtered to its error lines still marks the crate, by the package it could not compile', filtered?.writer === 'S1|agent-filtered' && /E0425/.test(filtered.error) ? 1 : 0, 1);
+const short = shaped('short', `${REL}:1:15: error[E0425]: cannot find value \`x\` in this scope\n${COULD_NOT}`, 'cargo check -p a --message-format=short');
+expect('a check in the short message format marks the crate with the writer', short?.writer === 'S1|agent-short' && /lib\.rs:1:15/.test(short.error) ? 1 : 0, 1);
+const refusedWriter = (() => {
+  const t = makeTree({ adopt: true });
+  const file = join(t.crate, 'src', 'lib.rs');
+  recordToolWrite(t.tree, REL, 'landed-by-other', Date.now() - 9000, 'S1|agentLanded');
+  writeFileSync(file, 'pub fn f() { x }\n');
+  hook('tool-write-record.mjs', { agent_id: 'agentLanded', tool_input: { file_path: file } }, t.tree);
+  recordToolWrite(t.tree, REL, 'never-landed-hash', Date.now() - 1000, 'S1|agentRefused');
+  hook('crate-check.mjs', { hook_event_name: 'PostToolUse', tool_name: 'Bash', agent_id: 'agentVictim', tool_input: { command: 'cargo check -p a' }, tool_response: { stdout: '', stderr: `error[E0425]: cannot find\n --> ${REL}:1:15\n${COULD_NOT}` } }, t.tree);
+  return readBroken().find((m) => m.tree === t.tree)?.writer;
+})();
+expect('a refused edit\'s predicted ledger entry does not make its writer the last writer: the entry whose content is on disk does', refusedWriter, 'S1|agentLanded');
+
 const crateB = join(half.tree, 'crates', 'b');
 mkdirSync(join(crateB, 'src'), { recursive: true });
 writeFileSync(join(crateB, 'Cargo.toml'), '[package]\nname = "b"\nversion = "0.1.0"\nedition = "2021"\n');

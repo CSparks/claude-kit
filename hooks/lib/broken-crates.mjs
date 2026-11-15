@@ -5,8 +5,11 @@
 // the writer that broke it is told once. Machine-local state beside the build slots; every path fails open.
 //
 //   firstError(output)                                -> "error[E0425]: cannot find value `x` (src/lib.rs:1:15)", or ''
-//   markBroken({ output, files, checker, trees, treeOf, now? }) -> the markers this failure wrote or refreshed for the crates of
-//                                                        `files` inside `trees`; treeOf(file) is the git root of a file
+//   packageCrates(output, scope)                      -> crate directories of the packages `could not compile` lines name, matched against
+//                                                        the manifests in `scope` (survives an output filtered to error lines)
+//   markBroken({ output, files, crates?, checker, trees, treeOf, now? }) -> the markers this failure wrote or refreshed for the crates
+//                                                        of `files` and the crate directories `crates` inside `trees`; treeOf(file)
+//                                                        is the git root of a file
 //   clearCovered(scope)                               -> crates a passing check over `scope` proves compile; their markers go
 //   brokenIn(scope)                                   -> live markers whose crate a check over `scope` compiles
 //   readBroken(now?)                                 -> live markers, oldest first (a marker no check refreshed in EXPIRES_MS goes)
@@ -27,12 +30,15 @@ import { inScope } from '../../scripts/broker/cargo-scope-dirs.mjs';
 import { readTurnRecords } from './turn-state.mjs';
 import { liveClaimants } from './checkout-holder.mjs';
 import { crateDirOf, readChecks, unverifiedCrates } from './crate-checks.mjs';
+import { contentHashOf } from './shell-snapshot.mjs';
 import { writerId } from './tool-writes.mjs';
 
 const DIR_NAME = 'broken-crates';
 const EXPIRES_MS = 2 * 60 * 60 * 1000;
 const MS_PER_MINUTE = 60000;
-const ERROR_LINE = /^\s*error(?:\[E\d+\])?:\s*(?!aborting|could not compile)(.+)$/;
+const ERROR_LINE = /^\s*(?:\S+?:\d+:\d+:\s+)?error(?:\[E\d+\])?:\s*(?!aborting|could not compile)(.+)$/;
+const COULD_NOT_COMPILE = /could not compile `([^`]+)`/g;
+const PACKAGE_NAME = /^\s*name\s*=\s*"([^"]+)"/m;
 const SITE_LINE = /^\s*-->\s+(\S+?:\d+:\d+)/;
 const slash = (p) => String(p).replace(/\\/g, '/');
 const dirPath = () => join(slotDir(), DIR_NAME);
@@ -71,12 +77,28 @@ export function readBroken(now = Date.now()) {
   }).sort((a, b) => String(a.since).localeCompare(String(b.since)));
 }
 
+const newest = (list) => list.reduce((a, b) => ((b.ts || 0) >= (a?.ts || 0) ? b : a), null);
+
+/** The crate directories of the packages a check's `could not compile` lines name, found among the manifests of its `scope`. */
+export function packageCrates(output, scope) {
+  const names = new Set([...String(output || '').matchAll(COULD_NOT_COMPILE)].map((m) => m[1]));
+  if (!names.size) return [];
+  const manifests = (scope || []).filter((s) => !String(s).startsWith('!')).map((s) => (/Cargo\.toml$/i.test(s) ? s : join(s, 'Cargo.toml')));
+  return [...new Set(manifests.flatMap((m) => {
+    try { return names.has((readFileSync(m, 'utf8').match(PACKAGE_NAME) || [])[1]) ? [resolve(m, '..')] : []; } catch { return []; }
+  }))];
+}
+
+// The writer whose edit is on disk: an entry of `file` whose recorded content hash is the file's hash now (a refused edit's
+// predicted entry never matches), else the newest confirmed entry, else the newest .rs entry of the crate.
 function lastWriterOf({ tree, crate, file }) {
-  const rel = slash(relative(tree, file));
-  const prefix = `${slash(relative(tree, crate))}/`;
   const entries = readTurnRecords(tree, 'toolwrites').filter((e) => e && e.w);
-  const newest = (list) => list.reduce((a, b) => ((b.ts || 0) >= (a?.ts || 0) ? b : a), null);
-  return newest(entries.filter((e) => e.p === rel))?.w || newest(entries.filter((e) => /\.rs$/i.test(e.p || '') && slash(e.p).startsWith(prefix)))?.w || '';
+  const rel = file ? slash(relative(tree, file)) : '';
+  const own = rel ? entries.filter((e) => e.p === rel) : [];
+  const disk = rel ? contentHashOf(tree, rel) : '';
+  const prefix = `${slash(relative(tree, crate))}/`;
+  const inCrate = entries.filter((e) => /\.rs$/i.test(e.p || '') && slash(e.p).startsWith(prefix));
+  return (newest(own.filter((e) => e.h === disk)) || newest(own.filter((e) => e.c)) || newest(inCrate.filter((e) => e.c)) || newest(own) || newest(inCrate))?.w || '';
 }
 
 function labelOf(tree, writer) {
@@ -84,13 +106,13 @@ function labelOf(tree, writer) {
   return hit ? hit.label || '' : '';
 }
 
-export function markBroken({ output, files, checker, trees, treeOf, now = Date.now() }) {
+export function markBroken({ output, files, crates = [], checker, trees, treeOf, now = Date.now() }) {
   const error = firstError(output);
   const at = new Date(now).toISOString();
   const written = [];
-  for (const file of files) {
-    const tree = treeOf(file);
-    const crate = crateDirOf(file);
+  const sites = [...files.map((file) => ({ file, crate: crateDirOf(file) })), ...crates.map((crate) => ({ file: '', crate }))];
+  for (const { file, crate } of sites) {
+    const tree = treeOf(file || join(crate, 'Cargo.toml'));
     if (!tree || !crate || !trees.some((t) => slash(crate).toLowerCase().startsWith(slash(t).toLowerCase()))) continue;
     if (written.some((m) => m.crate === crate)) continue;
     const before = readMarker(fileOf(crate));
@@ -110,7 +132,7 @@ export function clearCovered(scope) {
 
 export const brokenIn = (scope) => readBroken().filter((m) => inScope(join(m.crate, 'src', 'lib.rs'), scope || []));
 
-export const brokenFor =(writer) => (writer ? readBroken().filter((m) => m.writer === writer && !(m.told || []).includes(writer)) : []);
+export const brokenFor = (writer) => (writer ? readBroken().filter((m) => m.writer === writer && !(m.told || []).includes(writer)) : []);
 
 export function markTold(marker, writer) {
   const current = readMarker(fileOf(marker.crate));

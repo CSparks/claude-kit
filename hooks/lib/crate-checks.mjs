@@ -5,7 +5,8 @@
 //
 //   crateCheckArgs(command)                    -> ['check', '-p', 'x'] for a `cargo check|build|clippy` line, or null
 //   outcomeOf(output)                          -> { failed }  from cargo's text: an `error` line, `could not compile`
-//   errorFiles(output, cwd)                    -> absolute paths of the files named by `--> path:line:col` lines
+//   errorFiles(output, cwd)                    -> absolute paths of the files named by `--> path:line:col` lines or, in the short
+//                                                 message format, `path:line:col: error` lines
 //   recordCheck(root, { writer, ok, scope, ts }) / readChecks(root)   the append-only record of finished checks
 //   culprits({ files, writer, claimants })     -> [{ file, claimant }] other live writers claiming a failing file
 //   unverifiedCrates({ trees, writer, checks, notAfter? }) -> [{ crate, failed }] crates the writer edited after, or that failed in,
@@ -24,7 +25,8 @@ import { writerId } from './tool-writes.mjs';
 const SLOT = 'cratechecks';
 const CHECK_VERB = /^(?:check|c|clippy|build|b)$/;
 const FAILED = /\berror(?:\[E\d+\])?:|could not compile|aborting due to/;
-const ERROR_SITE = /-->\s+(\S+?):\d+:\d+/g;
+const ERROR_SITE = /-->\s+(\S+?):\d+:\d+|^(\S+?):\d+:\d+:\s+error/gm;
+const REDIRECT = /^\d*>/;
 const RECORDS_MAX = 400;
 const LEADING = /^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*/;
 
@@ -33,7 +35,7 @@ export function crateCheckArgs(command) {
     const words = text.trim().replace(LEADING, '').split(/\s+/);
     const cargo = /(?:^|[\\/])cargo(?:\.exe)?$/i.test(words[0] || '');
     const verb = words.slice(1).find((w) => !w.startsWith('+'));
-    if (cargo && CHECK_VERB.test(verb || '')) return words.slice(words.indexOf(verb));
+    if (cargo && CHECK_VERB.test(verb || '')) return words.slice(words.indexOf(verb)).filter((w) => !REDIRECT.test(w));
   }
   return null;
 }
@@ -42,7 +44,8 @@ export const outcomeOf = (output) => ({ failed: FAILED.test(String(output || '')
 
 export function errorFiles(output, cwd) {
   const found = new Set();
-  for (const [, rel] of String(output || '').matchAll(ERROR_SITE)) {
+  for (const [, arrow, short] of String(output || '').matchAll(ERROR_SITE)) {
+    const rel = arrow || short;
     for (let dir = resolve(cwd); ; dir = dirname(dir)) {
       if (existsSync(resolve(dir, rel))) { found.add(resolve(dir, rel)); break; }
       if (dirname(dir) === dir) break;

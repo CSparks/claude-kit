@@ -18,7 +18,7 @@ import { commandCwd } from './lib/shell-cwd.mjs';
 import { shellOfTool } from './lib/shell-segments.mjs';
 import { compiledScope } from '../scripts/broker/cargo-scope-dirs.mjs';
 import { findReal } from '../scripts/broker/build-run.mjs';
-import { blockedText, brokenFor, brokenIn, clearCovered, culpritText, markBroken, markTold } from './lib/broken-crates.mjs';
+import { blockedText, brokenFor, brokenIn, clearCovered, culpritText, markBroken, markTold, packageCrates } from './lib/broken-crates.mjs';
 import { crateCheckArgs, culprits, errorFiles, nudgeText, outcomeOf, readChecks, recordCheck, unverifiedCrates } from './lib/crate-checks.mjs';
 
 const CHECK = 'crate-check';
@@ -56,7 +56,7 @@ function afterCheck(p, root, writer) {
     return;
   }
   const files = errorFiles(output, cwd);
-  const marked = markBroken({ output, files, checker: writer, trees: [root, ...submodulePaths(root)], treeOf: gitRootOfFile });
+  const marked = markBroken({ output, files, crates: packageCrates(output, scope), checker: writer, trees: [root, ...submodulePaths(root)], treeOf: gitRootOfFile });
   marked.filter((m) => m.writer === writer).forEach((m) => markTold(m, writer));
   const waitsOn = (marked.length || files.length ? marked : brokenIn(scope)).filter((m) => m.writer && m.writer !== writer);
   const claimants = files.flatMap((f) => liveClaimants(gitRootOfFile(f)).map((c) => ({ ...c, tree: gitRootOfFile(f) })));
