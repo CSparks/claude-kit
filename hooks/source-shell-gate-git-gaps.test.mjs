@@ -99,6 +99,7 @@ try {
 
   freshHolders();
   claimFile({ tree: top, session: 'S9', agent: '', label: 'other', rel: 'x.rs', head: 'h' });
+  spawnHook('holder-beat.mjs', { session_id: 'S2', tool_input: { file_path: join(repo, 'theirs.rs'), content: 'fn theirs() {}\n' } });
   for (const [command, name] of SWEEPS) check(`${name}: blocked while another writer is live`, stops(command));
 
   const everyday = ['git status --short', 'git log -1', 'git diff HEAD', 'git add .', 'git commit -m wip', 'git push', 'git fetch', 'git show HEAD', 'git rev-parse HEAD',

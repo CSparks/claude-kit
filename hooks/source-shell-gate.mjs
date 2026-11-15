@@ -10,7 +10,8 @@
 // main thread's rm of an untracked file no live writer holds passes too (delete-judge.mjs);
 // so do the git calls that delete or hide files (`git clean`, `git rm -f`, `git stash -u`: git-discards.mjs) for files
 // that caller wrote, and a sweep of unnamed files while no other writer is live (delete-judge.mjs). A delete operand a
-// variable supplies that the command does not resolve is refused. A refused delete says why and names the way out
+// variable supplies that the command does not resolve is refused. A directory operand of a delete is judged file by file for
+// the source beneath it (directory-delete.mjs). A refused delete says why and names the way out
 // (delete-guidance.mjs); a cp or mv whose operand holds a variable the command does not resolve names it, why and the way out
 // (copy-variable.mjs); a command a git call runs (`rebase -x`, `bisect run`) is judged like one typed alone, from the top of
 // the work tree (git-inner-hits.mjs). A relative path resolves against the `cd` segments before its own segment (shell-cwd.mjs).
@@ -29,6 +30,7 @@ import { AMBIGUOUS_MESSAGE, shellOfTool, toPath } from './lib/shell-segments.mjs
 import { commandCwd } from './lib/shell-cwd.mjs';
 import { landsOutsideRepo } from './lib/lands-outside-repo.mjs';
 import { deleteJudgement } from './lib/delete-judge.mjs';
+import { directoryDeleteHits } from './lib/directory-delete.mjs';
 import { deleteGuidance } from './lib/delete-guidance.mjs';
 import { copyVariableAdvice } from './lib/copy-variable.mjs';
 import { touchLifted } from './lib/touch-target.mjs';
@@ -45,7 +47,7 @@ try {
   const p = await payload();
   const command = String((p.tool_input && p.tool_input.command) || '');
   const shell = shellOfTool(p.tool_name);
-  const hits = command ? shellSourceWrites(command, { shell }) : [];
+  const hits = command ? [...shellSourceWrites(command, { shell }), ...directoryDeleteHits(command, process.cwd())] : [];
   const caller = writerId(p.session_id, subagentId(p));
   for (const found of hits) {
     // The hit's own directory: the `cd` segments before its segment, not where the whole command ends.
