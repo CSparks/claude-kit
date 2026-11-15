@@ -7,6 +7,7 @@
 //
 //   claimConflicts({ tree, session, agent, rel, now }) -> [claimant] other live writers whose standing claim covers `rel`
 //   claimMessage({ rel, tree, claimants, footer })      -> the block message, naming each other writer
+//   describeWriter(claimant)                            -> "agent <id> (<label>) of session <s>" or "the main thread of session <s>"
 
 import { liveClaimants } from './checkout-holder.mjs';
 import { committedSince, stillDirty } from './session-overlap.mjs';
@@ -21,11 +22,11 @@ export function claimConflicts({ tree, session, agent = '', rel, now = Date.now(
   return others.filter((c) => !committedSince(tree, rel, c.claims[rel]));
 }
 
-const describe = (c) => `${c.agent ? `agent ${c.agent}${c.label ? ` (${c.label})` : ''}` : MAIN_THREAD} of session ${c.session}`;
+export const describeWriter = (c) => `${c.agent ? `agent ${c.agent}${c.label ? ` (${c.label})` : ''}` : MAIN_THREAD} of session ${c.session}`;
 
 export function claimMessage({ rel, tree, claimants, footer }) {
   return [
-    `BLOCKED: ${claimants.map(describe).join(' and ')} changed ${rel} and has not committed it (KIT-T1114).`,
+    `BLOCKED: ${claimants.map(describeWriter).join(' and ')} changed ${rel} and has not committed it (KIT-T1114).`,
     `  tree: ${tree}`,
     '',
     'Two writers on one file lose work. Edit another file, or wait until that writer commits this one or stops; a writer',

@@ -6,7 +6,8 @@
 // Every hit of the command is judged on its own: a source operand of a proven cp or mv is lifted only when
 // its destination provably lands outside the hit's repo (lands-outside-repo.mjs) or in a build-output directory such as
 // target/ (isGeneratedPath), never the rest of the command.
-// A rm of an untracked file this caller's own Edit or Write left is no source edit and passes (owns-untracked-file.mjs);
+// A rm of an untracked file this caller's own Edit or Write left is no source edit and passes (owns-untracked-file.mjs), and the
+// main thread's rm of an untracked file no live writer holds passes too (delete-judge.mjs);
 // so do the git calls that delete or hide files (`git clean`, `git rm -f`, `git stash -u`: git-discards.mjs) for files
 // that caller wrote, and a sweep of unnamed files while no other writer is live (delete-judge.mjs). A delete operand a
 // variable supplies that the command does not resolve is refused. A refused delete says why and names the way out
@@ -32,7 +33,9 @@ import { deleteGuidance } from './lib/delete-guidance.mjs';
 import { copyVariableAdvice } from './lib/copy-variable.mjs';
 import { touchLifted } from './lib/touch-target.mjs';
 import { VENDOR_ROUTE } from './lib/vendor-route.mjs';
-import { writerId } from './lib/tool-writes.mjs';
+import { DELETE_REFUSALS } from './lib/owns-untracked-file.mjs';
+import { liveWritersFor } from './lib/live-writers.mjs';
+import { isMainThread, writerId } from './lib/tool-writes.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { repoRelative } from './turn-writes.mjs';
 
@@ -62,7 +65,7 @@ try {
       : `a shell command ${found.deletes ? 'deletes' : 'writes'} a source file by hand (${found.path}).`;
     process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : what}
-${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
+${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep, mainThread: isMainThread(caller), holders: refusal === DELETE_REFUSALS.liveWriter ? liveWritersFor(root, rel, caller) : [] })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
   \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
   pre-write gate (file length, comment prose, literals, rot markers).
   A change too large for one Edit is a Write of the new file or several Edits, never a script.

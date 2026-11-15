@@ -2,21 +2,30 @@
 // rule, then the one way out that fits why this file was refused.
 //
 //   DELETE_RULE                                 the rule in one sentence (also printed by `q gates source`)
-//   deleteGuidance(refusal, { path, cwd, operand, verb, what })   the lines for a refusal in DELETE_REFUSALS; '' for an unknown refusal
+//   deleteGuidance(refusal, { path, cwd, operand, verb, what, mainThread, holders })   the lines for a refusal in DELETE_REFUSALS; '' for an unknown refusal
 //     operand: the unresolved delete operand; verb: the git call that was refused; what: the part of it that names no file
+//     mainThread: the caller is the main thread; holders: the live writers named for a live-writer refusal (live-writers.mjs)
 
 import { resolve } from 'node:path';
 import { DELETE_REFUSALS as R } from './owns-untracked-file.mjs';
 
-export const DELETE_RULE = 'a shell delete (rm, del, Remove-Item) of source, or a git call that deletes or hides files (git clean, git rm -f, git stash -u), passes only for a file this caller wrote with Write or Edit and has not changed since, one named file per operand, whose name the command spells out or assigns to a variable as one literal; a tracked file is removed with `git rm -- <path>`; a git call that may take files it does not name (no path, a directory, a glob) passes only while no other writer is live in the checkout; a file another session or agent wrote is left to its writer (no shell verb is sanctioned for it: raise it to the main thread)';
+export const DELETE_RULE = 'a shell delete (rm, del, Remove-Item) of source, or a git call that deletes or hides files (git clean, git rm -f, git stash -u), passes only for a file this caller wrote with Write or Edit and has not changed since, one named file per operand, whose name the command spells out or assigns to a variable as one literal; a tracked file is removed with `git rm -- <path>`; a git call that may take files it does not name (no path, a directory, a glob) passes only while no other writer is live in the checkout; a file another session or agent wrote, or no tool wrote, is left to the main thread: a subagent raises it there, and the main thread removes an untracked one with the plain `rm <path>` (PowerShell: `Remove-Item <path>`) once no live writer holds it, no git discard verb';
+
+const MAIN_THREAD_DELETE = (path) => `the plain \`rm ${path}\` (PowerShell: \`Remove-Item ${path}\`)`;
+
+// A subagent hands the delete to the main thread; the main thread reaches this only through a git discard verb on a tracked file.
+const raiseToMainThread = ({ mainThread, path }) => (mainThread
+  ? 'A tracked file holding changes no tool of this caller wrote: commit or restore them first, then delete it.'
+  : `Raise it to the main thread: once no live writer holds it, the main thread removes an untracked file with ${MAIN_THREAD_DELETE(path)}. A subagent has no sanctioned way.`);
 
 const WAYS_OUT = {
   [R.noWriter]: () => 'This call carries no session id, so no Write can be attributed to it.',
   [R.glob]: () => 'A glob is not expanded: name each file.',
   [R.missing]: ({ path, cwd }) => `No such file at ${resolve(cwd, path).replace(/\\/g, '/')}: the command is in ${cwd.replace(/\\/g, '/')} at this point (a \`cd\` earlier in the command moves where a relative path points).`,
   [R.tracked]: ({ path }) => `Tracked source: remove it with \`git rm -- ${path}\`, so the commit shows the deletion.`,
-  [R.unrecorded]: () => 'No Edit or Write of this caller left these bytes (never written by a tool, or changed since): it stays with its writer; raise it to the main thread.',
-  [R.otherWriter]: () => 'Another session or agent wrote this file: it stays with its writer; raise it to the main thread. No shell verb is sanctioned for it.',
+  [R.unrecorded]: (ctx) => `No Edit or Write of this caller left these bytes (never written by a tool, or changed since): it stays with its writer. ${raiseToMainThread(ctx)}`,
+  [R.otherWriter]: (ctx) => `Another session or agent wrote this file: it stays with its writer. ${raiseToMainThread(ctx)}`,
+  [R.liveWriter]: ({ path, holders }) => `${holders.join(' and ')} is live in this checkout and may still be writing this file. Once that writer has stopped or committed it, the main thread removes it with ${MAIN_THREAD_DELETE(path)}.`,
   [R.unresolved]: ({ operand }) => `This delete names ${operand}, which this command does not assign as one literal NAME=value segment before it, so the file it holds is unknown. Spell the path out, or assign the variable in the same command (NAME=path; rm "$NAME").`,
   [R.sweep]: ({ verb, what }) => `${verb || 'This git call'} here may take files it does not name${what ? ` (${what})` : ''}, and another writer is live in this checkout: its untracked or changed files could go. Name each file you wrote yourself (\`git clean -f -- <path>\`, \`rm <path>\`), or raise it to the main thread. A call outside the git allow-list is written plainly: a built-in git command with only the options and config keys \`q gates source\` lists, and no environment change in front of it or exported in the command. No shell verb is sanctioned for another writer's files.`,
 };

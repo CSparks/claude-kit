@@ -27,6 +27,7 @@ export const DELETE_REFUSALS = Object.freeze({
   otherWriter: 'other-writer',
   unresolved: 'unresolved',
   sweep: 'sweep',
+  liveWriter: 'live-writer',
 });
 
 export const isTracked = (root, rel) => gitTry(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', rel], root).ok;

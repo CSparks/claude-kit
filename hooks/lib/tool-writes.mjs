@@ -14,6 +14,7 @@
 // (tool-write-ledger.mjs); every path fails open (a lost entry costs a missing exemption, never a missed hand write).
 //
 //   writerId(session, agent)                                         -> the identity an entry carries ('' when unknown)
+//   writerSession(writer), writerAgent(writer), isMainThread(writer) -> its parts; the main thread is a session with no agent
 //   recordToolWrite(root, rel, hash, now, writer)                    -> add a confirmed entry
 //   recordPredictedWrite(root, rel, file, toolInput, writer, now)    -> add the unconfirmed entries for the content `toolInput` leaves
 //   toolWriteProves(root, rel, sinceMs, currentHash, byWriter, { ownConfirmed }) -> true when another writer's tool (or, with ownConfirmed, `byWriter`'s confirmed one) left `currentHash` in `rel` since `sinceMs`
@@ -36,6 +37,8 @@ const toCrlf = (s) => toLf(s).replace(/\n/g, '\r\n');
 
 export const writerId = (session, agent) => (session ? `${session}|${agent || ''}` : '');
 export const writerSession = (writer) => String(writer || '').split('|')[0];
+export const writerAgent = (writer) => String(writer || '').split('|')[1] || '';
+export const isMainThread = (writer) => Boolean(writerSession(writer)) && !writerAgent(writer);
 
 const addEntries = (root, hashes, rel, now, writer, confirmed, clean = false) => {
   appendToolWriteEntries(root, hashes.map((h) => ({ p: rel, h, ts: now, w: writer, c: confirmed, ...(clean ? { k: true } : {}) })));

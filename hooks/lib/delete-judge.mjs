@@ -9,19 +9,27 @@
 //
 // A named file passes only when the caller's own Edit or Write left its bytes (owns-untracked-file.mjs); a tracked file
 // a git verb would take with local changes counts the same way, and one identical to HEAD loses nothing. A call that may
-// take unnamed files passes only while no other writer is live in the checkout (checkout-holder.mjs).
+// take unnamed files passes only while no other writer is live in the checkout (live-writers.mjs).
+//
+// The main thread answers to the maintainer, so its plain delete (never a git discard verb) of an untracked file that
+// another writer wrote, or no tool wrote, passes once no live writer holds the file (KIT-T1246); a file with no recorded
+// writer also waits while any other writer is live. A subagent never gets this lift.
 
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { liveClaimants, liveHolders } from './checkout-holder.mjs';
 import { gitTry } from './exec.mjs';
+import { liveWritersFor, fileHolders, otherLiveWriters } from './live-writers.mjs';
 import { DELETE_REFUSALS as R, deleteRefusal, isTracked, ledgerRefusal } from './owns-untracked-file.mjs';
-import { writerId, writerSession } from './tool-writes.mjs';
+import { isMainThread } from './tool-writes.mjs';
 
 const CLEAN_VERB = 'git clean';
+const LIFTED_FOR_MAIN_THREAD = new Set([R.unrecorded, R.otherWriter]);
 
-const otherLiveWriters = (root, caller) => liveClaimants(root).some((e) => writerId(e.session, e.agent) !== caller)
-  || liveHolders(root).some((h) => h.session !== writerSession(caller));
+function mainThreadDelete(root, rel, caller, refusal) {
+  if (!LIFTED_FOR_MAIN_THREAD.has(refusal) || !isMainThread(caller)) return refusal;
+  const holders = refusal === R.unrecorded ? liveWritersFor(root, rel, caller) : fileHolders(root, rel, caller);
+  return holders.length ? R.liveWriter : '';
+}
 
 const matchesHead = (root, rel) => gitTry(['--literal-pathspecs', 'diff', '--quiet', 'HEAD', '--', rel], root).ok;
 
@@ -40,7 +48,7 @@ const ledgerOrNone = (root, rel, caller) => (caller ? ledgerRefusal(root, rel, c
 
 export function deleteJudgement(found, root, rel, caller) {
   if (found.unresolved) return R.unresolved;
-  if (found.sweep) return otherLiveWriters(root, caller) ? R.sweep : '';
+  if (found.sweep) return otherLiveWriters(root, caller).length ? R.sweep : '';
   if (found.discard) return discardRefusal(root, rel, caller, found.discard);
-  return found.deletes ? deleteRefusal(root, rel, caller) : '';
+  return found.deletes ? mainThreadDelete(root, rel, caller, deleteRefusal(root, rel, caller)) : '';
 }

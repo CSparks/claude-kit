@@ -18,16 +18,19 @@ const check = (name, cond, detail = '') => {
 
 const state = mkdtempSync(join(tmpdir(), 'kit-shelldel-state-'));
 const repo = mkdtempSync(join(tmpdir(), 'kit-shelldel-'));
-const env = { ...process.env, CLAUDE_KIT_TURN_STATE: state };
+const holders = mkdtempSync(join(tmpdir(), 'kit-shelldel-holders-'));
+const env = { ...process.env, CLAUDE_KIT_TURN_STATE: state, CLAUDE_KIT_HOLDERS_DIR: holders };
 const spawnHook = (name, payload) => spawnSync(process.execPath, [hook(name)], { cwd: repo, env, input: JSON.stringify(payload), encoding: 'utf8' });
 const who = (session, agent) => ({ ...(session ? { session_id: session } : {}), ...(agent ? { agent_id: agent } : {}) });
 
-// A Write as the tools leave it: pre-write predicts the content, the file lands, PostToolUse confirms it.
+// A Write as the tools leave it: pre-write predicts the content, the file lands, PostToolUse confirms it, and the holder
+// hook makes the writer live; every writer here stays live, so the main thread meets the live-writer guard (KIT-T1246).
 const toolWrite = (rel, text, session, agent = '') => {
   const input = { ...who(session, agent), tool_input: { file_path: join(repo, rel), content: text } };
   spawnHook('pre-write.mjs', input);
   writeFileSync(join(repo, rel), text);
   spawnHook('tool-write-record.mjs', { ...input, hook_event_name: 'PostToolUse', tool_response: {} });
+  spawnHook('holder-beat.mjs', input);
 };
 const rmBy = (command, session, agent = '', tool = 'Bash') => spawnHook('source-shell-gate.mjs', { ...who(session, agent), tool_name: tool, tool_input: { command } });
 const blocked = (r) => r.status === 2 && /source-shell-write/.test(r.stderr);
@@ -95,10 +98,11 @@ try {
   check('a write after the cd out of the repo is outside it', !blocked(rmBy(`cd ${elsewhere.replace(/\\/g, '/')} && echo x > fresh.rs`, 'S1')));
 
   // A refused delete says why and names the way out that fits (KIT-T1156).
-  const said = (command, session) => rmBy(command, session).stderr;
+  const said = (command, session, agent = '') => rmBy(command, session, agent).stderr;
   check('tracked: names git rm of the path', /git rm -- tracked\.rs/.test(said('rm tracked.rs', 'S1')));
-  check("another writer's file: left to its writer, no shell verb", /Another session or agent wrote this file[^]*No shell verb is sanctioned/.test(said('rm theirs.rs', 'S1')));
-  check('a file no tool wrote: left to its writer', /No Edit or Write of this caller left these bytes/.test(said('rm never-ledgered.rs', 'S1')));
+  check("another writer's file, subagent caller: left to its writer, raised to the main thread's rm", /Another session or agent wrote this file[^]*main thread[^\n]*`rm theirs\.rs`/.test(said('rm theirs.rs', 'S1', 'B')));
+  check("another writer's file, main thread caller: names the live writer", /the main thread of session S2 is live[^]*`rm theirs\.rs`/.test(said('rm theirs.rs', 'S1')));
+  check('a file no tool wrote, subagent caller: left to its writer, raised to the main thread', /No Edit or Write of this caller left these bytes[^]*main thread[^\n]*`rm never-ledgered\.rs`/.test(said('rm never-ledgered.rs', 'S1', 'B')));
   check('a glob: name each file', /A glob is not expanded: name each file/.test(said('rm glob-*.rs', 'S1')));
   check('a missing file: prints the resolved path and the directory at that point', new RegExp(`No such file at [^\\n]*/sub/mine\\.rs[^\\n]*in [^\\n]*/sub at this point`).test(said('cd sub && rm mine.rs', 'S1')));
   check('no session id: says the call is unattributable', /carries no session id/.test(said('rm anon.rs', '')));
@@ -139,6 +143,7 @@ try {
 } finally {
   rmSync(repo, { recursive: true, force: true });
   rmSync(state, { recursive: true, force: true });
+  rmSync(holders, { recursive: true, force: true });
 }
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);
