@@ -31,7 +31,8 @@ function parseDuration(text) {
   return m ? Number(m[1]) * UNIT_MS[m[2].toLowerCase()] : null;
 }
 
-// -> { sinceMs, skewMs, author, excludeSha, label, error }
+// -> { sinceMs, skewMs, author, excludeSha, ownOnly, label, error }; ownOnly: only commits the clone made count (a pulled commit
+// is another session's landing); an explicit --since lists everything after it by any author
 function resolveBoundary(root, since, nowMs) {
   if (since) {
     const sha = git(['-C', root, 'rev-parse', '--verify', '--quiet', `${since}^{commit}`]).trim();
@@ -45,9 +46,9 @@ function resolveBoundary(root, since, nowMs) {
   }
   const recorded = readTurnState(root, LAND_SLOT);
   if (recorded?.listed?.length && Number.isFinite(recorded.turnStartMs) && nowMs - recorded.at <= DEFAULT_WINDOW_MS) {
-    return { sinceMs: recorded.turnStartMs, skewMs: TURN_SKEW_MS, label: `since the landing-alert's last listing (turn start ${clock(recorded.turnStartMs)} UTC, ${recorded.listed.length} commit(s) listed)` };
+    return { sinceMs: recorded.turnStartMs, skewMs: TURN_SKEW_MS, ownOnly: true, label: `since the landing-alert's last listing (turn start ${clock(recorded.turnStartMs)} UTC, ${recorded.listed.length} commit(s) listed)` };
   }
-  return { sinceMs: nowMs - DEFAULT_WINDOW_MS, byUser: true, label: 'in the last 60 minutes by this git user (the landing-alert gate has no listing inside that window)' };
+  return { sinceMs: nowMs - DEFAULT_WINDOW_MS, byUser: true, ownOnly: true, label: 'in the last 60 minutes by this git user (the landing-alert gate has no listing inside that window)' };
 }
 
 function reposOf(root) {
@@ -63,7 +64,7 @@ export function buildReceipt(cwd, { since } = {}, nowMs = Date.now()) {
   const sections = [];
   for (const [repo, name] of reposOf(root)) {
     const author = b.byUser ? git(['-C', repo, 'config', 'user.email']).trim() : '';
-    const landed = landedSince(repo, { sinceMs: b.sinceMs, skewMs: b.skewMs, author }).filter((c) => c.sha !== b.excludeSha);
+    const landed = landedSince(repo, { sinceMs: b.sinceMs, skewMs: b.skewMs, author, ownOnly: b.ownOnly }).filter((c) => c.sha !== b.excludeSha);
     if (landed.length) sections.push([`${name}:`, ...landed.map((c) => commitLine(repo, c))].join('\n'));
   }
   if (!sections.length) return { text: `nothing landed ${b.label}`, code: 0 };
