@@ -17,9 +17,8 @@
 // Runs LAST on Stop (after sync-data pushes), so it observes the post-push state. FAIL-OPEN on
 // every error: an alert hook must never wedge a session (the hook contract) → exit 0.
 
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { assistantTextOf } from './lib/assistant-text.mjs';
+import { existsSync } from 'node:fs';
+import { parseTranscript } from './lib/turn-transcript.mjs';
 import { namedInReply, unannouncedIn } from './lib/announced-landings.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
 import { LAND_SLOT, isPushed, landedThisTurn } from './lib/landed-commits.mjs';
@@ -161,47 +160,4 @@ function readSlot(root) {
 }
 function writeSlot(root, state) {
   writeTurnState(root, state, SLOT);
-}
-
-// --- transcript (turn bounding — the request-gate/flush definition) -------------
-
-function parseTranscript(file) {
-  let lines;
-  try {
-    lines = readFileSync(file, 'utf8').split('\n').filter(Boolean);
-  } catch {
-    return {};
-  }
-  let turnStartMs = 0;
-  let lastAssistant = null;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    let e;
-    try { e = JSON.parse(lines[i]); } catch { continue; }
-    const role = e?.type || e?.message?.role;
-    const content = e?.message?.content;
-    if (!lastAssistant && role === 'assistant') {
-      lastAssistant = assistantTextOf(content);
-      continue;
-    }
-    if (!turnStartMs && role === 'user' && e?.isMeta !== true && !isToolResult(content)) {
-      const text = extractText(content);
-      if (text && text.trim() && !isSystemNotice(text)) turnStartMs = Date.parse(e?.timestamp || '') || 0;
-    }
-    if (turnStartMs && lastAssistant) break;
-  }
-  return { turnStartMs, lastAssistant };
-}
-
-function extractText(content) {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) {
-    return content.filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n');
-  }
-  return '';
-}
-function isToolResult(content) {
-  return Array.isArray(content) && content.some((b) => b && b.type === 'tool_result');
-}
-function isSystemNotice(text) {
-  return /^\s*(?:<task-notification\b|<system-reminder\b|\[SYSTEM NOTIFICATION\b|Stop hook feedback:)/i.test(text);
 }
