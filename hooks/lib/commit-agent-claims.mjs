@@ -5,11 +5,15 @@
 // writer holds none. Store (.ai/) paths and submodule gitlinks carry no claims and are never judged.
 //
 //   foreignClaims({ tree, session, agent, paths, now }) -> [{ rel, claimants }] paths of `paths` held by another live writer
+//   claimSubmodulePin({ subRoot, session, agent, label }) -> claim the gitlink of `subRoot` in its superproject (KIT-T1257)
 //   foreignClaimMessage({ found, paths, messageArg, footer }) -> the block message: who holds what, and the commit that leaves
 //                                                             their staged work staged (a commit by explicit path)
 
-import { liveClaimants } from './checkout-holder.mjs';
+import { claimFile, liveClaimants } from './checkout-holder.mjs';
 import { claimConflicts, describeWriter } from './agent-claims.mjs';
+import { git } from './exec.mjs';
+import { adopted } from '../lib.mjs';
+import { repoRelative } from '../turn-writes.mjs';
 
 const STORE_DIR = '.ai/';
 const MAX_SHOWN = 10;
@@ -22,6 +26,21 @@ export function foreignClaims({ tree, session, agent = '', paths, now = Date.now
       const claimants = claimConflicts({ tree, session, agent, rel, now });
       return claimants.length ? [{ rel, claimants }] : [];
     });
+}
+
+/**
+ * A commit made inside a submodule moves its pin in the superproject: the committing writer claims the gitlink there, so
+ * another writer's commit of the superproject does not carry the pin (a staged gitlink has no file for a write claim).
+ * No-op when `subRoot` is no submodule.
+ */
+export function claimSubmodulePin({ subRoot, session, agent = '', label = '' }) {
+  try {
+    const superRoot = git(['rev-parse', '--show-superproject-working-tree'], subRoot).trim();
+    const rel = superRoot && adopted(superRoot) ? repoRelative(superRoot, subRoot) : '';
+    if (rel) claimFile({ tree: git(['rev-parse', '--show-toplevel'], superRoot).trim(), session, agent, label, rel, head: git(['rev-parse', 'HEAD'], superRoot).trim() });
+  } catch {
+    /* a claim is best-effort */
+  }
 }
 
 export function foreignClaimMessage({ found, paths, messageArg, footer }) {

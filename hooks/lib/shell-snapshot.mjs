@@ -43,11 +43,14 @@ export const contentHashOf = (root, rel) => {
   }
 };
 
+// A source file is its size and content hash, so a touch or a rewrite that leaves the bytes alone (a `git stash` and pop, a
+// checkout of the same text) is no change; any other file, or one too large to hash, is its mtime and size too (KIT-T1255).
 const signature = (root, rel) => {
   try {
     const path = join(root, rel);
     const s = statSync(path);
-    return `${s.mtimeMs}:${s.size}${isSourcePath(rel) ? `:${contentHash(path, s.size)}` : ''}`;
+    const hash = isSourcePath(rel) ? contentHash(path, s.size) : '';
+    return hash ? `${s.size}:${hash}` : `${s.mtimeMs}:${s.size}`;
   } catch {
     return GONE;
   }

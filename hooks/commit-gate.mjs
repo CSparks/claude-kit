@@ -20,7 +20,7 @@ import { shellOfTool } from './lib/shell-segments.mjs';
 import { isKitCheckout } from './lib/kit-checkout.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
-import { foreignClaimMessage, foreignClaims } from './lib/commit-agent-claims.mjs';
+import { claimSubmodulePin, foreignClaimMessage, foreignClaims } from './lib/commit-agent-claims.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
@@ -52,7 +52,7 @@ const dataRepo = isDataRepo(root);
 // A commit made inside a submodule marks its gitlink as this session's in the superproject.
 if (isCommit) {
   try { recordSubmoduleActivity(root, p.session_id); } catch { /* ledger is best-effort */ }
-}
+  claimSubmodulePin({ subRoot: root, session: p.session_id, agent: subagentId(p), label: p.agent_type || '' });}
 
 // KIT-T230: warn on a tree-wide add in the shared data repo, BEFORE the adopted() gate — the
 // data repo's own root holds `projects/`, not `.ai`, so it is never "adopted".
