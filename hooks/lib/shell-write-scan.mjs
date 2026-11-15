@@ -49,6 +49,13 @@ export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
 const WRITING_CMD = /^(?:rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
 const TOUCH_CMD = /^touch$/i;
+// echo and printf only print their arguments: a write-tool word among them is text, unless the text runs (a substitution
+// outside single quotes) or the command feeds its output to a shell or an eval.
+const PRINTER = /^(?:echo|printf)$/i;
+const SINGLE_QUOTED = /'[^']*'/g;
+const RUNS_ARGUMENT_TEXT = /\$\(|`|[<>]\(/;
+const FEEDS_A_SHELL = /\|\s*(?:sudo\s+)?(?:(?:ba|z|da|k)?sh|pwsh|powershell)\b|\b(?:eval|source)\s|\b(?:iex|invoke-expression)\b/i;
+const printsOnly = (leader, text, raw) => PRINTER.test(leader) && !RUNS_ARGUMENT_TEXT.test(text.replace(SINGLE_QUOTED, '')) && !FEEDS_A_SHELL.test(String(raw || text));
 const DELETE_CMD =/^(?:rm|del|erase|unlink|remove-item)$/i;
 const MOVE_CMD = /^(?:mv|move-item)$/i;
 const COPY_CMD = /^(?:cp|copy|copy-item|install|mv|move-item)$/i;
@@ -209,7 +216,7 @@ function judgeSegment(text, ctx) {
   if (ctx.removals) hits.push(...discardHits(text, ctx), ...gitInnerHits(expandVariables(text, ctx.vars, ctx.shell), ctx, judgeSegment));
   const move = moveLinesCall(text, ctx.cwd);
   if (move && move.problem) hits.push(...move.paths.map(ctx.hit).filter(Boolean).map((h) => ({ ...h, moveLinesProblem: move.problem })));
-  if (quotedArgsInert || READER.test(leader)) return hits;
+  if (quotedArgsInert || READER.test(leader) || printsOnly(leader, text, ctx.raw)) return hits;
   const touched = TOUCH_CMD.test(leader) ? judgeTouch(text.slice(words[0].at + words[0].w.length), ctx) : null;
   if (touched) return [...hits, ...touched];
   for (let i = 0; i < words.length; i++) {
