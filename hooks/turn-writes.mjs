@@ -115,7 +115,17 @@ const isStorePath = (p) => p.startsWith('.ai/') || p.includes('/.ai/');
 export function foreignPaths(root, paths, sessionId) {
   const mine = sessionWrites(root, sessionId);
   if (!mine.size) return [];
-  return paths.filter((p) => !isStorePath(p) && !mine.has(p) && !movedWrite(root, p, sessionId));
+  return paths.filter((p) => !isStorePath(p) && !mine.has(p) && !movedWrite(root, p, sessionId) && !lockOfOwnCrate(p, mine));
+}
+
+// A Cargo.lock cargo regenerated for a crate this session wrote (a Cargo.toml beside it or beneath its directory): the
+// shell call that ran cargo may sit in another repo's cwd, so no shell hook credited the lock to the session (KIT-T1250).
+const LOCK_FILE = 'Cargo.lock';
+const MANIFEST_FILE = 'Cargo.toml';
+function lockOfOwnCrate(path, mine) {
+  if (path !== LOCK_FILE && !path.endsWith(`/${LOCK_FILE}`)) return false;
+  const dir = path.slice(0, path.length - LOCK_FILE.length);
+  return [...mine].some((p) => p.startsWith(dir) && (p === `${dir}${MANIFEST_FILE}` || p.endsWith(`/${MANIFEST_FILE}`)));
 }
 
 // Record a path a non-Write tool changed (a Bash/PowerShell/node script) as this session's own.
