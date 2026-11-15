@@ -56,7 +56,7 @@ report('control: a pull, a rebase and a stash pass when no other writer is live'
 
 const text = beside('git pull --rebase origin main').stderr;
 check('the refusal names the way out: commit by explicit path, fetch, push, and the coordinator when the push is rejected',
-  /git commit -F <message file> -- <your paths>/.test(text) && /git fetch/.test(text) && /git push origin HEAD:main/.test(text) && /raise it to the coordinator/.test(text) && /git pull/.test(text));
+  /git commit -F <message file> -- <your paths>/.test(text) && /git fetch/.test(text) && /git push origin HEAD:main/.test(text) && /raise it to the coordinator, who arranges a quiet moment/.test(text) && /allowed only when no other writer has uncommitted changes/.test(text) && /git pull/.test(text));
 check('the refusal of an autostash says it applies whether or not another writer is live', /autostash is refused whether or not another writer is live/.test(alone('git pull --autostash').stderr));
 
 console.log(fails ? `\ngit-integration-guard: ${fails} failed` : '\ngit-integration-guard: all pass');

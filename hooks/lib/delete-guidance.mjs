@@ -13,7 +13,7 @@ export const DELETE_RULE = 'a shell delete (rm, del, Remove-Item) of source, or 
 
 // A pull, rebase, stash or autostash moves every writer's tracked changes out of the shared work tree (KIT-T1266).
 const INTEGRATION_VERB = /^git (?:pull|rebase|stash|merge --autostash)/;
-const integrationWayOut = (verb) => `${verb} here would stash, rebase or move the tracked changes of every writer of this checkout${/autostash/.test(verb) ? ' (an autostash is refused whether or not another writer is live)' : ', and another writer is live in it'}. Commit your own work by explicit path (\`git commit -F <message file> -- <your paths>\`), then \`git fetch\` and \`git push origin HEAD:main\`; if the push is rejected, raise it to the coordinator: do not pull, rebase or stash here.`;
+const integrationWayOut = (verb) => `${verb} here would stash, rebase or move the tracked changes of every writer of this checkout${/autostash/.test(verb) ? ' (an autostash is refused whether or not another writer is live)' : ', and another writer is live in it'}. Commit your own work by explicit path (\`git commit -F <message file> -- <your paths>\`), then \`git fetch\` and \`git push origin HEAD:main\`. If the push is rejected because the remote moved, \`git pull --rebase\` is allowed only when no other writer has uncommitted changes in this checkout; otherwise raise it to the coordinator, who arranges a quiet moment. Do not pull, rebase or stash here meanwhile.`;
 const MAIN_THREAD_DELETE = (path) => `the plain \`rm ${path}\` (PowerShell: \`Remove-Item ${path}\`)`;
 
 // A subagent hands the delete to the main thread; the main thread reaches this through a git discard verb on a tracked file
