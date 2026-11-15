@@ -46,6 +46,7 @@ import { copyVariable } from './copy-variable.mjs';
 import { gitInnerHits } from './git-inner-hits.mjs';
 import { cleaned, commandTokens } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
+import { rebased, runCwd } from './builds-run-cwd.mjs';
 
 const BUILDS_LEAD = /^builds(?:\.cmd)?$/i;
 
@@ -223,7 +224,10 @@ function judgeSegment(text, ctx) {
   // `builds --run "<command>"`: the quoted command is judged as itself, as a direct call of it would be (KIT-T1284).
   if (BUILDS_LEAD.test(leader)) {
     const inner = runnerTexts(leader, cleaned(commandTokens(text)).slice(1), { shell: ctx.shell });
-    if (inner.length) return [...hits, ...inner.flatMap((run) => scanAllShellWrites(run.text, { ...ctx, shell: run.shell }))];
+    const { flag, resolvable } = runCwd(text);
+    if (inner.length && !resolvable) return [...hits, ...[ctx.hit(`${flag || '<cwd>'}/any.rs`)].filter(Boolean)];
+    const base = flag ? resolve(ctx.cwd, flag) : ctx.cwd;
+    if (inner.length) return [...hits, ...inner.flatMap((run) => scanAllShellWrites(run.text, { ...ctx, shell: run.shell, hit: (p) => ctx.hit(rebased(flag, p)), baseCwd: base }))];
   }
   if (quotedArgsInert || READER.test(leader) || printsOnly(leader, text, ctx.raw)) return hits;
   const touched = TOUCH_CMD.test(leader) ? judgeTouch(text.slice(words[0].at + words[0].w.length), ctx) : null;
@@ -268,18 +272,18 @@ const ambiguousWrite = (text, hit, cwd, removals) => {
   return WRITE_TOKEN.exec(rest)?.[0] || (appliesPatch(rest) ? 'a patch apply' : '') || (removals && discardsBlind(rest) ? 'a git discard' : '') || FS_WRITE.exec(rest)?.[0] || '';
 };
 
-export function scanAllShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false, exemptByDestination = false, removals = null, shell = '' }) {
+export function scanAllShellWrites(command, { hit, codeHit, readScript = readTempScript, ambiguous, judgeMoveSources = false, exemptByDestination = false, removals = null, shell = '', baseCwd = process.cwd() }) {
   const parts = segments(String(command || ''), { shell });
   const text = parts.text;
   if (parts.ambiguous && ambiguous) {
-    const trigger = ambiguousWrite(text, hit, commandCwd(String(command || ''), process.cwd(), { shell }), removals);
+    const trigger = ambiguousWrite(text, hit, commandCwd(String(command || ''), baseCwd, { shell }), removals);
     return trigger ? [ambiguous({ ...parts.ambiguity, trigger })] : [];
   }
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
   const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, removals, shell, parts, raw: String(command || '') };
   const variables = assignedValues(parts, shell);
   const all = [...parts];
-  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, at: i, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw), cwd: commandCwd(ctx.raw, process.cwd(), { upto: i, shell }) })
+  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, at: i, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw), cwd: commandCwd(ctx.raw, baseCwd, { upto: i, shell }) })
     .map((found) => ({ ...found, segment: i })));
 }
 

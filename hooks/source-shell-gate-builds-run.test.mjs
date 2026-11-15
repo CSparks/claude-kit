@@ -35,6 +35,19 @@ report('a hand write of a source file inside the quoted command is still refused
 ]));
 report('a redirect of the launcher call itself into a source file is still refused', stops(['builds --run "./target/debug/p.exe" > src/out.rs']));
 report('the same through PowerShell', passes(['builds --run "cargo build -p x; Copy-Item target/debug/p.exe target/p2.exe; ./target/p2.exe"'], 'PowerShell'));
+// --cwd: the quoted command's relative paths resolve against it, so they are judged there (KIT-T1284, review of 2791d58)
+report('a quoted write to a relative path that is a source file under --cwd is refused (without --cwd the same text names a build output)', stops([
+  'builds --run "cp a.bin target/../../x.rs" --cwd sub/dir', 'builds --run "echo x > target/../../hand.rs" --cwd sub/dir', 'builds --run "cp a.bin target/../../x.rs" --cwd=ignored --cwd sub/dir',
+]));
+report('the same quoted commands without --cwd pass: the path is read as written', passes(['builds --run "cp a.bin target/../../x.rs"', 'builds --run "cp a.bin target/../../x.rs" --out o.txt']));
+report('with a --cwd under which the path is a build output it passes; with none, or another --cwd, the same path is a source file', passes(['builds --run "cp a.bin gen/out.rs" --cwd target', 'builds --run "cp a.bin gen/out.rs" --cwd target/debug --out o.txt', 'builds --run "cp a.bin gen/out.rs" --cwd ./target'])
+  .concat(stops(['builds --run "cp a.bin gen/out.rs"', 'builds --run "cp a.bin gen/out.rs" --cwd crates/a'])));
+report('a --cwd that cannot be resolved statically is refused', stops([
+  'builds --run "cp a.bin q.exe" --cwd "$DIR"', 'builds --run "cp a.bin q.exe" --cwd "$(pwd)"', 'builds --run "cp a.bin q.exe" --cwd `pwd`', 'builds --run "cp a.bin q.exe" --cwd ~/x',
+  'builds --run "cp a.bin q.exe" --cwd "x/*"', 'builds --run "cp a.bin q.exe" --cwd', 'builds --run "cp a.bin q.exe" --cwd --out o.txt',
+]));
+report('a plain --cwd with a harmless quoted command still passes', passes(['builds --run "./target/debug/probe.exe --frames 3" --cwd crates/road-generator --out target/o.txt', 'builds --run "cargo build && cp target/debug/p.exe target/q.exe" --cwd rapid-game/rust']));
+
 report('control: other builds verbs and a quoted word of another program are unchanged', passes(['builds', 'builds --audit', 'builds --wait "target/x/lib.rs" --timeout 170']));
 
 console.log(fails ? `\nsource-shell-gate-builds-run: ${fails} failed` : '\nsource-shell-gate-builds-run: all pass');
