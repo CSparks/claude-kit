@@ -19,6 +19,10 @@ import { liveHolds } from './build-slot-store.mjs';
 import { compilingHolds, describeHold, holdStarter } from '../../hooks/lib/build-write-hold.mjs';
 import { waitWindow } from './wait-limits.mjs';
 import { FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, openWindow } from './write-window.mjs';
+import { closeBatchRefusals } from './batch-refusal.mjs';
+
+// The writer a `builds --wait` without --writer belongs to: the hook wraps the command with it (hooks/lib/build-wrap.mjs, KIT-T1281).
+const WRITER_ENV = 'CLAUDE_KIT_BUILD_WRITER';
 
 const EXIT = { FREE: 0, HELD: 2 };
 const DEFAULT_POLL_MS = 1000;
@@ -50,9 +54,12 @@ export async function runWait(argv) {
     console.error('builds --wait: a file path is required (builds --wait <file> [--timeout <s>] [--tool-timeout <s>])');
     return EXIT.HELD;
   }
-  const writer = typeof flags.writer === 'string' ? flags.writer : '';
+  const writer = typeof flags.writer === 'string' ? flags.writer : (process.env[WRITER_ENV] || '');
   const { free, holders, waitedS } = await waitForBuild({ file: flags.wait, capS: capSeconds(flags), pollMs: Number(flags.poll) || DEFAULT_POLL_MS, writer });
-  if (free) openWindow({ file: flags.wait, writer, seconds: FREE_WINDOW_S, kind: KIND.FREE });
+  if (free) {
+    openWindow({ file: flags.wait, writer, seconds: FREE_WINDOW_S, kind: KIND.FREE });
+    closeBatchRefusals({ writer });
+  }
   if (!holders.length) {
     console.log(`builds --wait: no build is compiling ${flags.wait}; the edit passes now (no other writer's build starts on it for ${FREE_WINDOW_S}s)`);
     return EXIT.FREE;

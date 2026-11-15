@@ -32,6 +32,12 @@ import { writerSession } from './tool-writes.mjs';
 const TESTING_PHASE = 'running';
 const MS_PER_SECOND = 1000;
 
+/** True when a write to `file` could be one a running build reads: a build input some module chain reaches. */
+export const isHeldKind = (file) => {
+  const path = resolve(toPath(file));
+  return isBuildInput(path) && !isUnreachableSource(path);
+};
+
 export function compilingHolds({ file, holds }) {
   const path = resolve(toPath(file));
   if (!isBuildInput(path) || isUnreachableSource(path)) return [];
@@ -71,6 +77,18 @@ export function afterWaitLines({ window, hold }) {
   return Date.parse(hold.ts) > Date.parse(window.ts)
     ? [`  note: this build is NEW: it started at ${clock(hold.ts)}Z, after builds --wait returned free at ${clock(window.ts)}Z`]
     : [`  note: this build was already running when builds --wait returned free at ${clock(window.ts)}Z; it began compiling again (the next target) since`];
+}
+
+/** The refusal of an edit whose batch already had an edit of this crate refused while no build holds it any more (KIT-T1281). */
+export function batchRefusalMessage({ file, earlier, footer, writer = '' }) {
+  return [
+    `BLOCKED: an earlier edit of this batch to this crate (${earlier.file}) was refused at ${clock(earlier.ts)}Z because another writer's cargo build was compiling it (KIT-T1281); ${file} is refused too.`,
+    'A batch of edits lands whole or not at all: letting the rest through would leave the crate half edited (a method refused, its users written)',
+    'for every other writer. Wait once, then send the whole batch again; the refusal also lapses on its own after the marker time:',
+    `  ${buildWaitCommand(earlier.file, writer)}`,
+    '',
+    footer,
+  ].join('\n');
 }
 
 /** Records the refused edit as a pending-edit window, so the next build start of another writer yields to it. */

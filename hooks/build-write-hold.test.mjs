@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, finish, makeRepo } from './dispatch-guard-harness.mjs';
 import { buildWaitCommand } from './lib/build-write-hold.mjs';
+import { closeBatchRefusals } from '../scripts/broker/batch-refusal.mjs';
 import { EDIT_GAP_S, FREE_WINDOW_S, KIND, blockingWindows, closeWindow, openWindow, waitOutWindows, windowFor } from '../scripts/broker/write-window.mjs';
 
 const kitRoot = fileURLToPath(new URL('..', import.meta.url));
@@ -37,7 +38,9 @@ const create = (agent, ...segments) => {
   rmSync(file, { force: true });
   return guard('S1', agent, file);
 };
+// Each case judges the build hold alone: the batch refusal a case's earlier refusal left (write-batch.test.mjs, KIT-T1281) is cleared first.
 const guard = (session, agent, file) => {
+  closeBatchRefusals({ writer: `${session}|${agent || ''}` });
   return spawnSync(process.execPath, [fileURLToPath(new URL('./holder-beat.mjs', import.meta.url))], { cwd: tree, encoding: 'utf8', input: JSON.stringify({ session_id: session, ...(agent ? { agent_id: agent } : {}), tool_input: { file_path: file } }) });
 };
 

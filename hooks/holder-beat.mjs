@@ -6,7 +6,9 @@
 //   - another writer's cargo build is compiling the crate this file belongs to (lib/build-write-hold.mjs). A refused edit opens
 //     a write window on the file (scripts/broker/write-window.mjs) that the next build start yields to; the edit passing closes it.
 //     A refusal names every crate the writer left unchecked or marked broken (lib/broken-crates.mjs, KIT-T1247); an edit by the
-//     writer that last edited a crate marked broken is never refused by a build hold: it is the repair (KIT-T1245).
+//     writer that last edited a crate marked broken is never refused by a build hold: it is the repair (KIT-T1245). A batch lands
+//     whole or not at all: once an edit of a crate was refused by a build hold, the writer's later edits to that crate are refused
+//     too for BATCH_REFUSAL_S, or until its `builds --wait` returns free (scripts/broker/batch-refusal.mjs, KIT-T1281).
 // A passing edit beats the session's checkout-holder entry and records the writer's claim on the file. Store (.ai/) files
 // never count. Fails open on any error.
 
@@ -16,7 +18,8 @@ import { subagentId } from './lib/subagent-id.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
 import { claimConflicts, claimMessage } from './lib/agent-claims.mjs';
-import { buildHoldConflict, buildHoldMessage, noteEditLanded, noteRefusedEdit } from './lib/build-write-hold.mjs';
+import { batchRefusalMessage, buildHoldConflict, buildHoldMessage, isHeldKind, noteEditLanded, noteRefusedEdit } from './lib/build-write-hold.mjs';
+import { noteBatchRefusal, refusedEarlierInBatch } from '../scripts/broker/batch-refusal.mjs';
 import { writerId } from './lib/tool-writes.mjs';
 import { leftBrokenNote, repairsOwnBrokenCrate } from './lib/broken-crates.mjs';
 import { repoRelative } from './turn-writes.mjs';
@@ -44,9 +47,13 @@ function refusal({ tree, file, rel, session, agent }) {
   if (sessions.length) return { text: sessionMessage(rel, sessions, tree), session: true };
   const writer = writerId(session, agent);
   const hold = buildHoldConflict({ file, writer });
-  if (!hold || repairsOwnBrokenCrate({ absFile: file, writer })) return null;
+  if (repairsOwnBrokenCrate({ absFile: file, writer })) return null;
+  if (!hold) {
+    const earlier = isHeldKind(file) ? refusedEarlierInBatch({ file, writer }) : null;
+    return earlier ? { text: batchRefusalMessage({ file: rel, earlier, writer, footer: excludeFooter(HOLDER_CHECK) }) } : null;
+  }
   const extra = leftBrokenNote({ tree, checksRoot: gitRoot(), absFile: file, writer, notAfter: Date.now() - PREDICTED_WRITE_SLACK_MS });
-  return { text: buildHoldMessage({ file: rel, absFile: file, hold, writer, extra, footer: excludeFooter(HOLDER_CHECK) }), build: true };
+  return { text: buildHoldMessage({ file: rel, absFile: file, hold, writer, extra, footer: excludeFooter(HOLDER_CHECK) }), build: true, scope: hold.scope };
 }
 
 try {
@@ -59,7 +66,10 @@ try {
     const refused = rel && !pathExcluded(tree, HOLDER_CHECK, file) ? refusal({ tree, file, rel, session: p.session_id, agent }) : null;
     if (refused) {
       if (refused.session) refuseEdit({ tree, session: p.session_id, path: rel });
-      if (refused.build) noteRefusedEdit({ file, writer: writerId(p.session_id, agent) });
+      if (refused.build) {
+        noteRefusedEdit({ file, writer: writerId(p.session_id, agent) });
+        noteBatchRefusal({ file, writer: writerId(p.session_id, agent), scope: refused.scope });
+      }
       process.stderr.write(refused.text);
       process.exit(2);
     }
