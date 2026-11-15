@@ -160,6 +160,10 @@ try {
   }
   ok('GG-D093 control: a hard phrase after his question passes when a questionnaire reached him', passed(stop(turn(TICKET_REPLY, { user: 'What is blocking the mesher?', extra: asked }))));
   ok('lib: hasHardAsk is true for waiting wording only', hasHardAsk('Waiting on you.') && !hasHardAsk('Want me to wire it?') && !hasHardAsk('He wrote "your call".'));
+  const negated = ['Nothing else needs your input right now.', 'Nothing is waiting on you.', 'No decision needs your input.', 'No further input needed from you.', 'I am no longer waiting on you.', 'It does not need your input.', 'Nobody is awaiting your call.'];
+  for (const line of negated) ok(`KIT-T1273 a negated wait phrase passes: ${line}`, proseAsks(line).length === 0 && passed(stop(turn(`Landed the fix. ${line}`))));
+  const real = ['This needs your input.', 'Nothing else, but your call on X.', 'Nothing is blocked, but it needs your input.', 'It is not trivial; your call.', 'Nothing else. Let me know.', 'Nothing yet, so up to you.'];
+  for (const line of real) ok(`KIT-T1273 a real ask still blocks: ${line}`, proseAsks(line).length === 1 && blocked(stop(turn(`Landed the fix. ${line}`))));
   ok('negative control: a subagent payload (agent_id) is exempt', passed(stop(turn(TICKET_REPLY), { agent_id: 'a1b2c3d4e5f6a7b8c' })));
   ok('negative control: a sidechain transcript name is exempt', (() => {
     const sub = join(dir, 'agent-a1b2c3d4e5f6a7b8c.jsonl');

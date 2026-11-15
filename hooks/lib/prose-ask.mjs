@@ -10,7 +10,8 @@
 //
 // Text that is not the reply's own voice never counts: fenced and inline code, blockquote lines, and text inside
 // double quotes (the maintainer's words, a message quoted back). A sentence in the past tense, or one that negates the
-// ask ("he didn't want me to"), describes and needs nothing from him.
+// ask ("he didn't want me to"), describes and needs nothing from him. So does a wait phrase a negation governs in its
+// own clause ("Nothing else needs your input", KIT-T1273).
 
 import { optionQuestionMatch } from './option-question.mjs';
 
@@ -57,7 +58,22 @@ const DESCRIPTIVE = [
   /\b(?:you|chris|he|she|they|the maintainer) (?:said|told|asked|wrote|wanted|decided|waited|let)\b/i,
 ];
 
-const FENCE = /```[\s\S]*?(?:```|$)/g;
+// A wait phrase is not an ask when a negation governs it in its own clause: a quantifier-negation anywhere before it
+// ("Nothing else needs your input", "No decision needs your input", "Nothing is waiting on you") or a verb-negation
+// right before it ("does not need your input", "no longer waiting on you").
+const CLAUSE_BREAK = /[,;:—–]|\s-\s|\b(?:but|however|yet|although|though)\b/gi;
+const QUANTIFIER_NEGATION = /\b(?:nothing|nobody|no one|none|neither|nor|no)\b/i;
+const VERB_NEGATION = /(?:\b(?:not|never|no longer)|n't)\s+(?:\w+\s+){0,2}$/i;
+
+function negatedBefore(sentence, index) {
+  const breaks = [...sentence.slice(0, index).matchAll(CLAUSE_BREAK)];
+  const last = breaks[breaks.length - 1];
+  const clauseStart = last ? last.index + last[0].length : 0;
+  const prefix = sentence.slice(clauseStart, index);
+  return QUANTIFIER_NEGATION.test(prefix) || VERB_NEGATION.test(prefix);
+}
+
+const FENCE =/```[\s\S]*?(?:```|$)/g;
 const INLINE_CODE = /`[^`\n]*`/g;
 const BLOCKQUOTE = /^[ \t]*>.*$/gm;
 const QUOTED = /"[^"\n]*"|“[^”\n]*”/g;
@@ -72,8 +88,12 @@ export function proseAskMatches(text) {
   const segments = own.split(SENTENCE_BREAK).map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
   const sentences = segments.flatMap((sentence) => {
     if (descriptive(sentence)) return [];
-    const hard = HARD_PHRASES.map((re) => re.exec(sentence)).find(Boolean);
-    const hit = hard || SOFT_PHRASES.map((re) => re.exec(sentence)).find(Boolean);
+    const live = (re) => {
+      const found = re.exec(sentence);
+      return found && !negatedBefore(sentence, found.index) ? found : null;
+    };
+    const hard = HARD_PHRASES.map(live).find(Boolean);
+    const hit = hard || SOFT_PHRASES.map(live).find(Boolean);
     return hit ? [{ sentence, phrase: hit[0], hard: Boolean(hard) }] : [];
   });
   const closing = optionQuestionMatch(own, segments);
