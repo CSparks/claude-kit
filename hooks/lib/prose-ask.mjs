@@ -1,7 +1,8 @@
 // prose-ask — the sentences of a reply that ask the maintainer for approval, a decision or an action, or say that
 // work waits on him, in prose, including a hedged hand-back ("if you meant X, tell me", "I can do Y if you want")
 // (KIT-T1130, KIT-T1136, KIT-T1151, KIT-T1229, GG-D088). A request to him goes in an
-// AskUserQuestion; the prose-ask-gate Stop hook uses this.
+// AskUserQuestion; the prose-ask-gate Stop hook uses this. A closing question that opens with "Which" or offers named
+// options is a hard ask too (lib/option-question.mjs, KIT-T1235).
 //
 //   proseAskMatches(text) -> [{ sentence, phrase, hard }] the matched sentences, oldest first, with the phrase that matched
 //   proseAsks(text)       -> the matched sentences only ([] when none)
@@ -10,6 +11,8 @@
 // Text that is not the reply's own voice never counts: fenced and inline code, blockquote lines, and text inside
 // double quotes (the maintainer's words, a message quoted back). A sentence in the past tense, or one that negates the
 // ask ("he didn't want me to"), describes and needs nothing from him.
+
+import { optionQuestionMatch } from './option-question.mjs';
 
 // HARD phrases say work waits on him; they block even when his newest message was a question (GG-D093), and a
 // reply carrying one lets the questionnaire gate pass a questionnaire.
@@ -60,19 +63,23 @@ const BLOCKQUOTE = /^[ \t]*>.*$/gm;
 const QUOTED = /"[^"\n]*"|“[^”\n]*”/g;
 const SENTENCE_BREAK = /(?<=[.!?])\s+|\n+/;
 
-const ownVoice = (text) => text.replace(FENCE, ' ').replace(BLOCKQUOTE, ' ').replace(INLINE_CODE, ' ').replace(QUOTED, ' ');
+const ownVoice = (text) => text.replace(FENCE, ' ').replace(BLOCKQUOTE, ' ').replace(INLINE_CODE, ' ').replace(QUOTED, ' ').replace(/\.{2,}/g, '…');
+const descriptive = (sentence) => DESCRIPTIVE.some((re) => re.test(sentence));
 
 export function proseAskMatches(text) {
   if (typeof text !== 'string' || !text) return [];
-  return ownVoice(text)
-    .split(SENTENCE_BREAK)
-    .map((s) => s.replace(/\s+/g, ' ').trim())
-    .filter((s) => s && !DESCRIPTIVE.some((re) => re.test(s)))
-    .flatMap((sentence) => {
-      const hard = HARD_PHRASES.map((re) => re.exec(sentence)).find(Boolean);
-      const hit = hard || SOFT_PHRASES.map((re) => re.exec(sentence)).find(Boolean);
-      return hit ? [{ sentence, phrase: hit[0], hard: Boolean(hard) }] : [];
-    });
+  const own = ownVoice(text);
+  const segments = own.split(SENTENCE_BREAK).map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const sentences = segments.flatMap((sentence) => {
+    if (descriptive(sentence)) return [];
+    const hard = HARD_PHRASES.map((re) => re.exec(sentence)).find(Boolean);
+    const hit = hard || SOFT_PHRASES.map((re) => re.exec(sentence)).find(Boolean);
+    return hit ? [{ sentence, phrase: hit[0], hard: Boolean(hard) }] : [];
+  });
+  const closing = optionQuestionMatch(own, segments);
+  if (!closing || descriptive(closing.sentence)) return sentences;
+  const rest = sentences.filter((m) => m.sentence !== closing.sentence);
+  return [...rest, { ...closing, hard: true }];
 }
 
 export const hasHardAsk = (text) => proseAskMatches(text).some((m) => m.hard);

@@ -10,13 +10,15 @@
 // with a questionnaire that reached him, and, for the soft asks only ("want me to", "let me know"), a turn whose
 // maintainer message was itself a question (open discussion). A hard phrase ("waiting on you", "your call", "up to
 // you", "which one is it") blocks there too (GG-D093). Quoted text, code and past-tense descriptions never count
-// (lib/prose-ask.mjs). `stop_hook_active` allows; fails open on any error.
+// (lib/prose-ask.mjs). A closing question that opens with "Which" or offers named options (A/B/C, numbered, a stated
+// pick) is a hard ask (KIT-T1235). Outside an adopted repo the gate runs against the unbounded store (KIT-T189).
+// `stop_hook_active` allows; fails open on any error.
 // Check-id: prose-ask (path glob matched against the project root, `.`). In a reply, a line under
 // `// claude-kit-ignore-line prose-ask` (or a start/end block) is not read.
 
 import { basename } from 'node:path';
 import { firstSighting } from './block-once.mjs';
-import { adopted, excludeFooter, gitRoot, markerExcludedLines, pathExcluded, payload } from './lib.mjs';
+import { adopted, excludeFooter, gitRoot, markerExcludedLines, pathExcluded, payload, unboundedRoot } from './lib.mjs';
 import { proseAskMatches } from './lib/prose-ask.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { turnCalls, turnText } from './lib/turn-text.mjs';
@@ -44,7 +46,8 @@ const message = ({ sentence, phrase }) => [
   'it, no rewording that keeps the ask. A choice you can make and reverse yourself: make it and report it, never park it in a trailing',
   'line. An action only he can perform is an option too. A brainstorming skill\'s "end with the question" never overrides this: clarifying',
   'questions that are a wait go in the AskUserQuestion too (KIT-T1230). A hedged hand-back ("if you meant X, tell me", "I can do Y if you',
-  'want") is the same ask (KIT-T1229). This stop is filed as a process failure in the kit store.',
+  'want") is the same ask (KIT-T1229). A closing question that offers named options, or opens "Which ...?", is the same ask: the options go in',
+  'the AskUserQuestion, brainstorming skill wording included (KIT-T1235). This stop is filed as a process failure in the kit store.',
   'The fix: make the call and report it, or send AskUserQuestion.',
 ].join('\n');
 
@@ -66,8 +69,9 @@ async function fileProcessFailure(root, sessionId, { sentence, phrase }) {
 try {
   const p = await payload();
   if (p.stop_hook_active || subagentId(p)) process.exit(0);
-  const root = gitRoot();
-  if (!adopted(root) || pathExcluded(root, CHECK_ID, '.')) process.exit(0);
+  const repoRoot = gitRoot();
+  const root = adopted(repoRoot) ? repoRoot : unboundedRoot();
+  if (!root || pathExcluded(root, CHECK_ID, '.')) process.exit(0);
   const turn = p.transcript_path ? turnText(p.transcript_path) : null;
   const discussion = /\?$/.test(turn?.lastUser || '');
   const [match] = proseAskMatches(unmarked(closingText(p, turn))).filter((m) => m.hard || !discussion);

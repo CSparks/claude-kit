@@ -93,6 +93,39 @@ try {
   ok('KIT-T1151 an in-source marker line is not read', passed(stop(turn(MARKED))));
   ok('KIT-T1151 an unmarked line next to it still blocks', blocked(stop(turn('// claude-kit-ignore-line prose-ask\nFine.\nThis one is your call.'))));
 
+  const BRAINSTORM = [
+    'Three directions for the rig.\n\nA) Bone-driven: one skeleton, blend shapes on top.\nB) Mesh-first: sculpt then retopo.\nC) Hybrid.\n\nI would pick A.\n\nWhich of these is closest to what you picture ...?',
+    'Options:\n\n- **Bone-driven** -- one skeleton.\n- **Mesh-first** -- sculpt then retopo.\n\nWhich do you prefer?',
+    'Two paths.\n\n1. Bone-driven.\n2. Mesh-first.\n\nI recommend 1. Does that fit the plan?',
+    'Option A keeps the skeleton. Option B drops it. Is B the direction you want?',
+    'The rig could go either way.\n\nWhich of these is closest to what you picture?',
+    'Two lanes are viable and I have no preference.\n\nWhat do you want for the rig?',
+  ];
+  for (const reply of BRAINSTORM) {
+    const hit = stop(turn(reply, { user: 'How should the rig work?' }));
+    ok(`KIT-T1235 a closing question with options or a Which lead blocks, even after his question: ${reply.split('\n').pop()}`, blocked(hit) && hit.out.includes('your closing reply says "'));
+    ok(`KIT-T1235 control, questionnaire in the same turn passes: ${reply.split('\n').pop()}`, passed(stop(turn(reply, { extra: asked2 }))));
+  }
+  ok('KIT-T1235 the block names the options rule', stop(turn(BRAINSTORM[0])).out.includes('brainstorming skill wording included'));
+  ok('KIT-T1235 the question may be followed by a UAT line', blocked(stop(turn('The rig could go either way.\n\nWhich of these is closest to what you picture?\n\n[no-test: discussion]'))));
+  for (const [name, reply] of [
+    ['a numbered report with no question', 'Fixed:\n\n1. The mesher east bend.\n2. The lane count.\n\nDone in 1a2b3c4.'],
+    ['a numbered report closing on a non-choice question', 'Fixed:\n\n1. The mesher east bend.\n2. The lane count.\n\nDoes that read right?'],
+    ['"which" mid-sentence in a statement', 'The mesher, which drops the east bend, is fixed.'],
+    ['a Which question quoted back', 'You asked "Which lane is it?" and the answer is lane 2.'],
+    ['a Which question in a code span', 'The prompt `Which lane?` is gone.'],
+    ['a plain statement of preference with no question', 'I would pick lane 2 and went with it.'],
+    ['one lettered label only', 'A) The mesher is fixed. Anything else?'],
+  ]) ok(`KIT-T1235 passes: ${name}`, passed(stop(turn(reply))));
+
+  const unboundedStore = tmpDir('prose-ask-unbounded-');
+  mkdirSync(join(unboundedStore, '.ai', 'tickets'), { recursive: true });
+  writeFileSync(join(unboundedStore, '.ai', 'config.yml'), 'ids:\n  key: "KIT"\nuat:\n  default: manual\n');
+  const bare = tmpDir('prose-ask-bare-');
+  const bareStop = (reply, env) => hook(GATE, { hook_event_name: 'Stop', session_id: `bare-${RUN}-${s++}`, transcript_path: turn(reply) }, bare, { CLAUDE_KIT_BUG_STORE: unboundedStore, ...env });
+  ok('KIT-T1235 a session with no repo and no unbounded store stays inert', bareStop(BRAINSTORM[0]).code === 0);
+  ok('KIT-T1235 the gate runs in an unbounded session (no repo cwd)', bareStop(BRAINSTORM[0], { CLAUDE_KIT_UNBOUNDED_AI: join(unboundedStore, '.ai') }).code === 2);
+
   const store = tmpDir('prose-ask-store-');
   mkdirSync(join(store, '.ai', 'tickets'), { recursive: true });
   writeFileSync(join(store, '.ai', 'config.yml'), 'ids:\n  key: "KIT"\nuat:\n  default: manual\n');
