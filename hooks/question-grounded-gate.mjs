@@ -29,7 +29,7 @@ function blockMessage(misses, restated) {
   return [
     'BLOCKED: the questionnaire matches a recorded decision or open ticket it does not cite (KIT-T936, KIT-T1215).',
     ...misses.slice(0, MAX_SHOWN).map((m) => `  ${m.id} (${m.kind}) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — matched by the option "${m.option}"`),
-    ...restated.slice(0, MAX_SHOWN).map((m) => `  ${m.id} (decision) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — the question text restates its clause: "${m.clause.slice(0, GROUNDED_CLAUSE_SHOWN)}"`),
+    ...restated.slice(0, MAX_SHOWN).map((m) => `  ${m.id} (decision) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — the question text restates its clause: "${m.clause.slice(0, GROUNDED_CLAUSE_SHOWN)}" (matched rare words: ${m.rare.join(', ')}; score ${m.score})`),
     '',
     'The maintainer already ruled on, or filed, work like this; offering it fresh makes him re-decide a settled point.',
     'Read each item (q show <id>), then in the question text or an option description say what it is in plain words and cite it:',

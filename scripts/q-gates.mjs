@@ -4,12 +4,12 @@
 //   q gates question --check "<label>" ["<label>" ...]   dry run of the question-grounded gate (KIT-T1101): per label,
 //     the decisions and open tickets the gate's own matcher finds, so the citations are written before the call.
 //   q gates question --check-text "<question text>" [...]   dry run of the clause rule (KIT-T1215): per text, the
-//     decisions whose Decision clause the text restates, with the clause.
+//     decisions whose Decision clause the text restates, with the clause, its score and the rare stems matched.
 
 import { gateNames, gateText } from '../hooks/lib/gate-protocol.mjs';
 import { groundingMatches } from '../hooks/lib/question-grounding.mjs';
 import { clauseMatches } from '../hooks/lib/question-clause-grounding.mjs';
-import { GROUNDED_CLAUSE_SHOWN } from '../hooks/lib/question-checks.mjs';
+import { GROUNDED_CLAUSE_SCORE, GROUNDED_CLAUSE_SHOWN } from '../hooks/lib/question-checks.mjs';
 import { storeDocs } from '../hooks/lib/store-docs.mjs';
 
 const CHECK_FLAG = '--check';
@@ -42,7 +42,7 @@ function checkTexts(texts, root, { out, err }) {
     const matches = clauseMatches(docs, text);
     if (!matches.length) out.write('  none: no decision clause shares enough words with this text\n');
     for (const m of matches) {
-      out.write(`  ${m.id} (decision) "${m.title.slice(0, MAX_TITLE_SHOWN)}"\n    clause: "${m.clause.slice(0, GROUNDED_CLAUSE_SHOWN)}"\n`);
+      out.write(`  ${m.id} (decision) "${m.title.slice(0, MAX_TITLE_SHOWN)}"\n    clause: "${m.clause.slice(0, GROUNDED_CLAUSE_SHOWN)}"\n    score ${m.score} (gate blocks at ${GROUNDED_CLAUSE_SCORE}), rare stems: ${m.rare.join(', ')}; all matched: ${m.stems.join(', ')}\n`);
     }
   }
   return 0;
