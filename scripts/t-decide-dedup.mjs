@@ -1,36 +1,52 @@
-// Dedup check for `t decide` (KIT-T1225): the proposal's title and summary are ranked against the store's decisions with
+// Dedup check for `t decide` (KIT-T1225, KIT-T1233): the proposal's title is ranked against the store's decisions with
 // q's `similar` (FTS bm25); the related ones print before the write. A near-duplicate refuses it unless the draft
 // supersedes that decision or `--not-dup` names it as read. A cache-less answer carries no score and never refuses.
+// Only the title is ranked: a summary lengthens the query and lifts every score. Near means a high score AND subject words in
+// common: three subject words shared, two of them not common to the store; function words, generic work words (built, plan,
+// first, starts) and the store's own common words count for nothing (t-decide-terms.mjs).
 //
-//   decisionHits(root, { title, summary }, q?) -> [{ id, status, title, score, near }]   best first, at most LISTED
+//   decisionHits(root, { title }, q?) -> [{ id, status, title, score, near }]   best first, at most LISTED
 //   dedupVerdict(root, draft, { notDup, supersedes }, q?) -> { lines, refusal }   `refusal` is empty unless a near-duplicate stands
 
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { query } from './q-lib.mjs';
 import { readIdConfig } from './id-utils.mjs';
-import { ALNUM_TERM, MIN_TERM_LEN } from './q-model.mjs';
+import { commonTerms, subjectTerms } from './t-decide-terms.mjs';
 
-// Measured on a store holding a re-recorded ruling: it scored 39 and shared five title terms; related, different decisions scored 15-28.
+// Measured on a store holding a re-recorded ruling: it scored 39 by title and shared integrated and system; related, different decisions scored 15-28.
 export const RELATED_SCORE = 15;
 export const NEAR_SCORE = 35;
 export const RELATED_SHARED_TERMS = 2;
-export const NEAR_SHARED_TERMS = 3;
+export const NEAR_SUBJECT_TERMS = 3;
+export const NEAR_SHARED_TERMS = 2;
 export const LISTED = 5;
 const RETIRED = /supersed|reject|retired/i;
+const TITLE_LINE = /^title:[ \t]*(.+)$/m;
 
-const termsOf = (text) => new Set((String(text || '').toLowerCase().match(ALNUM_TERM) || []).filter((t) => t.length > MIN_TERM_LEN));
+function storeTitles(root) {
+  const dir = join(root, '.ai', 'decisions');
+  try {
+    return readdirSync(dir).filter((name) => name.endsWith('.md')).map((name) => (readFileSync(join(dir, name), 'utf8').match(TITLE_LINE) || [])[1] || '');
+  } catch {
+    return [];
+  }
+}
+
 const sharedTerms = (a, b) => [...a].filter((t) => b.has(t)).length;
 
-export async function decisionHits(root, { title, summary = '' }, q = query) {
+export async function decisionHits(root, { title }, q = query) {
   try {
     const { key } = readIdConfig(root);
-    const proposal = [title, summary].filter(Boolean).join('. ');
-    const { rows } = await q('similar', ['--store', 'decisions', ...(key ? ['--scopes', key] : []), proposal], { root });
-    const mine = termsOf(proposal);
+    const { rows } = await q('similar', ['--store', 'decisions', ...(key ? ['--scopes', key] : []), title], { root });
+    const common = commonTerms(storeTitles(root));
+    const mine = subjectTerms(title);
+    const mineDistinct = subjectTerms(title, common);
     return rows
       .filter((r) => !RETIRED.test(r.status || '') && Number(r.score) >= RELATED_SCORE)
-      .map((r) => ({ id: r.id, status: r.status || '', title: r.title, score: Number(r.score), shared: sharedTerms(mine, termsOf(r.title)) }))
-      .filter((r) => r.shared >= RELATED_SHARED_TERMS)
-      .map(({ shared, ...r }) => ({ ...r, near: r.score >= NEAR_SCORE && shared >= NEAR_SHARED_TERMS }))
+      .map((r) => ({ id: r.id, status: r.status || '', title: r.title, score: Number(r.score), related: sharedTerms(mine, subjectTerms(r.title)), distinct: sharedTerms(mineDistinct, subjectTerms(r.title, common)) }))
+      .filter((r) => r.related >= RELATED_SHARED_TERMS)
+      .map(({ related, distinct, ...r }) => ({ ...r, near: r.score >= NEAR_SCORE && related >= NEAR_SUBJECT_TERMS && distinct >= NEAR_SHARED_TERMS }))
       .slice(0, LISTED);
   } catch {
     return [];
