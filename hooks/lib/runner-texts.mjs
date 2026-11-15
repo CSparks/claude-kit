@@ -51,8 +51,16 @@ function sshOperands(rest) {
   return [];
 }
 
+// `builds --run "<command>"` (KIT-T1283) runs its quoted command in a detached process: that command is judged as itself, never as operands of the launcher.
+const BUILDS_NAME = /^builds(?:\.cmd)?$/i;
+const BUILDS_RUN_FLAG = '--run';
+
 export function runnerTexts(name, rest, { shell = '', blind = false } = {}) {
   const whole = (words) => (blind || words.length !== 1 ? words.join(' ') : dequoted(words[0]));
+  if (BUILDS_NAME.test(name)) {
+    const at = rest.indexOf(BUILDS_RUN_FLAG);
+    return at >= 0 && at + 1 < rest.length ? [{ text: blind ? rest.slice(at + 1).join(' ') : dequoted(rest[at + 1]), shell: 'bash' }] : [];
+  }
   if (FIND_NAME.test(name)) return findClauses(rest).map((text) => ({ text, shell }));
   if (SSH_NAME.test(name)) return [sshOperands(rest)].filter((ops) => ops.length).map((ops) => ({ text: whole(ops), shell: 'bash' }));
   if (TRAP_NAME.test(name)) return [rest.filter((w) => !TRAP_FLAG.test(w))].filter((ops) => ops.length).map((ops) => ({ text: blind ? ops.join(' ') : dequoted(ops[0]), shell: 'bash' }));

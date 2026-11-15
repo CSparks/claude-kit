@@ -44,6 +44,10 @@ import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
 import { copyVariable } from './copy-variable.mjs';
 import { gitInnerHits } from './git-inner-hits.mjs';
+import { cleaned, commandTokens } from './lead-command-walk.mjs';
+import { runnerTexts } from './runner-texts.mjs';
+
+const BUILDS_LEAD = /^builds(?:\.cmd)?$/i;
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
@@ -216,6 +220,11 @@ function judgeSegment(text, ctx) {
   if (ctx.removals) hits.push(...discardHits(text, ctx), ...gitInnerHits(expandVariables(text, ctx.vars, ctx.shell), ctx, judgeSegment));
   const move = moveLinesCall(text, ctx.cwd);
   if (move && move.problem) hits.push(...move.paths.map(ctx.hit).filter(Boolean).map((h) => ({ ...h, moveLinesProblem: move.problem })));
+  // `builds --run "<command>"`: the quoted command is judged as itself, as a direct call of it would be (KIT-T1284).
+  if (BUILDS_LEAD.test(leader)) {
+    const inner = runnerTexts(leader, cleaned(commandTokens(text)).slice(1), { shell: ctx.shell });
+    if (inner.length) return [...hits, ...inner.flatMap((run) => scanAllShellWrites(run.text, { ...ctx, shell: run.shell }))];
+  }
   if (quotedArgsInert || READER.test(leader) || printsOnly(leader, text, ctx.raw)) return hits;
   const touched = TOUCH_CMD.test(leader) ? judgeTouch(text.slice(words[0].at + words[0].w.length), ctx) : null;
   if (touched) return [...hits, ...touched];
