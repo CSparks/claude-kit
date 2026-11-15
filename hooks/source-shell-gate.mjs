@@ -66,8 +66,8 @@ try {
         if (!adopted(root)) continue;
         rel = repoRelative(root, file);
         if (pathExcluded(root, CHECK, rel)) continue;
-        if (found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
-        if (!found.ambiguous && !found.moveLinesProblem && buildOutputJudge(root, { markerStands: () => !markerMentioned(command), ignoredStands: !ignoreEditMentioned(command) })(file)) continue;
+        if (!found.launcherProblem && found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
+        if (!found.launcherProblem && !found.ambiguous && !found.moveLinesProblem && buildOutputJudge(root, { markerStands: () => !markerMentioned(command), ignoredStands: !ignoreEditMentioned(command) })(file)) continue;
         if (touchLifted(found, cwd)) continue;
         refusal = deleteJudgement(found, root, rel, caller);
         if (found.deletes && !refusal) continue;
@@ -75,8 +75,10 @@ try {
     } catch (e) {
       incomplete = String((e && e.message) || e);
     }
-    const what = found.moveLinesProblem
-      ? `a move-lines call the guard refuses writes a source file by hand: ${found.moveLinesProblem}`
+    const what = found.launcherProblem
+      ? found.launcherProblem
+      : found.moveLinesProblem
+      ?`a move-lines call the guard refuses writes a source file by hand: ${found.moveLinesProblem}`
       : `a shell command ${found.deletes ? 'deletes' : 'writes'} a source file by hand (${found.path}).`;
     const couldNot = incomplete ? `  The check could not complete (${incomplete}), and a check that cannot complete refuses. Retry once git runs and the registry of live writers reads.\n` : '';
     process.stderr.write(`

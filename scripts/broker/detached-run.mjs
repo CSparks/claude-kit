@@ -6,7 +6,9 @@
 // the end is one line in <target>/broker/finished.log (the orchestrator's Monitor, finished-log.mjs) and `builds --result <id>`
 // reads the record once.
 //
-//   builds --run "<command>" [--out <file>] [--cwd <dir>] [--limit <s>] [--timeout <s> --tool-timeout <s>]
+//   builds --run "<command>" [--out <file>] [--limit <s>] [--timeout <s> --tool-timeout <s>]
+//       the command runs in the directory the call starts in (the project root); the gate refuses a --cwd option in any
+//       form (source-shell-gate: put a `cd <dir> &&` inside the quoted command instead)
 //       exit = the command's exit when it ended inside the wait window; 2 when it still runs (id, out file and how to resume named)
 //   builds --result <id>      one read of the record: running, or ended with its exit and the tail of the output
 //
@@ -128,11 +130,10 @@ export async function runCli(argv) {
     return record ? (record.status === STATUS.RUNNING ? EXIT.RUNNING : record.exit ?? EXIT.ENDED_OK) : EXIT.USAGE;
   }
   if (typeof flags.run !== 'string') {
-    console.error('builds --run: a command is required (builds --run "<command>" [--out <file>] [--cwd <dir>] [--limit <s>] [--timeout <s> --tool-timeout <s>])');
+    console.error('builds --run: a command is required (builds --run "<command>" [--out <file>] [--limit <s>] [--timeout <s> --tool-timeout <s>])');
     return EXIT.USAGE;
   }
-  const cwd = typeof flags.cwd === 'string' ? flags.cwd : process.cwd();
-  const record = startRun({ command: flags.run, cwd, out: typeof flags.out === 'string' ? flags.out : '', writer: process.env[WRITER_ENV] || '', limitS: Number(flags.limit) || DEFAULT_LIMIT_S });
+  const record = startRun({ command: flags.run, cwd: process.cwd(), out: typeof flags.out === 'string' ? flags.out : '', writer: process.env[WRITER_ENV] || '', limitS: Number(flags.limit) || DEFAULT_LIMIT_S });
   const waited = waitRun(record.root, record.id, { capS: waitWindow(flags, { subagent }).seconds });
   console.log(describeRun(waited));
   return waited.status === STATUS.RUNNING ? EXIT.RUNNING : waited.exit ?? EXIT.ENDED_OK;

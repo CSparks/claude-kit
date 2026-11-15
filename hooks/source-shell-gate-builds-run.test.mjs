@@ -7,6 +7,8 @@ import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scanAllShellWrites } from './lib/shell-write-scan.mjs';
+import { shellSourceWrites } from './lib/shell-source-write.mjs';
 
 const root = mkdtempSync(join(tmpdir(), 'sgbr-'));
 execFileSync('git', ['init', '-q'], { cwd: root });
@@ -35,18 +37,27 @@ report('a hand write of a source file inside the quoted command is still refused
 ]));
 report('a redirect of the launcher call itself into a source file is still refused', stops(['builds --run "./target/debug/p.exe" > src/out.rs']));
 report('the same through PowerShell', passes(['builds --run "cargo build -p x; Copy-Item target/debug/p.exe target/p2.exe; ./target/p2.exe"'], 'PowerShell'));
-// --cwd: the quoted command's relative paths resolve against it, so they are judged there (KIT-T1284, review of 2791d58)
-report('a quoted write to a relative path that is a source file under --cwd is refused (without --cwd the same text names a build output)', stops([
-  'builds --run "cp a.bin target/../../x.rs" --cwd sub/dir', 'builds --run "echo x > target/../../hand.rs" --cwd sub/dir', 'builds --run "cp a.bin target/../../x.rs" --cwd=ignored --cwd sub/dir',
-]));
-report('the same quoted commands without --cwd pass: the path is read as written', passes(['builds --run "cp a.bin target/../../x.rs"', 'builds --run "cp a.bin target/../../x.rs" --out o.txt']));
-report('with a --cwd under which the path is a build output it passes; with none, or another --cwd, the same path is a source file', passes(['builds --run "cp a.bin gen/out.rs" --cwd target', 'builds --run "cp a.bin gen/out.rs" --cwd target/debug --out o.txt', 'builds --run "cp a.bin gen/out.rs" --cwd ./target'])
-  .concat(stops(['builds --run "cp a.bin gen/out.rs"', 'builds --run "cp a.bin gen/out.rs" --cwd crates/a'])));
-report('a --cwd that cannot be resolved statically is refused', stops([
-  'builds --run "cp a.bin q.exe" --cwd "$DIR"', 'builds --run "cp a.bin q.exe" --cwd "$(pwd)"', 'builds --run "cp a.bin q.exe" --cwd `pwd`', 'builds --run "cp a.bin q.exe" --cwd ~/x',
-  'builds --run "cp a.bin q.exe" --cwd "x/*"', 'builds --run "cp a.bin q.exe" --cwd', 'builds --run "cp a.bin q.exe" --cwd --out o.txt',
-]));
-report('a plain --cwd with a harmless quoted command still passes', passes(['builds --run "./target/debug/probe.exe --frames 3" --cwd crates/road-generator --out target/o.txt', 'builds --run "cargo build && cp target/debug/p.exe target/q.exe" --cwd rapid-game/rust']));
+// A working-directory option is refused in every form (KIT-T1284, reviews of 2791d58 and 74927ba): no parsing of its value.
+const CWD_FORMS = [
+  'builds --run "./p.exe" --cwd x', 'builds --run "./p.exe" --cwd=x', 'builds --run "./p.exe" "--cwd" x', "builds --run \"./p.exe\" '--cwd=x'", 'builds --run "./p.exe" --cwd a --cwd b',
+  'builds --run "./p.exe" --cwd %VAR%', 'builds --run "./p.exe" --cwd !VAR!', 'builds --run "./p.exe" --cwd $DIR', 'builds --run "./p.exe" --cwd "$(pwd)"', 'builds --run "./p.exe" --cwd `pwd`',
+  'builds --run "./p.exe" --cwd', 'builds --run "./p.exe" --out o.txt --cwd target', 'builds --run "./p.exe" --cwd target/debug --out o.txt', 'builds --cwd x --run "./p.exe"', 'builds --run "./p.exe" --"cwd" x',
+  'builds --run "./p.exe" --cwd="x y"', 'builds --run "cp a.bin q.exe" --cwd ./target',
+];
+report('every form of a working-directory option is refused, with the way out named', stops(CWD_FORMS));
+const cwdText = verdict('builds --run "./p.exe" --cwd x').text;
+check('the refusal says to run from the project root or to put the directory change inside the quoted command', /run it from the project root with paths relative to the root/.test(cwdText) && /cd <dir> && \.\.\./.test(cwdText));
+report('the same forms through PowerShell are refused', stops(['builds --run "./p.exe" --cwd x', 'builds --run "./p.exe" --cwd=x', 'builds --run "./p.exe" --cwd %VAR%'], 'PowerShell'));
+report('a hand write inside the quoted command is refused with and without a refused --cwd', stops(['builds --run "echo x > src/hand.rs"', 'builds --run "echo x > src/hand.rs" --cwd target', 'builds --run "cp src/a.rs src/b.rs" --cwd=x']));
+const both = shellSourceWrites('builds --run "echo x > src/hand.rs" --cwd target');
+check('the quoted command is scanned whatever the launcher flags say: the launcher refusal and the hand write are both hits', Boolean(both) && scanAllShellWrites('builds --run "echo x > src/hand.rs" --cwd target', { hit: (p) => (/\.rs$/.test(p) ? { path: p } : null), codeHit: () => null }).some((h) => h.launcherProblem)
+  && scanAllShellWrites('builds --run "echo x > src/hand.rs" --cwd target', { hit: (p) => (/\.rs$/.test(p) ? { path: p } : null), codeHit: () => null }).some((h) => h.path === 'src/hand.rs'));
+report('plain forms pass: no working-directory option', passes(['builds --run "./target/debug/probe.exe --frames 3" --out target/o.txt', 'builds --run "cargo build && cp target/debug/p.exe target/q.exe" --limit 600 --timeout 170 --tool-timeout 180']));
+const outside = mkdtempSync(join(tmpdir(), 'sgbr-out-')).replace(/\\/g, '/');
+report('a cd inside the quoted command moves the directory its later writes are judged in, as in a direct call: a directory outside every adopted repo passes', passes([`builds --run "cd ${outside} && cp a.bin gen/out.rs"`, `cd ${outside} && cp a.bin gen/out.rs`]));
+check('a cd inside the quoted command and the same cd in a direct call get the same verdict', ['cd target && cp a.bin gen/out.rs', 'cd crates/a && echo x > hand.rs', `cd ${outside} && echo x > hand.rs`]
+  .every((direct) => verdict(`builds --run "${direct}"`).blocked === verdict(direct).blocked));
+report('and the same cd into a source directory refuses, as in a direct call', stops(['builds --run "cd crates/a && cp a.bin gen/out.rs"', 'cd crates/a && cp a.bin gen/out.rs']));
 
 report('control: other builds verbs and a quoted word of another program are unchanged', passes(['builds', 'builds --audit', 'builds --wait "target/x/lib.rs" --timeout 170']));
 
