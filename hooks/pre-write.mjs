@@ -18,6 +18,7 @@ import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 import { FILE_HARD, FILE_SOFT, fileLengthVerdict } from './lib/limits.mjs';
 import { commentFindings } from './lib/comment-gate.mjs';
 import { storeWriteViolation } from './lib/store-write-gate.mjs';
+import { crateFolderViolation } from './lib/crate-folder-gate.mjs';
 import { scratchOnlyViolation } from './lib/scratch-only.mjs';
 import { uiPixelViolation } from './lib/ui-pixel-gate.mjs';
 import { firstMagicLiteral, MAGIC_NUMBER_RULE } from './lib/pre-write-numbers.mjs';
@@ -296,6 +297,18 @@ const excludedAt = (id, lineNo) => {
   const { text, offset } = postEdit();
   return offset !== null && markersIn(text, id).lines.has(offset + lineNo);
 };
+
+// A member folder of a Cargo workspace with no manifest stops every cargo command in it (KIT-T1275).
+if (!excludedFile('crate-folder')) {
+  const folder = crateFolderViolation(file);
+  if (folder) {
+    process.stderr.write(`
+  BLOCKED: ${file} would be the first file of ${folder.rel}, a folder the Cargo workspace ${folder.workspace} takes as a member (members = "${folder.member}") with no Cargo.toml: every cargo command in the workspace would fail to load it, for every writer, until the folder is removed.
+    Write the crate's Cargo.toml first (with its src/lib.rs or src/main.rs in the same message), then the rest.
+${excludeFooter('crate-folder')}`);
+    process.exit(2);
+  }
+}
 
 // Convention (KIT-T509): store writes go through the t/cap/rem commands, not a hand Write/Edit.
 if (!excludedFile('store-write')) {
