@@ -10,7 +10,8 @@
 // A file holding another writer's predicted content whose confirmation has not landed yet waits for it (lib/settle-writes.mjs, KIT-T1010).
 // A file git put back (content equal to HEAD, or an earlier Edit's content in a call that runs git) is no write either
 // (lib/restored-content.mjs, KIT-T982), and so is a byte-identical git rename (lib/identical-renames.mjs, KIT-T991).
-// Check-id source-shell-write. Post exits 2 to show the message. No-ops on unadopted repos; fails open.
+// A snapshot that cannot be taken (git status fails in an adopted repo) is a check that could not complete: Post exits 2 and says so
+// (KIT-T1271). Check-id source-shell-write. Post exits 2 to show the message. No-ops on unadopted repos; any other error fails open.
 
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { clearTurnState, readTurnState, writeTurnState } from './lib/turn-state.mjs';
@@ -22,10 +23,21 @@ import { restoredSources } from './lib/restored-content.mjs';
 import { hasPendingPrediction, settleOwned, settleMsFromEnv } from './lib/settle-writes.mjs';
 import { unmovedHandWrites } from './lib/identical-renames.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
+import { isInertCommand } from './lib/inert-command.mjs';
 import { shellOfTool } from './lib/shell-segments.mjs';
 
 const CHECK = 'source-shell-write';
 const SHOWN_MAX = 10;
+// A snapshot git could not take names no file: the check refuses what it cannot judge (KIT-T1271).
+function couldNotComplete(reason) {
+  process.stderr.write(`
+HAND WRITE CHECK: this shell call could not be checked for hand-written source (check-id ${CHECK}): ${reason}
+  The check could not complete, and a check that cannot complete refuses. Look at the working tree (git status), then re-run the
+  call; a source file it changed by hand must be re-saved through Edit or Write.
+${excludeFooter(CHECK)}`);
+  process.exit(2);
+}
+
 const slotOf = (sid, id) => `hwsnap-${String(sid).replace(/[^A-Za-z0-9_-]/g, '_')}-${String(id).replace(/[^A-Za-z0-9_-]/g, '_')}`;
 
 try {
@@ -37,7 +49,13 @@ try {
   const isPost = p.hook_event_name === 'PostToolUse' || (p.hook_event_name === undefined && p.tool_response !== undefined);
 
   if (!isPost) {
-    writeTurnState(root, { files: snapshotDirty(root), ignore: ignoreSnapshot(root), head: headOf(root), ts: Date.now() }, slot);
+    let snapshot;
+    try {
+      snapshot = { files: snapshotDirty(root), ignore: ignoreSnapshot(root), head: headOf(root), ts: Date.now() };
+    } catch (e) {
+      snapshot = { failed: String((e && e.message) || e), ts: Date.now() };
+    }
+    writeTurnState(root, snapshot, slot);
     process.exit(0);
   }
 
@@ -45,15 +63,22 @@ try {
   clearTurnState(root, slot);
   if (!before) process.exit(0);
   const command = String((p.tool_input && p.tool_input.command) || '');
+  if (before.failed) {
+    if (isInertCommand(command, { root, shell: shellOfTool(p.tool_name) })) process.exit(0);
+    couldNotComplete(before.failed);
+  }
   const since = before.ts || Date.now();
   const caller = writerId(sid, subagentId(p));
   const toolWrote = (rel) => toolWriteProves(root, rel, since, contentHashOf(root, rel), caller, { ownConfirmed: true });
   const awaitsConfirmation = (rel) => hasPendingPrediction(root, rel, contentHashOf(root, rel), since);
-  const changed = await settleOwned(
-    handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name), ignoreBefore: before.ignore })
-      .filter((rel) => !pathExcluded(root, CHECK, rel)),
-    { pending: awaitsConfirmation, proven: toolWrote, maxMs: settleMsFromEnv() },
-  );
+  let candidates;
+  try {
+    candidates = handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name), ignoreBefore: before.ignore })
+      .filter((rel) => !pathExcluded(root, CHECK, rel));
+  } catch (e) {
+    couldNotComplete(String((e && e.message) || e));
+  }
+  const changed = await settleOwned(candidates, { pending: awaitsConfirmation, proven: toolWrote, maxMs: settleMsFromEnv() });
   const restored = restoredSources(root, changed, command, { session: sid });
   const written = unmovedHandWrites(root, changed.filter((rel) => !restored.has(rel)));
   if (written.length) {

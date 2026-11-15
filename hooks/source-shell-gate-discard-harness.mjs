@@ -5,11 +5,12 @@
 //     seed({ aliases }) -> creates the repo, the files of each writer and, with `aliases`, the git aliases the sweeps name
 //     finish() -> removes what the harness made, prints the totals and exits with the failure count
 
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawnHookChecked } from './spawn-hook-checked.mjs';
 import { ALIASES } from './source-shell-gate-discard-sweeps.mjs';
 
 const hook = (name) => fileURLToPath(new URL(`./${name}`, import.meta.url));
@@ -34,7 +35,7 @@ export function discardHarness() {
   };
   freshHolders();
   const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
-  const spawnHook = (name, payload) => spawnSync(process.execPath, [hook(name)], { cwd: repo, env, input: JSON.stringify(payload), encoding: 'utf8' });
+  const spawnHook = (name, payload) => spawnHookChecked(hook(name), { cwd: repo, env, input: JSON.stringify(payload), encoding: 'utf8' });
   const who = (session, agent) => ({ ...(session ? { session_id: session } : {}), ...(agent ? { agent_id: agent } : {}) });
   const toolWrite = (rel, text, session, agent = '') => {
     const input = { ...who(session, agent), tool_input: { file_path: join(repo, rel), content: text } };

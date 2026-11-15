@@ -54,7 +54,12 @@ function within(parent, child) {
 }
 const samePath = (a, b) => normalized(realPath(resolve(a))) === normalized(realPath(resolve(b)));
 
-const tracked = (root, rel) => gitTry(['ls-files', '--error-unmatch', '--', rel], root).ok;
+// A failed git call counts as tracked: only git's own "did not match" answer proves the path is not (KIT-T1271).
+const UNMATCHED = /did not match any file/i;
+const tracked = (root, rel) => {
+  const found = gitTry(['ls-files', '--error-unmatch', '--', rel], root);
+  return found.ok || !UNMATCHED.test(found.out);
+};
 const holdsTracked = (root, dirRel) => gitTry(['ls-files', '--', dirRel], root).out.trim() !== '';
 const ignored = (root, rel) => gitTry(['check-ignore', '-q', '--', rel], root).ok;
 

@@ -1,39 +1,17 @@
 #!/usr/bin/env node
 // source-shell-gate-touch.test.mjs — a `touch` that only stamps the mtime of an existing source file authors no
 // content and passes (KIT-T1088); creating a source file, a glob, an unresolved variable, any other option and every
-// other segment of the command stay judged as today.
+// other segment of the command stay judged as today. This file judges the touch forms themselves; the segments around a
+// touch are source-shell-gate-touch-segments.test.mjs and the `cd` forms source-shell-gate-touch-cd.test.mjs, split so
+// each finishes inside one foreground call (KIT-T1271).
 // Run: node hooks/source-shell-gate-touch.test.mjs
 
-import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { touchHarness } from './source-shell-gate-touch-harness.mjs';
 
-const HOOK = fileURLToPath(new URL('./source-shell-gate.mjs', import.meta.url));
-let fails = 0;
-let passes = 0;
-const check = (name, cond, detail = '') => {
-  if (cond) { passes++; console.log(`  ok    ${name}`); } else { fails++; console.log(`  FAIL  ${name} ${detail}`); }
-};
-
-const repo = mkdtempSync(join(tmpdir(), 'kit-touch-'));
-const run = (command, tool = 'Bash', cwd = repo) => spawnSync(process.execPath, [HOOK], { cwd, input: JSON.stringify({ tool_name: tool, tool_input: { command } }), encoding: 'utf8' });
-const blocked = (command, tool) => {
-  const r = run(command, tool);
-  return r.status === 2 && /source-shell-write/.test(r.stderr);
-};
-const passes_ = (command, tool) => run(command, tool).status === 0;
+const { repo, scratch, expectPass, expectBlock, finish } = touchHarness();
 
 try {
-  execFileSync('git', ['init', '-q'], { cwd: repo });
-  mkdirSync(join(repo, '.ai'), { recursive: true });
-  mkdirSync(join(repo, 'src', 'state'), { recursive: true });
-  mkdirSync(join(repo, 'lib'), { recursive: true });
-  mkdirSync(join(repo, 'src', 'lib'), { recursive: true });
-  for (const f of ['src/state/AppState.h', 'src/a.cpp', 'src/b.cpp', 'src/ref.h', 'lib/only.h']) writeFileSync(join(repo, f), 'x\n');
-  const scratch = join(tmpdir(), 'kit-touch-copy.cpp').replace(/\\/g, '/');
-
   const PASS = [
     ['the ticket command', 'touch src/state/AppState.h'],
     ['the ticket command under PowerShell', 'touch src/state/AppState.h', 'PowerShell'],
@@ -61,7 +39,7 @@ try {
     ['a file named touch beside an existing source file', 'touch touch src/a.cpp'],
     ['a scratch source file', `touch ${scratch}`],
   ];
-  for (const [name, command, tool] of PASS) check(`passes: ${name}`, passes_(command, tool), run(command, tool).stderr.slice(0, 120));
+  for (const [name, command, tool] of PASS) expectPass(name, command, tool);
 
   const BLOCK = [
     ['a source file that does not exist', 'touch src/new.cpp'],
@@ -92,84 +70,7 @@ try {
     ['PowerShell New-Item', 'New-Item src/new.cpp', 'PowerShell'],
     ['a touch with a comma list under PowerShell', 'touch src/a.cpp,src/b.cpp', 'PowerShell'],
   ];
-  for (const [name, command, tool] of BLOCK) check(`blocks: ${name}`, blocked(command, tool), run(command, tool).stderr.slice(0, 120));
-
-  const SEGMENTS = [
-    ['a second segment redirects into the touched file', 'touch src/a.cpp && echo x > src/a.cpp'],
-    ['a second segment appends to the touched file', 'touch src/a.cpp; echo x >> src/a.cpp'],
-    ['a second segment of tee', 'touch src/a.cpp && echo x | tee src/a.cpp'],
-    ['a second segment of sed -i', "touch src/a.cpp && sed -i 's/x/y/' src/a.cpp"],
-    ['-c does not lift a following write', 'touch -c src/a.cpp && echo x > src/a.cpp'],
-    ['a write before the touch', 'echo x > src/a.cpp && touch src/a.cpp'],
-    ['a second touch that creates', 'touch src/a.cpp && touch src/new.cpp'],
-    ['a copy before the touch moves the file away', `mv src/a.cpp ${scratch} && touch src/a.cpp`],
-    ['touch of a file the command deletes', 'rm src/a.cpp && touch src/a.cpp'],
-    ['a move with a differently spelled path before the touch', `mv ./src/a.cpp ${scratch} && touch src/a.cpp`],
-    ['a directory removed and recreated before the touch', 'rm -rf src && mkdir src && touch src/a.cpp'],
-    ['git rm before the touch', 'git rm src/a.cpp && touch src/a.cpp'],
-    ['a substitution that deletes, before the touch', 'echo $(rm src/a.cpp) && touch src/a.cpp'],
-    ['a backtick substitution that deletes, before the touch', 'echo `find src -delete` && touch src/a.cpp'],
-    ['a find -delete substitution in an assignment, before the touch', 'D=$(find src -delete) && touch src/a.cpp'],
-    ['an assignment that deletes, before the touch', 'D=$(rm -rf src) && touch src/a.cpp'],
-    ['a directory change after the touch', 'touch src/a.cpp && cd lib'],
-    ['a pushd before the touch', 'pushd lib && touch src/a.cpp'],
-    ['a pipeline before the touch', 'echo x | xargs rm && touch src/a.cpp'],
-  ];
-  for (const [name, command] of SEGMENTS) check(`blocks: ${name}`, blocked(command), run(command).stderr.slice(0, 120));
-  const PS = 'PowerShell';
-  const CD_PASS = [
-    ['cd into an existing directory then the touch', 'cd src && touch a.cpp'],
-    ['cd with a semicolon', 'cd src; touch a.cpp'],
-    ['a quoted literal directory', 'cd "src" && touch a.cpp'],
-    ['a dot-relative directory', 'cd ./src && touch a.cpp'],
-    ['two cds into nested directories', 'cd src && cd state && touch AppState.h'],
-    ['cd under PowerShell', 'cd src; touch a.cpp', PS],
-    ['an unrelated assignment before the cd', 'D=1 && cd src && touch a.cpp'],
-    ['a directory name that a CDPATH assignment would redirect', 'cd lib && touch only.h'],
-  ];
-  for (const [name, command, tool] of CD_PASS) check(`passes: ${name}`, passes_(command, tool), run(command, tool).stderr.slice(0, 120));
-
-  const CD_BLOCK = [
-    ['cd with no argument', 'cd && touch src/a.cpp'],
-    ['cd with no argument then a semicolon', 'cd; touch src/a.cpp'],
-    ['cd to the home directory', 'cd ~ && touch src/a.cpp'],
-    ['cd to the previous directory', 'cd - && touch src/a.cpp'],
-    ['cd with an option and no directory', 'cd -P && touch src/a.cpp'],
-    ['cd with a double dash and no directory', 'cd -- && touch src/a.cpp'],
-    ['cd with an option before the directory', 'cd -P src && touch src/a.cpp'],
-    ['cd with two arguments (the shell refuses, the touch then runs where it started)', 'cd src extra; touch src/a.cpp'],
-    ['the cmd /d form', 'cd /d src; touch a.cpp'],
-    ['an escaped semicolon the two splitters read differently', 'echo \\; cd src && touch a.cpp'],
-    ['cd to a missing directory', 'cd missing && touch src/a.cpp'],
-    ['cd to a missing directory, semicolon', 'cd missing; touch src/a.cpp'],
-    ['cd to a file', 'cd src/a.cpp; touch src/a.cpp'],
-    ['cd to the parent', 'cd src/.. && touch src/a.cpp'],
-    ['cd with a variable', 'D=src && cd $D && touch src/a.cpp'],
-    ['cd with a glob', 'cd s* && touch src/a.cpp'],
-    ['cd with a redirect', 'cd src > /dev/null && touch src/a.cpp'],
-    ['an upper-case CD', 'CD src && touch src/a.cpp'],
-    ['set-location', 'set-location src; touch src/a.cpp', PS],
-    ['the sl alias', 'sl src; touch src/a.cpp', PS],
-    ['a CDPATH assignment before the cd', 'CDPATH=src && cd lib && touch only.h'],
-    ['a HOME assignment before a bare cd', 'HOME=src && cd && touch src/a.cpp'],
-    ['an OLDPWD assignment before cd -', 'OLDPWD=src && cd - && touch src/a.cpp'],
-    ['a PWD assignment', 'PWD=src && touch src/a.cpp'],
-    ['an exported CDPATH', 'export CDPATH=src && cd lib && touch only.h'],
-    ['a PowerShell env assignment', '$env:CDPATH = "src"; cd lib; touch only.h', PS],
-    ['cd piped into the touch', 'cd src | touch a.cpp'],
-    ['cd backgrounded before the touch', 'cd src & touch a.cpp'],
-    ['a touch after an or-list cd', 'cd src || touch a.cpp'],
-    ['a missing file in an existing directory', 'cd src && touch new.cpp'],
-  ];
-  for (const [name, command, tool] of CD_BLOCK) check(`blocks: ${name}`, blocked(command, tool), run(command, tool).stderr.slice(0, 120));
-  const inherited = (command, env) => spawnSync(process.execPath, [HOOK], { cwd: repo, env: { ...process.env, ...env }, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }), encoding: 'utf8' }).status;
-  check('an inherited CDPATH blocks a bare relative cd', inherited('cd lib && touch only.h', { CDPATH: join(repo, 'src') }) === 2);
-  check('an inherited CDPATH leaves a ./ cd alone', inherited('cd ./lib && touch only.h', { CDPATH: join(repo, 'src') }) === 0);
-  check('the move alone still passes', passes_(`mv src/b.cpp ${scratch}`));
-  check('two touches of the same existing file pass', passes_('touch src/a.cpp && touch src/a.cpp'));
+  for (const [name, command, tool] of BLOCK) expectBlock(name, command, tool);
 } finally {
-  rmSync(repo, { recursive: true, force: true });
+  finish();
 }
-
-console.log(`\n${passes} passed, ${fails} failed`);
-process.exit(fails ? 1 : 0);

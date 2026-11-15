@@ -1,7 +1,8 @@
 // The effect of one shell call on a repo's working tree (KIT-D117): every dirty path with its mtime and size (and a content hash for source),
 // taken before the call and compared after it. Nothing is parsed to find a write, so every sink and path
 // form is seen alike.
-//   snapshotDirty(root) -> { [relPath]: signature }          capped at ENTRIES_MAX paths
+//   snapshotDirty(root) -> { [relPath]: signature }          capped at ENTRIES_MAX paths; throws when `git status` fails (an
+//     empty snapshot of a tree git could not read would name nothing, KIT-T1271)
 //   headOf(root) -> the commit HEAD names, '' outside a repo
 //   changedSince(root, before, headBefore) -> paths the call created, modified, deleted or reverted; a path a
 //     HEAD move since headBefore committed (a broker landing) and that is clean now is the landing's, not the call's
@@ -15,7 +16,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { git } from './exec.mjs';
+import { git, gitTry } from './exec.mjs';
 import { isSourcePath } from './shell-source-write.mjs';
 import { isInertCommand } from './inert-command.mjs';
 import { buildOutputJudge } from './build-output.mjs';
@@ -58,7 +59,9 @@ const signature = (root, rel) => {
 
 export function snapshotDirty(root) {
   const snap = {};
-  const parts = git(['status', '--porcelain=v1', '-z', '--untracked-files=all'], root).split('\0');
+  const status = gitTry(['status', '--porcelain=v1', '-z', '--untracked-files=all'], root);
+  if (!status.ok) throw new Error(`git status failed in ${root}: ${String(status.out).trim().slice(0, 200)}`);
+  const parts = status.out.split('\0');
   let count = 0;
   for (let i = 0; i < parts.length && count < ENTRIES_MAX; i++) {
     const entry = parts[i];

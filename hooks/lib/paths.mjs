@@ -4,7 +4,7 @@
 
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
-import { git } from './exec.mjs';
+import { git, gitTry } from './exec.mjs';
 
 // A Bash/PowerShell hook sets the directory its command acts in (stdin.mjs), so the repo is the one the command touches.
 let shellCwd = null;
@@ -20,6 +20,17 @@ export function gitRootOfFile(file) {
   let dir = dirname(file);
   while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
   return gitRoot(dir);
+}
+
+// gitRootOfFile that tells "no repository here" ('') from a git call that failed (it throws): a gate that reads a failed
+// call as "outside any repo" waves a delete through (KIT-T1271).
+export function gitRootOfFileChecked(file) {
+  let dir = dirname(file);
+  while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
+  const found = gitTry(['rev-parse', '--show-toplevel'], dir);
+  if (found.ok) return found.out.trim();
+  if (/not a git repository/i.test(found.out)) return '';
+  throw new Error(`git could not be run in ${dir}: ${String(found.out).trim().slice(0, 200)}`);
 }
 
 // A repo has adopted the workflow iff it has .ai/ (or a legacy root ROADMAP.md).

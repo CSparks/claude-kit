@@ -14,7 +14,8 @@
 // The main thread answers to the maintainer, so its plain delete (never a git discard verb) of an untracked file that
 // another writer wrote, or no tool wrote, passes once no live writer holds the file (KIT-T1246): none claims it, none
 // listed it dirty, none left its bytes. A file with no recorded writer also waits while any other writer is live. An
-// unreadable registry keeps the refusal. A subagent never gets this lift.
+// unreadable registry keeps the refusal. A subagent never gets this lift. deleteJudgement throws when the registry of a
+// sweep cannot be read; source-shell-gate refuses what it could not judge.
 
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
@@ -24,6 +25,8 @@ import { DELETE_REFUSALS as R, deleteRefusal, isTracked, ledgerRefusal } from '.
 import { isMainThread } from './tool-writes.mjs';
 
 const CLEAN_VERB = 'git clean';
+// A registry that cannot be read throws, and the caller refuses: "no writer seen" is never "no writer live" (KIT-T1271).
+const STRICT_REGISTRY = Object.freeze({ strict: true });
 const LIFTED_FOR_MAIN_THREAD = new Set([R.unrecorded, R.otherWriter]);
 
 // The lift needs proof that no writer is live; a registry that cannot be read proves nothing, so any throw keeps the refusal.
@@ -54,7 +57,7 @@ const ledgerOrNone = (root, rel, caller) => (caller ? ledgerRefusal(root, rel, c
 
 export function deleteJudgement(found, root, rel, caller) {
   if (found.unresolved) return R.unresolved;
-  if (found.sweep) return found.always || otherLiveWriters(root, caller).length ? R.sweep : '';
+  if (found.sweep) return found.always || otherLiveWriters(root, caller, STRICT_REGISTRY).length ? R.sweep : '';
   if (found.discard) return discardRefusal(root, rel, caller, found.discard);
   return found.deletes ? mainThreadDelete(root, rel, caller, deleteRefusal(root, rel, caller)) : '';
 }

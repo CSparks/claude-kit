@@ -20,10 +20,13 @@
 // A touch that only stamps the mtime of an existing file authors no content and passes (touch-target.mjs).
 // A path listed in the repo's .claude-kit-ignore.yaml passes, judged by its repo-relative path whatever the call's directory;
 // the block names that listing as the route for vendoring a third-party tree (vendor-route.mjs).
-// exit 2 = block, 0 = allow. No-ops on unadopted repos. Fails open on any error.
+// A hit the gate could not judge (git cannot run, the registry of live writers cannot be read, an error while judging) is
+// refused with a block that says the check could not complete: only "no repository here" lets a path pass (KIT-T1271).
+// exit 2 = block, 0 = allow. No-ops on unadopted repos. An error before any hit exists (scanning the command) fails open.
 
 import { resolve } from 'node:path';
-import { payload, gitRootOfFile, adopted, excludeFooter, pathExcluded } from './lib.mjs';
+import { payload, adopted, excludeFooter, pathExcluded } from './lib.mjs';
+import { gitRootOfFileChecked } from './lib/paths.mjs';
 import { isGeneratedPath, shellSourceWrites } from './lib/shell-source-write.mjs';
 import { buildOutputJudge, ignoreEditMentioned, markerMentioned } from './lib/build-output.mjs';
 import { AMBIGUOUS_MESSAGE, shellOfTool, toPath } from './lib/shell-segments.mjs';
@@ -53,21 +56,32 @@ try {
     // The hit's own directory: the `cd` segments before its segment, not where the whole command ends.
     const cwd = found.from || commandCwd(command, process.cwd(), { upto: found.segment, shell });
     const file = resolve(cwd, toPath(found.path));
-    const root = gitRootOfFile(file);
-    if (!adopted(root)) continue;
-    const rel = repoRelative(root, file);
-    if (pathExcluded(root, CHECK, rel)) continue;
-    if (found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
-    if (!found.ambiguous && !found.moveLinesProblem && buildOutputJudge(root, { markerStands: () => !markerMentioned(command), ignoredStands: !ignoreEditMentioned(command) })(file)) continue;
-    if (touchLifted(found, cwd)) continue;
-    const refusal = deleteJudgement(found, root, rel, caller);
-    if (found.deletes && !refusal) continue;
+    let root = '';
+    let rel = '';
+    let refusal = '';
+    let incomplete = found.incomplete || '';
+    try {
+      if (!incomplete) {
+        root = gitRootOfFileChecked(file);
+        if (!adopted(root)) continue;
+        rel = repoRelative(root, file);
+        if (pathExcluded(root, CHECK, rel)) continue;
+        if (found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
+        if (!found.ambiguous && !found.moveLinesProblem && buildOutputJudge(root, { markerStands: () => !markerMentioned(command), ignoredStands: !ignoreEditMentioned(command) })(file)) continue;
+        if (touchLifted(found, cwd)) continue;
+        refusal = deleteJudgement(found, root, rel, caller);
+        if (found.deletes && !refusal) continue;
+      }
+    } catch (e) {
+      incomplete = String((e && e.message) || e);
+    }
     const what = found.moveLinesProblem
       ? `a move-lines call the guard refuses writes a source file by hand: ${found.moveLinesProblem}`
       : `a shell command ${found.deletes ? 'deletes' : 'writes'} a source file by hand (${found.path}).`;
+    const couldNot = incomplete ? `  The check could not complete (${incomplete}), and a check that cannot complete refuses. Retry once git runs and the registry of live writers reads.\n` : '';
     process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : what}
-${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep, mainThread: isMainThread(caller), holders: refusal === DELETE_REFUSALS.liveWriter ? liveWriterNames(root, rel, caller) : [] })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
+${couldNot}${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep, mainThread: isMainThread(caller), holders: refusal === DELETE_REFUSALS.liveWriter ? liveWriterNames(root, rel, caller) : [] })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
   \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
   pre-write gate (file length, comment prose, literals, rot markers).
   A change too large for one Edit is a Write of the new file or several Edits, never a script.

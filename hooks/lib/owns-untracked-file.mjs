@@ -28,9 +28,16 @@ export const DELETE_REFUSALS = Object.freeze({
   unresolved: 'unresolved',
   sweep: 'sweep',
   liveWriter: 'live-writer',
+  incomplete: 'incomplete',
 });
 
-export const isTracked = (root, rel) => gitTry(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', rel], root).ok;
+const UNMATCHED = /did not match any file/i;
+
+// A failed git call counts as tracked: only git's own "did not match" answer proves the file is untracked.
+export function isTracked(root, rel) {
+  const found = gitTry(['--literal-pathspecs', 'ls-files', '--error-unmatch', '--', rel], root);
+  return found.ok || !UNMATCHED.test(found.out);
+}
 
 export function ledgerRefusal(root, rel, writer) {
   const hash = contentHashOf(root, rel);

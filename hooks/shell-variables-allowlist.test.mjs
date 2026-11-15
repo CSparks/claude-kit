@@ -4,12 +4,13 @@
 // where it lands; any segment the allowlist does not recognise keeps the variable unresolved, so the copy stays blocked.
 // Run: node hooks/shell-variables-allowlist.test.mjs
 
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assignedValues, expandVariables } from './lib/shell-variables.mjs';
 import { segments } from './lib/shell-segments.mjs';
+import { spawnHookChecked } from './spawn-hook-checked.mjs';
 import { cleanup, reporter, tmpDir } from './test-harness.mjs';
 
 const { ok, done } = reporter('shell-variables-allowlist');
@@ -22,7 +23,7 @@ try {
   execFileSync('git', ['init', '-q'], { cwd: repo });
   mkdirSync(join(repo, '.ai'), { recursive: true });
   const scratch = tmpDir('kit scratch ').replace(/\\/g, '/');
-  const gate = (command, tool) => spawnSync(process.execPath, [join(HOOKS, 'source-shell-gate.mjs')], { cwd: repo, input: JSON.stringify({ tool_name: tool, tool_input: { command } }), encoding: 'utf8' }).status;
+  const gate = (command, tool) => spawnHookChecked(join(HOOKS, 'source-shell-gate.mjs'), { cwd: repo, input: JSON.stringify({ tool_name: tool, tool_input: { command } }), encoding: 'utf8' }).status;
   const bashCopy = (middle) => gate(`SP="${scratch}"; ${middle}; cp src/a.cpp "$SP/b.cpp"`, 'Bash');
   const powershellCopy = (middle) => gate(`$sp = "${scratch}"; ${middle}; Copy-Item src/a.cpp "$sp\\b.cpp"`, 'PowerShell');
   const blocked = (shell, label, cases) => cases.forEach(([name, middle]) => ok(`${label} stays blocked: ${name}`, (shell === 'bash' ? bashCopy : powershellCopy)(middle) === BLOCK));
