@@ -214,5 +214,5 @@ if (LINK_TOOLING) {
   console.log(`For the statusline only, enable it in ${join(CLAUDE, 'settings.json')} (see user-config/settings.recommended.json).`);
 }
 console.log('');
-console.log(`Per project (inside the repo):  node ${join(SRC, 'scripts', 'init-project.mjs')}`);
+console.log(`Per project (inside the repo):  node ${join(SRC, 'scripts', 'init-project.mjs')} --here`);
 console.log('Done.');

@@ -48,7 +48,7 @@ remember.
      FRAMEWORK CONFORMANCE NOT WIRED until it is set.
 6. **Remote:** create the GitHub repo under **CSparks** (the account of record) and
    push main. Never point anything at depixeled-chris.
-7. **Kit adoption (offer, don't assume):** `node <kit>/scripts/init-project.mjs`
+7. **Kit adoption (offer, don't assume):** `node <kit>/scripts/init-project.mjs --here`
    inside the new repo wires `.ai/` + hooks if the maintainer wants the full workflow
    on this POC.
 

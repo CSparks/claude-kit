@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // init-project.mjs — wire a repo into the claude-kit workflow.
 //
-//   node /path/to/claude-kit/scripts/init-project.mjs [target-dir]
+//   node /path/to/claude-kit/scripts/init-project.mjs <target-dir> | --here   (--help lists every flag)
 //
 // CENTRALIZED (CLAUDE_DATA set — D-008): workflow data lives in
 //   $CLAUDE_DATA/projects/<name>/; the repo gets a tracked .claude-project pointer and a
@@ -22,16 +22,16 @@ import { fileURLToPath } from 'node:url';
 import { installGitHooks } from './install-git-hooks.mjs';
 import { readRegistry } from '../hooks/lib.mjs';
 import { copyDir, linkAiJunction, writeProjectPointer, updateGitignore, CENTRAL_GITIGNORE, LOCAL_GITIGNORE } from './centralize.mjs';
+import { parseInitArgs, guardTarget, USAGE } from './init-project-args.mjs';
+import { planAdoption, planLab } from './init-project-plan.mjs';
+
+const EXIT_USAGE = 2;
 
 const KIT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const TEMPLATE = join(KIT, 'project-template');
 
-// Parse positional arg and --key=ABC / --lab flags.
-const args = process.argv.slice(2);
-const keyFlag = args.find((a) => a.startsWith('--key='));
-const labFlag = args.find((a) => a === '--lab');
-const positional = args.find((a) => !a.startsWith('--'));
-const FLAG_KEY = keyFlag ? keyFlag.slice('--key='.length).trim().toUpperCase() : '';
+const parsed = parseInitArgs(process.argv.slice(2));
+const FLAG_KEY = parsed.key;
 
 // CENTRALIZE whenever a central store is in reach: an explicit CLAUDE_DATA wins, else the
 // machine registry's dataRoot — so adoption centralizes on a machine already using the
@@ -136,19 +136,32 @@ function projectName(target) {
   return basename(target);
 }
 
+function refuseUsage(message) {
+  console.error(`init-project: ${message}\n\n${USAGE}`);
+  process.exit(EXIT_USAGE);
+}
+
+function printPlan(lines) {
+  console.log('dry run: nothing written');
+  for (const line of lines) console.log(`• ${line}`);
+}
+
 async function adopt() {
+  if (parsed.help) {
+    console.log(USAGE);
+    return;
+  }
+  if (parsed.error) refuseUsage(parsed.error);
+
   // ---- LAB mode (--lab <name>) ----------------------------------------------
-  if (labFlag) {
-    if (!positional) {
-      console.error('usage: init-project.mjs --lab <name>');
-      process.exit(1);
-    }
+  if (parsed.lab) {
     if (!DATA) {
       console.error('--lab requires CLAUDE_DATA to be set (the centralized data store).');
       process.exit(1);
     }
-    const name = positional;
+    const name = parsed.target;
     const dataDir = join(DATA, 'projects', name);
+    if (parsed.dryRun) return printPlan(planLab({ name, data: DATA }));
     seedCentralDataDir(dataDir);
     seedProjectKey(dataDir, name);
     stampLabFlag(join(dataDir, 'config.yml'));
@@ -157,8 +170,14 @@ async function adopt() {
   }
 
   // ---- Normal repo-adoption mode --------------------------------------------
-  const target = resolve(positional || process.cwd());
+  const target = resolve(parsed.here ? process.cwd() : parsed.target);
   const aiDst = join(target, '.ai');
+  const refusal = guardTarget({ target, kit: KIT, projects: readRegistry().projects, force: parsed.force });
+  if (refusal) {
+    console.error(`init-project: refused, nothing was written: ${refusal}`);
+    process.exit(1);
+  }
+  if (parsed.dryRun) return printPlan(planAdoption({ target, name: projectName(target), data: DATA, marker: MARKER }));
 
   if (DATA) {
     const name = projectName(target);

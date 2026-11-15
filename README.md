@@ -144,7 +144,7 @@ clone and run `init-project` per repo (below).
 ### 3. Per project
 ```bash
 cd /path/to/your/repo
-node ~/Documents/code/claude-kit/scripts/init-project.mjs
+node ~/Documents/code/claude-kit/scripts/init-project.mjs --here   # add --dry-run to list what it would write
 ```
 With `CLAUDE_DATA` set (the centralized model, KIT-D008), this writes a `.claude-project`
 pointer and links `.ai/` as a gitignored junction into `$CLAUDE_DATA/projects/<name>/`.

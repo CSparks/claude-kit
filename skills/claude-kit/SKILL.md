@@ -56,7 +56,7 @@ reach MIT by construction — when unsure, it stays out.
 - New machine, Codex: add the same repository as a plugin marketplace, install
   `claude-kit@claude-kit`, start a new session, and review the bundled hooks with
   `/hooks`. Codex auto-discovers `.codex-plugin/plugin.json` and `hooks/hooks.json`.
-- New project: `node <kit>/scripts/init-project.mjs` inside the repo, commit `.ai/`.
+- New project: `node <kit>/scripts/init-project.mjs --here` inside the repo, commit `.ai/`.
 - Add a reusable tool: author it **here** (`hooks/`, `agents/`, `skills/`,
   `commands/`, or `research/`), index it; the plugin ships it on the next
   version bump + consumer update. A recurring fix to an agent/hook is a bug to
