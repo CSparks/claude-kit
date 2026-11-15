@@ -4,9 +4,9 @@
 //
 //   directoryDeleteHits(command, cwd) -> [{ path, deletes: true, from }] one per hand-authored source file, tracked or
 //     untracked and not ignored, beneath a directory the command deletes; `path` is absolute, `from` the directory it
-//     resolves from. A symlink or junction to a directory is judged as its target. A nested repository (a submodule, an
-//     untracked clone) is listed from its own root. A directory whose files git cannot list, a nested repository included,
-//     yields one `<dir>/*` glob hit, which the gate refuses.
+//     resolves from. A symlink or junction to a directory is judged as its target. A directory whose files git cannot
+//     list yields one `<dir>/*` glob hit, which the gate refuses ("name each file"); so does a nested repository inside
+//     it (a submodule, an untracked clone): git is never run inside one to list it, its files are named one by one.
 //     Operands that expand ($VAR, `...`), build output and `.git` are not resolved here (tree-delete.mjs).
 
 import { lstatSync, realpathSync, statSync } from 'node:fs';
@@ -20,7 +20,7 @@ const isDirectory = (path) => {
   try { return statSync(path).isDirectory(); } catch { return false; }
 };
 
-// A directory entry of a listing (a submodule, an untracked nested repository); a link inside a tree is removed, never followed.
+// A directory entry of a listing: a submodule or an untracked nested repository. A link inside a tree is removed, never followed.
 const isNestedDirectory = (path) => {
   try { return lstatSync(path).isDirectory(); } catch { return false; }
 };
@@ -30,22 +30,19 @@ const realPath = (path) => {
   try { return realpathSync.native(path); } catch { return path; }
 };
 
-const sameDirectory = (a, b) => relative(a, b) === '';
-const refused = (dir) => [{ path: `${slashed(dir)}/*`, deletes: true, from: dir }];
-const MAX_NESTING = 8;
+// A glob hit the gate refuses. A nested directory is named `<dir>*` so the gate resolves the repository holding the entry,
+// never one inside the nested directory.
+const refused = (dir, glob) => [{ path: `${slashed(dir)}${glob}`, deletes: true, from: dir }];
 
-// The hits beneath `dirPath`; `outer` is the work tree being listed when `dirPath` is a directory entry of it.
-function sourceFilesBeneath(dirPath, outer = '', depth = 0) {
+function sourceFilesBeneath(dirPath) {
   const dir = realPath(dirPath);
   const top = gitRoot(dir);
-  if (!top) return outer ? refused(dir) : [];
-  if (outer && sameDirectory(top, outer)) return [];
-  if (depth > MAX_NESTING) return refused(dir);
+  if (!top) return [];
   const listing = gitTry(['-c', 'core.quotepath=off', 'ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', slashed(relative(top, dir)) || '.'], top);
-  if (!listing.ok) return refused(dir);
+  if (!listing.ok) return refused(dir, '/*');
   return listing.out.split('\0').filter(Boolean).flatMap((entry) => {
     const rel = entry.replace(/\/$/, '');
-    if (isNestedDirectory(`${top}/${rel}`)) return sourceFilesBeneath(`${top}/${rel}`, top, depth + 1);
+    if (isNestedDirectory(`${top}/${rel}`)) return refused(`${top}/${rel}`, '*');
     return isSourcePath(rel) ? [{ path: `${slashed(top)}/${rel}`, deletes: true, from: dir }] : [];
   });
 }

@@ -5,7 +5,7 @@
 // Run: node hooks/source-shell-gate-directory-delete.test.mjs
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -84,7 +84,7 @@ try {
   check('a link with a trailing slash is refused too', blocked(sh('rm -rf lnk/', 'S1', 'B')));
   check('a link to a directory is judged for the main thread while its writer is live', blocked(sh('rm -rf lnk', 'S1')));
 
-  // A nested repository is listed from its own root; one that cannot be listed is refused.
+  // A nested repository inside a deleted directory is refused whole; git is never run inside it.
   const nestedRepo = (rel, { gitlink = false } = {}) => {
     const dir = join(repo, rel);
     mkdirSync(join(dir, '.ai'), { recursive: true });
@@ -97,17 +97,23 @@ try {
     }
     writeFileSync(join(dir, 'src', 'inner.rs'), 'fn i() {}\n');
   };
+  const marker = join(state, 'fsmonitor-ran');
   nestedRepo('outer/clone');
+  execFileSync('git', ['config', 'core.fsmonitor', `touch ${marker.replace(/\\/g, '/')}`], { cwd: join(repo, 'outer', 'clone') });
   const viaClone = sh('rm -rf outer', 'S1', 'B');
-  check('an untracked nested repository\'s source is judged', blocked(viaClone) && /clone\/src\/inner\.rs/.test(viaClone.stderr), viaClone.stderr);
-  nestedRepo('sub', { gitlink: true });
-  execFileSync('git', ['add', 'sub'], { cwd: repo });
-  check('a submodule entry\'s source is judged from its own root', blocked(sh('rm -rf sub', 'S1', 'B')));
+  check('a directory holding an untracked nested repository is refused, for every caller', blocked(viaClone) && blocked(sh('rm -rf outer', 'S1')), viaClone.stderr);
+  check('the refusal names the nested directory and says to name each file', /outer\/clone\*[^]*name each file/.test(viaClone.stderr), viaClone.stderr);
+  check('git is never run inside the nested repository', !existsSync(marker));
+  nestedRepo('cont/sub', { gitlink: true });
+  execFileSync('git', ['add', 'cont/sub'], { cwd: repo });
+  check('a directory holding a submodule is refused for every caller', blocked(sh('rm -rf cont', 'S1', 'B')) && blocked(sh('rm -rf cont', 'S1')));
+  check('a source file inside the submodule named alone is judged from its own root', blocked(sh('rm cont/sub/src/inner.rs', 'S1', 'B')));
+  check('a submodule named as the operand is judged from its own root', blocked(sh('rm -rf cont/sub', 'S1', 'B')));
   nestedRepo('sub2', { gitlink: true });
   execFileSync('git', ['add', 'sub2'], { cwd: repo });
   rmSync(join(repo, 'sub2'), { recursive: true, force: true });
   mkdirSync(join(repo, 'sub2'));
-  check('control: an uninitialised submodule directory holds nothing to judge', !blocked(sh('rm -rf sub2', 'S1', 'B')));
+  check('an uninitialised submodule directory is refused as well: the rule holds no exception', blocked(sh('rm -rf sub2', 'S1', 'B')));
 } finally {
   rmSync(repo, { recursive: true, force: true });
   rmSync(state, { recursive: true, force: true });
