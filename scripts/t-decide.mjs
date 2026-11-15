@@ -11,6 +11,11 @@
 // on disk, at or below the store's highest, or reserved by another creator), so a cite written
 // against the draft id never points at a different decision.
 //
+// `--ticket <id>` (or `implemented_by:` in the draft) names the ticket that builds the decision; `--no-work "<why>"` (or `no_work:`)
+// says it needs none. Both lines are written, empty when unset: orient lists such a decision as RULED, NOT BUILT once it is a day
+// old (hooks/lib/orient/ruled-not-built.mjs). `--supersedes <id,...>` adds to the draft's `supersedes:`; `--not-dup <id,...>`
+// records the decisions read before a near-duplicate was recorded (t-decide-dedup.mjs runs the check before this writer).
+//
 // `--from <inbox-id,...>` names the inbox notes the decision promotes (KIT-T938): each moves to inbox/triaged/
 // once the decision is written, and an unknown id refuses before an id is minted.
 //
@@ -19,7 +24,7 @@
 //
 // The decision also adds a dated `decided <id>: <title>` line to `.ai/SESSION.md` through `t session`'s writer (KIT-T1139).
 //
-// `recordDecision(root, draftText, { from })` → { id, path, cleared, mirrored?: { ticket, aiDir }, mirrorError?, sessionError? }.
+// `recordDecision(root, draftText, { from, ticket, noWork, supersedes, notDup })` → { id, path, cleared, mirrored?: { ticket, aiDir }, mirrorError?, sessionError? }.
 
 import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -31,12 +36,13 @@ import { resolveInboxNotes } from '../hooks/lib/inbox-rulings.mjs';
 import { moveCapToTriaged } from './triage/write-item.mjs';
 import { mirrorDecision } from './framework-mirror.mjs';
 import { writeSession } from './t-session.mjs';
+import { findItemFile } from './q-show.mjs';
 
 const SLUG_MAX = 64;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const KEYS = ['title', 'summary', 'date', 'supersedes', 'source'];
+const KEYS = ['title', 'summary', 'date', 'supersedes', 'source', 'implemented_by', 'no_work'];
 
-function parseDraft(text) {
+export function parseDraft(text) {
   const fm = frontmatterBlock(text);
   const split = splitFrontmatter(text);
   if (!fm || !split) throw new Error('t decide: the draft needs a --- frontmatter block');
@@ -87,8 +93,25 @@ function anchored(root, id, title) {
   }
 }
 
-export function recordDecision(root, text, { from = [] } = {}) {
+const idList = (ids) => String(ids || '').split(/[\s,]+/).filter(Boolean);
+
+// What the decision builds (`implemented_by:` a ticket) or why it needs no work (`no_work:`); an unknown ticket or a
+// superseded id that names no item refuses before an id is minted.
+function resolveLinks(root, draft, { ticket, noWork, supersedes }) {
+  const implementedBy = ticket || draft.implemented_by;
+  const nothingToBuild = noWork || draft.no_work;
+  if (implementedBy && nothingToBuild) throw new Error('t decide: --ticket and --no-work are exclusive: a decision is built by a ticket or needs no work');
+  if (implementedBy && !findItemFile(implementedBy, root)) throw new Error(`t decide: ticket ${implementedBy} is not in the store; create it first (t new) or use --no-work "<why>"`);
+  const added = idList(supersedes);
+  const missing = added.find((id) => !findItemFile(id, root));
+  if (missing) throw new Error(`t decide: supersedes ${missing}, which is not in the store`);
+  const replaced = [...new Set([...idList(draft.supersedes), ...added])].join(' ');
+  return { implementedBy: implementedBy || '', noWork: nothingToBuild || '', supersedes: added.length ? replaced : draft.supersedes };
+}
+
+export function recordDecision(root, text, { from = [], ticket = '', noWork = '', supersedes = '', notDup = [] } = {}) {
   const draft = parseDraft(text);
+  const links = resolveLinks(root, draft, { ticket, noWork, supersedes });
   const notes = resolveInboxNotes(root, from);
   const dir = join(root, '.ai', 'decisions');
   const id = draft.id ? claimExactly(root, dir, draft.id) : reserveNextId(root, 'decisions');
@@ -96,8 +119,9 @@ export function recordDecision(root, text, { from = [] } = {}) {
   const path = join(dir, `${id}-${slug}.md`);
   if (existsSync(path)) throw new Error(`t decide: ${path} already exists`);
   const date = draft.date || new Date().toISOString().slice(0, 10);
-  const head = [`id: ${id}`, `title: ${draft.title}`, `summary: ${draft.summary}`, `date: ${date}`, `supersedes: ${draft.supersedes}`, `source: ${draft.source}`];
-  writeFileSync(path, `---\n${head.join('\n')}\n---\n\n${draft.body}\n`);
+  const head = [`id: ${id}`, `title: ${draft.title}`, `summary: ${draft.summary}`, `date: ${date}`, `supersedes: ${links.supersedes}`, `source: ${draft.source}`, `implemented_by: ${links.implementedBy}`, `no_work: ${links.noWork}`];
+  const checked = notDup.length ? `\n\n**Checked, not duplicates:** ${notDup.join(', ')}` : '';
+  writeFileSync(path, `---\n${head.join('\n')}\n---\n\n${draft.body}${checked}\n`);
   const cleared = notes.map((file) => moveCapToTriaged(join(root, '.ai'), join('inbox', file)));
   return { id, path, cleared, ...mirrored(root, path), ...anchored(root, id, draft.title) };
 }

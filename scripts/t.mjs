@@ -351,6 +351,9 @@ function parseArgs(argv) {
     else if (a === '--regressed-from') flags.regressedFrom = argv[++i];
     else if (a === '--causing-commit') flags.causingCommit = argv[++i];
     else if (a === '--no-trail-check') flags.noTrailCheck = argv[++i] || '(no reason given)';
+    else if (a === '--ticket') flags.ticket = argv[++i];
+    else if (a === '--no-work') flags.noWork = argv[++i] || '';
+    else if (a === '--supersedes') flags.supersedes = argv[++i];
     else if (a.startsWith('--') && a !== '--help') { console.error(`t: unknown flag ${a}`); process.exit(2); }
     else pos.push(a);
   }
@@ -365,7 +368,7 @@ async function main() {
   // still errors the way it always did.
   const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
   const [cmd, ...rest] = pos;
-  const usage = 'usage: t <new|note|notes|epic|request|question|session|config|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move|receipt> …  (t receipt [--since <sha|30m|2h>]: the landing receipt skeleton for the commits landed in this repo and its submodules | t new <type> "<title>" [--description "<text>" | --file <path>] [--regressed-from <id> --causing-commit <sha>: both required for a regression] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t config get <dotted.key> | t config set <dotted.key> <value>… | t decide --file <draft.md> [--from <inbox-id,...>] | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<id|none (why)>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] [--skip] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
+  const usage = 'usage: t <new|note|notes|epic|request|question|session|config|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move|receipt> …  (t receipt [--since <sha|30m|2h>]: the landing receipt skeleton for the commits landed in this repo and its submodules | t new <type> "<title>" [--description "<text>" | --file <path>] [--regressed-from <id> --causing-commit <sha>: both required for a regression] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t config get <dotted.key> | t config set <dotted.key> <value>… | t decide --file <draft.md> [--from <inbox-id,...>] [--ticket <id> | --no-work "<why>"] [--supersedes <id,...>] [--not-dup <id,...>] | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<id|none (why)>"] [--ticket <id> | --no-work "<why>"] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] [--skip] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }
   if (!cmd) { console.error(usage); process.exit(2); }
@@ -469,9 +472,14 @@ async function main() {
     return;
   }
   if (cmd === 'decide') {
-    if (!flags.file) { console.error('usage: t decide --file <draft.md> [--from <inbox-id,...>]'); process.exit(2); }
-    const { recordDecision } = await import('./t-decide.mjs');
-    const r = recordDecision(root, readFileSync(flags.file, 'utf8'), { from: flags.from });
+    if (!flags.file) { console.error('usage: t decide --file <draft.md> [--from <inbox-id,...>] [--ticket <id> | --no-work "<why>"] [--supersedes <id,...>] [--not-dup <id,...>]'); process.exit(2); }
+    const { recordDecision, parseDraft } = await import('./t-decide.mjs');
+    const { dedupVerdict } = await import('./t-decide-dedup.mjs');
+    const text = readFileSync(flags.file, 'utf8');
+    const { lines, refusal: duplicate } = await dedupVerdict(root, parseDraft(text), { notDup: flags.notDup, supersedes: flags.supersedes });
+    if (lines.length) process.stdout.write(lines.join('\n') + '\n');
+    if (duplicate) { console.error(duplicate); process.exit(1); }
+    const r = recordDecision(root, text, { from: flags.from, ticket: flags.ticket, noWork: flags.noWork, supersedes: flags.supersedes, notDup: flags.notDup });
     await refresh(root);
     process.stdout.write(`decide: ${r.id} -> ${relative(root, r.path)}\n`);
     if (r.mirrored) process.stdout.write(`mirrored: ${r.id} -> ${r.mirrored.ticket} in the framework store (KIT-T943)\n`);
@@ -483,7 +491,7 @@ async function main() {
     const [id] = rest;
     if (!id) { console.error('usage: t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<KIT-D###|RG-D###|none (why)>"] [--file <draft.md>]'); process.exit(2); }
     const { reviseDecision } = await import('./t-revise.mjs');
-    const r = reviseDecision(root, id, { status: flags.statusTo, summary: flags.summary, promoted: flags.promoted, draftText: flags.file ? readFileSync(flags.file, 'utf8') : '' });
+    const r = reviseDecision(root, id, { status: flags.statusTo, summary: flags.summary, promoted: flags.promoted, ticket: flags.ticket, noWork: flags.noWork, draftText: flags.file ? readFileSync(flags.file, 'utf8') : '' });
     await refresh(root);
     process.stdout.write(`revise: ${r.id} changed ${r.changed.join(', ')} -> ${relative(root, r.path)}\n`);
     return;

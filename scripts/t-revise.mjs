@@ -3,14 +3,17 @@
 // carries and, when non-empty, the body (which keeps **Decision:** and **Why:**). Flags win over the draft;
 // `id:` never changes and `revised:` is stamped with the date.
 //
-//   reviseDecision(root, id, { status, summary, promoted, draftText, now }) -> { id, path, changed: string[] }
+//   reviseDecision(root, id, { status, summary, promoted, ticket, noWork, draftText, now }) -> { id, path, changed: string[] }
 // `promoted` records where a project decision about kit or framework concerns was promoted to (KIT-D111).
+// `ticket` sets `implemented_by:` (the ticket that builds the decision) and `noWork` sets `no_work:` (why none is needed): either
+// takes the decision off orient's RULED, NOT BUILT list (KIT-T1225).
 
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { field, frontmatterBlock, splitFrontmatter } from './frontmatter.mjs';
+import { findItemFile } from './q-show.mjs';
 
-const DRAFT_KEYS = ['title', 'summary', 'date', 'supersedes', 'source', 'status', 'promoted'];
+const DRAFT_KEYS = ['title', 'summary', 'date', 'supersedes', 'source', 'status', 'promoted', 'implemented_by', 'no_work'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ID_KEY_RE = /^([A-Za-z][A-Za-z0-9]*-D\d+)$/;
 
@@ -39,7 +42,7 @@ function setLine(frontLines, key, value) {
   else frontLines.push(line);
 }
 
-export function reviseDecision(root, id, { status, summary, promoted, draftText, now = new Date() } = {}) {
+export function reviseDecision(root, id, { status, summary, promoted, ticket, noWork, draftText, now = new Date() } = {}) {
   const path = decisionFile(root, id);
   const text = readFileSync(path, 'utf8');
   const split = splitFrontmatter(text);
@@ -48,7 +51,13 @@ export function reviseDecision(root, id, { status, summary, promoted, draftText,
   if (status) fields.status = status;
   if (summary !== undefined && summary !== null) fields.summary = summary;
   if (promoted) fields.promoted = promoted;
-  if (!Object.keys(fields).length && !body) throw new Error('t revise: nothing to change (give --status, --summary, --promoted or --file)');
+  if (ticket && noWork) throw new Error('t revise: --ticket and --no-work are exclusive');
+  if (ticket) {
+    if (!findItemFile(ticket, root)) throw new Error(`t revise: ticket ${ticket} is not in the store`);
+    fields.implemented_by = ticket;
+  }
+  if (noWork) fields.no_work = noWork;
+  if (!Object.keys(fields).length && !body) throw new Error('t revise: nothing to change (give --status, --summary, --promoted, --ticket, --no-work or --file)');
   if (fields.title && /[\r\n]/.test(fields.title)) throw new Error('t revise: title is one line');
   if (fields.date && !DATE.test(fields.date)) throw new Error(`t revise: date '${fields.date}' is not YYYY-MM-DD`);
   if (body && !(/\*\*Decision:\*\*/.test(body) && /\*\*Why:\*\*/.test(body))) throw new Error('t revise: a replacement body needs **Decision:** and **Why:** paragraphs');

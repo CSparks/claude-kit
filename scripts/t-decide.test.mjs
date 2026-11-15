@@ -39,7 +39,7 @@ try {
     assert.equal(r.id, `${s.key}-D002`);
     assert.match(r.path, /-D002-kit-agent-stands-by\.md$/);
     const text = readFileSync(r.path, 'utf8');
-    assert.match(text, new RegExp(`^---\\nid: ${s.key}-D002\\ntitle: Kit agent stands by\\nsummary: one warm agent\\ndate: 2026-10-14\\nsupersedes: \\nsource: chat\\n---\\n\\n`));
+    assert.match(text, new RegExp(`^---\\nid: ${s.key}-D002\\ntitle: Kit agent stands by\\nsummary: one warm agent\\ndate: 2026-10-14\\nsupersedes: \\nsource: chat\\nimplemented_by: \\nno_work: \\n---\\n\\n`));
     assert.ok(text.endsWith(BODY), 'body kept verbatim');
   });
 
@@ -100,6 +100,38 @@ try {
     const r = recordDecision(s.root, draft('title: anchor is a folder'));
     assert.ok(readdirSync(s.dir).some((f) => f.startsWith(`${r.id}-`)), 'the decision file landed');
     assert.ok(r.sessionError, 'the failed anchor note is reported');
+  });
+
+  ok('a decision names the ticket that builds it, or why no work is needed; both lines exist, empty when unset (KIT-T1225)', () => {
+    const s = store();
+    mkdirSync(join(s.root, '.ai', 'tickets'), { recursive: true });
+    writeFileSync(join(s.root, '.ai', 'tickets', `${s.key}-T001-build-it.md`), `---\nid: ${s.key}-T001\ntitle: build it\n---\n`);
+    const built = readFileSync(recordDecision(s.root, draft('title: built by a ticket'), { ticket: `${s.key}-T001` }).path, 'utf8');
+    assert.match(built, new RegExp(`\\nimplemented_by: ${s.key}-T001\\nno_work: \\n---`));
+    const free = readFileSync(recordDecision(s.root, draft('title: needs no work'), { noWork: 'a standing rule only' }).path, 'utf8');
+    assert.match(free, /\nimplemented_by: \nno_work: a standing rule only\n---/);
+    const drafted = readFileSync(recordDecision(s.root, draft(`title: draft carries it\nimplemented_by: ${s.key}-T001`)).path, 'utf8');
+    assert.match(drafted, new RegExp(`implemented_by: ${s.key}-T001`));
+    assert.match(readFileSync(recordDecision(s.root, draft('title: neither')).path, 'utf8'), /\nimplemented_by: \nno_work: \n---/);
+  });
+
+  ok('negative: an unknown ticket, both ticket and no-work, and an unknown superseded id are refused before an id is minted', () => {
+    const s = store();
+    mkdirSync(join(s.root, '.ai', 'tickets'), { recursive: true });
+    writeFileSync(join(s.root, '.ai', 'tickets', `${s.key}-T001-build-it.md`), `---\nid: ${s.key}-T001\ntitle: build it\n---\n`);
+    const before = readdirSync(s.dir).length;
+    assert.throws(() => recordDecision(s.root, draft('title: x'), { ticket: `${s.key}-T099` }), /not in the store/);
+    assert.throws(() => recordDecision(s.root, draft('title: x'), { ticket: `${s.key}-T001`, noWork: 'both' }), /exclusive/);
+    assert.throws(() => recordDecision(s.root, draft('title: x'), { supersedes: `${s.key}-D099` }), /not in the store/);
+    assert.equal(readdirSync(s.dir).length, before);
+  });
+
+  ok('--supersedes joins the draft\'s own supersedes, and --not-dup is recorded under the body', () => {
+    const s = store();
+    const r = recordDecision(s.root, draft(`title: replaces the first\nsupersedes: ${s.key}-D001`), { supersedes: `${s.key}-D001`, notDup: ['KIT-D009', 'KIT-D010'] });
+    const text = readFileSync(r.path, 'utf8');
+    assert.match(text, new RegExp(`\\nsupersedes: ${s.key}-D001\\n`));
+    assert.match(text, /\*\*Checked, not duplicates:\*\* KIT-D009, KIT-D010\n$/);
   });
 
   ok('the CLI records a draft file and prints the id', () => {
