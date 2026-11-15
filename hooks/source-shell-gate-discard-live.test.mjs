@@ -23,12 +23,13 @@ try {
   claimFile({ tree: h.top, session: 'S9', agent: '', label: 'other', rel: 'x.rs', head: 'h' });
   const everyday = ['git status --short', 'git log -1', 'git diff HEAD', 'git add .', 'git commit -m wip', 'git commit -F msg.txt', 'git push', 'git fetch', 'git show HEAD',
     'git rev-parse HEAD', 'git ls-tree HEAD', 'git ls-files', 'git mv tracked.rs moved.rs', 'git checkout -- tracked.rs', 'git checkout main', 'git checkout -b feature',
-    'git submodule status', 'git submodule update --init', 'git branch', 'git config user.name x', 'git remote -v', 'git -C sub log', 'git -c core.quotepath=off status',
+    'git submodule status', 'git submodule update --init', 'git branch', 'git config --get user.name', 'git remote -v', 'git -C sub log', 'git -c core.quotepath=off status',
     'git -c user.name=t -c user.email=t@t commit -m x', 'git -c color.ui=never diff', 'git -c advice.detachedHead=false checkout main', 'git --no-pager log', 'git -P log',
     'git --no-optional-locks status', 'git restore --staged tracked.rs', 'git reset --soft HEAD~1', 'git reset', 'git ls-remote .', 'git check-ignore x', 'git notes list',
     'git -c commit.gpgsign=false commit -m x', 'git -c core.autocrlf=false add .', 'git log && git status', 'F=msg.txt; git commit -F "$F"', 'cd sub && git status'];
   for (const command of everyday) check(`control: ${command} passes beside a live writer`, passes_(command));
-  check('control: a config call beside a built-in command passes', passes_('git config user.name x && git commit -m wip'));
+  check('control: a config read beside a built-in command passes', passes_('git config --get user.name && git commit -m wip'));
+  check('KIT-T1266: a config change stops beside a live writer: agents have no need to change shared git configuration', stops('git config user.name x && git commit -m wip'));
   check('control: a git call with no subcommand runs nothing and passes', passes_('git --version') && passes_('git'));
   const blockText = run('git frobnicate', 'S1').stderr;
   check('the block of an unknown subcommand names the part and the way out', /outside the allow-list[^]*git frobnicate, which is not a built-in[^]*written plainly/.test(blockText), blockText);

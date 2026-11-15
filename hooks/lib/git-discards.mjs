@@ -135,16 +135,20 @@ const integrationOf = (verb) => (args) => {
   return { verb: autostash ? `${verb} --autostash` : verb, files: [], sweep: INTEGRATION, always: autostash };
 };
 
-// A `git config` call that sets one of the keys that make every later pull, rebase or merge stash the work tree: `merge.autoStash`,
-// `rebase.autoStash`, `pull.rebase` (also `git config set <key> <value>`). Reading or unsetting a key is not judged.
-const INTEGRATION_KEYS = new Set(['merge.autostash', 'rebase.autostash', 'pull.rebase']);
-const CONFIG_READS = ['get', 'get-all', 'get-regexp', 'get-urlmatch', 'list', 'l', 'unset', 'unset-all', 'remove-section', 'rename-section', 'edit', 'e'];
-function setsIntegrationKey(args) {
-  const { flags, operands } = parse(args, { shortValues: 'f', longValues: ['--file', '--blob'] });
-  const words = operands[0] === 'set' ? operands.slice(1) : operands;
-  return !CONFIG_READS.some((f) => flags.has(f)) && words.length >= 2 && INTEGRATION_KEYS.has(words[0].toLowerCase());
+// Git configuration is shared by every writer of the checkout, and many keys change what a later pull, rebase, merge or fetch does
+// (`pull.rebase`, `merge.autoStash`, `rebase.autoStash`, `branch.<name>.rebase`, `include.path`, ...): no list of them is sound, so
+// a `git config` call is a sweep unless it is PLAINLY a read: --get, --get-all, --get-regexp, --get-urlmatch, --list/-l, the
+// `get` and `list` subcommands, or one bare key with no value and no writing flag.
+const CONFIG_READ_FLAGS = ['get', 'get-all', 'get-regexp', 'get-urlmatch', 'list', 'l'];
+const CONFIG_WRITE_FLAGS = ['add', 'replace-all', 'unset', 'unset-all', 'remove-section', 'rename-section', 'edit', 'e'];
+function plainConfigRead(args) {
+  const { flags, operands } = parse(args);
+  if (CONFIG_WRITE_FLAGS.some((f) => flags.has(f))) return false;
+  if (CONFIG_READ_FLAGS.some((f) => flags.has(f)) || ['get', 'list'].includes(operands[0])) return true;
+  return operands.length === 1;
 }
-const configOf = (args) => (setsIntegrationKey(args) ? { verb: 'git config (autostash or pull.rebase)', files: [], sweep: INTEGRATION, always: false } : null);
+const CONFIG_CHANGE = 'git configuration, which every writer of this checkout shares';
+const configOf = (args) => (plainConfigRead(args) ? null : { verb: 'git config', files: [], sweep: CONFIG_CHANGE, always: false });
 
 // `git checkout [<rev>] -- <path>...`, or `git checkout <path>` when the operand exists on disk; -f overwrites everything.
 function checkoutOf(args, ctx) {
@@ -213,7 +217,7 @@ export const discardHits = (text, ctx) => leadCommandHits(expandVariables(text, 
 function discardsBlindly({ sub, args }) {
   const parsed = parse(args);
   const { flags, separated } = parsed;
-  return (Object.hasOwn(FORCING, sub) && FORCING[sub].forces(parsed)) || sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && !readsOrRestoresStash(args)) || sub === 'pull' || sub === 'rebase' || sub === 'merge' || (sub === 'config' && setsIntegrationKey(args))
+  return (Object.hasOwn(FORCING, sub) && FORCING[sub].forces(parsed)) || sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && !readsOrRestoresStash(args)) || sub === 'pull' || sub === 'rebase' || sub === 'merge' || (sub === 'config' && !plainConfigRead(args))
     || (sub === 'reset' && flags.has('hard')) || (sub === 'restore' && !flags.has('staged') && !flags.has('S'))
     || (sub === 'checkout' && (forced(flags) || separated));
 }
