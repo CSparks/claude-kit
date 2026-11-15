@@ -14,13 +14,14 @@
 // name is already in the environment, which includes PATH; no `env` options. ALLOWED_ASSIGNED_NAMES is empty: no name
 // is exempt. The words `export`, `setenv`, `declare -x`, `typeset -x` and `set -a` count anywhere in the command or in a command
 // text it runs, when a git word follows them in that text; a bare assignment of a name already in the environment counts in any of those texts. A git call that runs a
-// command from somewhere unknown (git-run-commands.mjs) is off the list. In PowerShell only an assignment to `$env:NAME`, a
-// Set-/New-/Remove-Item on the Env: drive or SetEnvironmentVariable is an environment change; reading `$env:TEMP` is not. A
-// read-only verb (status, log, diff, show, ls-tree, ls-files, merge-base, rev-parse, rev-list, cat-file, show-ref, describe,
-// shortlog) is exempt from the environment-change rules unless the command names GIT_*, PATH, PAGER, HOME, XDG_CONFIG_HOME or USERPROFILE.
+// command from somewhere unknown (git-run-commands.mjs) is off the list. env-change.mjs reads the environment changes fail-closed:
+// a plain read of `$env:TEMP` is no change, anything else naming the environment is. A read-only verb (status, log, diff, show,
+// ls-tree, ls-files, merge-base, rev-parse, rev-list, cat-file, show-ref, describe, shortlog) is exempt only when every change
+// spells a literal variable on HARMLESS_ENV_NAMES (empty); a change whose name cannot be read refuses.
 
 import { gitRunCommands } from './git-run-commands.mjs';
 import { nestedSegments } from './lead-command-walk.mjs';
+import { environmentChanges } from './env-change.mjs';
 
 const BUILTIN = new Set(['add', 'am', 'annotate', 'apply', 'archive', 'bisect', 'blame', 'branch', 'bugreport', 'bundle', 'cat-file', 'check-attr', 'check-ignore',
   'check-mailmap', 'check-ref-format', 'checkout', 'checkout-index', 'cherry', 'cherry-pick', 'clean', 'clone', 'column', 'commit', 'commit-graph', 'commit-tree', 'config',
@@ -41,20 +42,19 @@ export const GIT_ALLOW_RULE = `a git call is judged precisely only when it stays
 
 const ENV_ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)=/;
 const ENV_OPTIONS_WRAPPER = /^(?:.*[\\/])?env(?:\.exe)?$/i;
-// PowerShell: only an assignment to `$env:NAME` or `${env:NAME}`, a *-Item/*-ItemProperty cmdlet on the Env: drive, or SetEnvironmentVariable
-// changes the environment; `$env:TEMP` or `Get-Content Env:X` only reads it.
-const EXPORTS = /(?<![\w-])(?:export|setenv|declare\s+-[A-Za-z]*x|typeset\s+-[A-Za-z]*x|set\s+(?:-[A-Za-z]*a\b|-o\s+allexport))(?![\w-])|\$(?:env:[\w.()-]+|\{env:[^}]+\})\s*(?:[-+*/%]|\?\?)?=(?!=)|\b(?:set|new|remove|clear|rename|copy|move|add)-item(?:property)?\b[^;|\n]*\bEnv:|SetEnvironmentVariable/i;
-// Names that redirect or wrap git itself: an environment change naming one stays a sweep even before a read-only verb.
-const REDIRECTING_NAME = '(?:GIT_[A-Z0-9_]+|PATH|PAGER|HOME|XDG_CONFIG_HOME|USERPROFILE)';
-const GIT_REDIRECTING = new RegExp(`(?:\\$\\{?env:|\\benv:|\\bexport\\s+|\\bsetenv\\s+|SetEnvironmentVariable\\(\\s*['"]?)${REDIRECTING_NAME}\\b|\\b${REDIRECTING_NAME}=`, 'i');
-// Verbs that only read the repository: an environment change elsewhere in the command is no reason to fear them.
+// Environment changes are read by env-change.mjs, fail-closed: only a plain read of `$env:NAME` is no change.
+// Names a read-only git verb may follow a change of: each one justified here, none by default. A change qualifies only when the
+// command spells its variable as a literal and it is on this list; any other change (a computed name, an Env: drive path) refuses.
+export const HARMLESS_ENV_NAMES = [];
+// Verbs that only read the repository.
 const READ_ONLY = new Set(['status', 'log', 'diff', 'show', 'ls-tree', 'ls-files', 'merge-base', 'rev-parse', 'rev-list', 'cat-file', 'show-ref', 'describe', 'shortlog']);
 const GIT_WORD = /(?<![\w-])git(?![\w-])/i;
 // An environment change counts only when a git word follows it in the same text: `git commit -m "export the helper"` changes nothing.
-const exportsBeforeGit = (text) => {
-  const found = EXPORTS.exec(text);
-  return Boolean(found) && GIT_WORD.test(text.slice(found.index + found[0].length));
-};
+const changesBeforeGit = (text) => environmentChanges(text).filter((change) => GIT_WORD.test(text.slice(change.end)));
+
+/** True when every change names a literal variable on `allow`: the only changes a read-only verb is exempt from. */
+export const exemptReadOnly = (changes, allow = HARMLESS_ENV_NAMES) => changes.length > 0
+  && changes.every((change) => change.name !== null && allow.some((name) => name.toLowerCase() === change.name.toLowerCase()));
 const caseless =process.platform === 'win32';
 const inEnvironment = (name) => Object.keys(process.env).some((k) => (caseless ? k.toLowerCase() === name.toLowerCase() : k === name));
 
@@ -86,8 +86,8 @@ function environmentProblem(lead, raw, parts, readOnly = false) {
   if (prefix) return `environment assignment ${prefix}= in front of git`;
   const at = lead.findIndex((w) => ENV_OPTIONS_WRAPPER.test(w));
   if (at >= 0 && lead.slice(at + 1).some((w) => w.startsWith('-'))) return 'options of env in front of git';
-  if (readOnly && !GIT_REDIRECTING.test(raw)) return '';
-  if ([raw, ...parts.map((part) => part.text)].some(exportsBeforeGit)) return 'a variable exported (or a PowerShell environment change) in the same command';
+  const changes = [raw, ...parts.map((part) => part.text)].flatMap(changesBeforeGit);
+  if (changes.length && !(readOnly && exemptReadOnly(changes))) return 'a variable exported (or a PowerShell environment change) in the same command';
   const set = bareAssignments(parts).find((n) => !ALLOWED_ASSIGNED_NAMES.includes(n) && inEnvironment(n));
   return set ? `${set}= assigned in the same command, a name already in the environment` : '';
 }
