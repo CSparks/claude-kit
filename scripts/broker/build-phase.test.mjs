@@ -25,11 +25,11 @@ function fakeSlot() {
   return { granted: GRANTED, updates, update: (patch) => updates.push(patch), last: () => updates[updates.length - 1] };
 }
 
-function drive(frames) {
+function drive(frames, tests = true) {
   const slot = fakeSlot();
   let at = START;
   let rows = [];
-  const watch = phaseWatch({ slot, pid: ROOT, list: () => rows, now: () => at, pollMs: POLL, settleMs: SETTLE_MS });
+  const watch = phaseWatch({ slot, pid: ROOT, tests, list: () => rows, now: () => at, pollMs: POLL, settleMs: SETTLE_MS });
   for (const frame of frames) { rows = frame; watch.poll(); at += POLL; }
   return slot;
 }
@@ -74,6 +74,14 @@ test('control: a job that has not settled is not shrunk (a test binary seen for 
 
 test('control: cargo with no compiler and no test process (starting up) changes nothing', () => {
   assert.equal(drive(Array.from({ length: 6 }, () => [cargo])).updates.length, 0);
+});
+
+test('KIT-T1222: a build with no run phase never enters the running phase, whatever helper process sits between its compiler steps', () => {
+  const helper = (cpuMs) => ({ pid: 400, ppid: ROOT, name: 'cmake.exe', cpuMs });
+  const frames = [[cargo, rustc(1)], ...Array.from({ length: 6 }, (_, i) => [cargo, helper(i * 100)]), [cargo, rustc(0)]];
+  const build = drive(frames, false);
+  assert.ok(build.updates.length > 0 && build.updates.every((u) => u.phase === 'compiling' && u.jobs === GRANTED), 'the hold stays compiling at the full grant');
+  assert.ok(drive(frames, true).updates.some((u) => u.phase === 'running'), 'control: with a run phase the same frames do enter it');
 });
 
 test('a compiler that reappears grows the shrunk hold back to the grant', () => {

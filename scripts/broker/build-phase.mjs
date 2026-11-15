@@ -4,8 +4,11 @@
 // that reappears (the next test target builds) grows the hold back to the grant at once. Every poll also writes the phase,
 // the live compiler count and the CPU the tree used into the hold, which `builds` prints.
 //
-//   phaseWatch({ slot, pid, list?, now?, pollMs?, settleMs? }) -> { poll() }
+//   phaseWatch({ slot, pid, tests?, list?, now?, pollMs?, settleMs? }) -> { poll() }
 //     slot: an acquired slot (update(patch), granted); pid: the build's root process. poll() is cheap between samples.
+//     tests: the command has a run phase (classify().tests). A build with none (build, check, clippy, doc) never enters the
+//     `running` phase: a helper process between compiler steps is no test, and the write guard stops holding a `running`
+//     build's sources (KIT-T1222).
 //   readPhase(tree) -> { compiling, rustc, testing, cpuMs }   what a process tree is doing
 //   chargeFor(cores, granted) -> cores a running-tests hold is charged
 
@@ -29,7 +32,7 @@ export function readPhase(tree) {
 
 export const chargeFor = (cores, granted) => Math.min(granted, Math.max(RUN_MIN_CORES, Math.ceil(cores)));
 
-export function phaseWatch({ slot, pid, list = listProcesses, now = Date.now, pollMs = PHASE_POLL_MS, settleMs = SETTLE_MS }) {
+export function phaseWatch({ slot, pid, tests = true, list = listProcesses, now = Date.now, pollMs = PHASE_POLL_MS, settleMs = SETTLE_MS }) {
   let next = 0;
   let quietSince = null;
   let before = new Map();
@@ -48,7 +51,7 @@ export function phaseWatch({ slot, pid, list = listProcesses, now = Date.now, po
       if (seen.compiling) {
         quietSince = null;
         slot.update({ phase: 'compiling', rustc: seen.rustc, cpuMs: seen.cpuMs, cores, jobs: slot.granted });
-      } else if (seen.testing) {
+      } else if (seen.testing && tests) {
         quietSince ??= at;
         if (at - quietSince >= settleMs) slot.update({ phase: 'running', rustc: 0, cpuMs: seen.cpuMs, cores, jobs: chargeFor(cores, slot.granted) });
       }

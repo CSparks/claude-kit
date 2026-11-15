@@ -107,7 +107,7 @@ async function runGated(real, tool, args, verdict, cwd) {
   lowerPriority(child, snapshot().game);
   if (verdict.runs) forwardUntilProgram(child, () => slot.release());
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig));
-  const phase = phaseWatch({ slot, pid: child.pid });
+  const phase = phaseWatch({ slot, pid: child.pid, tests: verdict.tests });
   const watching = setInterval(() => phase.poll(), PHASE_POLL_MS);
   return new Promise((done) => child.on('exit', (code, signal) => { clearInterval(watching); slot.release(); done(code ?? (signal ? 1 : 0)); }));
 }

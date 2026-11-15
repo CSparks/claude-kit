@@ -60,7 +60,10 @@ test('jobs flags: the largest request is read and every value above the cores is
 });
 
 test('classify: builds are gated, a run keeps its program out of the hold, info and fmt pass', () => {
-  assert.deepEqual(classify('cargo', ['test', '-p', 'x'], tmpdir()), { gated: true, runs: false, sub: 'test' });
+  assert.deepEqual(classify('cargo', ['test', '-p', 'x'], tmpdir()), { gated: true, runs: false, tests: true, sub: 'test' });
+  assert.equal(classify('cargo', ['build', '-p', 'x', '--bin', 'probe'], tmpdir()).tests, false, 'a build has no run phase');
+  assert.equal(classify('cargo', ['check'], tmpdir()).tests, false);
+  assert.equal(classify('cargo-nextest', ['run'], tmpdir()).tests, true);
   assert.equal(classify('cargo', ['r'], tmpdir()).runs, true);
   assert.equal(classify('cargo', ['+nightly', 'check'], tmpdir()).gated, true);
   assert.equal(classify('cargo', ['fmt'], tmpdir()).gated, false);

@@ -1,9 +1,10 @@
 // build-classify.mjs — does a tool invocation compile, and does it run a program afterwards (KIT-D135)?
 //
-//   classify(tool, args, cwd) -> { gated, runs, sub }
+//   classify(tool, args, cwd) -> { gated, runs, tests, sub }
 //     tool   'cargo' | 'cargo-nextest' | 'cargo-ndk'   (the extension point for other build tools: add a case)
 //     gated  the invocation compiles, so it takes cores from the machine build budget
 //     runs   it starts the built program (`cargo run` and aliases of it): the hold ends when the program starts
+//     tests  it has a run phase after compiling (test, bench, run, nextest): only these holds may enter the `running` phase
 // A project alias (`.cargo/config.toml` [alias]) is expanded first, so `cargo t` and `cargo editor` are judged as
 // what they run.
 
@@ -36,11 +37,13 @@ function expand(sub, cwd) {
   return name;
 }
 
+const TESTING_SUBS = new Set(['test', 'bench', 'run', 'cargo-nextest']);
+
 export function classify(tool, args, cwd = process.cwd()) {
-  if (args.some((a) => INFO_ONLY.has(a))) return { gated: false, runs: false, sub: '' };
+  if (args.some((a) => INFO_ONLY.has(a))) return { gated: false, runs: false, tests: false, sub: '' };
   if (tool === 'cargo') {
     const sub = expand(subcommand(args), cwd);
-    return { gated: GATED_SUBS.has(sub), runs: sub === 'run', sub };
+    return { gated: GATED_SUBS.has(sub), runs: sub === 'run', tests: TESTING_SUBS.has(sub), sub };
   }
-  return { gated: tool === 'cargo-nextest' || tool === 'cargo-ndk', runs: false, sub: tool };
+  return { gated: tool === 'cargo-nextest' || tool === 'cargo-ndk', runs: false, tests: TESTING_SUBS.has(tool), sub: tool };
 }
