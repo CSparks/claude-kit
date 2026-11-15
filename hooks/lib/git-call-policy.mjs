@@ -49,9 +49,12 @@ const ENV_OPTIONS_WRAPPER = /^(?:.*[\\/])?env(?:\.exe)?$/i;
 // guards against accidents between cooperating agents, not against obfuscation (KIT-T1262).
 const SHELL_WORDS = /(?<![\w-])(?:export|setenv)(?![\w-])|(?<![\w-])set\s+(?:[-+]|[^;&|\n]*-o\s+(?:allexport|keyword))/i;
 const POWERSHELL_ROUTES = /\$env:|\bEnv:|SetEnvironmentVariable|Environment::|PSProvider|PSDrive/i;
-const COMMAND_START = '(?:^|[;&|\\n(){}]|(?<![\\w-])(?:then|do|else|elif|if|while|until)(?![\\w-]))';
+const COMMAND_START = '(?:^|[;&|\\n(){}!]|(?<![\\w-])(?:then|do|else|elif|if|while|until|coproc)(?![\\w-]))';
+const ASSIGNMENTS = '(?:[A-Za-z_]\\w*=\\S*\\s+)*';
 const WRAPPER = '(?<![\\w-])(?:command|builtin|exec|eval|sudo|env|time|nohup|xargs|bash|sh|zsh|dash|ksh)(?![\\w-])[^;&|\\n]*?';
-const SHELL_DECLARATION = new RegExp(`(?:${COMMAND_START}|${WRAPPER})\\s*(?<![\\w-])(declare|typeset|local)(?![\\w-])`, 'i');
+const SHELL_DECLARATION = new RegExp(`(?:${COMMAND_START}\\s*${ASSIGNMENTS}|${WRAPPER}\\s*)(?<![\\w-])(declare|typeset|local)(?![\\w-])`, 'i');
+// An x flag marks the variable exported wherever the keyword stands (`unknown-prefix declare -x A=1`).
+const EXPORTING_DECLARATION = /(?<![\w-])(declare|typeset|local)\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*x[A-Za-z]*(?![\w-])/i;
 const ENVIRONMENT_WORD = /(?<![\w-])Environment(?![\w-])/i;
 const PATH_COMPONENT = /(?<=^|[\\/'"])environment(?=$|[\\/'".,;)])/gi;
 const GIT_WORD = /(?<![\w-])git(?![\w-])/i;
@@ -67,7 +70,7 @@ const tokenBeforeGit = (candidate, pattern) => {
 // detector runs on the text as written and with quotes, backslashes and backticks removed (`'export'`, `ex""port`).
 const environmentTokenBeforeGit = (text) => {
   const candidates = [text, text.replace(UNQUOTED, '')];
-  const found = [SHELL_WORDS, POWERSHELL_ROUTES, SHELL_DECLARATION].flatMap((pattern) => candidates.map((candidate) => tokenBeforeGit(candidate, pattern)));
+  const found = [SHELL_WORDS, POWERSHELL_ROUTES, SHELL_DECLARATION, EXPORTING_DECLARATION].flatMap((pattern) => candidates.map((candidate) => tokenBeforeGit(candidate, pattern)));
   return found.find(Boolean) || tokenBeforeGit(withoutPathComponents(text).replace(/['"`]/g, ''), ENVIRONMENT_WORD);
 };
 const caseless = process.platform === 'win32';

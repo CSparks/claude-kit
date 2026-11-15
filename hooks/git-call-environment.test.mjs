@@ -54,6 +54,8 @@ const SPELLINGS = [
   '[ENVIRONMENT]::Foo', 'System.Environment', 'Add-Type -TypeDefinition "class X { void Y() { System.Environment.Exit(0); } }"',
   'declare -a A=(1)', 'declare FOO=1', 'declare -p', 'declare -A m', 'typeset -i n=1', 'typeset -f', 'typeset FOO', 'local', 'local FOO=1', 'local -a x', 'f() { local x; }',
   'if true; then declare A=1; fi', 'time declare A', 'sudo local x', 'bash -c "declare A=1"', "sh -c 'typeset -i n'", "'declare' A=1", 'de""clare A=1', '(declare A=1)', '{ local x; }',
+  'A=1 declare -x B=1', '! declare -x B=1', 'coproc declare -x B=1', 'A=1 B=2 declare C', '! local x', 'A=1 local x', 'coproc typeset A', '! typeset -i n', 'A=1 B=2 typeset -x C=3',
+  'A="a b" declare -x B=1', 'foo declare -x B=1', 'unknown-prefix typeset -r -x B=1', 'x=1; y=2 declare -x Z', 'time A=1 declare -x B=1',
   'true && declare A=1', 'true || typeset A', 'echo a | declare A', 'while true; do local x; done', 'nohup declare A', 'xargs typeset A', 'eval declare A',
 ];
 check(`the regression list holds at least forty change spellings (${SPELLINGS.length})`, SPELLINGS.length >= 40);
