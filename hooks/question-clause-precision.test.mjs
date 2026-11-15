@@ -24,7 +24,7 @@ const D080 = decision('GG-D080', 'Song mode generation layers: Song settings dri
   'The Song-to-Scene step is the plan stage.');
 const D068 = decision('GG-D068', 'Song-mode scene metadata is inert, stored in the scene',
   'Song level holds only the parameters that drive what gets populated at scene level.',
-  'Key, scale and tempo are scene metadata; Scene mode and playback ignore the stored values except engine-read attributes such as swing.');
+  'Every generator value and every timeline-varying parameter, presence included, is stored in the scene as metadata. Scene mode and playback ignore it except engine-read attributes such as swing.');
 const FALSE_HITS = [
   decision('GG-D032', 'Release model', 'The founder purchase unlocks perks for every project, group licence and song pack.'),
   decision('GG-D073', 'Song mode design rulings', 'Roles derive from tracks: every track has a role; the Roles modal lists each project track.'),
@@ -40,7 +40,7 @@ const KIT_QUESTIONS = [
   'Which machines become kits: the pads of a Group, or any Song track with a role setting in the project?',
 ];
 const REPLAY_D080 = 'Should a scene render read any Song setting, or only the settings stored in its scene?';
-const REPLAY_D068 = 'Should key, scale and tempo be scene metadata, with Scene mode and playback ignoring the stored values?';
+const REPLAY_D068 = 'Should every generator value, presence included, be stored in the scene as metadata that Scene mode and playback ignore?';
 
 try {
   const hitsOf = (text) => clauseMatches(docs, text).map((m) => m.id);
