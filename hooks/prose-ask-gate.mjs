@@ -42,7 +42,8 @@ const message = ({ sentence, phrase }) => [
   'His rule: "If you need something, that needs to be a questionnaire or it\'s a process failure." Send the AskUserQuestion THIS turn:',
   'a plain summary first, the recommended option first with (Recommended) prepended to its label (q gates question). No prose version of',
   'it, no rewording that keeps the ask. A choice you can make and reverse yourself: make it and report it, never park it in a trailing',
-  'line. An action only he can perform is an option too. This stop is filed as a process failure in the kit store.',
+  'line. An action only he can perform is an option too. A brainstorming skill\'s "end with the question" never overrides this: clarifying',
+  'questions that are a wait go in the AskUserQuestion too (KIT-T1230). This stop is filed as a process failure in the kit store.',
 ].join('\n');
 
 async function fileProcessFailure(root, sessionId, { sentence, phrase }) {

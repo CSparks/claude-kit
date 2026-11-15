@@ -141,6 +141,11 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   questionnaire reached him that turn, files a process-failure ticket, and names the phrase: put it in an
   AskUserQuestion, summary first, recommended option first. Exempt: a subagent's report, his own question,
   quoted words, code and past-tense descriptions.
+- **A brainstorming or clarifying-question flow stays open discussion until a question is a wait (KIT-T1230).**
+  A skill that says "end with an open question and invite corrections" (superpowers:brainstorming) is satisfied by
+  prose questions that ask for his view, with no closing line saying work waits on him. The moment the reply names
+  a wait ("waiting on your answers", "before I scope X"), or a question is a ready choice with options, send an
+  AskUserQuestion the same turn: summary first, recommended option first. A skill's wording never overrides this rule.
 
 ## ⛔ QUESTIONNAIRE PROTOCOL — a plain summary, then the questionnaire (KIT-D153)
 Every decision put to the maintainer is a plain summary (what is being decided, what each option
