@@ -80,6 +80,8 @@ function message(n, what) {
     `    The harness moves any foreground call to the background at ${HARNESS_FOREGROUND_S} s whatever its timeout. A subagent never backgrounds a`,
     `    build to wait on it; one that cannot finish in about ${MAX_FOREGROUND_WAIT_S} s is scoped down, else a Handoff block in the ticket Notes`,
     '    names the exact command and the agent ends (the orchestrator runs it and resumes it).',
+    '  - A probe capture or census that outlasts one foreground call: `builds --run "<command>" --out <file>` runs it once in a',
+    '    process that outlives your turn, waits once in the same call, and names its end in target/broker/finished.log (KIT-T1283).',
     '  - A call the harness already moved to the background: Read its output file at most once, never sleep, poll or wait on',
     '    it; a subagent writes the Handoff block and ends, the main thread reads the one finish notice.',
     '  - Pipe the output through a filter keeping only failures, panics, assertion lines and the `test result` totals.',

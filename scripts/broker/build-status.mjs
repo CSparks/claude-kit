@@ -10,6 +10,7 @@
 // `--audit` also lists project settings that ask for more cores than the budget (read only; build-audit.mjs).
 // The readout ends with the broken crates (hooks/lib/broken-crates.mjs, KIT-T1245): which crate does not compile, since when,
 // last edited by whom; `--broken` prints that section alone.
+// `--run "<command>"` runs a long command once in a process that outlives the agent's turn and `--result <id>` reads it (detached-run.mjs, KIT-T1283).
 // `--wait <file>` blocks once until no build compiles that file (build-wait.mjs, KIT-T1142): the wait a refused edit names.
 
 import { resolve } from 'node:path';
@@ -59,6 +60,10 @@ export function formatSnapshot({ physical, reserve, full, budget, game, holds, w
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (process.argv.includes('--run') || process.argv.includes('--result')) {
+    const { runCli } = await import('./detached-run.mjs');
+    process.exit(await runCli(process.argv.slice(2)));
+  }
   if (process.argv.includes('--wait')) {
     const { runWait } = await import('./build-wait.mjs');
     process.exit(await runWait(process.argv.slice(2)));
