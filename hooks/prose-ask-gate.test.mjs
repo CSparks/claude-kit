@@ -60,6 +60,26 @@ try {
     ok(`KIT-T1151 blocks and names the phrase: ${phrase}`, blocked(hit) && hit.out.includes('your closing reply says "'));
     ok(`KIT-T1151 negative control, questionnaire in the same turn: ${phrase}`, passed(stop(turn(`Landed in 1a2b3c4. ${phrase}`, { extra: asked2 }))));
   }
+  const CONDITIONAL_OFFERS = [
+    'If you meant a different private repo, or you want a snapshot pushed now regardless of build state, tell me which.',
+    'If you meant the other lane, just say so.',
+    'If you prefer the older layout, reply and I swap it back.',
+    'If you want it pushed now, ping me.',
+    'I can push a snapshot now if you want.',
+    'If you would like the lane wired, I can do that next.',
+    'Tell me.',
+  ];
+  for (const phrase of CONDITIONAL_OFFERS) {
+    const hit = stop(turn(`Landed in 1a2b3c4. ${phrase}`));
+    ok(`KIT-T1229 conditional offer blocks: ${phrase}`, blocked(hit) && hit.out.includes('your closing reply says "'));
+    ok(`KIT-T1229 conditional offer, questionnaire in the same turn passes: ${phrase}`, passed(stop(turn(`Landed in 1a2b3c4. ${phrase}`, { extra: asked2 }))));
+  }
+  ok('KIT-T1229 the block text ends on the fix: make the call and report it, or send AskUserQuestion', stop(turn(`Landed. ${CONDITIONAL_OFFERS[0]}`)).out.includes('make the call and report it, or send AskUserQuestion'));
+  for (const [name, reply] of [
+    ['"tells me" is not "tell me"', 'The failing test tells me the mesher drops the east bend.'],
+    ['an if clause with no hand-back', 'If you run the script, the output lists 12 passed.'],
+    ['a plain condition on the build', 'If the build fails, the snapshot is skipped.'],
+  ]) ok(`KIT-T1229 passes: ${name}`, passed(stop(turn(reply))));
   for (const [name, reply] of [
     ['inside a code fence', 'Output:\n```\nwaiting on you\nyour call\n```\nDone.'],
     ['inside an inline code span', 'The block prints `which one is it` and nothing else.'],

@@ -43,7 +43,9 @@ const message = ({ sentence, phrase }) => [
   'a plain summary first, the recommended option first with (Recommended) prepended to its label (q gates question). No prose version of',
   'it, no rewording that keeps the ask. A choice you can make and reverse yourself: make it and report it, never park it in a trailing',
   'line. An action only he can perform is an option too. A brainstorming skill\'s "end with the question" never overrides this: clarifying',
-  'questions that are a wait go in the AskUserQuestion too (KIT-T1230). This stop is filed as a process failure in the kit store.',
+  'questions that are a wait go in the AskUserQuestion too (KIT-T1230). A hedged hand-back ("if you meant X, tell me", "I can do Y if you',
+  'want") is the same ask (KIT-T1229). This stop is filed as a process failure in the kit store.',
+  'The fix: make the call and report it, or send AskUserQuestion.',
 ].join('\n');
 
 async function fileProcessFailure(root, sessionId, { sentence, phrase }) {

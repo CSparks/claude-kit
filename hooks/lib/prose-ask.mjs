@@ -1,5 +1,6 @@
 // prose-ask — the sentences of a reply that ask the maintainer for approval, a decision or an action, or say that
-// work waits on him, in prose (KIT-T1130, KIT-T1136, KIT-T1151, GG-D088). A request to him goes in an
+// work waits on him, in prose, including a hedged hand-back ("if you meant X, tell me", "I can do Y if you want")
+// (KIT-T1130, KIT-T1136, KIT-T1151, KIT-T1229, GG-D088). A request to him goes in an
 // AskUserQuestion; the prose-ask-gate Stop hook uses this.
 //
 //   proseAskMatches(text) -> [{ sentence, phrase, hard }] the matched sentences, oldest first, with the phrase that matched
@@ -21,6 +22,18 @@ const HARD_PHRASES = [
   /\bwhich (?:one )?is it\b/i,
 ];
 
+// A hedged hand-back: "if you meant X, just say so", "I can do Y if you want" — the ask in a conditional.
+function conditionalOffers() {
+  const wish = "(?:meant|want|wish|prefer|would (?:like|rather|prefer)|'d (?:like|rather|prefer)|need)";
+  const handBack = '(?:just |please |simply )?(?:say|reply|respond|ping|message|flag|shout|holler|send)\\b';
+  return [
+    new RegExp(`\\bif you ${wish}\\b[^.?!\\n]*?[,;]?\\s*${handBack}`, 'i'),
+    new RegExp(`\\b(?:just|simply) ${handBack}`, 'i'),
+    new RegExp(`\\bI (?:can|could|will|would|'ll)\\b[^.?!\\n]*\\bif you (?:want|wish|like|prefer|'d like)\\b`, 'i'),
+    new RegExp(`\\bif you ${wish}\\b[^.?!\\n]*?,\\s*I (?:can|could|will|would|'ll)\\b`, 'i'),
+  ];
+}
+
 const SOFT_PHRASES = [
   /\bneeds? (?:your|chris'?s?) (?:say|call|go|go-ahead|approval|decision|input|answer|ok|sign-?off)\b/i,
   /\bneed (?:\w+ )?from (?:you|chris)\b/i,
@@ -29,8 +42,9 @@ const SOFT_PHRASES = [
   /\blet me know\b/i,
   /\bonce you (?:sign|approve|say|confirm)\b/i,
   /\bsay the word\b/i,
-  /\btell me which\b/i,
+  /\btell me\b/i,
   /\bsay so if you (?:want|prefer|would like)\b/i,
+  ...conditionalOffers(),
 ];
 
 const DESCRIPTIVE = [
