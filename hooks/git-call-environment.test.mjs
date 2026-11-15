@@ -48,6 +48,13 @@ const SPELLINGS = [
   'declare -x FOO=1', 'declare -ix FOO=1', 'declare -r -x FOO=1', 'declare -x -r FOO=1', 'typeset -x FOO=1', 'typeset -r -x FOO=1', 'typeset -xr FOO=1', 'local -x FOO=1',
   "'export' FOO=1", '"export" FOO=1', '\\export FOO=1', 'ex""port FOO=1', "e'xpo'rt FOO=1", 'set -a', 'set -k', 'set -o keyword', 'set -o allexport', 'set -a; X=1',
   'bash -c "export FOO=1"', 'sh -c "declare -x FOO=1"', 'command export A=1', 'local -x A=1; local -x B=2', 'readonly -x FOO=1; set -a',
+  // review round 5: `set` with any option, `Environment` as a word, declare/typeset/local as a command word with any flags
+  'set -e', 'set +e', 'set -euo pipefail', 'set -x', 'set -- a b', 'set -o allexport', 'set +o allexport', 'set -e -o allexport', 'set -o errexit -o keyword', 'set foo -o keyword',
+  "[type]'System.Environment'", "'System.Environment' -as [type]", '[System.Environment]::NewLine', '[type]"Environment"', '-as [Environment]', '[Type]::GetType("System.Environment")',
+  '[ENVIRONMENT]::Foo', 'System.Environment', 'Add-Type -TypeDefinition "class X { void Y() { System.Environment.Exit(0); } }"',
+  'declare -a A=(1)', 'declare FOO=1', 'declare -p', 'declare -A m', 'typeset -i n=1', 'typeset -f', 'typeset FOO', 'local', 'local FOO=1', 'local -a x', 'f() { local x; }',
+  'if true; then declare A=1; fi', 'time declare A', 'sudo local x', 'bash -c "declare A=1"', "sh -c 'typeset -i n'", "'declare' A=1", 'de""clare A=1', '(declare A=1)', '{ local x; }',
+  'true && declare A=1', 'true || typeset A', 'echo a | declare A', 'while true; do local x; done', 'nohup declare A', 'xargs typeset A', 'eval declare A',
 ];
 check(`the regression list holds at least forty change spellings (${SPELLINGS.length})`, SPELLINGS.length >= 40);
 wrong('every spelling is refused before a read-only verb', SPELLINGS.map((c) => `${c}; git status`), true);
@@ -63,7 +70,10 @@ wrong('reads of the environment are refused too: the way out is a git call of it
 const PASSES = [
   'echo $HOME; git status', 'echo ${TMPDIR}; git status', 'printenv HOME; git status', 'env; git status', 'F=msg.txt; git commit -F "$F"', 'cd sub && git status',
   'Get-Content C:\\Users\\x\\AppData\\Local\\Temp\\m.txt; git status', 'cd src/local && git status', 'cat docs/environment.md; git add docs/environment.md',
-  'git status; $env:FOO = "x"', 'git commit -m "export the helper"',
+  'git status; $env:FOO = "x"', 'git commit -m "export the helper"', 'git status', 'git commit -F "$F"', 'F=msg.txt; git commit -F "$F"',
+  'cd local && git status', 'cd src/local && git status', 'echo declare; git status', 'echo local typeset; git status', 'cat C:\\proj\\Environment\\notes.txt; git status',
+  'Get-Content C:\\Users\\x\\AppData\\Local\\Temp\\m.txt; git status', 'Get-Content docs\\environment.md; git add docs\\environment.md', 'ls src/environment; git status',
+  'git add docs/environment.md', 'cat ./docs/Environment.md; git diff', 'git log -- environment.rs', 'cd /usr/local/bin && git status', 'git status; set -e',
 ];
 wrong('commands with no environment mention (paths and words that only contain one) pass', PASSES, false);
 check('control: a prefix assignment in front of git, an env wrapper with options and a bare assignment of a name in the environment refuse',

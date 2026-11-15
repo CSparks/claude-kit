@@ -41,20 +41,34 @@ export const GIT_ALLOW_RULE = `a git call is judged precisely only when it stays
 
 const ENV_ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)=/;
 const ENV_OPTIONS_WRAPPER = /^(?:.*[\\/])?env(?:\.exe)?$/i;
-// Every spelling that can reach the environment: the shell words (any flag group of declare, typeset or local holding x; set -a, -k,
-// -o allexport, -o keyword) and PowerShell's own routes (`$env:`, the Env: drive, [Environment], the Environment provider,
-// PSProvider, PSDrive, SetEnvironmentVariable). A plain word such as `local` or `environment` in a path is not one.
-const EXPORTS = /(?<![\w-])(?:export|setenv|(?:declare|typeset|local)\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*x[A-Za-z]*|set\s+(?:-[A-Za-z]*[ak]\b|-o\s+(?:allexport|keyword)))(?![\w-])|\$env:|\bEnv:|SetEnvironmentVariable|\[Environment\]|Environment::|PSProvider|PSDrive/i;
+// Every spelling that can reach the environment. Shell words: export, setenv, `set` followed by any option (or -o allexport /
+// -o keyword among its arguments), and declare, typeset or local as a COMMAND WORD whatever its flags. PowerShell: `$env:`, the
+// Env: drive, SetEnvironmentVariable, Environment:: (the provider), PSProvider, PSDrive and `Environment` as a word
+// (`[Environment]`, `System.Environment`, `-as [type]`). A word that only sits in a path (`docs/environment.md`,
+// `src/local`, `...\AppData\Local\Temp\...`) is none of them. A keyword built at run time is invisible to a text check: the gate
+// guards against accidents between cooperating agents, not against obfuscation (KIT-T1262).
+const SHELL_WORDS = /(?<![\w-])(?:export|setenv)(?![\w-])|(?<![\w-])set\s+(?:[-+]|[^;&|\n]*-o\s+(?:allexport|keyword))/i;
+const POWERSHELL_ROUTES = /\$env:|\bEnv:|SetEnvironmentVariable|Environment::|PSProvider|PSDrive/i;
+const COMMAND_START = '(?:^|[;&|\\n(){}]|(?<![\\w-])(?:then|do|else|elif|if|while|until)(?![\\w-]))';
+const WRAPPER = '(?<![\\w-])(?:command|builtin|exec|eval|sudo|env|time|nohup|xargs|bash|sh|zsh|dash|ksh)(?![\\w-])[^;&|\\n]*?';
+const SHELL_DECLARATION = new RegExp(`(?:${COMMAND_START}|${WRAPPER})\\s*(?<![\\w-])(declare|typeset|local)(?![\\w-])`, 'i');
+const ENVIRONMENT_WORD = /(?<![\w-])Environment(?![\w-])/i;
+const PATH_COMPONENT = /(?<=^|[\\/'"])environment(?=$|[\\/'".,;)])/gi;
 const GIT_WORD = /(?<![\w-])git(?![\w-])/i;
 const UNQUOTED = /['"`\\]/g;
-// The environment token of `text` that a git word follows, or '': `git commit -m "export the helper"` changes nothing. The text is
-// tried as written and with quotes, backslashes and backticks removed (`'export'`, `ex""port`).
+const blank = (text) => ' '.repeat(text.length);
+// A token with a slash and neither `::` nor `Env:` is a path: its components are file names, whatever they spell.
+const withoutPathComponents = (text) => text.replace(/\S+/g, (token) => (/[\\/]/.test(token) && !/::|env:/i.test(token) ? token.replace(PATH_COMPONENT, blank) : token));
+const tokenBeforeGit = (candidate, pattern) => {
+  const found = pattern.exec(candidate);
+  return found && GIT_WORD.test(candidate.slice(found.index + found[0].length)) ? found[1] || found[0] : '';
+};
+// The environment token of `text` that a git word follows, or '': `git commit -m "export the helper"` changes nothing. Each
+// detector runs on the text as written and with quotes, backslashes and backticks removed (`'export'`, `ex""port`).
 const environmentTokenBeforeGit = (text) => {
-  for (const candidate of [text, text.replace(UNQUOTED, '')]) {
-    const found = EXPORTS.exec(candidate);
-    if (found && GIT_WORD.test(candidate.slice(found.index + found[0].length))) return found[0];
-  }
-  return '';
+  const candidates = [text, text.replace(UNQUOTED, '')];
+  const found = [SHELL_WORDS, POWERSHELL_ROUTES, SHELL_DECLARATION].flatMap((pattern) => candidates.map((candidate) => tokenBeforeGit(candidate, pattern)));
+  return found.find(Boolean) || tokenBeforeGit(withoutPathComponents(text).replace(/['"`]/g, ''), ENVIRONMENT_WORD);
 };
 const caseless = process.platform === 'win32';
 const inEnvironment = (name) => Object.keys(process.env).some((k) => (caseless ? k.toLowerCase() === name.toLowerCase() : k === name));
