@@ -37,6 +37,7 @@ try {
   check('with the folder listed, a PowerShell Copy-Item -Recurse passes', psCopy.status === 0, psCopy.stderr.slice(0, 100));
   check('control: the same copy into an unlisted folder still blocks', run(`cp -r "${registry}" rust/crates/bevy_render`).status === 2);
   check('control: a redirect into ordinary source outside the listed folder still blocks', run('echo x > rust/crates/a.rs').status === 2);
+  check('control: a write below a subdirectory is judged by its repo path, so a root-level glob does not lift a same-named folder there', run('echo x > rust/patches/a.rs', join(repo, 'rust', 'crates')).status === 2);
   check('control: a PowerShell copy into an unlisted folder still blocks', run(`Copy-Item -Recurse -Path "${registry}" -Destination rust\\crates\\bevy_render`, repo, 'PowerShell').status === 2);
 
   const PRE_WRITE = fileURLToPath(new URL('./pre-write.mjs', import.meta.url));

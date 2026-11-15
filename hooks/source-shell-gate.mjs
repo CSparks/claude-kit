@@ -51,7 +51,7 @@ try {
     const root = gitRootOfFile(file);
     if (!adopted(root)) continue;
     const rel = repoRelative(root, file);
-    if (pathExcluded(root, CHECK, rel) || pathExcluded(root, CHECK, found.path)) continue;
+    if (pathExcluded(root, CHECK, rel)) continue;
     if (found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
     if (!found.ambiguous && !found.moveLinesProblem && buildOutputJudge(root, { markerStands: () => !markerMentioned(command), ignoredStands: !ignoreEditMentioned(command) })(file)) continue;
     if (touchLifted(found, cwd)) continue;
