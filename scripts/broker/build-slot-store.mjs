@@ -5,6 +5,7 @@
 //   queueDir(dir?)           -> arrival-order tickets `<time>-<pid>-<rand>`, each { pid, host, label, cwd, jobs, ts }
 //   liveTickets(queue)       -> ticket names whose process is alive, oldest first, a priority ticket ahead of its own
 //                               checkout's earlier ones (slot-order.mjs); dead ones are deleted
+//   liveTicketRecords(queue) -> the same order as [{ name, jobs, elastic }] (build-backfill.mjs reads what each ticket asks for)
 //   liveHolds(dir)           -> [{ name, ...record }] holds `slot-<ticket>` whose process is alive (dead ones are deleted)
 //   rewriteHold(path, rec)   -> replaces a live hold's record atomically (build-phase.mjs resizes holds with it)
 //   limits(probes?)        -> { physical, budget, game } the budget in force now; a running game takes gameCores off it
@@ -29,15 +30,19 @@ export const alive = (rec) => {
 
 export const readRec = (path) => { try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; } };
 
-export function liveTickets(queue) {
+// The live tickets in queue order with what each asks for: [{ name, jobs, elastic }].
+export function liveTicketRecords(queue) {
   const entries = [];
+  const recs = new Map();
   for (const name of readdirSync(queue)) {
     const rec = readRec(join(queue, name));
-    if (alive(rec)) entries.push({ name, group: rec.group, priority: rec.priority });
+    if (alive(rec)) { entries.push({ name, group: rec.group, priority: rec.priority }); recs.set(name, rec); }
     else rmSync(join(queue, name), { force: true });
   }
-  return orderTickets(entries);
+  return orderTickets(entries).map((name) => ({ name, jobs: recs.get(name).jobs, elastic: !!recs.get(name).elastic }));
 }
+
+export const liveTickets = (queue) => liveTicketRecords(queue).map((t) => t.name);
 
 // Replaces a live hold's record whole. Written beside it and renamed over it, so a reader never sees a torn file (an
 // unreadable hold reads as dead and is deleted). A released hold is never recreated. -> true when the record landed.

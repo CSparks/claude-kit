@@ -1,7 +1,8 @@
 // build-slot.mjs — the machine-wide build budget (KIT-D105, KIT-T622, KIT-D135). Every Rust build from every
 // project, agent and tool takes cores from ONE budget: the physical cores minus the reserve (build-budget.mjs),
-// less the cores a running game or UAT session keeps. Builds that do not fit queue in arrival order; only the head
-// of the queue is admitted, so a large build is never starved by small ones; a hold past the 5-minute ceiling lets one
+// less the cores a running game or UAT session keeps. Builds that do not fit queue in arrival order; the first build of the
+// queue that fits the free cores starts, so a small build passes a large one that must wait, until that large one has waited
+// BYPASS_MAX_MS and the queue turns strict, so it is never starved by small ones (build-backfill.mjs, KIT-T1280); a hold past the 5-minute ceiling lets one
 // small slice start beside it (build-grant.mjs). A broker daemon that holds a tree another lane of its checkout waits
 // for marks its tickets `priority`, and they go ahead of that checkout's earlier ones (slot-order.mjs, KIT-T1044). A hold's `ts` is when it began. Holds and tickets live in one directory
 // under the user's `.claude` shared by every checkout (build-slot-store.mjs).
@@ -25,7 +26,8 @@ import { join } from 'node:path';
 import { isCargoBuild } from './cargo-subs.mjs';
 import { grantFor } from './build-grant.mjs';
 import { commitFreeBytes } from './build-probes.mjs';
-import { SLOT_PREFIX, limits, liveHolds, liveTickets, queueDir, rewriteHold, slotDir } from './build-slot-store.mjs';
+import { mayStart } from './build-backfill.mjs';
+import { SLOT_PREFIX, limits, liveHolds, liveTicketRecords, queueDir, rewriteHold, slotDir } from './build-slot-store.mjs';
 import { startedBy } from './build-origin.mjs';
 import { slotPriority } from './slot-priority.mjs';
 import { pulse } from './stall.mjs';
@@ -55,11 +57,13 @@ export function acquireBuildSlot(cmd, { jobs, label = String(cmd), force = false
     const now = slotPriority();
     if (now && now.priority !== !!ticket.priority) writeFileSync(ticketPath, JSON.stringify(Object.assign(ticket, now)));
     const { budget } = limits(probes);
-    const head = liveTickets(queue)[0] === name;
+    const waiting = liveTicketRecords(queue);
     const holds = liveHolds(dir);
-    if (head) {
-      const free = probes.commitFreeBytes ? probes.commitFreeBytes() : holds.length ? commitFreeBytes() : null;
-      const granted = grantFor({ requested: jobs, elastic, budget, held: holds, commitFreeBytes: free ?? Infinity });
+    const free = (probes.commitFreeBytes ? probes.commitFreeBytes() : holds.length ? commitFreeBytes() : null) ?? Infinity;
+    const grantTo = (asks) => grantFor({ requested: asks.jobs, elastic: asks.elastic, budget, held: holds, commitFreeBytes: free });
+    const queued = waiting.map((t) => ({ name: t.name, fits: grantTo(t) > 0 }));
+    if (mayStart({ name, queue: queued })) {
+      const granted = grantTo({ jobs, elastic });
       if (granted) {
         beforeStart();
         return hold(dir, name, ticketPath, { ...record, jobs: granted }, started, holder);
