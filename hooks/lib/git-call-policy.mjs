@@ -12,16 +12,14 @@
 // --no-optional-locks, --literal-pathspecs, and `-c key=value` for a key in ALLOWED_CONFIG or under ALLOWED_CONFIG_PREFIXES;
 // no environment variable assigned in front of the call, exported anywhere in the command, or (bare) assigned when the
 // name is already in the environment, which includes PATH; no `env` options. ALLOWED_ASSIGNED_NAMES is empty: no name
-// is exempt. The words `export`, `setenv`, `declare -x`, `typeset -x` and `set -a` count anywhere in the command or in a command
-// text it runs, when a git word follows them in that text; a bare assignment of a name already in the environment counts in any of those texts. A git call that runs a
-// command from somewhere unknown (git-run-commands.mjs) is off the list. env-change.mjs reads the environment changes fail-closed:
-// a plain read of `$env:TEMP` is no change, anything else naming the environment is. A read-only verb (status, log, diff, show,
-// ls-tree, ls-files, merge-base, rev-parse, rev-list, cat-file, show-ref, describe, shortlog) is exempt only when every change
-// spells a literal variable on HARMLESS_ENV_NAMES (empty); a change whose name cannot be read refuses.
+// is exempt. A bare assignment of a name already in the environment counts in any command text. A git call that runs a command
+// from somewhere unknown (git-run-commands.mjs) is off the list. Anything that mentions the environment before a git word, in the
+// command or in a command text it runs, counts unless every mention is a known read form (env-change.mjs inverts the question:
+// `$env:TEMP` read, Get-Content on `Env:NAME`, `[Environment]::GetEnvironmentVariable('NAME')`); no verb is exempt.
 
 import { gitRunCommands } from './git-run-commands.mjs';
 import { nestedSegments } from './lead-command-walk.mjs';
-import { environmentChanges } from './env-change.mjs';
+import { environmentChangeBeforeGit } from './env-change.mjs';
 
 const BUILTIN = new Set(['add', 'am', 'annotate', 'apply', 'archive', 'bisect', 'blame', 'branch', 'bugreport', 'bundle', 'cat-file', 'check-attr', 'check-ignore',
   'check-mailmap', 'check-ref-format', 'checkout', 'checkout-index', 'cherry', 'cherry-pick', 'clean', 'clone', 'column', 'commit', 'commit-graph', 'commit-tree', 'config',
@@ -42,20 +40,7 @@ export const GIT_ALLOW_RULE = `a git call is judged precisely only when it stays
 
 const ENV_ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)=/;
 const ENV_OPTIONS_WRAPPER = /^(?:.*[\\/])?env(?:\.exe)?$/i;
-// Environment changes are read by env-change.mjs, fail-closed: only a plain read of `$env:NAME` is no change.
-// Names a read-only git verb may follow a change of: each one justified here, none by default. A change qualifies only when the
-// command spells its variable as a literal and it is on this list; any other change (a computed name, an Env: drive path) refuses.
-export const HARMLESS_ENV_NAMES = [];
-// Verbs that only read the repository.
-const READ_ONLY = new Set(['status', 'log', 'diff', 'show', 'ls-tree', 'ls-files', 'merge-base', 'rev-parse', 'rev-list', 'cat-file', 'show-ref', 'describe', 'shortlog']);
-const GIT_WORD = /(?<![\w-])git(?![\w-])/i;
-// An environment change counts only when a git word follows it in the same text: `git commit -m "export the helper"` changes nothing.
-const changesBeforeGit = (text) => environmentChanges(text).filter((change) => GIT_WORD.test(text.slice(change.end)));
-
-/** True when every change names a literal variable on `allow`: the only changes a read-only verb is exempt from. */
-export const exemptReadOnly = (changes, allow = HARMLESS_ENV_NAMES) => changes.length > 0
-  && changes.every((change) => change.name !== null && allow.some((name) => name.toLowerCase() === change.name.toLowerCase()));
-const caseless =process.platform === 'win32';
+const caseless = process.platform === 'win32';
 const inEnvironment = (name) => Object.keys(process.env).some((k) => (caseless ? k.toLowerCase() === name.toLowerCase() : k === name));
 
 const configAllowed = (key) => ALLOWED_CONFIG.includes(key) || ALLOWED_CONFIG_PREFIXES.some((p) => key.startsWith(p));
@@ -81,13 +66,12 @@ function bareAssignments(parts) {
 
 // `parts`: every segment of the command and of each command text it runs (nestedSegments), so an export or an assignment
 // inside a `bash -c`, `eval` or `su -c` string counts like one at the top level.
-function environmentProblem(lead, raw, parts, readOnly = false) {
+function environmentProblem(lead, raw, parts) {
   const prefix = lead.map((w) => ENV_ASSIGN.exec(w)?.[1]).find((n) => n && !ALLOWED_ASSIGNED_NAMES.includes(n));
   if (prefix) return `environment assignment ${prefix}= in front of git`;
   const at = lead.findIndex((w) => ENV_OPTIONS_WRAPPER.test(w));
   if (at >= 0 && lead.slice(at + 1).some((w) => w.startsWith('-'))) return 'options of env in front of git';
-  const changes = [raw, ...parts.map((part) => part.text)].flatMap(changesBeforeGit);
-  if (changes.length && !(readOnly && exemptReadOnly(changes))) return 'a variable exported (or a PowerShell environment change) in the same command';
+  if ([raw, ...parts.map((part) => part.text)].some(environmentChangeBeforeGit)) return 'the environment named (exported, assigned or reached through a provider) in the same command';
   const set = bareAssignments(parts).find((n) => !ALLOWED_ASSIGNED_NAMES.includes(n) && inEnvironment(n));
   return set ? `${set}= assigned in the same command, a name already in the environment` : '';
 }
@@ -96,5 +80,5 @@ export function gitCallProblem(git, { lead = [], raw = '', shell = '', blind = f
   if (!git.sub) return '';
   if (!BUILTIN.has(git.sub)) return `git ${git.sub}, which is not a built-in git command (an alias or an external program)`;
   const option = git.options.map(optionProblem).find(Boolean);
-  return option || gitRunCommands(git, { blind }).problem || environmentProblem(lead, String(raw), nestedSegments(String(raw), shell), READ_ONLY.has(git.sub));
+  return option || gitRunCommands(git, { blind }).problem || environmentProblem(lead, String(raw), nestedSegments(String(raw), shell));
 }

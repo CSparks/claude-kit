@@ -1,8 +1,7 @@
-// git-call-environment.test.mjs — what counts as an environment change before a git call (KIT-T1262), judged fail-closed
-// (env-change.mjs, git-call-policy.mjs). Reading `$env:TEMP` is no change and the original misfire must pass; every other way
-// of naming the environment before a git call is refused, whatever the git verb: a read-only verb is exempt only for a change
-// whose literal variable is on HARMLESS_ENV_NAMES (empty).
-// Run: node hooks/git-call-environment.test.mjs
+// git-call-environment.test.mjs — what counts as an environment change before a git call (KIT-T1262), judged by INVERSION
+// (env-change.mjs): a command is no change only when every mention of the environment in it is a known read form. The
+// original misfire (a read of `$env:TEMP`) passes; every other spelling refuses, whatever the git verb, so a form nobody listed
+// is a refusal. Run: node hooks/git-call-environment.test.mjs
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync } from 'node:fs';
@@ -10,68 +9,68 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const holders = mkdtempSync(join(tmpdir(), 'kit-gitenv-holders-'));
-process.env.CLAUDE_KIT_HOLDERS_DIR = holders;
+process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'kit-gitenv-holders-'));
 process.env.CLAUDE_KIT_TURN_STATE = mkdtempSync(join(tmpdir(), 'kit-gitenv-state-'));
 const { claimFile } = await import('./lib/checkout-holder.mjs');
 const { environmentChanges } = await import('./lib/env-change.mjs');
-const { HARMLESS_ENV_NAMES, exemptReadOnly, gitCallProblem } = await import('./lib/git-call-policy.mjs');
+const { gitCallProblem } = await import('./lib/git-call-policy.mjs');
 
 let fails = 0;
 const check = (name, cond) => { console.log(`  ${cond ? 'ok  ' : 'FAIL'}  ${name}`); if (!cond) fails++; };
 const problem = (command, sub = 'status') => gitCallProblem({ sub, options: [], args: [] }, { lead: [], raw: command, shell: 'powershell' });
-const refused = (commands, sub) => commands.filter((c) => !problem(c, sub));
-const passed = (commands, sub) => commands.filter((c) => problem(c, sub));
-const report = (name, wrong) => { check(name, wrong.length === 0); wrong.forEach((c) => console.log(`        ${c}`)); };
+const wrong = (name, commands, shouldRefuse, sub) => {
+  const bad = commands.filter((c) => Boolean(problem(c, sub)) !== shouldRefuse);
+  check(name, bad.length === 0);
+  bad.forEach((c) => console.log(`        ${c}`));
+};
 
 const READS = [
   '$m = Get-Content "$env:TEMP\\msg.txt"; git status --short crates',
-  'Get-ChildItem Env:TEMP; git diff --stat',
-  'gci Env: | Out-Null; git status',
-  'Test-Path Env:\\TEMP; git log -1',
-  'cat Env:TEMP; git show HEAD',
-  'Get-Item Env:TEMP | Select-Object Value; git status',
-  '[Environment]::GetEnvironmentVariable("TEMP"); git log -1',
-  '$t = $env:TEMP; $env:TEMP | Out-Null; git status',
-  'Write-Output "${env:ProgramFiles(x86)}"; git status',
+  'Get-ChildItem Env:TEMP; git diff --stat', 'gci Env: | Out-Null; git status', 'Test-Path Env:\\TEMP; git log -1', 'cat Env:TEMP; git show HEAD',
+  'Get-Item Env:TEMP | Select-Object Value; git status', 'dir Env:; git status', 'gi Env:Path | Out-String; git status', 'ls Env: | Sort-Object Name | Out-Host; git status',
+  '[Environment]::GetEnvironmentVariable("TEMP"); git log -1', '[System.Environment]::GetEnvironmentVariable("TEMP", "Machine"); git status',
+  '$t = $env:TEMP; $env:TEMP | Out-Null; git status', 'Write-Output "${env:ProgramFiles(x86)}"; git status', '$p = Join-Path $env:TEMP "x"; git status',
+  'echo $HOME; git status', 'echo ${TMPDIR}; git status', 'printenv HOME; git status', 'env; git status', 'F=msg.txt; git commit -F "$F"', 'cd sub && git status',
 ];
-report('the original misfire and the other plain reads pass', passed(READS));
+wrong('the original misfire and the other known read forms pass', READS, false);
 
-const NAMED_WRONG = ['$env:FOO = "x"; git status', '${env:FOO}="x"; git status', '$env:Path += ";x"; git status', '$env:X++; git status', '$env:A = $env:B = "x"; git status'];
-report('finding 1: an assignment to a literal name is refused before a read-only verb (the allow-list is empty)', refused(NAMED_WRONG));
-report('finding 1: names that cannot be read to a literal are refused', refused([
-  'Set-Item Env:\\FOO x; git status', 'Set-Item -LiteralPath Env:\\FOO x; git log -1', 'New-Item -Path Env: -Name FOO -Value x; git status',
-  '$n = "FOO"; Set-Item "Env:$n" x; git status', '[Environment]::SetEnvironmentVariable($n, "x"); git status', '[Environment]::SetEnvironmentVariable("FO"+"O", "x"); git diff',
-  '[System.Environment]::SetEnvironmentVariable("FOO", "x"); git status', '$env:$n = "x"; git status', '${env:$n} = "x"; git status',
-  'Set-Item -Name FOO -Path Env:\\ -Value x; git status', 'Set-Location Env:; git status',
-]));
-report('finding 2: the item-cmdlet aliases and content cmdlets on Env: are refused', refused([
-  'si Env:FOO x; git status', 'ni Env:FOO -Value x; git status', 'ri Env:FOO; git status', 'cli Env:FOO; git status', 'rni Env:FOO BAR; git status',
-  'cpi Env:FOO Env:BAR; git status', 'mi Env:FOO Env:BAR; git status', 'Set-Content Env:FOO x; git status', 'Add-Content Env:FOO x; git status',
-  'Clear-Content Env:FOO; git status', 'Remove-Item Env:FOO; git log -1', 'Rename-Item Env:FOO BAR; git status', 'sc Env:FOO x; git status',
-]));
-report('finding 2: multiple assignment and write-through forms are refused', refused([
-  '$env:A, $env:B = 1, 2; git status', '$a, $env:B = 1, 2; git status', '(Get-Item Env:FOO).Value = "y"; git status',
-  'Get-Content x -OutVariable env:FOO; git status', 'Get-Item Env:FOO | Set-Item -Value x; git status', 'Get-ChildItem Env: | ForEach-Object { Set-Item $_.PSPath 1 }; git status',
-  'gci Env:A, (si Env:B x); git status', 'Get-Item Env:A; Set-Item Env:B x; git status',
-]));
-report('finding 3: a bash change of any name is refused before a read-only verb', refused([
-  'export FOO=1; git status', 'export PATH=/x; git log', 'export GIT_DIR=/x; git diff', 'declare -x FOO=1; git show HEAD', 'typeset -x FOO=1; git status',
-  'set -a; X=1; git status', 'setenv FOO 1; git status', 'export "$N=1"; git status', 'export FOO=1 BAR=2; git status',
-]));
-report('finding 3: variables that redirect git or load code are refused in PowerShell', refused([
-  '$env:GIT_EXTERNAL_DIFF = "x"; git diff', '$env:GIT_PAGER = "x"; git log', '$env:PAGER = "x"; git show', '$env:LD_PRELOAD = "x"; git status',
-  '$env:GIT_CONFIG_COUNT = 1; git status', '$env:GIT_SSH_COMMAND = "x"; git status', '$env:HOME = "x"; git status', '$env:PATH = "x"; git status',
-]));
-report('control: a writing verb after any change is refused', refused(['$env:FOO = "x"; git add .', 'export FOO=1; git commit -m x'], 'add'));
+const OURS = [
+  '$env:FOO = "x"', '${env:FOO}="x"', '$env:Path += ";x"', '$env:X++', '$env:A = $env:B = "x"', '$env:A, $env:B = 1, 2', '$a, $env:B = 1, 2', '$env:FOO ??= "x"',
+  'Set-Item Env:\\FOO x', 'Set-Item -LiteralPath Env:\\FOO x', 'New-Item -Path Env: -Name FOO -Value x', '$n = "FOO"; Set-Item "Env:$n" x', 'Set-Item -Name FOO -Path Env:\\ -Value x',
+  'si Env:FOO x', 'ni Env:FOO -Value x', 'ri Env:FOO', 'cli Env:FOO', 'rni Env:FOO BAR', 'cpi Env:FOO Env:BAR', 'mi Env:FOO Env:BAR',
+  'Set-Content Env:FOO x', 'Add-Content Env:FOO x', 'Clear-Content Env:FOO', 'sc Env:FOO x', 'Remove-Item Env:FOO', 'Rename-Item Env:FOO BAR', 'Set-Location Env:',
+  '[Environment]::SetEnvironmentVariable($n, "x")', '[Environment]::SetEnvironmentVariable("FO"+"O", "x")', '[System.Environment]::SetEnvironmentVariable("FOO", "x")',
+  '$env:$n = "x"', '${env:$n} = "x"', '(Get-Item Env:FOO).Value = "y"', 'Get-Content x -OutVariable env:FOO', 'Get-Item Env:FOO | Set-Item -Value x',
+  'Get-ChildItem Env: | ForEach-Object { Set-Item $_.PSPath 1 }', 'gci Env:A, (si Env:B x)', 'Get-Item Env:A; Set-Item Env:B x',
+  'Get-Item Env:$n', '[Environment]::GetEnvironmentVariable($n)', '[Environment]::GetEnvironmentVariables()["x"] = 1',
+];
+const REVIEW = [
+  'Set-Item Environment::FOO x', 'Get-Item Environment::FOO', 'Set-Item Microsoft.PowerShell.Core\\Environment::FOO x', 'Set-Item "Microsoft.PowerShell.Core\\Environment::FOO" x',
+  'Get-ChildItem -PSProvider Environment', 'New-PSDrive -Name E -PSProvider Environment -Root .', 'New-PSDrive -Name E -PSProvider $p -Root .', 'Get-PSDrive Env',
+  'declare -ix FOO=1', 'declare -r -x FOO=1', 'declare -x -r FOO=1', 'typeset -r -x FOO=1', 'typeset -xr FOO=1', 'local -x FOO=1', 'local FOO=1',
+  "'export' FOO=1", '"export" FOO=1', '\\export FOO=1', 'ex""port FOO=1', "e'xpo'rt FOO=1", 'set -k', 'set -o keyword', 'set -a', 'set -o allexport', 'set +o', 'setenv FOO 1', 'export -n FOO', 'export FOO',
+];
+const MORE = [
+  'export FOO=1', 'export PATH=/x', 'export GIT_DIR=/x', 'declare -x FOO=1', 'typeset -x FOO=1', 'export "$N=1"', 'export FOO=1 BAR=2', 'EXPORT FOO=1',
+  '$ENV:FOO = 1', '${ENV:FOO} = 1', 'SET-ITEM ENV:FOO 1', '[ENVIRONMENT]::SETENVIRONMENTVARIABLE("a","b")', 'Set-Item -Path "Env:FOO" -Value x', "Set-Item -Path 'env:FOO' x",
+  'Set-Variable -Name env:FOO -Value x', 'New-Variable env:FOO x', '$env:LD_PRELOAD = "x"', '$env:GIT_EXTERNAL_DIFF = "x"', '$env:GIT_PAGER = "x"', '$env:PAGER = "x"', '$env:HOME = "x"',
+  '$env:PATH = "x"', '$env:GIT_CONFIG_COUNT = 1', '$env:GIT_SSH_COMMAND = "x"', '& { $env:FOO = 1 }', 'if ($true) { $env:FOO = 1 }', 'foreach ($i in 1) { $env:FOO = $i }',
+  'Write-Host x; $env:FOO = 1', 'Set-Item Env:FOO x -Force', '"x" | Set-Content Env:FOO', 'Get-Content Env:FOO | Set-Content Env:BAR', 'Invoke-Expression "$env:FOO = 1"',
+  'bash -c "export FOO=1"', 'sh -c "declare -x FOO=1"', 'local -x A=1; local -x B=2', 'readonly -x FOO=1; set -a',
+];
+wrong('the review\'s bypass forms are each refused before a read-only verb', REVIEW.map((c) => `${c}; git status`), true);
+wrong('every earlier bypass form is refused before a read-only verb', OURS.map((c) => `${c}; git log -1`), true);
+wrong('further spellings are refused before a read-only verb', MORE.map((c) => `${c}; git diff HEAD`), true);
+const ALL = [...OURS, ...REVIEW, ...MORE];
+check(`the property list holds at least forty change spellings (${ALL.length})`, ALL.length >= 40);
+wrong('property: every spelling refuses before every git verb that reads or writes', ALL.flatMap((c) => ['status', 'show', 'add', 'commit', 'checkout'].map((verb) => `${c}; git ${verb}`)), true);
+wrong('property: the same spellings refuse when the git call comes first in a later segment', ALL.map((c) => `git --version; ${c}; git status`), true);
 check('a change after the git word is no change before it', !problem('git status; $env:FOO = "x"') && !problem('git commit -m "export the helper"', 'commit'));
+check('control: a prefix assignment in front of git still refuses', Boolean(gitCallProblem({ sub: 'status', options: [], args: [] }, { lead: ['HOME=/x'], raw: 'HOME=/x git status', shell: '' })));
 
-check('the allow-list of harmless names ships empty', HARMLESS_ENV_NAMES.length === 0);
-const names = (text) => environmentChanges(text).map((c) => c.name);
-check('a literal assignment parses to its name, a computed or drive-path one to null', names('$env:FOO = 1').join() === 'FOO' && names('${env:FOO} = 1').join() === 'FOO'
-  && names('export A=1 B=2').join() === 'A,B' && names('Set-Item Env:FOO x').length === 1 && names('Set-Item Env:FOO x')[0] === null && names('[Environment]::SetEnvironmentVariable("FOO","x")').includes('FOO') && names('$env:$n = 1').includes(null));
-check('the exemption with an injected allow-list: literal harmless names only', exemptReadOnly(environmentChanges('$env:FOO = 1'), ['foo']) && !exemptReadOnly(environmentChanges('$env:BAR = 1'), ['foo'])
-  && !exemptReadOnly(environmentChanges('$env:FOO = 1; Set-Item Env:BAZ x'), ['foo']) && !exemptReadOnly([], ['foo']) && !exemptReadOnly(environmentChanges('set -a'), ['foo']));
+const mentions = (text) => environmentChanges(text).length;
+check('the scan reads through quotes, backslashes and backticks', mentions("'ex'port FOO=1") === 1 && mentions('ex\\port FOO=1') === 1 && mentions('ex`port FOO=1') === 1 && mentions('"exp""ort" x') === 1);
+check('a known read form leaves no mention, an unknown one leaves one', mentions('Get-Content $env:TEMP\\a.txt') === 0 && mentions('$env:TEMP = 1') === 1 && mentions('Get-Item Env:A') === 0 && mentions('Get-Item Env:A -Name; x') === 0 && mentions('Get-Item Environment::A') === 1);
 
 const repo = mkdtempSync(join(tmpdir(), 'kit-gitenv-'));
 const git = (...args) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
@@ -87,7 +86,7 @@ const stops = (command, tool = 'PowerShell') => {
   return r.status === 2 && /source-shell-write/.test(r.stderr);
 };
 check('end to end beside a live writer: the misfire passes', !stops('$m = Get-Content "$env:TEMP\\msg.txt"; git status --short crates'));
-check('end to end beside a live writer: a write is refused, even before a read-only verb', stops('Set-Item Env:\\FOO x; git status') && stops('$env:FOO = "x"; git log -1') && stops('export FOO=1; git diff HEAD', 'Bash'));
+check('end to end beside a live writer: the review\'s forms are refused', stops('Set-Item Environment::FOO x; git status') && stops('declare -ix FOO=1; git status', 'Bash') && stops("'export' FOO=1; git log -1", 'Bash'));
 
 console.log(fails ? `\ngit-call-environment: ${fails} failed` : '\ngit-call-environment: all pass');
 process.exit(fails ? 1 : 0);
