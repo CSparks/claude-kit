@@ -77,6 +77,35 @@ test('KIT-T1143: a dev-only path dependency is held only when a test, bench or e
   assert.ok(covers(compiledPaths(['test', '-p', 'c'], root), join(root, 'crates/b/src/lib.rs')), 'negative control: test compiles them');
 });
 
+test('KIT-T1272: a dev-dependency counts only for the built package that declares it, never for a dependency of it', () => {
+  const root = workspace();
+  // app (the built package) -> world (a normal dependency) -> plan (a dev-dependency of world only); app has its own dev-dependency, extra.
+  writeFileSync(join(root, 'Cargo.toml'), '[workspace]\nresolver = "2"\nmembers = ["crates/a", "crates/b", "crates/c", "crates/world", "crates/plan", "crates/extra"]\n');
+  const manifest = (name, sections) => writeFileSync(join(root, 'crates', name, 'Cargo.toml'), `[package]\nname = "${name}"\nversion = "0.1.0"\nedition = "2021"\n${sections}`);
+  for (const name of ['world', 'plan', 'extra']) {
+    mkdirSync(join(root, 'crates', name, 'src'), { recursive: true });
+    writeFileSync(join(root, 'crates', name, 'src', 'lib.rs'), '');
+  }
+  manifest('plan', '');
+  manifest('extra', '');
+  manifest('world', '\n[dev-dependencies]\nplan = { path = "../plan" }\n');
+  manifest('c', '\n[dependencies]\nworld = { path = "../world" }\n\n[dev-dependencies]\nextra = { path = "../extra" }\n');
+  const planFile = join(root, 'crates/plan/src/lib.rs');
+  const extraFile = join(root, 'crates/extra/src/lib.rs');
+  const worldFile = join(root, 'crates/world/src/lib.rs');
+  for (const args of [['build', '-p', 'c'], ['run', '-p', 'c'], ['check', '-p', 'c'], ['test', '-p', 'c'], ['test', '-p', 'c', '--no-run'], ['check', '-p', 'c', '--tests'], ['build', '-p', 'c', '--examples'], ['bench', '-p', 'c']]) {
+    const scope = compiledPaths(args, root);
+    assert.ok(covers(scope, worldFile), `${args.join(' ')}: the normal dependency is compiled`);
+    assert.ok(!covers(scope, planFile), `${args.join(' ')}: a dev-dependency of a dependency is never compiled for the dependent`);
+  }
+  assert.ok(!covers(compiledPaths(['build', '-p', 'c'], root), extraFile), 'a build of the package does not compile its own dev-dependency');
+  assert.ok(!covers(compiledPaths(['check', '-p', 'c'], root), extraFile), 'a plain check does not either');
+  for (const args of [['test', '-p', 'c'], ['check', '-p', 'c', '--tests'], ['bench', '-p', 'c'], ['build', '-p', 'c', '--examples']]) {
+    assert.ok(covers(compiledPaths(args, root), extraFile), `negative control: ${args.join(' ')} compiles the declaring package's own dev-dependency`);
+  }
+  assert.ok(covers(compiledPaths(['test', '-p', 'world'], root), planFile), 'negative control: testing the declaring package itself compiles its dev-dependency');
+});
+
 test('--workspace scopes every member whole; no selection inside a member scopes that member and its dependencies', () => {
   const root = workspace();
   const all = compiledPaths(['test', '--workspace'], root);

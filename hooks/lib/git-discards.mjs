@@ -136,16 +136,22 @@ const integrationOf = (verb) => (args) => {
 };
 
 // Git configuration is shared by every writer of the checkout, and many keys change what a later pull, rebase, merge or fetch does
-// (`pull.rebase`, `merge.autoStash`, `rebase.autoStash`, `branch.<name>.rebase`, `include.path`, ...): no list of them is sound, so
-// a `git config` call is a sweep unless it is PLAINLY a read: --get, --get-all, --get-regexp, --get-urlmatch, --list/-l, the
-// `get` and `list` subcommands, or one bare key with no value and no writing flag.
-const CONFIG_READ_FLAGS = ['get', 'get-all', 'get-regexp', 'get-urlmatch', 'list', 'l'];
-const CONFIG_WRITE_FLAGS = ['add', 'replace-all', 'unset', 'unset-all', 'remove-section', 'rename-section', 'edit', 'e'];
+// (`pull.rebase`, `merge.autoStash`, `rebase.autoStash`, `branch.<name>.rebase`, `include.path`, ...): no recogniser of a write is
+// sound (abbreviated options, option values, new subcommands), so the READ side is an exact allowlist over the raw tokens and a
+// `git config` call is a sweep unless every token fits it: an optional single scope flag, an optional --show-origin and/or
+// --show-scope (each once), then exactly one of `--get <key>`, `--get-all <key>`, `--get-regexp <pattern>`, `--list`, `-l`,
+// `get <key>`, `list`, where <key> and <pattern> are single tokens that do not start with `-`. Nothing is parsed.
+const CONFIG_SCOPE_FLAGS = new Set(['--global', '--local', '--system', '--worktree']);
+const CONFIG_ORIGIN_FLAGS = new Set(['--show-origin', '--show-scope']);
+const CONFIG_READ_WITH_ARGUMENT = new Set(['--get', '--get-all', '--get-regexp', 'get']);
+const CONFIG_READ_ALONE = new Set(['--list', '-l', 'list']);
 function plainConfigRead(args) {
-  const { flags, operands } = parse(args);
-  if (CONFIG_WRITE_FLAGS.some((f) => flags.has(f))) return false;
-  if (CONFIG_READ_FLAGS.some((f) => flags.has(f)) || ['get', 'list'].includes(operands[0])) return true;
-  return operands.length === 1;
+  const tokens = [...args];
+  if (CONFIG_SCOPE_FLAGS.has(tokens[0])) tokens.shift();
+  const origins = new Set();
+  while (CONFIG_ORIGIN_FLAGS.has(tokens[0]) && !origins.has(tokens[0])) origins.add(tokens.shift());
+  if (tokens.length === 1) return CONFIG_READ_ALONE.has(tokens[0]);
+  return tokens.length === 2 && CONFIG_READ_WITH_ARGUMENT.has(tokens[0]) && !tokens[1].startsWith('-');
 }
 const CONFIG_CHANGE = 'git configuration, which every writer of this checkout shares';
 const configOf = (args) => (plainConfigRead(args) ? null : { verb: 'git config', files: [], sweep: CONFIG_CHANGE, always: false });

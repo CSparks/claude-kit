@@ -70,10 +70,13 @@ function roots(meta, { names, workspace }, cwd) {
 
 const isDevOnly = (dep) => (dep.dep_kinds || []).length > 0 && dep.dep_kinds.every((k) => k.kind === DEV_DEPENDENCY);
 
-// Breadth-first from the built packages: every local package reached, with the parent that first reached it.
+// Breadth-first from the built packages: every local package reached, with the parent that first reached it. A dev-dependency
+// edge is followed only out of a BUILT package and only when a test, bench or example is built: cargo never compiles the
+// dev-dependencies of a dependency (KIT-T1272).
 function closure(start, byId, nodes, buildsTests) {
   const parent = new Map();
   const order = [];
+  const built = new Set(start);
   const queue = start.map((id) => [id, null]);
   for (let i = 0; i < queue.length; i += 1) {
     const [id, from] = queue[i];
@@ -81,7 +84,8 @@ function closure(start, byId, nodes, buildsTests) {
     if (parent.has(id) || !pkg || pkg.source) continue;
     parent.set(id, from);
     order.push(id);
-    for (const dep of (nodes.get(id) || {}).deps || []) if (buildsTests || !isDevOnly(dep)) queue.push([dep.pkg, id]);
+    const followsDev = buildsTests && built.has(id);
+    for (const dep of (nodes.get(id) || {}).deps || []) if (followsDev || !isDevOnly(dep)) queue.push([dep.pkg, id]);
   }
   return { order, parent };
 }
