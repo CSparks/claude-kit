@@ -20,7 +20,8 @@
 //   brokenLines(markers, now?)                        -> the `builds` section
 //   repairsOwnBrokenCrate({ absFile, writer })        -> true when `writer` last edited the crate of `absFile` and it is marked broken
 //   leftBrokenNote({ tree, checksRoot, absFile, writer, notAfter }) -> lines for a refused edit naming every crate the writer
-//                                                        edited and left unchecked or marked broken, else []
+//                                                        marked broken, or edited in the last RECENT_EDIT_MS and left unchecked
+//                                                        (only while some writer's check was recorded in RECORDER_FRESH_MS), else []
 
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -36,6 +37,8 @@ import { writerId } from './tool-writes.mjs';
 const DIR_NAME = 'broken-crates';
 const EXPIRES_MS = 2 * 60 * 60 * 1000;
 const MS_PER_MINUTE = 60000;
+const RECENT_EDIT_MS = 30 * MS_PER_MINUTE;
+const RECORDER_FRESH_MS = 12 * 60 * MS_PER_MINUTE;
 const ERROR_LINE = /^\s*(?:\S+?:\d+:\d+:\s+)?error(?:\[E\d+\])?:\s*(?!aborting|could not compile)(.+)$/;
 const COULD_NOT_COMPILE = /could not compile `([^`]+)`/g;
 const PACKAGE_NAME = /^\s*name\s*=\s*"([^"]+)"/m;
@@ -177,7 +180,12 @@ export function leftBrokenNote({ tree, checksRoot, absFile, writer, notAfter }) 
   try {
     if (!writer) return [];
     const crates = new Map(readBroken().filter((m) => m.writer === writer).map((m) => [slash(m.crate).toLowerCase(), `does not compile (${m.error})`]));
-    for (const u of unverifiedCrates({ trees: [tree], writer, checks: readChecks(checksRoot), notAfter })) {
+    const checks = readChecks(checksRoot);
+    const now = Date.now();
+    // Without a recent check record from any writer the recorder is not running in these sessions, and "unchecked" proves nothing.
+    const recorderLive = checks.some((c) => now - (c.ts || 0) < RECORDER_FRESH_MS);
+    const unchecked = recorderLive ? unverifiedCrates({ trees: [tree], writer, checks, notAfter, since: now - RECENT_EDIT_MS }) : [];
+    for (const u of unchecked) {
       if (!crates.has(u.crate)) crates.set(u.crate, u.failed ? 'FAILED your last cargo check' : 'has edits of yours no cargo check has covered');
     }
     if (!crates.size) return [];

@@ -81,11 +81,13 @@ expect('control: an unadopted repo writes no marker', readBroken().length, befor
 
 const half = makeTree({ adopt: true });
 const lib = join(half.crate, 'src', 'lib.rs');
-const writeHold = () => writeFileSync(join(slots, 'slot-1'), JSON.stringify({ pid: process.pid, host: hostname(), label: `${half.tree}: cargo test -p a`, cwd: half.tree, jobs: 4, ts: new Date().toISOString(), scope: [half.crate], writer: 'S9|agentBuilder', phase: 'compiling' }));
+const writeHold = () => writeFileSync(join(slots, 'slot-1'), JSON.stringify({ pid: process.pid, host: hostname(), label: `${half.tree}: cargo test -p a`, cwd: half.tree, jobs: 4, ts: new Date().toISOString(), scope: [half.crate, join(half.tree, 'crates', 'b')], writer: 'S9|agentBuilder', phase: 'compiling' }));
 const refuse = (agent) => hook('holder-beat.mjs', { agent_id: agent, tool_input: { file_path: lib } }, half.tree);
 writeHold();
 expect('KIT-T1247 control: a refused edit by a writer with no earlier edit of the crate carries no half-edited line', /HALF EDITED/.test(refuse('agentFresh').stderr) ? 1 : 0, 0);
 recordToolWrite(half.tree, 'crates/a/src/other.rs', 'h2', Date.now() - 30000, 'S1|agentHalf');
+expect('KIT-T1251 control: while no writer\'s check was ever recorded, the refusal claims nothing about unchecked crates', /HALF EDITED/.test(refuse('agentHalf').stderr) ? 1 : 0, 0);
+recordCheck(half.tree, { writer: 'S1|agentOther', ok: true, scope: [join(half.tree, 'elsewhere')], ts: Date.now() - 100000 });
 const refused = refuse('agentHalf');
 expect('KIT-T1247: a refused edit of a crate the writer edited and did not check says the crate is left half edited', refused.status === 2 && /YOUR CRATE IS LEFT HALF EDITED/.test(refused.stderr) && /builds --wait/.test(refused.stderr) ? 1 : 0, 1);
 recordCheck(half.tree, { writer: 'S1|agentHalf', ok: true, scope: [half.crate], ts: Date.now() - 1000 });
@@ -126,6 +128,14 @@ writeFileSync(join(crateB, 'Cargo.toml'), '[package]\nname = "b"\nversion = "0.1
 recordToolWrite(half.tree, 'crates/b/src/lib.rs', 'h3', Date.now() - 30000, 'S1|agentTwoCrates');
 const twoCrates = refuse('agentTwoCrates');
 expect('KIT-T1247: a refusal mid-change names the other crate the writer left unchecked', /crates[\\/]b/.test(twoCrates.stderr) && /LEFT HALF EDITED/.test(twoCrates.stderr) ? 1 : 0, 1);
+
+recordToolWrite(half.tree, 'crates/a/src/other.rs', 'h5', Date.now() - 20000, 'S1|agentPeerA');
+recordToolWrite(half.tree, 'crates/b/src/lib.rs', 'h6', Date.now() - 20000, 'S1|agentPeerB');
+const peerA = refuse('agentPeerA');
+const peerB = hook('holder-beat.mjs', { agent_id: 'agentPeerB', tool_input: { file_path: join(crateB, 'src', 'lib.rs') } }, half.tree);
+expect('KIT-T1251: two agents of one session editing different crates are each told only of their own crate', /crates[\\/]a/.test(peerA.stderr) && !/crates[\\/]b/.test(peerA.stderr) && /crates[\\/]b/.test(peerB.stderr) && !/crates[\\/]a/.test(peerB.stderr) ? 1 : 0, 1);
+recordToolWrite(half.tree, 'crates/b/src/other.rs', 'h7', Date.now() - 45 * 60000, 'S1|agentLongAgo');
+expect('KIT-T1251: an edit older than the recent window is not claimed as left half edited', /HALF EDITED/.test(refuse('agentLongAgo').stderr) ? 1 : 0, 0);
 
 recordToolWrite(half.tree, REL, 'h4', Date.now() - 20000, 'S1|agentRepair');
 expect('control: before any check failed, the writer of a crate is refused by another writer\'s build', refuse('agentRepair').status, 2);

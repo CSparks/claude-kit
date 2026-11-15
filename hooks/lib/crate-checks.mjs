@@ -9,9 +9,9 @@
 //                                                 message format, `path:line:col: error` lines
 //   recordCheck(root, { writer, ok, scope, ts }) / readChecks(root)   the append-only record of finished checks
 //   culprits({ files, writer, claimants })     -> [{ file, claimant }] other live writers claiming a failing file
-//   unverifiedCrates({ trees, writer, checks, notAfter? }) -> [{ crate, failed }] crates the writer edited after, or that failed in,
-//     its last covering check; a check covers a crate when the crate directory is inside its recorded scope; an edit newer than
-//     `notAfter` (ms) is not counted
+//   unverifiedCrates({ trees, writer, checks, notAfter?, since? }) -> [{ crate, failed }] crates the writer edited after, or that
+//     failed in, its last covering check; a check covers a crate when the crate directory is inside its recorded scope; an edit
+//     newer than `notAfter` or older than `since` (ms) is not counted
 //   crateDirOf(file)                           -> nearest directory holding a Cargo.toml, or ''
 //   nudgeText(unverified)                      -> the stop message naming each crate
 
@@ -72,11 +72,11 @@ export function crateDirOf(file) {
   }
 }
 
-export function unverifiedCrates({ trees, writer, checks, notAfter = Infinity }) {
+export function unverifiedCrates({ trees, writer, checks, notAfter = Infinity, since = 0 }) {
   const lastEdit = new Map();
   for (const tree of trees) {
     for (const e of readTurnRecords(tree, 'toolwrites')) {
-      if (e.w !== writer || !/\.rs$/i.test(e.p || '') || (e.ts || 0) > notAfter) continue;
+      if (e.w !== writer || !/\.rs$/i.test(e.p || '') || (e.ts || 0) > notAfter || (e.ts || 0) < since) continue;
       const crate = crateDirOf(join(tree, e.p));
       if (crate) lastEdit.set(crate, Math.max(lastEdit.get(crate) || 0, e.ts || 0));
     }
