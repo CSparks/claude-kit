@@ -1,10 +1,13 @@
 // git-discards.mjs — the git calls that delete, hide or overwrite files of the work tree, read the way a gate reads an `rm`
-// (KIT-T1163): `git clean` (untracked files), `git rm -f` (a tracked file whatever its local changes), `git stash` with
-// `-u` or `-a` (untracked files go into the stash), `git checkout [<rev>] -- <path>`, `git restore <path>` and `git reset
-// --hard` (local changes are overwritten), and the forcing forms `git switch -f|--discard-changes`, `git checkout-index -f`,
+// (KIT-T1163): `git clean` (untracked files), `git rm -f` (a tracked file whatever its local changes), `git stash` push, save
+// or bare (every tracked change leaves the shared work tree; `-u` or `-a` takes untracked files too), `git checkout [<rev>] --
+// <path>`, `git restore <path>` and `git reset --hard` (local changes are overwritten), `git pull` and `git rebase` (an autostash
+// or a rebase moves every tracked change, whatever the configuration says) and `git merge --autostash`, which is refused whether
+// or not another writer is live (KIT-T1266), and the forcing forms `git switch -f|--discard-changes`, `git checkout-index -f`,
 // `git read-tree -u` with `--reset` or `-m`, `git worktree remove --force`, `git submodule update --force` (each a sweep of
-// every tracked file with local changes). A plain `git rm`, `git rm --cached`, a `-n` dry run, `git restore --staged`, a
-// stash without `-u`/`-a`, a branch switch and a `git submodule update` remove nothing another writer could lose, so they are not judged.
+// every tracked file with local changes). A plain `git rm`, `git rm --cached`, a `-n` dry run, `git restore --staged`, a stash
+// action that only reads or restores an entry (list, show, pop, apply, drop ...), a plain merge, a branch switch and a
+// `git submodule update` remove nothing another writer could lose, so they are not judged.
 //
 //   gitDiscard({ sub, args }, { dir, cwd }) -> null | { verb, files, sweep }
 //     files: the operands that name one file, as written (the caller joins `dir`, git's `-C`, in front)
@@ -106,15 +109,27 @@ function removeOf(args, ctx) {
   return judged('git rm -f', parsed, named, ctx);
 }
 
-// `git stash [push|save] [-u|-a] [-m msg] [-- pathspec...]`; `save` takes its message as a bare word, never a pathspec.
+// `git stash [push|save] [-u|-a] [-m msg] [-- pathspec...]`; `save` takes its message as a bare word, never a pathspec. A stash
+// of any kind moves every named (or, bare, every) tracked change out of the shared work tree; only the actions that read or
+// restore a stash entry are not judged.
 function stashOf(args, ctx) {
   const parsed = parse(args, { shortValues: 'm', longValues: ['--message'] });
   const { flags, operands, dashed } = parsed;
   const action = operands[0] || '';
-  if (STASH_ACTIONS.has(action) || !includesUntracked(flags)) return null;
+  if (STASH_ACTIONS.has(action)) return null;
   const pathspecs = action === 'save' ? dashed : [...operands.slice(action === 'push' ? 1 : 0), ...dashed];
-  return judged('git stash -u', parsed, pathspecs, ctx);
+  return judged(includesUntracked(flags) ? 'git stash -u' : 'git stash', parsed, pathspecs, ctx);
 }
+
+// `git pull` and `git rebase` stash, rewrite or move every tracked file with local changes (an autostash, `rebase.autoStash`,
+// `pull.rebase`, a rebase of a dirty tree), whatever the configuration says; with `--autostash` (also `git merge --autostash`)
+// the call is refused whether or not another writer is live (KIT-T1266).
+const INTEGRATION = 'every tracked file with local changes: an autostash or a rebase moves them out of the work tree';
+const integrationOf = (verb) => (args) => {
+  const autostash = parse(args).flags.has('autostash');
+  return { verb: autostash ? `${verb} --autostash` : verb, files: [], sweep: INTEGRATION, always: autostash };
+};
+const mergeOf = (args) => (parse(args).flags.has('autostash') ? { verb: 'git merge --autostash', files: [], sweep: INTEGRATION, always: true } : null);
 
 // `git checkout [<rev>] -- <path>...`, or `git checkout <path>` when the operand exists on disk; -f overwrites everything.
 function checkoutOf(args, ctx) {
@@ -152,7 +167,7 @@ const FORCING = {
 };
 const forcingOf = (sub) => (args) => (FORCING[sub].forces(parse(args)) ? { verb: FORCING[sub].verb, files: [], sweep: LOCAL_CHANGES } : null);
 
-const JUDGES = { clean: cleanOf, rm: removeOf, stash: stashOf, checkout: checkoutOf, restore: restoreOf, reset: resetOf, ...Object.fromEntries(Object.keys(FORCING).map((sub) => [sub, forcingOf(sub)])) };
+const JUDGES = { clean: cleanOf, rm: removeOf, stash: stashOf, checkout: checkoutOf, restore: restoreOf, reset: resetOf, pull: integrationOf('git pull'), rebase: integrationOf('git rebase'), merge: mergeOf, ...Object.fromEntries(Object.keys(FORCING).map((sub) => [sub, forcingOf(sub)])) };
 
 /** The call's judgement: null when it removes nothing a writer could lose, else { verb, files, sweep }. */
 export function gitDiscard({ sub, args }, ctx) {
@@ -165,7 +180,7 @@ function hitsOfCall(words, ctx) {
   // The walker strips a leading `$` from a word, so a variable no segment assigned shows only in the call's own text.
   const open = UNRESOLVED.test(ctx.text);
   const base = git.dir && !open ? git.dir : '.';
-  const sweep = (verb, what) => ctx.removals.sweep({ verb, path: `${base}/*`, what });
+  const sweep = (verb, what, always = false) => ctx.removals.sweep({ verb, path: `${base}/*`, what, always });
   const problem = gitCallProblem(rawGitCall(ctx.text) || git, { lead: ctx.lead, raw: ctx.raw, shell: ctx.shell });
   const outside = problem ? [sweep(OUTSIDE_ALLOW_LIST, problem)] : [];
   const found = gitDiscard(git, { dir: git.dir, cwd: ctx.cwd });
@@ -173,7 +188,7 @@ function hitsOfCall(words, ctx) {
   const at = (p) => (git.dir ? `${git.dir}/${p}` : p);
   const files = found.files.map((p) => ctx.hit(at(p))).filter(Boolean).map((h) => ({ ...h, deletes: true, discard: found.verb }));
   const wide = found.sweep || (open ? WHOLE_TREE : '');
-  return [...outside, ...files, ...(wide ? [sweep(found.verb, wide)] : [])];
+  return [...outside, ...files, ...(wide ? [sweep(found.verb, wide, found.always)] : [])];
 }
 
 export const discardHits = (text, ctx) => leadCommandHits(expandVariables(text, ctx.vars, ctx.shell), ctx, { isLead: (name) => /^git$/i.test(name), hitsOf: hitsOfCall });
@@ -183,7 +198,7 @@ export const discardHits = (text, ctx) => leadCommandHits(expandVariables(text, 
 function discardsBlindly({ sub, args }) {
   const parsed = parse(args);
   const { flags, separated } = parsed;
-  return (Object.hasOwn(FORCING, sub) && FORCING[sub].forces(parsed)) || sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && includesUntracked(flags))
+  return (Object.hasOwn(FORCING, sub) && FORCING[sub].forces(parsed)) || sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && !STASH_ACTIONS.has(parsed.operands[0] || '')) || sub === 'pull' || sub === 'rebase' || (sub === 'merge' && flags.has('autostash'))
     || (sub === 'reset' && flags.has('hard')) || (sub === 'restore' && !flags.has('staged') && !flags.has('S'))
     || (sub === 'checkout' && (forced(flags) || separated));
 }

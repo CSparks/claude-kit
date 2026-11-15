@@ -3,7 +3,8 @@
 // `git reset --hard` delete, hide or overwrite files the way `rm` does, so the source gate judges them the same way
 // (KIT-T1163): a named file passes only when this caller wrote it; a call that may take unnamed files, and any git call
 // outside the allow-list (git-call-policy.mjs: built-in subcommand, short option and config lists, no environment change),
-// passes only while no other writer is live in the checkout. A plain `git rm`, a dry run and a stash without `-u` stay allowed.
+// passes only while no other writer is live in the checkout. A plain `git rm`, a dry run and a stash action that only reads or
+// restores an entry stay allowed; a stash, `git pull` and `git rebase` are sweeps, and any `--autostash` is refused (KIT-T1266).
 // Run: node hooks/source-shell-gate-discard.test.mjs
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -101,7 +102,7 @@ try {
   check('git rm -n -f is a dry run and passes', passes_('git rm -n -f -- dirty.rs', 'S2'));
   check("git rm -f of another writer's untracked file is blocked", stops('git rm -f -- theirs.rs'));
 
-  // git stash: only the forms that take untracked files are judged.
+  // git stash: every push, save or bare stash is judged; with no other writer live these pass.
   check('plain git stash passes', passes_('git stash'));
   check('git stash push -m passes', passes_('git stash push -m wip'));
   check('git stash pop and list pass', passes_('git stash pop') && passes_('git stash list'));
@@ -204,7 +205,7 @@ try {
   check('the block names the verb, the live writer and the way out', /git clean here may take files it does not name[^]*another writer is live[^]*raise it to the main thread/.test(said), said);
   check('a named file of the caller still passes beside a live writer', passes_('git clean -f -- mine.rs'));
   check('control: git rm --pathspec-from-file without -f passes beside a live writer', passes_('git rm --pathspec-from-file=list.txt'));
-  check('control: git stash push --pathspec-from-file without -u passes beside a live writer', passes_('git stash push --pathspec-from-file=list.txt'));
+  check('KIT-T1266: git stash push --pathspec-from-file without -u is a sweep beside a live writer', stops('git stash push --pathspec-from-file=list.txt'));
   check('an alias is refused even when it is harmless: the allow-list names built-ins only', stops('git st') && stops("git -c alias.z='log -1' z"));
   const everyday = ['git status --short', 'git log -1', 'git diff HEAD', 'git add .', 'git commit -m wip', 'git commit -F msg.txt', 'git push', 'git fetch', 'git show HEAD',
     'git rev-parse HEAD', 'git ls-tree HEAD', 'git ls-files', 'git mv tracked.rs moved.rs', 'git checkout -- tracked.rs', 'git checkout main', 'git checkout -b feature',
@@ -233,7 +234,8 @@ try {
   check('a restore -S -W writes the work tree and is judged', stops('git restore -S -W dirty.rs', 'S2'));
   check('control: a restore --staged touches no file and passes', passes_('git restore --staged dirty.rs', 'S2'));
   check('a plain git rm still passes beside a live writer', passes_('git rm -- tracked.rs'));
-  check('a plain git stash still passes beside a live writer', passes_('git stash'));
+  check('KIT-T1266: a plain git stash stops beside a live writer: it moves every writer\'s tracked changes', stops('git stash') && stops('git stash push -m wip') && stops('git stash save wip'));
+  check('KIT-T1266 control: the stash actions that only read or restore an entry pass beside a live writer', passes_('git stash list') && passes_('git stash show') && passes_('git stash pop') && passes_('git stash apply') && passes_('git stash drop'));
   check('a dry run still passes beside a live writer', passes_('git clean -nd'));
   check('a named non-source file still passes beside a live writer', passes_('git clean -f -- notes.txt'));
   check('a sibling agent of the same session is another writer', stops('git clean -fd', 'S9', 'B'));
@@ -249,7 +251,8 @@ try {
   freshHolders();
   check('an ambiguous quoting line with git clean is blocked', stops("echo it's; git clean -fd"));
   check('an ambiguous quoting line with git stash -u is blocked', stops("echo it's; git stash -u"));
-  check('control: an ambiguous quoting line with a plain git stash passes', passes_("echo it's; git stash"));
+  check('KIT-T1266: an ambiguous quoting line with a plain git stash is blocked too', stops("echo it's; git stash"));
+  check('KIT-T1266 control: an ambiguous quoting line with git stash list passes', passes_("echo it's; git stash list"));
 } finally {
   rmSync(repo, { recursive: true, force: true });
   rmSync(state, { recursive: true, force: true });

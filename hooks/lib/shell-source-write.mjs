@@ -32,7 +32,7 @@ export const AMBIGUOUS_PATH = '(ambiguous quoting)';
 // A removal the scan cannot tie to one file: the gate refuses an `unresolved` operand, and a `sweep` while another writer is live.
 const REMOVALS = {
   unresolved: (operand) => ({ path: operand, unresolved: operand }),
-  sweep: ({ verb, path, what }) => ({ path, sweep: what, discard: verb, deletes: true }),
+  sweep: ({ verb, path, what, always }) => ({ path, sweep: what, discard: verb, deletes: true, always }),
 };
 
 // Every hit of the command. A hit tagged `outsideTo` is a source operand of a proven cp or mv: the gate drops it when

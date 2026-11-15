@@ -105,7 +105,7 @@ try {
   const everyday = ['git status --short', 'git log -1', 'git diff HEAD', 'git add .', 'git commit -m wip', 'git push', 'git fetch', 'git show HEAD', 'git rev-parse HEAD',
     'git ls-tree HEAD', 'git ls-files', 'git mv tracked.rs moved.rs', 'git switch main', 'git switch -c feature', 'git switch -', 'git submodule update', 'git submodule update --init --recursive',
     'git submodule status', 'git checkout-index -a', 'git read-tree HEAD', 'git read-tree --reset HEAD', 'git read-tree -m HEAD', 'git worktree add ../wt', 'git worktree list',
-    'git worktree remove ../wt', 'git rebase main', 'git rebase --continue', 'git rebase -i main', 'git bisect start', 'git bisect good', 'git difftool HEAD', 'git mergetool',
+    'git worktree remove ../wt', 'git bisect start', 'git bisect good', 'git difftool HEAD', 'git mergetool',
     'git difftool -y HEAD', 'git commit -m "export the helper"', 'git commit -m "set -a flag in the docs"', 'git log --grep=export',
     "bash -c 'git status'", "bash -c 'FOO_NOT_IN_ENV=1; git status'", 'eval "git log -1"', "bash -c 'echo hi; git diff'"];
   for (const command of everyday) check(`control: ${command} passes beside a live writer`, passes_(command));
@@ -126,10 +126,12 @@ try {
     ["git -C sub rebase -x 'rm theirs.rs' main", 'rebase -x with -C'],
   ];
   for (const [command, name] of INNER) check(`${name}: blocked`, stops(command));
-  check("the caller's own file named by the inner command passes", passes_("git rebase -x 'rm mine.rs' main", 'S1'));
-  check("the writing session itself may remove its file through rebase -x", passes_("git rebase -x 'rm theirs.rs' main", 'S2'));
-  check('an inner command that writes no source passes', passes_("git rebase -x 'cargo test' main") && passes_('git bisect run cargo test') && passes_("git rebase -x 'make check' main"));
-  check('an inner write to a non-source file passes', passes_("git rebase -x 'echo ok > notes.txt' main"));
+  check("the caller's own file named by the inner command passes", passes_("git bisect run rm mine.rs", 'S1'));
+  check("the writing session itself may remove its file through bisect run", passes_("git bisect run rm theirs.rs", 'S2'));
+  check('an inner command that writes no source passes', passes_('git bisect run cargo test') && passes_('git bisect run make check'));
+  check('an inner write to a non-source file passes', passes_("git bisect run sh -c 'echo ok > notes.txt'"));
+  check('KIT-T1266: a rebase (with or without -x) is a sweep beside a live writer, whatever its inner command', stops('git rebase main') && stops('git rebase --continue') && stops('git rebase -i main')
+    && stops("git rebase -x 'rm mine.rs' main", 'S1') && stops("git rebase -x 'cargo test' main"));
 
   // The text of a line whose quoting cannot be split is read blind: any command a git call runs is refused.
   check('an ambiguous quoting line with rebase -x is blocked', stops("echo it's; git rebase -x make main"));
@@ -138,13 +140,14 @@ try {
   check('an ambiguous quoting line with submodule update --force is blocked', stops("echo it's; git submodule update --force"));
   check('an export after a dollar-quote string is blocked', stops("echo $'ok'; export GIT_DIR=x; git status"));
   check('control: the same line without the export passes', passes_("echo $'ok'; git status"));
-  check('control: an ambiguous quoting line with a plain rebase passes', passes_("echo it's; git rebase main"));
+  check('KIT-T1266: an ambiguous quoting line with a plain rebase is blocked', stops("echo it's; git rebase main"));
+  check('control: an ambiguous quoting line with git bisect good passes', passes_("echo it's; git bisect good"));
   check('control: an ambiguous quoting line with a plain switch passes', passes_("echo it's; git switch main"));
 
   const said = run('git submodule foreach git clean -fd').stderr;
   check('the block names the call that runs a command and the way out', /git submodule foreach, which runs its command inside each submodule directory[^]*written plainly/.test(said), said);
   const exportSaid = run("bash -c 'export GIT_DIR=x; git status'").stderr;
-  check('the block of an export inside a runner text names it', /a variable exported/.test(exportSaid), exportSaid);
+  check('the block of an export inside a runner text names it', /the environment is named in the same command[^]*run the git call as its own command/.test(exportSaid), exportSaid);
 } finally {
   rmSync(repo, { recursive: true, force: true });
   rmSync(state, { recursive: true, force: true });

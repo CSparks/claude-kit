@@ -54,7 +54,7 @@ const ledgerOrNone = (root, rel, caller) => (caller ? ledgerRefusal(root, rel, c
 
 export function deleteJudgement(found, root, rel, caller) {
   if (found.unresolved) return R.unresolved;
-  if (found.sweep) return otherLiveWriters(root, caller).length ? R.sweep : '';
+  if (found.sweep) return found.always || otherLiveWriters(root, caller).length ? R.sweep : '';
   if (found.discard) return discardRefusal(root, rel, caller, found.discard);
   return found.deletes ? mainThreadDelete(root, rel, caller, deleteRefusal(root, rel, caller)) : '';
 }
