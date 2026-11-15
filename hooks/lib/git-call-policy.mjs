@@ -12,14 +12,15 @@
 // --no-optional-locks, --literal-pathspecs, and `-c key=value` for a key in ALLOWED_CONFIG or under ALLOWED_CONFIG_PREFIXES;
 // no environment variable assigned in front of the call, exported anywhere in the command, or (bare) assigned when the
 // name is already in the environment, which includes PATH; no `env` options. ALLOWED_ASSIGNED_NAMES is empty: no name
-// is exempt. A bare assignment of a name already in the environment counts in any command text. A git call that runs a command
-// from somewhere unknown (git-run-commands.mjs) is off the list. Anything that mentions the environment before a git word, in the
-// command or in a command text it runs, counts unless every mention is a known read form (env-change.mjs inverts the question:
-// `$env:TEMP` read, Get-Content on `Env:NAME`, `[Environment]::GetEnvironmentVariable('NAME')`); no verb is exempt.
+// is exempt. The words `export`, `setenv`, `declare -x`, `typeset -x` and `set -a`, and any mention of the environment in
+// PowerShell (`$env:`, `Env:`, `[Environment]`, SetEnvironmentVariable), count anywhere in the command or in a command text it
+// runs, when a git word follows them in that text: a READ of `$env:TEMP` counts too. Telling a read from a change by the text of a
+// command is not sound (KIT-T1262: three review rounds broke every recogniser), so the refusal says what to do instead: run the git
+// call as its own command. A bare assignment of a name already in the environment counts in any of those texts. A git call that runs a
+// command from somewhere unknown (git-run-commands.mjs) is off the list.
 
 import { gitRunCommands } from './git-run-commands.mjs';
 import { nestedSegments } from './lead-command-walk.mjs';
-import { environmentChangeBeforeGit } from './env-change.mjs';
 
 const BUILTIN = new Set(['add', 'am', 'annotate', 'apply', 'archive', 'bisect', 'blame', 'branch', 'bugreport', 'bundle', 'cat-file', 'check-attr', 'check-ignore',
   'check-mailmap', 'check-ref-format', 'checkout', 'checkout-index', 'cherry', 'cherry-pick', 'clean', 'clone', 'column', 'commit', 'commit-graph', 'commit-tree', 'config',
@@ -40,6 +41,21 @@ export const GIT_ALLOW_RULE = `a git call is judged precisely only when it stays
 
 const ENV_ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)=/;
 const ENV_OPTIONS_WRAPPER = /^(?:.*[\\/])?env(?:\.exe)?$/i;
+// Every spelling that can reach the environment: the shell words (any flag group of declare, typeset or local holding x; set -a, -k,
+// -o allexport, -o keyword) and PowerShell's own routes (`$env:`, the Env: drive, [Environment], the Environment provider,
+// PSProvider, PSDrive, SetEnvironmentVariable). A plain word such as `local` or `environment` in a path is not one.
+const EXPORTS = /(?<![\w-])(?:export|setenv|(?:declare|typeset|local)\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*x[A-Za-z]*|set\s+(?:-[A-Za-z]*[ak]\b|-o\s+(?:allexport|keyword)))(?![\w-])|\$env:|\bEnv:|SetEnvironmentVariable|\[Environment\]|Environment::|PSProvider|PSDrive/i;
+const GIT_WORD = /(?<![\w-])git(?![\w-])/i;
+const UNQUOTED = /['"`\\]/g;
+// The environment token of `text` that a git word follows, or '': `git commit -m "export the helper"` changes nothing. The text is
+// tried as written and with quotes, backslashes and backticks removed (`'export'`, `ex""port`).
+const environmentTokenBeforeGit = (text) => {
+  for (const candidate of [text, text.replace(UNQUOTED, '')]) {
+    const found = EXPORTS.exec(candidate);
+    if (found && GIT_WORD.test(candidate.slice(found.index + found[0].length))) return found[0];
+  }
+  return '';
+};
 const caseless = process.platform === 'win32';
 const inEnvironment = (name) => Object.keys(process.env).some((k) => (caseless ? k.toLowerCase() === name.toLowerCase() : k === name));
 
@@ -71,7 +87,8 @@ function environmentProblem(lead, raw, parts) {
   if (prefix) return `environment assignment ${prefix}= in front of git`;
   const at = lead.findIndex((w) => ENV_OPTIONS_WRAPPER.test(w));
   if (at >= 0 && lead.slice(at + 1).some((w) => w.startsWith('-'))) return 'options of env in front of git';
-  if ([raw, ...parts.map((part) => part.text)].some(environmentChangeBeforeGit)) return 'the environment named (exported, assigned or reached through a provider) in the same command';
+  const token = [raw, ...parts.map((part) => part.text)].map(environmentTokenBeforeGit).find(Boolean);
+  if (token) return `the environment is named in the same command (\`${token}\`): run the git call as its own command, with no environment variable read or set in the same command`;
   const set = bareAssignments(parts).find((n) => !ALLOWED_ASSIGNED_NAMES.includes(n) && inEnvironment(n));
   return set ? `${set}= assigned in the same command, a name already in the environment` : '';
 }
