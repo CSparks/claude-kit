@@ -112,13 +112,18 @@ function removeOf(args, ctx) {
 // `git stash [push|save] [-u|-a] [-m msg] [-- pathspec...]`; `save` takes its message as a bare word, never a pathspec. A stash
 // of any kind moves every named (or, bare, every) tracked change out of the shared work tree; only the actions that read or
 // restore a stash entry are not judged.
+// Git reads an action only as the FIRST token after `stash`; with an option first the call is a push whatever follows.
+const readsOrRestoresStash = (args) => STASH_ACTIONS.has(args[0] || '');
 function stashOf(args, ctx) {
   const parsed = parse(args, { shortValues: 'm', longValues: ['--message'] });
   const { flags, operands, dashed } = parsed;
-  const action = operands[0] || '';
-  if (STASH_ACTIONS.has(action)) return null;
+  if (readsOrRestoresStash(args)) return null;
+  const action = args[0] === 'push' || args[0] === 'save' ? args[0] : '';
   const pathspecs = action === 'save' ? dashed : [...operands.slice(action === 'push' ? 1 : 0), ...dashed];
-  return judged(includesUntracked(flags) ? 'git stash -u' : 'git stash', parsed, pathspecs, ctx);
+  const found = judged(includesUntracked(flags) ? 'git stash -u' : 'git stash', parsed, pathspecs, ctx);
+  // An option first makes the call a push whatever words follow: bare words there are not a pathspec git would read, so the call is wide.
+  if (!action && operands.length) found.sweep ||= operands.join(' ');
+  return found;
 }
 
 // `git pull` and `git rebase` stash, rewrite or move every tracked file with local changes (an autostash, `rebase.autoStash`,
@@ -129,7 +134,17 @@ const integrationOf = (verb) => (args) => {
   const autostash = parse(args).flags.has('autostash');
   return { verb: autostash ? `${verb} --autostash` : verb, files: [], sweep: INTEGRATION, always: autostash };
 };
-const mergeOf = (args) => (parse(args).flags.has('autostash') ? { verb: 'git merge --autostash', files: [], sweep: INTEGRATION, always: true } : null);
+
+// A `git config` call that sets one of the keys that make every later pull, rebase or merge stash the work tree: `merge.autoStash`,
+// `rebase.autoStash`, `pull.rebase` (also `git config set <key> <value>`). Reading or unsetting a key is not judged.
+const INTEGRATION_KEYS = new Set(['merge.autostash', 'rebase.autostash', 'pull.rebase']);
+const CONFIG_READS = ['get', 'get-all', 'get-regexp', 'get-urlmatch', 'list', 'l', 'unset', 'unset-all', 'remove-section', 'rename-section', 'edit', 'e'];
+function setsIntegrationKey(args) {
+  const { flags, operands } = parse(args, { shortValues: 'f', longValues: ['--file', '--blob'] });
+  const words = operands[0] === 'set' ? operands.slice(1) : operands;
+  return !CONFIG_READS.some((f) => flags.has(f)) && words.length >= 2 && INTEGRATION_KEYS.has(words[0].toLowerCase());
+}
+const configOf = (args) => (setsIntegrationKey(args) ? { verb: 'git config (autostash or pull.rebase)', files: [], sweep: INTEGRATION, always: false } : null);
 
 // `git checkout [<rev>] -- <path>...`, or `git checkout <path>` when the operand exists on disk; -f overwrites everything.
 function checkoutOf(args, ctx) {
@@ -167,7 +182,7 @@ const FORCING = {
 };
 const forcingOf = (sub) => (args) => (FORCING[sub].forces(parse(args)) ? { verb: FORCING[sub].verb, files: [], sweep: LOCAL_CHANGES } : null);
 
-const JUDGES = { clean: cleanOf, rm: removeOf, stash: stashOf, checkout: checkoutOf, restore: restoreOf, reset: resetOf, pull: integrationOf('git pull'), rebase: integrationOf('git rebase'), merge: mergeOf, ...Object.fromEntries(Object.keys(FORCING).map((sub) => [sub, forcingOf(sub)])) };
+const JUDGES = { clean: cleanOf, rm: removeOf, stash: stashOf, checkout: checkoutOf, restore: restoreOf, reset: resetOf, pull: integrationOf('git pull'), rebase: integrationOf('git rebase'), merge: integrationOf('git merge'), config: configOf, ...Object.fromEntries(Object.keys(FORCING).map((sub) => [sub, forcingOf(sub)])) };
 
 /** The call's judgement: null when it removes nothing a writer could lose, else { verb, files, sweep }. */
 export function gitDiscard({ sub, args }, ctx) {
@@ -198,7 +213,7 @@ export const discardHits = (text, ctx) => leadCommandHits(expandVariables(text, 
 function discardsBlindly({ sub, args }) {
   const parsed = parse(args);
   const { flags, separated } = parsed;
-  return (Object.hasOwn(FORCING, sub) && FORCING[sub].forces(parsed)) || sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && !STASH_ACTIONS.has(parsed.operands[0] || '')) || sub === 'pull' || sub === 'rebase' || (sub === 'merge' && flags.has('autostash'))
+  return (Object.hasOwn(FORCING, sub) && FORCING[sub].forces(parsed)) || sub === 'clean' || (sub === 'rm' && forced(flags)) || (sub === 'stash' && !readsOrRestoresStash(args)) || sub === 'pull' || sub === 'rebase' || sub === 'merge' || (sub === 'config' && setsIntegrationKey(args))
     || (sub === 'reset' && flags.has('hard')) || (sub === 'restore' && !flags.has('staged') && !flags.has('S'))
     || (sub === 'checkout' && (forced(flags) || separated));
 }
