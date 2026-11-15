@@ -3,7 +3,9 @@
 // recorded with the files it compiled; when it failed in a file another live writer holds uncommitted edits in, the call hears
 // which writer and file (exit 2 shows it). A subagent that ends holding an edited crate its own last check did not cover, or
 // covered and failed, is blocked once (SubagentStop exit 2) and told which crates to check. Check-id crate-check.
-// No-ops on unadopted repos; fails open.
+// A failed check also marks the crates it failed in as broken (lib/broken-crates.mjs, KIT-T1245): the failing writer hears whose
+// crate it waits on, a passing check over a marked crate clears it, and a subagent stopping while it is the last writer of a
+// broken crate is told. No-ops on unadopted repos; fails open.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,6 +18,7 @@ import { commandCwd } from './lib/shell-cwd.mjs';
 import { shellOfTool } from './lib/shell-segments.mjs';
 import { compiledScope } from '../scripts/broker/cargo-scope-dirs.mjs';
 import { findReal } from '../scripts/broker/build-run.mjs';
+import { blockedText, brokenFor, brokenIn, clearCovered, culpritText, markBroken, markTold } from './lib/broken-crates.mjs';
 import { crateCheckArgs, culprits, errorFiles, nudgeText, outcomeOf, readChecks, recordCheck, unverifiedCrates } from './lib/crate-checks.mjs';
 
 const CHECK = 'crate-check';
@@ -46,22 +49,33 @@ function afterCheck(p, root, writer) {
   const cwd = commandCwd(command, p.cwd || process.cwd(), { shell: shellOfTool(p.tool_name) });
   const output = textOf(p.tool_response);
   const { failed } = outcomeOf(output);
-  recordCheck(root, { writer, ok: !failed, scope: scopeOf(args, cwd) });
-  if (!failed) return;
+  const scope = scopeOf(args, cwd);
+  recordCheck(root, { writer, ok: !failed, scope });
+  if (!failed) {
+    clearCovered(scope);
+    return;
+  }
   const files = errorFiles(output, cwd);
+  const marked = markBroken({ output, files, checker: writer, trees: [root, ...submodulePaths(root)], treeOf: gitRootOfFile });
+  marked.filter((m) => m.writer === writer).forEach((m) => markTold(m, writer));
+  const waitsOn = (marked.length || files.length ? marked : brokenIn(scope)).filter((m) => m.writer && m.writer !== writer);
   const claimants = files.flatMap((f) => liveClaimants(gitRootOfFile(f)).map((c) => ({ ...c, tree: gitRootOfFile(f) })));
   const found = culprits({ files, writer, claimants, relOf: repoRelative });
-  if (!found.length) return;
+  if (!found.length && !waitsOn.length) return;
   const lines = found.map(({ file, claimant }) => `  ${file.replace(/\\/g, '/')}: uncommitted edits of ${claimant.label || 'a live writer'} (agent ${claimant.agent || 'main thread'}, session ${claimant.session})`);
-  process.stderr.write(`\nYour cargo check failed in files another live writer has changed and not committed (check-id ${CHECK}, KIT-T1211):\n${lines.join('\n')}\nTell that writer (or your coordinator) now; the failure may not be yours.\n${excludeFooter(CHECK)}`);
+  const claimed = lines.length ? `Your cargo check failed in files another live writer has changed and not committed (check-id ${CHECK}, KIT-T1211):\n${lines.join('\n')}\nTell that writer (or your coordinator) now; the failure may not be yours.\n` : '';
+  const broken = waitsOn.length ? `Crates this failure waits on (KIT-T1245; \`builds\` lists every broken crate):\n${blockedText(waitsOn)}\n` : '';
+  process.stderr.write(`\n${broken}${claimed}${excludeFooter(CHECK)}`);
   process.exit(2);
 }
 
 function atStop(p, root, writer) {
   if (p.stop_hook_active || !subagentId(p)) return;
   const unverified = unverifiedCrates({ trees: [root, ...submodulePaths(root)], writer, checks: readChecks(root) });
-  if (!unverified.length) return;
-  process.stderr.write(`\n${nudgeText(unverified)}\n${excludeFooter(CHECK)}`);
+  const left = brokenFor(writer);
+  if (!unverified.length && !left.length) return;
+  left.forEach((m) => markTold(m, writer));
+  process.stderr.write(`\n${[unverified.length && nudgeText(unverified), left.length && culpritText(left)].filter(Boolean).join('\n')}\n${excludeFooter(CHECK)}`);
   process.exit(2);
 }
 

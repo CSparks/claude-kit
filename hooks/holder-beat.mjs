@@ -5,6 +5,8 @@
 //   - another live agent of this session has uncommitted changes to this file (lib/agent-claims.mjs, per-writer claims);
 //   - another writer's cargo build is compiling the crate this file belongs to (lib/build-write-hold.mjs). A refused edit opens
 //     a write window on the file (scripts/broker/write-window.mjs) that the next build start yields to; the edit passing closes it.
+//     A refusal names every crate the writer left unchecked or marked broken (lib/broken-crates.mjs, KIT-T1247); an edit by the
+//     writer that last edited a crate marked broken is never refused by a build hold: it is the repair (KIT-T1245).
 // A passing edit beats the session's checkout-holder entry and records the writer's claim on the file. Store (.ai/) files
 // never count. Fails open on any error.
 
@@ -16,7 +18,11 @@ import { overlappingHolders } from './lib/live-claims.mjs';
 import { claimConflicts, claimMessage } from './lib/agent-claims.mjs';
 import { buildHoldConflict, buildHoldMessage, noteEditLanded, noteRefusedEdit } from './lib/build-write-hold.mjs';
 import { writerId } from './lib/tool-writes.mjs';
+import { leftBrokenNote, repairsOwnBrokenCrate } from './lib/broken-crates.mjs';
 import { repoRelative } from './turn-writes.mjs';
+
+// pre-write records the edit it lets through as a predicted write at about this moment; earlier edits are the writer's own history.
+const PREDICTED_WRITE_SLACK_MS = 1000;
 import { HOLDER_CHECK } from './dispatch-holder.mjs';
 
 const sessionMessage = (file, found, tree) => [
@@ -38,7 +44,9 @@ function refusal({ tree, file, rel, session, agent }) {
   if (sessions.length) return { text: sessionMessage(rel, sessions, tree), session: true };
   const writer = writerId(session, agent);
   const hold = buildHoldConflict({ file, writer });
-  return hold ? { text: buildHoldMessage({ file: rel, absFile: file, hold, writer, footer: excludeFooter(HOLDER_CHECK) }), build: true } : null;
+  if (!hold || repairsOwnBrokenCrate({ absFile: file, writer })) return null;
+  const extra = leftBrokenNote({ tree, checksRoot: gitRoot(), absFile: file, writer, notAfter: Date.now() - PREDICTED_WRITE_SLACK_MS });
+  return { text: buildHoldMessage({ file: rel, absFile: file, hold, writer, extra, footer: excludeFooter(HOLDER_CHECK) }), build: true };
 }
 
 try {

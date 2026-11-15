@@ -12,8 +12,9 @@
 //   buildWaitCommand(file)                      -> the exact one-call wait for `file`, with the Bash timeout it needs
 //   holdScopeLines({ absFile, hold })           -> the refusal lines saying which dependency chain puts `absFile` in the
 //                                                  build's scope and, for a wide hold, why the scope is wide (KIT-T1147)
-//   buildHoldMessage({ file, absFile, hold, footer, writer }) -> the block message; says whether a build that started after a
-//                                                  free `builds --wait` is NEW or the same one compiling again (KIT-T1175)
+//   buildHoldMessage({ file, absFile, hold, footer, writer, extra? }) -> the block message; says whether a build that started after a
+//                                                  free `builds --wait` is NEW or the same one compiling again (KIT-T1175); `extra`
+//                                                  lines (a crate the refused edit leaves half edited, KIT-T1247) follow the hold
 //   noteRefusedEdit({ file, writer }) / noteEditLanded({ file, writer }) -> open the writer's write window on the file / shrink
 //                                                  the writer's windows to the edit gap (scripts/broker/write-window.mjs):
 //                                                  a build start yields to a live window
@@ -92,13 +93,14 @@ export function holdScopeLines({ absFile, hold }) {
   ];
 }
 
-export function buildHoldMessage({ file, absFile = file, hold, footer, window = lastWindow(absFile), writer = '' }) {
+export function buildHoldMessage({ file, absFile = file, hold, footer, window = lastWindow(absFile), writer = '', extra = [] }) {
   return [
     `BLOCKED: a cargo build is compiling ${file}'s crate and another writer started it (KIT-T1114).`,
     `  build: ${describeHold(hold)}`,
     `  started by: ${holdStarter(hold)}`,
     ...holdScopeLines({ absFile, hold }),
     ...afterWaitLines({ window, hold }),
+    ...extra,
     '',
     'A write now lands in the sources that build reads; this edit is refused, not queued. Edits outside what the build',
     'compiles, and your own builds, are never held. Wait once, in ONE foreground call, then retry the edit:',

@@ -158,6 +158,9 @@
         ]
       },
       {
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" broken-crate-notice.mjs" }]
+      },
+      {
         "matcher": "Bash|PowerShell|Grep|Glob",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" search-telemetry.mjs" }]
       },

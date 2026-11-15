@@ -8,8 +8,10 @@
 //   errorFiles(output, cwd)                    -> absolute paths of the files named by `--> path:line:col` lines
 //   recordCheck(root, { writer, ok, scope, ts }) / readChecks(root)   the append-only record of finished checks
 //   culprits({ files, writer, claimants })     -> [{ file, claimant }] other live writers claiming a failing file
-//   unverifiedCrates({ trees, writer, checks }) -> [{ crate, failed }] crates the writer edited after, or that failed in, its last
-//     covering check; a check covers a crate when the crate directory is inside its recorded scope
+//   unverifiedCrates({ trees, writer, checks, notAfter? }) -> [{ crate, failed }] crates the writer edited after, or that failed in,
+//     its last covering check; a check covers a crate when the crate directory is inside its recorded scope; an edit newer than
+//     `notAfter` (ms) is not counted
+//   crateDirOf(file)                           -> nearest directory holding a Cargo.toml, or ''
 //   nudgeText(unverified)                      -> the stop message naming each crate
 
 import { existsSync } from 'node:fs';
@@ -60,18 +62,18 @@ export function culprits({ files, writer, claimants, relOf }) {
     .map((claimant) => ({ file, claimant })));
 }
 
-function crateDirOf(file) {
+export function crateDirOf(file) {
   for (let dir = dirname(file); ; dir = dirname(dir)) {
     if (existsSync(join(dir, 'Cargo.toml'))) return dir;
     if (dirname(dir) === dir) return '';
   }
 }
 
-export function unverifiedCrates({ trees, writer, checks }) {
+export function unverifiedCrates({ trees, writer, checks, notAfter = Infinity }) {
   const lastEdit = new Map();
   for (const tree of trees) {
     for (const e of readTurnRecords(tree, 'toolwrites')) {
-      if (e.w !== writer || !/\.rs$/i.test(e.p || '')) continue;
+      if (e.w !== writer || !/\.rs$/i.test(e.p || '') || (e.ts || 0) > notAfter) continue;
       const crate = crateDirOf(join(tree, e.p));
       if (crate) lastEdit.set(crate, Math.max(lastEdit.get(crate) || 0, e.ts || 0));
     }
