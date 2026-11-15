@@ -483,8 +483,8 @@ async function main() {
     await refresh(root);
     process.stdout.write(`decide: ${r.id} -> ${relative(root, r.path)}\n`);
     if (r.mirrored) process.stdout.write(`mirrored: ${r.id} -> ${r.mirrored.ticket} in the framework store (KIT-T943)\n`);
-    if (r.sessionError) process.stderr.write(`anchor note failed (${r.sessionError}): run t session "decided ${r.id}: <title>"\n`);
     if (r.mirrorError) process.stderr.write(`mirror failed (${r.mirrorError}): file the framework ticket by hand and add promoted: <id> to ${r.id}\n`);
+    if (r.sessionError) process.stderr.write(`ACTION REQUIRED: the anchor note failed (${r.sessionError}). The anchor is stale until you run: t session "decided ${r.id}: <title>"\n`);
     return;
   }
   if (cmd === 'revise') {

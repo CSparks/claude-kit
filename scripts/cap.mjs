@@ -257,5 +257,5 @@ if (isDone) {
   const body = `${type ? `(${type}) ` : ''}${text}`;
   await writeItemFile(join(inboxDir, name), `${body}\n${identity}`);
   const demand = isRuling(body) ? [rulingDemand(name.replace(/\.md$/, ''))] : [];
-  emitReceipt([...demand, ...dupLines], `captured${type ? ` (${type})` : ''} -> ${projectName}/inbox/${name}${ambiguity ? ` [${ambiguity}]` : ''}`);
+  emitReceipt(dupLines, `captured${type ? ` (${type})` : ''} -> ${projectName}/inbox/${name}${ambiguity ? ` [${ambiguity}]` : ''}`, demand);
 }

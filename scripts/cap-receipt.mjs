@@ -3,12 +3,14 @@
 //   filed <id> … | captured … | resolved …   — the write happened (emitReceipt)
 //   cap: refused, nothing was written: <why> — a refusal, exit 1 (refuse)
 //   cap: failed, nothing confirmed written: <why> — an unexpected error, exit 1 (installCrashReceipt)
-// Hints (possible duplicates, ruling demands) print BEFORE the closing line, never after it.
+// Hints (possible duplicates) print BEFORE the receipt. A ruling demand prints AFTER it as the final line, so a
+// caller that tails the output still sees `RULING CAPTURED` with the receipt directly above it (KIT-T1236).
 
-/** Print the hint lines, then the closing receipt as the final line of stdout. */
-export function emitReceipt(hintLines, receipt) {
+/** Print the hint lines, the receipt, then the closing lines (the ruling demand) as the final lines of stdout. */
+export function emitReceipt(hintLines, receipt, closingLines = []) {
   for (const line of hintLines) console.log(line);
   console.log(receipt);
+  for (const line of closingLines) console.log(line);
 }
 
 /** End the run with a plain refusal line naming why nothing was written. */

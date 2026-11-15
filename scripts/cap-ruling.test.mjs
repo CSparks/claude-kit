@@ -26,6 +26,9 @@ const cap = (args) => execFileSync(process.execPath, [CAP, ...args], {
 try {
   const verbatim = cap(["note on song mode (Chris 2026-11-09, verbatim): 'A scene owns its values and keeps its metadata.'"]);
   ok('a verbatim capture prints the ruling demand with its id and the promote command', /RULING CAPTURED: 2026-/.test(verbatim) && /t decide --file <draft\.md> --from 2026-/.test(verbatim) && /THIS turn/.test(verbatim));
+  const verbatimLines = verbatim.trim().split('\n');
+  ok('the ruling demand is the last line, with the captured receipt directly above it',
+    /^RULING CAPTURED: 2026-\S+ .*t decide --file <draft\.md> --from 2026-/.test(verbatimLines.at(-1)) && /^captured -> /.test(verbatimLines.at(-2)));
   ok('the demand names the cheap clear for a false match', /t triage 2026-\S+ --skip/.test(verbatim));
   ok('the captured note is listed as an un-promoted ruling', unpromotedRulings(root, { user: 'chris' }).length === 1);
   ok('a speaker said capture prints the demand', /RULING CAPTURED/.test(cap(['Chris said the roles modal opens from the toolbar'])));
