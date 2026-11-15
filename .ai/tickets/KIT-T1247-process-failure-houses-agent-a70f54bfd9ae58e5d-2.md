@@ -31,3 +31,5 @@ first seen in road-generator. Filed automatically (KIT-T286): every kit bug is a
 - [2026-11-15 08:57] (created) bug — process failure (houses agent a70f54bfd9ae58e5d, 2026-11-15): edited roof_items.rs to use tone::PLANT_SCREEN before adding it to palette.rs;
 - [2026-11-15 09:14] (status) todo → superseded (by KIT-T1245)
 - [2026-11-15 09:14] (status) superseded → superseded (by KIT-T1245)
+- [2026-11-15 09:16] (landed) c12211d Per-crate broken marker: a failed cargo check marks the crate, the blocked writer is told whom it waits on, the breaking
+- [2026-11-15 09:31] (comment) @kit-agent: Superseded by KIT-T1245 (fcea277): the refusal now lists every crate the writer left unchecked or broken.

@@ -2,16 +2,16 @@
 id: KIT-T1245
 title: write guard: a shared checkout stays uncompilable for minutes at a time because agents end a tool round with a crate half edited (rg-townpla
 type: feature
-status: todo
+status: review
 priority: medium
 milestone:
 labels: [kit-feature]
 links: []
 files: []
-supersedes: KIT-T1247
+supersedes: KIT-T1249
 superseded_by:
 created: 2026-11-15T08:56:08Z
-updated: 2026-11-15T08:56:08Z
+updated: 2026-11-15T09:31:11Z
 ---
 
 ## Description
@@ -29,6 +29,10 @@ first seen in road-generator. Filed automatically (KIT-T286): every kit bug is a
 
 ## Notes
 Built the smaller design (advisor-reviewed): no hook-started cargo check (a kit check would take a build slot and its scope hold would refuse every other writer's edit into the crate, half-batches would read as broken, and KIT-D162/D104 forbid implicit builds). Instead hooks/lib/broken-crates.mjs: a failed cargo check by anyone marks the crate (first error, last writer off the accepted-writes ledger, since); a passing check whose scope covers the crate clears it; the blocked writer's failed check prints whom it waits on; the last writer hears at its next tool call of any kind (hooks/broken-crate-notice.mjs, once per marker) and at SubagentStop; `builds` / `builds --broken` list broken crates; holder-beat's build-hold refusal names every crate the writer left unchecked or broken (KIT-T1247) and never refuses the last writer of a marked crate (the repair edit, KIT-T1249). Why KIT-T1211 did not prevent the incidents: the road-generator turnstate has no cratechecks record at all (the hook was wired by plugin 0.1.47 on 2026-11-14 evening; the sessions started earlier and never loaded it), and it only nudged at SubagentStop and blamed a live claim on the exact error file. Tests: hooks/broken-crates.test.mjs 24 passed, hooks/crate-check.test.mjs 18, hooks/build-write-hold.test.mjs, scripts/broker/build-status.test.mjs, scripts/plugin-compat.test.mjs 159. Limit: a marker exists only after some writer's check fails; a half-edited crate nobody checks stays unmarked (the breaker is still told at stop). New PostToolUse entry needs /plugin update (0.1.53) and a reload.
+Follow-up fcea277 (runtime published fcea277): the marker also works when a filter dropped the --> lines (crate named by the could not compile package, matched against the check's scope manifests), for --message-format=short, and for piped or build-wrapped commands; the last writer is the ledger entry whose content is on disk, so a refused edit's predicted entry never blames or exempts its writer. Tests from the published export: broken-crates 30 passed, crate-check 18, build-write-hold 60, 0 failed. broken-crate-notice runs on every tool call: about 270 ms against 240 ms for search-telemetry. Limits: a marker clears only on a passing cargo check/build/clippy through the Bash or PowerShell tool and expires after 2 h; the repair exemption lasts as long as the marker; a scope the kit could not read (no workspace manifest) names no package.
 
 ## History
 - [2026-11-15 08:56] (created) feature — write guard: a shared checkout stays uncompilable for minutes at a time because agents end a tool round with a crate half edited (rg-townpla
+- [2026-11-15 09:16] (landed) c12211d Per-crate broken marker: a failed cargo check marks the crate, the blocked writer is told whom it waits on, the breaking
+- [2026-11-15 09:28] (landed) fcea277 The broken-crate marker survives real command shapes: a filtered output names the crate by its could-not-compile package
+- [2026-11-15 09:31] (status) todo → review
