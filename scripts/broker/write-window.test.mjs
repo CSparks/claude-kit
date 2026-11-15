@@ -9,7 +9,7 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acquireBuildSlot } from './build-slot.mjs';
-import { FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, START_WAIT_S, blockingWindows, closeWindow, openWindow, waitOutWindows, windowFor } from './write-window.mjs';
+import { EDIT_GAP_S, FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, START_WAIT_S, blockingWindows, closeWindow, openWindow, settleWindows, waitOutWindows, windowFor } from './write-window.mjs';
 
 const STATUS = fileURLToPath(new URL('./build-status.mjs', import.meta.url));
 const slots = mkdtempSync(join(tmpdir(), 'wwin-slots-'));
@@ -34,16 +34,40 @@ test('a window blocks another writer\'s build start on a scope that holds the fi
   assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: Date.now() + (FREE_WINDOW_S + 1) * SECOND }).length, 0, 'control: an expired window holds nothing');
 });
 
-test('race: build B starting while the waiter\'s edit is pending waits, and goes ahead the moment the edit lands', () => {
+test('race: build B starting while the waiter\'s batch of edits is pending waits through every edit, and goes ahead one edit gap after the last', () => {
   reset();
   openWindow({ file, writer: WAITER, seconds: FREE_WINDOW_S, kind: KIND.FREE });
   const t = clock();
   let told = null;
-  const sleep = (ms) => { t.sleep(ms); closeWindow({ file, writer: WAITER }); };
+  const secondFile = join(crate, 'src', 'other.rs').replace(/\\/g, '/');
+  const EDIT_EVERY_MS = 10 * SECOND;
+  const EDITS = 3;
+  let edits = 0;
+  let sinceEdit = 0;
+  const sleep = (ms) => {
+    t.sleep(ms);
+    sinceEdit += ms;
+    if (edits < EDITS && sinceEdit >= EDIT_EVERY_MS) { edits += 1; sinceEdit = 0; settleWindows({ file: edits % 2 ? file : secondFile, writer: WAITER, now: t.now() }); }
+  };
   const result = waitOutWindows({ scope: [crate], writer: BUILDER, onWait: (w) => { told = w; }, sleep, now: t.now });
   assert.equal(told.writer, WAITER, 'B named the writer it yielded to');
-  assert.ok(result.waitedMs > 0 && result.waitedMs < START_WAIT_S * SECOND, 'B waited, then proceeded when the edit landed');
-  assert.equal(windowFor({ file }), null, 'the landed edit closed the window');
+  assert.equal(edits, EDITS, 'B was still waiting at every edit of the batch: none found a build holding the crate');
+  assert.ok(result.waitedMs >= (EDITS * EDIT_EVERY_MS) + (EDIT_GAP_S * SECOND) - SECOND && result.waitedMs < START_WAIT_S * SECOND, `B waited ${result.waitedMs} ms: the batch, then one edit gap`);
+});
+
+test('a landed edit shortens the writer\'s window to the edit gap and joins the edited file; a writer with no window opens none', () => {
+  reset();
+  const secondFile = join(crate, 'src', 'other.rs').replace(/\\/g, '/');
+  settleWindows({ file, writer: WAITER });
+  assert.equal(windowFor({ file }), null, 'control: an edit with no window opens none');
+  const now = Date.now();
+  openWindow({ file, writer: WAITER, seconds: FREE_WINDOW_S, kind: KIND.FREE, now });
+  settleWindows({ file: secondFile, writer: WAITER, now: now + SECOND });
+  assert.equal(windowFor({ file, now: now + SECOND }).until, now + (1 + EDIT_GAP_S) * SECOND, 'the free window now ends one edit gap after the edit');
+  assert.equal(windowFor({ file, now: now + SECOND }).kind, KIND.FREE, 'its kind and start time are kept');
+  assert.equal(windowFor({ file: secondFile, now: now + SECOND }).writer, WAITER, 'the edited file gained a window');
+  assert.equal(blockingWindows({ scope: [crate], writer: WAITER, now: now + SECOND }).length, 0, 'control: the writer\'s own build is not held');
+  assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: now + (EDIT_GAP_S + 2) * SECOND }).length, 0, 'control: the window lapses one edit gap after the last edit');
 });
 
 test('control: an edit that never lands holds the build start for START_WAIT_S only', () => {

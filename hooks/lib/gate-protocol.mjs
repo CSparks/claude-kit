@@ -30,6 +30,7 @@ import { BRIEF_CHECK, GROUNDED_CHECK, GROUNDED_CLAUSE_SHARED, GROUNDED_MIN_SHARE
 import { BRIEF_RULE } from './question-brief.mjs';
 import { DELETE_RULE } from './delete-guidance.mjs';
 import { GIT_ALLOW_RULE } from './git-call-policy.mjs';
+import { VENDOR_ROUTE } from './vendor-route.mjs';
 import { READINESS_STANDARD } from './question-ready.mjs';
 
 export const LADDER_CHECK = 'dispatch-ladder';
@@ -103,6 +104,7 @@ export const GATES = {
         'add the includes or imports of a new file afterwards with Edit, which judges it',
         DELETE_RULE,
         GIT_ALLOW_RULE,
+        VENDOR_ROUTE.join(' '),
       ], tokens: [] },
     ],
   },

@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, finish, makeRepo } from './dispatch-guard-harness.mjs';
 import { buildWaitCommand } from './lib/build-write-hold.mjs';
-import { FREE_WINDOW_S, KIND, openWindow, windowFor } from '../scripts/broker/write-window.mjs';
+import { EDIT_GAP_S, FREE_WINDOW_S, KIND, blockingWindows, closeWindow, openWindow, waitOutWindows, windowFor } from '../scripts/broker/write-window.mjs';
 
 const kitRoot = fileURLToPath(new URL('..', import.meta.url));
 
@@ -124,6 +124,7 @@ writeFileSync(join(crate, 'src', 'ground_file.rs'), 'mod inner;\n');
 mkdirSync(join(crate, 'src', 'ground_file'), { recursive: true });
 expect('KIT-T1190 control: a file declared by a non-mod.rs parent (ground_file.rs declares inner) stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'ground_file', 'inner.rs').status, 2);
 expect('KIT-T1190 control: a file declared by a non-mod.rs parent that nothing declares passes (ground.rs declares nested_child)', edit('S1', 'agentOther', 'crates', 'a', 'src', 'ground', 'nested_child.rs').status, 0);
+mkdirSync(join(crate, 'src', 'outer'), { recursive: true });
 writeFileSync(join(crate, 'src', 'lib.rs'), 'mod outer { mod inner; }\n');
 expect('KIT-T1190 control: a mod declared inside an inline block is not walked, so its file stays refused', edit('S1', 'agentOther', 'crates', 'a', 'src', 'outer', 'inner.rs').status, 2);
 writeFileSync(join(crate, 'src', 'lib.rs'), '#[path = "elsewhere.rs"]\nmod renamed;\n');
@@ -147,7 +148,8 @@ expect('a dead build\'s hold refuses nothing', edit('S1', 'agentOther', 'crates'
 const RACER = 'S1|agentRacer';
 const raceFile = join(crate, 'src', 'race.rs');
 const raceNote = () => edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs').stderr;
-const FIVE_SECONDS_MS = 5000;
+const MS_PER_SECOND = 1000;
+const FIVE_SECONDS_MS = 5 * MS_PER_SECOND;
 hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
 const raced = edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs');
 expect('KIT-T1175: a refused edit opens the writer\'s pending-edit window on the file', raced.status === 2 && windowFor({ file: raceFile })?.kind === KIND.REFUSED && windowFor({ file: raceFile })?.writer === RACER ? 1 : 0, 1);
@@ -162,7 +164,20 @@ expect('KIT-T1175: a build already running at the free wait is said to have comp
 openWindow({ file: raceFile, writer: RACER, seconds: FREE_WINDOW_S, kind: KIND.FREE });
 hold({ scope: [crate], writer: OWNER, phase: 'running' });
 expect('KIT-T1175: the edit after a free wait passes', edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs').status, 0);
-expect('KIT-T1175: the passing edit closes the writer\'s window', windowFor({ file: raceFile }) === null ? 1 : 0, 1);
+const landed = windowFor({ file: raceFile });
+expect('KIT-T1219: the passing edit keeps the writer\'s window, shortened to the edit gap', landed?.kind === KIND.FREE && landed.until - Date.now() <= EDIT_GAP_S * MS_PER_SECOND ? 1 : 0, 1);
+const heldBy = (writer, builder) => blockingWindows({ scope: [crate], writer: builder }).filter((w) => w.writer === writer).length;
+const batchFile = join(crate, 'src', 'batch.rs');
+expect('KIT-T1219: another writer\'s build start on the crate is still held after the first edit of a batch', heldBy(RACER, OWNER), 1);
+expect('KIT-T1219 control: the writer\'s own build start is not held by its window', heldBy(RACER, RACER), 0);
+expect('KIT-T1219: the next edit of the batch, in another file of the crate, passes', edit('S1', 'agentRacer', 'crates', 'a', 'src', 'batch.rs').status, 0);
+expect('KIT-T1219: the second file joins the writer\'s windows', windowFor({ file: batchFile })?.writer === RACER ? 1 : 0, 1);
+let fakeNow = Date.now();
+const buildStart = waitOutWindows({ scope: [crate], writer: OWNER, sleep: (ms) => { fakeNow += ms; }, now: () => fakeNow });
+expect('KIT-T1219: a build start inside the window waits for the edit gap before it takes its hold', buildStart.waitedMs >= (EDIT_GAP_S - 1) * MS_PER_SECOND ? 1 : 0, 1);
+closeWindow({ file: raceFile, writer: RACER });
+closeWindow({ file: batchFile, writer: RACER });
+expect('KIT-T1219 control: an edit by a writer with no window opens none', edit('S1', 'agentRacer', 'crates', 'a', 'src', 'solo.rs').status === 0 && heldBy(RACER, OWNER) === 0 ? 1 : 0, 1);
 expect('KIT-T1175 control: a refusal with no free wait before it carries no wait note', /builds --wait returned free/.test(guardAfterNoWindow()) ? 1 : 0, 0);
 
 function guardAfterNoWindow() {

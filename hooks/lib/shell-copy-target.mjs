@@ -7,7 +7,7 @@
 //     backslash (bash tools), backtick or comma (PowerShell tools), non-ASCII character, leading tilde or
 //     unterminated quote;
 //   - the options are the small set that cannot change where bytes land (cp: -f -p -v -n -r -R, alone or clustered, and
-//     their long forms with --recursive; mv: -f -v -n; Copy-Item/Move-Item: -Path -Destination -Force, exact names),
+//     their long forms with --recursive; mv: -f -v -n; Copy-Item/Move-Item: -Path -Destination -Force -Recurse, exact names),
 //     plus `-t DIR` / `--target-directory DIR|=DIR` in their exact forms; a quoted token that starts with a dash is an
 //     unknown option;
 //   - one source and one destination, or several sources into a directory (the last operand, or -t DIR, or a lone
@@ -30,7 +30,8 @@ const PAIR = 2;
 const SEVERAL_OPERANDS = PAIR + 1;
 const GNU_TOOL = /^(?:cp|mv)$/i;
 const PS_TOOL = /^(?:copy-item|move-item)$/i;
-const PS_SWITCH = 'force';
+const PS_RECURSE = 'recurse';
+const PS_SWITCHES = ['force', PS_RECURSE];
 const PS_VALUE_PARAMS = ['path', 'destination'];
 const REDIRECT_FD = /^(?:\d+|&)$/;
 const ENDS_IN_SLASH = /[\\/]$/;
@@ -142,13 +143,14 @@ function plainShape(positional, dir) {
 function psProven(tokens) {
   const positional = [];
   const named = {};
+  let recursive = false;
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
     if (!isOption(t)) { positional.push(t.v); continue; }
     if (t.quoted) return null;
     const colon = t.v.indexOf(':');
     const name = (colon > 0 ? t.v.slice(1, colon) : t.v.slice(1)).toLowerCase();
-    if (name === PS_SWITCH && colon < 0) continue;
+    if (PS_SWITCHES.includes(name) && colon < 0) { recursive = recursive || name === PS_RECURSE; continue; }
     if (!PS_VALUE_PARAMS.includes(name) || named[name] !== undefined) return null;
     const value = colon > 0 ? t.v.slice(colon + 1) : tokens[++i]?.v;
     if (!value) return null;
@@ -157,7 +159,8 @@ function psProven(tokens) {
   const source = named.path ?? positional.shift();
   const destination = named.destination ?? positional.shift();
   if (!source || !destination || positional.length || ENDS_IN_SLASH.test(destination)) return null;
-  return shapeOf(source, destination);
+  const shape = shapeOf(source, destination);
+  return recursive ? recursiveShape(shape) : shape;
 }
 
 // An option may carry a path: after `=`, after `:` (PowerShell), or glued on (`-tDIR`, `-rtDIR`): every suffix of a short option.

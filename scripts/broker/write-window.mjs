@@ -3,9 +3,14 @@
 // edit was refused, or whose `builds --wait` returned free, then needs a few seconds to land that edit. A build that
 // starts inside those seconds would hold the file again, and back-to-back builds of one writer would starve the other.
 // A build about to take its hold waits, up to START_WAIT_S, while another writer's window covers its scope.
+// A writer's edits come in batches: an edit that lands while the writer holds a window does not end it, it shortens it to
+// EDIT_GAP_S past that edit, so the next edit of the batch (any file of the crate) lands before a build can take the scope
+// (KIT-T1219). A writer with no window opens none by editing.
 //
 //   openWindow({ file, writer, seconds, kind, now? })  -> record   a window on `file` for `writer`, `seconds` long
-//   closeWindow({ file, writer })                       -> void     the writer's edit of `file` landed: its window ends
+//   closeWindow({ file, writer })                       -> void     the writer's window on `file` ends at once
+//   settleWindows({ file, writer, seconds?, now? })     -> void     the writer's edit of `file` landed: every live window of the
+//                                                                   writer now ends EDIT_GAP_S later, and `file` gains one
 //   windowFor({ file, now? })                           -> record | null   the newest live window on `file`
 //   blockingWindows({ scope, writer, now? })            -> [record] live windows of OTHER writers on a file inside `scope`
 //   waitOutWindows({ scope, writer, capS?, onWait?, sleep?, now? }) -> { waitedMs, window }
@@ -22,7 +27,8 @@ import { toPath } from '../../hooks/lib/shell-segments.mjs';
 export const REFUSED_WINDOW_S = 10;
 export const FREE_WINDOW_S = 90;
 export const START_WAIT_S = 90;
-export const KIND = { REFUSED: 'refused', FREE: 'free' };
+export const EDIT_GAP_S = 30;
+export const KIND = { REFUSED: 'refused', FREE: 'free', SETTLE: 'settle' };
 const MS_PER_SECOND = 1000;
 const POLL_MS = 250;
 const HASH_CHARS = 16;
@@ -56,6 +62,13 @@ export function openWindow({ file, writer = '', seconds, kind, now = Date.now() 
 }
 
 export const closeWindow = ({ file, writer = '' }) => rmSync(pathOf(file, writer), { force: true });
+
+export function settleWindows({ file, writer = '', seconds = EDIT_GAP_S, now = Date.now() }) {
+  const mine = liveWindows(now).filter((w) => w.writer === writer);
+  if (!mine.length) return;
+  for (const w of mine) writeFileSync(pathOf(w.file, writer), JSON.stringify({ ...w, until: now + seconds * MS_PER_SECOND }));
+  if (!mine.some((w) => fileKey(w.file) === fileKey(file))) openWindow({ file, writer, seconds, kind: KIND.SETTLE, now });
+}
 
 export function windowFor({ file, now = Date.now() }) {
   const key = fileKey(file);

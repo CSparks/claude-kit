@@ -16,6 +16,8 @@
 // A write that lands in build output (gitignored, or below a verified CMake/Ninja build tree: build-output.mjs) is a tool's,
 // not a hand write, unless the command itself names a marker or an ignore file (it may be making the directory look like output).
 // A touch that only stamps the mtime of an existing file authors no content and passes (touch-target.mjs).
+// A path listed in the repo's .claude-kit-ignore.yaml passes, judged by its repo-relative path whatever the call's directory;
+// the block names that listing as the route for vendoring a third-party tree (vendor-route.mjs).
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fails open on any error.
 
 import { resolve } from 'node:path';
@@ -29,6 +31,7 @@ import { deleteJudgement } from './lib/delete-judge.mjs';
 import { deleteGuidance } from './lib/delete-guidance.mjs';
 import { copyVariableAdvice } from './lib/copy-variable.mjs';
 import { touchLifted } from './lib/touch-target.mjs';
+import { VENDOR_ROUTE } from './lib/vendor-route.mjs';
 import { writerId } from './lib/tool-writes.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { repoRelative } from './turn-writes.mjs';
@@ -46,11 +49,13 @@ try {
     const cwd = found.from || commandCwd(command, process.cwd(), { upto: found.segment, shell });
     const file = resolve(cwd, toPath(found.path));
     const root = gitRootOfFile(file);
-    if (!adopted(root) || pathExcluded(root, CHECK, found.path)) continue;
+    if (!adopted(root)) continue;
+    const rel = repoRelative(root, file);
+    if (pathExcluded(root, CHECK, rel) || pathExcluded(root, CHECK, found.path)) continue;
     if (found.outsideTo && (landsOutsideRepo(found.outsideTo, root, cwd) || isGeneratedPath(found.outsideTo))) continue;
     if (!found.ambiguous && !found.moveLinesProblem && buildOutputJudge(root, { markerStands: () => !markerMentioned(command), ignoredStands: !ignoreEditMentioned(command) })(file)) continue;
     if (touchLifted(found, cwd)) continue;
-    const refusal = deleteJudgement(found, root, repoRelative(root, file), caller);
+    const refusal = deleteJudgement(found, root, rel, caller);
     if (found.deletes && !refusal) continue;
     const what = found.moveLinesProblem
       ? `a move-lines call the guard refuses writes a source file by hand: ${found.moveLinesProblem}`
@@ -63,6 +68,7 @@ ${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path
   A change too large for one Edit is a Write of the new file or several Edits, never a script.
   Moving EXISTING lines into other files (a file split) is the kit verb: move-lines <source> <ranges>=<dest> ... (q gates source).
   Generated output a tool writes (cargo, a formatter, a codegen) is not a hand write: run the tool.
+${VENDOR_ROUTE.map((line) => `  ${line}`).join('\n')}
 ${excludeFooter(CHECK)}`);
     process.exit(2);
   }

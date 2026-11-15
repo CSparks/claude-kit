@@ -14,15 +14,16 @@
 //                                                  build's scope and, for a wide hold, why the scope is wide (KIT-T1147)
 //   buildHoldMessage({ file, absFile, hold, footer, writer }) -> the block message; says whether a build that started after a
 //                                                  free `builds --wait` is NEW or the same one compiling again (KIT-T1175)
-//   noteRefusedEdit({ file, writer }) / noteEditLanded({ file, writer }) -> open / close the writer's write window on the file
-//                                                  (scripts/broker/write-window.mjs): a build start yields to it
+//   noteRefusedEdit({ file, writer }) / noteEditLanded({ file, writer }) -> open the writer's write window on the file / shrink
+//                                                  the writer's windows to the edit gap (scripts/broker/write-window.mjs):
+//                                                  a build start yields to a live window
 
 import { resolve } from 'node:path';
 import { liveHolds } from '../../scripts/broker/build-slot-store.mjs';
 import { isBuildInput } from '../../scripts/broker/build-globs.mjs';
 import { inScope, scopeVia } from '../../scripts/broker/cargo-scope-dirs.mjs';
 import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../../scripts/broker/wait-limits.mjs';
-import { FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, closeWindow, openWindow, windowFor } from '../../scripts/broker/write-window.mjs';
+import { EDIT_GAP_S, FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, openWindow, settleWindows, windowFor } from '../../scripts/broker/write-window.mjs';
 import { isUnreachableSource } from './unreachable-source.mjs';
 import { toPath } from './shell-segments.mjs';
 import { writerSession } from './tool-writes.mjs';
@@ -80,8 +81,8 @@ export function noteRefusedEdit({ file, writer }) {
   }
 }
 
-/** The writer's edit of `file` passed: the window held for it ends. */
-export const noteEditLanded = ({ file, writer }) => closeWindow({ file, writer });
+/** The writer's edit of `file` passed: its windows shrink to the gap before the next edit of the batch, never end at once. */
+export const noteEditLanded = ({ file, writer }) => settleWindows({ file, writer });
 
 export function holdScopeLines({ absFile, hold }) {
   const chain = scopeVia(absFile, hold.scopeVia);
@@ -103,7 +104,7 @@ export function buildHoldMessage({ file, absFile = file, hold, footer, window = 
     'compiles, and your own builds, are never held. Wait once, in ONE foreground call, then retry the edit:',
     `  ${buildWaitCommand(absFile, writer)}`,
     `(Bash timeout ${HARNESS_FOREGROUND_S * MS_PER_SECOND}. It returns the moment no build compiles the file, or after ${MAX_FOREGROUND_WAIT_S} s with exit 2,`,
-    `naming the holder and how long it held. After it returns free, no other writer's build starts on the file for ${FREE_WINDOW_S} s: retry the edit at once.`,
+    `naming the holder and how long it held. After it returns free, no other writer's build starts on the file for ${FREE_WINDOW_S} s, and each edit you land keeps it closed ${EDIT_GAP_S} s more: retry the edit at once.`,
     'Past the cap, write your handoff or do work that touches no file of that crate.)',
     '',
     footer,
