@@ -14,7 +14,10 @@
 // name is already in the environment, which includes PATH; no `env` options. ALLOWED_ASSIGNED_NAMES is empty: no name
 // is exempt. The words `export`, `setenv`, `declare -x`, `typeset -x` and `set -a` count anywhere in the command or in a command
 // text it runs, when a git word follows them in that text; a bare assignment of a name already in the environment counts in any of those texts. A git call that runs a
-// command from somewhere unknown (git-run-commands.mjs) is off the list.
+// command from somewhere unknown (git-run-commands.mjs) is off the list. In PowerShell only an assignment to `$env:NAME`, a
+// Set-/New-/Remove-Item on the Env: drive or SetEnvironmentVariable is an environment change; reading `$env:TEMP` is not. A
+// read-only verb (status, log, diff, show, ls-tree, ls-files, merge-base, rev-parse, rev-list, cat-file, show-ref, describe,
+// shortlog) is exempt from the environment-change rules unless the command names GIT_*, PATH, PAGER, HOME, XDG_CONFIG_HOME or USERPROFILE.
 
 import { gitRunCommands } from './git-run-commands.mjs';
 import { nestedSegments } from './lead-command-walk.mjs';
@@ -38,7 +41,14 @@ export const GIT_ALLOW_RULE = `a git call is judged precisely only when it stays
 
 const ENV_ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)=/;
 const ENV_OPTIONS_WRAPPER = /^(?:.*[\\/])?env(?:\.exe)?$/i;
-const EXPORTS = /(?<![\w-])(?:export|setenv|declare\s+-[A-Za-z]*x|typeset\s+-[A-Za-z]*x|set\s+(?:-[A-Za-z]*a\b|-o\s+allexport))(?![\w-])|\$env:|\bEnv:|SetEnvironmentVariable|\[Environment\]/i;
+// PowerShell: only an assignment to `$env:NAME` or `${env:NAME}`, a *-Item/*-ItemProperty cmdlet on the Env: drive, or SetEnvironmentVariable
+// changes the environment; `$env:TEMP` or `Get-Content Env:X` only reads it.
+const EXPORTS = /(?<![\w-])(?:export|setenv|declare\s+-[A-Za-z]*x|typeset\s+-[A-Za-z]*x|set\s+(?:-[A-Za-z]*a\b|-o\s+allexport))(?![\w-])|\$(?:env:[\w.()-]+|\{env:[^}]+\})\s*(?:[-+*/%]|\?\?)?=(?!=)|\b(?:set|new|remove|clear|rename|copy|move|add)-item(?:property)?\b[^;|\n]*\bEnv:|SetEnvironmentVariable/i;
+// Names that redirect or wrap git itself: an environment change naming one stays a sweep even before a read-only verb.
+const REDIRECTING_NAME = '(?:GIT_[A-Z0-9_]+|PATH|PAGER|HOME|XDG_CONFIG_HOME|USERPROFILE)';
+const GIT_REDIRECTING = new RegExp(`(?:\\$\\{?env:|\\benv:|\\bexport\\s+|\\bsetenv\\s+|SetEnvironmentVariable\\(\\s*['"]?)${REDIRECTING_NAME}\\b|\\b${REDIRECTING_NAME}=`, 'i');
+// Verbs that only read the repository: an environment change elsewhere in the command is no reason to fear them.
+const READ_ONLY = new Set(['status', 'log', 'diff', 'show', 'ls-tree', 'ls-files', 'merge-base', 'rev-parse', 'rev-list', 'cat-file', 'show-ref', 'describe', 'shortlog']);
 const GIT_WORD = /(?<![\w-])git(?![\w-])/i;
 // An environment change counts only when a git word follows it in the same text: `git commit -m "export the helper"` changes nothing.
 const exportsBeforeGit = (text) => {
@@ -71,11 +81,12 @@ function bareAssignments(parts) {
 
 // `parts`: every segment of the command and of each command text it runs (nestedSegments), so an export or an assignment
 // inside a `bash -c`, `eval` or `su -c` string counts like one at the top level.
-function environmentProblem(lead, raw, parts) {
+function environmentProblem(lead, raw, parts, readOnly = false) {
   const prefix = lead.map((w) => ENV_ASSIGN.exec(w)?.[1]).find((n) => n && !ALLOWED_ASSIGNED_NAMES.includes(n));
   if (prefix) return `environment assignment ${prefix}= in front of git`;
   const at = lead.findIndex((w) => ENV_OPTIONS_WRAPPER.test(w));
   if (at >= 0 && lead.slice(at + 1).some((w) => w.startsWith('-'))) return 'options of env in front of git';
+  if (readOnly && !GIT_REDIRECTING.test(raw)) return '';
   if ([raw, ...parts.map((part) => part.text)].some(exportsBeforeGit)) return 'a variable exported (or a PowerShell environment change) in the same command';
   const set = bareAssignments(parts).find((n) => !ALLOWED_ASSIGNED_NAMES.includes(n) && inEnvironment(n));
   return set ? `${set}= assigned in the same command, a name already in the environment` : '';
@@ -85,5 +96,5 @@ export function gitCallProblem(git, { lead = [], raw = '', shell = '', blind = f
   if (!git.sub) return '';
   if (!BUILTIN.has(git.sub)) return `git ${git.sub}, which is not a built-in git command (an alias or an external program)`;
   const option = git.options.map(optionProblem).find(Boolean);
-  return option || gitRunCommands(git, { blind }).problem || environmentProblem(lead, String(raw), nestedSegments(String(raw), shell));
+  return option || gitRunCommands(git, { blind }).problem || environmentProblem(lead, String(raw), nestedSegments(String(raw), shell), READ_ONLY.has(git.sub));
 }

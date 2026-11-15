@@ -175,7 +175,7 @@ try {
     ['PATH=/x; git status', 'a bare PATH assignment'],
     ['export HOME=/x && git status', 'an exported HOME'],
     ['declare -x XDG_CONFIG_HOME=/x; git status', 'a declare -x variable'],
-    ['set -a; X=1; git status', 'set -a'],
+    ['set -a; X=1; git add .', 'set -a'],
     ['git checkout -f', 'git checkout -f'],
     ['git checkout .', 'git checkout of the current directory'],
     ['git checkout -- .', 'git checkout -- .'],
