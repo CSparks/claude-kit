@@ -5,7 +5,7 @@
 // Run: node hooks/source-shell-gate-directory-delete.test.mjs
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +76,38 @@ try {
   writeFileSync(join(repo, 'target', 'debug', 'build.rs'), 'fn b() {}\n');
   check('build output passes', !blocked(sh('rm -rf target', 'S1', 'B')));
   check('a missing directory passes', !blocked(sh('rm -rf nowhere', 'S1', 'B')));
+
+  // A link to a directory is judged as its target (a trailing slash too).
+  toolWrite('real/src/lib.rs', 'fn r() {}\n', 'S1', 'A');
+  symlinkSync(join(repo, 'real'), join(repo, 'lnk'), process.platform === 'win32' ? 'junction' : 'dir');
+  check('a link to a directory holding another agent\'s file is refused', blocked(sh('rm -rf lnk', 'S1', 'B')));
+  check('a link with a trailing slash is refused too', blocked(sh('rm -rf lnk/', 'S1', 'B')));
+  check('a link to a directory is judged for the main thread while its writer is live', blocked(sh('rm -rf lnk', 'S1')));
+
+  // A nested repository is listed from its own root; one that cannot be listed is refused.
+  const nestedRepo = (rel, { gitlink = false } = {}) => {
+    const dir = join(repo, rel);
+    mkdirSync(join(dir, '.ai'), { recursive: true });
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    execFileSync('git', ['init', '-q'], { cwd: dir });
+    if (gitlink) {
+      writeFileSync(join(dir, 'seed.txt'), 'seed\n');
+      execFileSync('git', ['add', 'seed.txt'], { cwd: dir });
+      execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'seed'], { cwd: dir });
+    }
+    writeFileSync(join(dir, 'src', 'inner.rs'), 'fn i() {}\n');
+  };
+  nestedRepo('outer/clone');
+  const viaClone = sh('rm -rf outer', 'S1', 'B');
+  check('an untracked nested repository\'s source is judged', blocked(viaClone) && /clone\/src\/inner\.rs/.test(viaClone.stderr), viaClone.stderr);
+  nestedRepo('sub', { gitlink: true });
+  execFileSync('git', ['add', 'sub'], { cwd: repo });
+  check('a submodule entry\'s source is judged from its own root', blocked(sh('rm -rf sub', 'S1', 'B')));
+  nestedRepo('sub2', { gitlink: true });
+  execFileSync('git', ['add', 'sub2'], { cwd: repo });
+  rmSync(join(repo, 'sub2'), { recursive: true, force: true });
+  mkdirSync(join(repo, 'sub2'));
+  check('control: an uninitialised submodule directory holds nothing to judge', !blocked(sh('rm -rf sub2', 'S1', 'B')));
 } finally {
   rmSync(repo, { recursive: true, force: true });
   rmSync(state, { recursive: true, force: true });
