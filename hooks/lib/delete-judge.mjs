@@ -12,8 +12,9 @@
 // take unnamed files passes only while no other writer is live in the checkout (live-writers.mjs).
 //
 // The main thread answers to the maintainer, so its plain delete (never a git discard verb) of an untracked file that
-// another writer wrote, or no tool wrote, passes once no live writer holds the file (KIT-T1246); a file with no recorded
-// writer also waits while any other writer is live. A subagent never gets this lift.
+// another writer wrote, or no tool wrote, passes once no live writer holds the file (KIT-T1246): none claims it, none
+// listed it dirty, none left its bytes. A file with no recorded writer also waits while any other writer is live. An
+// unreadable registry keeps the refusal. A subagent never gets this lift.
 
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
@@ -25,10 +26,15 @@ import { isMainThread } from './tool-writes.mjs';
 const CLEAN_VERB = 'git clean';
 const LIFTED_FOR_MAIN_THREAD = new Set([R.unrecorded, R.otherWriter]);
 
+// The lift needs proof that no writer is live; a registry that cannot be read proves nothing, so any throw keeps the refusal.
 function mainThreadDelete(root, rel, caller, refusal) {
   if (!LIFTED_FOR_MAIN_THREAD.has(refusal) || !isMainThread(caller)) return refusal;
-  const holders = refusal === R.unrecorded ? liveWritersFor(root, rel, caller) : fileHolders(root, rel, caller);
-  return holders.length ? R.liveWriter : '';
+  try {
+    const holders = refusal === R.unrecorded ? liveWritersFor(root, rel, caller) : fileHolders(root, rel, caller);
+    return holders.length ? R.liveWriter : '';
+  } catch {
+    return refusal;
+  }
 }
 
 const matchesHead = (root, rel) => gitTry(['--literal-pathspecs', 'diff', '--quiet', 'HEAD', '--', rel], root).ok;

@@ -8,15 +8,16 @@
 //                                                    repo the session itself works in
 //   refuseEdit({ tree, session, path })              -> note a refused edit (session-overlap.mjs ignores it in the write ledger); beatHolder({ edited }) clears it
 //   noteLegacyClaims({ tree, session, files, now })  -> { file: firstSeenMs } for claims with no recorded write HEAD (live-claims.mjs bounds them)
-//   liveHolders(tree, now)                         -> [{ tree, session, label, agent, origin, since, beatAt, file }] inside the window
+//   liveHolders(tree, now, { strict })             -> [{ tree, session, label, agent, origin, since, beatAt, file }] inside the window;
+//                                                    an unreadable registry answers [] and, with strict, throws (a checkout with no entries answers [])
 //   releaseTree(tree, session)                       -> drop that session's hold (a synchronous writer finished)
 //   releaseAgent(agent)                              -> drop every hold and file claim whose last writer was that agent (SubagentStop)
 //   claimFile({ tree, session, agent, label, rel, head, now }) -> record that the writer changed `rel` at `head` (KIT-T1114)
-//   liveClaimants(tree, now)                         -> [{ session, agent, label, beatAt, claims }] writers of every session with standing claims
+//   liveClaimants(tree, now, { strict })             -> [{ session, agent, label, beatAt, claims }] writers of every session with standing claims
 //   HOLDER_WINDOW_MS, holdersDir()                   -> CLAUDE_KIT_HOLDERS_DIR overrides the directory (tests)
 
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -37,8 +38,28 @@ const entryFile = (tree, session) => join(treeDir(tree), `${String(session).repl
 const claimTreeDir = (tree) => join(claimsRoot(), createHash('sha1').update(normTree(tree)).digest('hex').slice(0, HASH_CHARS));
 const claimEntryFile = (tree, session, agent) => join(claimTreeDir(tree), `${String(`${session}.${agent}`).replace(/[^\w.-]/g, '_')}.json`);
 
-function readEntry(file) {
-  try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; }
+const MISSING = 'ENOENT';
+
+// With `strict`, an entry that cannot be read or parsed throws instead of answering null: a writer the caller cannot
+// see is no proof that none is live. A file that vanished between listing and reading is a released entry.
+function readEntry(file, strict = false) {
+  try {
+    return JSON.parse(readFileSync(file, 'utf8'));
+  } catch (e) {
+    if (strict && e.code !== MISSING) throw e;
+    return null;
+  }
+}
+
+// The entry files of one checkout's directory. A checkout with no directory has no entries while the registry itself
+// exists; with `strict`, any other failure, or a missing registry, throws.
+function entryPaths(dir, strict) {
+  try {
+    return readdirSync(dir).map((name) => join(dir, name));
+  } catch (e) {
+    if (strict && !(e.code === MISSING && existsSync(holdersDir()))) throw e;
+    return [];
+  }
 }
 
 export function beatHolder({ tree, session, label = '', agent = '', origin = '', edited = '', now = Date.now() }) {
@@ -87,17 +108,16 @@ export function noteLegacyClaims({ tree, session, files, now = Date.now() }) {
   }
 }
 
-export function liveHolders(tree, now = Date.now()) {
+export function liveHolders(tree, now = Date.now(), { strict = false } = {}) {
   try {
-    const dir = treeDir(tree);
-    return readdirSync(dir).flatMap((name) => {
-      const file = join(dir, name);
-      const entry = readEntry(file);
+    return entryPaths(treeDir(tree), strict).flatMap((file) => {
+      const entry = readEntry(file, strict);
       if (!entry) return [];
       if (now - entry.beatAt >= PRUNE_AFTER_MS) { rmSync(file, { force: true }); return []; }
       return now - entry.beatAt < HOLDER_WINDOW_MS ? [{ ...entry, file }] : [];
     });
-  } catch {
+  } catch (e) {
+    if (strict) throw e;
     return [];
   }
 }
@@ -145,15 +165,15 @@ export function claimFile({ tree, session, agent = '', label = '', rel, head = '
 
 // The writers of every session in `tree` with a claim still standing: a subagent until it stops or AGENT_CLAIM_WINDOW_MS pass
 // without a write, a main thread for HOLDER_WINDOW_MS.
-export function liveClaimants(tree, now = Date.now()) {
+export function liveClaimants(tree, now = Date.now(), { strict = false } = {}) {
   try {
-    const dir = claimTreeDir(tree);
-    return readdirSync(dir).flatMap((name) => {
-      const entry = readEntry(join(dir, name));
+    return entryPaths(claimTreeDir(tree), strict).flatMap((file) => {
+      const entry = readEntry(file, strict);
       const window = entry?.agent ? AGENT_CLAIM_WINDOW_MS : HOLDER_WINDOW_MS;
       return entry && now - entry.beatAt < window ? [entry] : [];
     });
-  } catch {
+  } catch (e) {
+    if (strict) throw e;
     return [];
   }
 }

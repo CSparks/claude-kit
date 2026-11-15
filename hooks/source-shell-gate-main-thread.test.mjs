@@ -5,7 +5,7 @@
 // Run: node hooks/source-shell-gate-main-thread.test.mjs
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,7 +31,7 @@ const ENDED_AGO_MS = 3 * HOURS_MS;
 
 // A Write as the tools leave it: pre-write predicts, the file lands, PostToolUse confirms, the holder hook claims it.
 // An ended writer is a stopped agent (SubagentStop releases it) or a main thread silent past its window.
-function toolWrite(rel, text, session, agent = '', { ended = false } = {}) {
+function toolWrite(rel, text, session, agent = '', { ended = false, claimed = true } = {}) {
   const input = { ...who(session, agent), tool_input: { file_path: join(repo, rel), content: text } };
   spawnHook('pre-write.mjs', input);
   writeFileSync(join(repo, rel), text);
@@ -41,7 +41,7 @@ function toolWrite(rel, text, session, agent = '', { ended = false } = {}) {
     claimFile({ tree, session, rel, now: Date.now() - ENDED_AGO_MS });
     return;
   }
-  spawnHook('holder-beat.mjs', input);
+  if (claimed) spawnHook('holder-beat.mjs', input);
   if (ended) releaseAgent(agent);
 }
 const sh = (command, session, agent = '', tool = 'Bash') => spawnHook('source-shell-gate.mjs', { ...who(session, agent), tool_name: tool, tool_input: { command } });
@@ -99,6 +99,41 @@ try {
   toolWrite('discard-target.rs', 'fn d() {}\n', 'S2', 'E', { ended: true });
   check('a git discard verb of an ended writer\'s file stays refused', blocked(sh('git clean -f -- discard-target.rs', 'S1')));
   check('rm of it passes', !blocked(sh('rm discard-target.rs', 'S1')));
+
+  // A live writer that never claimed the file still holds it when its tool left the bytes (KIT-T1246).
+  toolWrite('claimless.rs', 'fn c() {}\n', 'S1', 'F', { claimed: false });
+  toolWrite('f-other.rs', 'fn f() {}\n', 'S1', 'F');
+  const claimless = sh('rm claimless.rs', 'S1');
+  check('the main thread is refused a file a live agent wrote but never claimed', blocked(claimless) && /agent F[^]*is live/.test(claimless.stderr), claimless.stderr);
+  releaseAgent('F');
+  check('once that agent stops the same delete passes', !blocked(sh('rm claimless.rs', 'S1')));
+
+  // A registry that cannot be read proves no writer is absent: the refusal stands (KIT-T1246).
+  toolWrite('blind.rs', 'fn b() {}\n', 'S2', 'G', { ended: true });
+  writeFileSync(join(repo, 'blind-unrecorded.rs'), 'fn u() {}\n');
+  const registry = process.env.CLAUDE_KIT_HOLDERS_DIR;
+  const emptyRegistry = mkdtempSync(join(tmpdir(), 'kit-mtdel-empty-'));
+  const brokenRegistry = mkdtempSync(join(tmpdir(), 'kit-mtdel-broken-'));
+  try {
+    process.env.CLAUDE_KIT_HOLDERS_DIR = join(emptyRegistry, 'missing');
+    check('a missing registry keeps the refusal of an ended agent\'s file', blocked(sh('rm blind.rs', 'S1')));
+    check('a missing registry keeps the refusal of a file no tool wrote', blocked(sh('rm blind-unrecorded.rs', 'S1')));
+
+    process.env.CLAUDE_KIT_HOLDERS_DIR = brokenRegistry;
+    const tree = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: repo, encoding: 'utf8' }).trim();
+    claimFile({ tree, session: 'S8', agent: 'H', rel: 'blind.rs', now: Date.now() - ENDED_AGO_MS });
+    const claims = join(brokenRegistry, '_claims');
+    const entry = join(claims, readdirSync(claims)[0]);
+    writeFileSync(join(entry, readdirSync(entry)[0]), '{not json');
+    check('an unparsable registry entry keeps the refusal', blocked(sh('rm blind.rs', 'S1')) && blocked(sh('rm blind-unrecorded.rs', 'S1')));
+
+    process.env.CLAUDE_KIT_HOLDERS_DIR = emptyRegistry;
+    check('control: an existing registry with no entry for the checkout is no live writer', !blocked(sh('rm blind.rs', 'S1')) && !blocked(sh('rm blind-unrecorded.rs', 'S1')));
+  } finally {
+    process.env.CLAUDE_KIT_HOLDERS_DIR = registry;
+    rmSync(emptyRegistry, { recursive: true, force: true });
+    rmSync(brokenRegistry, { recursive: true, force: true });
+  }
 } finally {
   rmSync(repo, { recursive: true, force: true });
   rmSync(state, { recursive: true, force: true });
