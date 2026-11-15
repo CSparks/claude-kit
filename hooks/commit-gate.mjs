@@ -20,6 +20,7 @@ import { shellOfTool } from './lib/shell-segments.mjs';
 import { isKitCheckout } from './lib/kit-checkout.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
+import { foreignClaimMessage, foreignClaims } from './lib/commit-agent-claims.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
@@ -196,6 +197,20 @@ if (!COMMIT_FOREIGN_ESCAPE.test(cited)) {
     }
   } catch {
     /* the foreign-path check is best-effort — never wedge a commit on a scan error */
+  }
+}
+
+// KIT-T1256: the agents of one session share a session id and one index; a path another live writer holds uncommitted work in
+// stays out of this commit (lib/commit-agent-claims.mjs). `[commit-foreign: <reason>]` or the commit-foreign ignore key lifts it.
+if (p.session_id && !COMMIT_FOREIGN_ESCAPE.test(cited)) {
+  try {
+    const found = foreignClaims({ tree: root, session: p.session_id, agent: subagentId(p), paths: changed }).filter((f) => !pathExcluded(root, 'commit-foreign', f.rel));
+    if (found.length) {
+      process.stderr.write(foreignClaimMessage({ found, paths: changed, messageArg: messageFile ? `-F "${messageFile}"` : '-m "<message>"', footer: excludeFooter('commit-foreign') }));
+      process.exit(2);
+    }
+  } catch {
+    /* the claim check is best-effort — never wedge a commit on a scan error */
   }
 }
 
