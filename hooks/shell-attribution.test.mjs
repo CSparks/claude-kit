@@ -60,6 +60,9 @@ try {
     ['PowerShell', 'Set-Location then cargo check with Select-Object', 'Set-Location D:\\dev\\road-generator\\rapid-game\\rust; cargo check -p rg-terrain-bevy 2>&1 | Select-Object -Last 30'],
     ['PowerShell', 'cargo check with a Select-String filter', 'cargo check -p rg-townplan 2>&1 | Select-String -Pattern "error"'],
     ['PowerShell', 'cargo build with Out-String', 'cargo build -p rg-flora 2>&1 | Out-String'],
+    ['Bash', 'KIT-T1264: a prebuilt test exe under target/debug/deps, env exports first, output redirected to target/', 'cd rapid-game/rust && export BEVY_ASSET_ROOT=$PWD CARGO_MANIFEST_DIR=$PWD; timeout 165 ../../target/debug/deps/town_rules_census-ccc2e0cc2b491e15.exe --nocapture > ../../target/fences/census-restored.txt 2>&1; echo exit $?; grep -E "^(town|rows) |panicked" ../../target/fences/census-restored.txt | cut -c1-260'],
+    ['Bash', 'KIT-T1264: a prebuilt test exe under target/release/deps piped to tail', 'timeout 165 target/release/deps/town_rules_census-ccc2e0cc2b491e15.exe --nocapture 2>&1 | tail -5'],
+    ['Bash', 'KIT-T1264: a prebuilt example under target/debug/examples', './target/debug/examples/fence_preview.exe --frames 3'],
     ['PowerShell', 'a built exe with Where-Object filtering', '& .\\target\\debug\\probe.exe 2>&1 | Where-Object { $_ -match "ok" }'],
   ];
   for (const [tool, name, command] of CARGO_SPARED) {
@@ -74,6 +77,11 @@ try {
     ['Bash', 'a verb followed by sed -i', 'cap request "ok" ; sed -i s/a/b/ src/a.mjs'],
     ['Bash', 'KIT-T1196 control: a built exe redirected into a source file', './target/debug/probe.exe > src/a.mjs'],
     ['Bash', 'KIT-T1196 control: an exe outside target/ is an unknown program', './tools/probe.exe --write'],
+    ['Bash', 'KIT-T1264 control: a deps/ test exe redirected into a source file', './target/debug/deps/town_rules_census-ccc2e0cc2b491e15.exe > src/a.mjs'],
+    ['Bash', 'KIT-T1264 control: an examples/ exe redirected into a source file', './target/debug/examples/fence_preview.exe > src/a.mjs'],
+    ['Bash', 'KIT-T1264 control: a program in a deps/ directory outside target/', './vendor/debug/deps/tool.exe --write'],
+    ['Bash', 'KIT-T1264 control: a deps/ directory deeper than the profile directory', './target/debug/deps/nested/tool.exe --write'],
+    ['Bash', 'KIT-T1264 control: a script placed under target/debug/deps', 'node target/debug/deps/gen.js'],
     ['Bash', 'KIT-T1196 control: timeout around a scratch node script', 'timeout 60 node scratch.js'],
     ['PowerShell', 'KIT-T1196 control: a Select-String pipeline that writes a file by Out-File', 'cargo check 2>&1 | Out-File src/a.mjs'],
     ['PowerShell', 'KIT-T1196 control: Where-Object whose script block calls Set-Content', 'cargo check | Where-Object { Set-Content src/a.mjs x }'],

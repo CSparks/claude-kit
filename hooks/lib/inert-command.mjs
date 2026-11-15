@@ -31,7 +31,8 @@ const TIMEOUT_WRAPPER = /^timeout$/i;
 const DURATION = /^\d+(?:\.\d+)?[smhd]?$/;
 // A program a cargo build left under target/<profile>/ (an example, a probe, a test exe): running it writes where its own
 // code says, never a source file by design; a redirect into a source file is still judged on its own.
-const BUILT_EXE = /(?:^|[\\/])target[\\/](?:[\w.-]+[\\/])?(?:debug|release)[\\/][^\\/]+$/i;
+// A test exe lives in deps/ and an example in examples/ (`target/debug/deps/town_rules_census-<hash>.exe`).
+const BUILT_EXE = /(?:^|[\\/])target[\\/](?:[\w.-]+[\\/])?(?:debug|release)[\\/](?:(?:deps|examples)[\\/])?[^\\/]+$/i;
 // PowerShell cmdlets that only select, filter, format or print what flows through them, and the ones that move a location.
 const PS_READERS = /^(?:Set-Location|Push-Location|Pop-Location|Select-Object|Select-String|Where-Object|Out-String|Out-Host|Measure-Object|Sort-Object|Format-Table|Format-List|Get-Content|Get-ChildItem|Get-Item|Test-Path|Write-Output|Write-Host|sls|gc|gci|sl|select|where|measure)$/i;
 const PS_WRITES = /\b(?:Set-Content|Add-Content|Out-File|Tee-Object|Remove-Item|Copy-Item|Move-Item|New-Item|Rename-Item|Invoke-Expression|iex|WriteAll\w+|File\]::)|>/i;
