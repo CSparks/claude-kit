@@ -28,8 +28,10 @@ the user passed.)
 
 **No project named → be LAZY, but thorough about "what needs me?"**
 Present the survey as a human briefing, in this order:
-1. **Waiting on you** — verbatim, first. Decisions pending, tickets in `review`, blocked-on-you
-   items, aggregated across every project. This is the part that must be complete.
+1. **Pending items** — first, complete, aggregated across every project: tickets in `review`, open
+   questions, blocked items. List each as a status line under the heading "Pending", never a heading or
+   sentence that says work waits on him (prose-ask-gate blocks that wording). Every ready decision in it
+   goes to the maintainer as ONE AskUserQuestion this turn (summary first, recommended option first).
 2. **Open work by project** — the one-line-per-project summary. Don't expand it.
 3. **Active project** — the deep view of the project you're sitting in (the `→` one). Restate
    its goal and the next 3 steps; confirm scope before doing work.

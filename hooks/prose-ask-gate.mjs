@@ -47,7 +47,10 @@ const message = ({ sentence, phrase }) => [
   'line. An action only he can perform is an option too. A brainstorming skill\'s "end with the question" never overrides this: clarifying',
   'questions that are a wait go in the AskUserQuestion too (KIT-T1230). A hedged hand-back ("if you meant X, tell me", "I can do Y if you',
   'want") is the same ask (KIT-T1229). A closing question that offers named options, or opens "Which ...?", is the same ask: the options go in',
-  'the AskUserQuestion, brainstorming skill wording included (KIT-T1235). This stop is filed as a process failure in the kit store.',
+  'the AskUserQuestion, brainstorming skill wording included (KIT-T1235). A rollup heading ("Waiting on you:", "Needs your decision:",',
+  '"Open for you:", "Decisions for you:") with list items under it is the same ask: each item is a ready decision, so send ONE AskUserQuestion',
+  '(one question per decision, summary first, recommended option first) and keep the rollup to what happened (KIT-T1312).',
+  'This stop is filed as a process failure in the kit store.',
   'The fix: make the call and report it, or send AskUserQuestion.',
 ].join('\n');
 

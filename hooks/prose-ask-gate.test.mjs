@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { ENV, HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
-import { hasHardAsk, proseAsks } from './lib/prose-ask.mjs';
+import { hasHardAsk, proseAskMatches, proseAsks } from './lib/prose-ask.mjs';
 import { TRIAGE_LINE } from './lib/block-triage.mjs';
 
 const { ok, done } = reporter('prose-ask-gate');
@@ -117,6 +117,31 @@ try {
     ['a plain statement of preference with no question', 'I would pick lane 2 and went with it.'],
     ['one lettered label only', 'A) The mesher is fixed. Anything else?'],
   ]) ok(`KIT-T1235 passes: ${name}`, passed(stop(turn(reply))));
+
+  const ITEMS = '- **Push (RDG-Q005):** approve the framework push or hold it.\n- **Whole suites:** restart them on a quiet machine, yes or no.\n- **Near hamlet vs City:** choose the trade.';
+  const rollup = (heading) => `Overnight rollup.\n\n**Landed**\n- Pockets layout (abc1234).\n- Seam steps all 0.00.\n\n${heading}\n${ITEMS}\n\n**Try next:** [no-test: nothing user-facing]`;
+  for (const heading of ['**Waiting on you:**', 'Waiting on you:', '## Waiting on you', '**Needs your decision:**', 'Open for you:', 'Decisions for you:', '**Decisions needed from you**', 'Needs your input', 'Your call:', '**Questions for you:**']) {
+    const hit = stop(turn(rollup(heading)));
+    ok(`KIT-T1312 a rollup heading with list items blocks: ${heading}`, blocked(hit) && hit.out.includes('your closing reply says "'));
+    ok(`KIT-T1312 control, questionnaire in the same turn passes: ${heading}`, passed(stop(turn(rollup(heading), { extra: asked2 }))));
+  }
+  const headed = stop(turn(rollup('**Decisions for you:**')));
+  ok('KIT-T1312 the block names the heading, its first item, the AskUserQuestion form and the summary-first protocol', headed.out.includes('Decisions for you') && headed.out.includes('Push (RDG-Q005)')
+    && /rollup heading[^]*same ask/.test(headed.out) && /one question per decision, summary first, recommended option first/.test(headed.out));
+  ok('KIT-T1312 a rollup heading blocks even after his question (a hard ask)', blocked(stop(turn(rollup('**Waiting on you:**'), { user: 'What landed overnight?' }))));
+  for (const [name, reply] of [
+    ['a heading with no list under it', 'Overnight rollup.\n\nDecisions for you:\n\nNone tonight; the run landed.'],
+    ['a negated heading', 'Landed.\n\nNothing waiting on you:\n- everything is committed.'],
+    ['a heading in a code fence', 'Template:\n```\nWaiting on you:\n- item\n```\nDone.'],
+    ['a heading in a blockquote', 'Pasted:\n> Decisions for you:\n> - push\n\nDone.'],
+    ['a heading quoted in double quotes', 'The old rollup said "Needs your decision:" and listed items.\n- first\n- second'],
+    ['an ordinary list heading', 'Landed.\n\n**Hand-backs**\n- Streets agent done.\n- Power agent done.'],
+  ]) ok(`KIT-T1312 passes: ${name}`, passed(stop(turn(reply))));
+  ok('KIT-T1312 a subagent report with the heading is exempt', passed(stop(turn(rollup('**Waiting on you:**')), { agent_id: 'a1b2c3d4e5f6a7b8c' })));
+  ok('KIT-T1312 lib: the heading match carries the heading as its phrase and is hard', (() => {
+    const [m] = proseAskMatches(rollup('Open for you:'));
+    return m.hard && m.phrase === 'Open for you' && proseAsks(rollup('Open for you:')).length === 1;
+  })());
 
   const unboundedStore = tmpDir('prose-ask-unbounded-');
   mkdirSync(join(unboundedStore, '.ai', 'tickets'), { recursive: true });

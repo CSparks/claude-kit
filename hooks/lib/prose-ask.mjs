@@ -82,10 +82,33 @@ const SENTENCE_BREAK = /(?<=[.!?])\s+|\n+/;
 const ownVoice = (text) => text.replace(FENCE, ' ').replace(BLOCKQUOTE, ' ').replace(INLINE_CODE, ' ').replace(QUOTED, ' ').replace(/\.{2,}/g, '…');
 const descriptive = (sentence) => DESCRIPTIVE.some((re) => re.test(sentence));
 
+// A rollup heading that names what waits on him ("Waiting on you:", "**Needs your decision:**", "Decisions for you") with at
+// least one list item under it is the same ask as the sentence: each item is a decision to put in a questionnaire (KIT-T1312).
+const HEADING_WORDS = [
+  'waiting (?:on|for) (?:you|chris)', 'awaiting (?:your \\w+|you)', 'needs? (?:your|chris\'?s?) \\w+(?:[- ]\\w+)?', 'needs? (?:a )?(?:decision|input|answer)s? from (?:you|chris)',
+  'open for (?:you|chris)', 'decisions?(?: needed)?(?: for| from) (?:you|chris)', 'questions? for (?:you|chris)', 'for (?:you|chris) to (?:decide|choose|pick|say|sign)',
+  '(?:your|chris\'?s?) (?:decisions?|call|calls|input|approval)', 'actions? (?:needed )?from (?:you|chris)', 'blocked on (?:you|chris)', 'pending (?:your|chris\'?s?) \\w+',
+].join('|');
+const HEADING = new RegExp(`^(?:#{1,6}\\s*)?(?:[*_]{1,2}\\s*)?(?:${HEADING_WORDS})\\s*:?\\s*(?:[*_]{1,2})?\\s*:?\\s*$`, 'i');
+const LIST_ITEM = /^\s*(?:[-*•]|\d+[.)])\s+\S/;
+
+function headingAsks(own) {
+  const lines = own.split('\n');
+  return lines.flatMap((line, i) => {
+    const heading = HEADING.exec(line.trim());
+    if (!heading || descriptive(line)) return [];
+    const item = lines.slice(i + 1).find((l) => l.trim());
+    if (!item || !LIST_ITEM.test(item)) return [];
+    const phrase = line.trim().replace(/^#+\s*|[*_:]/g, '').trim();
+    return [{ sentence: `${phrase}: ${item.replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').replace(/\s+/g, ' ').trim()}`, phrase, hard: true }];
+  });
+}
+
 export function proseAskMatches(text) {
   if (typeof text !== 'string' || !text) return [];
   const own = ownVoice(text);
   const segments = own.split(SENTENCE_BREAK).map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  const headings = headingAsks(own);
   const sentences = segments.flatMap((sentence) => {
     if (descriptive(sentence)) return [];
     const live = (re) => {
@@ -96,9 +119,11 @@ export function proseAskMatches(text) {
     const hit = hard || SOFT_PHRASES.map(live).find(Boolean);
     return hit ? [{ sentence, phrase: hit[0], hard: Boolean(hard) }] : [];
   });
+  const headed = (m) => headings.some((h) => m.sentence.replace(/^[^a-z]+/i, '').toLowerCase().startsWith(h.phrase.toLowerCase()));
+  const asks = [...sentences.filter((m) => !headed(m)), ...headings];
   const closing = optionQuestionMatch(own, segments);
-  if (!closing || descriptive(closing.sentence)) return sentences;
-  const rest = sentences.filter((m) => m.sentence !== closing.sentence);
+  if (!closing || descriptive(closing.sentence)) return asks;
+  const rest = asks.filter((m) => m.sentence !== closing.sentence);
   return [...rest, { ...closing, hard: true }];
 }
 
