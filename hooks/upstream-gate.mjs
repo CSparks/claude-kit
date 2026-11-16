@@ -113,8 +113,10 @@ function checkPushHooks(command) {
   }
   for (const { dir } of repos) {
     let verdict;
+    let wire = '';
     try {
       verdict = pushHookStatus(dir);
+      if (verdict.status === 'unwired') wire = wireCommand(verdict.top, verdict.hookDir);
     } catch (e) {
       wiringBlock([`the pre-push wiring of ${dir} could not be checked, and a check that cannot complete refuses (KIT-T1300): ${e.message}`]);
     }
@@ -122,7 +124,7 @@ function checkPushHooks(command) {
     wiringBlock([
       `this git push would run no pre-push gate (KIT-T1300): ${verdict.top.replace(/\\/g, '/')} tracks ${verdict.hookDir}/pre-push, but core.hooksPath does not point at it and`,
       'the git dir has no pre-push hook, so git skips the gate. Wire it once, then push:',
-      `  ${wireCommand(verdict.top, verdict.hookDir)}`,
+      `  ${wire}`,
     ]);
   }
 }

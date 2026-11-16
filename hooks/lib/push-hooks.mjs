@@ -1,22 +1,39 @@
-// Whether the pre-push gate a repo tracks is wired, so a `git push` runs it (KIT-T1300). A repo can carry its gate in a
-// tracked hooks directory (`.githooks/pre-push`) that git runs only once `core.hooksPath` points at it; a fresh clone or a
-// submodule checkout has no such setting, and a push then goes out ungated.
+// Whether the pre-push gate a repo tracks is wired, so a `git push` runs it (KIT-T1300). A repo carries its gate in the tracked
+// hooks directory `.githooks/pre-push`, which git runs only once `core.hooksPath` points at it; a fresh clone or a submodule
+// checkout has no such setting, and a push then goes out ungated.
 //
 //   pushHookStatus(dir) -> { status, hookDir?, top? }   judged by the repo `dir` belongs to, from its own config
-//     status 'none'     no repository here, or no tracked `pre-push` file: nothing to wire
+//     status 'none'     no repository here, or no tracked `pre-push` in a conventional directory: nothing to wire
 //     status 'wired'    a `pre-push` hook exists where git looks for it (core.hooksPath, else the git dir's hooks)
-//     status 'unwired'  a tracked `pre-push` exists in `hookDir` (repo-relative, posix) and git looks elsewhere
-//   wireCommand(top, hookDir) -> the one command that wires it
-//   Throws when a git call fails (not "not a repository"): the caller refuses what it could not check.
+//     status 'unwired'  `.githooks/pre-push` is tracked at the repo root and git looks elsewhere
+//   wireCommand(top, hookDir) -> the one command that wires it, `top` and `hookDir` shell-quoted
+//   Throws when a git call fails (not "not a repository") or when a tracked top-level `<dir>/pre-push` has a directory name
+//   that is no plain path: the caller refuses what it could not check and suggests no command.
+//
+// Only the conventional directories at the repo root are recognised (HOOK_DIRS), never a recursive match: a `pre-push` file in
+// a subfolder, vendored content or a nested repository is not this repo's gate and is never offered as a hooks path. The hooks
+// directory in a printed command is always one of HOOK_DIRS, and `safeHookDir` holds any other name to a plain relative path.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { dirname, isAbsolute, resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 
 const HOOK = 'pre-push';
-const GLOB = `:(glob)**/${HOOK}`;
+export const HOOK_DIRS = Object.freeze(['.githooks']);
+const SAFE_DIR = /^[A-Za-z0-9._/-]+$/;
 const NOT_A_REPO = /not a git repository/i;
 const UNSET = 1;
+const SHOWN_NAME_CHARS = 40;
+const TOP_LEVEL_HOOK_PATHSPEC = `:(glob)*/${HOOK}`;
+
+export const safeHookDir = (dir) => SAFE_DIR.test(dir) && !isAbsolute(dir) && !dir.split('/').includes('..');
+
+const quote = (text) => `'${String(text).replace(/'/g, "'\\''")}'`;
+
+export function wireCommand(top, hookDir) {
+  if (!safeHookDir(hookDir)) throw new Error('the hooks directory name is not a plain relative path');
+  return `git -C ${quote(top.replace(/\\/g, '/'))} config core.hooksPath ${quote(hookDir)}`;
+}
 
 function runGit(args, cwd) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
@@ -30,7 +47,7 @@ const must = (args, cwd) => {
   return r.stdout;
 };
 
-export const wireCommand = (top, hookDir) => `git -C "${top.replace(/\\/g, '/')}" config core.hooksPath ${hookDir}`;
+const shown = (name) => JSON.stringify(String(name).replace(/[^\x20-\x7e]/g, '?').slice(0, SHOWN_NAME_CHARS));
 
 export function pushHookStatus(dir) {
   const rootRun = runGit(['rev-parse', '--show-toplevel'], dir);
@@ -39,13 +56,16 @@ export function pushHookStatus(dir) {
     throw new Error(`git rev-parse failed in ${dir}: ${String(rootRun.stderr).trim().slice(0, 200)}`);
   }
   const top = rootRun.stdout.trim();
-  const tracked = must(['ls-files', '-z', '--', GLOB], top).split('\0').filter(Boolean);
-  if (!tracked.length) return { status: 'none', top };
+  const tracked = must(['ls-files', '-z', '--', TOP_LEVEL_HOOK_PATHSPEC], top).split('\0').filter(Boolean);
+  const oddly = tracked.map((p) => p.slice(0, -`/${HOOK}`.length)).find((d) => !HOOK_DIRS.includes(d) && !safeHookDir(d));
+  if (oddly !== undefined) throw new Error(`a tracked ${shown(`${oddly}/${HOOK}`)} sits in a directory whose name is no plain path, so no wiring command is offered`);
+  const hookDir = HOOK_DIRS.find((d) => tracked.includes(`${d}/${HOOK}`));
+  if (!hookDir) return { status: 'none', top };
 
   const configured = runGit(['config', '--get', 'core.hooksPath'], top);
   if (configured.status !== 0 && configured.status !== UNSET) throw new Error(`git config failed in ${top}: ${String(configured.stderr).trim().slice(0, 200)}`);
   const hooksPath = configured.status === 0 ? configured.stdout.trim() : '';
   const hooksDir = hooksPath ? (isAbsolute(hooksPath) ? hooksPath : resolve(top, hooksPath)) : resolve(top, must(['rev-parse', '--git-path', 'hooks'], top).trim());
   if (existsSync(resolve(hooksDir, HOOK))) return { status: 'wired', top };
-  return { status: 'unwired', top, hookDir: dirname(tracked[0]).replace(/\\/g, '/') };
+  return { status: 'unwired', top, hookDir };
 }

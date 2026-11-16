@@ -29,7 +29,7 @@ try {
   commit(up, 'gate', { '.githooks/pre-push': '#!/bin/sh\nexit 0\n' });
   const gated = consumer(up);
   const text = await report(gated);
-  ok('an unwired submodule is flagged !! with the command that wires it', /^!! pre-push gate NOT wired: \.githooks\/pre-push is tracked/.test(hookLine(text)) && /config core\.hooksPath \.githooks/.test(hookLine(text)), hookLine(text));
+  ok('an unwired submodule is flagged !! with the command that wires it', /^!! pre-push gate NOT wired: \.githooks\/pre-push is tracked/.test(hookLine(text)) && /git -C '[^'\n]+' config core\.hooksPath '\.githooks'/.test(hookLine(text)), hookLine(text));
   ok('the report is one line for the gate', text.split('\n').filter((l) => /pre-push gate/.test(l)).length === 1);
 
   git(gated.sub, 'config', 'core.hooksPath', '.githooks');

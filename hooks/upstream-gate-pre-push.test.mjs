@@ -40,7 +40,7 @@ try {
   const gated = repoWith('.githooks');
   const blocked = push('git push origin main', gated);
   check('a repo with .githooks/pre-push and no core.hooksPath is blocked', blocked.status === 2, blocked.stderr);
-  check('the block names the one command that wires it', /config core\.hooksPath \.githooks/.test(blocked.stderr) && /git -C "/.test(blocked.stderr), blocked.stderr);
+  check('the block names the one command that wires it, the repo path shell-quoted', /git -C '[^'\n]+' config core\.hooksPath '\.githooks'/.test(blocked.stderr), blocked.stderr);
   check('the block names the check id', /pre-push-wired/.test(blocked.stderr));
   check('a bare git push and a -C push are judged the same way', push('git push', gated).status === 2 && push(`git -C "${gated}" push`, tmp('kit-prepush-away-')).status === 2);
   check('a cd before the push is followed', push(`cd "${gated}" && git push origin main`, tmp('kit-prepush-cd-')).status === 2);
@@ -76,6 +76,28 @@ try {
   git(unwiredOuter, 'submodule', 'add', '-q', noHookSub, 'lib');
   check('a submodule with no tracked hook passes though the outer repo is unwired', push('git push', join(unwiredOuter, 'lib')).status === 0);
   check('the unwired outer repo blocks', push('git push', unwiredOuter).status === 2);
+
+  // The hooks directory comes from the repo: a name that is no plain path suggests no command, and only the conventional
+  // directory at the repo root counts (KIT-T1300 review).
+  for (const [label, name] of [['a space', 'my hooks'], ['a semicolon', 'hooks;touch pwned'], ['a command substitution', 'hooks$(touch pwned)'], ['a backtick', 'hooks`id`'], ['a quote', "hooks'x"]]) {
+    const odd = repoWith(name);
+    const r = push('git push', odd);
+    check(`a top-level hooks directory name with ${label} blocks and suggests no command`, r.status === 2 && !/core\.hooksPath/.test(r.stderr.replace(/(?:^|\n)[^\n]*pre-push-wired[^\n]*/g, '')) && /could not be checked/.test(r.stderr), r.stderr);
+  }
+  const nested = repoWith('');
+  mkdirSync(join(nested, 'vendor', 'x', '.githooks'), { recursive: true });
+  writeFileSync(join(nested, 'vendor', 'x', '.githooks', 'pre-push'), '#!/bin/sh\nexit 0\n');
+  mkdirSync(join(nested, 'a', 'b'), { recursive: true });
+  writeFileSync(join(nested, 'a', 'b', 'pre-push'), '#!/bin/sh\nexit 0\n');
+  git(nested, 'add', '-A');
+  git(nested, 'commit', '-q', '-m', 'nested hooks');
+  check('a pre-push file in a subfolder is ignored', push('git push', nested).status === 0);
+  const plainDir = repoWith('hooks');
+  check('a safe but unconventional top-level directory is not recognised either', push('git push', plainDir).status === 0);
+  const nestedRepo = repoWith('');
+  const innerRepo = repoWith('.githooks');
+  git(nestedRepo, 'submodule', 'add', '-q', innerRepo, 'inner');
+  check('a pre-push inside a submodule is never offered for the outer repo', push('git push', nestedRepo).status === 0);
 
   const noGit = tmp('kit-prepush-nogit-');
   const withoutGit = { ...process.env, PATH: noGit, Path: noGit };
