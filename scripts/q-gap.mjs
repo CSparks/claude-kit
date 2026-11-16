@@ -13,6 +13,14 @@ const VERB_FLAGS = {
   supersedes: [], integrity: [], verify: [], session: [], said: [], show: ['--scope', '--project'], sql: [],
 };
 
+// A flag a caller reaches for on the wrong verb: the hint names the verb that takes it, so no gap is filed (KIT-T1304).
+const FLAG_HINTS = {
+  'fts:--path': 'q fts searches the work store (tickets, decisions, notes) and has no path scope; to search files under a path use `q code <text> --path <dir>`.',
+};
+
+/** The one-line hint for a flag on the wrong verb, or ''. */
+export const flagHint = (cmd, flag) => FLAG_HINTS[`${cmd}:${flag}`] || '';
+
 /** Flags on `args` that `cmd` does not take ([] for verbs that parse their own flags). */
 export function unsupportedFlags(cmd, args) {
   const base = VERB_FLAGS[cmd];

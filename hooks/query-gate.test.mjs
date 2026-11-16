@@ -43,6 +43,11 @@ expect('blocks find over the store', run(d, 'find .ai/tickets -name "*.md"').cod
 // BLOCK — tree-wide source discovery (JS/TS — code-graph CAN answer these).
 expect('blocks recursive grep of source', run(d, 'grep -rn "PhysicsSim" src/').code, 2);
 expect('blocks bare rg (recursive by default)', run(d, 'rg PhysicsSim').code, 2);
+{
+  const alt = run(d, 'grep -rn "rayon\\|ComputeTaskPool" engine/src engine/Cargo.toml').err;
+  expect('KIT-T1307: the block of an alternation grep over named paths gives the q code line with --regex and each --path', /code 'rayon\\\|ComputeTaskPool' --regex --path engine\/src --path engine\/Cargo\.toml\n/.test(alt), true);
+  expect('KIT-T1307 control: a grep with no path operand keeps the add --path hint', /code PhysicsSim\s+\(add --lang L --path P as needed\)/.test(run(d, 'grep -rn PhysicsSim').err), true);
+}
 expect('KIT-T705 negative control: node -e with escaped quotes and no search word passes', run(d, 'node -e "console.log(\\"x\\")"').code, 0);
 expect('KIT-T705: blocks a recursive grep hidden behind an escaped quote', run(d, hiddenBehindQuotes('grep -rn "PhysicsSim" src/')[0]).code, 2);
 expect("KIT-T705: blocks a recursive grep hidden behind a $'…' string", run(d, hiddenBehindQuotes('grep -rn "PhysicsSim" src/')[1]).code, 2);

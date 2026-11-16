@@ -139,7 +139,10 @@ try {
   ok('negative: a command that is no broker call is untouched', tag('node q.mjs code "wait.mjs"').input === null);
   ok('negative: a submit already carrying --agent is not tagged twice', !/--agent \S+ .*--agent/.test(tag(`node ${BROKER}/submit.mjs --agent z9 --root D:/x`).input?.command || ''));
   ok('PowerShell quoting keeps working', /--agent a1b2c3d4e5f6a7b8c/.test(tag(`node "D:\\kit\\scripts\\broker\\submit.mjs" --root D:\\x`).input?.command));
-  ok('tag malformed stdin fails open', spawnSync(process.execPath, [join(HOOKS, 'broker-agent-tag.mjs')], { input: '{not json', cwd: d, encoding: 'utf8', env: ENV }).status === 0);
+  const NOTE_LOOP = 'for id in KIT-T1 KIT-T2; do t notes $id "resume with tail -F target/broker/finished.log | grep --line-buffered <id>"; t status $id review | tail -1; done';
+  ok('KIT-T1310: prose of a t notes inside a for-loop naming a tail of the broker log is no poll', sub(NOTE_LOOP).code === 0);
+  ok('KIT-T1310 control: the same tail loop outside quotes is still blocked', blocked(sub('for i in 1 2; do tail -F target/broker/finished.log | grep --line-buffered x; done')));
+  ok('tag malformed stdin fails open',spawnSync(process.execPath, [join(HOOKS, 'broker-agent-tag.mjs')], { input: '{not json', cwd: d, encoding: 'utf8', env: ENV }).status === 0);
 } finally {
   cleanup();
 }

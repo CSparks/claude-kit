@@ -59,7 +59,7 @@ import { orphanRows } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
 import { searchScopes } from './q-framework.mjs';
 import { showArgs, showRows, withAsked } from './q-show.mjs';
-import { unsupportedFlags, reportGap } from './q-gap.mjs';
+import { unsupportedFlags, reportGap, flagHint } from './q-gap.mjs';
 import { scopeFlagToPositional } from './q-scope-flag.mjs';
 import { basename } from 'node:path';
 import { printRows } from './q-print.mjs';
@@ -468,6 +468,11 @@ async function main() {
   // A flag the verb does not take is a gap in q — file it instead of letting an agent grep (KIT-T286).
   const badFlags = unsupportedFlags(cmd, args);
   if (badFlags.length) {
+    const hint = flagHint(cmd, badFlags[0]);
+    if (hint) {
+      process.stderr.write(`q: '${cmd}' does not take ${badFlags[0]}. ${hint}\n`);
+      process.exit(1);
+    }
     const gap = reportGap({ shape: `flag:${cmd}:${badFlags[0]}`, title: `'${cmd}' has no ${badFlags[0]} flag`, detail: `q ${cmd} ${args.join(' ')}`, project: basename(cwdRoot) });
     process.stderr.write(`q: '${cmd}' does not take ${badFlags.join(' ')}.${gap ? ` Filed as ${gap.id} (kit-bug) for the kit team — do not fall back to grep.` : ''}
 `);

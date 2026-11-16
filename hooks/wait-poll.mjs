@@ -9,12 +9,13 @@
 //   - a Bash command that sleeps (sleep / Start-Sleep / until…do sleep) around a check of a
 //     build or output file
 // A read of a FINISHED task output (its exit marker is present) never counts, and each subagent has its own count, not the session's.
+// A main-thread loop checking only target/broker/finished.log is not an offence (KIT-D149).
 // Offences 1 and 2 WARN (stderr, exit 0); the 3rd and every later one BLOCKS (exit 2).
 // Check-id: wait-poll (path glob subject: the output file, or the cwd for a sleep loop).
 // No-ops on unadopted repos. Fail-open on any error.
 
 import { readTurnState, writeTurnState, payload, gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
-import { withoutDataArguments } from './lib/command-leads.mjs';
+import { withoutDataSegmentArguments } from './lib/command-leads.mjs';
 import { segments, toPath } from './lib/shell-segments.mjs';
 import { exited } from './orphan-shells.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
@@ -26,7 +27,8 @@ const BLOCK_AT = 3;
 
 const TASK_OUTPUT = /\.output$/i;
 const BUILD_FILE = /\.output\b|\.log\b|[\\/]tasks[\\/]|\btarget[\\/]|\bbuild[\\/]|\bnpm-debug|\.out\b/i;
-const READ_CMD = /^(?:cat|tail|head|type|get-content|gc|less|more)$/i;
+const FINISH_LOG = /target[\\/]broker[\\/]finished\.log/gi;
+const READ_CMD =/^(?:cat|tail|head|type|get-content|gc|less|more)$/i;
 const SLEEP_CMD = /(?:^|[\s;&|(])(?:sleep|start-sleep)\b/i;
 const CHECK_CMD = /\b(?:tail|cat|head|ls|stat|wc|grep|get-content|gc|test|type)\b|\[\s+(?:!\s+)?-[fsde]\b|\btest-path\b/i;
 
@@ -55,11 +57,14 @@ function outputReads(toolName, input) {
   return [...files];
 }
 
-function isSleepLoop(shell) {
-  const command = withoutDataArguments(shell);
+// The main thread resumes a finished agent from the broker's finish log (KIT-D149), so a loop that checks only that log is
+// no poll of a build; a subagent never waits on it.
+function isSleepLoop(shell, { mainThread = false } = {}) {
+  const command = withoutDataSegmentArguments(shell);
   if (!SLEEP_CMD.test(command)) return false;
   const rest = command.replace(/(?:sleep|start-sleep)\s+[\w.:]+/gi, ' ');
-  return BUILD_FILE.test(rest) && CHECK_CMD.test(rest);
+  const checked = mainThread ? rest.replace(FINISH_LOG, ' ') : rest;
+  return BUILD_FILE.test(checked) && CHECK_CMD.test(checked);
 }
 
 // A finished task's output cannot change: reading it again is not polling.
@@ -82,6 +87,8 @@ function message(n, what) {
     '    names the exact command and the agent ends (the orchestrator runs it and resumes it).',
     '  - A probe capture or census that outlasts one foreground call: `builds --run "<command>" --out <file>` runs it once in a',
     '    process that outlives your turn, waits once in the same call, and names its end in target/broker/finished.log (KIT-T1283).',
+    '  - The end of a broker run or agent is one line in target/broker/finished.log. The main thread waits for it with ONE Monitor:',
+    '    `tail -F target/broker/finished.log | grep --line-buffered <run or agent id>`; a subagent never waits on it (Handoff, end).',
     '  - A call the harness already moved to the background: Read its output file at most once, never sleep, poll or wait on',
     '    it; a subagent writes the Handoff block and ends, the main thread reads the one finish notice.',
     '  - Pipe the output through a filter keeping only failures, panics, assertion lines and the `test result` totals.',
@@ -109,7 +116,7 @@ try {
     state.reads[f] = (state.reads[f] || 0) + 1;
     if (state.reads[f] > FREE_READS) events.push(`read #${state.reads[f]} of ${f}`);
   }
-  if (command && !pathExcluded(root, CHECK_ID, process.cwd()) && isSleepLoop(command)) events.push(`sleep/check loop: ${trunc(command)}`);
+  if (command && !pathExcluded(root, CHECK_ID, process.cwd()) && isSleepLoop(command, { mainThread: !subagentId(p) })) events.push(`sleep/check loop: ${trunc(command)}`);
 
   let blocked = false;
   for (const what of events) {

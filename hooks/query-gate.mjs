@@ -20,7 +20,8 @@
 //
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fail-open on any error.
 
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { AMBIGUOUS_MESSAGE, segments, shellOfTool, shellTokens } from './lib/shell-segments.mjs';
 import { commandLeads } from './lib/command-leads.mjs';
@@ -256,7 +257,7 @@ function judge(c, piped = false) {
       const unresolved = unresolvedTargetNote(paths);
       if (eq) return { id: 'source-discovery', msg: indexMsg(c, eq) + unresolved };
       if (targetsOnlyNonIndexedExtensions(c)) return null; // no exact index answer — allow
-      return { id: 'source-discovery', msg: graphMsg(c) + unresolved };
+      return { id: 'source-discovery', msg: graphMsg(c, paths) + unresolved };
     }
   }
   // A `find … -name/-path` is a FILENAME lookup — OUTSIDE code-graph's coverage entirely (it answers
@@ -268,13 +269,25 @@ function judge(c, piped = false) {
   return null;
 }
 
-// The exact q command for the blocked search: its pattern, ready to run.
-function exactLine(c, verb) {
+const MAX_SCOPE_PATHS = 4;
+
+// The grep's concrete path operands as `--path <repo-relative>` flags; a glob or a path outside the repo is left out.
+function scopeFlags(paths) {
+  const [root, cwd] = [repoRoot, process.cwd()].map((p) => realpathSync.native(p));
+  const rels = paths.filter((p) => p && !hasGlob(p)).map((p) => relative(root, resolve(cwd, p)).replace(/\\/g, '/'))
+    .filter((r) => r && !r.startsWith('..') && !isAbsolute(r));
+  return rels.slice(0, MAX_SCOPE_PATHS).map((r) => ` --path ${r}`).join('');
+}
+
+// The exact q command for the blocked search: its pattern, scope and regex flag, ready to run.
+function exactLine(c, verb, paths = []) {
   const call = callOf(c);
   const pattern = call && call.pattern;
   if (!pattern) return [];
   const quoted = /^[\w.-]+$/.test(pattern) ? pattern : `'${pattern.replace(/'/g, `'\\''`)}'`;
-  return [`Exact equivalent:  node "${Q}" ${verb} ${quoted}${verb === 'code' ? '   (add --lang L --path P as needed)' : ''}`, ''];
+  if (verb !== 'code') return [`Exact equivalent:  node "${Q}" ${verb} ${quoted}`, ''];
+  const scope = scopeFlags(paths);
+  return [`Exact equivalent:  node "${Q}" code ${quoted}${call.shape === 'regex' ? ' --regex' : ''}${scope}${scope ? '' : '   (add --lang L --path P as needed)'}`, ''];
 }
 
 function storeMsg(c, itemPath) {
@@ -344,13 +357,13 @@ function indexMsg(c, eq) {
   ].join('\n');
 }
 
-function graphMsg(c) {
+function graphMsg(c, paths = []) {
   return [
     '',
     'BLOCKED: grepping the source tree to discover code.',
     `  ${trunc(c)}`,
     '',
-    ...exactLine(c, 'code'),
+    ...exactLine(c, 'code', paths),
     'Query the code graph FIRST — it resolves imports/symbols/surface without opening files:',
     `  node "${GRAPH}" --query importers-of <path>       # who imports X`,
     `  node "${GRAPH}" --query defines <symbol>           # where Y is defined`,

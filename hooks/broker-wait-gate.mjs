@@ -19,7 +19,7 @@
 
 import { payload,gitRoot, adopted, pathExcluded, markerExcludedLines, excludeFooter, readTurnState, writeTurnState } from './lib.mjs';
 import { brokerCalls, usesCargo, usesTool } from './lib/broker-calls.mjs';
-import { withoutDataArguments, withoutInlineCode } from './lib/command-leads.mjs';
+import { withoutDataSegmentArguments, withoutInlineCode } from './lib/command-leads.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { waitSlot, jobId, digest } from './lib/broker-wait-state.mjs';
 import { longWaits } from './lib/long-waits.mjs';
@@ -53,7 +53,7 @@ function problems(command, input, state) {
     }
     if (c.script === 'submit' && !c.words.includes('--revises') && state.submits.includes(digest(command))) found.push('the same submit repeated verbatim: re-running a job to read its status');
   }
-  const text = withoutDataArguments(command);
+  const text = withoutDataSegmentArguments(command);
   const onBroker = calls.length || BROKER_STATE.test(text);
   const shell = withoutInlineCode(text);
   const polls = (WAITING.test(shell) || POLL_LOOP.test(shell)) && onBroker;

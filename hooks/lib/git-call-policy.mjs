@@ -21,6 +21,7 @@
 
 import { gitRunCommands } from './git-run-commands.mjs';
 import { nestedSegments } from './lead-command-walk.mjs';
+import { dataBlanked, withoutDataSegmentArguments } from './command-leads.mjs';
 
 const BUILTIN = new Set(['add', 'am', 'annotate', 'apply', 'archive', 'bisect', 'blame', 'branch', 'bugreport', 'bundle', 'cat-file', 'check-attr', 'check-ignore',
   'check-mailmap', 'check-ref-format', 'checkout', 'checkout-index', 'cherry', 'cherry-pick', 'clean', 'clone', 'column', 'commit', 'commit-graph', 'commit-tree', 'config',
@@ -104,7 +105,7 @@ function environmentProblem(lead, raw, parts) {
   if (prefix) return `environment assignment ${prefix}= in front of git`;
   const at = lead.findIndex((w) => ENV_OPTIONS_WRAPPER.test(w));
   if (at >= 0 && lead.slice(at + 1).some((w) => w.startsWith('-'))) return 'options of env in front of git';
-  const token = [raw, ...parts.map((part) => part.text)].map(environmentTokenBeforeGit).find(Boolean);
+  const token = [withoutDataSegmentArguments(raw), ...parts.map((part) => dataBlanked(part.text))].map(environmentTokenBeforeGit).find(Boolean);
   if (token) return `the environment is named in the same command (\`${token}\`): run the git call as its own command, with no environment variable read or set in the same command`;
   const set = bareAssignments(parts).find((n) => !ALLOWED_ASSIGNED_NAMES.includes(n) && inEnvironment(n));
   return set ? `${set}= assigned in the same command, a name already in the environment` : '';

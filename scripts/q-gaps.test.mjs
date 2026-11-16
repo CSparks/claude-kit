@@ -11,6 +11,7 @@ import { spawnSync } from 'node:child_process';
 import { codeVerbRows } from './code-index-query.mjs';
 import { scopeFlagToPositional } from './q-scope-flag.mjs';
 import { matchProject } from './cap-routing.mjs';
+import { flagHint } from './q-gap.mjs';
 
 let passed = 0;
 const ok = async (name, fn) => { await fn(); passed++; console.log(`  ok    ${name}`); };
@@ -123,6 +124,14 @@ try {
   await ok('--regex with a pattern no reading compiles still reports invalid pattern', async () => {
     const out = await rows(['[unclosed(', '--regex']);
     assert.match(out[0].text, /^invalid pattern: /);
+  });
+
+  await ok('q fts --path prints the one-line hint naming q code --path and files no ticket (KIT-T1304)', async () => {
+    const r = spawnSync(process.execPath, [join(import.meta.dirname, 'q.mjs'), 'fts', 'wait', '--path', 'docs'], { encoding: 'utf8', env: { ...process.env, CLAUDE_KIT_Q_SERVER: 'off' } });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /does not take --path\. q fts searches the work store.*q code <text> --path <dir>/);
+    assert.doesNotMatch(r.stderr, /Filed as/);
+    assert.equal(flagHint('fts', '--path') !== '' && flagHint('fts', '--bogus') === '' && flagHint('show', '--path') === '', true);
   });
 } finally {
   rmSync(dir, { recursive: true, force: true });

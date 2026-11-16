@@ -61,6 +61,13 @@ try {
   const prose = 'node scripts/t.mjs notes KIT-T1 "a sleep 5 then tail build.log loop"';
   ok('KIT-T785: sleep and a build-file check inside a data command argument is not a poll', [1, 2, 3, 4].every((i) => bash(adopted(false), `prose${i}`, prose).code === 0));
   ok('KIT-T785 control: sleep outside the quotes of a git line is still an offence', /offence 1/.test(bash(adopted(false), 'prose5', 'git commit -m "x" && sleep 5 && tail build.log').out));
+  const FINISH_LOOP = 'until grep -q "run-42" /d/dev/x/target/broker/finished.log; do sleep 5; done';
+  ok('KIT-T1309: a main-thread loop checking only target/broker/finished.log is not an offence', [1, 2, 3, 4].every((i) => bash(adopted(false), `fl${i}`, FINISH_LOOP).code === 0 && bash(adopted(false), `fl${i}`, FINISH_LOOP).out === ''));
+  const agentLoop = (sid) => run(adopted(false), { tool_name: 'Bash', session_id: sid, agent_id: 'agentW', tool_input: { command: FINISH_LOOP } });
+  ok('KIT-T1309 control: a subagent looping on finished.log is still an offence', /offence 1/.test(agentLoop('fl-agent').out));
+  ok('KIT-T1309 control: a main-thread loop on finished.log plus a build log is still an offence', /offence 1/.test(bash(adopted(false), 'fl-mixed', 'until grep -q ok target/broker/finished.log && tail build.log; do sleep 5; done').out));
+  const FINISH_BLOCKED = [1, 2, 3].map(() => run(d, { tool_name: 'Bash', session_id: 'fl-block', agent_id: 'agentZ', tool_input: { command: FINISH_LOOP } }));
+  ok('KIT-T1309: the block message names the sanctioned Monitor form', FINISH_BLOCKED[2].code === 2 && FINISH_BLOCKED[2].out.includes('tail -F target/broker/finished.log | grep --line-buffered'));
   ok('PowerShell Start-Sleep loop is an offence', /offence 1/.test(bash(adopted(false), 'pos4', 'while (-not (Test-Path target\out.log)) { Start-Sleep 5 }').out));
 
   const doneOut = join(tmpDir('wp-done-'), 'bk9.output');
