@@ -48,6 +48,36 @@ test('control: a bare word that is no path gets no explanation, and a search tha
   assert.doesNotMatch(hit.map((r) => r.text).join('\n'), /repeat the flag/);
 });
 
+put('sub/crates/x/a.rs', 'pub fn deep_marker() {}\n');
+const said = async (cmd, args) => (await codeVerbRows(cmd, args, root)).map((r) => r.text || '').join('\n');
+
+test('a --path that matches no indexed file names the repo root and the prefix it exists under (KIT-T1326)', async () => {
+  for (const [cmd, args] of [['code', ['deep_marker']], ['sym', ['deep_marker']], ['file', ['a.rs']]]) {
+    const text = await said(cmd, [...args, '--path', 'crates/x']);
+    assert.ok(text.includes(root.replace(/\\/g, '/')) || text.includes(root), `${cmd}: the answer names the root it searched`);
+    assert.match(text, /relative to the repo root, not the cwd/, cmd);
+    assert.match(text, /did you mean --path sub\/crates\/x/, cmd);
+  }
+});
+
+test('a --path that exists nowhere names the root but offers no "did you mean"', async () => {
+  const text = await said('code', ['deep_marker', '--path', 'no/such/dir']);
+  assert.match(text, /matches no indexed file/);
+  assert.doesNotMatch(text, /did you mean/);
+});
+
+test('every unmatched path of a repeated --path is named, and a matching one is not', async () => {
+  const text = await said('code', ['zz_absent_text', '--path', 'crates/x', '--path', 'scripts']);
+  assert.match(text, /did you mean --path sub\/crates\/x/);
+  assert.doesNotMatch(text, /--path scripts matches/);
+});
+
+test('control: a valid --path with no text match, a hit, and no --path at all carry no path hint', async () => {
+  assert.doesNotMatch(await said('code', ['zz_absent_text', '--path', 'scripts']), /matches no indexed file|did you mean/);
+  assert.doesNotMatch(await said('code', ['deep_marker', '--path', 'sub/crates/x']), /matches no indexed file|did you mean/);
+  assert.doesNotMatch(await said('code', ['zz_absent_text']), /matches no indexed file|did you mean/);
+});
+
 test('parseCodeArgs: one path is flags.path, several are flags.anyPaths', () => {
   assert.equal(parseCodeArgs(['x', '--path', 'a']).flags.path, 'a');
   const many = parseCodeArgs(['x', '--path', 'a', '--path', './b']).flags;

@@ -96,6 +96,14 @@ test('builds --run and builds --result work from the command line: exit codes, o
   assert.equal(spawnSync(process.execPath, [STATUS_CLI, '--run'], { cwd: root, encoding: 'utf8' }).status, 64);
 });
 
+test('a builds --run with no command prints the form, a worked example and the usual wrong turns (KIT-T1326)', () => {
+  const r = spawnSync(process.execPath, [STATUS_CLI, '--run'], { cwd: checkout(), encoding: 'utf8' });
+  assert.equal(r.status, 64);
+  assert.match(r.stderr, /builds --run "<command>" --out <file> --timeout N --tool-timeout N/);
+  assert.match(r.stderr, /example: builds --run "cd crates\/foo && cargo test -p foo 2>&1 \| tail -30" --out crates\/foo\/target\/test\.txt/);
+  assert.match(r.stderr, /pipe and a redirect go INSIDE the quoted command/);
+});
+
 test('the refusals of a sleep and of a poll name the verb that waits for a long run', () => {
   const root = checkout();
   const gate = (name, payload) => spawnSync(process.execPath, [join(HOOKS, name)], { cwd: root, encoding: 'utf8', env: { ...process.env, CLAUDE_KIT_TURN_STATE: mkdtempSync(join(tmpdir(), 'dr-state-')) }, input: JSON.stringify(payload) });

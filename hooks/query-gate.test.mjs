@@ -282,7 +282,13 @@ expect('Grep tool: blocks a tree-wide search with no path', runGrepTool(d, { pat
 expect('Grep tool: blocks a directory search', runGrepTool(d, { pattern: 'PhysicsSim', path: 'src' }).code, 2);
 expect('Grep tool: blocks a store directory search', runGrepTool(d, { pattern: 'physics', path: '.ai/decisions' }).code, 2);
 expect('Grep tool: the block names the q equivalent', /Exact equivalent|q\.mjs/.test(runGrepTool(d, { pattern: 'PhysicsSim' }).err), true);
-expect('Grep tool: allows one named file', runGrepTool(d, { pattern: 'foo', path: 'src/main.ts' }).code, 0);
+// KIT-T1317: the Grep tool's own block says it was the Grep tool that was judged, and never advises the Grep tool as the way out.
+const grepBlock = runGrepTool(d, { pattern: 'PhysicsSim', path: 'src' }).err;
+expect('Grep tool: the block says the Grep tool is judged as the rg line and a directory search is q code', /You called the Grep tool/.test(grepBlock) && /ONE file passes/.test(grepBlock), true);
+expect('Grep tool: the block never advises the Grep tool as the way out', /use the Grep\/Glob\/Read tools/.test(grepBlock), false);
+const bashBlock = run(d, 'grep -rn "PhysicsSim" src/').err;
+expect('control: a Bash grep block keeps the targeted-look advice and carries no Grep-tool note', /Grep|Read tool/.test(bashBlock) && !/You called the Grep tool/.test(bashBlock), true);
+expect('Grep tool: allows one named file',runGrepTool(d, { pattern: 'foo', path: 'src/main.ts' }).code, 0);
 expect('Grep tool: allows one named store file', runGrepTool(d, { pattern: 'foo', path: '.ai/SESSION.md' }).code, 0);
 expect('Grep tool: allows a scratchpad directory', runGrepTool(d, { pattern: 'foo', path: SP }).code, 0);
 expect('Grep tool: allows an unadopted repo', runGrepTool(un, { pattern: 'PhysicsSim' }).code, 0);

@@ -91,6 +91,15 @@ for (const bad of ['builds --run', 'builds --run "cargo check" --bogus 1', 'buil
   check(`KIT-T1313 the block of "${bad}" names the usage form and not the Write-tool advice`,
     text.includes('builds --run "<command>" --out <file> --timeout N --tool-timeout N') && text.includes('finished.log') && !text.includes('Use the Write tool'));
 }
+// A refused launcher call carries a worked example and the usual wrong turns named (KIT-T1326).
+const EXAMPLE = 'builds --run "cd crates/foo && cargo test -p foo 2>&1 | tail -30" --out crates/foo/target/test.txt --timeout 170 --tool-timeout 180';
+for (const bad of ['builds --run', 'builds --run "cargo check" --out src/x.txt']) {
+  const text = verdict(bad).text;
+  check(`KIT-T1326 the block of "${bad}" carries the worked example, with the filter inside the quotes`, text.includes(EXAMPLE) && /read the --out file/.test(text));
+}
+const tmpText = verdict('builds --run "cargo test -p x" --out /tmp/t.txt').text;
+check('KIT-T1326 an --out under /tmp says /tmp is not the scratchpad and names target/ instead', /\/tmp is not the session scratchpad/.test(tmpText) && /--out target\/<file>/.test(tmpText));
+check('KIT-T1326 control: an --out refusal elsewhere does not mention /tmp', !/\/tmp is not/.test(verdict('builds --run "cargo test -p x" --out src/x.txt').text));
 check('KIT-T1313 control: a real hand write keeps the Write-tool advice and no launcher usage', (() => {
   const text = verdict('echo x > src/hand.rs').text;
   return text.includes('Use the Write tool') && !text.includes('--tool-timeout N');

@@ -4,7 +4,7 @@
 //   LAUNCHER_ADVICE  a refused `builds --run` call: its usage form
 
 import { VENDOR_ROUTE } from './vendor-route.mjs';
-import { LAUNCHER_USAGE } from './builds-run-args.mjs';
+import { LAUNCHER_EXAMPLE, LAUNCHER_NOTES, LAUNCHER_USAGE } from './builds-run-usage.mjs';
 
 export const WRITE_ADVICE = `  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
   \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
@@ -16,6 +16,9 @@ ${VENDOR_ROUTE.map((line) => `  ${line}`).join('\n')}`;
 
 export const LAUNCHER_ADVICE = `  The launcher call is judged as a whole; its exact form is:
     ${LAUNCHER_USAGE}
-  --out is a path under target/ or the session scratchpad; --limit <n> is optional; the numbers are seconds. Nothing else
+  Example:
+    ${LAUNCHER_EXAMPLE}
+${LAUNCHER_NOTES.map((line) => `  ${line}`).join('\n')}
+  --limit <n> is optional; the numbers are seconds. Nothing else
   (no --cwd: put "cd <dir> && ..." inside the quoted command). It runs the command in a process that outlives your turn,
   waits once in the same call, and its end is a line in target/broker/finished.log (docs/wait-rule.md).`;

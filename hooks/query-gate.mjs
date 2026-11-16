@@ -34,6 +34,7 @@ import { logSearch } from './lib/search-log.mjs';
 import { classifyCalls } from './lib/search-shape.mjs';
 import { registryLine, registryTarget } from './lib/registry-target.mjs';
 import { grepToolCommand } from './lib/grep-tool-command.mjs';
+import { grepToolLines, targetedLookLines } from './lib/grep-tool-note.mjs';
 import { pipedTreeMsg, pipedTreeSearch, targetsOnlyScratch } from './lib/pipe-tree-search.mjs';
 import { resolvedSegments, targetsOutsideRepos, unresolvedTargetNote } from './lib/search-outside.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
@@ -357,13 +358,14 @@ function registryMsg(c, { spec }) {
     '',
     'BLOCKED: grepping dependency sources (cargo registry / vendor dir) — q searches one crate directly.',
     `  ${trunc(c)}`,
+    ...grepToolLines(Boolean(grepInput)),
     '',
     'Same hits, ranked and compact, with absolute paths (--limit 0 for all):',
     `  ${registryLine(spec, call && call.pattern, Q)}`,
     '',
     spec ? 'Add --lang rust --regex -i -w -C 2 as needed; q sym <name> --registry … lists definitions.'
       : 'Name the crate: --registry <crate-version> (rapier3d-0.25.1), or a bare <crate> when Cargo.lock pins one version.',
-    'A targeted look at ONE file stays a plain grep of that file or the Read tool.',
+    grepInput ? targetedLookLines(true)[0] : 'A targeted look at ONE file stays a plain grep of that file or the Read tool.',
     'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it (KIT-T236).',
     '',
   ].join('\n');
@@ -374,6 +376,7 @@ function indexMsg(c, eq) {
     '',
     'BLOCKED: grepping the source tree — the code index answers this exactly.',
     `  ${trunc(c)}`,
+    ...grepToolLines(Boolean(grepInput)),
     '',
     'Same hits, ranked and compact (definitions first, 40 lines by default; --limit 0 for all):',
     `  ${eq.q}`,
@@ -383,7 +386,7 @@ function indexMsg(c, eq) {
     `  node "${Q}" file <substring|glob>                        find files by path`,
     `  node "${Q}" code <text> --kind ticket|doc|config         tickets, docs and configs, same surface`,
     '',
-    'A targeted look at ONE file stays a plain `grep <pattern> <file>` or the Read tool.',
+    grepInput ? targetedLookLines(true)[0] : 'A targeted look at ONE file stays a plain `grep <pattern> <file>` or the Read tool.',
     `Logs, build output, gitignored or sibling-checkout files: node "${Q}" code <text> --dir <path> [-c|-l] (any directory or file).`,
     'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it (KIT-T236).',
     '',
@@ -395,6 +398,7 @@ function graphMsg(c, paths = []) {
     '',
     'BLOCKED: grepping the source tree to discover code.',
     `  ${trunc(c)}`,
+    ...grepToolLines(Boolean(grepInput)),
     '',
     ...exactLine(c, 'code', paths),
     'Query the code graph FIRST — it resolves imports/symbols/surface without opening files:',
@@ -412,8 +416,7 @@ function graphMsg(c, paths = []) {
     'Module-identity / "X isn\'t showing / which file?" → PROVENANCE FIRST, not runtime theories:',
     '  git log -- <path>   +   duplicate-defines / entry-points above   (KIT-T079).',
     '',
-    'For a TARGETED look once you know the file, use the Grep/Glob/Read tools',
-    '(not Bash grep). A bare `grep <pattern> <one-specific-file>` is allowed.',
+    ...targetedLookLines(Boolean(grepInput)),
     '',
     `NOTE: code-graph indexes definitions (defines / surface / duplicate-defines) for ${DEFINITION_LANGS};`,
     'import edges (importers-of, entry-points) resolve for JS/TS relative imports only, and submodule',

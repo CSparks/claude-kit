@@ -25,6 +25,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LAUNCHER_EXAMPLE, LAUNCHER_NOTES, LAUNCHER_USAGE } from '../../hooks/lib/builds-run-usage.mjs';
 import { parseFlags } from './cli.mjs';
 import { recordFinished } from './finished-log.mjs';
 import { waitWindow } from './wait-limits.mjs';
@@ -131,7 +132,7 @@ export async function runCli(argv) {
     return record ? (record.status === STATUS.RUNNING ? EXIT.RUNNING : record.exit ?? EXIT.ENDED_OK) : EXIT.USAGE;
   }
   if (typeof flags.run !== 'string') {
-    console.error('builds --run: a command is required (builds --run "<command>" [--out <file>] [--limit <s>] [--timeout <s> --tool-timeout <s>])');
+    console.error(`builds --run: a command is required.\n  form:    ${LAUNCHER_USAGE} [--limit <s>]\n  example: ${LAUNCHER_EXAMPLE}\n  ${LAUNCHER_NOTES.join('\n  ')}`);
     return EXIT.USAGE;
   }
   const record = startRun({ command: flags.run, cwd: process.cwd(), out: typeof flags.out === 'string' ? flags.out : '', writer: process.env[WRITER_ENV] || '', limitS: Number(flags.limit) || DEFAULT_LIMIT_S });

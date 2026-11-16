@@ -13,7 +13,7 @@ import { isTestPath } from './q-test-path.mjs';
 import { uncheckedFrameworks } from './q-framework.mjs';
 import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 import { grepPattern } from './q-grep-pattern.mjs';
-import { addPath, strayPathRows } from './q-code-paths.mjs';
+import { addPath, pathHintRows, strayPathRows } from './q-code-paths.mjs';
 import { dropLegacy, legacyTest } from './q-legacy.mjs';
 
 export const DEFAULT_LIMIT = 40;
@@ -482,8 +482,10 @@ async function answerRows(cmd, args, root, refresh) {
   const found = await verbRows(cmd, text, flags, target.root, target.refresh);
   const rows = target.prefix ? found.map((r) => (r.loc ? { ...r, loc: `${target.prefix}/${r.loc}` } : r)) : found;
   const note = target.scanned && (target.scanned.truncated || !rows.some((r) => r.loc));
-  const stray = rows.some((r) => r.loc) ? [] : strayPathRows(flags, target.root);
-  return note ? [...rows, ...stray, { loc: '', text: scanSummary(target.dir, target.scanned) }] : [...rows, ...stray];
+  const empty = !rows.some((r) => r.loc);
+  const stray = empty ? strayPathRows(flags, target.root) : [];
+  const pathHint = empty && !target.scanned ? await pathHintRows(flags, target.root, target.refresh) : [];
+  return note ? [...rows, ...stray, ...pathHint, { loc: '', text: scanSummary(target.dir, target.scanned) }] : [...rows, ...stray, ...pathHint];
 }
 
 /** Do these args leave the cwd repo (`--dir`, `--repo`, an outside `--path`)? The resident server leaves that to the caller's own process. */

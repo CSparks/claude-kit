@@ -17,6 +17,37 @@ export function addPath(flags, value, next) {
   flags.anyPaths = paths;
 }
 
+const GLOB = /[*?]/;
+const MAX_SUGGESTIONS = 3;
+
+// The indexed directories and files that end in `path`: `crates/x` typed from inside `sub/` is `sub/crates/x` from the root.
+function prefixesEndingIn(rels, path) {
+  const found = new Set();
+  for (const rel of rels) {
+    const dir = rel.indexOf(`/${path}/`);
+    if (dir >= 0) found.add(rel.slice(0, dir + 1 + path.length));
+    else if (rel.endsWith(`/${path}`)) found.add(rel);
+  }
+  return [...found].sort((a, b) => a.length - b.length || a.localeCompare(b));
+}
+
+/**
+ * The answer rows for an empty search whose `--path` names no indexed file: the root q resolved (`--path` is relative to it from
+ * any cwd) and the repo-relative paths ending in the same name. `refresh(root)` yields the index files; nothing for a glob.
+ */
+export async function pathHintRows(flags, root, refresh) {
+  const wanted = (flags.anyPaths || (flags.path ? [flags.path] : [])).map((p) => p.replace(/\/+$/, '')).filter((p) => p && !GLOB.test(p));
+  if (!wanted.length) return [];
+  const idx = await refresh(root);
+  idx.handle?.close();
+  const rels = idx.files.map((f) => f.rel);
+  return wanted.filter((p) => !rels.some((rel) => rel === p || rel.startsWith(`${p}/`))).map((p) => {
+    const near = prefixesEndingIn(rels, p).slice(0, MAX_SUGGESTIONS);
+    const mean = near.length ? ` did you mean ${near.map((n) => `--path ${n}`).join(' or ')}?` : '';
+    return { loc: '', text: `q: --path ${p} matches no indexed file under ${root.replace(/\\/g, '/')} (--path is relative to the repo root, not the cwd).${mean}` };
+  });
+}
+
 export function strayPathRows(flags, root) {
   const word = flags.pathNext;
   if (!word || !existsSync(resolve(root, word))) return [];
