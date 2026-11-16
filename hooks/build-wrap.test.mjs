@@ -36,6 +36,16 @@ test('a writer is exported to the build, in each shell\'s syntax, and absent whe
   assert.match(JSON.parse(withSession.stdout).hookSpecificOutput.updatedInput.command, /CLAUDE_KIT_BUILD_WRITER='S9\|agent-3'/);
 });
 
+test('a builds --run is run with the writer, so its run record and the build hold name the agent (KIT-T1320)', () => {
+  const run = 'builds --run "cargo test -p rg-graphics --test sky_volume" --out target/sky.txt';
+  assert.equal(shimmedCommand(run, 'Bash', undefined, 'S1|agent-7'), `export CLAUDE_KIT_BUILD_WRITER='S1|agent-7'; ${run}`);
+  assert.equal(shimmedCommand(run, 'PowerShell', undefined, 'S1|agent-7'), `$env:CLAUDE_KIT_BUILD_WRITER = 'S1|agent-7'; ${run}`);
+  assert.equal(shimmedCommand(run, 'Bash'), null, 'no writer known: left alone');
+  assert.equal(shimmedCommand('builds --result run-1', 'Bash', undefined, 'S1|agent-7'), null, 'reading a result needs no writer');
+  const viaHook = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Bash', session_id: 'S9', agent_id: 'agent-3', tool_input: { command: run } }), encoding: 'utf8' });
+  assert.match(JSON.parse(viaHook.stdout).hookSpecificOutput.updatedInput.command, /^export CLAUDE_KIT_BUILD_WRITER='S9\|agent-3'; builds --run /);
+});
+
 test('commands that build nothing, and broker calls that name cargo in a test, are left alone', () => {
   for (const cmd of ['ls -la', 'git status', 'q code "cargo test"', 'node scripts/broker/submit.mjs --test "cargo t -p x"', 'node scripts/broker/wait.mjs abc']) {
     assert.equal(shimmedCommand(cmd, 'Bash'), null, cmd);
