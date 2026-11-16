@@ -10,7 +10,7 @@
 //                                                             their staged work staged (a commit by explicit path)
 
 import { claimFile, liveClaimants } from './checkout-holder.mjs';
-import { claimConflicts, describeWriter } from './agent-claims.mjs';
+import { claimConflicts, describeWriter, sameWriter } from './agent-claims.mjs';
 import { git } from './exec.mjs';
 import { adopted } from '../lib.mjs';
 import { repoRelative } from '../turn-writes.mjs';
@@ -19,7 +19,7 @@ const STORE_DIR = '.ai/';
 const MAX_SHOWN = 10;
 
 export function foreignClaims({ tree, session, agent = '', paths, now = Date.now() }) {
-  const mine = liveClaimants(tree, now).filter((c) => c.session === session && (c.agent || '') === agent);
+  const mine = liveClaimants(tree, now).filter((c) => sameWriter(c, session, agent));
   return paths
     .filter((rel) => !rel.startsWith(STORE_DIR) && !mine.some((c) => Object.hasOwn(c.claims || {}, rel)))
     .flatMap((rel) => {

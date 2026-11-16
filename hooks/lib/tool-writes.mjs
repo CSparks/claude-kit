@@ -15,6 +15,7 @@
 //
 //   writerId(session, agent)                                         -> the identity an entry carries ('' when unknown)
 //   writerSession(writer), writerAgent(writer), isMainThread(writer) -> its parts; the main thread is a session with no agent
+//   sameWriterId(a, b)                                               -> one writer: a subagent by agent id alone (its session id can change mid-life), the main thread by session
 //   recordToolWrite(root, rel, hash, now, writer)                    -> add a confirmed entry
 //   recordPredictedWrite(root, rel, file, toolInput, writer, now)    -> add the unconfirmed entries for the content `toolInput` leaves
 //   toolWriteProves(root, rel, sinceMs, currentHash, byWriter, { ownConfirmed }) -> true when another writer's tool (or, with ownConfirmed, `byWriter`'s confirmed one) left `currentHash` in `rel` since `sinceMs`
@@ -39,6 +40,7 @@ export const writerId = (session, agent) => (session ? `${session}|${agent || ''
 export const writerSession = (writer) => String(writer || '').split('|')[0];
 export const writerAgent = (writer) => String(writer || '').split('|')[1] || '';
 export const isMainThread = (writer) => Boolean(writerSession(writer)) && !writerAgent(writer);
+export const sameWriterId = (a, b) => (writerAgent(a) || writerAgent(b) ? writerAgent(a) === writerAgent(b) : a === b);
 
 const addEntries = (root, hashes, rel, now, writer, confirmed, clean = false) => {
   appendToolWriteEntries(root, hashes.map((h) => ({ p: rel, h, ts: now, w: writer, c: confirmed, ...(clean ? { k: true } : {}) })));

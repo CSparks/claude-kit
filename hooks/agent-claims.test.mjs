@@ -70,4 +70,11 @@ claimFile({ tree: execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: t
 writeFileSync(join(tree, 'a.js'), 'export const x = 100;\n');
 expect('negative control: a lapsed main-thread claim (20 min) refuses nobody', editAs('S2', '', 'a.js').status, 0);
 
+// A subagent's session id can change mid-life (the dispatching session continued under a new id): its identity is the agent id.
+git('commit', '-qam', 'before the roll');
+expect('agent R edits a.js under session S1', editAs('S1', 'agentR', 'a.js').status, 0);
+expect('the same agent R under session S3 editing its own uncommitted a.js passes', editAs('S3', 'agentR', 'a.js').status, 0);
+expect('negative control: another agent in S3 is still refused R\'s a.js', editAs('S3', 'agentQ', 'a.js').status, 2);
+expect('negative control: the main thread of S3 is still refused R\'s a.js', editAs('S3', '', 'a.js').status, 2);
+
 finish();

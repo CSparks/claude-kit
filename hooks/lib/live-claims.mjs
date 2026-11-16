@@ -7,13 +7,16 @@
 //   - a claim recorded without a write HEAD: no commit can release it, so it holds for one holder window from the first
 //     time it is judged, then lapses. A claim with a recorded HEAD never lapses by time.
 //
-//   overlappingHolders({ tree, session, paths, now }) -> [{ holder, files }], as session-overlap.mjs, minus the void claims
+//   - a file the calling subagent (`agent`) itself holds a standing claim on, whatever session id that claim was made under.
+//
+//   overlappingHolders({ tree, session, agent, paths, now }) -> [{ holder, files }], as session-overlap.mjs, minus the void claims
 
 import { overlappingHolders as heldClaims } from './session-overlap.mjs';
 import { sessionWriteHeads } from '../turn-writes.mjs';
 import { HOLDER_WINDOW_MS, noteLegacyClaims } from './checkout-holder.mjs';
 import { contentHashOf } from './shell-snapshot.mjs';
 import { cleanWriters, writerSession } from './tool-writes.mjs';
+import { ownStandingClaim } from './agent-claims.mjs';
 
 const producedByAnother = (tree, file, holderSession) => {
   const hash = contentHashOf(tree, file);
@@ -21,11 +24,11 @@ const producedByAnother = (tree, file, holderSession) => {
 };
 
 export function overlappingHolders(args) {
-  const { tree, now = Date.now() } = args;
+  const { tree, agent = '', now = Date.now() } = args;
   return heldClaims(args).flatMap(({ holder, files }) => {
     const heads = sessionWriteHeads(tree, holder.session);
     const seen = noteLegacyClaims({ tree, session: holder.session, files: files.filter((f) => !heads[f]), now });
-    const standing = files.filter((f) => !producedByAnother(tree, f, holder.session)
+    const standing = files.filter((f) => !ownStandingClaim({ tree, agent, rel: f, now }) && !producedByAnother(tree, f, holder.session)
       && !(seen[f] !== undefined && now - seen[f] >= HOLDER_WINDOW_MS));
     return standing.length ? [{ holder, files: standing }] : [];
   });

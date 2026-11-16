@@ -174,7 +174,7 @@ if (!COMMIT_FOREIGN_ESCAPE.test(cited)) {
   try {
     const judged = spec.mode === 'tree' ? uniq(lines(git(['-C', root, 'diff', '--cached', '--name-only']))) : changed;
     const kit = isKitCheckout(root);
-    const holders = kit ? overlappingHolders({ tree: root, session: p.session_id, paths: judged }) : [];
+    const holders = kit ? overlappingHolders({ tree: root, session: p.session_id, agent: subagentId(p), paths: judged }) : [];
     const foreign = (kit ? holders.flatMap((h) => h.files) : foreignPaths(root, judged, p.session_id)).filter((f) => !pathExcluded(root, 'commit-foreign', f));
     if (foreign.length) {
       const shown = foreign.slice(0, MAX_FOREIGN);

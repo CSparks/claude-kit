@@ -20,7 +20,7 @@ import { dirname, join, resolve } from 'node:path';
 import { appendTurnRecord, readTurnRecords } from './turn-state.mjs';
 import { segments } from './shell-segments.mjs';
 import { inScope } from '../../scripts/broker/cargo-scope-dirs.mjs';
-import { writerId } from './tool-writes.mjs';
+import { sameWriterId, writerId } from './tool-writes.mjs';
 
 const SLOT = 'cratechecks';
 const CHECK_VERB = /^(?:check|c|clippy|build|b)$/;
@@ -61,7 +61,7 @@ const slash = (p) => String(p).replace(/\\/g, '/').toLowerCase();
 
 export function culprits({ files, writer, claimants, relOf }) {
   return files.flatMap((file) => claimants
-    .filter((c) => writerId(c.session, c.agent) !== writer && relOf(c.tree, file) in (c.claims || {}))
+    .filter((c) => !sameWriterId(writerId(c.session, c.agent), writer) && relOf(c.tree, file) in (c.claims || {}))
     .map((claimant) => ({ file, claimant })));
 }
 

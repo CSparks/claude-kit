@@ -19,7 +19,7 @@ import { overlappingHolders } from './live-claims.mjs';
 import { committedSince } from './session-overlap.mjs';
 import { contentHashOf } from './shell-snapshot.mjs';
 import { toolWriteEntries } from './tool-write-ledger.mjs';
-import { writerAgent, writerId, writerSession } from './tool-writes.mjs';
+import { sameWriterId, writerAgent, writerId, writerSession } from './tool-writes.mjs';
 
 const STRICT = Object.freeze({ strict: true });
 const describeSession = (session, label) => `the ${label || 'writer'} of session ${session}`;
@@ -51,7 +51,7 @@ export function fileHolders(root, rel, caller) {
 }
 
 export function otherLiveWriters(root, caller, opts = {}) {
-  const claimants = liveClaimants(root, Date.now(), opts).filter((e) => writerId(e.session, e.agent) !== caller).map(describeWriter);
+  const claimants = liveClaimants(root, Date.now(), opts).filter((e) => !sameWriterId(writerId(e.session, e.agent), caller)).map(describeWriter);
   const sessions = liveHolders(root, Date.now(), opts).filter((h) => h.session !== writerSession(caller)).map((h) => describeSession(h.session, h.label));
   return unique([...claimants, ...sessions]);
 }

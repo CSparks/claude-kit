@@ -67,6 +67,20 @@ try {
   claimFile({ tree, session: 'S1', agent: 'agentTerrain', label: 'terrain agent', rel: 'src/roads.rs', head: head() });
   const both = verdict('agentTerrain', `git -C ${target} commit -m "${MSG}"`);
   ok('control: a path the committing agent holds a claim on too is not foreign', both.code === 0, both.out.trim());
+
+  releaseAgent('agentRoads');
+  releaseAgent('agentTerrain');
+  git(['add', '--', 'src/roads.rs', 'src/mine.rs'], target);
+  git(['commit', '-q', '-m', 'settle'], target);
+  const { beatHolder } = await import('./lib/checkout-holder.mjs');
+  written('src/rolled.rs', 7, 'S1');
+  beatHolder({ tree, session: 'S1', agent: 'agentRolled', label: 'rolled agent' });
+  claimFile({ tree, session: 'S1', agent: 'agentRolled', label: 'rolled agent', rel: 'src/rolled.rs', head: head() });
+  const rolledCommit = (session, agent) => hook('commit-gate.mjs', { session_id: session, agent_id: agent, tool_input: { command: `git -C ${target} commit -m "${MSG}" -- src/rolled.rs` } }, target, env);
+  const rolled = rolledCommit('S2', 'agentRolled');
+  ok('a subagent whose session id changed commits its own file; its old session is not another live session', rolled.code === 0, rolled.out.trim());
+  const rolledOther = rolledCommit('S2', 'agentOther');
+  ok('negative control: another agent of the new session is refused that file', rolledOther.code === 2 && rolledOther.out.includes('src/rolled.rs'), rolledOther.out.trim());
 } finally {
   cleanup();
   done();
