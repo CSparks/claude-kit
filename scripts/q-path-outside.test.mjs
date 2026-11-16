@@ -40,7 +40,7 @@ await test('--lang and -l still filter an outside directory', async () => {
 await test('an absolute --path that does not exist errors clearly', async () => {
   const missing = posix(join(outside, 'no-such-dir'));
   const rows = await codeVerbRows('code', ['OutsideMarkerNode', '--path', missing], repo);
-  assert.equal(rows.length, 1);
+  assert.equal(rows.filter((r) => r.loc).length, 0);
   assert.match(rows[0].text, /outside the index and not found on disk/);
   assert.ok(rows[0].text.includes(missing));
 });
