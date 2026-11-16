@@ -15,6 +15,8 @@ import { installedPluginRoot, isDevLinked, checkInstalledDrift } from '../script
 import { docReviewAge, repoHasSource } from './lib/doc-review.mjs';
 import { buildTreeLine, sweepStatusLines } from './lib/build-tree.mjs';
 import { autoReviewDirective } from './lib/auto-review.mjs';
+import { processTable } from './lib/process-tree.mjs';
+import { stuckHooksLine } from './lib/stuck-hooks.mjs';
 import { activeInboxNotes } from './lib/active-inbox.mjs';
 import { payload, MAINT_LOG, git, gitRoot, adopted, wipSummary, scanInbox, scanReviewQueue, scanStaleDoingTickets, scanReminders, readTurnState, writeTurnState } from './lib.mjs';
 
@@ -251,6 +253,13 @@ try {
   const tree = repo ? buildTreeLine(repo) : null;
   if (tree) reminders.push(tree);
   reminders.push(...sweepStatusLines());
+} catch {
+  /* best-effort — never break orientation */
+}
+
+try {
+  const stuck = stuckHooksLine(processTable());
+  if (stuck) reminders.push(stuck);
 } catch {
   /* best-effort — never break orientation */
 }

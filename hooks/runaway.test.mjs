@@ -48,6 +48,24 @@ ok('reapRunaways ends each runaway tree, leaves first', ended.join() === '12,11,
 ok('it files one kit bug per tree and prints one line with the count', filed.length === 2 && filed.every((b) => b.project === 'claude-kit' && b.shape.startsWith('runaway-process:')) && /ended 2 runaway process tree\(s\)/.test(result.line));
 ok('negative: claude.exe (1) and the tool shell (10) are never killed', !ended.includes(1) && !ended.includes(10));
 
+const HOOK_CMD = '"C:\\Program Files\\Git\\usr\\bin\\bash.exe" -c "node \\"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\\" dispatch-label.mjs"';
+const hooks = [
+  proc(1, 0, 'claude.exe', 'claude', 600, 0.1),
+  proc(90, 999, 'bash.exe', HOOK_CMD, 600, 1.5),
+  proc(91, 1, 'bash.exe', HOOK_CMD, 30, 0),
+  proc(92, 999, 'bash.exe', HOOK_CMD, 2, 1.5),
+  proc(93, 1, 'bash.exe', 'bash -c ordinary-shell', 600, 0),
+  proc(94, 999, 'bash.exe', HOOK_CMD, 600, 0),
+];
+const hookRoots = runawayRoots(hooks, { now: NOW });
+ok('a kit hook shell older than five minutes whose parent is gone is a root', hookRoots.some((r) => r.pid === 90 && r.reason === 'orphaned-hook'));
+ok('an orphaned hook shell is a root even when idle', hookRoots.some((r) => r.pid === 94));
+ok('a hook shell with a live parent that is not spinning is left alone (listed by housekeeping)', !hookRoots.some((r) => r.pid === 91));
+ok('a hook shell under five minutes is left alone, parent or not', !hookRoots.some((r) => r.pid === 92));
+ok('a shell that is not a kit hook is left alone', !hookRoots.some((r) => r.pid === 93));
+const spinning = runawayRoots([hooks[0], proc(95, 1, 'bash.exe', HOOK_CMD, 30, 1.5)], { now: NOW });
+ok('a kit hook shell with a live parent that spins is a root', spinning.length === 1 && spinning[0].reason === 'cpu');
+
 const secret = proc(80, 10, 'python.exe', 'python - --token=xyz -H "Authorization: Bearer abc123" https://user:pw0rd@host.example/x', 30, 1);
 const filedSecret = [];
 await reapRunaways({ table: [...base, secret], now: NOW, kill: () => {}, fileBug: (b) => filedSecret.push(b) });

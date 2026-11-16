@@ -1,7 +1,7 @@
 // runaway.mjs — find and end processes a Bash-tool shell left spinning (KIT-T699, KIT-T697).
 // A descendant of a Bash-tool shell (never the shell, never claude) older than MIN_AGE_MS is a runaway when
 // it is a python reading stdin, or an interpreter/shell burning more than MIN_CPU_RATIO of a core over its
-// life. Broker-owned processes and anything excluded under check-id `runaway-process` are never touched.
+// life. A kit hook process (stuck-hooks.mjs) over MIN_AGE_MS is a root itself when its parent is gone or it spins. Broker-owned processes and anything excluded under check-id `runaway-process` are never touched.
 //
 //   runawayRoots(table, { now?, skip? }) -> [{ pid, exe, reason, ageMin, ratio }]  top-most only
 //   reapRunaways({ table?, kill?, fileBug?, skip?, now? }) -> { reaped, line }
@@ -11,9 +11,9 @@
 
 import { killTree, processTable, toolShells, descendantsOf, isClaude } from './process-tree.mjs';
 import { isStdinPythonCommandLine } from './python-stdin.mjs';
+import { MIN_AGE_MS, stuckHooks } from './stuck-hooks.mjs';
 
 export const CHECK_ID = 'runaway-process';
-const MIN_AGE_MS = 5 * 60 * 1000;
 const MIN_CPU_RATIO = 0.5;
 const MS_PER_MIN = 60000;
 const SPINNERS = /^(?:python|pythonw|py|bash|sh|zsh)(?:\d+(?:\.\d+)*)?(?:\.exe)?$/i;
@@ -53,6 +53,11 @@ export function runawayRoots(table, { now = Date.now(), skip = () => false } = {
       const v = verdict(proc, now);
       if (v && !skip(proc) && !brokerOwned(table, proc)) flagged.set(proc.pid, { proc, ...v });
     }
+  }
+  for (const { proc, ageMs, orphaned } of stuckHooks(table, { now })) {
+    const ratio = proc.cpuMs / ageMs;
+    const reason = orphaned ? 'orphaned-hook' : ratio > MIN_CPU_RATIO ? 'cpu' : null;
+    if (reason && !skip(proc) && !brokerOwned(table, proc)) flagged.set(proc.pid, { proc, reason, ratio, age: ageMs });
   }
   const byPid = new Map(table.map((p) => [p.pid, p]));
   const hasFlaggedAncestor = (proc) => { for (let cur = byPid.get(proc.ppid); cur; cur = byPid.get(cur.ppid)) if (flagged.has(cur.pid)) return true; return false; };

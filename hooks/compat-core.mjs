@@ -16,7 +16,9 @@ import { spawnSync } from 'node:child_process';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { excludedAmong } from './lib/excluded-trees.mjs';
+import { hookLimitMs } from './lib/hook-limits.mjs';
 
+const MICROS_PER_MS = 1000;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FILE_PAYLOAD_HOOKS = new Set([
   'pre-write.mjs',
@@ -25,11 +27,29 @@ const FILE_PAYLOAD_HOOKS = new Set([
   'ingest-data.mjs',
 ]);
 
-async function readStdin() {
-  const chunks = [];
-  for await (const chunk of process.stdin) chunks.push(chunk);
-  return Buffer.concat(chunks).toString('utf8');
+// Resolves on end-of-file or a read error (a hook with no stdin runs with {}), or with
+// `complete: false` at the limit: the caller's parent is gone or never wrote its payload.
+function readStdin(limitMs) {
+  return new Promise((resolveRead) => {
+    const chunks = [];
+    const finish = (complete) => {
+      clearTimeout(timer);
+      resolveRead({ raw: Buffer.concat(chunks).toString('utf8'), complete });
+    };
+    const timer = setTimeout(() => finish(false), limitMs);
+    process.stdin.on('data', (chunk) => chunks.push(chunk));
+    process.stdin.on('end', () => finish(true));
+    process.stdin.on('error', () => finish(true));
+  });
 }
+
+function failOpen(scriptName, limitMs) {
+  const cpuMs = Math.round((process.cpuUsage().user + process.cpuUsage().system) / MICROS_PER_MS);
+  process.stderr.write(`compat-run: ${scriptName} passed its ${limitMs} ms limit and was ended; failing open (launcher cpu ${cpuMs} ms)\n`);
+  process.exit(0);
+}
+
+const timedOut = (result) => result.error?.code === 'ETIMEDOUT';
 
 function safeJson(raw) {
   try {
@@ -150,12 +170,14 @@ export function formatCodexSuccess(event, stdout, stderr) {
   return joinOutput([out, err]);
 }
 
-function runHook(scriptPath, payload) {
+function runHook(scriptPath, payload, timeout) {
   return spawnSync(process.execPath, [scriptPath], {
     cwd: process.cwd(),
     env: process.env,
     input: JSON.stringify(payload),
     encoding: 'utf8',
+    timeout,
+    killSignal: 'SIGKILL',
   });
 }
 
@@ -189,16 +211,24 @@ export async function main() {
   // publish): that hook is simply not live yet, so nothing runs and nothing is reported.
   if (!existsSync(scriptPath)) process.exit(0);
 
-  const raw = await readStdin();
+  const started = Date.now();
+  const limitMs = hookLimitMs(scriptName);
+  const { raw, complete } = await readStdin(limitMs);
+  if (!complete) failOpen(scriptName, limitMs);
   const payload = safeJson(raw);
   // An excluded tree (KIT-T447) never runs a hook: the session's cwd, the launcher's cwd and
   // the file a tool is about to touch are all checked, and a hit exits silently.
   if (excludedAmong(payload.cwd, process.cwd(), payload?.tool_input?.file_path)) process.exit(0);
   const isCodex = Boolean(process.env.PLUGIN_ROOT);
   const payloads = isCodex ? codexFilePayloads(payload, scriptName) : [payload];
-  const results = payloads.map((item) => runHook(scriptPath, item));
-  const failed = results.find((result) => result.error || (result.status ?? 1) !== 0);
+  const results = payloads.map((item) => runHook(scriptPath, item, Math.max(1, limitMs - (Date.now() - started))));
+  const hung = results.some(timedOut);
+  const failed = results.find((result) => !timedOut(result) && (result.error || (result.status ?? 1) !== 0));
   await reportHookCrash(scriptName, results);
+  if (hung && !failed) {
+    for (const result of results.filter((r) => !timedOut(r))) if (result.stdout) process.stdout.write(result.stdout);
+    failOpen(scriptName, limitMs);
+  }
 
   if (!isCodex || failed) {
     for (const result of results) {
