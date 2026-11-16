@@ -43,7 +43,8 @@ try {
   check("a checkout -- of a file with another writer's changes is blocked", stops('git checkout -- dirty.rs', 'S2'));
   check('a checkout with a revision and -- is judged the same', stops('git checkout HEAD -- dirty.rs', 'S2'));
   check('a checkout of an existing path without -- is judged the same', stops('git checkout dirty.rs', 'S2'));
-  check("a restore of a file with another writer's changes is blocked", stops('git restore dirty.rs', 'S2'));
+  check("a restore of a file with another writer's changes is blocked for a subagent", stops('git restore dirty.rs', 'S2', 'subAgent1'));
+  check("KIT-T1286: the main thread may restore it when no live writer holds it (the named plain form)", passes_('git restore -- dirty.rs', 'S2'));
   check('a restore of the caller\'s own changes passes', passes_('git restore dirty.rs', 'S1'));
   check('a restore --source of a file with another writer\'s changes is blocked', stops('git restore --source=HEAD~1 dirty.rs', 'S2'));
   check('a restore -S -W writes the work tree and is judged', stops('git restore -S -W dirty.rs', 'S2'));

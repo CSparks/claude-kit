@@ -40,7 +40,20 @@ function mainThreadDelete(root, rel, caller, refusal) {
   }
 }
 
-const matchesHead = (root, rel) => gitTry(['--literal-pathspecs', 'diff', '--quiet', 'HEAD', '--', rel], root).ok;
+// The main thread may `git restore -- <named tracked file>` (the plain form) when only a dead or ended writer left the changes:
+// no live writer holds the file. A subagent, any other verb and a registry that cannot be read keep the refusal (KIT-T1286).
+// Changes no tool recorded (the maintainer's own edit) are never lifted: only another writer's recorded bytes are.
+const RESTORE_VERB = 'git restore';
+function mainThreadRestore(verb, root, rel, caller, refusal) {
+  if (verb !== RESTORE_VERB || refusal !== R.otherWriter || !isMainThread(caller)) return refusal;
+  try {
+    return fileHolders(root, rel, caller).length ? R.liveWriter : '';
+  } catch {
+    return refusal;
+  }
+}
+
+const matchesHead =(root, rel) => gitTry(['--literal-pathspecs', 'diff', '--quiet', 'HEAD', '--', rel], root).ok;
 
 function discardRefusal(root, rel, caller, verb) {
   try {
@@ -58,6 +71,6 @@ const ledgerOrNone = (root, rel, caller) => (caller ? ledgerRefusal(root, rel, c
 export function deleteJudgement(found, root, rel, caller) {
   if (found.unresolved) return R.unresolved;
   if (found.sweep) return found.always || otherLiveWriters(root, caller, STRICT_REGISTRY).length ? R.sweep : '';
-  if (found.discard) return discardRefusal(root, rel, caller, found.discard);
+  if (found.discard) return mainThreadRestore(found.discard, root, rel, caller, discardRefusal(root, rel, caller, found.discard));
   return found.deletes ? mainThreadDelete(root, rel, caller, deleteRefusal(root, rel, caller)) : '';
 }

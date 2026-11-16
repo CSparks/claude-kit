@@ -175,7 +175,8 @@ function restoreOf(args, ctx) {
   const indexOnly = (flags.has('staged') || flags.has('S')) && !flags.has('worktree') && !flags.has('W');
   const named = [...parsed.operands, ...parsed.dashed];
   if (indexOnly || flags.has('p') || flags.has('patch') || (!named.length && !flags.has('pathspec-from-file'))) return null;
-  return judged('git restore', parsed, named, ctx);
+  // Only the bare form `git restore -- <path>...` carries the verb a main thread may lift (KIT-T1286); any option is another verb.
+  return judged(flags.size === 0 ? 'git restore' : 'git restore (with options)', parsed, named, ctx);
 }
 
 function resetOf(args) {
