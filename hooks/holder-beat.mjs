@@ -42,7 +42,7 @@ const sessionMessage = (file, found, tree) => [
 // is checked first: it names the agent and outlives the 15-minute window of the session ledger.
 function refusal({ tree, file, rel, session, agent }) {
   const claimants = claimConflicts({ tree, session, agent, rel });
-  if (claimants.length) return { text: claimMessage({ rel, tree, claimants, footer: excludeFooter(HOLDER_CHECK) }), session: true };
+  if (claimants.length) return { text: claimMessage({ rel, tree, claimants, footer: excludeFooter(HOLDER_CHECK), mainThread: !agent }), session: true };
   const sessions = overlappingHolders({ tree, session, paths: [rel] });
   if (sessions.length) return { text: sessionMessage(rel, sessions, tree), session: true };
   const writer = writerId(session, agent);

@@ -108,7 +108,7 @@ function describe(item, row) {
   }
   if (item.kind === 'reopened') return `REOPENED, SILENT: ${item.ticket} (${row.id}) was resumed by SendMessage and has written nothing for ${SILENT_MS / MS_PER_MIN} min`;
   if (item.kind === 'successor') return `RETIRED WITH HANDOFF: ${item.ticket} (${row.id}) has open work and no dispatch has cited it. The ticket may be superseded or stale: the maintainer decides. If its Handoff shows nothing is owed: node "${ACK}" --handoff ${row.id} --reason "<why>"`;
-  return `AGENT ${row.status.toUpperCase()}: ${row.id} left ${item.ticket} open with no Handoff. The ticket may be superseded or stale: the maintainer decides`;
+  return `AGENT ${row.status.toUpperCase()}: ${row.id} left ${item.ticket} open with no Handoff. The ticket may be superseded or stale: the maintainer decides. If its files stay locked against a successor or a restore: claims --release ${row.id} --reason "<why>"`;
 }
 
 // Reopen needs a transcript SendMessage can reach; without one, a landed result is acknowledged and anything else

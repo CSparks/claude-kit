@@ -24,13 +24,14 @@ export function claimConflicts({ tree, session, agent = '', rel, now = Date.now(
 
 export const describeWriter = (c) => `${c.agent ? `agent ${c.agent}${c.label ? ` (${c.label})` : ''}` : MAIN_THREAD} of session ${c.session}`;
 
-export function claimMessage({ rel, tree, claimants, footer }) {
+export function claimMessage({ rel, tree, claimants, footer, mainThread = false }) {
   return [
     `BLOCKED: ${claimants.map(describeWriter).join(' and ')} changed ${rel} and has not committed it (KIT-T1114).`,
     `  tree: ${tree}`,
     '',
     'Two writers on one file lose work. Edit another file, or wait until that writer commits this one or stops; a writer',
     'on other files is never in your way. Your own files always pass.',
+    ...(mainThread ? ['If that writer is dead (killed by an API error: no stop event), release its claims with `claims --release <agent id> --reason "<why>"`', '(refused for an agent that wrote in the last 5 minutes).'] : []),
     '',
     footer,
   ].join('\n');

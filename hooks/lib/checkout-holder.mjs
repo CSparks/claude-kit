@@ -12,6 +12,7 @@
 //                                                    an unreadable registry answers [] and, with strict, throws (a checkout with no entries answers [])
 //   releaseTree(tree, session)                       -> drop that session's hold (a synchronous writer finished)
 //   releaseAgent(agent)                              -> drop every hold and file claim whose last writer was that agent (SubagentStop)
+//   agentEntries(id)                                 -> [{ agent, beatAt, kind }] every hold and claim of the agent (full id or a prefix of 8+)
 //   claimFile({ tree, session, agent, label, rel, head, now }) -> record that the writer changed `rel` at `head` (KIT-T1114)
 //   liveClaimants(tree, now, { strict })             -> [{ session, agent, label, beatAt, claims }] writers of every session with standing claims
 //   HOLDER_WINDOW_MS, holdersDir()                   -> CLAUDE_KIT_HOLDERS_DIR overrides the directory (tests)
@@ -28,6 +29,7 @@ const MAX_REFUSED = 200;
 
 const AGENT_CLAIM_WINDOW_MS = 2 * 60 * 60 * 1000;
 const MAX_CLAIMS = 500;
+const MIN_AGENT_PREFIX = 8;
 const CLAIMS_DIR = '_claims';
 
 export const holdersDir = () => process.env.CLAUDE_KIT_HOLDERS_DIR || join(homedir(), '.claude', 'claude-kit-holders');
@@ -143,6 +145,24 @@ export function releaseAgent(agent) {
   } catch {
     /* nothing held */
   }
+}
+
+/**
+ * Every hold and file claim recorded for the agent named by `id` (the full id, or a prefix of at least MIN_AGENT_PREFIX
+ * characters), with the time of its last write: [{ agent, beatAt, kind }]. Read by `claims --release` (KIT-T1287).
+ */
+export function agentEntries(id) {
+  const wanted = String(id || '');
+  if (wanted.length < MIN_AGENT_PREFIX) return [];
+  const found = [];
+  const scan = (dir, kind) => {
+    try { eachFile(dir, (file) => { const e = readEntry(file); if (e && e.agent && e.agent.startsWith(wanted)) found.push({ agent: e.agent, beatAt: e.beatAt || 0, kind }); }); } catch { /* none */ }
+  };
+  try {
+    for (const dir of readdirSync(holdersDir())) if (dir !== CLAIMS_DIR) scan(join(holdersDir(), dir), 'hold');
+    for (const dir of readdirSync(claimsRoot())) scan(join(claimsRoot(), dir), 'claim');
+  } catch { /* an empty registry holds nothing */ }
+  return found;
 }
 
 // Per-writer file claims (KIT-T1114): which files each writer (a session's main thread or one of its subagents) has

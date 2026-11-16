@@ -1,0 +1,3 @@
+#!/bin/sh
+# Release the file claims and write holds of an agent that died without a stop event (KIT-T1287): `claims --release <agent id> --reason "<why>"`. Main thread only.
+exec node "$(dirname "$0")/../scripts/claims.mjs" "$@"

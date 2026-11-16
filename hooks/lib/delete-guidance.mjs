@@ -20,6 +20,8 @@ const MAIN_THREAD_DELETE = (path) => `the plain \`rm ${path}\` (PowerShell: \`Re
 
 // A subagent hands the delete to the main thread; the main thread reaches this through a git discard verb on a tracked file
 // with changes, or when the registry of live writers could not be read.
+// An agent killed by an API error sends no stop event, so its claims outlive it (KIT-T1287); only the main thread may release them.
+export const RELEASE_HINT = 'If that writer is dead (killed by an API error: no stop event), release its claims with `claims --release <agent id> --reason "<why>"` (refused for an agent that wrote in the last 5 minutes).';
 // The one form a main thread may use to put back tracked files a dead or ended writer left changed (KIT-T1286).
 const RESTORE_FORM = '`git restore -- <path> <path> ...`, naming each tracked file (no directory, no glob, no `.`)';
 const raiseToMainThread = ({ mainThread, path, verb }) => {
@@ -42,7 +44,7 @@ const WAYS_OUT = {
     ? 'No Edit or Write of any writer recorded these bytes (never written by a tool, or changed since): they may be the maintainer\'s own uncommitted edit, which a restore would destroy. Ask the maintainer before restoring them.'
     : `No Edit or Write of this caller left these bytes (never written by a tool, or changed since): it stays with its writer. ${raiseToMainThread(ctx)}`),
   [R.otherWriter]: (ctx) => `Another session or agent wrote this file: it stays with its writer. ${raiseToMainThread(ctx)}`,
-  [R.liveWriter]: ({ path, holders, verb }) => `${holders.length ? holders.join(' and ') : 'A writer'} is live in this checkout and may still be writing this file. Once that writer has stopped or committed it, the main thread ${verb === 'git restore' ? `puts it back with ${RESTORE_FORM}` : `removes it with ${MAIN_THREAD_DELETE(path)}`}.`,
+  [R.liveWriter]: ({ path, holders, verb, mainThread }) => `${holders.length ? holders.join(' and ') : 'A writer'} is live in this checkout and may still be writing this file. Once that writer has stopped or committed it, the main thread ${verb === 'git restore' ? `puts it back with ${RESTORE_FORM}` : `removes it with ${MAIN_THREAD_DELETE(path)}`}.${mainThread ? ` ${RELEASE_HINT}` : ''}`,
   [R.unresolved]: ({ operand }) => `This delete names ${operand}, which this command does not assign as one literal NAME=value segment before it, so the file it holds is unknown. Spell the path out, or assign the variable in the same command (NAME=path; rm "$NAME").`,
   [R.sweep]: ({ verb, what }) => (INTEGRATION_VERB.test(verb || '') ? integrationWayOut(verb) : `${verb || 'This git call'} here may take files it does not name${what ? ` (${what})` : ''}, and another writer is live in this checkout: its untracked or changed files could go. Name each file you wrote yourself (\`git clean -f -- <path>\`, \`rm <path>\`), or raise it to the main thread. A call outside the git allow-list is written plainly: a built-in git command with only the options and config keys \`q gates source\` lists, and no environment change in front of it or exported in the command. No shell verb is sanctioned for another writer's files.`),
 };

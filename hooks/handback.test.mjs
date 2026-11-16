@@ -115,6 +115,7 @@ try {
   reset(); roster(row({ status: 'killed' }));
   const dead = stop();
   ok('killed session: an agent that died with no Handoff and no job is listed, and the notice says the ticket may be stale', noticed(dead) && /AGENT KILLED/.test(dead.out) && /superseded or stale/.test(dead.out));
+  ok('KIT-T1287: the AGENT KILLED notice names the verb that releases the dead agent\'s file claims', /claims --release \S+ --reason "<why>"/.test(dead.out));
   ok('negative: a dispatch citing the ticket since clears it', (roster(row({ status: 'killed' }), { ts: at(MINUTE_MS), id: 'b2c3d4e5f6a7b8c9d', scope: 'implementer', model: 'x', status: 'in-flight', task: 'redo', tickets: [TICKET] }), silent(stop())));
 
   roster(row({ status: 'killed' })); ticket('review');
