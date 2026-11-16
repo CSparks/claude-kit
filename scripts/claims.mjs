@@ -2,7 +2,9 @@
 // claims.mjs — `claims --release <agent id> --reason "<why>"` (KIT-T1287). An agent killed by an API error (a usage limit) sends
 // no stop event, so its file claims and write holds outlive it for the whole claim window and lock its files against its
 // replacement and against the main thread's `git restore`. The MAIN THREAD releases a named agent's claims and holds with
-// this verb; a subagent cannot (hooks/claims-release-gate.mjs refuses it). The agent must have written nothing for
+// this verb; a subagent cannot: the gate refuses its command (hooks/claims-release-gate.mjs) and releaseDead, which the CLI
+// and any import go through, refuses without the one-use main-thread stamp that gate exports (hooks/lib/claims-stamp.mjs,
+// KIT-T1288). The agent must have written nothing for
 // QUIET_MIN minutes: an agent still writing is alive. The release is recorded in the roster as a `killed` row naming the reason.
 //
 //   releaseDead({ id, reason, root?, now?, quietMs? }) -> { ok, text }
@@ -17,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { parseFlags } from './broker/cli.mjs';
 import { agentEntries, releaseAgent } from '../hooks/lib/checkout-holder.mjs';
 import { updateAgent } from '../hooks/lib/agent-roster.mjs';
+import { consumeStamp, STAMP_ENV } from '../hooks/lib/claims-stamp.mjs';
 
 export const QUIET_MIN = 5;
 const MS_PER_MINUTE = 60000;
@@ -26,8 +29,9 @@ function repoRoot(cwd) {
   try { return execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return cwd; }
 }
 
-export function releaseDead({ id, reason, root = repoRoot(process.cwd()), now = Date.now(), quietMs = QUIET_MIN * MS_PER_MINUTE }) {
+export function releaseDead({ id, reason, root = repoRoot(process.cwd()), now = Date.now(), quietMs = QUIET_MIN * MS_PER_MINUTE, env = process.env }) {
   if (!id || !String(reason || '').trim()) return { ok: false, code: EXIT.USAGE, text: 'claims --release <agent id> --reason "<why>": both are required' };
+  if (!consumeStamp(env[STAMP_ENV], id)) return { ok: false, code: EXIT.REFUSED, text: "claims --release: refused. It runs only from a main-thread call the kit stamped (hooks/claims-release-gate.mjs); a subagent raises it to the main thread, and a stamp is single-use and lasts 60 seconds" };
   const entries = agentEntries(id);
   const agents = [...new Set(entries.map((e) => e.agent))];
   if (!agents.length) return { ok: true, code: EXIT.OK, text: `claims --release: no claim or hold is recorded for ${id}; nothing to release` };
