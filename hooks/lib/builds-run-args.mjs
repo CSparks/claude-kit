@@ -25,6 +25,7 @@ const UNRESOLVABLE = /^~|[$`()*?[\]{}<>|;&%!]/;
 const ALLOWED_OUT = 'a path under target/ or the session scratchpad (the temp directory)';
 
 export const CWD_REFUSAL = 'builds --run with a working-directory option (--cwd) is refused: run it from the project root with paths relative to the root, or put the directory change inside the quoted command (cd <dir> && ...) where the gate reads it.';
+export const LAUNCHER_USAGE = 'builds --run "<command>" --out <file> --timeout N --tool-timeout N';
 const surface = (why) => `builds --run takes only --run "<command>", --out <file> (${ALLOWED_OUT}) and numbers for --limit, --timeout and --tool-timeout; ${why}.`;
 
 function tempRoots() {

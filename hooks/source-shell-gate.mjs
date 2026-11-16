@@ -37,7 +37,7 @@ import { directoryDeleteHits } from './lib/directory-delete.mjs';
 import { deleteGuidance } from './lib/delete-guidance.mjs';
 import { copyVariableAdvice } from './lib/copy-variable.mjs';
 import { touchLifted } from './lib/touch-target.mjs';
-import { VENDOR_ROUTE } from './lib/vendor-route.mjs';
+import { LAUNCHER_ADVICE, WRITE_ADVICE } from './lib/source-shell-advice.mjs';
 import { DELETE_REFUSALS } from './lib/owns-untracked-file.mjs';
 import { liveWriterNames } from './lib/live-writers.mjs';
 import { isMainThread, writerId } from './lib/tool-writes.mjs';
@@ -83,13 +83,7 @@ try {
     const couldNot = incomplete ? `  The check could not complete (${incomplete}), and a check that cannot complete refuses. Retry once git runs and the registry of live writers reads.\n` : '';
     process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : what}
-${couldNot}${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep, mainThread: isMainThread(caller), holders: refusal === DELETE_REFUSALS.liveWriter ? liveWriterNames(root, rel, caller) : [] })}  Use the Write tool: create or replace a whole file (a scratch repro or test is a Write too, never a heredoc,
-  \`echo >\` or \`node -e\`). Use the Edit tool to change part of an existing file. Only these two run the
-  pre-write gate (file length, comment prose, literals, rot markers).
-  A change too large for one Edit is a Write of the new file or several Edits, never a script.
-  Moving EXISTING lines into other files (a file split) is the kit verb: move-lines <source> <ranges>=<dest> ... (q gates source).
-  Generated output a tool writes (cargo, a formatter, a codegen) is not a hand write: run the tool.
-${VENDOR_ROUTE.map((line) => `  ${line}`).join('\n')}
+${couldNot}${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep, mainThread: isMainThread(caller), holders: refusal === DELETE_REFUSALS.liveWriter ? liveWriterNames(root, rel, caller) : [] })}${found.launcherProblem ? LAUNCHER_ADVICE : WRITE_ADVICE}
 ${excludeFooter(CHECK)}`);
     process.exit(2);
   }

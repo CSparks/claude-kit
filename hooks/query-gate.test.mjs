@@ -49,6 +49,16 @@ expect('blocks bare rg (recursive by default)', run(d, 'rg PhysicsSim').code, 2)
   const store = run(d, 'grep -rn "chunk\\|plant" .ai/tickets').err;
   expect('KIT-T1311: the block of an alternation grep of the .ai store gives q fts with each term and --any, and names q show', /q\.mjs" fts chunk plant --any\n/.test(store) && /q\.mjs" show <id>/.test(store), true);
   expect('KIT-T1311 control: a single-term store grep gives plain q fts', /q\.mjs" fts physics\n/.test(run(d, 'grep -rn "physics" .ai/tickets').err), true);
+  mkdirSync(join(d, '.ai', 'tickets'), { recursive: true });
+  const first = (command) => run(d, command).err;
+  expect('KIT-T1314: a recursive grep with --include over the bare .ai directory blocks and names q fts', /q\.mjs" fts Handoff\n/.test(first('grep -rn --include="*.md" "Handoff" .ai')) && /q\.mjs" show <id>/.test(first('grep -rn --include="*.md" "Handoff" .ai')), true);
+  expect('KIT-T1314: a grep with a --glob over the store and no path operand blocks', run(d, "rg --glob '.ai/tickets/*.md' Handoff").code, 2);
+  expect('KIT-T1314: a grep after a cd into .ai/tickets of one named item blocks and names q show', /q\.mjs" show RDG-T094\n/.test(first('cd .ai/tickets && grep -n Handoff RDG-T094-x.md')), true);
+  expect('KIT-T1314: a recursive grep after a cd into .ai blocks and names q fts', /q\.mjs" fts Handoff\n/.test(first('cd .ai && grep -rn Handoff tickets')), true);
+  expect('KIT-T1314 control: a plain read of one item after a cd into the store passes', run(d, 'cd .ai/tickets && sed -n 1,40p RDG-T094-x.md').code, 0);
+  expect('KIT-T1314 control: a cd outside the store then a grep of a named file passes', run(d, 'cd src && grep -n Handoff main.ts').code, 0);
+  expect('KIT-T1314 control: a file named like the store extension is not the store (notes.ai)', run(d, 'grep -n Handoff notes.ai').code, 0);
+  expect('KIT-T1314 control: q show to a scratch file then a grep of that file passes', run(d, 'q show RDG-T094 > t.txt; grep -n Handoff t.txt').code, 0);
   expect('KIT-T1307 control: a grep with no path operand keeps the add --path hint', /code PhysicsSim\s+\(add --lang L --path P as needed\)/.test(run(d, 'grep -rn PhysicsSim').err), true);
 }
 expect('KIT-T705 negative control: node -e with escaped quotes and no search word passes', run(d, 'node -e "console.log(\\"x\\")"').code, 0);

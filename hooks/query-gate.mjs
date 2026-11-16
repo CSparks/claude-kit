@@ -27,6 +27,7 @@ import { AMBIGUOUS_MESSAGE, segments, shellOfTool, shellTokens } from './lib/she
 import { commandLeads } from './lib/command-leads.mjs';
 import { fileOperands, hasGlob, isItemPath, isPatternSearch, itemEquivalent } from './lib/store-search.mjs';
 import { gitCommand } from './lib/git-subcommand.mjs';
+import { commandCwd } from './lib/shell-cwd.mjs';
 import { searchPaths, targetsOnlyFiles } from './lib/search-targets.mjs';
 import { indexEquivalent } from './lib/index-answerable.mjs';
 import { logSearch } from './lib/search-log.mjs';
@@ -50,7 +51,7 @@ const leadsSearch = (cmd) => commandLeads(cmd).some(({ tool, args }) => SEARCH.t
 // be referenced bare (a `cd` already inside .ai), so match the store dirs at TOKEN START
 // only — `src/notes/` is a legit user directory, not the store (KIT-T056). The
 // `projects/<name>/<store>` form covers centralized data roots (no `.ai` in the path).
-const STORE = /\.ai[\\/]|(?:^|[\s"'=])\.?[\\/]?(?:tickets|decisions|inbox|questions|notes)[\\/]|[\\/]projects[\\/][^\\/\s"']+[\\/](?:tickets|decisions|inbox|questions|notes)[\\/]|\b(?:ROADMAP|DECISIONS)\.md\b/i;
+const STORE = /\.ai[\\/]|(?:^|[\s"'=\\/])\.ai(?=$|[\s"'])|(?:^|[\s"'=])\.?[\\/]?(?:tickets|decisions|inbox|questions|notes)[\\/]|[\\/]projects[\\/][^\\/\s"']+[\\/](?:tickets|decisions|inbox|questions|notes)[\\/]|\b(?:ROADMAP|DECISIONS)\.md\b/i;
 // A recursive/tree-wide grep is DISCOVERY ("find me where X is"), the code-graph's job.
 const RECURSIVE_FLAG = /(?:^|\s)(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive|--include\b|--include-dir\b)/;
 const FILEISH = /\.[A-Za-z0-9]{1,6}$/; // a concrete file arg (has an extension)
@@ -138,11 +139,12 @@ async function main() {
   }
   let feedsFromItem = false; // the previous segment read an item file, so a piped search filters it
   const resolved = parts.ambiguous ? new Map() : resolvedSegments(parts, shellOfTool(p.tool_name));
-  for (const seg of parts) {
+  for (const [at, seg] of [...parts].entries()) {
     const { text, after } = seg;
     const c = (resolved.get(seg) ?? text).trim();
     if (!c) continue;
-    const verdict = (after === '|' && feedsFromItem && leadsSearch(c)) ? { id: 'store-grep', msg: storeMsg(c) } : judge(c, after === '|');
+    const base = storeBaseOf(cmd, at, p.tool_name);
+    const verdict = (after === '|' && feedsFromItem && leadsSearch(c)) ? { id: 'store-grep', msg: storeMsg(c) } : judge(c, after === '|', base);
     feedsFromItem = readsItemFile(c);
     if (verdict) {
       // KIT-T051 exclusion: a path glob under the verdict's check-id in
@@ -174,9 +176,34 @@ function excludedByConfig(root, id, c) {
   }
 }
 
+const CD_WORD = /(?:^|[\s;&|(])(?:cd|pushd|set-location|sl)\b/i;
+
+// The repo-relative `.ai/...` directory a `cd` earlier in the command put segment `at` in, or '' (relative operands there are store paths).
+function storeBaseOf(command, at, toolName) {
+  if (!CD_WORD.test(command)) return '';
+  try {
+    const cwd = commandCwd(command, process.cwd(), { upto: at, shell: shellOfTool(toolName) });
+    const rel = relative(realpathSync.native(repoRoot), realpathSync.native(cwd)).replace(/\\/g, '/');
+    return rel === '.ai' || rel.startsWith('.ai/') ? rel : '';
+  } catch {
+    return '';
+  }
+}
+
+const GLOB_VALUE_FLAG = /^(?:--glob|--iglob|--include|-g)$/;
+
+// The values of a search's glob options (`--glob '.ai/tickets/*.md'`, `--include=*.md`): they scope the search like a path does.
+function globValues(argv) {
+  return argv.flatMap((a, i) => {
+    const inline = /^(?:--glob|--iglob|--include)=(.*)$/.exec(a);
+    if (inline) return [inline[1].replace(/^["']|["']$/g, '')];
+    return GLOB_VALUE_FLAG.test(a) && argv[i + 1] ? [argv[i + 1].replace(/^["']|["']$/g, '')] : [];
+  });
+}
+
 // Return a block message, or null to allow. One simple command (no pipe/chain).
-// `piped` = this segment reads the previous command's stdout.
-function judge(c, piped = false) {
+// `piped` = this segment reads the previous command's stdout. `base` = the `.ai/...` directory the segment runs in, or ''.
+function judge(c, piped = false, base = '') {
   let tok = shellTokens(c);
   while (tok.length && (ENV_ASSIGNMENT.test(tok[0]) || tok[0] === 'env')) tok = tok.slice(1);
   if (!tok.length) return null;
@@ -217,12 +244,15 @@ function judge(c, piped = false) {
   // and a heredoc/redirect WRITE whose body merely names a store path is not a store read at all
   // (the memory-file false positive, inbox 2026-08-31-0346).
   const isStoreWrite = isRead && /(?:>>?|<<)/.test(c.replace(/'[^']*'|"[^"]*"/g, ' '));
-  const naming = isSearch && tool !== 'select-string' && tool !== 'sls' ? searchPaths(argv, { git: gitGrep }).join(' ') : c;
+  const searched = isSearch && tool !== 'select-string' && tool !== 'sls';
+  const operands = searched ? searchPaths(argv, { git: gitGrep }) : [];
+  const inBase = (a) => (base && !/^(?:[A-Za-z]:)?[\\/]/.test(a) ? `${base}/${a}` : a);
+  const naming = searched ? [...operands.map(inBase), ...globValues(argv), ...(base && !operands.length ? [`${base}/`] : [])].join(' ') : c;
   if ((isSearch || isRead || isFind) && STORE.test(naming) && !isStoreWrite) {
     // A search tool's first positional is its pattern, not a path; flag VALUES (`head -n 50`) aren't
     // FILEISH — so count the concrete store FILES among the args, not bare positionals.
-    const positionals = argv.filter((a) => !a.startsWith('-')).map((a) => a.replace(/^["']|["']$/g, ''));
-    const storeFiles = positionals.filter((a) => STORE.test(a) && FILEISH.test(a));
+    const positionals = (base ? fileOperands(tool, argv) : argv.filter((a) => !a.startsWith('-')).map((a) => a.replace(/^["']|["']$/g, ''))).map(inBase);
+    const storeFiles = positionals.filter((a) => STORE.test(a) && FILEISH.test(a) && !/(?:^|[\\/])\.ai[\\/]?$/.test(a));
     // ONE specific named file (no find, no recursion) — read/grep it directly; q can't return its raw
     // form. Discovery (find, recursion, a store dir, a glob, or >1 concrete file) stays q's to answer.
     const oneNamedFile = !isFind && !RECURSIVE_FLAG.test(c) && storeFiles.length === 1 && !hasGlob(storeFiles[0]);
@@ -306,6 +336,7 @@ function storeMsg(c, itemPath) {
     `  node "${Q}" show <id>            # one item, whole, by id`,
     `  node "${Q}" fts <terms...>       # full-text search title+body across stores`,
     `  node "${Q}" open [scope]         # open items (todo|doing|review)`,
+    `  node "${Q}" show <id> > <scratch file>   # a long item: write it out, then Read the file or scan it with node`,
     `  node "${Q}" inbox [scope]        # untriaged captures, with age + file path`,
     `  node "${Q}" confirmations        # captures aged past the confirmation threshold`,
     `  node "${Q}" doc-trail <id>       # an item's history, newest first`,

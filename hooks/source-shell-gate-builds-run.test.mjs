@@ -85,5 +85,16 @@ report('and the same cd into a source directory refuses, as in a direct call', s
 
 report('control: other builds verbs and a quoted word of another program are unchanged', passes(['builds', 'builds --audit', 'builds --wait "target/x/lib.rs" --timeout 170']));
 
+// A refused launcher call gets the launcher's usage, not the Write-gate advice (KIT-T1313).
+for (const bad of ['builds --run', 'builds --run "cargo check" --bogus 1', 'builds --run "cargo check" --out src/x.txt']) {
+  const text = verdict(bad).text;
+  check(`KIT-T1313 the block of "${bad}" names the usage form and not the Write-tool advice`,
+    text.includes('builds --run "<command>" --out <file> --timeout N --tool-timeout N') && text.includes('finished.log') && !text.includes('Use the Write tool'));
+}
+check('KIT-T1313 control: a real hand write keeps the Write-tool advice and no launcher usage', (() => {
+  const text = verdict('echo x > src/hand.rs').text;
+  return text.includes('Use the Write tool') && !text.includes('--tool-timeout N');
+})());
+
 console.log(fails ? `\nsource-shell-gate-builds-run: ${fails} failed` : '\nsource-shell-gate-builds-run: all pass');
 process.exit(fails ? 1 : 0);
