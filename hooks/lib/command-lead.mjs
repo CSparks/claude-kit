@@ -5,6 +5,8 @@
 //   leadIndex(words, matches) -> number
 //     the index of the first word `matches(name, restWords)` accepts, found past wrappers (`sudo -u root`, `env A=1`,
 //     `command`, `timeout 5`) and shell grouping words (`then`, `!`); -1 when another command leads
+//   fromCommandWord(text) -> string
+//     the segment text from its command word on, without keywords (`do`, `then`, `!`), `{`, `(` and env assignments before it
 
 const WRAPPER = /^(?:sudo|doas|env|command|exec|nohup|time|nice|ionice|timeout|stdbuf|xargs|builtin|setsid|unbuffer)$/i;
 const RESERVED = /^(?:!|if|then|else|elif|do|while|until)$/;
@@ -12,6 +14,12 @@ const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const NUMBER = /^\d+(?:\.\d+)?[smhd]?$/;
 
 export const commandName = (word) => String(word).replace(/.*[\\/]/, '').replace(/\.(?:exe|bat|cmd)$/i, '');
+
+// What can stand before a segment's command word: a compound-command keyword, an opening `{` or `(`, an env assignment.
+const LEAD_PREFIX = /^(?:\s+|(?:!|if|then|else|elif|do|while|until|\{)(?=\s)|\(+|[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"'])*(?=\s))+/;
+
+/** The segment text from its command word on: leading compound-command keywords, grouping and env assignments cut. */
+export const fromCommandWord = (text) => String(text).replace(LEAD_PREFIX, '');
 
 export function leadIndex(words, matches) {
   let wrapped = false;

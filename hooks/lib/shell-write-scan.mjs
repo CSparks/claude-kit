@@ -32,7 +32,8 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { isNodeInlineFlag, nodeLoadedModules, nodeScriptName } from './node-args.mjs';
+import { isNodeInlineFlag, nodeLoadedModules } from './node-args.mjs';
+import { KIT_TOOL, kitLed } from './kit-led.mjs';
 import { moveLinesCall } from './move-lines-call.mjs';
 import { discardHits, discardsBlind } from './git-discards.mjs';
 import { copyTargets } from './shell-copy-target.mjs';
@@ -40,7 +41,8 @@ import { commandCwd } from './shell-cwd.mjs';
 import { touchTargets } from './touch-target.mjs';
 import { touchPlaceKnown } from './touch-place.mjs';
 import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
-import { blindSegments, dequoted, segments, shellArgs } from './shell-segments.mjs';
+import { blindSegments, dequoted, segments } from './shell-segments.mjs';
+import { fromCommandWord } from './command-lead.mjs';
 import { launcherProblem } from './builds-run-args.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
 import { copyVariable } from './copy-variable.mjs';
@@ -51,7 +53,7 @@ import { runnerTexts } from './runner-texts.mjs';
 const BUILDS_LEAD = /^builds(?:\.cmd)?$/i;
 const RUN_FLAG = '--run';
 
-export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
+export { KIT_TOOL, kitLed };
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
 const WRITING_CMD = /^(?:rm|rd|del|erase|ren|rename|rmdir|unlink|tee|touch|truncate|remove-item|rename-item|new-item|set-content|add-content|out-file|clear-content)$/i;
 const TOUCH_CMD = /^touch$/i;
@@ -187,19 +189,6 @@ function judgeTool(tool, rest, text, ctx, argText) {
   if (isNode) return judgeNodeModules(rest, text, ctx);
   const script = operands.find((a) => SCRIPT_FILE.test(a));
   return script ? codeHit(readScript(script)) : null;
-}
-
-/**
- * True when the segment runs a kit verb: `q ...` or `node [flags] <kit script> ...`, never `node -e <code>` whatever the code names.
- * `move-lines` counts only when its arguments pass the move-lines guard from `cwd` (move-lines-call.mjs, KIT-T1159).
- */
-export function kitLed(text, cwd = process.cwd()) {
-  const move = moveLinesCall(text, cwd);
-  if (move) return !move.problem;
-  const args = shellArgs(text);
-  if (!args.length) return false;
-  const leader = nameOf(args[0]);
-  return /^node$/i.test(leader) ? KIT_TOOL.test(nodeScriptName(args.slice(1))) : KIT_TOOL.test(leader);
 }
 
 // A segment led by `touch` whose arguments are provably mtime-only: its file hits carry `mtimeOnly: { noCreate }`
