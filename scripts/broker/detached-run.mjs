@@ -7,8 +7,9 @@
 // reads the record once.
 //
 //   builds --run "<command>" [--out <file>] [--limit <s>] [--timeout <s> --tool-timeout <s>]
-//       the command runs in the directory the call starts in (the project root); the gate refuses a --cwd option in any
-//       form (source-shell-gate: put a `cd <dir> &&` inside the quoted command instead)
+//       the command runs in the directory the call starts in (the project root); the source-shell gate accepts only this
+//       surface: --out under target/ or the scratchpad, numbers for the three time flags, no other flag (a --cwd is refused:
+//       put a `cd <dir> &&` inside the quoted command instead)
 //       exit = the command's exit when it ended inside the wait window; 2 when it still runs (id, out file and how to resume named)
 //   builds --result <id>      one read of the record: running, or ended with its exit and the tail of the output
 //

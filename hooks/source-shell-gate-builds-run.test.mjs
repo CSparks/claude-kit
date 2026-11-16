@@ -52,6 +52,30 @@ report('a hand write inside the quoted command is refused with and without a ref
 const both = shellSourceWrites('builds --run "echo x > src/hand.rs" --cwd target');
 check('the quoted command is scanned whatever the launcher flags say: the launcher refusal and the hand write are both hits', Boolean(both) && scanAllShellWrites('builds --run "echo x > src/hand.rs" --cwd target', { hit: (p) => (/\.rs$/.test(p) ? { path: p } : null), codeHit: () => null }).some((h) => h.launcherProblem)
   && scanAllShellWrites('builds --run "echo x > src/hand.rs" --cwd target', { hit: (p) => (/\.rs$/.test(p) ? { path: p } : null), codeHit: () => null }).some((h) => h.path === 'src/hand.rs'));
+// The launcher's whole surface is an allowlist (KIT-T1284, review of def8fb5): --out names a file the verb writes.
+const scratch = mkdtempSync(join(tmpdir(), 'sgbr-scratch-')).replace(/\\/g, '/');
+const OUT_REFUSED = [
+  'builds --run "./p.exe" --out src/lib.rs', 'builds --run "./p.exe" --out=src/lib.rs', 'builds --run "./p.exe" --out "src/lib.rs"', "builds --run \"./p.exe\" --out '../src/x.rs'", 'builds --run "./p.exe" --out o.txt',
+  'builds --run "./p.exe" --out $F', 'builds --run "./p.exe" --out "$(pwd)/x"', 'builds --run "./p.exe" --out *.rs', 'builds --run "./p.exe" --out %OUT%', 'builds --run "./p.exe" --out !OUT!',
+  'builds --run "./p.exe" --out a.txt --out target/b.txt', 'builds --run "./p.exe" --out', 'builds --run "./p.exe" --out --limit 5', 'builds --run "./p.exe" --out ""', 'builds --run "./p.exe" --out target/../src/x.rs',
+  'builds --run "./p.exe" --out ~/x.txt', 'builds --run "./p.exe" --out /etc/passwd', 'builds --run "./p.exe" --out C:/Users/x/src/lib.rs', 'builds --run "./p.exe" --out target/x.txt --out=y.txt', 'builds --run "./p.exe" --"out" src/lib.rs',
+  'builds --run "./p.exe" --out ../target/x.txt',
+];
+report('--out must be a plain literal under target/ or the scratchpad: anywhere else, unresolvable, repeated or empty is refused', stops(OUT_REFUSED));
+const OPERANDS_REFUSED = [
+  'builds --run "./p.exe" --limit abc', 'builds --run "./p.exe" --timeout 1e9', 'builds --run "./p.exe" --tool-timeout $X', 'builds --run "./p.exe" --limit', 'builds --run "./p.exe" --limit=-5', 'builds --run "./p.exe" --timeout 170s',
+  'builds --run "./p.exe" --limit 5 --limit 6', 'builds --run "./p.exe" --foo 1', 'builds --run "./p.exe" --wait', 'builds --run "./p.exe" extra', 'builds --run "./p.exe" --run "./q.exe"', 'builds --run "./p.exe" -o x',
+  'builds --run "./p.exe" --limit "$(cat n)"', 'builds --run "./p.exe" --result id', 'builds --run "./p.exe" --out target/x.txt --verbose',
+];
+report('every other flag, bare word, repeated flag or non-numeric value is refused', stops(OPERANDS_REFUSED));
+const refusalText = verdict('builds --run "./p.exe" --out src/lib.rs').text;
+check('the refusal names the allowed surface and the allowed output locations', /takes only --run "<command>", --out <file> \(a path under target\/ or the session scratchpad/.test(refusalText) && /numbers for --limit, --timeout and --tool-timeout/.test(refusalText));
+report('the allowed surface passes: --out under target/ or an absolute scratch path, numbers, the = form, quotes, any order', passes([
+  'builds --run "./p.exe" --out target/o.txt', 'builds --run "./p.exe" --out ./target/o.txt', 'builds --run "./p.exe" --out "target/x y.txt"', 'builds --run "./p.exe" --out=target/o.txt', "builds --run \"./p.exe\" --out 'target/houses/o.txt'",
+  'builds --run "./p.exe" --out crates/a/target/o.txt', `builds --run "./p.exe" --out ${scratch}/o.txt`, 'builds --run "./p.exe" --limit 600 --timeout 170 --tool-timeout 180 --out target/o.txt', 'builds --run "./p.exe" --limit 1.5',
+  'builds --limit 600 --run "./p.exe" --out target/o.txt', 'builds --run "./p.exe" --timeout=170', 'builds --run "./p.exe"',
+]));
+report('the same through PowerShell', stops(['builds --run "./p.exe" --out src/lib.rs', 'builds --run "./p.exe" --limit abc'], 'PowerShell').concat(passes(['builds --run "./p.exe" --out target/o.txt --timeout 170'], 'PowerShell')));
 report('plain forms pass: no working-directory option', passes(['builds --run "./target/debug/probe.exe --frames 3" --out target/o.txt', 'builds --run "cargo build && cp target/debug/p.exe target/q.exe" --limit 600 --timeout 170 --tool-timeout 180']));
 const outside = mkdtempSync(join(tmpdir(), 'sgbr-out-')).replace(/\\/g, '/');
 report('a cd inside the quoted command moves the directory its later writes are judged in, as in a direct call: a directory outside every adopted repo passes', passes([`builds --run "cd ${outside} && cp a.bin gen/out.rs"`, `cd ${outside} && cp a.bin gen/out.rs`]));

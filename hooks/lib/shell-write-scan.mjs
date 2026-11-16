@@ -40,7 +40,8 @@ import { commandCwd } from './shell-cwd.mjs';
 import { touchTargets } from './touch-target.mjs';
 import { touchPlaceKnown } from './touch-place.mjs';
 import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
-import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
+import { blindSegments, dequoted, segments, shellArgs } from './shell-segments.mjs';
+import { launcherProblem } from './builds-run-args.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
 import { copyVariable } from './copy-variable.mjs';
 import { gitInnerHits } from './git-inner-hits.mjs';
@@ -48,9 +49,7 @@ import { cleaned, commandTokens } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
 
 const BUILDS_LEAD = /^builds(?:\.cmd)?$/i;
-const CWD_OPTION_NAME = '--cwd';
-const CWD_OPTION = /^--cwd(?:=|$)/;
-const CWD_OPTION_REFUSAL = 'builds --run with a working-directory option (--cwd) is refused: run it from the project root with paths relative to the root, or put the directory change inside the quoted command (cd <dir> && ...) where the gate reads it.';
+const RUN_FLAG = '--run';
 
 export const KIT_TOOL = /^(?:t|cap|rem|q|code-graph|t\.mjs|cap\.mjs|rem\.mjs|q\.mjs|index-tickets\.mjs|triage\.mjs|code-graph\.mjs)$/i;
 const READER = /^(?:grep|egrep|fgrep|rg|ag|ack|cat|less|more|head|tail|wc|ls|stat|file|diff|cmp)$/i;
@@ -230,9 +229,11 @@ function judgeSegment(text, ctx) {
   // moving the directory its later hits resolve against (KIT-T1284). The launcher's working-directory option in any form
   // is refused, and the quoted command is scanned whatever the launcher's flags say.
   if (BUILDS_LEAD.test(leader)) {
-    const refused = commandTokens(text).some((token) => CWD_OPTION.test(token.replace(/["']/g, '')));
-    const own = refused ? [{ path: CWD_OPTION_NAME, launcherProblem: CWD_OPTION_REFUSAL }] : [];
-    if (buildsRun.length || refused) {
+    const tokens = commandTokens(text);
+    const launches = tokens.some((token) => dequoted(token).replace(/["']/g, '') === RUN_FLAG);
+    const problem = launches ? launcherProblem(tokens, ctx.cwd) : '';
+    const own = problem ? [{ path: RUN_FLAG, launcherProblem: problem }] : [];
+    if (buildsRun.length || problem) {
       const nested = buildsRun.flatMap((run) => scanAllShellWrites(run.text, { ...ctx, shell: run.shell })
         .map((found) => ({ ...found, from: found.from || commandCwd(run.text, ctx.cwd, { upto: found.segment, shell: run.shell }) })));
       return [...hits, ...own, ...nested];
