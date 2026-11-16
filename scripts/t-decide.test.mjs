@@ -134,6 +134,42 @@ try {
     assert.match(text, /\*\*Checked, not duplicates:\*\* KIT-D009, KIT-D010\n$/);
   });
 
+  const ruled = (s, id, clause) => writeFileSync(join(s.dir, `${id}-ruled.md`), `---\nid: ${id}\ntitle: ruled ${id}\n---\n\n**Decision:** ${clause}\n\n**Why:** because.\n`);
+  const RESTATES = 'Every default menu is overridable by the player from the settings screen.';
+  const withDecision = (title, clause, extra = '') => `---\ntitle: ${title}\n---\n\n**Decision:** ${clause}\n\n**Why:** because.\n${extra}`;
+  const restateStore = () => {
+    const s = store();
+    ruled(s, `${s.key}-D002`, 'Everything at menu level can be overridden by the player in the settings screen.');
+    ruled(s, `${s.key}-D003`, 'Cargo workspaces batch their test runs on a quiet machine.');
+    return s;
+  };
+
+  ok('a draft whose Decision restates an existing decision is refused with the id and clause, and mints nothing (KIT-T1315)', () => {
+    const s = restateStore();
+    const before = readdirSync(s.dir).length;
+    assert.throws(() => recordDecision(s.root, withDecision('menus overridable', RESTATES)), (e) => e.message.includes(`${s.key}-D002`) && /overridden by the player/.test(e.message) && /restates-ok/.test(e.message));
+    assert.equal(readdirSync(s.dir).length, before);
+  });
+
+  ok('a restating draft passes when it cites the id, amends it, carries restates-ok, or supersedes it; an unrelated draft passes', () => {
+    const record = (title, clause, extra, opts) => {
+      const s = restateStore();
+      const id = `${s.key}-D002`;
+      return recordDecision(s.root, withDecision(title, clause.replace('<id>', id), (extra || '').replace('<id>', id)), opts && { supersedes: id }).id;
+    };
+    assert.ok(record('cites in body', RESTATES, '\n**Relates:** <id>\n'));
+    assert.ok(record('amends token', `${RESTATES} [amends: <id>]`));
+    assert.ok(record('restates ok token', `${RESTATES} [restates-ok: the new one adds the audio menu]`));
+    assert.ok(record('supersedes flag', RESTATES, '', true));
+    assert.ok(record('unrelated', 'Terrain chunks cull by a hand authored bounding box.'));
+  });
+
+  ok('negative: an empty restates-ok reason and a cite of a different decision still refuse', () => {
+    const s = restateStore();
+    assert.throws(() => recordDecision(s.root, withDecision('empty why', `${RESTATES} [restates-ok: ]`)), /D002/);
+    assert.throws(() => recordDecision(s.root, withDecision('wrong cite', RESTATES, `\n**Relates:** ${s.key}-D003\n`)), /D002/);
+  });
+
   ok('the CLI records a draft file and prints the id', () => {
     const s = store();
     const file = join(s.root, 'draft.md');

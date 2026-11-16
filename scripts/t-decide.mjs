@@ -22,6 +22,9 @@
 // A decision that settles a framework concern in a game store is also mirrored into the framework store as an open ticket
 // (KIT-T943); the decision gains `promoted: <ticket>`.
 //
+// A Decision paragraph that restates an open decision (the question gate's clause matcher) is refused unless the draft cites
+// that id or carries `[restates-ok: <why>]` (t-decide-restate.mjs, KIT-T1315).
+//
 // The decision also adds a dated `decided <id>: <title>` line to `.ai/SESSION.md` through `t session`'s writer (KIT-T1139).
 //
 // `recordDecision(root, draftText, { from, ticket, noWork, supersedes, notDup })` → { id, path, cleared, mirrored?: { ticket, aiDir }, mirrorError?, sessionError? }.
@@ -37,6 +40,7 @@ import { moveCapToTriaged } from './triage/write-item.mjs';
 import { mirrorDecision } from './framework-mirror.mjs';
 import { writeSession } from './t-session.mjs';
 import { findItemFile } from './q-show.mjs';
+import { restateRefusal, restatedDecisions } from './t-decide-restate.mjs';
 
 const SLUG_MAX = 64;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -112,6 +116,8 @@ function resolveLinks(root, draft, { ticket, noWork, supersedes }) {
 export function recordDecision(root, text, { from = [], ticket = '', noWork = '', supersedes = '', notDup = [] } = {}) {
   const draft = parseDraft(text);
   const links = resolveLinks(root, draft, { ticket, noWork, supersedes });
+  const restated = restatedDecisions(root, text, [...idList(links.supersedes), ...notDup]);
+  if (restated.length) throw new Error(restateRefusal(restated));
   const notes = resolveInboxNotes(root, from);
   const dir = join(root, '.ai', 'decisions');
   const id = draft.id ? claimExactly(root, dir, draft.id) : reserveNextId(root, 'decisions');
