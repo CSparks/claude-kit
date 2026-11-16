@@ -17,6 +17,7 @@
 
 import { GROUNDED_CLAUSE_PER_QUESTION, GROUNDED_CLAUSE_RARE_MIN_DF, GROUNDED_CLAUSE_RARE_SHARE, GROUNDED_CLAUSE_SCORE, GROUNDED_CLAUSE_SHARED } from './question-checks.mjs';
 import { optionStems } from './question-grounding.mjs';
+import { stemRarity } from './stem-rarity.mjs';
 import { ID_CITE_SRC } from './ids.mjs';
 
 const DECISION_PARAGRAPH = /\*\*Decision:\*\*([\s\S]*?)(?=\n\s*\*\*[A-Za-z][\w -]*:\*\*|$)/i;
@@ -40,12 +41,8 @@ export function indexClauses(docs) {
   for (const d of docs.filter((x) => x.kind === 'decision')) {
     for (const clause of decisionClauses(d.text)) clauses.push({ id: d.id, kind: d.kind, title: d.title, clause, stems: optionStems(clause) });
   }
-  const df = new Map();
-  for (const c of clauses) for (const s of c.stems) df.set(s, (df.get(s) || 0) + 1);
-  const rareMaxDf = Math.max(GROUNDED_CLAUSE_RARE_MIN_DF, Math.floor(clauses.length * GROUNDED_CLAUSE_RARE_SHARE));
-  const top = Math.log(1 + clauses.length);
-  const weight = (s) => Math.log(1 + clauses.length / df.get(s)) / top;
-  return { clauses, weight, isRare: (s) => df.get(s) <= rareMaxDf };
+  const { weight, isRare } = stemRarity(clauses.map((c) => c.stems), { share: GROUNDED_CLAUSE_RARE_SHARE, minDf: GROUNDED_CLAUSE_RARE_MIN_DF });
+  return { clauses, weight, isRare };
 }
 
 function scoreClause(index, wanted, c) {
