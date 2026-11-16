@@ -78,20 +78,27 @@ function pushTarget(toks, dir, ctx) {
 // [{ kind: 'gh pr create' | 'git push' | ..., slug, remote, dir }].
 export function foreignSubmissions(command, cwd, ctx) {
   const out = [];
-  collectSubmissions(String(command), cwd, ctx, out, 0);
+  collectSubmissions(String(command), cwd, ctx, out, 0, false);
   return out;
+}
+
+// The directory of every `git push` in `command`, whoever owns the remote: [{ dir }] (the pre-push wiring check, KIT-T1300).
+export function pushedRepos(command, cwd, ctx) {
+  const out = [];
+  collectSubmissions(String(command), cwd, ctx, out, 0, true);
+  return out.filter((f) => f.kind === 'git push').map(({ dir }) => ({ dir }));
 }
 
 // One command text: each segment, then the command strings it runs (`bash -c`, `ssh`, `eval`, substitutions), each from
 // the directory the segments before it reached.
-function collectSubmissions(command, cwd, ctx, out, depth) {
+function collectSubmissions(command, cwd, ctx, out, depth, every) {
   let dir = cwd;
   for (const { text } of segments(command)) {
     const seg = text.trim();
     if (!seg) continue;
     const cd = cdTarget(seg);
     if (cd) { dir = ctx.resolveDir(dir, cd); continue; }
-    if (depth < MAX_NESTING) commandRuns(seg, '').forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1));
+    if (depth < MAX_NESTING) commandRuns(seg, '').forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1, every));
     const toks = tokenize(seg);
     const env = {};
     while (toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[0])) { const [k, ...v] = toks.shift().split('='); env[k] = v.join('='); }
@@ -107,7 +114,7 @@ function collectSubmissions(command, cwd, ctx, out, depth) {
       if (call.sub === 'push') found = { kind: 'git push', ...pushTarget(call.args, segDir, ctx) };
       if (found) found.dir = segDir;
     }
-    if (found && found.slug && !isOwnSlug(found.slug)) out.push({ ...found, dir: found.dir || dir });
+    if (found && (every || (found.slug && !isOwnSlug(found.slug)))) out.push({ ...found, dir: found.dir || dir });
   }
 }
 

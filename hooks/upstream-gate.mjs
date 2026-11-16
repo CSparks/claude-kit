@@ -9,13 +9,18 @@
 //            of Claude trailers and AI attribution.
 // Runs in any repo, adopted or not: the fork checkout a contribution comes from is not one.
 // Check-id: upstream-policy (path glob subject: the target's owner/repo).
+// Also: a `git push` of a repo that tracks a pre-push gate git is not set to run is blocked with the command that wires
+// it, and a push whose wiring cannot be checked is blocked (KIT-T1300; lib/push-hooks.mjs). Check-id: pre-push-wired
+// (path glob subject: the tracked hooks directory, repo-relative).
 
 import { resolve } from 'node:path';
 import { payload, git, gitRoot, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
 import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
-import { foreignSubmissions, policyToken, slugOf, CLAUDE_TRAILER, POLICY_URLS } from './lib/upstream-policy.mjs';
+import { foreignSubmissions, policyToken, pushedRepos, slugOf, CLAUDE_TRAILER, POLICY_URLS } from './lib/upstream-policy.mjs';
+import { pushHookStatus, wireCommand } from './lib/push-hooks.mjs';
 
 const CHECK_ID = 'upstream-policy';
+const WIRING_CHECK_ID = 'pre-push-wired';
 
 const ctx = {
   resolveDir: (from, to) => resolve(from, to),
@@ -91,20 +96,51 @@ const AI_FOUND = (sub, hits) => [
   '',
 ].join('\n');
 
+const wiringBlock = (lines) => {
+  process.stderr.write(`\nBLOCKED: ${lines.join('\n')}\n${excludeFooter(WIRING_CHECK_ID)}`);
+  process.exit(2);
+};
+
+// A `git push` whose repo tracks a pre-push gate that git is not set to run is blocked with the command that wires it; a git
+// call that fails is blocked too (KIT-T1300). A repo with no tracked pre-push is untouched.
+function checkPushHooks(command) {
+  let repos;
+  try {
+    repos = pushedRepos(command, process.cwd(), ctx);
+  } catch (e) {
+    if (/\bgit(?:\.exe)?\b[^\n]*\bpush\b/.test(command)) wiringBlock([`the repo of this git push could not be found, so its pre-push wiring was not checked (${e.message}).`]);
+    return;
+  }
+  for (const { dir } of repos) {
+    let verdict;
+    try {
+      verdict = pushHookStatus(dir);
+    } catch (e) {
+      wiringBlock([`the pre-push wiring of ${dir} could not be checked, and a check that cannot complete refuses (KIT-T1300): ${e.message}`]);
+    }
+    if (verdict.status !== 'unwired' || pathExcluded(verdict.top, WIRING_CHECK_ID, verdict.hookDir)) continue;
+    wiringBlock([
+      `this git push would run no pre-push gate (KIT-T1300): ${verdict.top.replace(/\\/g, '/')} tracks ${verdict.hookDir}/pre-push, but core.hooksPath does not point at it and`,
+      'the git dir has no pre-push hook, so git skips the gate. Wire it once, then push:',
+      `  ${wireCommand(verdict.top, verdict.hookDir)}`,
+    ]);
+  }
+}
+
 try {
   const p = await payload();
   const command = (p.tool_input && p.tool_input.command) || '';
   if (!/\b(?:gh|git)(?:\.exe)?\b/.test(command) || !/\b(?:create|comment|push)\b/.test(command)) process.exit(0);
   const marks = markerExcludedLines(command, CHECK_ID);
-  if (marks.wholeFile || marks.lines.size) process.exit(0);
+  const upstreamMarked = marks.wholeFile || marks.lines.size;
 
-  if (segments(command).ambiguous) {
+  if (segments(command).ambiguous && !upstreamMarked) {
     process.stderr.write(`\nBLOCKED: a gh or git submission cannot be matched to its target repo (KIT-T395). ${AMBIGUOUS_MESSAGE}\n${excludeFooter(CHECK_ID)}`);
     process.exit(2);
   }
 
   const token = policyToken(command);
-  for (const sub of foreignSubmissions(command, process.cwd(), ctx)) {
+  for (const sub of upstreamMarked ? [] : foreignSubmissions(command, process.cwd(), ctx)) {
     if (pathExcluded(gitRoot(sub.dir), CHECK_ID, sub.slug)) continue;
     if (!token) { process.stderr.write(NO_TOKEN(sub) + excludeFooter(CHECK_ID)); process.exit(2); }
     if (token.aiAllowed) continue;
@@ -113,6 +149,7 @@ try {
     if (hits.length) { process.stderr.write(AI_FOUND(sub, hits) + excludeFooter(CHECK_ID)); process.exit(2); }
     process.stderr.write(`upstream-policy: ${sub.kind} to ${sub.slug} is ai-allowed: no. The title, body and comments must be the maintainer's own words.\n`);
   }
+  checkPushHooks(command);
   process.exit(0);
 } catch {
   process.exit(0);

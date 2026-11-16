@@ -10,6 +10,7 @@ import { frameworksFor } from './frameworks.mjs';
 import { otherConsumerPins } from './framework-pin/consumers.mjs';
 import { pinDelta } from './framework-pin/delta.mjs';
 import { fetchOrigin } from './framework-pin/fetch.mjs';
+import { hookWiringLine } from './framework-pin/hook-wiring.mjs';
 import { forecastConflicts } from './framework-pin/forecast.mjs';
 import { renderPin } from './framework-pin/render.mjs';
 import { readPinState } from './framework-pin/state.mjs';
@@ -23,7 +24,7 @@ async function reportFor(root, framework, subPath, fetch) {
   const comparable = state.gitlinkKnown && state.origin;
   const delta = comparable && state.behind ? await pinDelta(root, subPath, state.gitlink, state.origin) : { subjects: [], more: 0, files: [], crates: [], mayBreak: [], wide: false };
   const forecast = held ? { overlaps: [], collisions: [], merge: 'none', mergeFiles: [] } : forecastConflicts(sub, state);
-  return renderPin({ name: framework.submodule, state, delta, forecast, fetch: fetched, held, others: otherConsumerPins(root, framework) });
+  return renderPin({ name: framework.submodule, state, delta, forecast, fetch: fetched, held, others: otherConsumerPins(root, framework), hooks: hookWiringLine(sub) });
 }
 
 export async function frameworkPinReport(root, { fetch = true } = {}) {

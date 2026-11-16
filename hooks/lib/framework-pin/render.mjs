@@ -1,7 +1,8 @@
 // framework-pin/render.mjs — the SessionStart block for one framework submodule (KIT-D141): a plain text block
 // headed `--- FRAMEWORK PIN (KIT-D141) ---`, one `!!` line per condition that needs the session's attention.
 //
-//   renderPin({ name, state, delta, forecast, fetch, held, others }) -> string (no trailing newline)
+//   renderPin({ name, state, delta, forecast, fetch, held, others, hooks }) -> string (no trailing newline)
+//     hooks: the one line on the pre-push gate's wiring (hook-wiring.mjs, KIT-T1300); omitted when not given
 
 const SHORT = 7;
 const MS_PER_MIN = 60_000;
@@ -50,7 +51,7 @@ function deltaLines({ state, delta }) {
 }
 
 export function renderPin(ctx) {
-  const { name, state, fetch, held, others } = ctx;
+  const { name, state, fetch, held, others, hooks } = ctx;
   const head = state.head && state.head !== state.gitlink ? `, checkout ${short(state.head)}${state.branch ? ` on ${state.branch}` : ''}` : '';
   const lines = [
     '--- FRAMEWORK PIN (KIT-D141) ---',
@@ -58,6 +59,7 @@ export function renderPin(ctx) {
   ];
   if (held) lines.push('broker holds the tree: reported from the recorded pin and origin/main only');
   lines.push(...deltaLines(ctx), ...alerts(ctx));
+  if (hooks) lines.push(hooks);
   if (others.length) lines.push(`other consumers' pins: ${others.map((o) => `${o.name} ${short(o.sha)}`).join(', ')}`);
   return lines.join('\n');
 }
