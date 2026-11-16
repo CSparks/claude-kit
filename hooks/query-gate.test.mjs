@@ -46,6 +46,9 @@ expect('blocks bare rg (recursive by default)', run(d, 'rg PhysicsSim').code, 2)
 {
   const alt = run(d, 'grep -rn "rayon\\|ComputeTaskPool" engine/src engine/Cargo.toml').err;
   expect('KIT-T1307: the block of an alternation grep over named paths gives the q code line with --regex and each --path', /code 'rayon\\\|ComputeTaskPool' --regex --path engine\/src --path engine\/Cargo\.toml\n/.test(alt), true);
+  const store = run(d, 'grep -rn "chunk\\|plant" .ai/tickets').err;
+  expect('KIT-T1311: the block of an alternation grep of the .ai store gives q fts with each term and --any, and names q show', /q\.mjs" fts chunk plant --any\n/.test(store) && /q\.mjs" show <id>/.test(store), true);
+  expect('KIT-T1311 control: a single-term store grep gives plain q fts', /q\.mjs" fts physics\n/.test(run(d, 'grep -rn "physics" .ai/tickets').err), true);
   expect('KIT-T1307 control: a grep with no path operand keeps the add --path hint', /code PhysicsSim\s+\(add --lang L --path P as needed\)/.test(run(d, 'grep -rn PhysicsSim').err), true);
 }
 expect('KIT-T705 negative control: node -e with escaped quotes and no search word passes', run(d, 'node -e "console.log(\\"x\\")"').code, 0);

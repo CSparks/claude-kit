@@ -133,6 +133,20 @@ try {
     assert.doesNotMatch(r.stderr, /Filed as/);
     assert.equal(flagHint('fts', '--path') !== '' && flagHint('fts', '--bogus') === '' && flagHint('show', '--path') === '', true);
   });
+
+  await ok('an empty q code answer names the forms that widen it: --regex, -C, q fts, q show (KIT-T1311)', async () => {
+    const out = await codeVerbRows('code', [['zz', 'absent', 'token', Date.now()].join('-')], process.cwd());
+    const note = out.map((r) => r.text).join('\n');
+    assert.match(note, /--regex/);
+    assert.match(note, /-C 2/);
+    assert.match(note, /q fts <terms> \[--any\]/);
+    assert.match(note, /q show <id>/);
+  });
+
+  await ok('negative control: a q code answer with hits carries no widening hint', async () => {
+    const out = await codeVerbRows('code', ['ERROR', '--dir', dir], process.cwd());
+    assert.equal(out.some((r) => /No hits/.test(String(r.text))), false);
+  });
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

@@ -459,8 +459,11 @@ export async function codeVerbRows(cmd, args, root, refresh = refreshIndex) {
   const missing = uncheckedFrameworks(root);
   const names = missing.map((m) => `${m.name} (${m.path})`).join(', ');
   const notChecked = missing.length ? [{ loc: '', text: `NOT searched: framework submodule ${names} is not checked out here, so "no results" proves nothing about it (git submodule update --init)` }] : [];
-  return [...rows, ...notChecked, ...(cmd === 'code' ? outsideIndexHint(args) : [])];
+  return [...rows, ...notChecked, ...(cmd === 'code' ? [...outsideIndexHint(args), ...emptyHint()] : [])];
 }
+
+// A grep habit starts from an empty answer: name every q form that widens it, so none is a reason to grep.
+const emptyHint = () => [{ loc: '', text: 'No hits: try --regex (a|b alternation) or -i, a wider --path, -C 2 for context lines; work items are `q fts <terms> [--any]`, one item `q show <id>`. Never grep.' }];
 
 // The index holds the repo's tracked and unignored files: a dependency tree fetched into a gitignored build
 // directory, or one installed outside the repo (JUCE under C:/JUCE), is searched with --dir or an absolute --path.

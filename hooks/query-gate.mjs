@@ -285,6 +285,8 @@ function exactLine(c, verb, paths = []) {
   const pattern = call && call.pattern;
   if (!pattern) return [];
   const quoted = /^[\w.-]+$/.test(pattern) ? pattern : `'${pattern.replace(/'/g, `'\\''`)}'`;
+  const terms = pattern.split(/\\?\|/);
+  if (verb === 'fts' && terms.length > 1 && terms.every((t) => /^[\w.-]+$/.test(t))) return [`Exact equivalent:  node "${Q}" fts ${terms.join(' ')} --any`, ''];
   if (verb !== 'code') return [`Exact equivalent:  node "${Q}" ${verb} ${quoted}`, ''];
   const scope = scopeFlags(paths);
   return [`Exact equivalent:  node "${Q}" code ${quoted}${call.shape === 'regex' ? ' --regex' : ''}${scope}${scope ? '' : '   (add --lang L --path P as needed)'}`, ''];
