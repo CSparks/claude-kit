@@ -92,6 +92,13 @@ function equivalentLine({ command, files, pattern, regex, q, root, cwd }) {
 const MSG_WIDTH = 120;
 const trunc = (s) => (s.length > MSG_WIDTH ? `${s.slice(0, MSG_WIDTH - 3)}...` : s);
 
+const LOG_FILE = /\.(?:log|txt|out|err)$|(?:^|[\\/])target[\\/]/i;
+
+// A build log or other output file is read, or its producing command is filtered inline: the Read tool comes first.
+const logLeadLines = (files) => (files.some((f) => LOG_FILE.test(f))
+  ? ['This is a log or build output. FIRST: read it with the Read tool (offset, limit), or next time filter the producing command inline', "(cargo build 2>&1 | grep -E 'error|warning' | head -40). To search it, the q form below.", '']
+  : []);
+
 export function oneFileMsg(call) {
   const { command, files, q } = call;
   return [
@@ -99,6 +106,7 @@ export function oneFileMsg(call) {
     'BLOCKED: a pattern search of a named file with a text tool (q code searches any file; Read shows it).',
     `  ${trunc(command)}`,
     '',
+    ...logLeadLines(files),
     `Exact equivalent:  ${equivalentLine(call)}`,
     ...(files.length > 1 ? ['  --dir takes one path: run it once per file, or scope with --path <dir> when they share one.'] : []),
     '',

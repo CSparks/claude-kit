@@ -1,13 +1,15 @@
 // The text of a commit message the command text does not carry: a message file given to `git commit -F <file>`,
 // `-F<file>`, `-aF <file>`, `--file <file>` or `--file=<file>` (KIT-T1019, KIT-T364).
 //   commitMessageFile(command, shell?) -> { path } | { stdin: true } | null   the file the command names, `-` meaning stdin
-//   commitMessageText(command, cwd, shell?) -> string                         that file's text, '' when none, stdin or unreadable
+//   commitMessageText(command, cwd, shell?) -> string                         the message the command does not carry: that file's text, or the kept commit's
+//     message (a bare `--amend` keeps HEAD's; `-C`/`-c`/`--reuse-message`/`--reedit-message` name a commit) (KIT-T1354); '' when none, stdin or unreadable
 //   unreadableMessageFile(command, cwd, shell?) -> string                     the -F path as the gate resolved it, '' when readable
 //   commitMessagePath(command, cwd, shell?) -> string                         the -F file as an absolute path, '' for none or stdin
 // A path built from a variable the command assigns as a plain literal (`S=/x; git commit -F "$S/m.txt"`) is expanded
 // first; `shell` is 'powershell' or 'bash' (default). A stdin message (`-F -`) cannot be read ahead of the commit: the
 // caller judges the command text alone, which carries a heredoc body, and never blocks a citation the text already holds.
 
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { commitCall } from './git-calls.mjs';
@@ -69,9 +71,50 @@ const readMessage = (file, cwd) => {
   }
 };
 
+const AMEND_HEAD = 'HEAD';
+const REUSE_LONG = /^--(?:reuse|reedit)-message(?:=(.*))?$/;
+const MESSAGE_LONG = /^--(?:message|file)(?:=|$)/;
+const MESSAGE_LETTERS = new Set(['m', 'F']);
+const REUSE_LETTERS = new Set(['c', 'C']);
+const GIT_TIMEOUT_MS = 10000;
+
+// The commit whose message the commit keeps: `-C`/`-c`/`--reuse-message`/`--reedit-message` name it, a bare `--amend` keeps
+// HEAD's; '' when the command gives a new message (-m, -F, --message, --file) or keeps none.
+function keptMessageRevision(tokens) {
+  let amend = false;
+  let rev = '';
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t === '--') break;
+    if (t === '--amend') { amend = true; continue; }
+    if (MESSAGE_LONG.test(t)) return '';
+    const reuse = REUSE_LONG.exec(t);
+    if (reuse) { rev = reuse[1] ?? tokens[++i] ?? ''; continue; }
+    if (t.startsWith('--')) { if (VALUE_OPTIONS.has(t)) i++; continue; }
+    if (!t.startsWith('-') || t === '-') continue;
+    const cluster = t.slice(1);
+    const at = [...cluster].findIndex((c) => MESSAGE_LETTERS.has(c) || REUSE_LETTERS.has(c) || c === 't');
+    if (at < 0) continue;
+    if (MESSAGE_LETTERS.has(cluster[at])) return '';
+    const value = cluster.slice(at + 1) || tokens[++i] || '';
+    if (REUSE_LETTERS.has(cluster[at])) rev = value;
+  }
+  return rev || (amend ? AMEND_HEAD : '');
+}
+
+function revisionMessage(rev, cwd) {
+  if (!rev || rev.startsWith('-')) return '';
+  try {
+    return execFileSync('git', ['-C', cwd, 'log', '-1', '--format=%B', rev, '--'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: GIT_TIMEOUT_MS, windowsHide: true }).slice(0, MAX_MESSAGE_BYTES);
+  } catch {
+    return '';
+  }
+}
+
 export function commitMessageText(command, cwd, shell = 'bash') {
   const file = commitMessageFile(command, shell);
-  return !file || file.stdin ? '' : readMessage(file, cwd) ?? '';
+  if (file) return file.stdin ? '' : readMessage(file, cwd) ?? '';
+  return revisionMessage(keptMessageRevision(commitTokens(String(command || ''), shell)), cwd);
 }
 
 export function unreadableMessageFile(command, cwd, shell = 'bash') {
