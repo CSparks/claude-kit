@@ -8,7 +8,7 @@
 // file, and so is a file whose content an Edit or Write of any session left during the call (the accepted-writes
 // ledger, tool-write-record.mjs): another writer's concurrent edit, judged by pre-write, never the call's (KIT-T888).
 // A file holding another writer's predicted content whose confirmation has not landed yet waits for it (lib/settle-writes.mjs, KIT-T1010).
-// A file git put back (content equal to HEAD, or an earlier Edit's content in a call that runs git) is no write either
+// A file git put back (content equal to HEAD, a blob a reachable commit holds for that path or an earlier Edit's content, in a call that runs git) is no write either
 // (lib/restored-content.mjs, KIT-T982), and so is a byte-identical git rename (lib/identical-renames.mjs, KIT-T991).
 // A snapshot that cannot be taken (git status fails in an adopted repo) is a check that could not complete: Post exits 2 and says so
 // (KIT-T1271). Check-id source-shell-write. Post exits 2 to show the message. No-ops on unadopted repos; any other error fails open.

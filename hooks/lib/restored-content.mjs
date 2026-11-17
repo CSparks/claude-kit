@@ -1,5 +1,7 @@
 // A source file a shell call changed is no hand write when git put it back (KIT-T982, KIT-T963, KIT-T977, KIT-T933):
 //   - its content equals HEAD's blob: a revert or a stash leaves no diff to gate and nothing to re-save;
+//   - with git in the command, its content equals a blob a commit reachable from HEAD or a branch, tag or remote ref
+//     recorded for that path (history-blobs.mjs: `git checkout <rev> -- <path>`, KIT-T1337);
 //   - a git call put back content the calling session's own Edit or Write left: the ledger holds a CONFIRMED entry
 //     of this session, made within RESTORE_WINDOW_MS, for these exact bytes (as-is, LF or CRLF), and git's object
 //     store holds a blob of them (a stash, an index entry or a commit made it). pre-write judged that content when
@@ -18,6 +20,7 @@ import { gitTry } from './exec.mjs';
 import { segments } from './shell-segments.mjs';
 import { leaderOf } from './inert-command.mjs';
 import { toolWriteEntries } from './tool-write-ledger.mjs';
+import { committedPathContent } from './history-blobs.mjs';
 
 const CHUNK = 100;
 const GIT_LEADER = /^git$/i;
@@ -86,6 +89,7 @@ export function restoredSources(root, rels, command, { session = '', now = Date.
     if (variants(root, rel).slice(0, 2).map(blobId).includes(head.get(rel))) restored.add(rel);
   }
   if (!runsGit(command)) return restored;
+  for (const rel of committedPathContent(root, rels.filter((rel) => !restored.has(rel)), (rel) => variants(root, rel))) restored.add(rel);
   for (const rel of rels) if (!restored.has(rel) && replaysOwnWrite(root, rel, session, now)) restored.add(rel);
   return restored;
 }
