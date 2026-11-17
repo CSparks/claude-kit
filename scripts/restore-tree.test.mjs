@@ -84,6 +84,24 @@ try {
   ok('negative control: another writer\'s staged new file, in no commit, refuses the run and stays staged', keepStaged.code === 1
     && /staged-new\.rs/.test(keepStaged.err) && staged.read('crates/a/staged-new.rs') === 'fn staged_new() {}\n' && git(['diff', '--cached', '--name-only'], staged.dir).trim() === 'crates/a/staged-new.rs');
 
+  const stagedEdit = history();
+  stagedEdit.put('crates/a/shared.rs', 'fn staged_only() {}\n');
+  git(['add', 'crates/a/shared.rs'], stagedEdit.dir);
+  stagedEdit.put('crates/a/shared.rs', 'fn shared_v1() {}\n');
+  const keepEdit = stagedEdit.run(['--back', 'crates/a']);
+  ok('negative control: a staged blob no commit holds is not discarded by an index reset: refused, worktree and index unchanged', keepEdit.code === 1
+    && /shared\.rs.*staged change/.test(keepEdit.err) && stagedEdit.read('crates/a/shared.rs') === 'fn shared_v1() {}\n'
+    && git(['show', ':crates/a/shared.rs'], stagedEdit.dir).replace(/\r\n/g, '\n') === 'fn staged_only() {}\n');
+
+  const stagedStray = history();
+  stagedStray.put('crates/a/old.rs', 'fn staged_new() {}\n');
+  git(['add', 'crates/a/old.rs'], stagedStray.dir);
+  stagedStray.put('crates/a/old.rs', 'fn old() {}\n');
+  const keepStray = stagedStray.run(['--back', 'crates/a']);
+  ok('negative control: a staged new file whose index blob no commit holds is not dropped even when its bytes on disk are committed', keepStray.code === 1
+    && /old\.rs.*staged change/.test(keepStray.err) && stagedStray.has('crates/a/old.rs')
+    && git(['diff', '--cached', '--name-only'], stagedStray.dir).trim() === 'crates/a/old.rs');
+
   const large = history();
   large.put('crates/a/golden.bin', 'x'.repeat(3 * (1 << 19)));
   git(['add', '-A'], large.dir);

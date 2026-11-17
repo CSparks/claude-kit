@@ -8,6 +8,7 @@
 //   diskFiles(root, paths) -> Set of the files that exist under `paths`: tracked, or untracked and not ignored
 //   sameBytes(root, path, blobId) -> the file on disk holds that blob, with CRLF read as LF
 //   recoverablePaths(root, rels) -> Set of the `rels` whose bytes on disk some commit holds at that path (HEAD first, then history)
+//   unrecoverableStaged(root, paths) -> the `paths` whose index blob no commit reachable from HEAD, a branch, a tag or a remote holds at that path (HEAD's own blob always passes)
 //   dropStaged(root, paths, tracked) -> removes the index entries of those paths that `tracked` (the index's paths) holds
 //   checkout(root, commit, files, { alsoIndex }) -> git writes the commit's version of each file into the work tree. The index is
 //     untouched, except with alsoIndex (the commit is HEAD): those entries are set to HEAD's too, which is what leaves `git status`
@@ -80,6 +81,22 @@ export function recoverablePaths(root, rels) {
   const atHead = rels.filter((rel) => sameBytes(root, rel, head.get(rel)));
   const rest = rels.filter((rel) => !atHead.includes(rel));
   return new Set([...atHead, ...committedPathContent(root, rest, (rel) => bytesOf(root, rel))]);
+}
+
+/** The paths of `paths` whose index entry holds a blob that neither HEAD nor a commit reachable from it holds at that path: staged work an index reset would discard. */
+export function unrecoverableStaged(root, paths) {
+  const head = headBlobs(root, paths);
+  const staged = new Map();
+  for (const entry of lines(run(root, ['ls-files', '-s', '-z', '--', ...paths]))) {
+    const [meta, path] = entry.split('\t');
+    const [, id, stage] = meta.split(' ');
+    if (stage === '0' && id !== head.get(path)) staged.set(path, id);
+  }
+  const indexBytes = (rel) => {
+    try { return [execFileSync('git', ['cat-file', 'blob', staged.get(rel)], { cwd: root, maxBuffer: BUFFER_BYTES, windowsHide: true })]; } catch { return []; }
+  };
+  const held = committedPathContent(root, [...staged.keys()], indexBytes);
+  return [...staged.keys()].filter((path) => !held.has(path));
 }
 
 /** Removes from the index the entries of `paths`, which the commit HEAD names lacks (a raw `git checkout <rev> -- <dir>` staged them). */

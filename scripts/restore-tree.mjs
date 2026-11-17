@@ -14,13 +14,14 @@
 // replaces a revision file) refuses the whole run before anything changes, naming the files. An untracked file no commit
 // holds that the revision lacks is left where it is. Going to an older revision leaves the index alone, so a commit of staged
 // files holds no bisect state; going to HEAD also sets the index entries of the files it writes to HEAD's and drops the entries
-// a raw `git checkout <rev> -- <dir>` staged for files HEAD lacks. Ignored files and
+// a raw `git checkout <rev> -- <dir>` staged for files HEAD lacks; an index entry whose blob no commit holds (staged work) refuses
+// that run too. Ignored files and
 // submodule entries are left alone. The shell gates read a call of this verb as git restoring committed content
 // (hooks/lib/restore-tree-call.mjs). Exit 0 done, 1 refused or failed.
 
 import { isMain } from './is-main.mjs';
-import { emptiedParents, planRestore } from './restore-tree/plan.mjs';
-import { checkout, commitOf, diskFiles, dropStaged, recoverablePaths, removeFiles, repoPaths, sameBytes, trackedFiles, treeBlobs, treeRoot } from './restore-tree/repo.mjs';
+import { emptiedParents, planRestore, STAGED } from './restore-tree/plan.mjs';
+import { checkout, commitOf, diskFiles, dropStaged, recoverablePaths, removeFiles, repoPaths, sameBytes, trackedFiles, treeBlobs, treeRoot, unrecoverableStaged } from './restore-tree/repo.mjs';
 
 const SHOWN = 20;
 const USAGE = 'usage: restore-tree [--dry-run] <rev> <dir> [<dir> ...]   |   restore-tree [--dry-run] --back <dir> [<dir> ...]';
@@ -38,12 +39,18 @@ function parse(argv) {
 
 const shown = (items) => items.slice(0, SHOWN).map((i) => `  ${i}`).concat(items.length > SHOWN ? [`  +${items.length - SHOWN} more`] : []);
 
-function planFor(root, commit, paths) {
+function planFor(root, commit, paths, atHead) {
   const target = treeBlobs(root, commit, paths);
   const disk = diskFiles(root, paths);
   const tracked = trackedFiles(root, paths);
   const touched = [...disk].filter((p) => !target.has(p) || !sameBytes(root, p, target.get(p)));
-  return { ...planRestore({ target, disk, tracked, matchesTarget: (p) => sameBytes(root, p, target.get(p)), recoverable: recoverablePaths(root, touched) }), tracked };
+  const plan = planRestore({ target, disk, tracked, matchesTarget: (p) => sameBytes(root, p, target.get(p)), recoverable: recoverablePaths(root, touched) });
+  if (atHead) {
+    const refused = new Set(plan.refuse.map((r) => r.path));
+    const indexReset = [...plan.write, ...plan.remove].filter((p) => tracked.has(p));
+    for (const path of unrecoverableStaged(root, indexReset)) if (!refused.has(path)) plan.refuse.push({ path, why: STAGED });
+  }
+  return { ...plan, tracked };
 }
 
 export function restoreTree(argv, { out = process.stdout, err = process.stderr, cwd = process.cwd() } = {}) {
@@ -52,7 +59,8 @@ export function restoreTree(argv, { out = process.stdout, err = process.stderr, 
     const root = treeRoot(cwd);
     const paths = repoPaths(root, cwd, dirs);
     const commit = commitOf(root, rev);
-    const plan = planFor(root, commit, paths);
+    const atHead = commit === commitOf(root, 'HEAD');
+    const plan = planFor(root, commit, paths, atHead);
     if (plan.refuse.length) {
       err.write(`restore-tree: refused, nothing changed: no commit holds the bytes of ${plan.refuse.length} file(s), so the restore would destroy them:\n${shown(plan.refuse.map((r) => `${r.path}  (${r.why})`)).join('\n')}\n  Commit them (or move them out of ${paths.join(', ')}), then run it again.\n`);
       return 1;
@@ -63,7 +71,6 @@ export function restoreTree(argv, { out = process.stdout, err = process.stderr, 
       out.write(`restore-tree (dry run, nothing changed): ${paths.join(', ')} ${label}: ${summary}\n${shown([...plan.write.map((p) => `write ${p}`), ...plan.remove.map((p) => `remove ${p}`)]).join('\n')}\n`);
       return 0;
     }
-    const atHead = commit === commitOf(root, 'HEAD');
     removeFiles(root, plan.remove, emptiedParents(plan.remove, paths));
     if (atHead) dropStaged(root, plan.remove, plan.tracked);
     checkout(root, commit, plan.write, { alsoIndex: atHead });

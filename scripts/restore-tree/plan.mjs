@@ -17,6 +17,7 @@ import { posix } from 'node:path';
 
 export const OVERWRITE = 'uncommitted changes would be overwritten';
 export const DELETE = 'uncommitted changes would be deleted';
+export const STAGED = 'a staged change no commit holds would be discarded';
 
 export function planRestore({ target, disk, tracked, matchesTarget, recoverable }) {
   const plan = { write: [], remove: [], leave: [], refuse: [] };
