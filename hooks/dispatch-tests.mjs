@@ -5,6 +5,8 @@
 // A brief that orders runs says why with `[tests: troubleshoot <fault>]`, `[tests: periodic batch]`, or
 // `[tests: none]` naming `cargo check`. A clause that forbids a run ("write the test, do not run it") is the rule itself.
 // The Cargo test is `git ls-files` of the dispatch target: a Node repo, including the kit, has none and is never judged.
+// In a repo that uses rapid-game those reasons no longer pass (RDG-D063): an ordered run needs
+// `[tests-signoff: <his quoted words or the questionnaire answer>]`; `--no-run`, a forbidding clause or no order passes.
 //
 //   testRunOrders(prompt)                      -> the ordered-run phrases found, [] when none
 //   testsBlock({ root, input, prompt, footer }) -> block message | null (check `tests-not-implicit`)
@@ -12,8 +14,10 @@
 import { hasTrackedCargo } from '../scripts/broker/cargo-scope.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
+import { frameworksFor } from './lib/frameworks.mjs';
 
 export const TESTS_CHECK = 'tests-not-implicit';
+const FRAMEWORK_NAME = 'rapid-game';
 
 const CARGO_CHECK = /\bcargo(?:\.exe)?\s+check\b/i;
 const NEGATION = /\b(?:never|don'?t|do not|must not|not|no|without|avoid|skip|forbidden|instead of)\b/i;
@@ -60,11 +64,30 @@ function isRustTarget(root, input) {
 
 const reasonGiven = (prompt) => TOKENS.tests.pattern.test(prompt) || (TOKENS.testsNone.pattern.test(prompt) && CARGO_CHECK.test(prompt));
 
+function usesFramework(root, input) {
+  try { return frameworksFor(dispatchTargetRoot(root, input)).some((f) => f.name === FRAMEWORK_NAME); } catch { return false; }
+}
+
+function signoffBlock(orders, footer) {
+  return [
+    `BLOCKED: this brief orders \`cargo test\` in a repo that uses ${FRAMEWORK_NAME} (${orders.slice(0, 3).map((o) => `"${o}"`).join(', ')}) with no maintainer sign-off.`,
+    '  RDG-D063: every test run on a framework crate, a framework-wide suite or the demo\'s slow tests needs the maintainer\'s sign-off, named in the brief.',
+    '  [tests: troubleshoot <fault>] and [tests: periodic batch] are not a sign-off here. Default: verify with `cargo check`; write tests, do not run them.',
+    '',
+    'Fix: say "write the test, do not run it; verify with cargo check" (or `--no-run`), or, once he has said yes in a questionnaire or in his own words, add:',
+    `  ${TOKENS.testsSignoff.form}`,
+    '',
+    footer,
+  ].join('\n');
+}
+
 export function testsBlock({ root, input, prompt, footer }) {
   const brief = String(prompt || '');
-  if (reasonGiven(brief)) return null;
+  if (TOKENS.testsSignoff.pattern.test(brief)) return null;
   const orders = testRunOrders(brief);
   if (!orders.length || !isRustTarget(root, input)) return null;
+  if (usesFramework(root, input)) return signoffBlock(orders, footer);
+  if (reasonGiven(brief)) return null;
   return [
     `BLOCKED: this brief orders test runs as a routine step (${orders.slice(0, 3).map((o) => `"${o}"`).join(', ')}).`,
     '  Tests are never run implicitly (KIT-D162, KIT-D163): Rust builds are slow and every project shares one machine.',

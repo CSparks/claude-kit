@@ -197,7 +197,8 @@ in a block message or a decision file is a defect.
   leaving plan mode (in the plan text) add `[framework-checked: <indexed crates read, per mechanism>|none apply: <why>]`
   (KIT-T1095; `q gates plan`). In a Cargo workspace a brief that orders test runs adds
   `[tests: troubleshoot <the fault>]` or `[tests: periodic batch]`, or `[tests: none]` naming
-  `cargo check` (KIT-T1186; check `tests-not-implicit`).
+  `cargo check` (KIT-T1186; check `tests-not-implicit`). In a repo that uses rapid-game an ordered
+  test run needs `[tests-signoff: <his quoted words or the questionnaire answer>]` instead (RDG-D063, KIT-T1353).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout
