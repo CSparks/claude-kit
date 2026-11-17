@@ -8,7 +8,8 @@
 //     lastUser      the newest maintainer message (tool results, harness notices, compaction summaries and meta entries skipped), '' when none
 //     prose         every assistant text or narration block after it, oldest first, joined by blank lines
 //     newestProse   the newest of those blocks, '' when none
-//     blocks        those blocks, oldest first: [{ kind: 'text' | 'narration', text }]
+//     blocks        those blocks, oldest first: [{ kind: 'text' | 'narration', text, afterStop }]; afterStop is true for a
+//                   block written after the newest Stop-hook run, so no Stop gate has read it yet
 //   null when the file cannot be read.
 //
 //   turnText(file, { beforeToolUseId }) reads only what precedes the entry holding that tool call: the text a call
@@ -32,6 +33,7 @@ const textOf = (content) => {
 const isToolResult = (content) => Array.isArray(content) && content.some((b) => b && b.type === 'tool_result');
 const isHarness = (entry, text) => entry.isMeta === true || entry.isCompactSummary === true || NOTICE.test(text) || COMPACT.test(text);
 
+const STOP_SUMMARY = 'stop_hook_summary';
 const HOOK_DENIAL = /^\s*PreToolUse:\S+ hook error/;
 const toolResults = (entry) => (entry?.type === 'user' && Array.isArray(entry.message?.content) ? entry.message.content.filter((b) => b?.type === 'tool_result') : []);
 const resultText = (b) => (typeof b.content === 'string' ? b.content : textOf(b.content));
@@ -53,13 +55,15 @@ export function turnText(file, { beforeToolUseId } = {}) {
   }
   const blocks = [];
   const result = (lastUser) => ({ lastUser, prose: blocks.map((b) => b.text).join('\n\n'), newestProse: blocks.at(-1)?.text || '', blocks });
+  let stopSeen = false;
   for (let i = lines.length - 1; i >= 0; i--) {
     let entry;
     try { entry = JSON.parse(lines[i]); } catch { continue; }
+    if (entry?.subtype === STOP_SUMMARY) stopSeen = true;
     const role = entry?.type || entry?.message?.role;
     const content = entry?.message?.content;
     if (role === 'assistant') {
-      const entryBlocks = assistantBlocksOf(content).map((b) => ({ kind: b.kind, text: b.text.trim() })).filter((b) => b.text);
+      const entryBlocks = assistantBlocksOf(content).map((b) => ({ kind: b.kind, text: b.text.trim(), afterStop: !stopSeen })).filter((b) => b.text);
       blocks.unshift(...entryBlocks);
     } else if (role === 'user') {
       const text = textOf(content).trim();

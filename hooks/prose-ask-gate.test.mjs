@@ -208,6 +208,10 @@ try {
     ok(`KIT-T1332 a hard phrase in an earlier message blocks after his question, ${name}`, blocked(stop(afterToolCall(earlier, UAT_RECEIPT, 'What changed in the crests?'))));
     ok(`KIT-T1332 a hard phrase in the closing message after earlier commentary still blocks, ${name}`, blocked(stop(afterToolCall('Looking at the crests.', earlier))));
   }
+  const stopRun = JSON.stringify({ type: 'system', subtype: 'stop_hook_summary', hookCount: 14 });
+  const handBack = JSON.stringify({ type: 'user', isMeta: true, message: { role: 'user', content: '[Subagent hand-back] The text below is the final report of a subagent.' } });
+  ok('KIT-T1332 a hard ask an earlier Stop run already read is not read again', passed(stop(transcript([entry('user', 'Go.'), assistantText(HEADED_REPLY), stopRun, handBack, assistantText(UAT_RECEIPT)]))));
+  ok('KIT-T1332 a hard ask written after the last Stop run blocks', blocked(stop(transcript([entry('user', 'Go.'), assistantText('Earlier report.'), stopRun, handBack, assistantText(MIDLINE_REPLY), toolUse('toolu_M', 'Bash'), toolResult('toolu_M'), assistantText(UAT_RECEIPT)]))));
   ok('KIT-T1332 a quoted hard phrase in an earlier message passes', passed(stop(afterToolCall('Chris wrote "it is your call" about the lane, so I picked A.'))));
   ok('KIT-T1332 a negated hard phrase in an earlier message passes', passed(stop(afterToolCall('Nothing is waiting on you.'))));
   ok('KIT-T1332 a soft ask in an earlier message passes', passed(stop(afterToolCall('Want me to look at it? Looking.'))));
