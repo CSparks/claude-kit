@@ -12,7 +12,8 @@ const NEAR = String.raw`[^.\n]{0,100}`;
 // A revision named by a short or full hash, or by a placeholder such as <sha>, <rev>, <old-sha>, <commit>.
 const REVISION = String.raw`(?:[0-9a-f]{7,40}|<[^>\n]*(?:sha|rev|commit|hash|tag)[^>\n]*>)`;
 const CHECKOUT_FROM_REVISION = new RegExp(String.raw`\bgit\s+checkout\s+${REVISION}\s+--\s`, 'i');
-const RESTORE_FROM_REVISION = new RegExp(String.raw`\bgit\s+restore\b[^\n]{0,60}--source[= ]\s*(?:${REVISION}|\S+)`, 'i');
+// A source other than bare HEAD: `--source=HEAD -- <file>` discards a change and leaves no stray.
+const RESTORE_FROM_REVISION = new RegExp(String.raw`\bgit\s+restore\b[^\n]{0,60}--source[= ]\s*(?!HEAD(?![~^\w]))\S+`, 'i');
 const VERB = /\brestore-tree\b/i;
 const FORBIDDEN_CLAUSE = new RegExp(String.raw`\b(?:never|don'?t|do not|must not|not|instead of|rather than)\b${NEAR}`, 'ig');
 

@@ -74,10 +74,12 @@ try {
   const g = advanced();
   ok('the gate lets the verb through, forward and back', gate(g.d, `restore-tree ${g.seed} src`, 'A1').status === 0 && gate(g.d, 'restore-tree --back src', 'A1').status === 0);
   git(['checkout', g.seed, '--', 'src'], g.d);
-  git(['reset', '-q'], g.d);
   const rm = gate(g.d, 'rm src/b.mjs', 'A1');
-  ok('negative control: a subagent still may not rm the stray a raw checkout left', rm.status === 2 && /source-shell-write/.test(rm.stderr));
+  ok('negative control: a subagent still may not rm the staged stray a raw checkout left', rm.status === 2 && /source-shell-write/.test(rm.stderr));
   ok('the refusal names restore-tree --back as the way out', /restore-tree --back/.test(rm.stderr));
+  git(['reset', '-q'], g.d);
+  const rmUntracked = gate(g.d, 'rm src/b.mjs', 'A1');
+  ok('negative control: nor the same stray once untracked, and that refusal names the verb too', rmUntracked.status === 2 && /restore-tree --back/.test(rmUntracked.stderr));
   ok('negative control: a redirect onto the stray is still refused', gate(g.d, 'echo x > src/b.mjs', 'A1').status === 2);
   ok('and the verb then removes the stray', verb(g.d, ['--back', 'src']) === 0 && git(['status', '--porcelain', '--', 'src'], g.d).trim() === '');
 } finally {

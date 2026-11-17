@@ -31,6 +31,7 @@ const PASSES = [
   ['a checkout of a path with no revision', 'Discard it with git checkout -- src/a.rs.'],
   ['a restore of one path from the index', 'Put it back with git restore src/a.rs.'],
   ['a restore --staged', 'Unstage with git restore --staged src/a.rs.'],
+  ['a discard from bare HEAD', 'Discard it with git restore --source=HEAD -- src/a.rs.'],
   ['no git at all', 'Rename the menu enum variant and update the callers.'],
 ];
 for (const [name, prompt] of PASSES) check(`passes ${name}`, block(prompt) === null);

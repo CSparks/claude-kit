@@ -8,9 +8,10 @@
 //   diskFiles(root, paths) -> Set of the files that exist under `paths`: tracked, or untracked and not ignored
 //   sameBytes(root, path, blobId) -> the file on disk holds that blob, with CRLF read as LF
 //   recoverablePaths(root, rels) -> Set of the `rels` whose bytes on disk some commit holds at that path (HEAD first, then history)
-//   checkout(root, commit, files) -> git writes the commit's version of each file into the work tree. The index is untouched, except
-//     when the commit is HEAD: those entries are set to HEAD's too, which is what leaves `git status` clean for a file git wrote
-//     with CRLF line endings (a worktree-only restore leaves its index entry stale and status shows it modified)
+//   dropStaged(root, paths, tracked) -> removes the index entries of those paths that `tracked` (the index's paths) holds
+//   checkout(root, commit, files, { alsoIndex }) -> git writes the commit's version of each file into the work tree. The index is
+//     untouched, except with alsoIndex (the commit is HEAD): those entries are set to HEAD's too, which is what leaves `git status`
+//     clean for a file git wrote with CRLF line endings (a worktree-only restore leaves its index entry stale and status shows it modified)
 //   removeFiles(root, files, emptiedDirs) -> deletes the files, then the directories they emptied
 
 import { execFileSync } from 'node:child_process';
@@ -20,6 +21,7 @@ import { blobId, committedPathContent, headBlobs, variants } from '../../hooks/l
 
 const CHUNK = 100;
 const BUFFER_BYTES = 256 * 1024 * 1024;
+const FILE_MAX_BYTES = 256 * 1024 * 1024;
 const REGULAR_FILE_MODE = /^100(?:644|755)$/;
 const SHA = /^[0-9a-f]{40,64}$/;
 
@@ -68,18 +70,26 @@ export function diskFiles(root, paths) {
   }));
 }
 
-export const sameBytes = (root, path, id) => variants(root, path).slice(0, 2).map(blobId).includes(id);
+const bytesOf = (root, rel) => variants(root, rel, FILE_MAX_BYTES);
+
+export const sameBytes = (root, path, id) => bytesOf(root, path).slice(0, 2).map(blobId).includes(id);
 
 /** The paths of `rels` whose bytes on disk HEAD, or a commit reachable from HEAD, a branch, a tag or a remote, holds at that path. */
 export function recoverablePaths(root, rels) {
   const head = headBlobs(root, rels);
   const atHead = rels.filter((rel) => sameBytes(root, rel, head.get(rel)));
   const rest = rels.filter((rel) => !atHead.includes(rel));
-  return new Set([...atHead, ...committedPathContent(root, rest, (rel) => variants(root, rel))]);
+  return new Set([...atHead, ...committedPathContent(root, rest, (rel) => bytesOf(root, rel))]);
 }
 
-export function checkout(root, commit, files) {
-  const index = commit === commitOf(root, 'HEAD') ? ['--staged'] : [];
+/** Removes from the index the entries of `paths`, which the commit HEAD names lacks (a raw `git checkout <rev> -- <dir>` staged them). */
+export function dropStaged(root, paths, tracked) {
+  const staged = paths.filter((path) => tracked.has(path));
+  for (let i = 0; i < staged.length; i += CHUNK) run(root, ['restore', '--source=HEAD', '--staged', '--', ...staged.slice(i, i + CHUNK)]);
+}
+
+export function checkout(root, commit, files, { alsoIndex = false } = {}) {
+  const index = alsoIndex ? ['--staged'] : [];
   for (let i = 0; i < files.length; i += CHUNK) run(root, ['restore', `--source=${commit}`, '--worktree', ...index, '--', ...files.slice(i, i + CHUNK)]);
 }
 

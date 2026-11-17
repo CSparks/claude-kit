@@ -6,7 +6,7 @@
 //   committedPathContent(root, rels, readBytes) -> Set of the paths in `rels` whose bytes some reachable commit holds at that path
 //     readBytes(rel) -> [Buffer] the byte variants to try, the first being the bytes on disk
 //   blobId(bytes) -> the id git gives a blob of those bytes
-//   variants(root, rel) -> [Buffer] the file as on disk, with CRLF read as LF, and with LF written as CRLF; [] when unreadable or large
+//   variants(root, rel, maxBytes) -> [Buffer] the file as on disk, with CRLF read as LF, and with LF written as CRLF; [] when unreadable or over maxBytes (1 MiB by default)
 //   headBlobs(root, rels) -> Map of path -> blob id for the regular files of `rels` that HEAD records
 
 import { execFileSync } from 'node:child_process';
@@ -25,10 +25,10 @@ const REACHABLE = ['HEAD', '--branches', '--tags', '--remotes'];
 
 export const blobId = (bytes) => createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 
-export function variants(root, rel) {
+export function variants(root, rel, maxBytes = HASH_MAX_BYTES) {
   try {
     const path = join(root, rel);
-    if (statSync(path).size > HASH_MAX_BYTES) return [];
+    if (statSync(path).size > maxBytes) return [];
     const raw = readFileSync(path);
     const lf = raw.toString('utf8').replace(/\r\n/g, '\n');
     return [raw, Buffer.from(lf), Buffer.from(lf.replace(/\n/g, '\r\n'))];

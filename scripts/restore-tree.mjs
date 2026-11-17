@@ -13,13 +13,14 @@
 // (hooks/lib/history-blobs.mjs). Any other change inside the directories (an uncommitted edit, an unsaved new file that
 // replaces a revision file) refuses the whole run before anything changes, naming the files. An untracked file no commit
 // holds that the revision lacks is left where it is. Going to an older revision leaves the index alone, so a commit of staged
-// files holds no bisect state; going to HEAD also sets the index entries of the files it writes to HEAD's. Ignored files and
+// files holds no bisect state; going to HEAD also sets the index entries of the files it writes to HEAD's and drops the entries
+// a raw `git checkout <rev> -- <dir>` staged for files HEAD lacks. Ignored files and
 // submodule entries are left alone. The shell gates read a call of this verb as git restoring committed content
 // (hooks/lib/restore-tree-call.mjs). Exit 0 done, 1 refused or failed.
 
 import { isMain } from './is-main.mjs';
 import { emptiedParents, planRestore } from './restore-tree/plan.mjs';
-import { checkout, commitOf, diskFiles, recoverablePaths, removeFiles, repoPaths, sameBytes, trackedFiles, treeBlobs, treeRoot } from './restore-tree/repo.mjs';
+import { checkout, commitOf, diskFiles, dropStaged, recoverablePaths, removeFiles, repoPaths, sameBytes, trackedFiles, treeBlobs, treeRoot } from './restore-tree/repo.mjs';
 
 const SHOWN = 20;
 const USAGE = 'usage: restore-tree [--dry-run] <rev> <dir> [<dir> ...]   |   restore-tree [--dry-run] --back <dir> [<dir> ...]';
@@ -42,7 +43,7 @@ function planFor(root, commit, paths) {
   const disk = diskFiles(root, paths);
   const tracked = trackedFiles(root, paths);
   const touched = [...disk].filter((p) => !target.has(p) || !sameBytes(root, p, target.get(p)));
-  return planRestore({ target, disk, tracked, matchesTarget: (p) => sameBytes(root, p, target.get(p)), recoverable: recoverablePaths(root, touched) });
+  return { ...planRestore({ target, disk, tracked, matchesTarget: (p) => sameBytes(root, p, target.get(p)), recoverable: recoverablePaths(root, touched) }), tracked };
 }
 
 export function restoreTree(argv, { out = process.stdout, err = process.stderr, cwd = process.cwd() } = {}) {
@@ -62,8 +63,10 @@ export function restoreTree(argv, { out = process.stdout, err = process.stderr, 
       out.write(`restore-tree (dry run, nothing changed): ${paths.join(', ')} ${label}: ${summary}\n${shown([...plan.write.map((p) => `write ${p}`), ...plan.remove.map((p) => `remove ${p}`)]).join('\n')}\n`);
       return 0;
     }
+    const atHead = commit === commitOf(root, 'HEAD');
     removeFiles(root, plan.remove, emptiedParents(plan.remove, paths));
-    checkout(root, commit, plan.write);
+    if (atHead) dropStaged(root, plan.remove, plan.tracked);
+    checkout(root, commit, plan.write, { alsoIndex: atHead });
     out.write(`restore-tree: ${paths.join(', ')} ${label}: ${summary}\n${plan.leave.length ? `left alone:\n${shown(plan.leave).join('\n')}\n` : ''}${back ? '' : '  return them with: restore-tree --back ' + dirs.join(' ') + '\n'}`);
     return 0;
   } catch (e) {

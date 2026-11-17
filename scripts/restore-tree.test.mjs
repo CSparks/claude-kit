@@ -65,9 +65,32 @@ try {
 
   const raw = history();
   git(['checkout', raw.old, '--', 'crates/a'], raw.dir);
-  git(['reset', '-q'], raw.dir);
-  ok('a raw git checkout <rev> -- <dir> leaves untracked strays the verb then removes',
-    raw.status('crates/a').includes('?? crates/a/old.rs') && raw.run(['--back', 'crates/a']).code === 0 && raw.status('crates/a') === '');
+  ok('a raw git checkout <rev> -- <dir> stages the old-only files and leaves the files HEAD removed on disk',
+    raw.status('crates/a').includes('A  crates/a/old.rs') && raw.has('crates/a/old.rs') && raw.has('crates/a/sub/new.rs'));
+  const rawBack = raw.run(['--back', 'crates/a']);
+  ok('--back after the raw checkout: the staged strays leave the disk AND the index, status and the staged diff are empty', rawBack.code === 0
+    && raw.status('crates/a') === '' && git(['diff', '--cached', '--name-only'], raw.dir).trim() === '' && !raw.has('crates/a/old.rs'), rawBack.err + raw.status('crates/a'));
+
+  const unstaged = history();
+  git(['checkout', unstaged.old, '--', 'crates/a'], unstaged.dir);
+  git(['reset', '-q'], unstaged.dir);
+  ok('the same strays left untracked (the index reset) are removed too', unstaged.status('crates/a').includes('?? crates/a/old.rs')
+    && unstaged.run(['--back', 'crates/a']).code === 0 && unstaged.status('crates/a') === '');
+
+  const staged = history();
+  staged.put('crates/a/staged-new.rs', 'fn staged_new() {}\n');
+  git(['add', 'crates/a/staged-new.rs'], staged.dir);
+  const keepStaged = staged.run(['--back', 'crates/a']);
+  ok('negative control: another writer\'s staged new file, in no commit, refuses the run and stays staged', keepStaged.code === 1
+    && /staged-new\.rs/.test(keepStaged.err) && staged.read('crates/a/staged-new.rs') === 'fn staged_new() {}\n' && git(['diff', '--cached', '--name-only'], staged.dir).trim() === 'crates/a/staged-new.rs');
+
+  const large = history();
+  large.put('crates/a/golden.bin', 'x'.repeat(3 * (1 << 19)));
+  git(['add', '-A'], large.dir);
+  git(['commit', '-q', '-m', 'golden data'], large.dir);
+  const toOld = large.run([large.old, 'crates/a']);
+  ok('a clean tracked file over 1 MiB neither refuses the run nor survives a restore to a revision without it', toOld.code === 0 && !large.has('crates/a/golden.bin'), toOld.err);
+  ok('--back brings the large file again, status clean', large.run(['--back', 'crates/a']).code === 0 && large.has('crates/a/golden.bin') && large.status('crates/a') === '');
 
   const chain = history();
   chain.run([chain.old, 'crates/a']);
