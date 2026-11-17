@@ -19,7 +19,9 @@
 // or block a /clear (the hook contract), so every path exits 0.
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { wiringWarning } from './lib/gate-wiring.mjs';
 import { gitRoot, adopted, git, payload, sessionMtimeMs, unboundedRoot } from './lib.mjs';
 import { missingCitations } from './session-citations.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
@@ -35,6 +37,7 @@ import { TURN_SKEW_MS, touchesProjectFiles } from './lib/landed-commits.mjs';
 // Cap the dead-citation list so a badly-drifted SESSION.md can't swamp the flush output.
 const CITATION_LIST_MAX = 8;
 
+const HOOKS_DIR = dirname(fileURLToPath(import.meta.url));
 const MS_PER_SEC = 1000; // git %ct is epoch SECONDS; compare in ms
 // Stores whose writes count as "meaningful work this turn" for the anchor nudge. tickets and
 // inbox are EXCLUDED: status flips and captures are bookkeeping the anchor need not track.
@@ -181,9 +184,23 @@ function stopBlockOnce(store, p, unbounded) {
   if (!unbounded) noteLandings(store, turnStartMs);
   const anchor = unbounded || p.stop_hook_active ? '' : anchorNudgeText(store, turnStartMs, touchedMs);
   const blocks = [rulings.block, anchor].filter(Boolean);
-  if (!blocks.length) return;
-  process.stderr.write(`${blocks.join('\n')}${triageFooter()}`);
+  const wiring = gateWiringLine(p);
+  if (!blocks.length) {
+    if (!wiring) return;
+    process.stderr.write(`${wiring}\n`);
+    process.exit(2);
+  }
+  process.stderr.write(`${[...blocks, wiring].filter(Boolean).join('\n')}${triageFooter()}`);
   process.exit(2);
+}
+
+// The gate-wiring line (lib/gate-wiring.mjs, KIT-T1335), or '' when every listed gate ran.
+function gateWiringLine(p) {
+  try {
+    return wiringWarning(p, { hooksJson: join(HOOKS_DIR, 'hooks.json'), hooksDir: HOOKS_DIR });
+  } catch {
+    return '';
+  }
 }
 
 // "This turn" = since the last real user message (the request-gate's definition). Returns its

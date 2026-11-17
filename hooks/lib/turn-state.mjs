@@ -14,7 +14,7 @@ import { appendFileSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rm
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const stateDir = () => process.env.CLAUDE_KIT_TURN_STATE || join(tmpdir(), 'claude-kit-turnstate');
+export const stateDir = () => process.env.CLAUDE_KIT_TURN_STATE || join(tmpdir(), 'claude-kit-turnstate');
 const repoKey = (root) => String(root).replace(/[:\\/ ]/g, '-').replace(/^-+/, '') || 'root';
 
 function turnStatePath(root, slot = '') {
