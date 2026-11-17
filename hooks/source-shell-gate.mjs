@@ -14,7 +14,9 @@
 // the source beneath it (directory-delete.mjs). A refused delete says why and names the way out
 // (delete-guidance.mjs); a cp or mv whose operand holds a variable the command does not resolve names it, why and the way out
 // (copy-variable.mjs); a command a git call runs (`rebase -x`, `bisect run`) is judged like one typed alone, from the top of
-// the work tree (git-inner-hits.mjs). A relative path resolves against the `cd` segments before its own segment (shell-cwd.mjs).
+// the work tree (git-inner-hits.mjs). A relative path resolves against the `cd` segments before its own segment (shell-cwd.mjs), a `cd` into
+// a directory an earlier `mkdir` of the command makes included; a variable the command assigns as one literal expands in a
+// write's path (hit-path-variables.mjs).
 // A write that lands in build output (gitignored, or below a verified CMake/Ninja build tree: build-output.mjs) is a tool's,
 // not a hand write, unless the command itself names a marker or an ignore file (it may be making the directory look like output).
 // A touch that only stamps the mtime of an existing file authors no content and passes (touch-target.mjs).
@@ -27,7 +29,8 @@
 import { resolve } from 'node:path';
 import { payload, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { gitRootOfFileChecked } from './lib/paths.mjs';
-import { isGeneratedPath, shellSourceWrites } from './lib/shell-source-write.mjs';
+import { isGeneratedPath, isSourcePath, shellSourceWrites } from './lib/shell-source-write.mjs';
+import { hitPathResolver } from './lib/hit-path-variables.mjs';
 import { buildOutputJudge, ignoreEditMentioned, markerMentioned } from './lib/build-output.mjs';
 import { AMBIGUOUS_MESSAGE, shellOfTool, toPath } from './lib/shell-segments.mjs';
 import { commandCwd } from './lib/shell-cwd.mjs';
@@ -52,10 +55,13 @@ try {
   const shell = shellOfTool(p.tool_name);
   const hits = command ? [...shellSourceWrites(command, { shell }), ...directoryDeleteHits(command, process.cwd())] : [];
   const caller = writerId(p.session_id, subagentId(p));
+  const namedPath = hitPathResolver(command, shell);
   for (const found of hits) {
     // The hit's own directory: the `cd` segments before its segment, not where the whole command ends.
     const cwd = found.from || commandCwd(command, process.cwd(), { upto: found.segment, shell });
-    const file = resolve(cwd, toPath(found.path));
+    const named = namedPath(found);
+    if (named !== found.path && !isSourcePath(toPath(named))) continue; // the variable holds a build-output or temp path
+    const file = resolve(cwd, toPath(named));
     let root = '';
     let rel = '';
     let refusal = '';

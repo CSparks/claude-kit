@@ -9,19 +9,29 @@
 
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { cdTarget, segments } from './shell-segments.mjs';
+import { cdTarget, segments, shellArgs, toPath } from './shell-segments.mjs';
 
 export const isDirectory = (path) => { try { return statSync(path).isDirectory(); } catch { return false; } };
+
+const MKDIR = /^(?:mkdir|md)$/i;
+
+// The directories a `mkdir [-p] dir...` segment makes, resolved against `cwd`; a later `cd` into one follows it before it exists.
+function madeDirectories(text, cwd) {
+  const [tool = '', ...args] = shellArgs(text);
+  return MKDIR.test(tool) ? args.filter((a) => !a.startsWith('-')).map((a) => resolve(cwd, toPath(a))) : [];
+}
 
 export function commandCwd(command, start = process.cwd(), { upto = Infinity, shell = '' } = {}) {
   let cwd = start;
   let index = 0;
+  const made = new Set();
   for (const { text } of segments(String(command || ''), { shell })) {
     if (index++ >= upto) break;
+    madeDirectories(text.trim(), cwd).forEach((dir) => made.add(dir));
     const target = cdTarget(text.trim());
     if (!target) continue;
     const next = resolve(cwd, target);
-    if (isDirectory(next)) cwd = next;
+    if (isDirectory(next) || made.has(next)) cwd = next;
   }
   return cwd;
 }
