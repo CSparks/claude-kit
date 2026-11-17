@@ -13,6 +13,7 @@ import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMain } from './is-main.mjs';
 
 const KIT_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const CONCERN = /\b(?:broker|nextest|claude-kit|kit-d\d+|hooks?|dispatch(?:-guard)?|orient|patch-worker|sub-?agents?|test tiers?|tiered|build slots?|rapid-game|framework|shared crates?|rg-[a-z]+|cargo profile|target dir)\b/i;
@@ -72,7 +73,7 @@ export function promotionLines(root, opts = {}) {
   ];
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const arg = (name) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : null; };
   const root = resolve(arg('root') || process.cwd());
   const limit = Number(arg('limit')) || DEFAULT_LIMIT;

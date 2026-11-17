@@ -10,7 +10,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isMain } from './is-main.mjs';
 import { classificationKeys } from './cap-routing.mjs';
 import { field, frontmatterBlock, splitFrontmatter } from './frontmatter.mjs';
 import { reserveId } from './id-reserve.mjs';
@@ -82,7 +82,7 @@ export function mirrorById(root, id) {
   return mirrorDecision(root, join(root, '.ai', file));
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const arg = (name) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : null; };
   const root = resolve(arg('root') || process.cwd());
   const id = arg('decision');

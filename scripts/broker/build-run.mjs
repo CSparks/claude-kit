@@ -20,6 +20,7 @@ import { existsSync } from 'node:fs';
 import { availableParallelism, constants, setPriority } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isMain } from '../is-main.mjs';
 import { acquireBuildSlot } from './build-slot.mjs';
 import { classify } from './build-classify.mjs';
 import { describeHolder, formatSnapshot } from './build-status.mjs';
@@ -122,6 +123,6 @@ async function main([tool, ...args]) {
   return new Promise((done) => child.on('exit', (code, signal) => done(code ?? (signal ? 1 : 0))));
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   process.exitCode = await main(process.argv.slice(2));
 }

@@ -11,7 +11,7 @@
 
 import { existsSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from '../is-main.mjs';
 import { readBrokerConfig } from './config.mjs';
 
 export const KEEP_HOURS = 24;
@@ -98,4 +98,4 @@ function main(argv) {
   console.log(`${argv.includes('--dry-run') ? 'dry run: ' : ''}${pruneLine(r)}`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
+if (isMain(import.meta.url)) main(process.argv.slice(2));

@@ -12,7 +12,7 @@
 
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMain } from '../is-main.mjs';
 
 const MS_PER_S = 1000;
 const MS_PER_MIN = 60000;
@@ -80,4 +80,4 @@ function main(argv) {
   else for (const [k, s] of Object.entries(out)) console.log(line(k, s));
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main(process.argv.slice(2));
+if (isMain(import.meta.url)) main(process.argv.slice(2));

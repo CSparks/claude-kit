@@ -13,8 +13,7 @@
 // `--run "<command>"` runs a long command once in a process that outlives the agent's turn and `--result <id>` reads it (detached-run.mjs, KIT-T1283).
 // `--wait <file>` blocks once until no build compiles that file (build-wait.mjs, KIT-T1142): the wait a refused edit names.
 
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { isMain } from '../is-main.mjs';
 import { snapshot } from './build-slot-store.mjs';
 import { auditProjects, formatAudit } from './build-audit.mjs';
 import { isLongHold } from './build-grant.mjs';
@@ -59,7 +58,7 @@ export function formatSnapshot({ physical, reserve, full, budget, game, holds, w
   return lines.join('\n');
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   if (process.argv.includes('--run') || process.argv.includes('--result')) {
     const { runCli } = await import('./detached-run.mjs');
     process.exit(await runCli(process.argv.slice(2)));
