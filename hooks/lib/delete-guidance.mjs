@@ -24,15 +24,18 @@ const MAIN_THREAD_DELETE = (path) => `the plain \`rm ${path}\` (PowerShell: \`Re
 export const RELEASE_HINT = 'If that writer is dead (killed by an API error: no stop event), release its claims with `claims --release <agent id> --reason "<why>"` (refused for an agent that wrote in the last 5 minutes).';
 // The one form a main thread may use to put back tracked files a dead or ended writer left changed (KIT-T1286).
 const RESTORE_FORM = '`git restore -- <path> <path> ...`, naming each tracked file (no directory, no glob, no `.`)';
+// The stray an old revision's files leave after `git checkout <rev> -- <dir>`: the verb that restores and returns (KIT-T1340).
+export const RESTORE_TREE_FORM = '`restore-tree <rev> <dir> ...` puts directories as <rev> had them and removes the files <rev> lacks; `restore-tree --back <dir> ...` returns them to HEAD';
+const STRAY_HINT = `If this file is a leftover of looking at an older revision (git checkout <rev> -- <dir>), no delete is needed: ${RESTORE_TREE_FORM}, removing the strays no commit would lose.`;
 const raiseToMainThread = ({ mainThread, path, verb }) => {
   if (verb === 'git restore') {
     return mainThread
       ? `The main thread may put these files back with ${RESTORE_FORM} once no live writer holds any of them; the registry of live writers could not be read if it still refuses: retry once it can. A file a live writer holds stays refused.`
       : `Raise it to the main thread: once no live writer holds the files, it puts them back with ${RESTORE_FORM}. A subagent has no sanctioned way.`;
   }
-  return mainThread
+  return `${mainThread
     ? `A tracked file holding changes no tool of this caller wrote: commit or restore them first, then delete it. Otherwise the registry of live writers could not be read: retry ${MAIN_THREAD_DELETE(path)}.`
-    : `Raise it to the main thread: once no live writer holds it, the main thread removes an untracked file with ${MAIN_THREAD_DELETE(path)}. A subagent has no sanctioned way.`;
+    : `Raise it to the main thread: once no live writer holds it, the main thread removes an untracked file with ${MAIN_THREAD_DELETE(path)}. A subagent has no sanctioned way.`} ${STRAY_HINT}`;
 };
 
 const WAYS_OUT = {

@@ -42,6 +42,7 @@ import { sharedTreeBlock } from './dispatch-shared-tree.mjs';
 import { TREE_PROJECT_CHECK, treeProjectBlock } from './dispatch-tree-project.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { BACKGROUND_RUN_CHECK, backgroundRunBlock } from './dispatch-background-run.mjs';
+import { PATH_RESTORE_CHECK, pathRestoreBlock } from './dispatch-path-restore.mjs';
 import { TESTS_CHECK, testsBlock } from './dispatch-tests.mjs';
 import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
@@ -89,6 +90,7 @@ try {
     conformanceCheck(root, input, prompt, p),
     uiCheck(root, input, prompt, p),
     backgroundRunCheck(root, prompt, p),
+    pathRestoreCheck(root, prompt, p),
     testsCheck(root, input, prompt, p),
     briefCheck(root, input, prompt, p),
     rulingsCheck(root, input, prompt, p),
@@ -247,6 +249,12 @@ function uiCheck(root, input, prompt, p) {
 function backgroundRunCheck(root, prompt, p) {
   if (!p.tool_input || pathExcluded(root, BACKGROUND_RUN_CHECK, root)) return null;
   return backgroundRunBlock({ prompt, footer: excludeFooter(BACKGROUND_RUN_CHECK) });
+}
+
+// --- path-restore (KIT-T1340) -----------------------------------------------------
+function pathRestoreCheck(root, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, PATH_RESTORE_CHECK, root)) return null;
+  return pathRestoreBlock({ prompt, footer: excludeFooter(PATH_RESTORE_CHECK) });
 }
 
 // --- tests-not-implicit (KIT-T1186) -----------------------------------------------

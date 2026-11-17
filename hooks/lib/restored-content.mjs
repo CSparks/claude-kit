@@ -1,7 +1,8 @@
 // A source file a shell call changed is no hand write when git put it back (KIT-T982, KIT-T963, KIT-T977, KIT-T933):
 //   - its content equals HEAD's blob: a revert or a stash leaves no diff to gate and nothing to re-save;
-//   - with git in the command, its content equals a blob a commit reachable from HEAD or a branch, tag or remote ref
-//     recorded for that path (history-blobs.mjs: `git checkout <rev> -- <path>`, KIT-T1337);
+//   - with git (or the restore-tree verb, restore-tree-call.mjs, KIT-T1340) in the command, its content equals a blob a
+//     commit reachable from HEAD or a branch, tag or remote ref recorded for that path (history-blobs.mjs:
+//     `git checkout <rev> -- <path>`, KIT-T1337);
 //   - a git call put back content the calling session's own Edit or Write left: the ledger holds a CONFIRMED entry
 //     of this session, made within RESTORE_WINDOW_MS, for these exact bytes (as-is, LF or CRLF), and git's object
 //     store holds a blob of them (a stash, an index entry or a commit made it). pre-write judged that content when
@@ -14,51 +15,18 @@
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-import { gitTry } from './exec.mjs';
 import { segments } from './shell-segments.mjs';
 import { leaderOf } from './inert-command.mjs';
 import { toolWriteEntries } from './tool-write-ledger.mjs';
-import { committedPathContent } from './history-blobs.mjs';
+import { blobId, committedPathContent, headBlobs, variants } from './history-blobs.mjs';
+import { restoreTreeCall } from './restore-tree-call.mjs';
 
-const CHUNK = 100;
 const GIT_LEADER = /^git$/i;
-const HASH_MAX_BYTES = 1 << 20;
 const RESTORE_WINDOW_MS = 30 * 60 * 1000;
-const REGULAR_FILE_MODE = /^100(?:644|755)$/;
 
-const runsGit = (command) => segments(String(command || '')).some(({ text }) => GIT_LEADER.test(leaderOf(text)));
+const runsGit = (command) => segments(String(command || '')).some(({ text }) => GIT_LEADER.test(leaderOf(text)) || restoreTreeCall(text));
 const sha1 = (data) => createHash('sha1').update(data).digest('hex');
-const blobId = (bytes) => createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
 const sessionOf = (writer) => String(writer || '').split('|')[0];
-
-/** The file's bytes as on disk, with CRLF read as LF, and with LF written as CRLF; [] when unreadable or large. */
-function variants(root, rel) {
-  try {
-    const path = join(root, rel);
-    if (statSync(path).size > HASH_MAX_BYTES) return [];
-    const raw = readFileSync(path);
-    const lf = raw.toString('utf8').replace(/\r\n/g, '\n');
-    return [raw, Buffer.from(lf), Buffer.from(lf.replace(/\n/g, '\r\n'))];
-  } catch {
-    return [];
-  }
-}
-
-function headBlobs(root, rels) {
-  const blobs = new Map();
-  for (let i = 0; i < rels.length; i += CHUNK) {
-    const listing = gitTry(['ls-tree', '-z', 'HEAD', '--', ...rels.slice(i, i + CHUNK)], root);
-    if (!listing.ok) continue;
-    for (const entry of listing.out.split('\0').filter(Boolean)) {
-      const [meta, path] = entry.split('\t');
-      const [mode, type, id] = meta.split(' ');
-      if (type === 'blob' && REGULAR_FILE_MODE.test(mode)) blobs.set(path, id);
-    }
-  }
-  return blobs;
-}
 
 function inObjectStore(root, ids) {
   try {

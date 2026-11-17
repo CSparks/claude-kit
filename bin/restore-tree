@@ -1,0 +1,3 @@
+#!/bin/sh
+# Put directories back to a revision and remove the files it lacks; `--back` returns them to HEAD (KIT-T1340).
+exec node "$(dirname "$0")/../scripts/restore-tree.mjs" "$@"

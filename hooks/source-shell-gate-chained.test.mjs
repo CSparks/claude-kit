@@ -46,6 +46,10 @@ try {
   check('a variable never assigned: blocked', blocked('cp target/debug/probe.exe "$S/probe.exe"'));
   check('a pipe between the assignment and the use ends the chain: blocked', blocked(`cd ${R} && S="${P}" && echo x | cat && cp target/debug/probe.exe "$S/probe.exe"`));
 
+  check('KIT-T1338: a variable SOURCE copied to a literal destination under target/ passes, behind a ; or an &&', !blocked('B=target/debug/probe.exe; cp $B target/engine-head.exe') && !blocked('B=target/debug/probe.exe && cp $B target/engine-head.exe'));
+  check('KIT-T1338 control: a variable source copied onto a literal repo source path is blocked', blocked('B=target/debug/probe.exe; cp $B src/engine.rs'));
+  check('KIT-T1338 control: a variable source copied onto a variable destination under src is blocked', blocked(`cd ${R} && B=target/debug/probe.exe; D=src/engine.rs; cp $B $D`));
+
   check('a copy onto repo source stays blocked', blocked(`S="${P}" && cp "$S/new.rs" src/lib.rs`));
   check('a copy from scratch into the repo source tree stays blocked', blocked(`cd ${R} && S="${P}" && cp "$S/new.rs" src/new.rs`));
   check('a variable naming the repo source directory stays blocked', blocked(`cd ${R} && S=src && cp "${P}/new.rs" "$S/new.rs"`));

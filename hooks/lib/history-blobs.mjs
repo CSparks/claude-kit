@@ -5,17 +5,51 @@
 //
 //   committedPathContent(root, rels, readBytes) -> Set of the paths in `rels` whose bytes some reachable commit holds at that path
 //     readBytes(rel) -> [Buffer] the byte variants to try, the first being the bytes on disk
+//   blobId(bytes) -> the id git gives a blob of those bytes
+//   variants(root, rel) -> [Buffer] the file as on disk, with CRLF read as LF, and with LF written as CRLF; [] when unreadable or large
+//   headBlobs(root, rels) -> Map of path -> blob id for the regular files of `rels` that HEAD records
 
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { gitTry } from './exec.mjs';
 
 const CHUNK = 100;
 const LOG_BUFFER_BYTES = 256 * 1024 * 1024;
+const HASH_MAX_BYTES = 1 << 20;
+const REGULAR_FILE_MODE = /^100(?:644|755)$/;
 const RAW_META = /^:\d+ \d+ [0-9a-f]+ ([0-9a-f]+) \S+$/;
 const ABSENT_BLOB = /^0+$/;
 const REACHABLE = ['HEAD', '--branches', '--tags', '--remotes'];
 
-const blobId = (bytes) => createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+export const blobId = (bytes) => createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+
+export function variants(root, rel) {
+  try {
+    const path = join(root, rel);
+    if (statSync(path).size > HASH_MAX_BYTES) return [];
+    const raw = readFileSync(path);
+    const lf = raw.toString('utf8').replace(/\r\n/g, '\n');
+    return [raw, Buffer.from(lf), Buffer.from(lf.replace(/\n/g, '\r\n'))];
+  } catch {
+    return [];
+  }
+}
+
+export function headBlobs(root, rels) {
+  const blobs = new Map();
+  for (let i = 0; i < rels.length; i += CHUNK) {
+    const listing = gitTry(['ls-tree', '-z', 'HEAD', '--', ...rels.slice(i, i + CHUNK)], root);
+    if (!listing.ok) continue;
+    for (const entry of listing.out.split('\0').filter(Boolean)) {
+      const [meta, path] = entry.split('\t');
+      const [mode, type, id] = meta.split(' ');
+      if (type === 'blob' && REGULAR_FILE_MODE.test(mode)) blobs.set(path, id);
+    }
+  }
+  return blobs;
+}
 
 // Every blob id some reachable commit recorded at each of the paths, from `git log --raw -z` (renames off, merges diffed per parent).
 function recordedBlobs(root, rels) {
