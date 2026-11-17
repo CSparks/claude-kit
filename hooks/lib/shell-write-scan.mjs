@@ -46,6 +46,7 @@ import { fromCommandWord } from './command-lead.mjs';
 import { launcherProblem } from './builds-run-args.mjs';
 import { assignedValues, expandVariables } from './shell-variables.mjs';
 import { copyVariable } from './copy-variable.mjs';
+import { leaderValues, resolveLeader } from './variable-leader.mjs';
 import { gitInnerHits } from './git-inner-hits.mjs';
 import { cleaned, commandTokens } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
@@ -200,7 +201,8 @@ function judgeTouch(argText, ctx) {
   return proven.files.map(ctx.hit).filter(Boolean).map((h) => ({ ...h, mtimeOnly: { noCreate: proven.noCreate } }));
 }
 
-function judgeSegment(text, ctx) {
+function judgeSegment(segmentText, ctx) {
+  const text = resolveLeader(segmentText, ctx.leaders);
   const words = wordsIn(text);
   if (!words.length) return [];
   const leader = nameOf(words[0].w);
@@ -232,7 +234,8 @@ function judgeSegment(text, ctx) {
   const touched = TOUCH_CMD.test(leader) ? judgeTouch(text.slice(words[0].at + words[0].w.length), ctx) : null;
   if (touched) return [...hits, ...touched];
   for (let i = 0; i < words.length; i++) {
-    hits.push(...listed(judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length))));
+    const found = listed(judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length)));
+    hits.push(...found.map((h) => ({ ...h, token: words[i].w })));
   }
   return hits;
 }
@@ -281,8 +284,9 @@ export function scanAllShellWrites(command, { hit, codeHit, readScript = readTem
   if (HEREDOC_CODE.test(text) || PIPED_CODE.test(text)) return listed(codeHit(text));
   const ctx = { hit, codeHit, readScript, judgeMoveSources, exemptByDestination, removals, shell, parts, raw: String(command || '') };
   const variables = assignedValues(parts, shell);
+  const leaders = leaderValues(parts, shell);
   const all = [...parts];
-  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, at: i, vars: variables.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw), cwd: commandCwd(ctx.raw, process.cwd(), { upto: i, shell }) })
+  return all.flatMap((seg, i) => judgeSegment(seg.text, { ...ctx, at: i, vars: variables.get(seg), leaders: leaders.get(seg), touchPlaceKnown: touchPlaceKnown(all, i, ctx.raw), cwd: commandCwd(ctx.raw, process.cwd(), { upto: i, shell }) })
     .map((found) => ({ ...found, segment: i })));
 }
 

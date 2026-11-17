@@ -61,7 +61,7 @@ function bashValue(raw) {
   return raw.startsWith('"') ? (BASH_ESCAPE_IN_DOUBLE_QUOTES.test(value) ? null : value) : (value.includes('\\') ? null : value);
 }
 
-function bashAssignments(text) {
+export function bashAssignments(text) {
   const tokens = shellTokens(text);
   if (tokens.length && BASH_DECLARE.test(tokens[0])) tokens.shift();
   const found = [];
@@ -114,7 +114,7 @@ function leavesVariablesAlone(text, shell) {
 }
 
 // How often the command writes to `name`: a bash assignment or declaration, a PowerShell assignment.
-function writesTo(text, name, shell) {
+export function writesTo(text, name, shell) {
   const n = escapeRegex(name);
   const power = isPowershell(shell);
   const pattern = power ? String.raw`\$${n}\s*[-+*/%]?=` : String.raw`(?<![\w$])${n}\+?=`;
