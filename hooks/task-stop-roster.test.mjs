@@ -3,10 +3,14 @@
 // Run: node hooks/task-stop-roster.test.mjs
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, finish, gitTop, inFlightRow, makeRepo, roster, run } from './dispatch-guard-harness.mjs';
+
+process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'ts-holders-'));
+const { agentEntries, claimFile } = await import('./lib/checkout-holder.mjs');
 
 const ROSTER_HOOK = fileURLToPath(new URL('./agent-roster.mjs', import.meta.url));
 const writer = { subagent_type: 'general-purpose', model: 'opus', prompt: 'implement the next ticket (KIT-T362)' };
@@ -71,6 +75,19 @@ const busy = (extra = {}) => roster(makeRepo({ cargo: true }), [inFlightRow(0, e
     taskStop(d, { tool_input: { task_id: 'agent-live' } });
     return run(d, { ...writer, prompt: `${writer.prompt} [tree: ${other}]` }).code;
   })(), 0);
+}
+
+{
+  const tree = gitTop(makeRepo());
+  const mine = 'agentclaims000001';
+  const other = 'agentclaims000002';
+  for (const agent of [mine, other]) claimFile({ tree, session: 'S1', agent, rel: 'src/a.rs', head: 'h' });
+  const dir = roster(makeRepo({ cargo: true }), [inFlightRow(0, { id: mine })]);
+  taskStop(dir, { tool_input: { task_id: mine } });
+  expect('TaskStop releases the stopped agent\'s file claims', agentEntries(mine).length, 0);
+  expect('negative control: another agent\'s claims stay', agentEntries(other).length, 1);
+  taskStop(makeRepo(), { tool_input: { task_id: other } });
+  expect('claims go even when this checkout\'s roster holds no row for the agent', agentEntries(other).length, 0);
 }
 
 finish();

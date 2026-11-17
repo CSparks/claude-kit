@@ -7,7 +7,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readAgents, partitionAgents, agentsPath } from './lib.mjs';
 import { formatAgentLine } from './lib/agent-format.mjs';
+import { agentEntries, claimFile } from './lib/checkout-holder.mjs';
 
+process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'kit-rec-holders-'));
 const MIN = 60000;
 function fixture(rows, transcripts) {
   const d = mkdtempSync(join(tmpdir(), 'kit-rec-'));
@@ -40,6 +42,18 @@ test('429 tail is marked killed: usage-limit and never deleted', () => {
 test('idle transcript with no completion is stale', () => {
   const d = fixture([{ id: 'idle', ageMin: 120, idleMin: 90, transcript: ok }]);
   assert.equal(readAgents(d)[0].status, 'stale');
+});
+
+test('a dead verdict releases the agent\'s claims; a live agent keeps them (KIT-T1329)', () => {
+  const d = fixture([
+    { id: 'deadclaimant00001', ageMin: 120, idleMin: 100, transcript: limit },
+    { id: 'busyclaimant00001', ageMin: 120, idleMin: 2, transcript: ok },
+  ]);
+  for (const agent of ['deadclaimant00001', 'busyclaimant00001']) claimFile({ tree: d, session: 'S1', agent, rel: 'src/a.rs', head: 'h' });
+  assert.equal(agentEntries('deadclaimant00001').length, 1);
+  readAgents(d);
+  assert.equal(agentEntries('deadclaimant00001').length, 0);
+  assert.equal(agentEntries('busyclaimant00001').length, 1);
 });
 
 test('live recent row is untouched (negative control)', () => {

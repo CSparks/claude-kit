@@ -126,18 +126,18 @@ function recordStop(root, p) {
   }
 }
 
-// A TaskStop killed a task (KIT-T362). The harness fires no SubagentStop for a kill, so close the roster row
-// whose id is the stopped task_id; a task with no row here (a background shell) leaves the roster untouched.
+// A TaskStop killed a task (KIT-T362). The harness fires no SubagentStop for a kill, so release the claims and holds
+// of the stopped task_id (whatever roster holds its row) and close its roster row here; a task with no row (a background
+// shell) leaves the roster untouched.
 function recordKill(root, p) {
   try {
     const inp = p.tool_input || {};
     const resp = p.tool_response && typeof p.tool_response === 'object' ? p.tool_response : {};
     const id = firstString(inp.task_id, inp.shell_id, resp.task_id);
     if (!id) return;
-    const row = readAgents(root, AGENT_ROSTER_TAIL, { reconcile: false }).find((r) => r.id === id);
-    if (!row) return;
     releaseAgent(id);
-    if (AGENT_TERMINAL.has(row.status)) return;
+    const row = readAgents(root, AGENT_ROSTER_TAIL, { reconcile: false }).find((r) => r.id === id);
+    if (!row || AGENT_TERMINAL.has(row.status)) return;
     updateAgent(root, id, { status: 'killed', reason: 'taskstop', source: 'taskstop' });
   } catch {
     /* fail-open */

@@ -6,11 +6,13 @@
 //   no completion and transcript idle >30m -> status 'stale'
 // A row without a written transcript is left alone (cannot tell dead from slow). The verdict is
 // APPENDED via the injected `update` (append-only; no row is ever deleted) with the target
-// repo's uncommitted files as `wip`, so the resume knows what to recover.
+// repo's uncommitted files as `wip`, so the resume knows what to recover. A dead agent's claims and holds are released
+// with its verdict (`release`, injectable), so its files stop reading as a live writer's.
 
 import { readFileSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { wipSummary } from './git-state.mjs';
 import { transcriptPaths } from './subagent-transcript.mjs';
+import { releaseAgent } from './checkout-holder.mjs';
 
 export const RECONCILE_AGE_MS = 30 * 60 * 1000;
 export const TRANSCRIPT_IDLE_MS = 30 * 60 * 1000;
@@ -50,7 +52,7 @@ export function transcriptVerdict(row, nowMs, options) {
 }
 
 // `rows` is the collapsed roster; returns the verdict rows written. `wipOf(repo)` is injectable.
-export function reconcileAgents(root, rows, { update, nowMs = Date.now(), wipOf = (r) => wipSummary(r).dirty, claudeHome } = {}) {
+export function reconcileAgents(root, rows, { update, nowMs = Date.now(), wipOf = (r) => wipSummary(r).dirty, claudeHome, release = releaseAgent } = {}) {
   const done = [];
   for (const r of rows) {
     if (r.status !== 'in-flight') continue;
@@ -62,6 +64,7 @@ export function reconcileAgents(root, rows, { update, nowMs = Date.now(), wipOf 
     try { wip = wipOf(r.targetRoot || root).slice(0, WIP_MAX); } catch { /* wip is advisory */ }
     const patch = { ...verdict, ...(wip.length ? { wip } : {}), source: 'orient-reconcile' };
     update(root, r.id, { status: patch.status, ...patch });
+    release(r.id);
     done.push({ ...r, ...patch });
   }
   return done;

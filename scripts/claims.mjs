@@ -14,9 +14,9 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { parseFlags } from './broker/cli.mjs';
+import { isMain } from './is-main.mjs';
 import { agentEntries, releaseAgent } from '../hooks/lib/checkout-holder.mjs';
 import { updateAgent } from '../hooks/lib/agent-roster.mjs';
 import { consumeStamp, STAMP_ENV } from '../hooks/lib/claims-stamp.mjs';
@@ -46,7 +46,7 @@ export function releaseDead({ id, reason, root = repoRoot(process.cwd()), now = 
   return { ok: true, code: EXIT.OK, text: `claims --release: released ${entries.length} claim(s) and hold(s) of agent ${agent} (last write ${Math.round((now - latest) / MS_PER_MINUTE)} min ago); recorded in the roster` };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain(import.meta.url)) {
   const flags = parseFlags(process.argv.slice(2));
   const result = typeof flags.release === 'string'
     ? releaseDead({ id: flags.release, reason: typeof flags.reason === 'string' ? flags.reason : '' })
