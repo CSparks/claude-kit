@@ -12,6 +12,7 @@ supersedes:
 superseded_by:
 created: 2026-11-17T14:46:53Z
 updated: 2026-11-17T15:07:20Z
+fixed_commit: 10deea8dabfdedceaebc1e93e63da72b74c7851b
 ---
 
 ## Description
@@ -35,3 +36,5 @@ Reproduced 2026-11-17 against hooks/query-gate.mjs: grep -n, rg, sed -n 1,40p an
 - [2026-11-17 15:06] (comment) criterion added: A Bash pattern search of ONE named non-store file (grep/rg/git grep/sed -n '/x/p'/awk '/x/'/Select-String, cat f | grep) is blocked with the exact q code --dir equivalent; reads, output filters, scratch/outside files, the Grep tool and Read pass
 - [2026-11-17 15:06] (comment) ticked: A Bash pattern search of ONE named non-store file (grep/rg/git grep/sed -n '/x/p'/awk '/x/'/Select-String, cat f | grep) is blocked with the exact q code --dir equivalent; reads, output filters, scratch/outside files, the Grep tool and Read pass
 - [2026-11-17 15:07] (status) todo → review
+- [2026-11-17 15:07] (landed) 8aec61e3 query-gate: block a Bash pattern search of one named file; name q code --dir (implements KIT-T1342)
+- [2026-11-17 15:14] (landed) 10deea8d query-gate: one-file search resolves paths after a cd and names an unresolved variable (implements KIT-T1342)
