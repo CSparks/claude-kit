@@ -41,6 +41,31 @@ try {
   ok('a why-comment with no history passes', write(d, 'm.mjs', code('// Sorted by id so the cache and the scan agree.')).code === 0);
   ok('the same words in CODE (a string) are not comments', write(d, 'n.mjs', "export const s = 'Pat said hi 2026-01-01';\n").code === 0);
 
+  // --- KIT-T1343: a date inside a path or file name is a name, a date stamp is history ---------------
+  const stamps = (comment, ext = 'rs') => narrationHits(`${comment}\npub fn a() {}\n`, ext).length;
+  const names = [
+    '//! Measures docs/perf/mountain-shape-2026-11-17.md against the baseline.',
+    '// Writes mountain-shape-2026-11-17.md next to the log.',
+    '// Reads 2026-11-17.json from the fixtures.',
+    '// The report is docs/perf/2026-11-17/summary.txt.',
+    '// Fixture capture_2026-11-17_b.ron is read once.',
+    '// See `mountain 2026-11-17 run` for the numbers.',
+    '// See [the report](docs/perf/2026-11-17.md) for the numbers.',
+    '// Sibling of out/2026-11-17/.',
+  ];
+  for (const comment of names) ok(`KIT-T1343: a date in a path or file name passes: ${comment}`, stamps(comment) === 0);
+  const history = [
+    '// We changed this on 2026-11-17 to fix the seam.',
+    '// 2026-11-17: fixed the seam',
+    '// Fixed the seam (2026-11-17)',
+    '// Changed on 2026-11-17.',
+    '// Tuned on 2026-11-17 against docs/perf/mountain-shape-2026-11-17.md',
+  ];
+  for (const comment of history) ok(`KIT-T1343: a real dated stamp still blocks: ${comment}`, stamps(comment) === 1);
+  const pathDoc = write(d, 'p.rs', '//! Header names docs/perf/mountain-shape-2026-11-17.md.\npub fn a() {}\n');
+  ok('KIT-T1343: the pre-write gate passes a Rust //! doc comment naming a dated file', pathDoc.code === 0);
+  ok('KIT-T1343: the pre-write gate still blocks a Rust dated stamp', write(d, 'q.rs', '// Rewritten on 2026-11-17.\npub fn a() {}\n').code === 2);
+
   // --- exclusions ---------------------------------------------------------------------
   writeFileSync(join(d, '.claude-kit-ignore.yaml'), 'comment-length:\n  - "long/**"\ncomment-narration:\n  - "story/**"\n');
   ok('path exclusion lifts comment-length', write(d, 'long/a.mjs', code(block(RUN_BLOCK + 2))).code === 0);

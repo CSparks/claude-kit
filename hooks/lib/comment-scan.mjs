@@ -30,9 +30,20 @@ const WHO = `the maintainer|the user|${ALIAS}`;
 const TICKET = String.raw`\b[A-Z][A-Z0-9]{1,5}-[TDQN]\d+\b`;
 const TICKET_VERBS = 'moved|changed|added|removed|replaced|renamed|introduced|fixed|split|merged|dropped|deleted|rewrote|switched|made|turned|converted|extracted|reworked|refactored|broke|reverted|landed|shipped|redesigned';
 
+const DATE = /\b20\d\d-\d\d-\d\d\b/g;
+const CODE_SPAN_OR_LINK_TARGET = /`[^`]*`|\]\([^)]*\)/g;
+const NAME_BEFORE = /(?:[/\\_.]|[A-Za-z0-9]-)$/;
+const NAME_AFTER = /^(?:[/\\_]|\.[A-Za-z0-9]{1,6}\b|-[A-Za-z0-9])/;
+
+/** True when a comment holds a date as a stamp; a date inside a path, a file name, a code span or a link target is a name. */
+function hasDatedStamp(text) {
+  const plain = text.replace(CODE_SPAN_OR_LINK_TARGET, ' ');
+  return [...plain.matchAll(DATE)].some((m) => !NAME_BEFORE.test(plain.slice(0, m.index)) && !NAME_AFTER.test(plain.slice(m.index + m[0].length)));
+}
+
 const NARRATION = [
   [new RegExp(String.raw`\b(?:since|after|before)\s+${TICKET}|${TICKET}\s+(?:${TICKET_VERBS})\b|\b(?:was|were)\b[^.]{0,40}\b(?:in|by|under)\s+${TICKET}`), 'recounts ticket history (a bare id is the ceiling)'],
-  [/\b20\d\d-\d\d-\d\d\b/, 'dated stamp (history belongs in git)'],
+  [{ test: hasDatedStamp }, 'dated stamp (history belongs in git)'],
   [new RegExp(String.raw`\b(?:${WHO})\b[’']?s?\s+(?:said|says|asked|wants?|wanted|told|decided|noted|reported|prefers?|rule)\b`, 'i'), 'attributes the code to a conversation'],
   [new RegExp(String.raw`\((?:${ALIAS}|maintainer)\b|\b(?:${ALIAS}|maintainer)\s+20\d\d|\bper (?:${WHO})\b`, 'i'), 'maintainer attribution'],
   [/\b(?:said|says|asked|told|wrote)\s*[:,]?\s*["“]/i, 'quoted discussion'],
