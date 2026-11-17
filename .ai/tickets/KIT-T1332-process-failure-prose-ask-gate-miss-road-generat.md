@@ -2,7 +2,7 @@
 id: KIT-T1332
 title: process failure + prose-ask gate miss (road-generator, 2026-11-16 ~19:30, main thread): the crest-rework report to the maintainer carried 'S
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-17T02:40:50Z
-updated: 2026-11-17T02:40:50Z
+updated: 2026-11-17T02:59:43Z
 ---
 
 ## Description
@@ -34,3 +34,6 @@ Update after replay: running the sealed runtime 98ce0aa through compat-run with 
 ## History
 - [2026-11-17 02:40] (created) bug — process failure + prose-ask gate miss (road-generator, 2026-11-16 ~19:30, main thread): the crest-rework report to the maintainer carried 'S
 - [2026-11-17 02:50] (landed) 045ccea prose-ask gate: a hard phrase in any message of the turn blocks, not only the closing one (implements KIT-T1332)
+- [2026-11-17 02:59] (landed) 76e7810 prose-ask gate: scan only the messages no earlier Stop run has read (implements KIT-T1332)
+- [2026-11-17 02:59] (status) todo → review
+- [2026-11-17 02:59] (comment) @claude: (fixed) 76e7810 (earlier 045ccea); published runtime 76e7810. Tests: hooks/prose-ask-gate.test.mjs 179 passed.
