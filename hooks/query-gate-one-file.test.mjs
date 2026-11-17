@@ -74,6 +74,16 @@ try {
   ok('the block names Read, the allowed forms and its check id', /Read tool/.test(block) && /own output/.test(block) && /one-file-search/.test(block) && /HARD STOP/.test(block));
   ok('the block no longer advises a plain grep of one file', !/stays a plain|is allowed/.test(block));
 
+  mkdirSync(join(repo, 'crates', 'x', 'src'), { recursive: true });
+  const outsideDir = slashed(outside);
+  ok('a cd outside every repo then a grep of a bare file name passes', gate(`cd ${outsideDir} && grep -n Town run.log`).code === PASS);
+  ok('a cd outside every repo then rg of a bare file name passes', gate(`cd ${outsideDir} && rg Town run.log`).code === PASS);
+  const afterCd = gate('cd crates && grep -n fn x/src/lib.rs');
+  ok('a cd into a repo directory then a grep blocks and the q line holds the absolute path', afterCd.code === BLOCK && /--dir '?[^\n]*\/crates\/x\/src\/lib\.rs'?\n/.test(afterCd.out) && /--dir '?(?:[A-Za-z]:)?\//.test(afterCd.out));
+  const unresolved = gate('grep -c "test result" "$TEMP/run.log"');
+  ok('an unassigned variable path blocks and the block names the variable', unresolved.code === BLOCK && /\$TEMP\/run\.log is a shell variable/.test(unresolved.out));
+  ok('a variable assigned as one literal outside every repo passes', gate(`S=${outsideLog}; grep -c ERROR $S`).code === PASS);
+
   const grepTool = (tool_input, cwd = repo) => hook('query-gate.mjs', { tool_name: 'Grep', tool_input }, cwd).code;
   ok('control: the Grep tool on ONE file passes', grepTool({ pattern: 'usePhysics', path: 'crates/x/src/lib.rs' }) === PASS);
   ok('control: the Read tool is never judged', hook('query-gate.mjs', { tool_name: 'Read', tool_input: { file_path: 'crates/x/src/lib.rs' } }, repo).code === PASS);

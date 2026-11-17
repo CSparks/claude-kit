@@ -91,7 +91,7 @@ export function indexEquivalent(command, { qPath, root, cwd = process.cwd(), fil
   if (shape === 'regex') args.push('--regex');
   if (f.ignore) args.push('-i');
   if (f.word) args.push('-w');
-  if (file) args.push('--dir', quote(pos[1]));
+  if (file) args.push('--dir', quote(cwd === process.cwd() ? pos[1] : resolve(cwd, pos[1]).replace(/\\/g, '/')));
   else {
     args.push('--lang', f.lang);
     if (rel[0]) args.push('--path', rel[0]);

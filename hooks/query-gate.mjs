@@ -111,6 +111,7 @@ function targetsOnlyNonIndexedExtensions(c) {
 }
 
 let repoRoot = '';
+let segmentCwd = process.cwd(); // where the judged segment runs: the hook's cwd, or the directory an earlier `cd` of the command chose
 let grepInput = null; // the Grep tool's own fields: its pattern is read from here, never parsed back out of the rendered `rg` line
 const callOf = (c) => (grepInput ? classifyCalls('Grep', grepInput) : classifyCalls('Bash', { command: c }))[0];
 main().catch(() => process.exit(0)); // fail-open — never wedge a tool call on a parse slip
@@ -149,6 +150,7 @@ async function main() {
     const c = (resolved.get(seg) ?? text).trim();
     if (!c) continue;
     const base = storeBaseOf(cmd, at, p.tool_name);
+    segmentCwd = cwdBefore(cmd, at, p.tool_name);
     const piped = after === '|';
     const verdict = (piped && feedsFromItem && leadsSearch(c)) ? { id: 'store-grep', msg: storeMsg(c) } : (piped && fedPath && fedSearchVerdict(c, fedPath)) || judge(c, piped, base);
     feedsFromItem = readsItemFile(c);
@@ -182,12 +184,24 @@ function readsSourceFile(c) {
   return file && !STORE.test(file) ? file : '';
 }
 
+// The directory segment `at` runs in.
+function cwdBefore(command, at, toolName) {
+  if (!CD_WORD.test(command)) return process.cwd();
+  try {
+    return commandCwd(command, process.cwd(), { upto: at, shell: shellOfTool(toolName) });
+  } catch {
+    return process.cwd();
+  }
+}
+
 // The block for a search a one-file search names or a pipe feeds `file`; null when its files are exempt (scratch, outside every repo).
+// After a `cd` the files are resolved against the directory it chose, so the printed q line holds a path that works from anywhere.
 function oneFileVerdict(c, found) {
-  const where = { root: repoRoot, cwd: process.cwd() };
-  if (grepInput || exemptFiles(found.files, where)) return null;
+  const where = { root: repoRoot, cwd: segmentCwd };
+  const files = segmentCwd === process.cwd() ? found.files : found.files.map((f) => resolve(segmentCwd, f).replace(/\\/g, '/'));
+  if (grepInput || exemptFiles(files, where)) return null;
   const pattern = found.pattern ?? (callOf(c) || {}).pattern ?? null;
-  return { id: 'one-file-search', msg: oneFileMsg({ ...found, pattern, command: c, q: Q, ...where }) };
+  return { id: 'one-file-search', msg: oneFileMsg({ ...found, files, pattern, command: c, q: Q, ...where }) + unresolvedTargetNote(files) };
 }
 
 function fedSearchVerdict(c, file) {
