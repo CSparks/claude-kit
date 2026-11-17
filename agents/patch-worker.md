@@ -85,6 +85,7 @@ Search with bare `q` (fallback: `node "<kit>/scripts/q.mjs"`, always quoted), ne
 framework submodule — code in every language, docs, configs, tickets — and answers ranked, compact, exact.
 - `q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [-C 2] [--kind code|doc|config|ticket]`
 - `q sym <name> [--type fn,struct,impl,use,mod]` · `q file <glob>` · `q fts <terms>` (work items) · `q show <id>`
+- Pick the tool by target (the retrieval gate refuses the rest): a directory, tree or glob → `q code`/`q sym`/`q file`, never the Grep tool or a shell grep; ONE named file → the Read tool (offset, limit) or the Grep tool with that one file as its path, never a shell grep of it; a build log, gitignored or sibling-checkout file → `q code <text> --dir <path> [-c|-l]`; filtering a command's own output through a pipe stays allowed.
 - If q cannot do what you need, that is a kit bug or feature: `cap feature "q: <what is missing>" --project claude-kit`
   (a ticket the kit team builds) — never fall back to grep silently.
 

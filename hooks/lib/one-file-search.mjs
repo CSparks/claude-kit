@@ -52,11 +52,19 @@ export function oneFileSearch(tool, argv, { git = false } = {}) {
   return tool === 'select-string' || tool === 'sls' ? powershellSearch(argv) : null;
 }
 
+const FOLLOW_FLAG = /^-[A-Za-z]*[fF]|^--follow\b/;
+const FINISHED_LOG_FILE = /(?:^|[\\/])finished\.log$/;
+
+// The broker's end-of-run stream: a Monitor follows it with `tail -F target/broker/finished.log | grep --line-buffered <id>`
+// (KIT-D115). A stream has no past to search, so q cannot stand in for it.
+const followsFinishedLog = (tool, argv, file) => tool === 'tail' && argv.some((a) => FOLLOW_FLAG.test(a)) && FINISHED_LOG_FILE.test(file);
+
 export function fedFile(tool, argv) {
   const readers = /^(?:cat|head|tail|type|get-content|gc)$/.test(tool);
   if (!readers && tool !== 'sed') return null;
   const operands = fileOperands(tool, argv).filter((a) => !COUNT_ARG.test(a));
-  return operands.length === 1 && isConcreteFile(operands[0]) ? operands[0] : null;
+  const file = operands.length === 1 && isConcreteFile(operands[0]) ? operands[0] : null;
+  return file && !followsFinishedLog(tool, argv, file) ? file : null;
 }
 
 /** A grep-family or Select-String search with no file operand, fed `file` by the previous segment, searches that file. */
@@ -98,6 +106,7 @@ export function oneFileMsg(call) {
     `Logs, build output, gitignored or sibling-checkout files: node "${q}" code <text> --dir <path> [-c|-l] [-i] [--regex] [-C 2].`,
     "Still allowed: filtering a command's own output (cargo test 2>&1 | grep -E 'test result|FAILED' | tail -20),",
     'files in a session scratchpad or outside every adopted repo, and the Grep tool on ONE file.',
+    'The end of a broker run: `tail -n 0 -F target/broker/finished.log | grep --line-buffered -E "<run ids>"` in one Monitor (docs/wait-rule.md).',
     'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it (KIT-T236).',
     '',
   ].join('\n');

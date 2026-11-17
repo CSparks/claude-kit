@@ -17,6 +17,7 @@ import { messageFileProblem } from './lib/message-file-owner.mjs';
 import { writerId } from './lib/tool-writes.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { shellOfTool } from './lib/shell-segments.mjs';
+import { payloadStartDir } from './lib/shell-cwd.mjs';
 import { isKitCheckout } from './lib/kit-checkout.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
@@ -34,7 +35,8 @@ const p = await payload();
 const command = (p.tool_input && p.tool_input.command) || '';
 const shell = shellOfTool(p.tool_name);
 // KIT-T1174: a commit is a parsed git call (git-calls.mjs), so every spelling of `-C`, global option and wrapper reaches the gate.
-const commit = commitCall(command, { shell });
+const startDir = payloadStartDir(p);
+const commit = commitCall(command, { shell, cwd: startDir });
 const isCommit = commit !== null;
 // `git add -A` / `git add .` with no pathspec limit. -A is TREE-WIDE regardless of cwd, so in
 // the shared data repo it stages every project's subtree, not the one being worked (KIT-T230).
@@ -44,7 +46,7 @@ const isBareAdd = adds.includes('.');
 if (!isCommit && !isBareAdd) process.exit(0);
 
 // The call runs in the repo the command targets, not the session cwd: the `cd` segments and `-C` options before it.
-const targetDir = (commit ?? firstGitCall(command, ADD_SUBCOMMANDS, { shell }))?.dir ?? process.cwd();
+const targetDir = (commit ?? firstGitCall(command, ADD_SUBCOMMANDS, { shell, cwd: startDir }))?.dir ?? startDir;
 const root = gitRoot(targetDir);
 // The message a `-F <file>` commit carries is part of what the commit cites (KIT-T1097).
 const cited = `${command}\n${commitMessageText(command, targetDir, shell)}`;

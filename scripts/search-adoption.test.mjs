@@ -29,8 +29,22 @@ test('every tracked agent definition carries the q-first search section', () => 
   }
 });
 
+test('every tracked agent definition maps each search target to its tool (KIT-T1348)', () => {
+  const tracked = execFileSync('git', ['ls-files', 'agents'], { cwd: KIT, encoding: 'utf8' }).split('\n').filter((f) => f.endsWith('.md') && !f.endsWith('README.md'));
+  for (const f of tracked) {
+    const text = read(f);
+    assert.match(text, /Pick the tool by target/, f);
+    assert.match(text, /never the Grep tool or a shell grep/, f);
+    assert.match(text, /ONE named file → the Read tool/, f);
+    assert.match(text, /q code <text> --dir <path>/, f);
+  }
+});
+
 test('dispatching commands tell every brief to search with q', () => {
-  for (const f of ['commands/work.md', 'commands/drain.md']) assert.match(read(f), /Search with q \(q code \/ sym \/ file \/ fts\), never grep/, f);
+  for (const f of ['commands/work.md', 'commands/drain.md']) {
+    assert.match(read(f), /Search with q \(q code \/ sym \/ file \/ fts\), never grep/, f);
+    assert.match(read(f), /One named file: the Read tool\. A log or build output: q code <text> --dir <path>\. Never the Grep tool on a directory\./, f);
+  }
 });
 
 test('the base contract names q as THE search tool and the kit-feature escape', () => {

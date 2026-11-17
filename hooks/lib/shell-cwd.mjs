@@ -21,6 +21,10 @@ function madeDirectories(text, cwd) {
   return MKDIR.test(tool) ? args.filter((a) => !a.startsWith('-')).map((a) => resolve(cwd, toPath(a))) : [];
 }
 
+// Where a shell tool call starts: the payload's `cwd` (the shell's directory) when it names a directory, else the hook's own
+// cwd, which is the session project root and not the directory a subagent's shell sits in (KIT-T1347).
+export const payloadStartDir = (p) => (typeof p?.cwd === 'string' && p.cwd && isDirectory(p.cwd) ? p.cwd : process.cwd());
+
 export function commandCwd(command, start = process.cwd(), { upto = Infinity, shell = '' } = {}) {
   let cwd = start;
   let index = 0;
