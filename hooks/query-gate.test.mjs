@@ -1,7 +1,7 @@
 // Automated test for the retrieval gate (hooks/query-gate.mjs). Spins up throwaway
 // adopted repos and asserts: BLOCK on store search + tree-wide source discovery;
-// ALLOW on targeted single-file grep, piped output filtering, q/code-graph calls,
-// non-search commands, and unadopted repos. Run: node hooks/query-gate.test.mjs
+// ALLOW on piped output filtering, q/code-graph calls, non-search commands, and unadopted repos
+// (single-file search: query-gate-one-file.test.mjs). Run: node hooks/query-gate.test.mjs
 
 import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync } from 'node:fs';
@@ -56,9 +56,10 @@ expect('blocks bare rg (recursive by default)', run(d, 'rg PhysicsSim').code, 2)
   expect('KIT-T1314: a grep after a cd into .ai/tickets of one named item blocks and names q show', /q\.mjs" show RDG-T094\n/.test(first('cd .ai/tickets && grep -n Handoff RDG-T094-x.md')), true);
   expect('KIT-T1314: a recursive grep after a cd into .ai blocks and names q fts', /q\.mjs" fts Handoff\n/.test(first('cd .ai && grep -rn Handoff tickets')), true);
   expect('KIT-T1314 control: a plain read of one item after a cd into the store passes', run(d, 'cd .ai/tickets && sed -n 1,40p RDG-T094-x.md').code, 0);
-  expect('KIT-T1314 control: a cd outside the store then a grep of a named file passes', run(d, 'cd src && grep -n Handoff main.ts').code, 0);
-  expect('KIT-T1314 control: a file named like the store extension is not the store (notes.ai)', run(d, 'grep -n Handoff notes.ai').code, 0);
-  expect('KIT-T1314 control: q show to a scratch file then a grep of that file passes', run(d, 'q show RDG-T094 > t.txt; grep -n Handoff t.txt').code, 0);
+  const oneFile = (command) => /one-file-search|pattern search of a named file/.test(run(d, command).err) && !/work store/.test(run(d, command).err);
+  expect('KIT-T1342: a cd outside the store then a grep of a named file is a one-file search, not a store read', oneFile('cd src && grep -n Handoff main.ts'), true);
+  expect('KIT-T1342: a file named like the store extension (notes.ai) is a one-file search, not a store read', oneFile('grep -n Handoff notes.ai'), true);
+  expect('KIT-T1342: q show to a file in the repo then a grep of that file is a one-file search', oneFile('q show RDG-T094 > t.txt; grep -n Handoff t.txt'), true);
   expect('KIT-T1307 control: a grep with no path operand keeps the add --path hint', /code PhysicsSim\s+\(add --lang L --path P as needed\)/.test(run(d, 'grep -rn PhysicsSim').err), true);
 }
 expect('KIT-T705 negative control: node -e with escaped quotes and no search word passes', run(d, 'node -e "console.log(\\"x\\")"').code, 0);
@@ -74,7 +75,7 @@ expect('blocks git grep discovery', run(d, 'git grep usePhysics').code, 2);
 expect('blocks rg with --include=*.ts (indexed ext)', run(d, 'rg --include=*.ts "useState" src/').code, 2);
 
 // KIT-T1100: the target decides store or source, never a store word inside the pattern.
-expect('KIT-T1100: a store word in the pattern of a one-file source grep passes', run(d, 'grep -n "notes/ or .ai/ paths" crates/x/src/fly_probe.rs').code, 0);
+expect('KIT-T1100: a store word in the pattern of a one-file source grep is a one-file search, never store-grep', /pattern search of a named file/.test(run(d, 'grep -n "notes/ or .ai/ paths" crates/x/src/fly_probe.rs').err), true);
 const sourceTree = run(d, 'grep -rn "notes/" src/');
 expect('KIT-T1100: a recursive source grep with a store word is source discovery, not store-grep', sourceTree.code === 2 && !sourceTree.err.includes('searching the .ai work store') && sourceTree.err.includes('source-discovery'), true);
 expect('KIT-T1100: that source redirect names q code with the pattern', sourceTree.err.includes('code') && sourceTree.err.includes('notes/'), true);
@@ -123,7 +124,7 @@ expect('KIT-T980 control: a piped grep that names a store file still blocks', ru
 expect('KIT-T871 negative control: a plain cat of ONE named item file passes (Read-tool case)', run(d, 'cat .ai/tickets/KIT-T001.md').code, 0);
 expect('KIT-T871 negative control: a sed line-range read of ONE named item file passes', run(d, 'sed -n 1,40p .ai/tickets/KIT-T001.md').code, 0);
 expect('KIT-T871 negative control: a filter over git output naming "tickets" passes', run(d, 'git log | grep tickets').code, 0);
-expect('KIT-T871 negative control: a grep of a non-store notes dir passes', run(d, 'grep todo src/notes/api.md').code, 0);
+expect('KIT-T871 negative control: a grep of a non-store notes dir file is a one-file search, not a store read', /pattern search of a named file/.test(run(d, 'grep todo src/notes/api.md').err), true);
 {
   const idBlock = run(d, 'grep -c "Handoff" .ai/tickets/GG-T190*.md').err;
   expect('KIT-T871: the block names q show for the item id', /q\.mjs" show GG-T190\b/.test(idBlock), true);
@@ -135,10 +136,9 @@ expect('allows a heredoc/redirect WRITE whose body names a store path (memory-fi
 expect('allows the ls+cat store-format lookup (the 4th over-block)',
   run(d, 'ls .ai/decisions | tail -5 && cat .ai/decisions/HOD-D004.md').code, 0);
 
-// ALLOW — the maintainer's rule: grep is fine for a SPECIFIC known file, and a pipe
-// only filters a command's OUTPUT (not a file search).
-expect('allows targeted grep of one file', run(d, 'grep usePhysics src/main.ts').code, 0);
-expect('allows rg on one specific file', run(d, 'rg usePhysics src/main.ts').code, 0);
+// A pattern search of ONE file is q code --dir's (KIT-D134, KIT-T1342); a pipe only filters a command's OUTPUT.
+expect('KIT-T1342: blocks a targeted grep of one file (q code --dir answers it)', run(d, 'grep usePhysics src/main.ts').code, 2);
+expect('KIT-T1342: blocks rg on one specific file', run(d, 'rg usePhysics src/main.ts').code, 2);
 expect('allows piped output filter', run(d, 'git log --oneline | grep physics').code, 0);
 expect('allows q output piped to grep', run(d, 'node scripts/q.mjs sql "select 1" | grep x').code, 0);
 
@@ -149,7 +149,7 @@ expect('blocks ||-chained store grep (leader-split escape)', run(d, 'true || gre
 expect('blocks ;-chained store DISCOVERY after a pipe', run(d, 'git log | grep x; grep -rn secret .ai/decisions/').code, 2);
 expect('blocks piped grep doing DISCOVERY over a store dir', run(d, 'echo x | grep -rn y .ai/tickets/').code, 2);
 expect('blocks find|xargs grep discovery', run(d, 'git ls-files | xargs grep -r usePhysics src/').code, 2);
-expect('allows grep of src/notes/ (user dir, not the store)', run(d, 'grep todo src/notes/api.md').code, 0);
+expect('KIT-T1342: a grep of src/notes/ (user dir, not the store) is judged as a one-file search', run(d, 'grep todo src/notes/api.md').code, 2);
 expect('allows cat of src/tickets/ file (user dir)', run(d, 'cat src/tickets/parser.ts').code, 0);
 expect('blocks centralized store path DISCOVERY (projects/<name>/tickets)', run(d, 'grep -rn x D:/data/projects/foo/tickets/').code, 2);
 expect('still blocks bare store dir at token start', run(d, 'grep -rn x tickets/').code, 2);
@@ -245,7 +245,7 @@ const vendorGrep = run(d, 'rg "extrude" rapid-game/rust/vendor/manifold-rs');
 expect('blocks rg over a vendored crate', vendorGrep.code, 2);
 expect('vendor redirect names the vendored crate', /code extrude --registry manifold-rs/.test(vendorGrep.err) ? 1 : 0, 1);
 expect('a registry search naming no crate asks for one', /--registry <crate-version>/.test(run(d, 'rg foo ~/.cargo/registry/src').err) ? 1 : 0, 1);
-expect('allows grep of ONE file inside a registry crate', run(d, `grep -n reset_forces ${regCrate}/src/lib.rs`).code, 0);
+expect('KIT-T1342: blocks grep of ONE file inside a registry crate and names --registry', (() => { const r = run(d, `grep -n reset_forces ${regCrate}/src/lib.rs`); return r.code === 2 && /code reset_forces --registry rapier3d-0\.25\.1/.test(r.err); })(), true);
 expect('allows a piped filter that merely names a vendor word', run(d, 'cargo tree | grep vendor').code, 0);
 
 // FAIL-OPEN (KIT-T272) — this hook is loaded LIVE by other sessions; a crash/parse error mid-flight

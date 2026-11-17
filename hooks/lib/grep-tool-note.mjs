@@ -12,5 +12,5 @@ export function grepToolLines(isGrepTool) {
 export function targetedLookLines(isGrepTool) {
   return isGrepTool
     ? ['For a TARGETED look once you know the file: a Grep call whose path is ONE file passes, as does the Read tool.']
-    : ['For a TARGETED look once you know the file, use the Grep/Glob/Read tools', '(not Bash grep). A bare `grep <pattern> <one-specific-file>` is allowed.'];
+    : ['For a TARGETED look once you know the file, use the Grep tool with a path of ONE file, the Glob tool or the Read tool', '(never Bash grep: a Bash grep of even one file is `q code <text> --dir <file>`).'];
 }

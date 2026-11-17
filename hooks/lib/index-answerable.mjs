@@ -30,13 +30,17 @@ function canon(p) {
   try { cur = realpathSync.native(cur); } catch { /* keep */ }
   return join(cur, ...rest);
 }
-const quote = (s) => (/^[\w./:=-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
+export const quote = (s) => (/^[\w./:=-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`);
 
 const WORD = /(?:"(?:[^"\\]|\\.)*"|'[^']*'|[^\s"'])+/g;
 const tokens = (c) => (c.trim().match(WORD) || []).map(unquoteSpans);
 
-/** The `q code` equivalent of a recursive grep/rg `command`, or null when not answerable exactly. */
-export function indexEquivalent(command, { qPath, root, cwd = process.cwd() }) {
+/**
+ * The `q code` equivalent of a recursive grep/rg `command`, or null when not answerable exactly.
+ * `file: true` judges a search of ONE named file instead: no language scope is needed and the file is `--dir`
+ * (q scans any file on demand: gitignored, unindexed, outside the repo).
+ */
+export function indexEquivalent(command, { qPath, root, cwd = process.cwd(), file = false }) {
   const toks = tokens(command);
   let tool = (toks.shift() || '').replace(/.*[\\/]/, '').toLowerCase();
   if (tool === 'git') {
@@ -64,11 +68,12 @@ export function indexEquivalent(command, { qPath, root, cwd = process.cwd() }) {
     else if (/^-[rRnHsi]{2,}$/.test(t)) { if (t.includes('i')) f.ignore = true; }
     else return null; // an option the index does not model
   }
-  if (!f.lang || f.lang === '!' || pos.length < 1) return null;
+  if (pos.length < 1 || (!file && (!f.lang || f.lang === '!'))) return null;
   const pattern = pos[0];
   if (!pattern || pattern.includes('\n')) return null;
+  if (file && pos.length !== 2) return null;
   const rel = [];
-  for (const p of pos.slice(1)) {
+  for (const p of file ? [] : pos.slice(1)) {
     const abs = canon(isAbsolute(p) ? p : resolve(cwd, p));
     const r = relative(canon(root), abs).replace(/\\/g, '/');
     if (r.startsWith('..') || isAbsolute(r) || /[*?[]/.test(r)) return null;
@@ -86,8 +91,11 @@ export function indexEquivalent(command, { qPath, root, cwd = process.cwd() }) {
   if (shape === 'regex') args.push('--regex');
   if (f.ignore) args.push('-i');
   if (f.word) args.push('-w');
-  args.push('--lang', f.lang);
-  if (rel[0]) args.push('--path', rel[0]);
+  if (file) args.push('--dir', quote(pos[1]));
+  else {
+    args.push('--lang', f.lang);
+    if (rel[0]) args.push('--path', rel[0]);
+  }
   args.push(...f.ctx);
   if (f.files) args.push('-l');
   if (f.count) args.push('-c');

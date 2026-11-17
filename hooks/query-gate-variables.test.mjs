@@ -53,12 +53,12 @@ const PASSES = [
   ['an outside file with no extension, named literally', `rg Town ${log}`],
   ['a variable holding an outside file with no extension', `S=${log}; rg Town $S`],
   ['grep -r of an outside file', `S=${logTxt}; grep -rn Town $S`],
-  ['one named source file behind a prefix assignment', 'FOO=1 rg fn crates/a/src/lib.rs'],
 ];
 for (const [name, cmd] of PASSES) expect(`KIT-T1157: passes ${name}`, run(repo, cmd).code, 0);
 expect('KIT-T1157: PowerShell passes a variable holding an outside log', run(repo, `$S = '${logTxt}'; rg Town $S`, 'PowerShell').code, 0);
 
 const BLOCKS = [
+  ['one named source file behind a prefix assignment (a one-file search, KIT-T1342)', 'FOO=1 rg fn crates/a/src/lib.rs'],
   ['a variable never assigned', 'rg "fn main" $S'],
   ['a variable assigned twice', `S=${logTxt}; S=crates; rg Town $S`],
   ['a variable holding a repo source directory', `S=${slashed(join(repo, 'crates'))}; rg fn $S`],

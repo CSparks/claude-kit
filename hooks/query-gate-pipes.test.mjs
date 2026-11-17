@@ -56,7 +56,7 @@ const PS_BLOCKED = [
 for (const [name, cmd] of PS_BLOCKED) expect(`KIT-T1121: PowerShell blocks ${name}`, run(d, cmd, 'PowerShell').code, 2);
 
 const blocked = run(d, 'cat crates/rdg-world/src/*.rs | grep -n fn');
-expect('KIT-T1121: the block names the q code equivalent, the one-file form and the output filter', blocked.err.includes('code fn') && blocked.err.includes('grep <pattern> <file>') && blocked.err.includes("cargo test 2>&1 | grep -E 'test result|FAILED' | tail -20"), true);
+expect('KIT-T1121: the block names the q code equivalent, the one-file form and the output filter', blocked.err.includes('code fn') && blocked.err.includes('--dir <file>') && blocked.err.includes("cargo test 2>&1 | grep -E 'test result|FAILED' | tail -20"), true);
 expect('KIT-T1121: the block names its check id for the ignore file', blocked.err.includes('source-discovery'), true);
 
 const ALLOWED = [
@@ -67,13 +67,10 @@ const ALLOWED = [
   ['a build counted by wc', 'cargo test -p rdg-world 2>&1 | wc -l'],
   ['q output through head', 'q code foo | head -20'],
   ['git log through grep', 'git log --oneline | grep physics'],
-  ['cat of ONE file into grep', 'cat crates/rdg-world/src/lib.rs | grep -n fn'],
   ['cat of one file into wc', 'cat crates/rdg-world/src/lib.rs | wc -l'],
   ['head of one file', 'head -n 40 crates/rdg-world/src/lib.rs'],
-  ['tail of one file into grep', 'tail -n 100 crates/rdg-world/src/lib.rs | grep fn'],
-  ['cat of one file', 'cat crates/road-generator/assets/roads/roads.ron'],
+  ['cat of one file','cat crates/road-generator/assets/roads/roads.ron'],
   ['cat of two named files into grep', 'cat crates/a/src/lib.rs crates/b/src/lib.rs | grep fn'],
-  ['grep of one file through head', 'grep -n fn crates/rdg-world/src/lib.rs | head -20'],
   ['ls of a source dir', 'ls crates/rdg-world/src'],
   ['ls into wc', 'ls rapid-game/rust/roads/rg-roadworks/src | wc -l'],
   ['ls -R into a filename grep', 'ls -R crates | grep -i rs'],
@@ -93,15 +90,24 @@ for (const [name, cmd] of ALLOWED) expect(`KIT-T1121 control: allows ${name}`, r
 const PS_ALLOWED = [
   ['a build through Select-String', 'cargo test 2>&1 | Select-String FAILED'],
   ['Get-ChildItem of names only', 'Get-ChildItem crates | Select-Object Name'],
-  ['Select-String of one named file', 'Select-String -Path crates\\rdg-world\\src\\lib.rs -Pattern fn'],
-  ['Get-Content of one file', 'Get-Content crates\\rdg-world\\src\\lib.rs | Select-String fn'],
 ];
 for (const [name, cmd] of PS_ALLOWED) expect(`KIT-T1121 control: PowerShell allows ${name}`, run(d, cmd, 'PowerShell').code, 0);
+
+// One named file searched through a pipe is the same one-file search (KIT-T1342; hooks/query-gate-one-file.test.mjs).
+const ONE_FILE_BLOCKED = [
+  ['cat of ONE file into grep', 'cat crates/rdg-world/src/lib.rs | grep -n fn'],
+  ['tail of one file into grep', 'tail -n 100 crates/rdg-world/src/lib.rs | grep fn'],
+  ['grep of one file through head', 'grep -n fn crates/rdg-world/src/lib.rs | head -20'],
+];
+for (const [name, cmd] of ONE_FILE_BLOCKED) expect(`KIT-T1342: blocks ${name}`, run(d, cmd).code, 2);
+expect('KIT-T1342: PowerShell blocks Select-String of one named file', run(d, 'Select-String -Path crates\\rdg-world\\src\\lib.rs -Pattern fn', 'PowerShell').code, 2);
+expect('KIT-T1342: PowerShell blocks Get-Content of one file into Select-String', run(d, 'Get-Content crates\\rdg-world\\src\\lib.rs | Select-String fn', 'PowerShell').code, 2);
+expect('KIT-T1342 control: PowerShell passes a build output piped into Select-String', run(d, 'cargo test 2>&1 | Select-String FAILED', 'PowerShell').code, 0);
 
 // Glob operands follow the recursive-search policy (KIT-T085): an indexed JS/TS glob is the code graph's; a non-indexed one passes.
 expect('KIT-T1121: blocks a non-recursive grep of a TS glob', run(d, 'grep -n useState src/*.ts').code, 2);
 expect('KIT-T1121 control: a markdown glob grep passes', run(d, 'grep -n usage docs/*.md').code, 0);
-expect('KIT-T1121 control: a grep of one TS file passes', run(d, 'grep -n useState src/App.ts').code, 0);
+expect('KIT-T1342: a grep of one TS file blocks', run(d, 'grep -n useState src/App.ts').code, 2);
 
 expect('KIT-T1121 control: an unadopted repo is never gated', run(un, 'cat crates/*/src/*.rs | grep fn').code, 0);
 

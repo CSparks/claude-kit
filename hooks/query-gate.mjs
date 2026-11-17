@@ -10,12 +10,14 @@
 //   - a text tool searching/reading the .ai store      -> BLOCK, hand back the `q` query
 //   - a recursive / tree-wide source search (discovery) -> BLOCK, hand back code-graph
 //   - a search fed a SET of source files through a pipe (find|xargs grep, cat src/*.rs|grep) -> BLOCK (lib/pipe-tree-search.mjs, KIT-T1121)
+//   - a pattern search of ONE named non-store file (grep/rg/git grep/sed -n '/x/p'/Select-String, or cat f | grep)
+//     -> BLOCK, hand back `q code <text> --dir <file>` or Read (lib/one-file-search.mjs, KIT-D134, KIT-T1342)
 //
-// ALLOWED (the maintainer's rule — grep is fine when you know exactly where + what):
-//   - a targeted grep of a SPECIFIC named non-store file, or a config/state file under .ai
-//   - a plain read (cat, head, sed line range) of ONE named store item file (the Read tool's case)
+// ALLOWED:
+//   - a grep or read of a config/state file under .ai (q does not index it)
+//   - a plain read (cat, head, tail, sed line range) of ONE named file (the Read tool's case)
 //   - piped filtering of a command's OUTPUT (`q sql ... | grep x`, `git log | grep y`)
-//   - a search of a file outside every adopted repo (a scratchpad log), a variable the command assigns as one literal
+//   - a search of a file outside every adopted repo (a scratchpad log), the Grep tool on ONE file, a variable the command assigns as one literal
 //     counting as its value; an unresolvable variable stays blocked and the block names it (search-outside.mjs, KIT-T1157)
 //
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fail-open on any error.
@@ -36,6 +38,7 @@ import { registryLine, registryTarget } from './lib/registry-target.mjs';
 import { grepToolCommand } from './lib/grep-tool-command.mjs';
 import { grepToolLines, targetedLookLines } from './lib/grep-tool-note.mjs';
 import { pipedTreeMsg, pipedTreeSearch, targetsOnlyScratch } from './lib/pipe-tree-search.mjs';
+import { exemptFiles, fedFile, fedSearch, oneFileMsg, oneFileSearch } from './lib/one-file-search.mjs';
 import { resolvedSegments, targetsOutsideRepos, unresolvedTargetNote } from './lib/search-outside.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { FAMILIES } from '../scripts/code-graph-families.mjs';
@@ -139,14 +142,17 @@ async function main() {
     process.exit(2);
   }
   let feedsFromItem = false; // the previous segment read an item file, so a piped search filters it
+  let fedPath = ''; // the one source file the previous segment read, so a piped grep searches it
   const resolved = parts.ambiguous ? new Map() : resolvedSegments(parts, shellOfTool(p.tool_name));
   for (const [at, seg] of [...parts].entries()) {
     const { text, after } = seg;
     const c = (resolved.get(seg) ?? text).trim();
     if (!c) continue;
     const base = storeBaseOf(cmd, at, p.tool_name);
-    const verdict = (after === '|' && feedsFromItem && leadsSearch(c)) ? { id: 'store-grep', msg: storeMsg(c) } : judge(c, after === '|', base);
+    const piped = after === '|';
+    const verdict = (piped && feedsFromItem && leadsSearch(c)) ? { id: 'store-grep', msg: storeMsg(c) } : (piped && fedPath && fedSearchVerdict(c, fedPath)) || judge(c, piped, base);
     feedsFromItem = readsItemFile(c);
+    fedPath = readsSourceFile(c);
     if (verdict) {
       // KIT-T051 exclusion: a path glob under the verdict's check-id in
       // .claude-kit-ignore.yaml lets a command through (e.g. allow grepping a generated
@@ -165,6 +171,29 @@ function readsItemFile(c) {
   const tok = shellTokens(c);
   const tool = (tok[0] || '').replace(/.*[\\/]/, '').toLowerCase();
   return (READ.test(tool) || tool === 'sed') && fileOperands(tool, tok.slice(1)).some((a) => STORE.test(a) && isItemPath(a));
+}
+
+const toolOf = (tok) => (tok[0] || '').replace(/.*[\\/]/, '').toLowerCase();
+
+// The one named non-store file a cat/head/tail/sed-range segment reads, or ''.
+function readsSourceFile(c) {
+  const tok = shellTokens(c);
+  const file = fedFile(toolOf(tok), tok.slice(1));
+  return file && !STORE.test(file) ? file : '';
+}
+
+// The block for a search a one-file search names or a pipe feeds `file`; null when its files are exempt (scratch, outside every repo).
+function oneFileVerdict(c, found) {
+  const where = { root: repoRoot, cwd: process.cwd() };
+  if (grepInput || exemptFiles(found.files, where)) return null;
+  const pattern = found.pattern ?? (callOf(c) || {}).pattern ?? null;
+  return { id: 'one-file-search', msg: oneFileMsg({ ...found, pattern, command: c, q: Q, ...where }) };
+}
+
+function fedSearchVerdict(c, file) {
+  const tok = shellTokens(c);
+  const found = fedSearch(toolOf(tok), tok.slice(1), file);
+  return found && oneFileVerdict(c, found);
 }
 
 // True iff any path-ish argument in the command is excluded from `id` by a config glob.
@@ -291,6 +320,13 @@ function judge(c, piped = false, base = '') {
       return { id: 'source-discovery', msg: graphMsg(c, paths) + unresolved };
     }
   }
+  // RULE 3 — a pattern search of ONE named file is q code --dir <file>'s (KIT-D134, KIT-T1342); reading it is Read's.
+  // Store files stay RULE 1's business (item files go to q show, config/state files read directly).
+  if (isSearch && !STORE.test(naming)) {
+    const found = oneFileSearch(tool, argv, { git: gitGrep });
+    const block = found && oneFileVerdict(c, found);
+    if (block) return block;
+  }
   // A `find … -name/-path` is a FILENAME lookup — OUTSIDE code-graph's coverage entirely (it answers
   // symbols/imports/surface, never "which files are named X"). Redirecting it to code-graph was always
   // a dead end (asset/data dirs, non-JS/TS, and every filename query alike — KIT-T272). The tool that
@@ -365,7 +401,7 @@ function registryMsg(c, { spec }) {
     '',
     spec ? 'Add --lang rust --regex -i -w -C 2 as needed; q sym <name> --registry … lists definitions.'
       : 'Name the crate: --registry <crate-version> (rapier3d-0.25.1), or a bare <crate> when Cargo.lock pins one version.',
-    grepInput ? targetedLookLines(true)[0] : 'A targeted look at ONE file stays a plain grep of that file or the Read tool.',
+    grepInput ? targetedLookLines(true)[0] : 'A targeted look at ONE file: the Read tool, or `q code <text> --dir <file>` (a Bash grep of it is blocked too).',
     'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it (KIT-T236).',
     '',
   ].join('\n');
@@ -386,7 +422,7 @@ function indexMsg(c, eq) {
     `  node "${Q}" file <substring|glob>                        find files by path`,
     `  node "${Q}" code <text> --kind ticket|doc|config         tickets, docs and configs, same surface`,
     '',
-    grepInput ? targetedLookLines(true)[0] : 'A targeted look at ONE file stays a plain `grep <pattern> <file>` or the Read tool.',
+    grepInput ? targetedLookLines(true)[0] : 'A targeted look at ONE file: the Read tool, or `q code <text> --dir <file>` (a Bash grep of it is blocked too).',
     `Logs, build output, gitignored or sibling-checkout files: node "${Q}" code <text> --dir <path> [-c|-l] (any directory or file).`,
     'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it (KIT-T236).',
     '',

@@ -1,5 +1,5 @@
 // git-search.test.mjs — the retrieval gate reads a git search past git's global options and counts a search as
-// targeted only when EVERY path operand is a concrete file (KIT-T1069). Run: node hooks/git-search.test.mjs
+// a one-file search only when EVERY path operand is a concrete file (KIT-T1069, KIT-T1342). Run: node hooks/git-search.test.mjs
 
 import { gitCommand } from './lib/git-subcommand.mjs';
 import { searchPaths, targetsOnlyFiles } from './lib/search-targets.mjs';
@@ -51,17 +51,17 @@ try {
     ['grep bundle with a context value over a directory and a file', 'grep -rnC 2 foo src CMakeLists.txt', BLOCK],
     ['rg --max-columns over a directory', 'rg --max-columns 200 foo src', BLOCK],
     ['rg bundle with a context value, tree-wide', 'rg -nA 3 foo', BLOCK],
-    ['git grep -- one file', 'git grep -n ModalOverlay -- src/a.cpp', PASS],
-    ['git grep -- several files', 'git -C . grep -n ModalOverlay -- src/a.cpp src/b.h', PASS],
+    ['git grep -- one file (a one-file search, KIT-T1342)', 'git grep -n ModalOverlay -- src/a.cpp', BLOCK],
+    ['git grep -- several files', 'git -C . grep -n ModalOverlay -- src/a.cpp src/b.h', BLOCK],
     ['git grep of a glob scoped to non-indexed source (KIT-T085)', "git grep -n ModalOverlay -- 'src/*.cpp'", PASS],
     ['git log --grep', 'git log --grep=ModalOverlay', PASS],
     ['a filter over git output', 'git log | grep tickets', PASS],
-    ['rg with valued flags and one file', "rg -n -g '*.rs' foo crates/x/src/lib.rs", PASS],
-    ['rg bundle with a context value over one file', 'rg -nA 3 foo crates/x/src/lib.rs', PASS],
-    ['grep bundle with a context value over one file', 'grep -rnC 2 foo src/a.cpp', PASS],
-    ['rg --max-columns over one file', 'rg --max-columns 200 foo crates/x/src/lib.rs', PASS],
-    ['grep -r of one named file', 'grep -rn foo src/a.cpp', PASS],
-    ['grep -r of a quoted multi-word pattern in one file', 'grep -rn "foo bar" src/a.cpp', PASS],
+    ['rg with valued flags and one file', "rg -n -g '*.rs' foo crates/x/src/lib.rs", BLOCK],
+    ['rg bundle with a context value over one file', 'rg -nA 3 foo crates/x/src/lib.rs', BLOCK],
+    ['grep bundle with a context value over one file', 'grep -rnC 2 foo src/a.cpp', BLOCK],
+    ['rg --max-columns over one file', 'rg --max-columns 200 foo crates/x/src/lib.rs', BLOCK],
+    ['grep -r of one named file', 'grep -rn foo src/a.cpp', BLOCK],
+    ['grep -r of a quoted multi-word pattern in one file', 'grep -rn "foo bar" src/a.cpp', BLOCK],
   ];
   for (const [name, command, want] of cases) ok(`gate: ${name} (${want === BLOCK ? 'blocks' : 'passes'})`, gate(command) === want);
   ok('gate: the block names the exact q equivalent for git -C grep', /Exact equivalent: +node .*q\.mjs.* code ModalOverlay/.test(hook('query-gate.mjs', { tool_input: { command: 'git -C src grep -n ModalOverlay' } }, repo).out));

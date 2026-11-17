@@ -3,7 +3,7 @@
 //   find crates -name '*.rs' | xargs grep fn          cat crates/*/src/*.rs | grep fn
 //   git ls-files crates | xargs cat | grep fn         head -n 5 crates/*/src/lib.rs | grep fn
 //   Get-ChildItem -Recurse crates | Select-String fn  (PowerShell: the piped files are the input)
-// Allowed and not judged here: a search of ONE named file, a filter over a command's own output
+// Allowed and not judged here (a search of ONE named file is one-file-search.mjs's): a filter over a command's own output
 // (`cargo test 2>&1 | grep -E 'FAILED' | tail -20`), and ls / wc / head / tail / cut / cat of named files or output.
 //
 //   pipedTreeSearch(parts) -> { search, feeder } | null   parts: shell-segments `segments()`; the piece that searches, and the one feeding it
@@ -83,7 +83,7 @@ export function pipedTreeMsg({ search, feeder, exact, q }) {
     `  node "${q}" code <text> [--lang L] [--path P] [--regex -i -w -C 2]`,
     '',
     'Still allowed:',
-    '  one named file:         grep <pattern> <file>   (or the Read tool)',
+    `  one named file:         node "${q}" code <text> --dir <file>   (or the Read tool)`,
     "  a command's own output: cargo test 2>&1 | grep -E 'test result|FAILED' | tail -20   (head, tail, cut, wc filter output freely)",
     `  logs and scratch files: node "${q}" code <text> --dir <path>`,
     'If q ERRORS or answers wrongly: HARD STOP — `cap bug <what failed>`, then fix it (KIT-T236).',
