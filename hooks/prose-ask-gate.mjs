@@ -6,6 +6,8 @@
 // questionnaire call that reached him, the stop is blocked ONCE per distinct sentence with the instruction to ask it
 // properly, and a process-failure ticket is filed in the kit store (one open ticket per session).
 //
+// A hard phrase in ANY message of the turn counts, not only the closing one (KIT-T1332); soft asks count in the
+// closing reply only.
 // Exempt: a subagent's report (its requests go to the orchestrator, which relays them as a questionnaire), a turn
 // with a questionnaire that reached him, and, for the soft asks only ("want me to", "let me know"), a turn whose
 // maintainer message was itself a question (open discussion). A hard phrase ("waiting on you", "your call", "up to
@@ -30,6 +32,14 @@ const SENTENCE_SHOWN_CHARS = 240;
 const closingText = (p, turn) => (typeof p.last_assistant_message === 'string' && p.last_assistant_message.trim()
   ? p.last_assistant_message
   : [...(turn?.blocks || [])].reverse().find((b) => b.kind === 'text')?.text || '');
+
+// The ask the gate acts on: the closing reply (hard and soft asks) first, then every earlier message of the turn
+// (hard asks only: mid-turn commentary may phrase a soft question rhetorically).
+function turnAsks(p, turn, discussion) {
+  const closing = proseAskMatches(unmarked(closingText(p, turn))).filter((m) => m.hard || !discussion);
+  const earlier = (turn?.blocks || []).flatMap((b) => proseAskMatches(unmarked(b.text)).filter((m) => m.hard));
+  return [...closing, ...earlier];
+}
 
 function unmarked(text) {
   const { wholeFile, lines } = markerExcludedLines(text, CHECK_ID);
@@ -77,7 +87,7 @@ try {
   if (!root || pathExcluded(root, CHECK_ID, '.')) process.exit(0);
   const turn = p.transcript_path ? turnText(p.transcript_path) : null;
   const discussion = /\?$/.test(turn?.lastUser || '');
-  const [match] = proseAskMatches(unmarked(closingText(p, turn))).filter((m) => m.hard || !discussion);
+  const [match] = turnAsks(p, turn, discussion);
   if (!match) process.exit(0);
   if (p.transcript_path && turnCalls(p.transcript_path, QUESTION_TOOLS).some((c) => !c.denied)) process.exit(0);
   const sessionId = p.session_id || 'nosession';

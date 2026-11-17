@@ -198,6 +198,20 @@ try {
   ok('negative control: stop_hook_active allows', passed(stop(turn(TICKET_REPLY), { stop_hook_active: true })));
   ok('negative control: mid-turn commentary is not the closing reply', passed(stop(transcript([entry('user', 'Go.'), assistantText('Want me to look at it? Looking.'), toolUse('toolu_B', 'Bash'), toolResult('toolu_B'), assistantText('Fixed.')]))));
 
+  const HEADED_REPLY = 'Both fixes are in.\n\n**Still wrong, your call:**\n- **Steepness:** 11% of the land is steeper than 56 degrees.\n- **Flat tops:** 22% of crests stay near 635 m.';
+  const MIDLINE_REPLY = 'The crest rework is in. The footprint holds. That\'s your call, I would keep 250 m.';
+  const afterToolCall = (earlier, closing = UAT_RECEIPT, user = 'Carry on with the mesher.') => transcript([entry('user', user), assistantText(earlier), toolUse('toolu_M', 'Bash'), toolResult('toolu_M'), assistantText(closing)]);
+  for (const [name, earlier] of [['a bulleted lead-in', HEADED_REPLY], ['a mid-message sentence', MIDLINE_REPLY]]) {
+    const hit = stop(afterToolCall(earlier));
+    ok(`KIT-T1332 a hard phrase in an earlier message of the turn blocks, ${name}`, blocked(hit) && hit.out.includes('your call'));
+    ok(`KIT-T1332 control, questionnaire in the same turn passes, ${name}`, passed(stop(transcript([entry('user', 'Go.'), ...asked2, assistantText(earlier), toolUse('toolu_M', 'Bash'), toolResult('toolu_M'), assistantText(UAT_RECEIPT)]))));
+    ok(`KIT-T1332 a hard phrase in an earlier message blocks after his question, ${name}`, blocked(stop(afterToolCall(earlier, UAT_RECEIPT, 'What changed in the crests?'))));
+    ok(`KIT-T1332 a hard phrase in the closing message after earlier commentary still blocks, ${name}`, blocked(stop(afterToolCall('Looking at the crests.', earlier))));
+  }
+  ok('KIT-T1332 a quoted hard phrase in an earlier message passes', passed(stop(afterToolCall('Chris wrote "it is your call" about the lane, so I picked A.'))));
+  ok('KIT-T1332 a negated hard phrase in an earlier message passes', passed(stop(afterToolCall('Nothing is waiting on you.'))));
+  ok('KIT-T1332 a soft ask in an earlier message passes', passed(stop(afterToolCall('Want me to look at it? Looking.'))));
+
   writeFileSync(join(d, '.claude-kit-ignore.yaml'), 'prose-ask:\n  - "."\n');
   ok('.claude-kit-ignore.yaml excludes the check', passed(stop(turn(TICKET_REPLY))));
   writeFileSync(join(d, '.claude-kit-ignore.yaml'), '');
