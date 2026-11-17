@@ -53,7 +53,7 @@ export function oneFileSearch(tool, argv, { git = false } = {}) {
 }
 
 const FOLLOW_FLAG = /^-[A-Za-z]*[fF]|^--follow\b/;
-const FINISHED_LOG_FILE = /(?:^|[\\/])finished\.log$/;
+const FINISHED_LOG_FILE = /(?:^|[\\/])target[\\/]broker[\\/]finished\.log$/;
 
 // The broker's end-of-run stream: a Monitor follows it with `tail -F target/broker/finished.log | grep --line-buffered <id>`
 // (KIT-D115). A stream has no past to search, so q cannot stand in for it.

@@ -3,7 +3,7 @@
 // payload yields {} so a hook fails open).
 
 import { setShellCwd } from './paths.mjs';
-import { commandCwd, payloadStartDir } from './shell-cwd.mjs';
+import { commandCwd } from './shell-cwd.mjs';
 
 const SHELL_TOOLS = new Set(['Bash', 'PowerShell']);
 
@@ -20,7 +20,7 @@ export async function readStdin() {
 export async function payload() {
   try {
     const p = JSON.parse(await readStdin());
-    if (SHELL_TOOLS.has(p.tool_name) && typeof p.tool_input?.command === 'string') setShellCwd(commandCwd(p.tool_input.command, payloadStartDir(p)));
+    if (SHELL_TOOLS.has(p.tool_name) && typeof p.tool_input?.command === 'string') setShellCwd(commandCwd(p.tool_input.command));
     return p;
   } catch {
     return {};

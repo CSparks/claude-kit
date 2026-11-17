@@ -2,7 +2,7 @@
 id: KIT-T1348
 title: PROCESS FAILURE class: subagents use Grep with a directory path and grep on a log file (query-gate blocks 'source-discovery' and 'one-file-s
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-17T19:18:50Z
-updated: 2026-11-17T19:18:50Z
+updated: 2026-11-17T19:33:08Z
 ---
 
 ## Description
@@ -32,3 +32,7 @@ Agent definitions already carried 'Search with q, never grep' and the gate block
 
 ## History
 - [2026-11-17 19:18] (created) bug — PROCESS FAILURE class: subagents use Grep with a directory path and grep on a log file (query-gate blocks 'source-discovery' and 'one-file-s
+- [2026-11-17 19:32] (landed) c16846a5 commit-gate judges the repo the shell sits in (payload cwd); agents map each search target to its tool; the broker finis
+- [2026-11-17 19:33] (landed) 683ad21f codex plugin manifest to 0.1.56, matching the claude plugin manifest (implements KIT-T1348)
+- [2026-11-17 19:33] (status) todo → review
+- [2026-11-17 19:38] (comment) @claude: fixed in c16846a5 (agents, commands, plugin 0.1.56).

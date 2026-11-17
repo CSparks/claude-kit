@@ -2,7 +2,7 @@
 id: KIT-T1349
 title: query-gate one-file-search blocks 'tail -n 0 -F target/broker/finished.log | grep --line-buffered -E <run ids>' in a Monitor: the documented
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-17T19:22:14Z
-updated: 2026-11-17T19:22:14Z
+updated: 2026-11-17T19:33:11Z
 ---
 
 ## Description
@@ -32,3 +32,6 @@ Exemption: hooks/lib/one-file-search.mjs fedFile ignores a tail follow (-f, -F, 
 
 ## History
 - [2026-11-17 19:22] (created) bug — query-gate one-file-search blocks 'tail -n 0 -F target/broker/finished.log | grep --line-buffered -E <run ids>' in a Monitor: the documented
+- [2026-11-17 19:32] (landed) c16846a5 commit-gate judges the repo the shell sits in (payload cwd); agents map each search target to its tool; the broker finis
+- [2026-11-17 19:33] (status) todo → review
+- [2026-11-17 19:38] (comment) @claude: fixed in c16846a5; exemption anchored to target/broker/finished.log in the follow-up commit. query-gate is wired to Bash|PowerShell|Grep in hooks.json, not Monitor.

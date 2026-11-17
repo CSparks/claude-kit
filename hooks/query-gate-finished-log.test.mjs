@@ -22,6 +22,8 @@ try {
 
   const other = verdict('tail -n 0 -F target/broker/build.log | grep --line-buffered -E "error|warning"');
   ok('negative control: the same stream of another log is still refused', other.code === 2 && /one-file-search/.test(other.out), other.out.trim());
+  const elsewhere = verdict('tail -n 0 -F logs/finished.log | grep --line-buffered j-1');
+  ok('negative control: a finished.log outside target/broker is still refused', elsewhere.code === 2 && /one-file-search/.test(elsewhere.out), elsewhere.out.trim());
   const read = verdict('tail -n 200 target/broker/finished.log | grep j-1');
   ok('negative control: a plain read of finished.log piped to grep is still refused', read.code === 2 && /one-file-search/.test(read.out), read.out.trim());
   const direct = verdict('grep j-1 target/broker/finished.log');
