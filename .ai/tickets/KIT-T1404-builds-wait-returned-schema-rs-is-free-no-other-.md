@@ -2,7 +2,7 @@
 id: KIT-T1404
 title: builds --wait returned 'schema.rs is free; no other writer's build starts on it for 90 s', yet within that window writer 4100d9bf|a763e392 s
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T23:29:36Z
-updated: 2026-11-18T23:48:49Z
+updated: 2026-11-18T23:49:34Z
+fixed_commit: f243b306
 ---
 
 ## Description
@@ -41,3 +42,6 @@ The larger problem (writers refused for 25 minutes while 5 or more long builds r
 - [2026-11-18 23:48] (status) todo → doing
 - [2026-11-18 23:48] (comment) criterion added: an edit the guard passed keeps its writer's write windows open (at least 120 s, never shorter) until it lands, and landing settles them to the edit gap, so a build start cannot take the crate while the batch is in the hooks (scripts/broker/write-window.test.mjs, hooks/build-write-hold.test.mjs)
 - [2026-11-18 23:49] (comment) ticked: an edit the guard passed keeps its writer's write windows open (at least 120 s, never shorter) until it lands, and landing settles them to the edit gap, so a build start cannot take the crate while the batch is in the hooks (scripts/broker/write-window.test.mjs, hooks/build-write-hold.test.mjs)
+- [2026-11-18 23:49] (landed) f243b306 write window: an edit the guard passed keeps its writer's windows open until it lands, and landing (PostToolUse) settles
+- [2026-11-18 23:49] (status) doing → review
+- [2026-11-18 23:49] (comment) runtime f243b306 published
