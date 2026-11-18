@@ -2,7 +2,7 @@
 id: KIT-T1392
 title: commit-foreign gate (KIT-T407) judges 'git add -A <pathspec> <pathspec>' as a directory-wide add: in rapid-game, 'git add -A rust/world/rg-h
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T20:01:10Z
-updated: 2026-11-18T20:46:22Z
+updated: 2026-11-18T20:47:14Z
+fixed_commit: b9664f1c
 ---
 
 ## Description
@@ -41,3 +42,6 @@ Tests: hooks/commit-foreign-newdir.test.mjs 27 passed (new: the -A/--all/-u/--up
 - [2026-11-18 20:46] (status) todo → doing
 - [2026-11-18 20:46] (comment) criterion added: git add -A/--all/-u/--update with pathspecs is judged by those paths only, and build output under target/ (node_modules, dist, build) is never listed as foreign (hooks/commit-foreign-newdir.test.mjs)
 - [2026-11-18 20:46] (comment) ticked: git add -A/--all/-u/--update with pathspecs is judged by those paths only, and build output under target/ (node_modules, dist, build) is never listed as foreign (hooks/commit-foreign-newdir.test.mjs)
+- [2026-11-18 20:46] (landed) b9664f1c commit-foreign: git add -A with pathspecs is judged by those paths only, and build output is never foreign; KIT-T1396 pr
+- [2026-11-18 20:47] (status) doing → review
+- [2026-11-18 20:47] (comment) runtime b9664f1c published
