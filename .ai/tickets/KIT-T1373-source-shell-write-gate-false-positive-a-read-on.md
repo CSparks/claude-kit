@@ -2,7 +2,7 @@
 id: KIT-T1373
 title: source-shell-write gate false positive: a read-only 'git -C rapid-game log --oneline -1' in the same Bash command as a path containing 'AppD
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T14:42:24Z
-updated: 2026-11-18T15:04:01Z
+updated: 2026-11-18T15:07:08Z
+fixed_commit: 12292a29
 ---
 
 ## Description
@@ -39,3 +40,6 @@ Tests: source-shell-gate-git-gaps 144 passed (new: the incident command passes, 
 - [2026-11-18 15:04] (status) todo → doing
 - [2026-11-18 15:04] (comment) criterion added: a path component spelling local, declare, typeset, export, setenv or environment (AppData/Local/Temp) is no environment change; a real declaration or export, and a leading-backslash escape, still refuse (hooks/source-shell-gate-git-gaps.test.mjs, hooks/git-call-environment.test.mjs)
 - [2026-11-18 15:04] (comment) ticked: a path component spelling local, declare, typeset, export, setenv or environment (AppData/Local/Temp) is no environment change; a real declaration or export, and a leading-backslash escape, still refuse (hooks/source-shell-gate-git-gaps.test.mjs, hooks/git-call-environment.test.mjs)
+- [2026-11-18 15:05] (landed) 12292a29 source-shell-write: a path component such as AppData/Local is no environment declaration; a real one and a leading-backs
+- [2026-11-18 15:07] (status) doing → review
+- [2026-11-18 15:07] (comment) runtime 12292a29 published

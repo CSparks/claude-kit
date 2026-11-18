@@ -2,7 +2,7 @@
 id: KIT-T1374
 title: PROCESS FAILURE: coordinator kept citing RDG-D063 ('no test runs without sign-off') as a blanket rule through a long session, though RDG-D06
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T14:44:26Z
-updated: 2026-11-18T15:01:31Z
+updated: 2026-11-18T15:07:05Z
+fixed_commit: bb97089f
 ---
 
 ## Description
@@ -48,3 +49,6 @@ Tests: scripts/decision-supersede.test.mjs 4 pass (revise link, q show banner wi
 - [2026-11-18 15:02] (comment) criterion added: a dispatch brief that cites a superseded decision gets a NOTE naming the replacement (hooks/dispatch-superseded.mjs)
 - [2026-11-18 15:02] (comment) ticked: t revise <newer> --supersedes <older> links a correction after the fact; q show prints SUPERSEDED BY on the older decision; orient drops it from standing and names the replacement under it in the recent list (scripts/decision-supersede.test.mjs)
 - [2026-11-18 15:02] (comment) ticked: a dispatch brief that cites a superseded decision gets a NOTE naming the replacement (hooks/dispatch-superseded.mjs)
+- [2026-11-18 15:03] (landed) bb97089f decisions: t revise --supersedes links a correction after the fact; q show prints SUPERSEDED BY on the older decision; o
+- [2026-11-18 15:07] (status) doing → review
+- [2026-11-18 15:07] (comment) runtime 12292a29 published; road-generator: t revise RDG-D065 --supersedes RDG-D063,RDG-D122 run
