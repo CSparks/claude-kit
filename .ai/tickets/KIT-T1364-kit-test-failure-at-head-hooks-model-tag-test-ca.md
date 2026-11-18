@@ -2,7 +2,7 @@
 id: KIT-T1364
 title: kit test failure at HEAD: hooks model-tag test case 'display: the fable alias' fails (63 of 64 pass) at runtime 48a7a74d and 2e94012f, found
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T01:47:23Z
-updated: 2026-11-18T01:50:19Z
+updated: 2026-11-18T01:50:45Z
+fixed_commit: 7ab8125a
 ---
 
 ## Description
@@ -35,3 +36,5 @@ Root cause: the test was stale; the gate is right. The model reassessment of 202
 - [2026-11-18 01:50] (status) todo → doing
 - [2026-11-18 01:50] (comment) criterion added: hooks/model-tag.test.mjs checks that each alias (opus, fable, sonnet) displays as the id the capability table maps it to, read independently of model-tag.mjs; 65 passed, 0 failed
 - [2026-11-18 01:50] (comment) ticked: model-tag 65 passed
+- [2026-11-18 01:50] (status) doing → review
+- [2026-11-18 01:50] (comment) runtime 7ab8125a published
