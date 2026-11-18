@@ -12,6 +12,10 @@ export const WRITE_ADVICE = `  Use the Write tool: create or replace a whole fil
   A change too large for one Edit is a Write of the new file or several Edits, never a script.
   Moving EXISTING lines into other files (a file split) is the kit verb: move-lines <source> <ranges>=<dest> ... (q gates source).
   Generated output a tool writes (cargo, a formatter, a codegen) is not a hand write: run the tool.
+  A sweep over a data file (an A/B of a shipped asset such as world.ron) runs on a scratch asset root under target/
+  (KIT-T1360): copy the assets there (cp -r assets target/sweep-assets writes only build output), point the program at
+  the copy (Bevy reads BEVY_ASSET_ROOT; otherwise the env var or flag the program names), and change the copy with Edit
+  or Write. Never rewrite the shipped file from the shell; never rm -r the scratch folder: leave it or overwrite its files.
 ${VENDOR_ROUTE.map((line) => `  ${line}`).join('\n')}`;
 
 export const LAUNCHER_ADVICE = `  The launcher call is judged as a whole; its exact form is:

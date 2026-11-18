@@ -38,7 +38,8 @@ const POLL_MS = 500;
 const MS_PER_SECOND = 1000;
 const TAIL_LINES = 30;
 const EXIT = { ENDED_OK: 0, RUNNING: 2, USAGE: 64 };
-const STATUS = { RUNNING: 'running', ENDED: 'ended', TIMEOUT: 'timeout' };
+export const RUN_STATUS = { RUNNING: 'running', ENDED: 'ended', TIMEOUT: 'timeout' };
+const STATUS = RUN_STATUS;
 const sleepMs = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 const runsDir = (root) => join(root, 'target', 'broker', 'runs');

@@ -21,6 +21,12 @@ invariants; only read CLAUDE.md / `.ai/` if the task explicitly needs that detai
 ## Discipline
 - Source edits go only through Edit and Write, several Edits for a many-part change; never `node -e`, a heredoc or a shell redirect
   on a repo path (the source-shell-write gate refuses it; KIT-T1119).
+- A sweep over a data file (an A/B of world.ron or another shipped asset) runs on a scratch asset root under `target/`
+  (KIT-T1360): copy the assets there (`cp -r assets target/sweep-assets` writes only build output), point the program at
+  the copy through its asset-root setting (Bevy reads `BEVY_ASSET_ROOT`; otherwise the env var or flag the program
+  names), and change the copy with Edit or Write. Never rewrite the shipped file from the shell (sed, cp over it), and
+  never `rm -r` the scratch folder: leave it under target/ or overwrite its files. Each variant's long run is one
+  `builds --run "<command>" --out target/<file> --timeout 170 --tool-timeout 180` call.
 - Understand the full flow before touching anything; find every caller first
   (`code-graph --query importers-of`, `defines`, `surface`).
 - Write the test that fails first, then the code. Run ONLY the test modules you touched
@@ -49,7 +55,8 @@ Cost is per tool call, so a wait is ONE call and one read of the result.
 - A call that returns "moved to the background" outlived that window. Read its output file at most once, never sleep, poll or wait on it: a subagent writes the `Handoff` block and ends, the main thread waits for the one finish notice.
 - Pipe the output through a filter that keeps only failures, panics, assertion lines and the `test result` totals.
 - Never poll an output file, never sleep-loop, and never re-run a whole suite to see one test: run that test by name.
-- A long run of a program (a probe, a server, the game) is the BUILT exe: build in the foreground (one call), start the built `target/debug/<name>.exe` in the background, then end your turn. Never `cargo run` or `cargo test` in the background: the broker-wait gate refuses it (KIT-D115, KIT-T1161). A run that outlasts one foreground call (a probe needs over 170 s to reach its first frame) starts with `builds --run "<command>" --out <file>`: it outlives your turn, waits once in the same call, and its end is a line in target/broker/finished.log; if it still runs, name the run id and `builds --result <id>` in your Handoff (KIT-T1283). Never sleep for it.
+- A saved output file (a probe readout, a log, a run's --out file) is opened with Read (offset, limit), never grep, tail or cat on it. A script that produces a readout prints the lines wanted itself; filtering a command's own output inline is fine.
+- A long run of a program (a probe, a server, the game) is the BUILT exe: build in the foreground (one call), start the built `target/debug/<name>.exe` in the background, then end your turn. Never `cargo run` or `cargo test` in the background: the broker-wait gate refuses it (KIT-D115, KIT-T1161). A run that outlasts one foreground call (a probe needs over 170 s to reach its first frame) is ONE `builds --run "<command>" --out target/<file> --timeout 170 --tool-timeout 180` call with nothing chained after it: it outlives your turn and waits once itself. If it still runs, end your turn: name the run id, its output file and `builds --result <id>` in your Handoff (KIT-T1283). wait.mjs waits on broker jobs only; never a `tail -F`, a sleep or a second wait after it. The orchestrator resumes you from the run's line in target/broker/finished.log.
 - An edit refused because another writer's cargo build is compiling that file: wait with the ONE call the refusal names (`builds --wait "<file>"`, foreground, Bash timeout 180000, returns when no build compiles the file or after 170 s), then retry the edit; never a sleep, Wait-Process or retry loop (KIT-T1142).
 - In a Cargo workspace a test run is never a routine step (KIT-D162, KIT-D163): write the tests, do not run them, verify with `cargo check`. Run one only when your brief carries `[tests: troubleshoot <fault>]` or `[tests: periodic batch]`, then the named test alone, once; in a repo that uses rapid-game the brief must also carry `[tests-signoff: <his words>]` (RDG-D063), else `cargo check` only. The coordinator batches runs on a quiet machine.
 

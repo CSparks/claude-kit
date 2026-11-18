@@ -9,6 +9,7 @@
 //
 // USE: node wait.mjs <id> --root <build-checkout> [--timeout <s>] [--tool-timeout <s>] [--poll <ms>] [--grace-ms <ms>] [--heartbeat <s>]
 // exit 3 = the id is unknown (not queued, running or resulted). A --root naming a submodule maps to its lane (root-map.mjs).
+// A `builds --run` id (run-...) is read once, never waited on: exit 2 while it runs, 0 or 1 by its exit once ended.
 // (--tool-timeout: the Bash call's own timeout; wait ends itself 10 s before it, default 120 s, so --timeout is cut to fit)
 // (--grace-ms: how long no broker may be seen before wait says so; default 10000, a restart's gap)
 
@@ -30,6 +31,7 @@ import { agentOf, subagentRefusal } from './agent.mjs';
 import { heartbeatKey, repeatPrinter } from './collapse-repeats.mjs';
 import { armWaitGuard } from './wait-guard.mjs';
 import { HARNESS_FOREGROUND_S, waitWindow } from './wait-limits.mjs';
+import { RUN_STATUS, describeRun, readRun } from './detached-run.mjs';
 
 const DEFAULT_HEARTBEAT_S = 60;
 const EXIT = { OK: 0, NOT_OK: 1, RUNNING: 2, UNKNOWN: 3 };
@@ -66,8 +68,18 @@ const beats = repeatPrinter((line) => console.error(line), { key: heartbeatKey }
 
 const sleep =(ms) => new Promise((r) => setTimeout(r, ms));
 
+// A `builds --run` id is no broker job: its own call already waited once (KIT-T1283), so this reads its record ONCE, never
+// polls, and says how the run is resumed (KIT-T1366).
+const run = readRun(root, id);
+if (run) {
+  const running = run.status === RUN_STATUS.RUNNING;
+  console.log(describeRun(run));
+  if (running) console.log(`  wait.mjs does not wait on a run: end your turn with the handoff naming ${id}; its line in target/broker/finished.log resumes you.`);
+  finish(running ? 'STILL RUNNING' : `RUN ${run.status}`, running ? EXIT.RUNNING : (run.exit === 0 ? EXIT.OK : EXIT.NOT_OK));
+}
+
 const resultPath = (c) => join(brokerPaths(c).results, `${id}.json`);
-const known = (c) => listQueue(c).some((j) => j.id === id) || listMeasure(c).some((j) => j.id === id) || readResult(c, id) || inflightHas(readInflight(c), id);
+const known =(c) => listQueue(c).some((j) => j.id === id) || listMeasure(c).some((j) => j.id === id) || readResult(c, id) || inflightHas(readInflight(c), id);
 if (!known(laneCfgFor(rootCfg, id))) {
   console.error(`wait: unknown job ${id}: not queued, running or resulted under ${brokerPaths(laneCfgFor(rootCfg, id)).home} (root ${root}); check the id and --root`);
   finish('UNKNOWN JOB', EXIT.UNKNOWN);

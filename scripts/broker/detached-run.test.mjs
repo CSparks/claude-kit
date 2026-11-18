@@ -114,4 +114,33 @@ test('the refusals of a sleep and of a poll name the verb that waits for a long 
   const control = gate('broker-wait-gate.mjs', { tool_name: 'Bash', session_id: 'S1', agent_id: 'a1b2c3d4e5f6a7b8c', tool_input: { command: 'builds --run "./target/debug/probe.exe --frames 3" --out target/probe.txt' } });
   assert.equal(control.status, 0, 'the verb itself is not refused');
   assert.ok(existsSync(join(HOOKS, 'wait-poll.mjs')));
+  const chained = gate('broker-wait-gate.mjs', { tool_name: 'Bash', session_id: 'S1', agent_id: 'a1b2c3d4e5f6a7b8c', tool_input: { command: 'builds --run "cargo test" --out target/t.txt; tail -F target/broker/finished.log', timeout: 350000 } });
+  assert.equal(chained.status, 2);
+  assert.match(chained.stderr, /ONE `builds --run/, 'the block names the one call (KIT-T1365)');
+  assert.match(chained.stderr, /end your turn/);
+  assert.match(chained.stderr, /wait\.mjs waits on broker jobs only/, 'and says wait.mjs is not the wait for a run id (KIT-T1366)');
+  assert.match(chained.stderr, /Monitor/);
+});
+
+const WAIT_CLI = fileURLToPath(new URL('./wait.mjs', import.meta.url));
+const waitCli = (root, id) => spawnSync(process.execPath, [WAIT_CLI, id, '--root', root, '--timeout', '30'], { cwd: root, encoding: 'utf8', env: { ...process.env, BROKER_NO_AUTOSTART: '1' } });
+
+test('wait.mjs on a builds --run id reads the record once instead of answering unknown job (KIT-T1366)', () => {
+  const root = checkout();
+  const done = startRun({ command: script(root, "console.log('frame'); process.exit(0);"), cwd: root, root });
+  waitRun(root, done.id, { capS: 20 });
+  const ended = waitCli(root, done.id);
+  assert.equal(ended.status, 0, ended.stdout + ended.stderr);
+  assert.match(ended.stdout, /ended with exit 0/);
+  const failed = startRun({ command: script(root, 'process.exit(4);'), cwd: root, root });
+  waitRun(root, failed.id, { capS: 20 });
+  assert.equal(waitCli(root, failed.id).status, 1, 'an ended run with a failing exit reads as not ok');
+  const long = startRun({ command: script(root, 'setTimeout(() => {}, 5000);'), cwd: root, root });
+  const began = Date.now();
+  const running = waitCli(root, long.id);
+  assert.equal(running.status, 2);
+  assert.ok(Date.now() - began < 4000, 'a running run is read once, never waited on');
+  assert.match(running.stdout, /does not wait on a run/);
+  assert.match(running.stdout, new RegExp(`wait: ${long.id} STILL RUNNING \\(exit 2\\)`));
+  assert.equal(waitCli(root, 'run-00000000000000-none').status, 3, 'control: an id that names nothing is still unknown');
 });
