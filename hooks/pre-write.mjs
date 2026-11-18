@@ -10,6 +10,7 @@ import {
   loadWritePolicy, forbiddenBy, globToRegExp, relForGlob, legacyDir,
 } from './lib.mjs';
 import { underLegacy } from './lib/legacy-paths.mjs';
+import { isTempPath } from './lib/source-path.mjs';
 import { recordTurnWrite, recordSubmoduleActivity, repoRelative } from './turn-writes.mjs';
 import { recordPredictedWrite, writerId } from './lib/tool-writes.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
@@ -43,7 +44,7 @@ const NATIVE_LINTED = new Set(['rs', 'py', 'go', 'sh', 'bash', 'zsh']);
 const DOC = new Set(['md', 'markdown', 'mdx', 'txt', 'rst', 'adoc']);
 // KIT-T114: `conf`/`properties`/`env` join the config family. An nginx `listen 443 ssl;`
 // or a `rsa_key_size=4096` is a required literal, not an extractable constant.
-const DATA = new Set(['json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'csv', 'ini', 'cfg', 'conf', 'properties', 'env', 'caddy', 'ron']);
+const DATA = new Set(['json', 'jsonl', 'yaml', 'yml', 'toml', 'xml', 'csv', 'tsv', 'tab', 'psv', 'log', 'out', 'ini', 'cfg', 'conf', 'properties', 'env', 'caddy', 'ron']);
 // A path token such as `/2018/02/26/post/`: a slash that follows no operand, with path characters straight after it.
 // Division (`a/60`, `a / 60`) is left to the magic-number scan.
 const URL_PATH_TOKEN = /(?<![\w)\]])\/[\w.~-]*\d[\w.~-]*(?:\/[\w.~-]*)*/g;
@@ -483,7 +484,10 @@ if (dead.length) viols.push({ id: 'dead-code', msg: 'Dead-code trace comments (d
 // heredoc carried "60-75k"/"70k"/"5-line"). `codeOnly` blanks every non-code span
 // (keeping newlines so line numbers stay true) so the scan never sees those. The
 // declaration/assignment skips below stay line-keyed against the ORIGINAL line.
-if (!NATIVE_LINTED.has(ext) && !SHELL_LIKE.has(ext) && !isTest && !isMig && !excludedFile('magic-numbers')) {
+// A file in the scratchpad (under the temp directory and in no git repo) is a note or a throwaway, never shipped code: no
+// magic-number lint (KIT-T1385). A repo that happens to sit under the temp directory is still linted.
+const scratchFile = !_gitRoot && isTempPath(file);
+if (!NATIVE_LINTED.has(ext) && !SHELL_LIKE.has(ext) && !isTest && !isMig && !scratchFile && !excludedFile('magic-numbers')) {
   const codeLines = fragmentCodeLines(content);
   const hits = [];
   for (let i = 0; i < lines.length && hits.length < MAX_SHOWN; i++) {

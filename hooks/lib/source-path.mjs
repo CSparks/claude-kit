@@ -35,9 +35,15 @@ function expandShortNames(p) {
 /** A path under a build-output or vendored directory (target, node_modules, dist, build, .git): nothing hand-authored lives there. */
 export const isGeneratedPath = (path) => GENERATED_DIR.test(slashed(toPath(path)));
 
+/** A path under the temp directory (the session scratchpad lives there) or /tmp, in either spelling of a Windows path. */
+export function isTempPath(path, tempDir = tmpdir()) {
+  const p = expandShortNames(slashed(toPath(path)));
+  const temp = expandShortNames(slashed(tempDir)).toLowerCase();
+  return p.toLowerCase().startsWith(`${temp}/`) || /^\/tmp\//.test(p);
+}
+
 export function isSourcePath(path, tempDir = tmpdir()) {
   const p = expandShortNames(slashed(toPath(path)));
   if (!SOURCE_FILE.test(p) || GENERATED_DIR.test(p) || DEVICE.test(p)) return false;
-  const temp = expandShortNames(slashed(tempDir)).toLowerCase();
-  return !(p.toLowerCase().startsWith(`${temp}/`) || /^\/tmp\//.test(p));
+  return !isTempPath(p, tempDir);
 }
