@@ -2,7 +2,7 @@
 id: KIT-T1370
 title: Process failure 2026-11-18: three sweep writers (claude-kit:implementer agents) called the Grep tool on a directory and were blocked by the
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T06:50:24Z
-updated: 2026-11-18T06:53:58Z
+updated: 2026-11-18T06:54:25Z
+fixed_commit: 55af2f98
 ---
 
 ## Description
@@ -41,3 +42,6 @@ Tests: search-adoption all pass (9, new multiline case included); agent-pins, pl
 - [2026-11-18 06:53] (status) todo → doing
 - [2026-11-18 06:54] (comment) criterion added: every tracked agent definition carries the target-to-tool rule (already true since c16846a5) and names q code --multiline with the collect-then-iterate example in its Search section (scripts/search-adoption.test.mjs)
 - [2026-11-18 06:54] (comment) ticked: every tracked agent definition carries the target-to-tool rule (already true since c16846a5) and names q code --multiline with the collect-then-iterate example in its Search section (scripts/search-adoption.test.mjs)
+- [2026-11-18 06:54] (landed) 55af2f98 agents: every Search section names q code --multiline for a pattern across lines, with the collect-then-iterate example;
+- [2026-11-18 06:54] (status) doing → review
+- [2026-11-18 06:54] (comment) runtime 55af2f98 published, plugin 0.1.59
