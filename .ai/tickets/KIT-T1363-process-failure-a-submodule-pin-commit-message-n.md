@@ -2,7 +2,7 @@
 id: KIT-T1363
 title: PROCESS FAILURE: a submodule pin commit message named a framework sha (8cc52c79) that was not the sha the gitlink recorded (ae380fc2: anothe
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T01:28:46Z
-updated: 2026-11-18T01:45:38Z
+updated: 2026-11-18T01:46:45Z
+fixed_commit: 2e94012f
 ---
 
 ## Description
@@ -38,3 +39,6 @@ Built: hooks/lib/gitlinks.mjs (gitlink paths and the pins a tree, the index and 
 - [2026-11-18 01:45] (comment) criterion added: upstream-gate (check-id push-pin) refuses a git push whose HEAD points a submodule at a commit no remote-tracking branch of the submodule contains, naming the submodule push to do first; a pushed pointer passes; a repo without submodules is unaffected (hooks/pin-sha-push.test.mjs)
 - [2026-11-18 01:45] (comment) ticked: upstream-gate (check-id push-pin) refuses a git push whose HEAD points a submodule at a commit no remote-tracking branch of the submodule contains, naming the submodule push to do first; a pushed pointer passes; a repo without submodules is unaffected (hooks/pin-sha-push.test.mjs)
 - [2026-11-18 01:46] (comment) ticked: pin-sha-push 11 passed
+- [2026-11-18 01:46] (landed) 2e94012f pin-sha: a commit that moves a submodule pointer names the sha it records; push-pin: a superproject push is refused whil
+- [2026-11-18 01:46] (status) doing → review
+- [2026-11-18 01:46] (comment) runtime 2e94012f published
