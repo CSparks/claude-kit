@@ -4,7 +4,8 @@
 //   - another live SESSION has uncommitted changes to this file (lib/session-overlap.mjs, the session write ledger);
 //   - another live agent of this session has uncommitted changes to this file (lib/agent-claims.mjs, per-writer claims);
 //   - another writer's cargo build is compiling the crate this file belongs to (lib/build-write-hold.mjs). A refused edit opens
-//     a write window on the file (scripts/broker/write-window.mjs) that the next build start yields to; the edit passing closes it.
+//     a write window on the file (scripts/broker/write-window.mjs) that the next build start yields to; an edit passing keeps the
+//     writer's windows open until it lands (KIT-T1404), and landing (tool-write-record.mjs) shortens them to the edit gap.
 //     A refusal names every crate the writer left unchecked or marked broken (lib/broken-crates.mjs, KIT-T1247); an edit by the
 //     writer that last edited a crate marked broken is never refused by a build hold: it is the repair (KIT-T1245). A batch lands
 //     whole or not at all: once an edit of a crate was refused by a build hold, the writer's later edits to that crate are refused
@@ -18,7 +19,7 @@ import { subagentId } from './lib/subagent-id.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
 import { claimConflicts, claimMessage } from './lib/agent-claims.mjs';
-import { batchRefusalMessage, buildHoldConflict, buildHoldMessage, isHeldKind, noteEditLanded, noteRefusedEdit } from './lib/build-write-hold.mjs';
+import { batchRefusalMessage, buildHoldConflict, buildHoldMessage, isHeldKind, noteEditInFlight, noteRefusedEdit } from './lib/build-write-hold.mjs';
 import { noteBatchRefusal, refusedEarlierInBatch } from '../scripts/broker/batch-refusal.mjs';
 import { writerId } from './lib/tool-writes.mjs';
 import { leftBrokenNote, repairsOwnBrokenCrate } from './lib/broken-crates.mjs';
@@ -73,7 +74,7 @@ try {
       process.stderr.write(refused.text);
       process.exit(2);
     }
-    noteEditLanded({ file, writer: writerId(p.session_id, agent) });
+    noteEditInFlight({ writer: writerId(p.session_id, agent) });
     const label = agent ? String(p.agent_type || 'subagent') : 'main thread';
     beatHolder({ tree, session: p.session_id, agent, origin: gitRoot(), edited: rel, label });
     claimFile({ tree, session: p.session_id, agent, label, rel, head: git(['rev-parse', 'HEAD'], tree).trim() });

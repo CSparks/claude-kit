@@ -39,6 +39,8 @@ const create = (agent, ...segments) => {
   return guard('S1', agent, file);
 };
 // Each case judges the build hold alone: the batch refusal a case's earlier refusal left (write-batch.test.mjs, KIT-T1281) is cleared first.
+// The edit landed: the PostToolUse hook that shortens the writer's windows to the edit gap (KIT-T1404).
+const land = (session, agent, ...segments) => spawnSync(process.execPath, [fileURLToPath(new URL('./tool-write-record.mjs', import.meta.url))], { cwd: tree, encoding: 'utf8', env: process.env, input: JSON.stringify({ session_id: session, agent_id: agent, hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: join(tree, ...segments) }, tool_response: {} }) });
 const guard = (session, agent, file) => {
   closeBatchRefusals({ writer: `${session}|${agent || ''}` });
   return spawnSync(process.execPath, [fileURLToPath(new URL('./holder-beat.mjs', import.meta.url))], { cwd: tree, encoding: 'utf8', input: JSON.stringify({ session_id: session, ...(agent ? { agent_id: agent } : {}), tool_input: { file_path: file } }) });
@@ -167,6 +169,9 @@ expect('KIT-T1175: a build already running at the free wait is said to have comp
 openWindow({ file: raceFile, writer: RACER, seconds: FREE_WINDOW_S, kind: KIND.FREE });
 hold({ scope: [crate], writer: OWNER, phase: 'running' });
 expect('KIT-T1175: the edit after a free wait passes', edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs').status, 0);
+const inFlight = windowFor({ file: raceFile });
+expect('KIT-T1404: while the passed edit has not landed, the writer\'s window stays open past the free window', inFlight && inFlight.until - Date.now() > FREE_WINDOW_S * MS_PER_SECOND ? 1 : 0, 1);
+land('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs');
 const landed = windowFor({ file: raceFile });
 expect('KIT-T1219: the passing edit keeps the writer\'s window, shortened to the edit gap', landed?.kind === KIND.FREE && landed.until - Date.now() <= EDIT_GAP_S * MS_PER_SECOND ? 1 : 0, 1);
 const heldBy = (writer, builder) => blockingWindows({ scope: [crate], writer: builder }).filter((w) => w.writer === writer).length;
@@ -174,6 +179,7 @@ const batchFile = join(crate, 'src', 'batch.rs');
 expect('KIT-T1219: another writer\'s build start on the crate is still held after the first edit of a batch', heldBy(RACER, OWNER), 1);
 expect('KIT-T1219 control: the writer\'s own build start is not held by its window', heldBy(RACER, RACER), 0);
 expect('KIT-T1219: the next edit of the batch, in another file of the crate, passes', edit('S1', 'agentRacer', 'crates', 'a', 'src', 'batch.rs').status, 0);
+land('S1', 'agentRacer', 'crates', 'a', 'src', 'batch.rs');
 expect('KIT-T1219: the second file joins the writer\'s windows', windowFor({ file: batchFile })?.writer === RACER ? 1 : 0, 1);
 let fakeNow = Date.now();
 const buildStart = waitOutWindows({ scope: [crate], writer: OWNER, sleep: (ms) => { fakeNow += ms; }, now: () => fakeNow });

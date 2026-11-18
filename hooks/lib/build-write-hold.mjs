@@ -19,6 +19,8 @@
 //   noteRefusedEdit({ file, writer }) / noteEditLanded({ file, writer }) -> open the writer's write window on the file / shrink
 //                                                  the writer's windows to the edit gap (scripts/broker/write-window.mjs):
 //                                                  a build start yields to a live window
+//   noteEditInFlight({ writer })                  -> an edit passed the guard and has not landed: the writer's windows stay open
+//                                                  (KIT-T1404); noteEditLanded runs when it lands (tool-write-record.mjs)
 
 import { resolve } from 'node:path';
 import { liveHolds } from '../../scripts/broker/build-slot-store.mjs';
@@ -26,7 +28,7 @@ import { isBuildInput } from '../../scripts/broker/build-globs.mjs';
 import { inScope, scopeVia } from '../../scripts/broker/cargo-scope-dirs.mjs';
 import { testFileUnread } from '../../scripts/broker/cargo-targets.mjs';
 import { HARNESS_FOREGROUND_S, MAX_FOREGROUND_WAIT_S } from '../../scripts/broker/wait-limits.mjs';
-import { EDIT_GAP_S, FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, openWindow, settleWindows, windowFor } from '../../scripts/broker/write-window.mjs';
+import { EDIT_GAP_S, FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, holdWindowsInFlight, openWindow, settleWindows, windowFor } from '../../scripts/broker/write-window.mjs';
 import { isUnreachableSource } from './unreachable-source.mjs';
 import { toPath } from './shell-segments.mjs';
 import { writerSession } from './tool-writes.mjs';
@@ -104,6 +106,9 @@ export function noteRefusedEdit({ file, writer }) {
 
 /** The writer's edit of `file` passed: its windows shrink to the gap before the next edit of the batch, never end at once. */
 export const noteEditLanded = ({ file, writer }) => settleWindows({ file, writer });
+
+/** The writer's edit passed the guard and is on its way to landing: its windows stay open meanwhile (KIT-T1404). */
+export const noteEditInFlight = ({ writer }) => holdWindowsInFlight({ writer });
 
 export function holdScopeLines({ absFile, hold }) {
   const chain = scopeVia(absFile, hold.scopeVia);

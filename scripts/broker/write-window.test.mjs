@@ -9,7 +9,7 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acquireBuildSlot } from './build-slot.mjs';
-import { EDIT_GAP_S, FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, START_WAIT_S, blockingWindows, closeWindow, openWindow, settleWindows, waitOutWindows, windowFor } from './write-window.mjs';
+import { EDIT_GAP_S, FREE_WINDOW_S, IN_FLIGHT_S, KIND, REFUSED_WINDOW_S, START_WAIT_S, blockingWindows, closeWindow, holdWindowsInFlight, openWindow, settleWindows, waitOutWindows, windowFor } from './write-window.mjs';
 
 const STATUS = fileURLToPath(new URL('./build-status.mjs', import.meta.url));
 const slots = mkdtempSync(join(tmpdir(), 'wwin-slots-'));
@@ -68,6 +68,22 @@ test('a landed edit shortens the writer\'s window to the edit gap and joins the 
   assert.equal(windowFor({ file: secondFile, now: now + SECOND }).writer, WAITER, 'the edited file gained a window');
   assert.equal(blockingWindows({ scope: [crate], writer: WAITER, now: now + SECOND }).length, 0, 'control: the writer\'s own build is not held');
   assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: now + (EDIT_GAP_S + 2) * SECOND }).length, 0, 'control: the window lapses one edit gap after the last edit');
+});
+
+test('an edit in flight keeps the writer\'s windows open until it lands, never shorter, and opens none (KIT-T1404)', () => {
+  reset();
+  const now = Date.now();
+  holdWindowsInFlight({ writer: WAITER, now });
+  assert.equal(windowFor({ file, now }), null, 'control: a writer with no window opens none');
+  openWindow({ file, writer: WAITER, seconds: FREE_WINDOW_S, kind: KIND.FREE, now });
+  holdWindowsInFlight({ writer: WAITER, now: now + 6 * SECOND });
+  assert.equal(windowFor({ file, now }).until, now + (6 + IN_FLIGHT_S) * SECOND, 'the guard passed the first edit at +6 s: the window runs IN_FLIGHT_S from then');
+  assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: now + 100 * SECOND }).length, 1, 'a build at +100 s, while the edit is still in the hooks, yields');
+  settleWindows({ file, writer: WAITER, now: now + 101 * SECOND });
+  assert.equal(windowFor({ file, now: now + 101 * SECOND }).until, now + (101 + EDIT_GAP_S) * SECOND, 'the edit landed at +101 s: one edit gap after it');
+  openWindow({ file, writer: WAITER, seconds: 10 * IN_FLIGHT_S, kind: KIND.FREE, now });
+  holdWindowsInFlight({ writer: WAITER, now });
+  assert.equal(windowFor({ file, now }).until, now + 10 * IN_FLIGHT_S * SECOND, 'a longer window is never shortened by an edit in flight');
 });
 
 test('control: an edit that never lands holds the build start for START_WAIT_S only', () => {

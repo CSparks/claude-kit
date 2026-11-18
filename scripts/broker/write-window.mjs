@@ -5,10 +5,13 @@
 // A build about to take its hold waits, up to START_WAIT_S, while another writer's window covers its scope.
 // A writer's edits come in batches: an edit that lands while the writer holds a window does not end it, it shortens it to
 // EDIT_GAP_S past that edit, so the next edit of the batch (any file of the crate) lands before a build can take the scope
-// (KIT-T1219). A writer with no window opens none by editing.
+// (KIT-T1219). While an edit the guard passed is still on its way to landing, the writer's windows stay open at least
+// IN_FLIGHT_S (KIT-T1404). A writer with no window opens none by editing.
 //
 //   openWindow({ file, writer, seconds, kind, now? })  -> record   a window on `file` for `writer`, `seconds` long
 //   closeWindow({ file, writer })                       -> void     the writer's window on `file` ends at once
+//   holdWindowsInFlight({ writer, seconds?, now? })     -> void     an edit of the writer passed the guard: its live windows end
+//                                                                   no sooner than IN_FLIGHT_S from now
 //   settleWindows({ file, writer, seconds?, now? })     -> void     the writer's edit of `file` landed: every live window of the
 //                                                                   writer now ends EDIT_GAP_S later, and `file` gains one
 //   windowFor({ file, now? })                           -> record | null   the newest live window on `file`
@@ -28,6 +31,7 @@ export const REFUSED_WINDOW_S = 10;
 export const FREE_WINDOW_S = 90;
 export const START_WAIT_S = 90;
 export const EDIT_GAP_S = 30;
+export const IN_FLIGHT_S = 120;
 export const KIND = { REFUSED: 'refused', FREE: 'free', SETTLE: 'settle' };
 const MS_PER_SECOND = 1000;
 const POLL_MS = 250;
@@ -62,6 +66,15 @@ export function openWindow({ file, writer = '', seconds, kind, now = Date.now() 
 }
 
 export const closeWindow = ({ file, writer = '' }) => rmSync(pathOf(file, writer), { force: true });
+
+// An edit the guard let through but that has not landed yet keeps every live window of its writer open at least
+// IN_FLIGHT_S, never shorter (KIT-T1404): an edit can spend a minute or more in the hooks before it lands, and a window
+// settled when the guard passed it lapsed before the rest of the batch arrived.
+export function holdWindowsInFlight({ writer = '', seconds = IN_FLIGHT_S, now = Date.now() }) {
+  for (const w of liveWindows(now).filter((rec) => rec.writer === writer)) {
+    writeFileSync(pathOf(w.file, writer), JSON.stringify({ ...w, until: Math.max(w.until, now + seconds * MS_PER_SECOND) }));
+  }
+}
 
 export function settleWindows({ file, writer = '', seconds = EDIT_GAP_S, now = Date.now() }) {
   const mine = liveWindows(now).filter((w) => w.writer === writer);
