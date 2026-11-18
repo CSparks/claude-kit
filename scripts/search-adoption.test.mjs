@@ -40,6 +40,16 @@ test('every tracked agent definition maps each search target to its tool (KIT-T1
   }
 });
 
+test('every tracked agent definition names q code --multiline for a pattern across lines (KIT-T1370, KIT-T1369)', () => {
+  const tracked = execFileSync('git', ['ls-files', 'agents'], { cwd: KIT, encoding: 'utf8' }).split('\n').filter((f) => f.endsWith('.md') && !f.endsWith('README.md'));
+  assert.ok(tracked.length >= 10);
+  for (const f of tracked) {
+    const search = read(f).split('## Search — q first')[1]?.split('\n## ')[0] || '';
+    assert.match(search, /A pattern across lines is `q code --multiline` \(`-U`\)/, f);
+    assert.match(search, /collect::<Vec<_>>\\\(\\\);\\n\\s\*for' -U --lang rust/, f);
+  }
+});
+
 test('dispatching commands tell every brief to search with q', () => {
   for (const f of ['commands/work.md', 'commands/drain.md']) {
     assert.match(read(f), /Search with q \(q code \/ sym \/ file \/ fts\), never grep/, f);

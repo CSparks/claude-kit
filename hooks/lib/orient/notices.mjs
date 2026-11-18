@@ -29,7 +29,7 @@ export function header({ out, root }) {
   out.push('  q recent [Nd] [scope] what happened lately: decisions, fixed, moves, created (default 7d)');
   out.push('  q open | trail <id> | governing <path> | doc-trail <id> | show <id>   (full surface: q --help)');
   out.push('--- SEARCH WITH q, NOT grep/rg (code, docs, configs, tickets — this repo + its framework submodule; ranked, exact) ---');
-  out.push('  q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [-C 2] [--kind code|doc|config|ticket] [-l] [--limit 0]');
+  out.push('  q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [--multiline] [-C 2] [--kind code|doc|config|ticket] [-l] [--limit 0]');
   out.push('  q sym <name> [--type fn,struct,impl,use,mod]   definitions, impls, uses, mod tree');
   out.push('  q file <glob>                                   find files by path');
   out.push('  q cannot do it? cap feature "q: <gap>" --project claude-kit (never grep silently)');

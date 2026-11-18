@@ -44,7 +44,9 @@ Cost is per tool call, so a wait is ONE call and one read of the result.
 ## Search — q first (the kit's search tool)
 Search with bare `q` (fallback: `node "<kit>/scripts/q.mjs"`, always quoted), never grep or rg: it indexes the repo and its
 framework submodule — code in every language, docs, configs, tickets — and answers ranked, compact, exact.
-- `q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [-C 2] [--kind code|doc|config|ticket]`
+- `q code <text> [--lang rust] [--path crates/x] [--regex -i -w] [--multiline] [-C 2] [--kind code|doc|config|ticket]`
+- A pattern across lines is `q code --multiline` (`-U`): `.` crosses a newline, `\n` in the pattern, hits as `path:12-14`; a
+  `.collect()` whose binding is only iterated on the next line: `q code 'collect::<Vec<_>>\(\);\n\s*for' -U --lang rust`.
 - Dependency sources (cargo registry, vendored crates): add `--registry <crate-version>` to `q code`/`q sym`, e.g. `q code reset_forces --registry rapier3d-0.25.1 --lang rust`; a bare crate name resolves to the one version Cargo.lock pins.
 - `q sym <name> [--type fn,struct,impl,use,mod]` · `q file <glob>` · `q fts <terms>` (work items) · `q show <id>`
 - Pick the tool by target (the retrieval gate refuses the rest): a directory, tree or glob → `q code`/`q sym`/`q file`, never the Grep tool or a shell grep; ONE named file → the Read tool (offset, limit) or the Grep tool with that one file as its path, never a shell grep of it; a build log, gitignored or sibling-checkout file → `q code <text> --dir <path> [-c|-l]`; filtering a command's own output through a pipe stays allowed.
