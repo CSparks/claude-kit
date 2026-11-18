@@ -20,6 +20,15 @@ import { fileURLToPath } from 'node:url';
 import { formatAgentLine } from './lib/agent-format.mjs';
 import { recordAgent, agentsPath, readAgents } from './lib.mjs';
 import { modelDisplay, resolveDispatchModel, tagDescription, stripModelTag, pinnedModel, latestAssistantModel } from './model-tag.mjs';
+import { readLadder } from '../scripts/dispatch-ladder.mjs';
+
+// The display an alias must get: the family and minor of the id the capability table maps it to today (a dated lineup
+// fact that moves at each model reassessment, KIT-T1364), read independently of model-tag.mjs's own parser.
+const ALIAS_ID = /^claude-([a-z]+)-(\d+)-(\d+)$/;
+function aliasDisplayFromTable(alias) {
+  const [, family, major, minor] = ALIAS_ID.exec(readLadder().aliases[alias] || '') || [];
+  return family ? `${family[0].toUpperCase()}${family.slice(1)} ${major}.${minor}` : '(no table alias)';
+}
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(HERE, 'dispatch-label.mjs');
@@ -83,9 +92,10 @@ const dispatch = (input, extra = {}) => ({
 try {
   // ===== 1. the display map (DATED lineup fact) ==============================
   {
-    ok('display: the opus alias', modelDisplay('opus') === 'Opus 5.5');
-    ok('display: the fable alias', modelDisplay('fable') === 'Fable 5.1');
-    ok('display: the sonnet alias', modelDisplay('sonnet') === 'Sonnet 5.5');
+    ok('display: the opus alias shows the table\'s opus id', modelDisplay('opus') === aliasDisplayFromTable('opus'));
+    ok('display: the fable alias shows the table\'s fable id', modelDisplay('fable') === aliasDisplayFromTable('fable'));
+    ok('display: the sonnet alias shows the table\'s sonnet id', modelDisplay('sonnet') === aliasDisplayFromTable('sonnet'));
+    ok('display: the alias oracle reads a real table entry, and an older fable id keeps its own minor', ['opus', 'fable', 'sonnet'].every((a) => /^[A-Z][a-z]+ \d+\.\d+$/.test(aliasDisplayFromTable(a))) && modelDisplay('claude-fable-5-1') === 'Fable 5.1');
     ok('display: the current opus and sonnet ids carry their minor', modelDisplay('claude-opus-5-5') === 'Opus 5.5' && modelDisplay('claude-sonnet-5-5') === 'Sonnet 5.5');
     ok('display: derived from the id, so a family the code never named still renders', modelDisplay('claude-nova-7-2') === 'Nova 7.2');
     ok('display: the haiku alias', modelDisplay('haiku') === 'Haiku 5.5');
