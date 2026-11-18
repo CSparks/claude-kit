@@ -2,7 +2,7 @@
 id: KIT-T1357
 title: claims-release gate miss: a subagent piping a synthetic PostToolUse(TaskStop) payload into compat-run.mjs agent-roster.mjs releases another
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T00:22:39Z
-updated: 2026-11-18T00:29:33Z
+updated: 2026-11-18T00:30:53Z
+fixed_commit: 3ac8a717
 ---
 
 ## Description
@@ -38,3 +39,6 @@ Fix: hooks/lib/hook-entries.mjs derives the entry names from hooks.json (SCRIPT_
 - [2026-11-18 00:29] (comment) criterion added: Test files, git and read commands naming a hook path, print-only commands, a node CLI given a hook path as an argument, scripts/code-graph.mjs (shares a hook's file name), and the main thread pass
 - [2026-11-18 00:29] (comment) ticked: hooks/hook-entry-run.test.mjs all pass (27 ok)
 - [2026-11-18 00:29] (comment) ticked: Test files, git and read commands naming a hook path, print-only commands, a node CLI given a hook path as an argument, scripts/code-graph.mjs (shares a hook's file name), and the main thread pass
+- [2026-11-18 00:30] (landed) 3ac8a717 claims-release-gate refuses a subagent's command that runs a kit hook entry point (check-id hook-entry-run); the roster
+- [2026-11-18 00:30] (status) doing → review
+- [2026-11-18 00:30] (comment) runtime 3ac8a717 published

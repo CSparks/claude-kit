@@ -2,7 +2,7 @@
 id: KIT-T1358
 title: hooks/agent-roster.test.mjs: 'anchor: stale SESSION + work-this-turn nags once (exit 2)' fails at HEAD c00dd351 and b900b4a1 (47 passed, 1 f
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T00:22:42Z
-updated: 2026-11-18T00:30:00Z
+updated: 2026-11-18T00:30:57Z
+fixed_commit: 3ac8a717
 ---
 
 ## Description
@@ -35,3 +36,6 @@ Root cause: the test is stale, the hook is right. KIT-T1150 (a86f0fe9, 2026-11-1
 - [2026-11-18 00:30] (status) todo → doing
 - [2026-11-18 00:30] (comment) criterion added: hooks/agent-roster.test.mjs section 4 (a) and (b) use a decision write as this turn's work, so (b) nags and (a) is silent only because the anchor is fresh; 48 passed, 0 failed
 - [2026-11-18 00:30] (comment) ticked: agent-roster.test.mjs 48 passed; flush.test.mjs 52/52
+- [2026-11-18 00:30] (landed) 3ac8a717 claims-release-gate refuses a subagent's command that runs a kit hook entry point (check-id hook-entry-run); the roster
+- [2026-11-18 00:30] (status) doing → review
+- [2026-11-18 00:30] (comment) runtime 3ac8a717 published
