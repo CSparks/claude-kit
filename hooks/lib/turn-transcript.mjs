@@ -19,7 +19,7 @@ function isToolResult(content) {
   return Array.isArray(content) && content.some((b) => b && b.type === 'tool_result');
 }
 
-function isSystemNotice(text) {
+export function isSystemNotice(text) {
   return /^\s*(?:<task-notification\b|<system-reminder\b|\[SYSTEM NOTIFICATION\b|Stop hook feedback:)/i.test(text);
 }
 
