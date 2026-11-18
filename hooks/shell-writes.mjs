@@ -4,7 +4,8 @@
 // check (KIT-T407) does not block a session's own `node -e` / sed / script edits.
 //
 // Pre stamps the call's start time and the tracked paths already removed; Post runs ONE `git status` and records every
-// dirty path whose mtime is at/after that stamp, plus every path removed since Pre (`git rm`, `rm`; KIT-T1110). A file changed outside any session call (another session,
+// dirty path whose mtime is at/after that stamp, plus every path removed since Pre (`git rm`, `rm`; KIT-T1110), which is also
+// claimed for the writer that ran the call (KIT-T1401). A file changed outside any session call (another session,
 // the maintainer's editor) is never stamped and stays foreign. Parallel edits by another session
 // DURING this call count as ours unless an Edit or Write tool left that exact content (the accepted-writes
 // ledger, KIT-T888): a tool's write is credited by pre-write to the session that made it, never to a shell
@@ -18,6 +19,7 @@ import { recordSessionPath } from './turn-writes.mjs';
 import { contentHashOf } from './lib/shell-snapshot.mjs';
 import { toolWriteProves, writerId } from './lib/tool-writes.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
+import { claimFile } from './lib/checkout-holder.mjs';
 
 const START_MAX_AGE_MS = 3600000;
 const STATUS_ENTRIES_MAX = 5000;
@@ -84,7 +86,13 @@ try {
   delete starts[key];
   delete removedBefore[key];
   writeTurnState(root, { starts, removed: removedBefore }, slot);
-  for (const rel of ownRemovals) recordSessionPath(root, rel, sid);
+  // A call's own removal is also claimed for the writer that made it (KIT-T1401): a `git rm` stays staged in the index every
+  // writer shares, and the claim makes another writer's commit that would take it refuse (lib/commit-agent-claims.mjs).
+  const head = ownRemovals.length ? git(['rev-parse', 'HEAD'], root).trim() : '';
+  for (const rel of ownRemovals) {
+    recordSessionPath(root, rel, sid);
+    claimFile({ tree: root, session: sid, agent: subagentId(p), label: p.agent_type || '', rel, head });
+  }
   const caller = writerId(sid, subagentId(p));
   for (const rel of dirtyPaths(status)) {
     try {

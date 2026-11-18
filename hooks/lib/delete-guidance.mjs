@@ -42,7 +42,7 @@ const WAYS_OUT = {
   [R.noWriter]: () => 'This call carries no session id, so no Write can be attributed to it.',
   [R.glob]: () => 'A glob is not expanded: name each file.',
   [R.missing]: ({ path, cwd }) => `No such file at ${resolve(cwd, path).replace(/\\/g, '/')}: the command is in ${cwd.replace(/\\/g, '/')} at this point (a \`cd\` earlier in the command moves where a relative path points).`,
-  [R.tracked]: ({ path }) => `Tracked source: remove it with \`git rm -- ${path}\`, so the commit shows the deletion. ${STRAY_HINT}`,
+  [R.tracked]: ({ path }) => `Tracked source: remove it with \`git rm -- ${path}\`, so the commit shows the deletion, and commit it at once by explicit path (\`git commit -F <message file> -- ${path}\`): until then the deletion sits staged in the index every writer of this checkout shares. ${STRAY_HINT}`,
   [R.unrecorded]: (ctx) => (ctx.verb === 'git restore' && ctx.mainThread
     ? 'No Edit or Write of any writer recorded these bytes (never written by a tool, or changed since): they may be the maintainer\'s own uncommitted edit, which a restore would destroy. Ask the maintainer before restoring them.'
     : `No Edit or Write of this caller left these bytes (never written by a tool, or changed since): it stays with its writer. ${raiseToMainThread(ctx)}`),
