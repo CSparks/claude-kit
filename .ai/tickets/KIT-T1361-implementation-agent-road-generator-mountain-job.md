@@ -2,7 +2,7 @@
 id: KIT-T1361
 title: implementation agent (road-generator mountain job, 2026-11-18), fourth block, one-file-search: grep on a named probe output file under targe
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T00:45:17Z
-updated: 2026-11-18T02:54:18Z
+updated: 2026-11-18T02:56:43Z
+fixed_commit: 7d036958
 ---
 
 ## Description
@@ -37,3 +38,6 @@ Cache state checked 2026-11-18: installed_plugins.json has claude-kit 0.1.56 (au
 - [2026-11-18 02:54] (status) todo → doing
 - [2026-11-18 02:54] (comment) criterion added: docs/wait-rule.md and every agent definition say a saved output file is opened with Read (offset, limit), never grep, tail or cat, and a script prints the readout lines itself (hooks/agent-recipes.test.mjs); plugin version 0.1.57 so the agent text reaches sessions
 - [2026-11-18 02:54] (comment) ticked: docs/wait-rule.md and every agent definition say a saved output file is opened with Read (offset, limit), never grep, tail or cat, and a script prints the readout lines itself (hooks/agent-recipes.test.mjs); plugin version 0.1.57 so the agent text reaches sessions
+- [2026-11-18 02:56] (landed) 7d036958 wait.mjs reads a builds --run id once instead of answering unknown job; the broker-wait block and the wait rule name ONE
+- [2026-11-18 02:56] (status) doing → review
+- [2026-11-18 02:56] (comment) runtime 7d036958 published, plugin 0.1.57

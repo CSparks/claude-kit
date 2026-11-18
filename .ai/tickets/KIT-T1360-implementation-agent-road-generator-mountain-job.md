@@ -2,7 +2,7 @@
 id: KIT-T1360
 title: implementation agent (road-generator mountain job, 2026-11-18) hit three source-shell-write blocks, all process failures of the agent: (1) r
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T00:36:24Z
-updated: 2026-11-18T02:54:15Z
+updated: 2026-11-18T02:56:40Z
+fixed_commit: 7d036958
 ---
 
 ## Description
@@ -35,3 +36,6 @@ Recipe written into agents/implementer.md (Discipline) and hooks/lib/source-shel
 - [2026-11-18 02:54] (status) todo → doing
 - [2026-11-18 02:54] (comment) criterion added: the implementer definition and the source-shell gate's write advice carry the data-file sweep recipe: a scratch asset root under target/ (cp -r assets target/sweep-assets), BEVY_ASSET_ROOT or the program's own setting, Edit/Write on the copy, never sed/cp over the shipped file, never rm -r the scratch folder (hooks/agent-recipes.test.mjs)
 - [2026-11-18 02:54] (comment) ticked: the implementer definition and the source-shell gate's write advice carry the data-file sweep recipe: a scratch asset root under target/ (cp -r assets target/sweep-assets), BEVY_ASSET_ROOT or the program's own setting, Edit/Write on the copy, never sed/cp over the shipped file, never rm -r the scratch folder (hooks/agent-recipes.test.mjs)
+- [2026-11-18 02:56] (landed) 7d036958 wait.mjs reads a builds --run id once instead of answering unknown job; the broker-wait block and the wait rule name ONE
+- [2026-11-18 02:56] (status) doing → review
+- [2026-11-18 02:56] (comment) runtime 7d036958 published, plugin 0.1.57

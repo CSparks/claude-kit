@@ -2,7 +2,7 @@
 id: KIT-T1365
 title: implementation agent (road-generator mountain job, 2026-11-18), fifth block, broker-wait: one Bash call chained builds --run with a tail -F
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T02:17:37Z
-updated: 2026-11-18T02:54:11Z
+updated: 2026-11-18T02:56:36Z
+fixed_commit: 7d036958
 ---
 
 ## Description
@@ -37,3 +38,6 @@ The block text and docs/wait-rule.md (carried verbatim by all 15 agent definitio
 - [2026-11-18 02:54] (status) todo → doing
 - [2026-11-18 02:54] (comment) criterion added: the broker-wait block says plainly: ONE builds --run call with nothing chained, end the turn naming the run id, the orchestrator's Monitor on finished.log for the resume; docs/wait-rule.md and all 15 agent definitions carry the same lines (hooks/agent-recipes.test.mjs, detached-run.test.mjs)
 - [2026-11-18 02:54] (comment) ticked: the broker-wait block says plainly: ONE builds --run call with nothing chained, end the turn naming the run id, the orchestrator's Monitor on finished.log for the resume; docs/wait-rule.md and all 15 agent definitions carry the same lines (hooks/agent-recipes.test.mjs, detached-run.test.mjs)
+- [2026-11-18 02:56] (landed) 7d036958 wait.mjs reads a builds --run id once instead of answering unknown job; the broker-wait block and the wait rule name ONE
+- [2026-11-18 02:56] (status) doing → review
+- [2026-11-18 02:56] (comment) runtime 7d036958 published, plugin 0.1.57

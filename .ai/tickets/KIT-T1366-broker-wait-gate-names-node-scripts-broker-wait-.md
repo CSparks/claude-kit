@@ -2,7 +2,7 @@
 id: KIT-T1366
 title: broker-wait gate names 'node scripts/broker/wait.mjs <id> --root <tree> --timeout 170' as the one sanctioned wait, but for a run id from bui
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T02:20:55Z
-updated: 2026-11-18T02:54:06Z
+updated: 2026-11-18T02:56:33Z
+fixed_commit: 7d036958
 ---
 
 ## Description
@@ -40,3 +41,6 @@ Chose: wait.mjs reads a run id's record once instead of waiting on it, so a seco
 - [2026-11-18 02:54] (comment) criterion added: the broker-wait block names wait.mjs for broker jobs only and the one builds --run call for long commands; docs/BROKER.md's Monitor paragraph (KIT-T1349) says the same
 - [2026-11-18 02:54] (comment) ticked: wait.mjs given a builds --run id reads the run record once (never polls): exit 2 with how to resume while it runs, 0 or 1 by its exit once ended; an id that names nothing is still unknown (exit 3) (scripts/broker/detached-run.test.mjs)
 - [2026-11-18 02:54] (comment) ticked: the broker-wait block names wait.mjs for broker jobs only and the one builds --run call for long commands; docs/BROKER.md's Monitor paragraph (KIT-T1349) says the same
+- [2026-11-18 02:56] (landed) 7d036958 wait.mjs reads a builds --run id once instead of answering unknown job; the broker-wait block and the wait rule name ONE
+- [2026-11-18 02:56] (status) doing → review
+- [2026-11-18 02:56] (comment) runtime 7d036958 published, plugin 0.1.57
