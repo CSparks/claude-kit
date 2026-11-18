@@ -2,7 +2,7 @@
 id: KIT-T1369
 title: q gap: 'code' has no --multiline flag
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T06:25:06Z
-updated: 2026-11-18T06:38:14Z
+updated: 2026-11-18T06:38:53Z
+fixed_commit: 5c45ba7d
 ---
 
 ## Description
@@ -39,3 +40,5 @@ Tests: scripts/q-multiline.test.mjs 4 pass (the ticket's collect-then-iterate pa
 - [2026-11-18 06:38] (status) todo → doing
 - [2026-11-18 06:38] (comment) criterion added: q code --multiline (-U) matches a regex across lines: . matches a newline, ^ and $ per line, a match over 50 lines dropped, hits shown as path:start-end, with --lang --path --kind -i -w -C -o -l -c; documented in q --help (scripts/q-multiline.test.mjs)
 - [2026-11-18 06:38] (comment) ticked: q code --multiline (-U) matches a regex across lines: . matches a newline, ^ and $ per line, a match over 50 lines dropped, hits shown as path:start-end, with --lang --path --kind -i -w -C -o -l -c; documented in q --help (scripts/q-multiline.test.mjs)
+- [2026-11-18 06:38] (status) doing → review
+- [2026-11-18 06:38] (comment) runtime 5c45ba7d published
