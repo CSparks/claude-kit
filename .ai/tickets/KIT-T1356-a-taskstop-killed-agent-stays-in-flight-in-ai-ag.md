@@ -2,7 +2,7 @@
 id: KIT-T1356
 title: A TaskStop-killed agent stays 'in-flight' in .ai/agents.jsonl (row a6eb8222d80efa278, 2026-11-17T23:47Z, status in-flight after the task was
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-17T23:59:39Z
-updated: 2026-11-18T00:17:53Z
+updated: 2026-11-18T00:20:08Z
+fixed_commit: b900b4a1
 ---
 
 ## Description
@@ -44,3 +45,6 @@ Root cause: the harness ran no PostToolUse hook for the TaskStop at 2026-11-17T2
 - [2026-11-18 00:19] (comment) ticked: hooks/claims-release-verb.test.mjs all pass (49 ok)
 - [2026-11-18 00:19] (comment) ticked: The shared-tree refusal names the main thread's clear command: claims --release <agent id> --reason
 - [2026-11-18 00:19] (comment) ticked: live dispatch-guard.mjs run in D:/dev/road-generator with the replacement's exact [paths:]: no shared-tree block; sealed c00dd351 still blocks on a6eb8222d80efa278
+- [2026-11-18 00:19] (landed) b900b4a1 dispatch gate: a writer the harness stopped (its subagent transcript ends on the interruption turn) stops counting, read
+- [2026-11-18 00:20] (status) doing → review
+- [2026-11-18 00:20] (comment) runtime b900b4a1 published
