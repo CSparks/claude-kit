@@ -2,7 +2,7 @@
 id: KIT-T1385
 title: Kit: the pre-write gate blocked a plain tab-separated scratchpad file of test names (a triage table) with the magic-numbers check; a non-cod
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T18:53:57Z
-updated: 2026-11-18T19:06:15Z
+updated: 2026-11-18T19:07:05Z
+fixed_commit: d36bca38
 ---
 
 ## Description
@@ -41,3 +42,6 @@ Tests: hooks/pre-write-scratch.test.mjs all pass (tsv, log and a scratch script 
 - [2026-11-18 19:06] (status) todo → doing
 - [2026-11-18 19:06] (comment) criterion added: a tsv, tab, psv, log or out data file is never linted as code, and a file in the session scratchpad (under the temp directory, in no git repo) skips the magic-number lint; shipped code and repos under temp are still linted (hooks/pre-write-scratch.test.mjs)
 - [2026-11-18 19:06] (comment) ticked: a tsv, tab, psv, log or out data file is never linted as code, and a file in the session scratchpad (under the temp directory, in no git repo) skips the magic-number lint; shipped code and repos under temp are still linted (hooks/pre-write-scratch.test.mjs)
+- [2026-11-18 19:06] (landed) d36bca38 pre-write: tab-separated, log and out data files are not linted as code, and a scratchpad file (temp directory, no repo)
+- [2026-11-18 19:07] (status) doing → review
+- [2026-11-18 19:07] (comment) runtime d36bca38 published
