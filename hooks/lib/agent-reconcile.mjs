@@ -9,34 +9,15 @@
 // repo's uncommitted files as `wip`, so the resume knows what to recover. A dead agent's claims and holds are released
 // with its verdict (`release`, injectable), so its files stop reading as a live writer's.
 
-import { readFileSync, statSync, openSync, readSync, closeSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { wipSummary } from './git-state.mjs';
-import { transcriptPaths } from './subagent-transcript.mjs';
+import { lastEntry, transcriptPaths } from './subagent-transcript.mjs';
 import { releaseAgent } from './checkout-holder.mjs';
 
 export const RECONCILE_AGE_MS = 30 * 60 * 1000;
 export const TRANSCRIPT_IDLE_MS = 30 * 60 * 1000;
-const TAIL_BYTES = 16 * 1024;
 const WIP_MAX = 12;
 const LIMIT_RE = /usage[ _-]?limit|rate[ _-]?limit|\b429\b|limit (?:reached|exceeded)|too many requests|resets? at/i;
-
-function tailText(path) {
-  const fd = openSync(path, 'r');
-  try {
-    const size = statSync(path).size;
-    const len = Math.min(size, TAIL_BYTES);
-    const buf = Buffer.alloc(len);
-    readSync(fd, buf, 0, len, size - len);
-    return buf.toString('utf8');
-  } finally {
-    closeSync(fd);
-  }
-}
-
-function lastEntry(path) {
-  const lines = tailText(path).split('\n').map((l) => l.trim()).filter(Boolean);
-  return lines.length ? lines[lines.length - 1] : '';
-}
 
 // The freshest written transcript of the row decides (subagent-transcript.mjs); a row with none is left alone.
 export function transcriptVerdict(row, nowMs, options) {

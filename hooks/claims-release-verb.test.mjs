@@ -3,7 +3,7 @@
 // Run: node hooks/claims-release-verb.test.mjs
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 const holders = mkdtempSync(join(tmpdir(), 'cr-holders-'));
 process.env.CLAUDE_KIT_HOLDERS_DIR = holders;
 process.env.CLAUDE_KIT_TURN_STATE = mkdtempSync(join(tmpdir(), 'cr-state-'));
+const CLAUDE_HOME = mkdtempSync(join(tmpdir(), 'cr-home-'));
+process.env.CLAUDE_HOME = CLAUDE_HOME;
 const { claimFile, agentEntries } = await import('./lib/checkout-holder.mjs');
 const { recordToolWrite } = await import('./lib/tool-writes.mjs');
 const { contentHashOf } = await import('./lib/shell-snapshot.mjs');
@@ -65,6 +67,24 @@ const row = readFileSync(join(repo, '.ai', 'agents.jsonl'), 'utf8').split('\n').
 check('the release is recorded in the roster as killed, with the reason', row && row.status === 'killed' && /killed by a usage limit, diff saved/.test(row.summary));
 check('the restore then passes for the main thread', !blocked(sourceGate('git restore -- src/a.rs src/b.rs src/c.rs')));
 check('a second release finds nothing to release', /nothing to release/.test(claims('--release', DEAD, '--reason', 'again').stdout));
+
+// KIT-T1356: a stopped agent that wrote nothing holds no claim, yet its in-flight roster row reads as a live writer.
+const rosterRows = () => readFileSync(join(repo, '.ai', 'agents.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+const inFlight = (id) => appendFileSync(join(repo, '.ai', 'agents.jsonl'), JSON.stringify({ ts: new Date(Date.now() - 20 * MINUTE).toISOString(), id, status: 'in-flight', task: 'a writer' }) + '\n');
+const SILENT = 'a6eb8222d80efa278';
+inFlight(SILENT);
+const silent = claims('--release', SILENT, '--reason', 'TaskStop, wrote nothing');
+const silentRows = rosterRows().filter((r) => r.id === SILENT);
+check('a claimless agent\'s in-flight roster row is ended as killed, with the reason', silent.status === 0 && /roster row is ended/.test(silent.stdout) && silentRows.at(-1).status === 'killed' && /TaskStop, wrote nothing/.test(silentRows.at(-1).summary), silent.stdout + silent.stderr);
+const again = claims('--release', SILENT, '--reason', 'again');
+check('a second call ends nothing more', again.status === 0 && !/roster row is ended/.test(again.stdout) && rosterRows().filter((r) => r.id === SILENT).length === silentRows.length);
+const TALKING = 'a6eb8222d80efa999';
+inFlight(TALKING);
+const transcripts = join(CLAUDE_HOME, 'projects', 'D--dev-fixture', 'session-1', 'subagents');
+mkdirSync(transcripts, { recursive: true });
+writeFileSync(join(transcripts, `agent-${TALKING}.jsonl`), '{"type":"assistant"}\n');
+const talking = claims('--release', TALKING, '--reason', 'x');
+check('a claimless agent whose transcript moved in the last few minutes is refused and its row stays in flight', talking.status === 2 && /wrote its transcript 0 min ago/.test(talking.stderr) && rosterRows().filter((r) => r.id === TALKING).length === 1, talking.stdout + talking.stderr);
 
 claimFile({ tree: top, session: 'S3', agent: 'a37b9acc2334bdbcb', label: 'twin', rel: 'src/a.rs', head, now: Date.now() - 20 * MINUTE });
 claimFile({ tree: top, session: 'S3', agent: 'a37b9accffffffff', label: 'twin two', rel: 'src/b.rs', head, now: Date.now() - 20 * MINUTE });

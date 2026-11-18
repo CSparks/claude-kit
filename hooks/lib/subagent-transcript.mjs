@@ -7,12 +7,17 @@
 //                                            non-empty outputFile; [] when nothing readable exists
 //   lastActivityMs(row, opts)             -> the newest modification time among them, null when none
 //   isLive(row, nowMs, opts)              -> true when one was written within LIVE_WINDOW_MS
+//   stoppedByHarness(row, opts)           -> true when its freshest subagent transcript ends on the harness's interruption
+//                                            turn (a TaskStop or an Esc); a SendMessage resume appends after it and clears it
+//   lastEntry(path)                       -> the last non-empty line of a file, read from its tail
 
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 export const LIVE_WINDOW_MS = 30 * 60 * 1000;
+const TAIL_BYTES = 16 * 1024;
+const INTERRUPTED = '[Request interrupted by user';
 
 const claudeHomeDir = () => process.env.CLAUDE_HOME || join(homedir(), '.claude');
 
@@ -47,4 +52,46 @@ export function lastActivityMs(row, options) {
 export function isLive(row, nowMs = Date.now(), options) {
   const last = lastActivityMs(row, options);
   return last !== null && nowMs - last <= LIVE_WINDOW_MS;
+}
+
+function tailLines(path) {
+  const fd = openSync(path, 'r');
+  try {
+    const size = statSync(path).size;
+    const len = Math.min(size, TAIL_BYTES);
+    const buf = Buffer.alloc(len);
+    readSync(fd, buf, 0, len, size - len);
+    return buf.toString('utf8').split('\n').map((l) => l.trim()).filter(Boolean);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+export function lastEntry(path) {
+  const lines = tailLines(path);
+  return lines.length ? lines[lines.length - 1] : '';
+}
+
+const interruption = (entry) => {
+  if (!entry || entry.type !== 'user' || !entry.message) return false;
+  const { content } = entry.message;
+  if (typeof content === 'string') return content.startsWith(INTERRUPTED);
+  return Array.isArray(content) && content.some((b) => b && b.type === 'text' && String(b.text || '').startsWith(INTERRUPTED));
+};
+
+// The last entry carrying a message decides; a torn or oversized last line reads as not stopped (the row stays live).
+export function stoppedByHarness(row, { claudeHome = claudeHomeDir() } = {}) {
+  try {
+    const files = row && row.id ? subagentFiles(row.id, claudeHome) : [];
+    if (!files.length) return false;
+    const freshest = files.reduce((a, b) => (statSync(b).mtimeMs > statSync(a).mtimeMs ? b : a));
+    for (const line of tailLines(freshest).reverse()) {
+      let entry;
+      try { entry = JSON.parse(line); } catch { return false; }
+      if (entry && entry.message) return interruption(entry);
+    }
+    return false;
+  } catch {
+    return false;
+  }
 }

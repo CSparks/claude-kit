@@ -39,6 +39,7 @@ import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage, brokerConfig } fr
 import { WORKER_CHECK, overlapOnlyBlocker, workerAdvice, workerBlock, workerPaths } from './dispatch-worker.mjs';
 import { queueDispatch } from './lib/queued-dispatch.mjs';
 import { sharedTreeBlock } from './dispatch-shared-tree.mjs';
+import { stoppedByHarness } from './lib/subagent-transcript.mjs';
 import { TREE_PROJECT_CHECK, treeProjectBlock } from './dispatch-tree-project.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { BACKGROUND_RUN_CHECK, backgroundRunBlock } from './dispatch-background-run.mjs';
@@ -420,16 +421,16 @@ function namesWorktree(prompt) {
 // .ai/ (junction to the data repo) resolves identically. FAIL-OPEN: a missing/corrupt roster,
 // or a row with no parseable timestamp, yields nothing to block on.
 //
-// RESIDUAL: a row whose agent never emits a terminal event (the harness does not guarantee
-// SubagentStop for every dispatch shape) still counts until the stale window ages it out. That
-// is the deliberate conservative side — visible in the block message, escapable per dispatch.
+// A row whose agent the harness stopped (its transcript ends on the interruption turn) is not counted, decided at read
+// time so a SendMessage resume counts again (KIT-T1356). RESIDUAL: a row whose agent died with no such trace still counts
+// until the stale window ages it out; the block message names the main thread's `claims --release` to end it.
 function liveAgents(root, nowMs, tree) {
   try {
     const { inFlight } = partitionAgents(readAgents(root), nowMs);
     return inFlight.filter((r) => {
       const t = Date.parse(r.firstSeen || r.ts || '');
       if (!Number.isFinite(t) || nowMs - t >= SHARED_TREE_WINDOW_MS) return false;
-      return rowSharesTree(r, tree);
+      return rowSharesTree(r, tree) && !stoppedByHarness(r);
     });
   } catch {
     return [];

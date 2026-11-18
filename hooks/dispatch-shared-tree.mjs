@@ -4,7 +4,8 @@
 // and per build at write time (holder-beat.mjs): one file, one writer; no write into the files a running build compiles.
 //
 //   sharedTreeBlock({ agent, tree, source, prompt, writers, now, footer }) -> block message | null
-//     writers: the live read/write roster rows of `tree`; a writer alone in the tree needs no paths.
+//     writers: the live read/write roster rows of `tree`; a writer alone in the tree needs no paths. A dead writer's row is
+//     ended by the main thread's `claims --release`, which the message names.
 
 import { workerPaths } from './dispatch-worker.mjs';
 import { overlaps } from './lib/path-overlap.mjs';
@@ -43,6 +44,8 @@ export function sharedTreeBlock({ agent, tree, source, prompt, writers, now = Da
     ...(undeclared
       ? ['  • declare what this agent edits: add [paths: <repo-relative files or folders, comma separated>] to the prompt;']
       : ['  • choose [paths:] that avoid the files above, or wait for that agent and hand THAT agent the next ticket (warm build);']),
+    '  • a writer above that is dead (stopped, crashed, killed by a limit): the main thread ends its row and frees its claims',
+    '    with `claims --release <agent id> --reason "<why>"`;',
     '  • research only: a READ-ONLY agent type (claude-kit:researcher, claude-kit:analyst, Explore, Plan), or',
     '    [read-only: <reason>] on a writer-capable type — also for an artifact agent that writes only the scratchpad;',
     '  • writing in a DIFFERENT git checkout: add [tree: <absolute path of its root>] (a path that is not a git root is ignored);',

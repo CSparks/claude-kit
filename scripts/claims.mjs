@@ -6,11 +6,13 @@
 // and any import go through, refuses without the one-use main-thread stamp that gate exports (hooks/lib/claims-stamp.mjs,
 // KIT-T1288). The agent must have written nothing for
 // QUIET_MIN minutes: an agent still writing is alive. The release is recorded in the roster as a `killed` row naming the reason.
+// An agent with no claims (it wrote nothing) whose roster row is still in flight gets that row ended the same way, after the
+// same quiet check on its transcript (KIT-T1356): the dispatch gate otherwise reads it as a live writer.
 //
 //   releaseDead({ id, reason, root?, now?, quietMs? }) -> { ok, text }
 //   node scripts/claims.mjs --release <agent id|prefix of 8+> --reason "<why>"      (bin/claims)
-// A killed agent's harness stop event: none reaches a hook (SubagentStop fires only on a normal end), so nothing releases it
-// automatically; orient's AGENT KILLED notice and the refusals that name a live writer name this verb.
+// A usage-limit kill sends no stop event, and a TaskStop's PostToolUse hook does not always fire (KIT-T1356), so orient's
+// AGENT KILLED notice and the refusals that name a live writer name this verb.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -18,7 +20,8 @@ import { join } from 'node:path';
 import { parseFlags } from './broker/cli.mjs';
 import { isMain } from './is-main.mjs';
 import { agentEntries, releaseAgent } from '../hooks/lib/checkout-holder.mjs';
-import { updateAgent } from '../hooks/lib/agent-roster.mjs';
+import { endAgent, updateAgent } from '../hooks/lib/agent-roster.mjs';
+import { lastActivityMs } from '../hooks/lib/subagent-transcript.mjs';
 import { consumeStamp, STAMP_ENV } from '../hooks/lib/claims-stamp.mjs';
 
 export const QUIET_MIN = 5;
@@ -34,7 +37,7 @@ export function releaseDead({ id, reason, root = repoRoot(process.cwd()), now = 
   if (!consumeStamp(env[STAMP_ENV], id)) return { ok: false, code: EXIT.REFUSED, text: "claims --release: refused. It runs only from a main-thread call the kit stamped (hooks/claims-release-gate.mjs); a subagent raises it to the main thread, and a stamp is single-use and lasts 60 seconds" };
   const entries = agentEntries(id);
   const agents = [...new Set(entries.map((e) => e.agent))];
-  if (!agents.length) return { ok: true, code: EXIT.OK, text: `claims --release: no claim or hold is recorded for ${id}; nothing to release` };
+  if (!agents.length) return endRosterRow({ id, reason, root, now, quietMs });
   if (agents.length > 1) return { ok: false, code: EXIT.REFUSED, text: `claims --release: ${id} names ${agents.length} agents (${agents.join(', ')}); give the full id` };
   const [agent] = agents;
   const latest = Math.max(...entries.map((e) => e.beatAt));
@@ -44,6 +47,17 @@ export function releaseDead({ id, reason, root = repoRoot(process.cwd()), now = 
   releaseAgent(agent);
   if (existsSync(join(root, '.ai'))) updateAgent(root, agent, { status: 'killed', summary: `claims released by the main thread: ${String(reason).trim()}` });
   return { ok: true, code: EXIT.OK, text: `claims --release: released ${entries.length} claim(s) and hold(s) of agent ${agent} (last write ${Math.round((now - latest) / MS_PER_MINUTE)} min ago); recorded in the roster` };
+}
+
+function endRosterRow({ id, reason, root, now, quietMs }) {
+  const nothing = `claims --release: no claim or hold is recorded for ${id}; nothing to release`;
+  if (!existsSync(join(root, '.ai'))) return { ok: true, code: EXIT.OK, text: nothing };
+  const last = lastActivityMs({ id });
+  if (last !== null && now - last < quietMs) {
+    return { ok: false, code: EXIT.REFUSED, text: `claims --release: agent ${id} wrote its transcript ${Math.round((now - last) / MS_PER_MINUTE)} min ago (ending its row needs ${QUIET_MIN} quiet minutes): it is alive, or it has not been dead long enough` };
+  }
+  const ended = endAgent(root, id, { status: 'killed', reason: 'released', summary: `roster row ended by the main thread: ${String(reason).trim()}`, source: 'claims-release' });
+  return { ok: true, code: EXIT.OK, text: ended ? `${nothing}; its in-flight roster row is ended (killed)` : nothing };
 }
 
 if (isMain(import.meta.url)) {

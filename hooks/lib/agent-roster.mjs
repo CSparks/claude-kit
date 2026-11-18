@@ -95,6 +95,16 @@ export function readAgents(root, tail = AGENT_ROSTER_TAIL, { reconcile = true } 
   return verdicts.length ? rows.map((r) => verdicts.find((v) => v.id === r.id) || r) : rows;
 }
 
+// End a live row with a terminal `patch` (append-only). True when a row was ended; false when the roster holds no row
+// for `id` or its row is already terminal, so a second stop writes nothing.
+export function endAgent(root, id, patch) {
+  if (!id) return false;
+  const row = readAgents(root, AGENT_ROSTER_TAIL, { reconcile: false }).find((r) => r.id === id);
+  if (!row || AGENT_TERMINAL.has(row.status)) return false;
+  updateAgent(root, id, patch);
+  return true;
+}
+
 // Split the collapsed roster into what a resume needs to act on: still IN-FLIGHT (no terminal
 // status) vs recently FINISHED (done/error), and which in-flight rows are STALE (older than
 // AGENT_STALE_MS) — the uncollected/orphaned work to flag. `nowMs` is injectable for tests.

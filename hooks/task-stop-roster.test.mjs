@@ -3,13 +3,15 @@
 // Run: node hooks/task-stop-roster.test.mjs
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, finish, gitTop, inFlightRow, makeRepo, roster, run } from './dispatch-guard-harness.mjs';
 
 process.env.CLAUDE_KIT_HOLDERS_DIR = mkdtempSync(join(tmpdir(), 'ts-holders-'));
+const CLAUDE_HOME = mkdtempSync(join(tmpdir(), 'ts-home-'));
+process.env.CLAUDE_HOME = CLAUDE_HOME;
 const { agentEntries, claimFile } = await import('./lib/checkout-holder.mjs');
 
 const ROSTER_HOOK = fileURLToPath(new URL('./agent-roster.mjs', import.meta.url));
@@ -89,5 +91,32 @@ const busy = (extra = {}) => roster(makeRepo({ cargo: true }), [inFlightRow(0, e
   taskStop(makeRepo(), { tool_input: { task_id: other } });
   expect('claims go even when this checkout\'s roster holds no row for the agent', agentEntries(other).length, 0);
 }
+
+// KIT-T1356: the PostToolUse(TaskStop) hook did not fire in one session, so the gate reads the harness's own record: a
+// subagent transcript whose last entry is the interruption turn is a stopped agent, decided at read time.
+const turn = (type, content) => JSON.stringify({ parentUuid: 'p', isSidechain: true, agentId: 'a', type, message: { role: type, content }, timestamp: new Date().toISOString() });
+const REJECTED = turn('user', [{ type: 'tool_result', content: "The user doesn't want to proceed with this tool use.", is_error: true, tool_use_id: 'toolu_x' }]);
+const INTERRUPTED = turn('user', [{ type: 'text', text: '[Request interrupted by user for tool use]' }]);
+const WORKING = turn('assistant', [{ type: 'tool_use', id: 'toolu_y', name: 'Write', input: {} }]);
+let sessionNo = 0;
+function agentTranscript(id, lines) {
+  const dir = join(CLAUDE_HOME, 'projects', 'D--dev-fixture', `session-${sessionNo++}`, 'subagents');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, `agent-${id}.jsonl`), lines.join('\n') + '\n');
+}
+const stopped = 'a6eb8222d80ef0001';
+agentTranscript(stopped, [WORKING, REJECTED, INTERRUPTED]);
+const stoppedRepo = busy({ id: stopped });
+expect('a writer whose transcript ends on the interruption turn no longer blocks', run(stoppedRepo, writer).code, 0);
+expect('and the gate writes no terminal row for it (a resume must count again)', rows(stoppedRepo).length, 1);
+const working = 'a6eb8222d80ef0002';
+agentTranscript(working, [WORKING]);
+expect('negative control: a writer whose transcript ends mid-work still blocks', run(busy({ id: working }), writer).code, 2);
+const resumed = 'a6eb8222d80ef0003';
+agentTranscript(resumed, [WORKING, INTERRUPTED, turn('user', 'carry on'), WORKING]);
+expect('a stopped writer resumed by SendMessage blocks again', run(busy({ id: resumed }), writer).code, 2);
+expect('a writer with no transcript at all still blocks', run(busy({ id: 'a6eb8222d80ef0004' }), writer).code, 2);
+const refusal = run(busy({ id: working }), writer).err;
+expect('the refusal names the main thread\'s clear command', /claims --release <agent id> --reason "<why>"/.test(refusal) ? 1 : 0, 1);
 
 finish();

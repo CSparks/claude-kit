@@ -12,7 +12,8 @@
 // FAIL-OPEN on EVERYTHING (try/catch, exit 0). A durability hook must never wedge a session or
 // block a delegation; the worst case is a missing/extra roster row the orchestrator reconciles.
 
-import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, ID_CITE_SRC, AGENT_ROSTER_TAIL, AGENT_TERMINAL } from './lib.mjs';
+import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, ID_CITE_SRC } from './lib.mjs';
+import { endAgent } from './lib/agent-roster.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { declaredReadOnly } from './dispatch-readonly.mjs';
@@ -136,9 +137,7 @@ function recordKill(root, p) {
     const id = firstString(inp.task_id, inp.shell_id, resp.task_id);
     if (!id) return;
     releaseAgent(id);
-    const row = readAgents(root, AGENT_ROSTER_TAIL, { reconcile: false }).find((r) => r.id === id);
-    if (!row || AGENT_TERMINAL.has(row.status)) return;
-    updateAgent(root, id, { status: 'killed', reason: 'taskstop', source: 'taskstop' });
+    endAgent(root, id, { status: 'killed', reason: 'taskstop', source: 'taskstop' });
   } catch {
     /* fail-open */
   }
