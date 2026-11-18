@@ -25,6 +25,7 @@ import { claimSubmodulePin, foreignClaimMessage, foreignClaims } from './lib/com
 import { gitlinkPaths } from './lib/gitlinks.mjs';
 import { pinCiteMessage, pinCiteProblems } from './lib/pin-cite.mjs';
 import { overlaps } from './lib/path-overlap.mjs';
+import { isGeneratedPath } from './lib/source-path.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
@@ -194,7 +195,8 @@ if (!COMMIT_FOREIGN_ESCAPE.test(cited)) {
     const judged = spec.mode === 'tree' ? uniq(lines(git(['-C', root, 'diff', '--cached', '--name-only']))) : changed;
     const kit = isKitCheckout(root);
     const holders = kit ? overlappingHolders({ tree: root, session: p.session_id, agent: subagentId(p), paths: judged }) : [];
-    const foreign = (kit ? holders.flatMap((h) => h.files) : foreignPaths(root, judged, p.session_id)).filter((f) => !pathExcluded(root, 'commit-foreign', f));
+    // Build output (target/, node_modules/, dist/, build/) is a tool's, never another writer's work (KIT-T1392).
+    const foreign = (kit ? holders.flatMap((h) => h.files) : foreignPaths(root, judged, p.session_id)).filter((f) => !pathExcluded(root, 'commit-foreign', f) && !isGeneratedPath(f));
     if (foreign.length) {
       const shown = foreign.slice(0, MAX_FOREIGN);
       process.stderr.write(

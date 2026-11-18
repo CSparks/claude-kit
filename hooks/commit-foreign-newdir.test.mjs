@@ -53,6 +53,9 @@ try {
     adds('git --odd-option add src/g') === '.' && adds('git $SUB src/g') === '.' && adds('ls | xargs git add') === '.' && adds('git add --pathspec-from-file=list.txt') === '.');
   ok('lib: an add inside a group or a substitution is read through the grouping', adds('(git add -A && git commit -m x)') === '.' && adds('echo $(git add -A)') === '.' && adds('{ git add src/h; git commit -m x; }') === 'src/h');
   ok('lib: a pathspec no status can match (a variable, a find placeholder) is the whole tree', adds('git add "$f"') === '.' && adds('find . -exec git add {} +').split(',').includes('.') && adds('git add `ls`') === '.');
+  ok('lib: -A, --all, -u or --update with pathspecs stays inside them; alone, or with ., it is the whole tree (KIT-T1392)',
+    adds('git add -A rust/world/rg-hydrology rust/world/rg-openworld && git commit -F m.txt') === 'rust/world/rg-hydrology,rust/world/rg-openworld'
+    && adds('git add --all -- crates/a') === 'crates/a' && adds('git add -u crates/b') === 'crates/b' && adds('git add --update') === '.' && adds('git add -A .') === '.');
   ok('negative control: a commit message or another subcommand naming add stages nothing',
     adds('git commit -m "add foo and git add bar"') === '' && adds('git status') === '' && adds('git -c core.x=y commit -m "stage it"') === '' && adds('git log --oneline') === '');
 
@@ -86,6 +89,17 @@ try {
   ok('negative control: the grouped add with a foreign file inside is refused by file', refusedByFile(verdict('S1', grouped), 'src/grp/theirs.rs'));
   const viaVariable = `f=src/grp; git -C ${T} add "$f" && git -C ${T} commit -m "${MSG}"`;
   ok('negative control: an add of an unresolved pathspec is judged as the whole tree', refusedByFile(verdict('S1', viaVariable), 'src/grp/theirs.rs'));
+
+  // KIT-T1392: `git add -A <crate> <crate>` is judged by its two folders, and build output is never foreign.
+  fresh('src/hydro', 'S1');
+  fresh('src/openw', 'S1');
+  put('src/elsewhere/theirs.rs', body(16));
+  put('target/broker/runs/run-1.json', '{}\n');
+  const scoped = `git -C ${T} add -A src/hydro src/openw && git -C ${T} commit -m "${MSG}"`;
+  ok('an add -A of two own folders passes, whatever lies outside them', verdict('S1', scoped).code === 0, verdict('S1', scoped).out.trim());
+  const sweep = `git -C ${T} add -A && git -C ${T} commit -m "${MSG}"`;
+  const swept = verdict('S1', sweep);
+  ok('negative control: a bare add -A still refuses the foreign source file, and never names build output', refusedByFile(swept, 'src/elsewhere/theirs.rs') && !swept.out.includes('target/broker'), swept.out.trim());
 
   const wide = join('src', 'wide', 'a-directory-name-long-enough-to-pad-every-status-line');
   const WIDE_FILES = 16000;
