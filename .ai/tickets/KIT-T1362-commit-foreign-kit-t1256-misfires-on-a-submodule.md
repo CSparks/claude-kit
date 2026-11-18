@@ -2,7 +2,7 @@
 id: KIT-T1362
 title: commit-foreign (KIT-T1256) misfires on a submodule pointer bump: 'git add rapid-game && git commit -- rapid-game' in the superproject is ref
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T01:17:12Z
-updated: 2026-11-18T01:26:21Z
+updated: 2026-11-18T01:27:16Z
+fixed_commit: 48a7a74d
 ---
 
 ## Description
@@ -38,3 +39,6 @@ Diagnosis of the 2026-11-18T01:16:55Z refusal in road-generator (session 4100d9b
 - [2026-11-18 01:26] (comment) criterion added: A pointer bump with another writer's dirty files inside the submodule and no pin claim passes; a bump that carries another live writer's pinned submodule commit still refuses (KIT-T1257); a real foreign superproject path still blocks with the [commit-foreign: <reason>] hint
 - [2026-11-18 01:26] (comment) ticked: commit-submodule-pin 10 passed
 - [2026-11-18 01:26] (comment) ticked: A pointer bump with another writer's dirty files inside the submodule and no pin claim passes; a bump that carries another live writer's pinned submodule commit still refuses (KIT-T1257); a real foreign superproject path still blocks with the [commit-foreign: <reason>] hint
+- [2026-11-18 01:27] (landed) 48a7a74d commit-foreign judges a submodule gitlink by the pointer it records: files dirty inside the submodule no longer keep ano
+- [2026-11-18 01:27] (status) doing → review
+- [2026-11-18 01:27] (comment) runtime 48a7a74d published
