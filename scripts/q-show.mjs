@@ -1,9 +1,10 @@
 // q-show.mjs — `q show <id>`: print one ticket/decision/note/question in full (KIT-T287), found
 // in the project store, its adopted framework stores, then every registered project, so reading
-// an item never needs a text tool on .ai files.
+// an item never needs a text tool on .ai files. A decision a later one supersedes gets a SUPERSEDED BY line first.
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { retiredDecisions } from './contract-rules/superseded-citations.mjs';
 import { hydrationSources } from './hydrate-db.mjs';
 import { synthId } from './db-parse.mjs';
 import { readIdConfig } from './id-utils.mjs';
@@ -74,7 +75,20 @@ export function showRows(id, root, { project } = {}) {
   const text = readFileSync(file, 'utf8').replace(/\r\n/g, '\n').trimEnd();
   const landed = landedLine(text);
   const asked = askedLabel(text);
-  return [`# ${file}`, ...(landed ? [landed] : []), ...(asked ? [asked] : []), ...text.split('\n')];
+  return [`# ${file}`, ...supersededLines(file, text), ...(landed ? [landed] : []), ...(asked ? [asked] : []), ...text.split('\n')];
+}
+
+// A decision a later one supersedes says so above its text, naming the replacement (KIT-T1374).
+function supersededLines(file, text) {
+  if (basename(dirname(file)) !== 'decisions') return [];
+  const aiDir = dirname(dirname(file));
+  const id = (/^id:[ \t]*(\S+)/m.exec(text) || [])[1];
+  const by = id ? retiredDecisions(dirname(aiDir)).get(id) || [] : [];
+  return by.map((other) => {
+    const otherFile = findIn(aiDir, other);
+    const title = otherFile ? (/^title:[ \t]*(.+)$/m.exec(readFileSync(otherFile, 'utf8')) || [])[1] : '';
+    return `SUPERSEDED BY ${other}${title ? ` (${title.trim()})` : ''}: this decision no longer stands as written; the rule is ${other} (q show ${other})`;
+  });
 }
 
 /** `q open` rows with the ASKED label appended to each asked question's title (KIT-T448). */

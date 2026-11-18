@@ -5,12 +5,15 @@
 //   standingSection(ctx, views, signals, changed)  pushes the in-scope standing decisions; returns them
 //   recentSection(ctx, views, decisionsFile)       pushes the recent decisions (a decisions/ directory or legacy DECISIONS.md)
 //   kitDecisionsSection(ctx)                       replays the kit's recent decisions
+// A decision a later one supersedes (its `supersedes:` names it, scripts/contract-rules/superseded-citations.mjs) is never
+// listed as standing, and a recent one carries a SUPERSEDED BY line naming the replacement (KIT-T1374).
 
 import { readFileSync, readdirSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { globToRegExp } from '../../lib.mjs';
 import { pathKey, statCached, statMarkdownFiles } from '../stat-cache.mjs';
 import { DECISIONS_DIR_RECENT, DECISIONS_GIST_LINES, clip, lineCount, tail } from './common.mjs';
+import { retiredFrom } from '../../../scripts/contract-rules/superseded-citations.mjs';
 
 const stripQuotes = (s) => (s || '').trim().replace(/^["']|["']$/g, '').trim();
 
@@ -27,10 +30,21 @@ const readDecisionMeta = (abs) => {
     const scope = stripQuotes((t.match(/^scope:[ \t]*(.+)$/m) || [])[1]);
     const paths = stripQuotes((t.match(/^paths:[ \t]*(.+)$/m) || [])[1])
       .split(',').map((s) => s.trim()).filter(Boolean);
-    return { id: id ? id.trim() : '', title: title ? stripQuotes(title) : f.replace(/\.md$/, ''), standing, foundational, scope, paths };
+    const supersedes = ((t.match(/^supersedes:[ \t]*(.*)$/m) || [])[1] || '').trim();
+    const status = ((t.match(/^status:[ \t]*(.*)$/m) || [])[1] || '').trim();
+    return { id: id ? id.trim() : '', title: title ? stripQuotes(title) : f.replace(/\.md$/, ''), standing, foundational, scope, paths, supersedes, status };
   } catch {
-    return { id: '', title: f.replace(/\.md$/, ''), standing: false, foundational: false, scope: '', paths: [] };
+    return { id: '', title: f.replace(/\.md$/, ''), standing: false, foundational: false, scope: '', paths: [], supersedes: '', status: '' };
   }
+};
+
+const TITLE_CLIP = 120;
+const REPLACEMENT_CLIP = 100;
+// `  ID — title`, and for a decision a later one supersedes, the replacement's id and title under it (KIT-T1374).
+const decisionLine = (m, retired, titleOf) => {
+  const by = retired.get(m.id) || [];
+  const head = `  ${m.id ? m.id + ' — ' : ''}${clip(m.title, TITLE_CLIP)}`;
+  return by.length ? `${head}\n    SUPERSEDED BY ${by.map((b) => `${b} — ${clip(titleOf(b), REPLACEMENT_CLIP)}`).join('; ')}` : head;
 };
 
 export function decisionViews(root) {
@@ -47,18 +61,21 @@ export function decisionViews(root) {
     if (!metaByFile) {
       const dir = join(root, '.ai', 'decisions');
       const files = statMarkdownFiles(dir);
-      const metas = statCached(`decision-meta-${pathKey(dir)}`, files, readDecisionMeta);
+      const metas = statCached(`decision-meta-v2-${pathKey(dir)}`, files, readDecisionMeta);
       metaByFile = new Map(files.map((fl, i) => [fl.name, metas[i]]));
     }
     return metaByFile.get(f) || readDecisionMeta(join(root, '.ai', 'decisions', f));
   };
+  let retiredMap = null;
+  const retired = () => {
+    if (!retiredMap) retiredMap = retiredFrom((decisionFiles() || []).map(decisionMeta));
+    return retiredMap;
+  };
+  const titleOf = (id) => ((decisionFiles() || []).map(decisionMeta).find((m) => m.id === id) || {}).title || '';
   const recentDecisions = (n) => {
     const files = decisionFiles();
     if (!files) return '';
-    const shown = files.slice(-n).map((f) => {
-      const { id, title } = decisionMeta(f);
-      return `  ${id ? id + ' — ' : ''}${clip(title, 120)}`;
-    }).join('\n');
+    const shown = files.slice(-n).map((f) => decisionLine(decisionMeta(f), retired(), titleOf)).join('\n');
     const more = files.length > n ? `  +${files.length - n} more — full: q decisions` : '';
     return shown + (more ? '\n' + more : '');
   };
@@ -66,7 +83,7 @@ export function decisionViews(root) {
   const standingDecisions = (signals, changed) => {
     const files = decisionFiles();
     if (!files) return null;
-    const all = files.map(decisionMeta).filter((m) => m.standing && !m.foundational);
+    const all = files.map(decisionMeta).filter((m) => m.standing && !m.foundational && !retired().has(m.id));
     if (!all.length) return null;
     const sig = signals.toLowerCase();
     const inScope = (m) => {

@@ -7,6 +7,8 @@
 // `promoted` records where a project decision about kit or framework concerns was promoted to (KIT-D111).
 // `ticket` sets `implemented_by:` (the ticket that builds the decision) and `noWork` sets `no_work:` (why none is needed): either
 // takes the decision off orient's RULED, NOT BUILT list (KIT-T1225).
+// `supersedes` (`--supersedes <id,...>`) adds decisions this one replaces to its `supersedes:` after the fact (KIT-T1374): a
+// correction recorded only in prose leaves the old rule standing for every reader; `q show` and orient print the link.
 
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -42,12 +44,23 @@ function setLine(frontLines, key, value) {
   else frontLines.push(line);
 }
 
-export function reviseDecision(root, id, { status, summary, promoted, ticket, noWork, draftText, now = new Date() } = {}) {
+// The decision's `supersedes:` with each id of `list` added once; every id must be another decision of this store.
+function addedSupersedes(root, id, current, list) {
+  const ids = String(list).split(/[,\s]+/).filter(Boolean);
+  for (const other of ids) {
+    if (other === id) throw new Error(`t revise: ${id} cannot supersede itself`);
+    decisionFile(root, other);
+  }
+  return [...new Set([...String(current || '').split(/\s+/).filter(Boolean), ...ids])].join(' ');
+}
+
+export function reviseDecision(root, id, { status, summary, promoted, ticket, noWork, supersedes, draftText, now = new Date() } = {}) {
   const path = decisionFile(root, id);
   const text = readFileSync(path, 'utf8');
   const split = splitFrontmatter(text);
   if (!split) throw new Error(`t revise: ${id} has no frontmatter block`);
   const { fields, body } = draftChanges(draftText);
+  if (supersedes) fields.supersedes = addedSupersedes(root, id, fields.supersedes ?? field(split.fm, 'supersedes'), supersedes);
   if (status) fields.status = status;
   if (summary !== undefined && summary !== null) fields.summary = summary;
   if (promoted) fields.promoted = promoted;
@@ -57,7 +70,7 @@ export function reviseDecision(root, id, { status, summary, promoted, ticket, no
     fields.implemented_by = ticket;
   }
   if (noWork) fields.no_work = noWork;
-  if (!Object.keys(fields).length && !body) throw new Error('t revise: nothing to change (give --status, --summary, --promoted, --ticket, --no-work or --file)');
+  if (!Object.keys(fields).length && !body) throw new Error('t revise: nothing to change (give --status, --summary, --promoted, --ticket, --no-work, --supersedes or --file)');
   if (fields.title && /[\r\n]/.test(fields.title)) throw new Error('t revise: title is one line');
   if (fields.date && !DATE.test(fields.date)) throw new Error(`t revise: date '${fields.date}' is not YYYY-MM-DD`);
   if (body && !(/\*\*Decision:\*\*/.test(body) && /\*\*Why:\*\*/.test(body))) throw new Error('t revise: a replacement body needs **Decision:** and **Why:** paragraphs');

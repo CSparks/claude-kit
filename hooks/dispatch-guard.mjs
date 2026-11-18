@@ -40,6 +40,7 @@ import { WORKER_CHECK, overlapOnlyBlocker, workerAdvice, workerBlock, workerPath
 import { queueDispatch } from './lib/queued-dispatch.mjs';
 import { sharedTreeBlock } from './dispatch-shared-tree.mjs';
 import { stoppedByHarness } from './lib/subagent-transcript.mjs';
+import { SUPERSEDED_CHECK, supersededCitationWarning } from './dispatch-superseded.mjs';
 import { TREE_PROJECT_CHECK, treeProjectBlock } from './dispatch-tree-project.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { BACKGROUND_RUN_CHECK, backgroundRunBlock } from './dispatch-background-run.mjs';
@@ -98,6 +99,8 @@ try {
     frameworkCheck(root, input, prompt, p),
     handoffCheck(root, input, prompt, p),
   ].filter(Boolean);
+  const superseded = pathExcluded(root, SUPERSEDED_CHECK, root) ? '' : supersededCitationWarning(root, prompt);
+  if (superseded) console.error(superseded);
   if (!blocks.length) {
     registerWriterDispatch(root, input, prompt, p);
     const warning = agentRegistryWarning(root, input, p);
