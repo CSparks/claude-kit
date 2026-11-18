@@ -38,6 +38,8 @@ export const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <qu
   show <id> [--project <name>] print one item in full (ticket, decision, note, question) from any store; --project pins one project's store
   code <text> [filters]       SEARCH CODE/DOCS/CONFIG/TICKETS (the grep replacement): ranked, compact, verified
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
+                              --multiline (-U)  a regex over the whole file: . matches a newline, ^ $ per line, \n in the pattern;
+                              hits show line ranges (path:12-14), a match spanning over 50 lines is dropped; with -i -w -C -o -l -c
                               --path crates/sim  --not-path <glob|dir> (repeatable; drops matches)
                               --glob <glob> (-g, --include; repeatable; keeps only matching paths; !glob drops)  -C n|-A n|-B n  -l (files) -c (counts) -o (matched text only)  --limit N (0=all)
                               --legacy  include the repo's frozen legacy_dir (.ai/config.yml), left out of every answer by default

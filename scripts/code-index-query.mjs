@@ -15,6 +15,7 @@ import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 import { grepPattern } from './q-grep-pattern.mjs';
 import { addPath, pathHintRows, strayPathRows } from './q-code-paths.mjs';
 import { dropLegacy, legacyTest } from './q-legacy.mjs';
+import { multilineRegex, multilineSpans, renderSpans } from './q-multiline.mjs';
 
 export const DEFAULT_LIMIT = 40;
 const MIN_LITERAL = 3;
@@ -74,6 +75,7 @@ export function parseCodeArgs(rawArgs) {
       else if (a === '-A') flags.after = Number(v) || 0;
       else if (a === '-B') flags.before = Number(v) || 0;
     } else if (a === '--regex' || a === '-E') flags.regex = true;
+    else if (a === '--multiline' || a === '-U') { flags.multiline = true; flags.regex = true; }
     else if (a === '-i') flags.ignoreCase = true;
     else if (a === '-w') flags.word = true;
     else if (a === '--legacy') flags.legacy = true;
@@ -237,8 +239,9 @@ async function candidatesFor(idx, text, flags, kinds) {
 }
 
 async function codeVerb(root, text, flags, refresh) {
-  const matcher = buildMatcher(text, flags);
-  if (!matcher) return [{ loc: '', text: `invalid pattern: ${text}` }];
+  const spanRe = flags.multiline ? multilineRegex(text, flags) : null;
+  const matcher = flags.multiline ? null : buildMatcher(text, flags);
+  if (!(spanRe || matcher)) return [{ loc: '', text: `invalid pattern: ${text}` }];
   const kinds = flags.kinds || DEFAULT_KINDS;
   const idx = await refresh(root, { tickets: kinds.includes('ticket') });
   const dropped = excluder(flags);
@@ -248,6 +251,11 @@ async function codeVerb(root, text, flags, refresh) {
   for (const c of candidates) {
     let body;
     try { body = c.body ?? readFileSync(abs.get(c.path), 'utf8'); } catch { continue; }
+    if (spanRe) {
+      const spans = multilineSpans(body, spanRe);
+      if (spans.length) perFile.push({ path: c.path, text: body, hits: spans.map((s) => s.start), spans });
+      continue;
+    }
     const hits = [];
     splitLines(body).forEach((l, i) => { if (matcher(l)) hits.push(i); });
     if (hits.length) perFile.push({ path: c.path, text: body, hits });
@@ -263,6 +271,7 @@ async function codeVerb(root, text, flags, refresh) {
   const rank = (f) => f.rank ?? 1;
   perFile.sort((a, b) => rank(a) - rank(b) || b.hits.length - a.hits.length || byName(a.path, b.path));
   if (flags.filesOnly || flags.count) return perFile.map((f) => ({ loc: f.path, text: flags.count ? String(f.hits.length) : `${f.hits.length} hit(s)` }));
+  if (spanRe) return renderSpans(perFile, flags, { clip, splitLines });
   return renderHits(perFile, flags, flags.only ? buildExtractor(text, flags) : null);
 }
 
@@ -494,7 +503,7 @@ export function answersElsewhere(args, root) {
 }
 
 function verbRows(cmd, text, flags, root, refresh) {
-  if (cmd === 'code') return text ? codeVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q code <text> [--regex] [-i] [-w] [--lang L] [--path P] [--not-path G] [-C n]' }];
+  if (cmd === 'code') return text ? codeVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q code <text> [--regex] [--multiline] [-i] [-w] [--lang L] [--path P] [--not-path G] [-C n]' }];
   if (cmd === 'sym') return symVerb(root, text, flags, refresh);
   return text ? fileVerb(root, text, flags, refresh) : [{ loc: '', text: 'usage: q file <substring|glob>' }];
 }
