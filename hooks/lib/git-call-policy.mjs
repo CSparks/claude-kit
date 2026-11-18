@@ -65,22 +65,27 @@ const SHELL_DECLARATION = new RegExp(`(?:${COMMAND_START}\\s*${ASSIGNMENTS}|${WR
 // An x flag marks the variable exported wherever the keyword stands (`unknown-prefix declare -x A=1`).
 const EXPORTING_DECLARATION = /(?<![\w-])(declare|typeset|local)\s+(?:-[A-Za-z]+\s+)*-[A-Za-z]*x[A-Za-z]*(?![\w-])/i;
 const ENVIRONMENT_WORD = /(?<![\w-])Environment(?![\w-])/i;
-const PATH_COMPONENT = /(?<=^|[\\/'"])environment(?=$|[\\/'".,;)])/gi;
+// The environment words a file or folder name can spell (`.../AppData/Local/Temp`, `docs/environment.md`, KIT-T1373).
+const PATH_COMPONENT = /(?<=^|[\\/'"])(?:environment|local|declare|typeset|export|setenv)(?=$|[\\/'".,;)])/gi;
 const GIT_WORD = /(?<![\w-])git(?![\w-])/i;
 const UNQUOTED = /['"`\\]/g;
 const blank = (text) => ' '.repeat(text.length);
-// A token with a slash and neither `::` nor `Env:` is a path: its components are file names, whatever they spell.
-const withoutPathComponents = (text) => text.replace(/\S+/g, (token) => (/[\\/]/.test(token) && !/::|env:/i.test(token) ? token.replace(PATH_COMPONENT, blank) : token));
+// A token with a slash, or a backslash after a first name (`docs\x.md`, `C:\Users`), and neither `::` nor `Env:`, is a path:
+// its components are file names, whatever they spell. A backslash that opens the word is a shell escape (`\export`).
+const isPathToken = (token) => (/\//.test(token) || /^["']?[^\\"'\s]+\\/.test(token)) && !/::|env:/i.test(token);
+const withoutPathComponents = (text) => text.replace(/\S+/g, (token) => (isPathToken(token) ? token.replace(PATH_COMPONENT, blank) : token));
 const tokenBeforeGit = (candidate, pattern) => {
   const found = pattern.exec(candidate);
   return found && GIT_WORD.test(candidate.slice(found.index + found[0].length)) ? found[1] || found[0] : '';
 };
 // The environment token of `text` that a git word follows, or '': `git commit -m "export the helper"` changes nothing. Each
-// detector runs on the text as written and with quotes, backslashes and backticks removed (`'export'`, `ex""port`).
+// detector runs on the text as written and with quotes, backslashes and backticks removed (`'export'`, `ex""port`), after
+// the components of path tokens are blanked, so a folder named Local is no `local` declaration.
 const environmentTokenBeforeGit = (text) => {
-  const candidates = [text, text.replace(UNQUOTED, '')];
+  const paths = withoutPathComponents(text);
+  const candidates = [paths, paths.replace(UNQUOTED, '')];
   const found = [SHELL_WORDS, POWERSHELL_ROUTES, SHELL_DECLARATION, EXPORTING_DECLARATION].flatMap((pattern) => candidates.map((candidate) => tokenBeforeGit(candidate, pattern)));
-  return found.find(Boolean) || tokenBeforeGit(withoutPathComponents(text).replace(/['"`]/g, ''), ENVIRONMENT_WORD);
+  return found.find(Boolean) || tokenBeforeGit(paths.replace(/['"`]/g, ''), ENVIRONMENT_WORD);
 };
 const caseless = process.platform === 'win32';
 const inEnvironment = (name) => Object.keys(process.env).some((k) => (caseless ? k.toLowerCase() === name.toLowerCase() : k === name));

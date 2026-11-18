@@ -157,6 +157,11 @@ try {
   check('negative: an allowed name set from a substitution keeps the refusal', stops('export CARGO_X="$(pwd)"; git status --short -- src'));
   check('negative: a second, plain export keeps the refusal', stops('export CARGO_X=1; export PAGER=less; git log -1 -- src/a.rs'));
   check('negative: an allowed export does not lift a real discard', stops(`${PROBE}; git clean -fd`));
+  // KIT-T1373: a folder named Local (Windows temp paths) is no `local` declaration.
+  check('a temp path through AppData/Local beside read-only git passes', passes_('builds --run "env RDG_SEED=1 target/release/probe.exe roads" --out "C:/Users/CHRISS~1/AppData/Local/Temp/city13.txt" --timeout 170 --tool-timeout 180 2>&1 | head -1; git log --oneline -1 | cut -c1-8'));
+  check('the same path with backslashes passes', passes_('time ./probe.exe --out C:\\Users\\x\\AppData\\Local\\Temp\\a.txt; git log --oneline -1'));
+  check('negative: a real local declaration before git keeps the refusal', stops('f() { local GIT_DIR=x; git status; }; f'));
+  check('negative: an export whose value is such a path keeps the refusal', stops('export GIT_DIR=C:/Users/x/AppData/Local/repo; git log -1'));
   const offList = run('export PAGER=less; git log -1 --format=%h -- src/a.rs').stderr;
   check('the headline names the git call and its reason, not a hand delete', /a git call outside the allow-list may take files it does not name \([^)]*\), refused because: the environment is named in the same command \(`export`\)/.test(offList) && !/deletes a source file by hand/.test(offList), offList);
 } finally {
