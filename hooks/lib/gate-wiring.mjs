@@ -12,12 +12,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { countStop, heartbeatRan, markWarned, toolsSeen, warnedKeys } from './gate-heartbeat.mjs';
+import { SCRIPT_IN_COMMAND } from './hook-entries.mjs';
 
 const WATCHED_EVENTS = ['Stop', 'PreToolUse'];
 const MIN_STOPS = 3;
 const MIN_LIVE_STOPS = 2;
 const LISTED_MAX = 6;
-const SCRIPT_IN_COMMAND = /compat-run\.mjs"?\s+([a-z0-9-]+\.mjs)/;
 const STOP_SUMMARY = /"subtype":"stop_hook_summary"/g;
 
 /** The {event, script, matcher} entries of the watched events whose script exists in `hooksDir`. */

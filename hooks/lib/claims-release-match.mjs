@@ -7,6 +7,7 @@
 //        A command that cannot be paired into quotes is judged word by word. A lone echo/printf/q/t/cap/rem segment with no
 //        command substitution only prints its words and passes.
 //   releaseTarget(command, toolName) -> the agent id the main thread's plain `claims --release <id>` names, or ''
+//   printsOnly(segs)                 -> the lone print-command rule above, shared with hook-entries.mjs
 //
 // A token is split on separators and path slashes (both slash ways, and with backslashes removed as an escape) so
 // `X=scripts/claims.mjs`, `"D:\kit\claims.cmd"`, `import('claims.mjs').then` and `cl\aims` all show their `claims` word;
@@ -35,13 +36,15 @@ function judged(words) {
   return words.some((w) => HARD_NAME.test(w)) || (words.some((w) => CLAIMS_NAME.test(w)) && words.some((w) => RELEASE_FLAG.test(w)));
 }
 
+/** True when the parsed command is one echo/printf/q/t/cap/rem segment with no command substitution: it only prints. */
+export const printsOnly = (segs) => segs.length === 1 && INERT_COMMANDS.has(commandWord(shellTokens(segs[0].text))) && !SUBSTITUTION.test(segs[0].text);
+
 export function namesRelease(command, toolName) {
   const text = String(command || '');
   const segs = segments(text, { shell: shellOfTool(toolName) });
   if (segs.ambiguous) return judged(text.split(/\s+/).flatMap(pieces));
-  const tokenSets = segs.map((s) => shellTokens(s.text));
-  if (segs.length === 1 && INERT_COMMANDS.has(commandWord(tokenSets[0])) && !SUBSTITUTION.test(segs[0].text)) return false;
-  return judged(tokenSets.flat().flatMap(pieces));
+  if (printsOnly(segs)) return false;
+  return judged(segs.map((s) => shellTokens(s.text)).flat().flatMap(pieces));
 }
 
 export function releaseTarget(command, toolName) {

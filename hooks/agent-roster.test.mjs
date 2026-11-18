@@ -315,20 +315,21 @@ try {
       writeFileSync(join(d, '.ai', 'SESSION.md'), '# fresh\n'); // touched now (after the turn start below)
       const tx = writeTranscript(d, 'do the thing', new Date(Date.now() - 60 * SEC).toISOString());
       // also make work present, so the ONLY reason for silence is the fresh anchor
-      writeFileSync(join(d, '.ai', 'tickets', 'KIT-T001-x.md'), '---\nid: KIT-T001\n---\n');
+      writeFileSync(join(d, '.ai', 'decisions', 'KIT-D001-x.md'), '---\nid: KIT-D001\n---\n');
       const r = hook(FLUSH_HOOK, { hook_event_name: 'Stop', transcript_path: tx }, d);
       ok('anchor: fresh SESSION (touched this turn) stays silent', r.code === 0 && !r.out.includes('resume anchor'));
     }
 
     // (b) STALE anchor + work landed this turn -> NAG (exit 2). SESSION backdated before the
-    //     turn start; a ticket edited this turn.
+    //     turn start; a decision written this turn. The flush notes the commit itself (KIT-T1150), and
+    //     ticket edits are bookkeeping, so the decision is the work that still asks for a real t session.
     {
       const d = makeRepo({ commit: true });
       const sess = join(d, '.ai', 'SESSION.md');
       writeFileSync(sess, '# stale\n');
       ageFile(sess, 10 * 60); // 10 min old — older than the turn start
       const tx = writeTranscript(d, 'make a change', new Date(Date.now() - 60 * SEC).toISOString());
-      writeFileSync(join(d, '.ai', 'tickets', 'KIT-T002-x.md'), '---\nid: KIT-T002\n---\n'); // work, now
+      writeFileSync(join(d, '.ai', 'decisions', 'KIT-D002-x.md'), '---\nid: KIT-D002\n---\n'); // work, now
       const r = hook(FLUSH_HOOK, { hook_event_name: 'Stop', transcript_path: tx }, d);
       ok('anchor: stale SESSION + work-this-turn nags once (exit 2)', r.code === 2 && r.out.includes('resume anchor'));
     }
