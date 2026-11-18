@@ -18,13 +18,14 @@ import { parseFlags } from './cli.mjs';
 import { liveHolds } from './build-slot-store.mjs';
 import { compilingHolds, describeHold, holdStarter } from '../../hooks/lib/build-write-hold.mjs';
 import { waitWindow } from './wait-limits.mjs';
-import { FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, openWindow } from './write-window.mjs';
+import { BATCH_MAX_S, FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, openWindow } from './write-window.mjs';
 import { closeBatchRefusals } from './batch-refusal.mjs';
 
 // The writer a `builds --wait` without --writer belongs to: the hook wraps the command with it (hooks/lib/build-wrap.mjs, KIT-T1281).
 const WRITER_ENV = 'CLAUDE_KIT_BUILD_WRITER';
 
 const EXIT = { FREE: 0, HELD: 2 };
+const HOLD_PROMISE = `For ${FREE_WINDOW_S}s no other writer's build of this crate, or of a crate that depends on it, starts; once the batch's first edit passes, the hold lasts until the batch has landed, at most ${BATCH_MAX_S}s from that edit (KIT-T1408).`;
 const DEFAULT_POLL_MS = 1000;
 const MS_PER_SECOND = 1000;
 const seconds = (ms) => Math.max(0, Math.round(ms / MS_PER_SECOND));
@@ -61,10 +62,10 @@ export async function runWait(argv) {
     closeBatchRefusals({ writer });
   }
   if (!holders.length) {
-    console.log(`builds --wait: no build is compiling ${flags.wait}; the edit passes now (no other writer's build starts on it for ${FREE_WINDOW_S}s)`);
+    console.log(`builds --wait: no build is compiling ${flags.wait}; the edit passes now. ${HOLD_PROMISE}`);
     return EXIT.FREE;
   }
   for (const h of holders) console.log(`builds --wait: ${free ? 'stopped compiling after' : 'still compiling after'} ${h.heldS}s: ${h.line}`);
-  console.log(free ? `builds --wait: ${flags.wait} is free after waiting ${waitedS}s; retry the edit within ${FREE_WINDOW_S}s (no other writer's build starts on it meanwhile)` : `builds --wait: still compiling after waiting ${waitedS}s (cap reached): hand off or work elsewhere (exit ${EXIT.HELD})`);
+  console.log(free ? `builds --wait: ${flags.wait} is free after waiting ${waitedS}s; send the whole batch now. ${HOLD_PROMISE}` : `builds --wait: still compiling after waiting ${waitedS}s (cap reached): hand off or work elsewhere (exit ${EXIT.HELD})`);
   return free ? EXIT.FREE : EXIT.HELD;
 }

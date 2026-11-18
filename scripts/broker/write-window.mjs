@@ -11,7 +11,10 @@
 //   openWindow({ file, writer, seconds, kind, now? })  -> record   a window on `file` for `writer`, `seconds` long
 //   closeWindow({ file, writer })                       -> void     the writer's window on `file` ends at once
 //   holdWindowsInFlight({ writer, seconds?, now? })     -> void     an edit of the writer passed the guard: its live windows end
-//                                                                   no sooner than IN_FLIGHT_S from now
+//                                                                   no sooner than IN_FLIGHT_S from now, and no later through
+//                                                                   this than BATCH_MAX_S after the batch's first edit (batchStart)
+// A window holds a crate, not one file: a build waits while a window's file lies in its scope, and a build's scope is the
+// packages it compiles with their dependencies (cargo-scope-dirs.mjs), so a dependent's build waits too.
 //   settleWindows({ file, writer, seconds?, now? })     -> void     the writer's edit of `file` landed: every live window of the
 //                                                                   writer now ends EDIT_GAP_S later, and `file` gains one
 //   windowFor({ file, now? })                           -> record | null   the newest live window on `file`
@@ -29,9 +32,12 @@ import { toPath } from '../../hooks/lib/shell-segments.mjs';
 
 export const REFUSED_WINDOW_S = 10;
 export const FREE_WINDOW_S = 90;
-export const START_WAIT_S = 90;
 export const EDIT_GAP_S = 30;
 export const IN_FLIGHT_S = 120;
+// A batch the guard has begun passing keeps the writer's windows for at most BATCH_MAX_S from its first edit (KIT-T1408), and a
+// build start waits long enough for such a batch to land and settle, never longer.
+export const BATCH_MAX_S = 120;
+export const START_WAIT_S = BATCH_MAX_S + EDIT_GAP_S;
 export const KIND = { REFUSED: 'refused', FREE: 'free', SETTLE: 'settle' };
 const MS_PER_SECOND = 1000;
 const POLL_MS = 250;
@@ -72,7 +78,9 @@ export const closeWindow = ({ file, writer = '' }) => rmSync(pathOf(file, writer
 // settled when the guard passed it lapsed before the rest of the batch arrived.
 export function holdWindowsInFlight({ writer = '', seconds = IN_FLIGHT_S, now = Date.now() }) {
   for (const w of liveWindows(now).filter((rec) => rec.writer === writer)) {
-    writeFileSync(pathOf(w.file, writer), JSON.stringify({ ...w, until: Math.max(w.until, now + seconds * MS_PER_SECOND) }));
+    const batchStart = w.batchStart ?? now;
+    const until = Math.max(w.until, Math.min(now + seconds * MS_PER_SECOND, batchStart + BATCH_MAX_S * MS_PER_SECOND));
+    writeFileSync(pathOf(w.file, writer), JSON.stringify({ ...w, batchStart, until }));
   }
 }
 
@@ -80,7 +88,10 @@ export function settleWindows({ file, writer = '', seconds = EDIT_GAP_S, now = D
   const mine = liveWindows(now).filter((w) => w.writer === writer);
   if (!mine.length) return;
   for (const w of mine) writeFileSync(pathOf(w.file, writer), JSON.stringify({ ...w, until: now + seconds * MS_PER_SECOND }));
-  if (!mine.some((w) => fileKey(w.file) === fileKey(file))) openWindow({ file, writer, seconds, kind: KIND.SETTLE, now });
+  if (mine.some((w) => fileKey(w.file) === fileKey(file))) return;
+  const starts = mine.map((w) => w.batchStart).filter(Number.isFinite);
+  const rec = openWindow({ file, writer, seconds, kind: KIND.SETTLE, now });
+  if (starts.length) writeFileSync(pathOf(file, writer), JSON.stringify({ ...rec, batchStart: Math.min(...starts) }));
 }
 
 export function windowFor({ file, now = Date.now() }) {

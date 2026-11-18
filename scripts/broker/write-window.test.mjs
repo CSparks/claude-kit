@@ -9,7 +9,7 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acquireBuildSlot } from './build-slot.mjs';
-import { EDIT_GAP_S, FREE_WINDOW_S, IN_FLIGHT_S, KIND, REFUSED_WINDOW_S, START_WAIT_S, blockingWindows, closeWindow, holdWindowsInFlight, openWindow, settleWindows, waitOutWindows, windowFor } from './write-window.mjs';
+import { BATCH_MAX_S, EDIT_GAP_S, FREE_WINDOW_S, IN_FLIGHT_S, KIND, REFUSED_WINDOW_S, START_WAIT_S, blockingWindows, closeWindow, holdWindowsInFlight, openWindow, settleWindows, waitOutWindows, windowFor } from './write-window.mjs';
 
 const STATUS = fileURLToPath(new URL('./build-status.mjs', import.meta.url));
 const slots = mkdtempSync(join(tmpdir(), 'wwin-slots-'));
@@ -84,6 +84,21 @@ test('an edit in flight keeps the writer\'s windows open until it lands, never s
   openWindow({ file, writer: WAITER, seconds: 10 * IN_FLIGHT_S, kind: KIND.FREE, now });
   holdWindowsInFlight({ writer: WAITER, now });
   assert.equal(windowFor({ file, now }).until, now + 10 * IN_FLIGHT_S * SECOND, 'a longer window is never shortened by an edit in flight');
+});
+
+test('a batch keeps the writer\'s windows for BATCH_MAX_S from its first edit, across files, and a build start waits that long (KIT-T1408)', () => {
+  reset();
+  const now = Date.now();
+  const secondFile = join(crate, 'src', 'other.rs').replace(/\\/g, '/');
+  openWindow({ file, writer: WAITER, seconds: FREE_WINDOW_S, kind: KIND.FREE, now });
+  holdWindowsInFlight({ writer: WAITER, now: now + 10 * SECOND });
+  settleWindows({ file: secondFile, writer: WAITER, now: now + 20 * SECOND });
+  holdWindowsInFlight({ writer: WAITER, now: now + 25 * SECOND });
+  assert.equal(windowFor({ file: secondFile, now: now + 25 * SECOND }).batchStart, now + 10 * SECOND, 'the second file joins the batch begun by the first edit');
+  assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: now + 100 * SECOND }).length >= 1, true, 'a build at +100 s, inside the batch, yields');
+  holdWindowsInFlight({ writer: WAITER, now: now + 125 * SECOND });
+  assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: now + (10 + BATCH_MAX_S + 1) * SECOND }).length, 0, 'an edit in flight cannot keep the batch past BATCH_MAX_S');
+  assert.ok(START_WAIT_S >= BATCH_MAX_S + EDIT_GAP_S, 'a build start waits long enough for a started batch to land and settle');
 });
 
 test('control: an edit that never lands holds the build start for START_WAIT_S only', () => {
