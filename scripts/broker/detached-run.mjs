@@ -6,7 +6,9 @@
 // the end is one line in <target>/broker/finished.log (the orchestrator's Monitor, finished-log.mjs) and `builds --result <id>`
 // reads the record once.
 //
-//   builds --run "<command>" [--out <file>] [--limit <s>] [--timeout <s> --tool-timeout <s>]
+//   builds --run "<command>" [--out <file>] [--limit <s> --why "<reason>"] [--timeout <s> --tool-timeout <s>]
+//       the run is stopped after RUN_LIMIT_S.DEFAULT s; a run known to be longer raises it up to RUN_LIMIT_S.MAX with a reason,
+//       which the record, describeRun and its finished.log line carry (KIT-T1377)
 //       the command runs in the directory the call starts in (the project root); the source-shell gate accepts only this
 //       surface: --out under target/ or the scratchpad, numbers for the three time flags, no other flag (a --cwd is refused:
 //       put a `cd <dir> &&` inside the quoted command instead)
@@ -25,7 +27,8 @@ import { execFileSync, spawn } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LAUNCHER_EXAMPLE, LAUNCHER_NOTES, LAUNCHER_USAGE } from '../../hooks/lib/builds-run-usage.mjs';
+import { LAUNCHER_EXAMPLE, LAUNCHER_NOTES, LAUNCHER_USAGE, RUN_LIMIT_S } from '../../hooks/lib/builds-run-usage.mjs';
+import { limitProblem } from '../../hooks/lib/builds-run-args.mjs';
 import { parseFlags } from './cli.mjs';
 import { recordFinished } from './finished-log.mjs';
 import { waitWindow } from './wait-limits.mjs';
@@ -33,7 +36,7 @@ import { waitWindow } from './wait-limits.mjs';
 const SELF = fileURLToPath(import.meta.url);
 const SHIM_DIR = resolve(dirname(SELF), '..', '..', 'bin', 'build-shims');
 const WRITER_ENV = 'CLAUDE_KIT_BUILD_WRITER';
-const DEFAULT_LIMIT_S = 1200;
+const DEFAULT_LIMIT_S = RUN_LIMIT_S.DEFAULT;
 const POLL_MS = 500;
 const MS_PER_SECOND = 1000;
 const TAIL_LINES = 30;
@@ -52,12 +55,13 @@ function repoRoot(cwd) {
 
 export const readRun = (root, id) => { try { return JSON.parse(readFileSync(recordPath(root, id), 'utf8')); } catch { return null; } };
 
-export function startRun({ command, cwd = process.cwd(), out = '', writer = '', limitS = DEFAULT_LIMIT_S, root = repoRoot(cwd) }) {
+export function startRun({ command, cwd = process.cwd(), out = '', writer = '', limitS = DEFAULT_LIMIT_S, why = '', root = repoRoot(cwd) }) {
   mkdirSync(runsDir(root), { recursive: true });
   const id = `run-${new Date().toISOString().replace(/\D/g, '').slice(0, 14)}-${Math.random().toString(36).slice(2, 6)}`;
   const logFile = out ? resolve(cwd, out) : join(runsDir(root), `${id}.log`);
   mkdirSync(dirname(logFile), { recursive: true });
-  const record = { id, command, cwd: resolve(cwd), root, out: logFile, writer, limitS, status: STATUS.RUNNING, startedAt: new Date().toISOString() };
+  const reason = String(why || '').replace(/\s+/g, ' ').trim();
+  const record = { id, command, cwd: resolve(cwd), root, out: logFile, writer, limitS, ...(reason ? { why: reason } : {}), status: STATUS.RUNNING, startedAt: new Date().toISOString() };
   writeRecord(recordPath(root, id), record);
   const worker = spawn(process.execPath, [SELF, '--worker', recordPath(root, id)], { detached: true, stdio: 'ignore', windowsHide: true, env: process.env });
   worker.unref();
@@ -76,16 +80,18 @@ export function waitRun(root, id, { capS, pollMs = POLL_MS, now = Date.now, slee
 const tailOf = (file, lines) => { try { return readFileSync(file, 'utf8').split(/\r?\n/).filter((l, i, all) => l || i < all.length - 1).slice(-lines).join('\n'); } catch { return ''; } };
 const seconds = (a, b) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / MS_PER_SECOND));
 
+const limitText = (record) => `limit ${record.limitS} s${record.why ? `, raised: ${record.why}` : ''}`;
+
 export function describeRun(record, tailLines = TAIL_LINES) {
   if (!record) return 'builds --result: no such run record';
   const head = `run ${record.id}: ${record.command}`;
   if (record.status === STATUS.RUNNING) {
-    return [head, `  still running since ${record.startedAt.slice(11, 19)}Z (${seconds(record.startedAt, new Date().toISOString())} s, limit ${record.limitS} s)`, `  output: ${record.out}`,
+    return [head, `  still running since ${record.startedAt.slice(11, 19)}Z (${seconds(record.startedAt, new Date().toISOString())} s, ${limitText(record)})`, `  output: ${record.out}`,
       `  its end is one line in ${join(record.root, 'target', 'broker', 'finished.log')} (${record.id} exit<N>|timeout); read it once with \`builds --result ${record.id}\`.`,
       '  Do not sleep or poll: write your handoff naming this id and the output file, and end; the orchestrator resumes you from that line.'].join('\n');
   }
   const verdict = record.status === STATUS.TIMEOUT ? `stopped at its ${record.limitS} s limit` : `ended with exit ${record.exit}`;
-  return [head, `  ${verdict} after ${seconds(record.startedAt, record.endedAt)} s`, `  output: ${record.out}`, tailOf(record.out, tailLines)].join('\n');
+  return [head, `  ${verdict} after ${seconds(record.startedAt, record.endedAt)} s (${limitText(record)})`, `  output: ${record.out}`, tailOf(record.out, tailLines)].join('\n');
 }
 
 function shellFor(command) {
@@ -118,7 +124,7 @@ async function work(path) {
     const ended = { ...record, status: timedOut ? STATUS.TIMEOUT : STATUS.ENDED, exit, endedAt: new Date().toISOString(), pid: child.pid };
     writeRecord(path, ended);
     const agent = String(record.writer || '').split('|')[1] || '-';
-    recordFinished({ targetDir: join(record.root, 'target') }, { id: record.id, status: timedOut ? STATUS.TIMEOUT : `exit${exit}`, agent });
+    recordFinished({ targetDir: join(record.root, 'target') }, { id: record.id, status: timedOut ? STATUS.TIMEOUT : `exit${exit}`, agent, ...(record.why ? { limitS: record.limitS, why: record.why } : {}) });
   };
   child.on('error', () => end(EXIT.USAGE));
   child.on('exit', (code) => end(code ?? EXIT.USAGE));
@@ -136,7 +142,13 @@ export async function runCli(argv) {
     console.error(`builds --run: a command is required.\n  form:    ${LAUNCHER_USAGE} [--limit <s>]\n  example: ${LAUNCHER_EXAMPLE}\n  ${LAUNCHER_NOTES.join('\n  ')}`);
     return EXIT.USAGE;
   }
-  const record = startRun({ command: flags.run, cwd: process.cwd(), out: typeof flags.out === 'string' ? flags.out : '', writer: process.env[WRITER_ENV] || '', limitS: Number(flags.limit) || DEFAULT_LIMIT_S });
+  const why = typeof flags.why === 'string' ? flags.why : '';
+  const refused = limitProblem(flags.limit === undefined ? undefined : String(flags.limit), why);
+  if (refused) {
+    console.error(`builds --run: ${refused}.\n  form: ${LAUNCHER_USAGE} [--limit <s> --why "<reason>"]`);
+    return EXIT.USAGE;
+  }
+  const record = startRun({ command: flags.run, cwd: process.cwd(), out: typeof flags.out === 'string' ? flags.out : '', writer: process.env[WRITER_ENV] || '', limitS: Number(flags.limit) || DEFAULT_LIMIT_S, why });
   const waited = waitRun(record.root, record.id, { capS: waitWindow(flags, { subagent }).seconds });
   console.log(describeRun(waited));
   return waited.status === STATUS.RUNNING ? EXIT.RUNNING : waited.exit ?? EXIT.ENDED_OK;

@@ -1,6 +1,7 @@
 // finished-log.mjs — one line per finished job, for the orchestrator's single Monitor (KIT-D115).
 // `<target>/broker/finished.log` is shared by every lane; a line reads
-//   <ISO time> <job id> <verdict> agent=<id|-> ticket=<id|-> [landed=<sha>]
+//   <ISO time> <job id> <verdict> agent=<id|-> ticket=<id|-> [landed=<sha>] [limit=<s> why=<reason to the end of the line>]
+// (limit and why only for a `builds --run` whose limit was raised with a reason, KIT-T1377)
 //
 //   finishedLine(result, now)    -> the line, or null for a result that is not final (a dirty hold)
 //   recordFinished(cfg, result)  -> appends it (best effort)
@@ -15,10 +16,12 @@ const DIRTY = 'dirty';
 export function finishedLine(result, now = new Date()) {
   if (!result || !result.id || result.status === DIRTY) return null;
   const landed = result.landed && result.landed.sha ? ` landed=${result.landed.sha}` : '';
-  return `${now.toISOString()} ${result.id} ${result.status} agent=${result.agent || '-'} ticket=${result.ticket || '-'}${landed}`;
+  const why = String(result.why || '').replace(/\s+/g, ' ').trim();
+  const raised = why && result.limitS ? ` limit=${result.limitS} why=${why}` : '';
+  return `${now.toISOString()} ${result.id} ${result.status} agent=${result.agent || '-'} ticket=${result.ticket || '-'}${landed}${raised}`;
 }
 
-const LINE = /^(\S+) (\S+) (\S+) agent=(\S+) ticket=(\S+)(?: landed=(\S+))?$/;
+const LINE = /^(\S+) (\S+) (\S+) agent=(\S+) ticket=(\S+)(?: landed=(\S+))?(?: limit=(\d+) why=(.*))?$/;
 const FINISHED_TAIL = 3000;
 const NONE = '-';
 
@@ -28,7 +31,7 @@ export function readFinished(brokerDir) {
     const lines = readFileSync(join(brokerDir, FINISHED_LOG), 'utf8').split('\n').filter(Boolean).slice(-FINISHED_TAIL);
     return lines.flatMap((l) => {
       const m = LINE.exec(l);
-      return m ? [{ ts: m[1], job: m[2], verdict: m[3], agent: m[4] === NONE ? null : m[4], ticket: m[5] === NONE ? null : m[5], landed: m[6] || null }] : [];
+      return m ? [{ ts: m[1], job: m[2], verdict: m[3], agent: m[4] === NONE ? null : m[4], ticket: m[5] === NONE ? null : m[5], landed: m[6] || null, ...(m[7] ? { limitS: Number(m[7]), why: m[8] } : {}) }] : [];
     });
   } catch { return []; }
 }

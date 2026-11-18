@@ -9,6 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describeRun, readRun, startRun, waitRun } from './detached-run.mjs';
+import { readFinished } from './finished-log.mjs';
+import { launcherProblem, limitProblem } from '../../hooks/lib/builds-run-args.mjs';
 
 const HOOKS = fileURLToPath(new URL('../../hooks/', import.meta.url));
 const STATUS_CLI = fileURLToPath(new URL('./build-status.mjs', import.meta.url));
@@ -120,6 +122,41 @@ test('the refusals of a sleep and of a poll name the verb that waits for a long 
   assert.match(chained.stderr, /end your turn/);
   assert.match(chained.stderr, /wait\.mjs waits on broker jobs only/, 'and says wait.mjs is not the wait for a run id (KIT-T1366)');
   assert.match(chained.stderr, /Monitor/);
+});
+
+test('a raised limit carries its reason: on the record, in builds --result and in the finished.log line (KIT-T1377)', () => {
+  const root = checkout();
+  const record = startRun({ command: script(root, "console.log('compiling'); setTimeout(() => process.exit(0), 1500);"), cwd: root, root, limitS: 2400, why: 'full framework suite,\n approved' });
+  assert.equal(record.why, 'full framework suite, approved');
+  assert.match(describeRun(waitRun(root, record.id, { capS: 0 })), /limit 2400 s, raised: full framework suite, approved/);
+  const ended = waitRun(root, record.id, { capS: 20 });
+  assert.match(describeRun(ended), /ended with exit 0 after \d+ s \(limit 2400 s, raised: full framework suite, approved\)/);
+  assert.match(finishedLog(root), new RegExp(`${record.id} exit0 agent=- ticket=- limit=2400 why=full framework suite, approved\\n`));
+  const parsed = readFinished(join(root, 'target', 'broker')).find((f) => f.job === record.id);
+  assert.equal(parsed.limitS, 2400);
+  assert.equal(parsed.why, 'full framework suite, approved');
+  const plain = startRun({ command: script(root, 'process.exit(0);'), cwd: root, root });
+  waitRun(root, plain.id, { capS: 20 });
+  assert.match(finishedLog(root), new RegExp(`${plain.id} exit0 agent=- ticket=-\\n`), 'a default run adds no limit field');
+});
+
+test('the launcher and the gate refuse a raise with no reason or past the ceiling, and accept a named one (KIT-T1377)', () => {
+  const root = checkout();
+  const cli = (...args) => spawnSync(process.execPath, [STATUS_CLI, '--run', script(root, 'process.exit(0);'), ...args, '--timeout', '20', '--tool-timeout', '60'], { cwd: root, encoding: 'utf8' });
+  const bare = cli('--limit', '3000');
+  assert.equal(bare.status, 64);
+  assert.match(bare.stderr, /--limit 3000 raises the 1200 s default: add --why "<reason>"/);
+  assert.match(cli('--limit', '9000', '--why', 'x').stderr, /over the 7200 s ceiling/);
+  const named = cli('--limit', '3000', '--why', 'approved full suite');
+  assert.equal(named.status, 0, named.stderr);
+  assert.match(named.stdout, /limit 3000 s, raised: approved full suite/);
+  const run = (...tokens) => launcherProblem(['builds', '--run', '"cargo test --workspace"', '--out', 'target/t.txt', ...tokens], root);
+  assert.equal(run('--limit', '600'), '', 'a limit under the default needs no reason');
+  assert.match(run('--limit', '3600'), /add --why/);
+  assert.equal(run('--limit', '3600', '--why', '"full suite, approved 2026-11-18"'), '');
+  assert.match(run('--limit', '7201', '--why', '"x"'), /ceiling/);
+  assert.match(run('--why', '"x"'), /only for a --limit above the default/);
+  assert.equal(limitProblem(undefined, ''), '');
 });
 
 const WAIT_CLI = fileURLToPath(new URL('./wait.mjs', import.meta.url));

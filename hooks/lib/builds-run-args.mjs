@@ -1,7 +1,8 @@
 // builds-run-args.mjs — the whole surface of a `builds --run` launcher call as an ALLOWLIST (KIT-T1284): nothing the gate
 // cannot read is accepted, and no option is parsed for what it might mean.
 //
-//   builds --run "<command>" [--out <file>] [--limit <n>] [--timeout <n>] [--tool-timeout <n>]
+//   builds --run "<command>" [--out <file>] [--limit <n> [--why "<reason>"]] [--timeout <n>] [--tool-timeout <n>]
+//   A --limit above RUN_LIMIT_S.DEFAULT needs --why with a reason, and none goes past RUN_LIMIT_S.MAX (KIT-T1377).
 //
 //   launcherProblem(tokens, cwd) -> '' | why the call is refused
 //     tokens: the call's quote-aware tokens (commandTokens), `builds` first; cwd: the directory the call runs in
@@ -15,10 +16,11 @@ import { tmpdir } from 'node:os';
 import { isAbsolute, posix, resolve } from 'node:path';
 import { dequoted } from './shell-segments.mjs';
 import { isGeneratedPath, slashed } from './source-path.mjs';
+import { RUN_LIMIT_S } from './builds-run-usage.mjs';
 
 const RUN = '--run';
 const NUMERIC = ['limit', 'timeout', 'tool-timeout'];
-const FLAG = /^--(out|limit|timeout|tool-timeout)(?:=([^]*))?$/;
+const FLAG = /^--(out|limit|why|timeout|tool-timeout)(?:=([^]*))?$/;
 const CWD_OPTION = /^--cwd(?:=|$)/;
 const NUMBER = /^\d+(?:\.\d+)?$/;
 const UNRESOLVABLE = /^~|[$`()*?[\]{}<>|;&%!]/;
@@ -26,7 +28,16 @@ const ALLOWED_OUT = 'a path under target/ or the session scratchpad (the temp di
 
 export const CWD_REFUSAL = 'builds --run with a working-directory option (--cwd) is refused: run it from the project root with paths relative to the root, or put the directory change inside the quoted command (cd <dir> && ...) where the gate reads it.';
 const SHELL_TMP = /^\/(?:var\/)?tmp(?:\/|$)/;
-const surface = (why) => `builds --run takes only --run "<command>", --out <file> (${ALLOWED_OUT}) and numbers for --limit, --timeout and --tool-timeout; ${why}.`;
+const surface = (why) => `builds --run takes only --run "<command>", --out <file> (${ALLOWED_OUT}), numbers for --limit, --timeout and --tool-timeout, and --why "<reason>" for a --limit over ${RUN_LIMIT_S.DEFAULT} s; ${why}.`;
+
+/** Why a run's --limit and --why do not fit together, or ''. Shared with the launcher itself (detached-run.mjs). */
+export function limitProblem(limit, why) {
+  const seconds = Number(limit);
+  if (limit === undefined || limit === '' || !Number.isFinite(seconds)) return why ? '--why is only for a --limit above the default' : '';
+  if (seconds > RUN_LIMIT_S.MAX) return `--limit ${limit} is over the ${RUN_LIMIT_S.MAX} s ceiling`;
+  if (seconds > RUN_LIMIT_S.DEFAULT && !String(why || '').trim()) return `--limit ${limit} raises the ${RUN_LIMIT_S.DEFAULT} s default: add --why "<reason>" (it is recorded on the run)`;
+  return '';
+}
 
 function tempRoots() {
   const roots = [tmpdir()];
@@ -51,6 +62,7 @@ function outProblem(value, cwd) {
 
 export function launcherProblem(tokens, cwd) {
   const seen = new Set();
+  const values = {};
   for (let i = 1; i < tokens.length; i++) {
     const word = dequoted(tokens[i]).replace(/["']/g, '');
     if (CWD_OPTION.test(word)) return CWD_REFUSAL;
@@ -69,11 +81,14 @@ export function launcherProblem(tokens, cwd) {
     if (raw === undefined || (inline === undefined && String(raw).startsWith('--'))) return surface(`--${name} has no value`);
     if (inline === undefined) i += 1;
     const value = String(raw).trim();
+    values[name] = value;
     if (NUMERIC.includes(name) && !NUMBER.test(value)) return surface(`--${name} ${value} is not a number`);
     if (name === 'out') {
       const problem = outProblem(value, cwd);
       if (problem) return surface(problem);
     }
   }
-  return seen.has(RUN) ? '' : surface('--run is missing');
+  if (!seen.has(RUN)) return surface('--run is missing');
+  const limit = limitProblem(values.limit, values.why);
+  return limit ? surface(limit) : '';
 }
