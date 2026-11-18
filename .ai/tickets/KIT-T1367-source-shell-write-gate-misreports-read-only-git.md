@@ -2,7 +2,7 @@
 id: KIT-T1367
 title: source-shell-write gate misreports read-only git calls beside an export: a Bash command that exported two env vars for a program run and ALS
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T02:32:25Z
-updated: 2026-11-18T03:23:21Z
+updated: 2026-11-18T03:24:21Z
+fixed_commit: 3bbd1b93
 ---
 
 ## Description
@@ -46,3 +47,6 @@ Tests: source-shell-gate-git-gaps 140 passed; source-shell-gate 168; source-shel
 - [2026-11-18 03:23] (comment) criterion added: a refused off-list git call has a headline naming the git call and its reason with the offending token, not a hand delete
 - [2026-11-18 03:23] (comment) ticked: an export or prefix assignment of CARGO_, BEVY_, RUST_ or WGPU_ names set to literal values, beside read-only git calls with a pathspec, passes; a GIT_ name in the same export, a value from a substitution, a second plain export, or a real discard still refuses (hooks/source-shell-gate-git-gaps.test.mjs)
 - [2026-11-18 03:23] (comment) ticked: a refused off-list git call has a headline naming the git call and its reason with the offending token, not a hand delete
+- [2026-11-18 03:24] (landed) 3bbd1b93 source-shell-write: an export of CARGO_/BEVY_/RUST_/WGPU_ literals no longer puts read-only git calls off the allow-list
+- [2026-11-18 03:24] (status) doing → review
+- [2026-11-18 03:24] (comment) runtime 3bbd1b93 published, plugin 0.1.58
