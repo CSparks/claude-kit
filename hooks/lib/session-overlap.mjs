@@ -18,10 +18,12 @@ const STORE_DIR = '.ai/';
 const MS_PER_MIN = 60 * 1000;
 const lines = (out) => String(out).split('\n').map((l) => l.trim()).filter(Boolean);
 
-// Of `files`, those with changes against HEAD or not tracked: git is asked about only these, never the whole tree.
+// Of `files`, those with changes against HEAD or not tracked: git is asked about only these, never the whole tree. A
+// submodule gitlink counts only when the pointer it would record moved: files changed inside the submodule are never in a
+// superproject commit (KIT-T1362).
 export function stillDirty(tree, files) {
   if (!files.length) return new Set();
-  const changed = lines(git(['-c', 'core.quotepath=off', 'diff', '--name-only', 'HEAD', '--', ...files], tree));
+  const changed = lines(git(['-c', 'core.quotepath=off', 'diff', '--name-only', '--ignore-submodules=dirty', 'HEAD', '--', ...files], tree));
   const untracked = lines(git(['-c', 'core.quotepath=off', 'ls-files', '--others', '--exclude-standard', '--', ...files], tree));
   return new Set([...changed, ...untracked]);
 }

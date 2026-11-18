@@ -2,7 +2,8 @@
 // checkout shares ONE git index: a file another agent staged rides into this agent's commit under its message. The session
 // write ledger cannot tell two agents of one session apart, so this reads the per-writer claims (checkout-holder.mjs): a path
 // is foreign when another live writer's claim on it stands (dirty, uncommitted since the claim, agent-claims.mjs) and this
-// writer holds none. Store (.ai/) paths and submodule gitlinks carry no claims and are never judged.
+// writer holds none. Store (.ai/) paths are never judged. A submodule gitlink is claimed by the writer that committed inside
+// the submodule (claimSubmodulePin) and judged by the pointer it records: dirty files inside the submodule never count.
 //
 //   foreignClaims({ tree, session, agent, paths, now }) -> [{ rel, claimants }] paths of `paths` held by another live writer
 //   claimSubmodulePin({ subRoot, session, agent, label }) -> claim the gitlink of `subRoot` in its superproject (KIT-T1257)

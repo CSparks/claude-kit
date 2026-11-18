@@ -51,6 +51,39 @@ try {
   git(['commit', '-q', '-m', 'pin moved'], parent);
   const after = gate('agentTerrain', `git -C ${parent} commit --allow-empty -m "${MSG}"`, parent);
   ok('control: once the pin is committed no one holds it', after.code === 0, after.out.trim());
+
+  // KIT-T1362: a gitlink is judged by the pointer it records. Another writer's uncommitted files inside the submodule are
+  // not in a superproject commit, so a standing pin claim with the pointer unchanged takes nothing.
+  const { claimFile } = await import('./lib/checkout-holder.mjs');
+  const top = git(['rev-parse', '--show-toplevel'], parent).trim();
+  const head = () => git(['rev-parse', 'HEAD'], parent).trim();
+  writeFileSync(field, 'pub fn field() -> u32 { 3 }\n');
+  claimFile({ tree: top, session: 'S1', agent: 'agentRoads', label: 'roads', rel: 'sub', head: head() });
+  const dirtyOnly = gate('agentTerrain', `git -C ${parent} commit -m "${MSG}" -- sub`, parent);
+  ok('a pin claim with the pointer unchanged and only dirty files inside the submodule refuses nothing', dirtyOnly.code === 0, dirtyOnly.out.trim());
+
+  writeFileSync(join(sub, 'terrain.rs'), 'pub fn terrain() -> u32 { 1 }\n');
+  git(['add', '--', 'terrain.rs'], sub);
+  git(['commit', '-q', '-m', MSG], sub);
+  git(['add', '--', 'sub'], parent);
+  const moved = gate('agentTerrain', `git -C ${parent} add -- sub && git -C ${parent} commit -m "${MSG}" -- sub`, parent);
+  ok('control: once the pointer moves, the standing pin claim of another writer still refuses the bump (KIT-T1257)', moved.code === 2 && /sub: agent agentRoads/.test(moved.out), moved.out.trim());
+  git(['commit', '-q', '-m', 'pin moved again'], parent);
+
+  writeFileSync(join(sub, 'terrain.rs'), 'pub fn terrain() -> u32 { 2 }\n');
+  git(['add', '--', 'terrain.rs'], sub);
+  git(['commit', '-q', '-m', MSG], sub);
+  writeFileSync(join(sub, 'field.rs'), 'pub fn field() -> u32 { 4 }\n');
+  const bump = gate('agentTerrain', `git -C ${parent} add -- sub && git -C ${parent} commit -m "${MSG}" -- sub`, parent);
+  ok('a pointer bump with another writer\'s dirty files inside the submodule and no pin claim passes', bump.code === 0, bump.out.trim());
+
+  writeFileSync(join(parent, 'road.rs'), 'pub fn road() -> u32 { 1 }\n');
+  git(['add', '--', 'road.rs'], parent);
+  git(['commit', '-q', '-m', 'road'], parent);
+  writeFileSync(join(parent, 'road.rs'), 'pub fn road() -> u32 { 2 }\n');
+  claimFile({ tree: top, session: 'S1', agent: 'agentRoads', label: 'roads', rel: 'road.rs', head: head() });
+  const realForeign = gate('agentTerrain', `git -C ${parent} add -- road.rs && git -C ${parent} commit -m "${MSG}" -- road.rs`, parent);
+  ok('control: a real foreign path in the superproject still blocks, naming it, with the [commit-foreign: reason] hint', realForeign.code === 2 && /^\s+road\.rs/m.test(realForeign.out) && /\[commit-foreign: <reason>\]/.test(realForeign.out) && /id: commit-foreign/.test(realForeign.out), realForeign.out.trim());
 } finally {
   cleanup();
   done();
