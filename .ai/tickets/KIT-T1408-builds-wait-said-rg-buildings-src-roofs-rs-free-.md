@@ -2,7 +2,7 @@
 id: KIT-T1408
 title: builds --wait said rg-buildings/src/roofs.rs 'free, no other writer's build starts on it for 90s', yet writer ad8d8672fd47d1a7a's cargo test
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T23:49:04Z
-updated: 2026-11-18T23:54:13Z
+updated: 2026-11-18T23:54:55Z
+fixed_commit: 35de6891
 ---
 
 ## Description
@@ -44,3 +45,6 @@ The broader writer-starvation design (free a crate once the running build compil
 - [2026-11-18 23:54] (status) todo → doing
 - [2026-11-18 23:54] (comment) criterion added: a started batch keeps its writer's crate hold (and its dependents' builds) until it lands or 120 s from its first edit, across files, and a build start waits up to 150 s for it; builds --wait states this (scripts/broker/write-window.test.mjs)
 - [2026-11-18 23:54] (comment) ticked: a started batch keeps its writer's crate hold (and its dependents' builds) until it lands or 120 s from its first edit, across files, and a build start waits up to 150 s for it; builds --wait states this (scripts/broker/write-window.test.mjs)
+- [2026-11-18 23:54] (landed) 35de6891 write window: a started batch keeps its crate hold until it lands or 120 s from its first edit, across files; a build st
+- [2026-11-18 23:54] (status) doing → review
+- [2026-11-18 23:54] (comment) runtime 35de6891 published
