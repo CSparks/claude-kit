@@ -12,15 +12,19 @@
 // Also: a `git push` of a repo that tracks a pre-push gate git is not set to run is blocked with the command that wires
 // it, and a push whose wiring cannot be checked is blocked (KIT-T1300; lib/push-hooks.mjs). Check-id: pre-push-wired
 // (path glob subject: the tracked hooks directory, repo-relative).
+// Also: a push whose HEAD points a submodule at a commit the submodule's remote lacks (KIT-T1363; lib/push-pins.mjs).
+// Check-id: push-pin (path glob subject: the submodule path).
 
 import { resolve } from 'node:path';
 import { payload, git, gitRoot, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
 import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
 import { foreignSubmissions, policyToken, pushedRepos, slugOf, CLAUDE_TRAILER, POLICY_URLS } from './lib/upstream-policy.mjs';
 import { pushHookStatus, wireCommand } from './lib/push-hooks.mjs';
+import { unpushedPinMessage, unpushedPins } from './lib/push-pins.mjs';
 
 const CHECK_ID = 'upstream-policy';
 const WIRING_CHECK_ID = 'pre-push-wired';
+const PIN_CHECK_ID = 'push-pin';
 
 const ctx = {
   resolveDir: (from, to) => resolve(from, to),
@@ -129,6 +133,20 @@ function checkPushHooks(command) {
   }
 }
 
+// A `git push` of a superproject whose HEAD points a submodule at a commit the submodule's remote lacks is blocked, naming
+// the submodule push to do first (KIT-T1363). A repo with no submodule is untouched; a git error never blocks.
+function checkPushPins(command) {
+  let repos = [];
+  try { repos = pushedRepos(command, process.cwd(), ctx); } catch { return; }
+  for (const { dir } of repos) {
+    const top = gitRoot(dir);
+    const pins = top ? unpushedPins(top).filter((pin) => !pathExcluded(top, PIN_CHECK_ID, pin.path)) : [];
+    if (!pins.length) continue;
+    process.stderr.write(unpushedPinMessage(top, pins, excludeFooter(PIN_CHECK_ID)));
+    process.exit(2);
+  }
+}
+
 try {
   const p = await payload();
   const command = (p.tool_input && p.tool_input.command) || '';
@@ -152,6 +170,7 @@ try {
     process.stderr.write(`upstream-policy: ${sub.kind} to ${sub.slug} is ai-allowed: no. The title, body and comments must be the maintainer's own words.\n`);
   }
   checkPushHooks(command);
+  checkPushPins(command);
   process.exit(0);
 } catch {
   process.exit(0);

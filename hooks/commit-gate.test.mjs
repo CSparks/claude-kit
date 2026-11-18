@@ -297,7 +297,8 @@ try {
       writeFileSync(join(d, 'mine.js'), 'export const x = 2;\n');
       sess('pre-write.mjs', session, join(d, 'mine.js'), d);
       g(['add', 'mine.js', 'sub'], d);
-      return `git -C ${d} commit -m "implements KIT-T418"`;
+      const pin = spawnSync('git', ['-C', join(d, 'sub'), 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+      return `git -C ${d} commit -m "implements KIT-T418, pin ${pin}"`;
     };
 
     let d = mkSuper();

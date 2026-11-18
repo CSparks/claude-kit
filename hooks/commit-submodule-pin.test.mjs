@@ -40,12 +40,13 @@ try {
   git(['commit', '-q', '-m', MSG], sub);
   git(['add', '--', 'sub'], parent);
 
-  const other = gate('agentTerrain', `git -C ${parent} commit -m "${MSG}"`, parent);
+  const pin = () => `${MSG}, pin ${git(['rev-parse', '--short=8', 'HEAD'], sub).trim()}`;
+  const other = gate('agentTerrain', `git -C ${parent} commit -m "${pin()}"`, parent);
   ok('another agent\'s commit of the superproject is refused for the pin', other.code === 2 && /uncommitted work of another live writer/.test(other.out), other.out.trim());
   ok('the refusal names the pin and the agent that moved it', /sub: agent agentRoads/.test(other.out), other.out.trim());
-  const own = gate('agentRoads', `git -C ${parent} commit -m "${MSG}"`, parent);
+  const own = gate('agentRoads', `git -C ${parent} commit -m "${pin()}"`, parent);
   ok('control: the agent that moved the pin commits it', own.code === 0, own.out.trim());
-  const escaped = gate('agentTerrain', `git -C ${parent} commit -m "${MSG} [commit-foreign: pinning the roads agent's work]"`, parent);
+  const escaped = gate('agentTerrain', `git -C ${parent} commit -m "${pin()} [commit-foreign: pinning the roads agent's work]"`, parent);
   ok('control: [commit-foreign: reason] lifts the refusal', escaped.code === 0, escaped.out.trim());
 
   git(['commit', '-q', '-m', 'pin moved'], parent);
@@ -66,7 +67,7 @@ try {
   git(['add', '--', 'terrain.rs'], sub);
   git(['commit', '-q', '-m', MSG], sub);
   git(['add', '--', 'sub'], parent);
-  const moved = gate('agentTerrain', `git -C ${parent} add -- sub && git -C ${parent} commit -m "${MSG}" -- sub`, parent);
+  const moved = gate('agentTerrain', `git -C ${parent} add -- sub && git -C ${parent} commit -m "${pin()}" -- sub`, parent);
   ok('control: once the pointer moves, the standing pin claim of another writer still refuses the bump (KIT-T1257)', moved.code === 2 && /sub: agent agentRoads/.test(moved.out), moved.out.trim());
   git(['commit', '-q', '-m', 'pin moved again'], parent);
 
@@ -74,7 +75,7 @@ try {
   git(['add', '--', 'terrain.rs'], sub);
   git(['commit', '-q', '-m', MSG], sub);
   writeFileSync(join(sub, 'field.rs'), 'pub fn field() -> u32 { 4 }\n');
-  const bump = gate('agentTerrain', `git -C ${parent} add -- sub && git -C ${parent} commit -m "${MSG}" -- sub`, parent);
+  const bump = gate('agentTerrain', `git -C ${parent} add -- sub && git -C ${parent} commit -m "${pin()}" -- sub`, parent);
   ok('a pointer bump with another writer\'s dirty files inside the submodule and no pin claim passes', bump.code === 0, bump.out.trim());
 
   writeFileSync(join(parent, 'road.rs'), 'pub fn road() -> u32 { 1 }\n');

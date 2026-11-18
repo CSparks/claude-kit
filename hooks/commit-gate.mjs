@@ -22,6 +22,9 @@ import { isKitCheckout } from './lib/kit-checkout.mjs';
 import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
 import { claimSubmodulePin, foreignClaimMessage, foreignClaims } from './lib/commit-agent-claims.mjs';
+import { gitlinkPaths } from './lib/gitlinks.mjs';
+import { pinCiteMessage, pinCiteProblems } from './lib/pin-cite.mjs';
+import { overlaps } from './lib/path-overlap.mjs';
 
 const CODE = new Set(
   'ts tsx js jsx mjs cjs rs py go java rb php cs swift kt c cc cpp cxx h hpp css scss sass less vue svelte sql'.split(' '),
@@ -144,6 +147,20 @@ if (dataRepo) {
   }
 }
 if (!adopted(root)) process.exit(0);
+
+// KIT-T1363: a commit that moves a submodule pointer names the sha it records; the pin-sha ignore key lifts it.
+try {
+  const links = new Set(gitlinkPaths(root));
+  const pins = changed.filter((f) => links.has(f) && !pathExcluded(root, 'pin-sha', f));
+  const fromWorktree = (f) => spec.mode !== 'staged' || adds.includes('.') || overlaps(adds, [f]);
+  const unnamed = pins.length ? pinCiteProblems({ root, paths: pins, message: cited, fromWorktree }) : [];
+  if (unnamed.length) {
+    process.stderr.write(pinCiteMessage(unnamed, excludeFooter('pin-sha')));
+    process.exit(2);
+  }
+} catch {
+  /* the pin check is best-effort — never wedge a commit on a git error */
+}
 
 // KIT-T706: a source file a shell call wrote by hand (hooks/hand-write-detect.mjs) stays out of a commit
 // until Edit or Write re-saves it; the source-shell-write ignore key lifts it.

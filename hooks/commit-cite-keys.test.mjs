@@ -81,7 +81,8 @@ try {
   writeFileSync(join(d, 'sub', 'a.txt'), 'b\n');
   run(['-C', join(d, 'sub'), 'commit', '-q', '-am', 'advance'], d);
   run(['add', 'sub'], d);
-  r = gate(`git -C ${d} commit -m "implements SUB-T007"`, d);
+  const pin = spawnSync('git', ['-C', join(d, 'sub'), 'rev-parse', '--short=8', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+  r = gate(`git -C ${d} commit -m "Pin sub to ${pin}: implements SUB-T007"`, d);
   ok('a commit touching the submodule may cite its key', r.code === 0, r.out.trim());
 } finally {
   harness.cleanup();
