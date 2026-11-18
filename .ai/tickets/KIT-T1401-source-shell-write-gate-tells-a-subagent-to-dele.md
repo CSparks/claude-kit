@@ -2,7 +2,7 @@
 id: KIT-T1401
 title: source-shell-write gate tells a subagent to delete a tracked file with 'git rm -- <path>', which stages the deletion in the shared index; an
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T21:38:37Z
-updated: 2026-11-18T23:16:30Z
+updated: 2026-11-18T23:17:02Z
+fixed_commit: 8f2cd60f
 ---
 
 ## Description
@@ -41,3 +42,6 @@ Tests: hooks/commit-staged-delete.test.mjs all pass (the git rm through the gate
 - [2026-11-18 23:16] (status) todo → doing
 - [2026-11-18 23:16] (comment) criterion added: a removal a shell call makes is claimed for the agent that ran it, so another agent's commit that would take the staged deletion is refused by name while explicit-path commits and the deleter's own commit pass; the tracked-file delete guidance says to commit a git rm at once by explicit path (hooks/commit-staged-delete.test.mjs)
 - [2026-11-18 23:16] (comment) ticked: a removal a shell call makes is claimed for the agent that ran it, so another agent's commit that would take the staged deletion is refused by name while explicit-path commits and the deleter's own commit pass; the tracked-file delete guidance says to commit a git rm at once by explicit path (hooks/commit-staged-delete.test.mjs)
+- [2026-11-18 23:16] (landed) 8f2cd60f a shell call's removal is claimed for the agent that ran it, so another agent's commit cannot sweep a staged git rm; the
+- [2026-11-18 23:17] (status) doing → review
+- [2026-11-18 23:17] (comment) runtime 8f2cd60f published
