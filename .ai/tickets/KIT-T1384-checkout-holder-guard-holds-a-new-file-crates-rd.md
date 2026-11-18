@@ -2,7 +2,7 @@
 id: KIT-T1384
 title: checkout-holder guard holds a NEW file crates/rdg-world/tests/yard_ground.rs while another writer's build is 'cargo test -p rdg-world --test
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T18:48:39Z
-updated: 2026-11-18T19:19:28Z
+updated: 2026-11-18T19:20:09Z
+fixed_commit: 72919265
 ---
 
 ## Description
@@ -39,3 +40,6 @@ Tests: scripts/broker/cargo-targets.test.mjs 4 pass (the selection; the new test
 - [2026-11-18 19:19] (status) todo → doing
 - [2026-11-18 19:19] (comment) criterion added: a build that selects targets (--test x, --lib) holds only the tests/ files its targets read: a new tests/ file beside it passes, the selected target, its modules and src stay held, any doubt keeps the hold (scripts/broker/cargo-targets.test.mjs)
 - [2026-11-18 19:19] (comment) ticked: a build that selects targets (--test x, --lib) holds only the tests/ files its targets read: a new tests/ file beside it passes, the selected target, its modules and src stay held, any doubt keeps the hold (scripts/broker/cargo-targets.test.mjs)
+- [2026-11-18 19:19] (landed) 72919265 build hold: a build that selects its targets (--test x, --lib) no longer holds a tests/ file none of them reads; the sel
+- [2026-11-18 19:20] (status) doing → review
+- [2026-11-18 19:20] (comment) runtime 72919265 published
