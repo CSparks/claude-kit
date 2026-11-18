@@ -17,7 +17,8 @@
 //   call beats the daemon's heartbeat (pulse) and polls `shouldCancel()`; `holder` names the hold it first waited on.
 //   `probes` = { physicalCores, commitFreeBytes, gameRunning } replaces the OS readings (tests).
 //   `meta` = extra fields for the record: `scope` (absolute paths the build compiles), `scopeVia` (path -> dependency chain),
-//   `scopeReason` (why a scope is wide) and `writer` (the agent that started it); a write by another agent into the scope while the hold compiles is refused (hooks/lib/build-write-hold.mjs).
+//   `scopeReason` (why a scope is wide), `writer` (the agent that started it) and `targets` (the target selection, cargo-targets.mjs);
+//   a write by another agent into the scope while the hold compiles is refused (hooks/lib/build-write-hold.mjs).
 //   `beforeStart()` runs once the cores are granted and before the hold is written (the build-start wait of write-window.mjs).
 
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';

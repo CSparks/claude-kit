@@ -31,6 +31,7 @@ import { HELD_ENV, heldEnv } from './build-env.mjs';
 import { cargoConfigJobs } from './cargo-config-jobs.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
 import { compiledScope } from './cargo-scope-dirs.mjs';
+import { targetSelection } from './cargo-targets.mjs';
 import { START_WAIT_S, waitOutWindows } from './write-window.mjs';
 
 const EXIT_QUEUED = 75;
@@ -92,7 +93,8 @@ async function runGated(real, tool, args, verdict, cwd) {
   };
   const { scope, via, reason } = compiledScope(args, cwd, findReal('cargo') || 'cargo');
   const writer = process.env.CLAUDE_KIT_BUILD_WRITER || '';
-  const meta = { scope, scopeVia: via, scopeReason: reason, writer };
+  const targets = targetSelection(args);
+  const meta = { scope, scopeVia: via, scopeReason: reason, writer, ...(targets ? { targets } : {}) };
   const beforeStart = () => waitOutWindows({ scope, writer, onWait: (w) => process.stderr.write(`[build-budget] holding the start up to ${START_WAIT_S}s: ${w.writer || 'another writer'} has an edit to ${w.file} to land first\n`) });
   const slot = acquireBuildSlot(`${tool} ${verdict.sub}`, { jobs: requested, elastic: true, force: true, label, cwd, shouldCancel, meta, beforeStart });
   await flagLongHolds(liveHolds());
