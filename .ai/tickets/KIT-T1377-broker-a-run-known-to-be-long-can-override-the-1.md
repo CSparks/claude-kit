@@ -2,7 +2,7 @@
 id: KIT-T1377
 title: broker: a run known to be long can override the 1,200 s per-run limit (builds --run ... --limit <seconds> --why '<reason>'), recorded on the
 type: feature
-status: doing
+status: review
 priority: medium
 milestone:
 labels: [kit-feature]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T15:21:51Z
-updated: 2026-11-18T15:30:32Z
+updated: 2026-11-18T15:31:38Z
+fixed_commit: a13dc2d8
 ---
 
 ## Description
@@ -44,3 +45,6 @@ Tests: scripts/broker/detached-run.test.mjs 10 pass (new: the reason on the reco
 - [2026-11-18 15:30] (status) todo → doing
 - [2026-11-18 15:30] (comment) criterion added: builds --run --limit N --why "<reason>" raises the 1200 s run limit up to 7200 s; the gate and the launcher refuse a raise with no reason or past 7200; the reason is on the run record, in builds --result and on its finished.log line (limit= why=), parsed by readFinished (scripts/broker/detached-run.test.mjs)
 - [2026-11-18 15:30] (comment) ticked: builds --run --limit N --why "<reason>" raises the 1200 s run limit up to 7200 s; the gate and the launcher refuse a raise with no reason or past 7200; the reason is on the run record, in builds --result and on its finished.log line (limit= why=), parsed by readFinished (scripts/broker/detached-run.test.mjs)
+- [2026-11-18 15:31] (landed) a13dc2d8 builds --run --limit N --why "<reason>": a run known to be long raises the 1200 s limit up to 7200 s, the reason recorde
+- [2026-11-18 15:31] (status) doing → review
+- [2026-11-18 15:31] (comment) runtime a13dc2d8 published
