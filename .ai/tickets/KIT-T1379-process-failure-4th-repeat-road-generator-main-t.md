@@ -2,7 +2,7 @@
 id: KIT-T1379
 title: PROCESS FAILURE (4th repeat, road-generator main thread, 2026-11-18): the coordinator relays a builder hand-back that landed commits but nam
 type: bug
-status: doing
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-18T15:59:09Z
-updated: 2026-11-18T16:05:01Z
+updated: 2026-11-18T16:05:35Z
+fixed_commit: 4327c02c
 ---
 
 ## Description
@@ -45,3 +46,6 @@ Tests: hooks/landed-notice.test.mjs all pass (7); land-alert exit 0; gate-wiring
 - [2026-11-18 16:05] (status) todo → doing
 - [2026-11-18 16:05] (comment) criterion added: a prompt, task notification, hand-back or message injects LANDED SINCE LAST REPLY with <repo> <sha> <subject> for commits landed this turn or unpushed in the project and its submodules, each once per session, at most eight named then a count; the Stop gate accepts a 7-character prefix (hooks/landed-notice.test.mjs)
 - [2026-11-18 16:05] (comment) ticked: a prompt, task notification, hand-back or message injects LANDED SINCE LAST REPLY with <repo> <sha> <subject> for commits landed this turn or unpushed in the project and its submodules, each once per session, at most eight named then a count; the Stop gate accepts a 7-character prefix (hooks/landed-notice.test.mjs)
+- [2026-11-18 16:05] (landed) 4327c02c landed-notice: a prompt, task notification, hand-back or message puts LANDED SINCE LAST REPLY (repo, sha, subject) in fr
+- [2026-11-18 16:05] (status) doing → review
+- [2026-11-18 16:05] (comment) runtime 4327c02c published, plugin 0.1.60
