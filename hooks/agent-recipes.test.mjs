@@ -36,5 +36,19 @@ const gate = spawnSync(process.execPath, [join(ROOT, 'hooks', 'source-shell-gate
 check('a shell rewrite of a source file is refused', gate.status === 2);
 check('and the refusal carries the data-file sweep recipe', SWEEP.test(gate.stderr) && /BEVY_ASSET_ROOT/.test(gate.stderr));
 
+writeFileSync(join(repo, '.gitignore'), 'target/\n');
+mkdirSync(join(repo, 'assets', 'world'), { recursive: true });
+writeFileSync(join(repo, 'assets', 'world', 'world.ron'), '(octaves: 5)\n');
+mkdirSync(join(repo, 'target', 'sweep', 'assets'), { recursive: true });
+writeFileSync(join(repo, 'target', 'sweep', 'assets', 'stage.rs'), 'pub fn stage() {}\n');
+const shellGate = (command) => spawnSync(process.execPath, [join(ROOT, 'hooks', 'source-shell-gate.mjs')], {
+  cwd: repo, encoding: 'utf8',
+  env: { ...process.env, CLAUDE_KIT_TURN_STATE: mkdtempSync(join(tmpdir(), 'recipes-state-')), CLAUDE_KIT_HOLDERS_DIR: mkdtempSync(join(tmpdir(), 'recipes-holders-')) },
+  input: JSON.stringify({ session_id: 'S1', agent_id: 'aSweep', tool_name: 'Bash', tool_input: { command } }),
+}).status;
+check('the recipe\'s copy into target/ passes', shellGate('cp -r assets target/sweep-assets') === 0);
+check('the recipe\'s literal rm -r of a scratch folder under target/ passes', shellGate('rm -r target/sweep') === 0);
+check('negative: the same delete through a variable beside a loop is refused, as the recipe warns', shellGate('X=target/sweep && for n in 1 2; do echo $n; done && rm -rf "$X"') === 2);
+
 console.log(fails ? `\nagent-recipes: ${fails} failed` : '\nagent-recipes: all pass');
 process.exit(fails ? 1 : 0);

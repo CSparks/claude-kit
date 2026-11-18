@@ -11,8 +11,8 @@
 // Allowed: a BUILT-IN subcommand (a subcommand-less call runs nothing); global options -C <dir>, --no-pager, -P,
 // --no-optional-locks, --literal-pathspecs, and `-c key=value` for a key in ALLOWED_CONFIG or under ALLOWED_CONFIG_PREFIXES;
 // no environment variable assigned in front of the call, exported anywhere in the command, or (bare) assigned when the
-// name is already in the environment, which includes PATH; no `env` options. ALLOWED_ASSIGNED_NAMES is empty: no name
-// is exempt. The words `export`, `setenv`, `declare -x`, `typeset -x` and `set -a`, and any mention of the environment in
+// name is already in the environment, which includes PATH; no `env` options. ALLOWED_ASSIGNED_NAMES is empty; names under
+// ALLOWED_ENV_PREFIXES (build and engine settings git never reads) set to literal values are exempt (KIT-T1367). The words `export`, `setenv`, `declare -x`, `typeset -x` and `set -a`, and any mention of the environment in
 // PowerShell (`$env:`, `Env:`, `[Environment]`, SetEnvironmentVariable), count anywhere in the command or in a command text it
 // runs, when a git word follows them in that text: a READ of `$env:TEMP` counts too. Telling a read from a change by the text of a
 // command is not sound (KIT-T1262: three review rounds broke every recogniser), so the refusal says what to do instead: run the git
@@ -37,8 +37,16 @@ const ALLOWED_FLAGS = new Set(['-C', '-c', '--no-pager', '-P', '--no-optional-lo
 export const ALLOWED_CONFIG = ['core.quotepath', 'core.autocrlf', 'core.safecrlf', 'core.longpaths', 'user.name', 'user.email', 'commit.gpgsign', 'protocol.file.allow'];
 export const ALLOWED_CONFIG_PREFIXES = ['color.', 'advice.'];
 export const ALLOWED_ASSIGNED_NAMES = [];
+// Build and engine settings git never reads, nor anything git launches (pager, editor, ssh, hooks, diff drivers): a program
+// run in the same command may set them (KIT-T1367). Only a literal value counts; one name outside these keeps the refusal.
+export const ALLOWED_ENV_PREFIXES = ['CARGO_', 'BEVY_', 'RUST_', 'WGPU_'];
+const allowedName = (name) => ALLOWED_ASSIGNED_NAMES.includes(name) || ALLOWED_ENV_PREFIXES.some((p) => name.startsWith(p));
+const LITERAL_VALUE = String.raw`(?:"[^"$\x60\\]*"|'[^']*'|[^\s;&|$\x60"'\\()<>]*)`;
+const ALLOWED_EXPORT = new RegExp(String.raw`(?<![\w-])export((?:\s+(?:${ALLOWED_ENV_PREFIXES.join('|')})\w*=${LITERAL_VALUE})+)\s*(?=$|[;&|\n)])`, 'g');
+// An export that sets only allowed names to literal values changes nothing git reads, so it is blanked before the search.
+const withoutAllowedExports = (text) => String(text).replace(ALLOWED_EXPORT, (match) => blank(match));
 
-export const GIT_ALLOW_RULE = `a git call is judged precisely only when it stays on the allow-list: a built-in subcommand; global options -C <dir>, --no-pager, -P, --no-optional-locks, --literal-pathspecs and -c with ${ALLOWED_CONFIG.join(', ')}, ${ALLOWED_CONFIG_PREFIXES.map((p) => `${p}*`).join(', ')}; no environment assigned in front of it, exported in the command, or (bare) assigned to a name already in the environment (PATH, HOME, XDG_CONFIG_HOME, GIT_*); any other git call (an alias, an external git-x program, --exec-path, --git-dir, --work-tree, --config-env, an include or core.* key, an environment prefix, submodule foreach, for-each-repo, filter-branch, difftool or mergetool with a tool or command, a rebase --exec or bisect run whose command cannot be read) is refused while another writer is live in the checkout: write the call plainly, with a built-in command and those options`;
+export const GIT_ALLOW_RULE = `a git call is judged precisely only when it stays on the allow-list: a built-in subcommand; global options -C <dir>, --no-pager, -P, --no-optional-locks, --literal-pathspecs and -c with ${ALLOWED_CONFIG.join(', ')}, ${ALLOWED_CONFIG_PREFIXES.map((p) => `${p}*`).join(', ')}; no environment assigned in front of it, exported in the command, or (bare) assigned to a name already in the environment (PATH, HOME, XDG_CONFIG_HOME, GIT_*), except ${ALLOWED_ENV_PREFIXES.map((p) => `${p}*`).join(', ')} set to literal values; any other git call (an alias, an external git-x program, --exec-path, --git-dir, --work-tree, --config-env, an include or core.* key, an environment prefix, submodule foreach, for-each-repo, filter-branch, difftool or mergetool with a tool or command, a rebase --exec or bisect run whose command cannot be read) is refused while another writer is live in the checkout: write the call plainly, with a built-in command and those options`;
 
 const ENV_ASSIGN = /^([A-Za-z_][A-Za-z0-9_]*)=/;
 const ENV_OPTIONS_WRAPPER = /^(?:.*[\\/])?env(?:\.exe)?$/i;
@@ -101,13 +109,13 @@ function bareAssignments(parts) {
 // `parts`: every segment of the command and of each command text it runs (nestedSegments), so an export or an assignment
 // inside a `bash -c`, `eval` or `su -c` string counts like one at the top level.
 function environmentProblem(lead, raw, parts) {
-  const prefix = lead.map((w) => ENV_ASSIGN.exec(w)?.[1]).find((n) => n && !ALLOWED_ASSIGNED_NAMES.includes(n));
+  const prefix = lead.map((w) => ENV_ASSIGN.exec(w)?.[1]).find((n) => n && !allowedName(n));
   if (prefix) return `environment assignment ${prefix}= in front of git`;
   const at = lead.findIndex((w) => ENV_OPTIONS_WRAPPER.test(w));
   if (at >= 0 && lead.slice(at + 1).some((w) => w.startsWith('-'))) return 'options of env in front of git';
-  const token = [withoutDataSegmentArguments(raw), ...parts.map((part) => dataBlanked(part.text))].map(environmentTokenBeforeGit).find(Boolean);
-  if (token) return `the environment is named in the same command (\`${token}\`): run the git call as its own command, with no environment variable read or set in the same command`;
-  const set = bareAssignments(parts).find((n) => !ALLOWED_ASSIGNED_NAMES.includes(n) && inEnvironment(n));
+  const token = [withoutDataSegmentArguments(raw), ...parts.map((part) => dataBlanked(part.text))].map(withoutAllowedExports).map(environmentTokenBeforeGit).find(Boolean);
+  if (token) return `the environment is named in the same command (\`${token}\`): run the git call as its own command, with no environment variable read or set in the same command (only ${ALLOWED_ENV_PREFIXES.map((p) => `${p}*`).join(', ')} set to literal values may share it)`;
+  const set = bareAssignments(parts).find((n) => !allowedName(n) && inEnvironment(n));
   return set ? `${set}= assigned in the same command, a name already in the environment` : '';
 }
 

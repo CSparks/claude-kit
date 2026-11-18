@@ -15,7 +15,8 @@ export const WRITE_ADVICE = `  Use the Write tool: create or replace a whole fil
   A sweep over a data file (an A/B of a shipped asset such as world.ron) runs on a scratch asset root under target/
   (KIT-T1360): copy the assets there (cp -r assets target/sweep-assets writes only build output), point the program at
   the copy (Bevy reads BEVY_ASSET_ROOT; otherwise the env var or flag the program names), and change the copy with Edit
-  or Write. Never rewrite the shipped file from the shell; never rm -r the scratch folder: leave it or overwrite its files.
+  or Write. Never rewrite the shipped file from the shell. Spell cp, rm and redirect paths out as literals: a $VAR operand
+  is judged as a source write. A scratch folder under target/ is build output: rm -r target/<dir> with the literal path passes.
 ${VENDOR_ROUTE.map((line) => `  ${line}`).join('\n')}`;
 
 export const LAUNCHER_ADVICE = `  The launcher call is judged as a whole; its exact form is:

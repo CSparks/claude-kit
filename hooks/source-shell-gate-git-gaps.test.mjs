@@ -148,6 +148,17 @@ try {
   check('the block names the call that runs a command and the way out', /git submodule foreach, which runs its command inside each submodule directory[^]*written plainly/.test(said), said);
   const exportSaid = run("bash -c 'export GIT_DIR=x; git status'").stderr;
   check('the block of an export inside a runner text names it', /the environment is named in the same command[^]*run the git call as its own command/.test(exportSaid), exportSaid);
+
+  // KIT-T1367: an export of build settings git never reads, for a program run, beside read-only git calls with a pathspec.
+  const PROBE = 'export CARGO_MANIFEST_DIR="D:/dev/rg/crates/road-generator" BEVY_ASSET_ROOT="D:/dev/rg/crates/road-generator"; ./target/release/probe.exe globe';
+  check('an export of CARGO_*/BEVY_* literals beside read-only git with a pathspec passes', passes_(`${PROBE}; echo "sha $(git log -1 --format=%h -- src/a.rs) dirty $(git status --short -- src | wc -l)"`));
+  check('a prefix assignment of an allowed name passes', passes_('RUST_LOG=info git log -1 --format=%h -- src/a.rs'));
+  check('negative: one GIT_* name in the same export keeps the refusal', stops('export CARGO_X=1 GIT_DIR=elsewhere; git status --short -- src'));
+  check('negative: an allowed name set from a substitution keeps the refusal', stops('export CARGO_X="$(pwd)"; git status --short -- src'));
+  check('negative: a second, plain export keeps the refusal', stops('export CARGO_X=1; export PAGER=less; git log -1 -- src/a.rs'));
+  check('negative: an allowed export does not lift a real discard', stops(`${PROBE}; git clean -fd`));
+  const offList = run('export PAGER=less; git log -1 --format=%h -- src/a.rs').stderr;
+  check('the headline names the git call and its reason, not a hand delete', /a git call outside the allow-list may take files it does not name \([^)]*\), refused because: the environment is named in the same command \(`export`\)/.test(offList) && !/deletes a source file by hand/.test(offList), offList);
 } finally {
   rmSync(repo, { recursive: true, force: true });
   rmSync(state, { recursive: true, force: true });

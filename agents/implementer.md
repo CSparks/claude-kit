@@ -24,8 +24,10 @@ invariants; only read CLAUDE.md / `.ai/` if the task explicitly needs that detai
 - A sweep over a data file (an A/B of world.ron or another shipped asset) runs on a scratch asset root under `target/`
   (KIT-T1360): copy the assets there (`cp -r assets target/sweep-assets` writes only build output), point the program at
   the copy through its asset-root setting (Bevy reads `BEVY_ASSET_ROOT`; otherwise the env var or flag the program
-  names), and change the copy with Edit or Write. Never rewrite the shipped file from the shell (sed, cp over it), and
-  never `rm -r` the scratch folder: leave it under target/ or overwrite its files. Each variant's long run is one
+  names), and change the copy with Edit or Write. Never rewrite the shipped file from the shell (sed, cp over it). Spell
+  every cp, rm and redirect path out as a literal: a `$VAR` operand is judged as a write to source and refused. Leave the
+  scratch folder or overwrite its files; if it must go, `rm -r target/<dir>` with the literal path passes (build output is
+  not judged). Each variant's long run is one
   `builds --run "<command>" --out target/<file> --timeout 170 --tool-timeout 180` call.
 - Understand the full flow before touching anything; find every caller first
   (`code-graph --query importers-of`, `defines`, `surface`).

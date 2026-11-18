@@ -85,6 +85,8 @@ try {
       ? found.launcherProblem
       : found.moveLinesProblem
       ?`a move-lines call the guard refuses writes a source file by hand: ${found.moveLinesProblem}`
+      : found.sweep
+      ? `${found.discard || 'a git call'} may take files it does not name (${found.path}), refused because: ${found.sweep}.`
       : `a shell command ${found.deletes ? 'deletes' : 'writes'} a source file by hand (${found.path})${found.token ? `, matched the word \`${found.token}\`` : ''}.`;
     const couldNot = incomplete ? `  The check could not complete (${incomplete}), and a check that cannot complete refuses. Retry once git runs and the registry of live writers reads.\n` : '';
     process.stderr.write(`
