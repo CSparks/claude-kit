@@ -2,7 +2,7 @@
 id: KIT-T1414
 title: Kit: a difficulty-assessment loop for model routing. Owner (2026-11-18): 'Do you think you can build the capacity to better assess the kinds
 type: feature
-status: doing
+status: review
 priority: medium
 milestone:
 labels: [kit-feature]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-19T00:50:45Z
-updated: 2026-11-19T01:45:15Z
+updated: 2026-11-19T01:47:42Z
+fixed_commit: 9d9fa2b4
 ---
 
 ## Description
@@ -71,3 +72,6 @@ Tests: scripts/difficulty.test.mjs 6 pass (rubric and tiers, split, resolve, the
 - [2026-11-19 01:45] (comment) ticked: the rubric (systems, root, proof, ref, coupling, context, 0-2 each; 0-1 haiku, 2-5 sonnet, 6-8 opus, 9-12 fable) and the split rule
 - [2026-11-19 01:45] (comment) ticked: prediction and outcome recorded per dispatch and a calibration report that names re-date candidates for the weekly reassessment
 - [2026-11-19 01:45] (comment) ticked: no agent definition carries a model, effort or job (agent-pins, plugin-compat)
+- [2026-11-19 01:47] (landed) 9d9fa2b4 dispatch difficulty: every brief carries a [difficulty:] assessment whose tier decides the family (KIT-D170); dispatch-d
+- [2026-11-19 01:47] (status) doing → review
+- [2026-11-19 01:47] (comment) runtime 9d9fa2b4 published, plugin 0.1.61
