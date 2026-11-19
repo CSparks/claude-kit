@@ -7,8 +7,8 @@
 // GROUNDED_PER_OPTION matches per option must be cited by id in the questionnaire text or the readable turn prose.
 //
 //   optionStems(label)                    -> Set of stems: words of GROUNDED_MIN_WORD letters or more, stopwords dropped, suffixes cut
-//   groundingMatches(docs, label)         -> [{ id, kind, title }] what one label matches (the dry run of `q gates question --check`)
-//   groundingMisses(docs, questions, cited) -> [{ option, id, kind, title }] matches not named in `cited`
+//   groundingMatches(docs, label)         -> [{ id, kind, title, words }] what one label matches (the dry run of `q gates question --check`), words = the stems shared
+//   groundingMisses(docs, questions, cited) -> [{ option, id, kind, title, words }] matches not named in `cited`
 
 import {
   GROUNDED_DISTINCT_MIN_DF, GROUNDED_DISTINCT_SHARE, GROUNDED_MIN_DISTINCT, GROUNDED_MIN_SHARED, GROUNDED_MIN_TITLE, GROUNDED_MIN_WORD,
@@ -16,6 +16,7 @@ import {
 } from './question-checks.mjs';
 import { ID_CITE_SRC } from './ids.mjs';
 import { stemRarity } from './stem-rarity.mjs';
+import { GENERIC_STEMS } from './generic-stems.mjs';
 
 const STOPWORDS = new Set([
   'about', 'across', 'after', 'again', 'also', 'avoid', 'both', 'build', 'change', 'check', 'create', 'defer', 'does', 'each', 'else', 'every',
@@ -27,7 +28,8 @@ const WORD = new RegExp(`[a-z]{${GROUNDED_MIN_WORD},}`, 'g');
 const SUFFIX = /(?:ing|ed|es|s|e)$/;
 const CITE = new RegExp(ID_CITE_SRC, 'g');
 
-export const optionStems = (text) => new Set((String(text).toLowerCase().match(WORD) || []).filter((w) => !STOPWORDS.has(w)).map((w) => w.replace(SUFFIX, '')));
+export const optionStems = (text) => new Set((String(text).toLowerCase().match(WORD) || [])
+  .filter((w) => !STOPWORDS.has(w)).map((w) => w.replace(SUFFIX, '')).filter((s) => !GENERIC_STEMS.has(s)));
 
 export const groundingLabel = (option) => String(option?.label || '').replace(RECOMMENDED_MARKER, '').trim();
 const overlap = (a, b) => [...a].filter((s) => b.has(s)).length;
@@ -48,11 +50,11 @@ function matchesFor({ indexed, isRare }, label) {
     .filter((m) => m.shared >= GROUNDED_MIN_SHARED && m.inTitle >= GROUNDED_MIN_TITLE && (m.distinct >= GROUNDED_MIN_DISTINCT || restatesTitle(m)))
     .sort((a, b) => b.inTitle - a.inTitle || b.shared - a.shared || b.d.id.localeCompare(a.d.id))
     .slice(0, GROUNDED_PER_OPTION)
-    .map((m) => m.d);
+    .map((m) => ({ ...m.d, words: [...wanted].filter((s) => m.d.allStems.has(s)) }));
 }
 
 export function groundingMatches(docs, label) {
-  return matchesFor(indexDocs(docs), groundingLabel({ label })).map(({ id, kind, title }) => ({ id, kind, title }));
+  return matchesFor(indexDocs(docs), groundingLabel({ label })).map(({ id, kind, title, words }) => ({ id, kind, title, words }));
 }
 
 export function groundingMisses(docs, questions, cited) {
@@ -63,7 +65,7 @@ export function groundingMisses(docs, questions, cited) {
     for (const option of Array.isArray(q?.options) ? q.options : []) {
       const label = groundingLabel(option);
       for (const d of matchesFor(indexed, label)) {
-        if (!named.has(d.id) && !misses.has(d.id)) misses.set(d.id, { option: label, id: d.id, kind: d.kind, title: d.title });
+        if (!named.has(d.id) && !misses.has(d.id)) misses.set(d.id, { option: label, id: d.id, kind: d.kind, title: d.title, words: d.words });
       }
     }
   }

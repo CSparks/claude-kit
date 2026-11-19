@@ -4,6 +4,8 @@
 //
 //   TOKENS.<key>.{ name, form, meaning, pattern }
 
+import { ID_CITE_SRC } from './ids.mjs';
+
 const token = (name, form, meaning, pattern) => ({ name, form, meaning, pattern });
 
 export const TOKENS = {
@@ -24,6 +26,7 @@ export const TOKENS = {
   rulingsChecked: token('rulings-checked', '[rulings-checked: <q inbox or q fts run, or inbox ids read>]', 'a design or plan brief cites the inbox search for maintainer rulings it made first, or `[rulings-checked: none apply: <why>]`', /\[rulings-checked:\s*[^\]\s][^\]]*\]/i),
   frameworkChecked: token('framework-checked', '[framework-checked: <CRATES.md rows or crate surfaces read, per mechanism>]', 'in a repo that uses a framework with a crate index: a plan (in the plan text at plan-mode exit) or a plan or design brief names the indexed crates it read for each mechanism it proposes, or `[framework-checked: none apply: <why>]`', /\[framework-checked:\s*([^\]\s][^\]]*)\]/i),
   optionsChecked: token('options-checked', '[options-checked: none apply: <why>]', 'in the questionnaire text: the decisions and open tickets that match an option were read and none governs it', /\[options-checked:\s*none apply\b[:\s-]*\S[^\]]*\]/i),
+  optionsCheckedIds: token('options-checked (ids)', '[options-checked: RDG-D052, RDG-D137 govern this; the other matches do not apply: <why>]', 'in the questionnaire text: names the decisions that govern the options (at least one id) and says the other matches do not apply; only a near-verbatim restatement of an uncited decision then blocks (the raised bar of the clause rule)', new RegExp(`\\[options-checked:[^\\]]*\\b${ID_CITE_SRC}[^\\]]*\\bdo(?:es)? not apply\\b[^\\]]*\\]`, 'i')),
   conformanceNotAffected: token('conformance', '[conformance: not affected: <why>]', 'the work cannot move a framework default; otherwise the brief names the conformance test', /\[conformance:\s*not affected\b[:\s-]*\S[^\]]*\]/i),
   uiFrameworkChecked: token('ui-framework-checked', '[ui-framework-checked: <rg-ui mechanism reused, or why none applies>]', 'UI sizing or layout work states the framework mechanism it reuses', /\[ui-framework-checked:\s*[^\]\s][^\]]*\]/i),
   tests: token('tests', '[tests: troubleshoot <the fault>]', 'in a Cargo workspace a brief that orders test runs says why: `[tests: troubleshoot <the fault>]`, or `[tests: periodic batch]` for the coordinator\'s own batch run; without a tag a brief orders none (KIT-D162, KIT-D163)', /\[tests:\s*(?:troubleshoot\s+[^\]\s][^\]]*|periodic batch\s*)\]/i),

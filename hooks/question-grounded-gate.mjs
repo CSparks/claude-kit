@@ -7,11 +7,12 @@
 // (lib/question-clause-grounding.mjs, KIT-T1215). A match whose id the questionnaire text (header, question, option
 // labels and descriptions) or the readable turn prose never names blocks. The summary written in the same reply as the
 // call is not on disk yet, so cite in the questionnaire.
-// Escape: `[options-checked: none apply: <why>]` in the questionnaire text. Fails open on any error.
+// Escapes in the questionnaire text: `[options-checked: none apply: <why>]` passes it; `[options-checked: <ids> govern this; the
+// other matches do not apply: <why>]` raises the clause bar to TAGGED_BAR (KIT-T1431). Fails open on any error.
 
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { groundingMisses } from './lib/question-grounding.mjs';
-import { clauseMisses } from './lib/question-clause-grounding.mjs';
+import { CLAUSE_BAR, TAGGED_BAR, clauseMisses } from './lib/question-clause-grounding.mjs';
 import { storeDocs } from './lib/store-docs.mjs';
 import { turnText } from './lib/turn-text.mjs';
 import { GROUNDED_CHECK, GROUNDED_CLAUSE_SHOWN } from './lib/question-checks.mjs';
@@ -28,13 +29,14 @@ function blockMessage(misses, restated) {
   const first = misses[0] || restated[0];
   return [
     'BLOCKED: the questionnaire matches a recorded decision or open ticket it does not cite (KIT-T936, KIT-T1215).',
-    ...misses.slice(0, MAX_SHOWN).map((m) => `  ${m.id} (${m.kind}) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — matched by the option "${m.option}"`),
-    ...restated.slice(0, MAX_SHOWN).map((m) => `  ${m.id} (decision) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — the question text restates its clause: "${m.clause.slice(0, GROUNDED_CLAUSE_SHOWN)}" (matched rare words: ${m.rare.join(', ')}; score ${m.score})`),
+    ...misses.slice(0, MAX_SHOWN).map((m) => `  ${m.id} (${m.kind}) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — matched by the option "${m.option}" (shared words: ${m.words.join(', ')})`),
+    ...restated.slice(0, MAX_SHOWN).map((m) => `  ${m.id} (decision) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — the question text restates its clause: "${m.clause.slice(0, GROUNDED_CLAUSE_SHOWN)}" (matched words: ${m.stems.join(', ')}; matched rare words: ${m.rare.join(', ')}; score ${m.score})`),
     '',
     'The maintainer already ruled on, or filed, work like this; offering it fresh makes him re-decide a settled point.',
     'Read each item (q show <id>), then in the question text or an option description say what it is in plain words and cite it:',
     `  "${first.title.slice(0, MAX_TITLE_SHOWN)} (${first.id})" — and let the options build on it, never restate it as new.`,
     `When none governs the options, add ${TOKENS.optionsChecked.form} to the question text.`,
+    `When some govern them and the rest matched on loose words, cite the governing ids and add ${TOKENS.optionsCheckedIds.form}: only a near-verbatim restatement of an uncited decision then blocks.`,
     '',
     excludeFooter(GROUNDED_CHECK),
   ].join('\n');
@@ -51,7 +53,8 @@ try {
   if (TOKENS.optionsChecked.pattern.test(cited)) process.exit(0);
   const docs = storeDocs(root);
   const misses = groundingMisses(docs, questions, cited);
-  const restated = clauseMisses(docs, questions, cited);
+  const bar = TOKENS.optionsCheckedIds.pattern.test(cited) ? TAGGED_BAR : CLAUSE_BAR;
+  const restated = clauseMisses(docs, questions, cited, bar);
   if (misses.length || restated.length) {
     process.stderr.write(blockMessage(misses, restated));
     process.exit(2);
