@@ -3,8 +3,9 @@
 // as this session's own work in the writes ledger (KIT-T436), so commit-gate's foreign-path
 // check (KIT-T407) does not block a session's own `node -e` / sed / script edits.
 //
-// Pre stamps the call's start time and the tracked paths already removed; Post runs ONE `git status` and records every
-// dirty path whose mtime is at/after that stamp, plus every path removed since Pre (`git rm`, `rm`; KIT-T1110), which is also
+// Pre stamps the call's start time and the tracked paths already removed or moved; Post runs ONE `git status` and records every
+// dirty path whose mtime is at/after that stamp, plus every path removed or moved since Pre (`git rm`, `rm`, `git mv`; KIT-T1110,
+// KIT-T1433), which is also
 // claimed for the writer that ran the call (KIT-T1401). A file changed outside any session call (another session,
 // the maintainer's editor) is never stamped and stays foreign. Parallel edits by another session
 // DURING this call count as ours unless an Edit or Write tool left that exact content (the accepted-writes
@@ -54,6 +55,21 @@ export function deletedPaths(porcelain) {
   return out;
 }
 
+// Both sides of every rename the porcelain shows (`git mv`): the destination and the path it left. A move leaves the
+// file's mtime, so a call's own moves are the ones absent from the Pre snapshot and present at Post (KIT-T1433).
+export function movedPaths(porcelain) {
+  const parts = String(porcelain).split('\0');
+  const out = [];
+  for (let i = 0; i < parts.length && out.length < STATUS_ENTRIES_MAX; i++) {
+    const e = parts[i];
+    if (e.length < MIN_ENTRY_LENGTH) continue;
+    if (!/[RC]/.test(e.slice(0, 2))) continue;
+    out.push(e.slice(MIN_ENTRY_LENGTH - 1), parts[++i]);
+  }
+  return out.filter(Boolean);
+}
+
+const changedByMoveOrRemoval = (porcelain) => [...deletedPaths(porcelain), ...movedPaths(porcelain)];
 const statusOf = (root) => git(['status', '--porcelain=v1', '-z', '--untracked-files=all'], root);
 
 try {
@@ -74,7 +90,7 @@ try {
 
   if (!isPost) {
     starts[key] = now;
-    removedBefore[key] = deletedPaths(statusOf(root));
+    removedBefore[key] = changedByMoveOrRemoval(statusOf(root));
     writeTurnState(root, { starts, removed: removedBefore }, slot);
     process.exit(0);
   }
@@ -82,7 +98,7 @@ try {
   const startedAt = starts[key] ?? Math.min(now, ...Object.values(starts));
   const status = statusOf(root);
   const alreadyRemoved = new Set(removedBefore[key]);
-  const ownRemovals = key in removedBefore ? deletedPaths(status).filter((rel) => !alreadyRemoved.has(rel)) : [];
+  const ownRemovals = key in removedBefore ? changedByMoveOrRemoval(status).filter((rel) => !alreadyRemoved.has(rel)) : [];
   delete starts[key];
   delete removedBefore[key];
   writeTurnState(root, { starts, removed: removedBefore }, slot);
