@@ -1,9 +1,7 @@
 ---
 name: analyst
-job: design
-description: Read-only analyst (dispatch on opus). Use for root-cause analysis, design and audits that must run alongside a writing agent; it never edits, builds, tests or runs anything, and its report goes to the agent doing the work. Dispatch guards let it run in parallel with a writer because its tools grant no writing tool.
+description: Read-only analyst; the brief's job and difficulty assessment decide its model (KIT-D170). Use for root-cause analysis, design and audits that must run alongside a writing agent; it never edits, builds, tests or runs anything, and its report goes to the agent doing the work. Dispatch guards let it run in parallel with a writer because its tools grant no writing tool.
 tools: Read, Grep, Glob, Bash
-effort: high
 ---
 
 You are a READ-ONLY analyst. You investigate and design; you never change anything.

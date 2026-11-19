@@ -2,7 +2,7 @@
 id: KIT-T1414
 title: Kit: a difficulty-assessment loop for model routing. Owner (2026-11-18): 'Do you think you can build the capacity to better assess the kinds
 type: feature
-status: todo
+status: doing
 priority: medium
 milestone:
 labels: [kit-feature]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-19T00:50:45Z
-updated: 2026-11-19T00:50:45Z
+updated: 2026-11-19T01:45:15Z
 ---
 
 ## Description
@@ -22,7 +22,10 @@ first seen in road-generator. Filed automatically (KIT-T286): every kit bug is a
 
 ## Acceptance Criteria
 <!-- each a checkable observation; t tick checks these as they pass -->
-- [ ]
+- [x] every dispatch carries a [difficulty:] assessment whose tier decides the family; the dispatch-difficulty guard refuses a missing, inconsistent or off-family assessment with the rubric and a ready-to-paste tag, only in sessions begun after it took effect (scripts/difficulty.test.mjs)
+- [x] the rubric (systems, root, proof, ref, coupling, context, 0-2 each; 0-1 haiku, 2-5 sonnet, 6-8 opus, 9-12 fable) and the split rule
+- [x] prediction and outcome recorded per dispatch and a calibration report that names re-date candidates for the weekly reassessment
+- [x] no agent definition carries a model, effort or job (agent-pins, plugin-compat)
 
 ## Plan
 1.
@@ -47,6 +50,24 @@ Gate (dispatch-guard, new check `dispatch-difficulty`) and `dispatch-ladder reso
 Outcomes: the roster row (.ai/agents.jsonl) records the predicted tier and scores at dispatch; the outcome row appended to .ai/dispatch-outcomes.jsonl at SubagentStop gains predicted tier, scores, finishing model, tokens, and handoff (a Handoff block written); escalations and retries are counted per ticket from later dispatches citing the same ticket on a higher family or with the same brief. `node scripts/difficulty-calibration.mjs [--since <date>]` prints per predicted tier: dispatches, landings, escalation and retry rates, handoffs, tokens per landing, and the dispatches whose finishing family differs from the prediction.
 
 Agent definitions: drop `job:` defaults and the `effort:` field from every agents/*.md (agent-pins' effort requirement turns into a rule that no agent carries model, effort or job); the brief carries job and difficulty.
+Built per the accepted design (2026-11-18):
+
+1. Gate and resolver: hooks/lib/difficulty.mjs (the rubric, tiers, ladder, split rule, example tag) and hooks/dispatch-difficulty.mjs (check `dispatch-difficulty` in dispatch-guard). A brief with no `[difficulty: …]` tag, a tag whose scores do not sum to its tier, a brief that must be split, or a model off the tier's family (without `[model-override: <reason>]`) is refused, and the refusal prints the rubric, the family the agent definition's default job would have given (a fallback suggestion only) and a ready-to-paste tag. Enforced only in a session whose transcript starts after ENFORCED_SINCE (2026-11-19T01:30Z) and is readable; an older session or a payload with no transcript gets the same text as a warning. dispatch-job and dispatch-escalation accept a model that a well-formed assessment gives. `dispatch-ladder resolve --job <job> --difficulty "<tag body>"` returns the assessed family (and the job row's effort only when the families agree, else the family's default effort). `q gates agent` lists the check and the tag form; the dispatch checklists in user-config/CLAUDE.global.md and commands/work.md, drain.md name the tag.
+2. Rubric: systems, root, proof, ref, coupling, context, each 0-2; sum 0-1 haiku, 2-5 sonnet, 6-8 opus, 9-12 fable; split when systems and context both score 2, or a `Concerns:` list holds two or more items.
+3. Outcomes: the roster row records `difficulty { tier, sum, family }`; the outcome row in .ai/dispatch-outcomes.jsonl carries `predicted` and `tickets` beside the finishing `model` and tokens. scripts/difficulty-calibration.mjs reports per predicted tier: dispatched, landed, share finished by another family, retried and escalated (later dispatches on the same ticket), handoffs (Handoff blocks naming the agent), tokens per landing; and for the weekly reassessment the re-date candidates (3 or more landings on the row's own family) and the rows mostly assessed onto another family. model-refresh prints that report after each refresh, so the two feed each other.
+4. Agent definitions: every agents/*.md lost its `job:` and `effort:` lines and any model wording (analyst, analyst-max, implementer, patch-worker); agent-pins and plugin-compat now fail a model, effort or job line. Plugin 0.1.61.
+
+Tests: scripts/difficulty.test.mjs 6 pass (rubric and tiers, split, resolve, the guard enforced vs warned with the example tag and model checks, an opus dispatch on a sonnet job row through the real gate, outcome row and calibration with re-date and review rows); agent-pins all ok; plugin-compat 163; gate-protocol 56; dispatch-label (the kit-agent default-job case now names the job in the brief), dispatch-job, dispatch-escalation, dispatch-guard, dispatch-guard-stale, dispatch-worker, dispatch-brief, dispatch-tests, dispatch-ui, dispatch-shared-tree pass; model-tag 65; agent-roster 48; handback 51; contract-rules 48; plugin-drift 14; search-adoption 9.
 
 ## History
 - [2026-11-19 00:50] (created) feature — Kit: a difficulty-assessment loop for model routing. Owner (2026-11-18): 'Do you think you can build the capacity to better assess the kinds
+- [2026-11-19 00:59] (landed) b1a6eb7a decisions KIT-D170 (a dispatch's model follows the assessed difficulty of its job, not the agent definition) and KIT-D17
+- [2026-11-19 01:45] (status) todo → doing
+- [2026-11-19 01:45] (comment) criterion added: every dispatch carries a [difficulty:] assessment whose tier decides the family; the dispatch-difficulty guard refuses a missing, inconsistent or off-family assessment with the rubric and a ready-to-paste tag, only in sessions begun after it took effect (scripts/difficulty.test.mjs)
+- [2026-11-19 01:45] (comment) criterion added: the rubric (systems, root, proof, ref, coupling, context, 0-2 each; 0-1 haiku, 2-5 sonnet, 6-8 opus, 9-12 fable) and the split rule
+- [2026-11-19 01:45] (comment) criterion added: prediction and outcome recorded per dispatch and a calibration report that names re-date candidates for the weekly reassessment
+- [2026-11-19 01:45] (comment) criterion added: no agent definition carries a model, effort or job (agent-pins, plugin-compat)
+- [2026-11-19 01:45] (comment) ticked: every dispatch carries a [difficulty:] assessment whose tier decides the family; the dispatch-difficulty guard refuses a missing, inconsistent or off-family assessment with the rubric and a ready-to-paste tag, only in sessions begun after it took effect (scripts/difficulty.test.mjs)
+- [2026-11-19 01:45] (comment) ticked: the rubric (systems, root, proof, ref, coupling, context, 0-2 each; 0-1 haiku, 2-5 sonnet, 6-8 opus, 9-12 fable) and the split rule
+- [2026-11-19 01:45] (comment) ticked: prediction and outcome recorded per dispatch and a calibration report that names re-date candidates for the weekly reassessment
+- [2026-11-19 01:45] (comment) ticked: no agent definition carries a model, effort or job (agent-pins, plugin-compat)

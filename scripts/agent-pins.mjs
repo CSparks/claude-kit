@@ -1,9 +1,9 @@
 // agent-pins.mjs — integrity of the kit's agent library (KIT-D080): no `agents/*.md` carries a
-// `model:` line (the orchestrator picks the family on every dispatch), every agent has an `effort:`,
+// `model:`, `effort:` or `job:` line (the brief's difficulty assessment decides them, KIT-D170), every agent
 // is registered in the plugin manifest, and matches the copy installed under ~/.claude/plugins. No
 // model id appears in agents/, commands/ or skills/: ids live only in the kit config's aliases block.
 //
-//   checkPins(repoRoot)             -> string[] problems (a `model:` line, missing effort)
+//   checkPins(repoRoot)             -> string[] problems (a `model:`, `effort:` or `job:` line)
 //   checkModelIds(repoRoot)         -> string[] problems (a model id outside the config aliases block)
 //   checkRegistration(repoRoot)     -> string[] problems (agent file absent from plugin.json)
 //   checkInstalledDrift(src, inst)  -> string[] problems (missing/mismatched installed copy)
@@ -24,15 +24,17 @@ export function readAgents(agentsDir) {
     .sort()
     .map((f) => {
       const fm = frontmatterBlock(readFileSync(join(agentsDir, f), 'utf8'));
-      return { file: f, name: field(fm, 'name'), model: field(fm, 'model'), effort: field(fm, 'effort') };
+      return { file: f, name: field(fm, 'name'), model: field(fm, 'model'), effort: field(fm, 'effort'), job: field(fm, 'job') };
     });
 }
 
+// The model, effort and job of a dispatch follow the brief's assessed difficulty (KIT-D170): an agent definition names none.
 export function checkPins(repoRoot) {
   const problems = [];
   for (const a of readAgents(join(repoRoot, 'agents'))) {
     if (a.model) problems.push(`agents/${a.file}: \`model: ${a.model}\` — kit agents carry no model; the orchestrator picks the family per dispatch (KIT-D080)`);
-    if (!a.effort) problems.push(`agents/${a.file}: no \`effort:\` pin`);
+    if (a.effort) problems.push(`agents/${a.file}: \`effort: ${a.effort}\` — effort follows the brief's difficulty assessment, not the agent definition (KIT-D170)`);
+    if (a.job) problems.push(`agents/${a.file}: \`job: ${a.job}\` — the brief names the job; an agent definition carries no default (KIT-D170)`);
   }
   return problems;
 }

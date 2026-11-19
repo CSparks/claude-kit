@@ -18,6 +18,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMain } from './is-main.mjs';
 import { kitDataText } from './kit-data.mjs';
+import { DEFAULT_EFFORT, parseDifficulty } from '../hooks/lib/difficulty.mjs';
 
 export const KIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const FRESHNESS_DAYS = 14;
@@ -69,12 +70,20 @@ export function readLadder(kitRoot = ladderRoot()) {
   return { jobs, defaultJob, aliases, refreshDays: refresh ? Number(refresh[1]) : FRESHNESS_DAYS };
 }
 
-export function resolveJob({ type, job } = {}, kitRoot = ladderRoot()) {
+// With a `difficulty` assessment (the tag or its body, KIT-T1414) the family follows the assessed tier (KIT-D170); the job row
+// keeps naming the work, and its effort carries over only when its family is the assessed one.
+export function resolveJob({ type, job, difficulty } = {}, kitRoot = ladderRoot()) {
   const ladder = readLadder(kitRoot);
   const name = job || ladder.defaultJob[type] || ladder.defaultJob['*'];
   const entry = ladder.jobs[name];
   if (!entry) throw new Error(`dispatch job \`${name}\` is not in the kit capability table`);
-  return { job: name, family: entry.family, effort: entry.effort, fallback: entry.fallback || null, explicitOnly: entry.explicit_only === true };
+  const base = { job: name, family: entry.family, effort: entry.effort, fallback: entry.fallback || null, explicitOnly: entry.explicit_only === true };
+  if (!difficulty) return base;
+  const text = /\[difficulty:/i.test(difficulty) ? difficulty : `[difficulty: ${difficulty}]`;
+  const assessed = parseDifficulty(text);
+  if (assessed.problems.length) throw new Error(`difficulty assessment does not hold together: ${assessed.problems.join('; ')}`);
+  const effort = assessed.family === entry.family ? entry.effort : DEFAULT_EFFORT[assessed.family];
+  return { ...base, family: assessed.family, effort, fallback: null, assessed: { tier: assessed.tier, sum: assessed.sum } };
 }
 
 // Row evidence dates: the newest, and the OLDEST (the table is only as current as its stalest row).
@@ -118,7 +127,7 @@ if (isMain(import.meta.url)) {
   const arg = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : undefined; };
   if (process.argv[2] === 'resolve') {
     try {
-      console.log(JSON.stringify(resolveJob({ type: arg('--type'), job: arg('--job') || arg('--tier') })));
+      console.log(JSON.stringify(resolveJob({ type: arg('--type'), job: arg('--job') || arg('--tier'), difficulty: arg('--difficulty') })));
     } catch (e) {
       console.error(e.message);
       process.exit(1);

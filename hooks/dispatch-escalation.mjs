@@ -21,6 +21,7 @@ import { familyOf } from '../scripts/dispatch-outcomes.mjs';
 import { dispatchJob } from './dispatch-job.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
+import { assessedFamily } from './lib/difficulty.mjs';
 
 export const ESCALATION_CHECK = 'dispatch-escalation';
 const ESCALATE_TOKEN = TOKENS.escalate.pattern;
@@ -94,7 +95,8 @@ export function expectedJob(ladder, types, readOnly) {
 export function escalationBlock({ root, input, prompt, readOnly, footer }) {
   const job = dispatchJob(root, input);
   const ladder = readLadder();
-  if (!ladder.jobs[job] || ladder.jobs[job].self_escalating === true || escalateReason(prompt)) return null;
+  // A well-formed difficulty assessment is the justification for its family (KIT-D170); dispatch-difficulty judges the model.
+  if (!ladder.jobs[job] || ladder.jobs[job].self_escalating === true || escalateReason(prompt) || assessedFamily(prompt)) return null;
   const text = `${prompt}\n${input.description || ''}`;
   const target = dispatchTargetRoot(root, input);
   const types = ticketTypes(target === root ? [root] : [target, root], text);

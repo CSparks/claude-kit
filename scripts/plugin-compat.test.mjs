@@ -70,7 +70,7 @@ for (const file of tracked) {
   const head = (readFileSync(join(ROOT, file), 'utf8').match(/^---\r?\n([\s\S]*?)\r?\n---/) || [, ''])[1];
   const field = (k) => (head.match(new RegExp(`^${k}:\\s*(.+)$`, 'm')) || [, ''])[1].trim();
   const stem = file.slice('agents/'.length, -3);
-  ok(`agent ${stem} frontmatter: name matches the file; description, tools and effort present, no model line (KIT-D080)`, field('name') === stem && Boolean(field('description')) && Boolean(field('tools')) && Boolean(field('effort')) && !field('model'));
+  ok(`agent ${stem} frontmatter: name matches the file; description and tools present; no model, effort or job line (KIT-D080, KIT-D170)`, field('name') === stem && Boolean(field('description')) && Boolean(field('tools')) && !field('effort') && !field('model') && !field('job'));
 }
 for (const entry of registered) ok(`registered agent ${entry} exists`, existsSync(join(ROOT, entry)));
 ok('no agent is registered twice', new Set(registered).size === registered.length);

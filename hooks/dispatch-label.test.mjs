@@ -50,7 +50,7 @@ try {
   ok('kit agent on a family: claude-kit:patch-worker + sonnet', label(dispatch({ description: 'Land it', subagent_type: 'claude-kit:patch-worker', model: 'sonnet' }), d) === '[Sonnet 5.5] Land it');
   ok('kit agent on a family: claude-kit:refactorer + opus', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer', model: 'opus' }), d) === '[Opus 5.5] Build it');
   ok('a call with no model, no job and no transcript passes: nothing to guess', label(dispatch({ description: 'Build it', subagent_type: 'unjobbed-agent' }), d) === null);
-  ok('a kit agent default job with no model is told the table family and the matching label', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer' }), d) === '[Sonnet 5.5] Build it');
+  ok('a job named in the brief with no model is told the table family and the matching label (kit agents carry no default job, KIT-D170)', label(dispatch({ description: 'Build it', subagent_type: 'claude-kit:refactorer', prompt: 'split the module [job: refactor]' }), d) === '[Sonnet 5.5] Build it');
   ok('local-qwen is a known family: a hand-written tag is replaced', label(dispatch({ description: '[local-qwen] Build it', model: 'haiku' }), d) === '[Haiku 5.5] Build it');
 
   projectAgent(d, 'proj-pinned', 'model: claude-opus-5-5');

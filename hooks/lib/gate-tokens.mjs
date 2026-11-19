@@ -7,7 +7,8 @@
 const token = (name, form, meaning, pattern) => ({ name, form, meaning, pattern });
 
 export const TOKENS = {
-  job: token('job', '[job: fix]', 'the capability-table job this delegation serves (prompt or description; an agent definition may carry a default)', /\[job:\s*([\w-]+)\s*\]/i),
+  job: token('job', '[job: fix]', 'the capability-table job this delegation serves (prompt or description; kit agents carry no default)', /\[job:\s*([\w-]+)\s*\]/i),
+  difficulty: token('difficulty', '[difficulty: medium; systems=2 root=area proof=numeric ref=yes coupling=own context=m]', 'the assessed difficulty of this job (KIT-T1414): each field 0-2, the sum names the tier and the tier the family (KIT-D169, KIT-D170)', /\[difficulty:\s*[^\]]+\]/i),
   modelOverride: token('model-override', '[model-override: <reason>]', 'run a model outside the job row on purpose; the reason is logged on the roster row', /\[model-override:\s*([^\]\s][^\]]*)\]/i),
   allowFable: token('allow-fable', '[allow-fable: <reason>]', 'keep a deliberate model-less fable inherit', /\[allow-fable\b/i),
   escalate: token('escalate', '[escalate: <reason>]', 'a job dearer than the ticket type default (a failed first pass, spatial work, a regression)', /\[escalate:\s*([^\]\s][^\]]*)\]/i),

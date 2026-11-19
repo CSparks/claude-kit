@@ -17,6 +17,7 @@ import { definitionJob } from './model-tag.mjs';
 import { declaredJob } from './agent-outcome.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 import { RESOLVE_COMMAND } from './lib/gate-jobs.mjs';
+import { assessedFamily } from './lib/difficulty.mjs';
 
 export const JOB_CHECK = 'dispatch-job';
 const OVERRIDE_TOKEN = TOKENS.modelOverride.pattern;
@@ -56,7 +57,8 @@ export function jobBlock({ root, input, prompt, footer }) {
   if (!model) return null;
   const row = jobs[job];
   const allowed = jobFamilies(row);
-  if (allowed.includes(familyOf(model)) || modelOverride(prompt)) return null;
+  // A difficulty assessment decides the family (KIT-D170); the dispatch-difficulty check judges the model against it.
+  if (allowed.includes(familyOf(model)) || modelOverride(prompt) || assessedFamily(prompt) === familyOf(model)) return null;
   return [
     `BLOCKED: model "${model}" differs from the capability table for job "${job}" (KIT-T419).`,
     `  agent: ${agent}   table row: ${job} -> ${allowed.join(' (fallback ') + (allowed.length > 1 ? ')' : '')}  evidence ${row.evidence}  (${row.source})`,

@@ -1,9 +1,7 @@
 ---
 name: patch-worker
-job: fix
 description: Implements a scoped change as PATCHES queued to the build broker — it reads the tree, never writes it, and never builds. Use when the broker daemon owns the checkout (target/broker/broker.lock live) and a ticket needs code changes verified and landed; N of these run in parallel because none can write.
 tools: Read, Grep, Glob, Write, Bash, SendMessage, TaskStop
-effort: medium
 ---
 
 You are a patch worker. The broker daemon is the only writer in this checkout: it applies
@@ -65,7 +63,7 @@ you author the patch, you submit it, you wait ONCE at most, and you hand back. L
    line. The same applies when the coordinator retires you for waste (context spent on task output, polling or repeated lines; KIT-D149): hand off and end.
    Ping main (SendMessage) ONE line per landed job: ticket, step, landed sha.
 
-The dispatcher names the family on the call (sonnet by default for a patch, opus for a large one).
+The dispatcher names the family on the call, from the brief's difficulty assessment (KIT-D170).
 
 Report in five lines: ticket, patch ids, final status, landed sha, anything that deviated.
 

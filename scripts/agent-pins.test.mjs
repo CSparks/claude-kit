@@ -35,9 +35,9 @@ const fixtureRepo = (name, agentsFm, manifestAgents) => {
 console.log('agent-pins');
 
 // --- the real repo (KIT-D080) ---
-ok('no kit agent carries a model line and every one carries an effort', () => {
+ok('no kit agent carries a model, effort or job line (KIT-D170)', () => {
   assert.deepEqual(checkPins(REPO), []);
-  for (const a of readAgents(join(REPO, 'agents'))) assert.equal(a.model, '', `agents/${a.file} has model: ${a.model}`);
+  for (const a of readAgents(join(REPO, 'agents'))) assert.equal(a.model || a.effort || a.job, '', `agents/${a.file} carries a model, effort or job`);
 });
 ok('no model id appears in agents/, commands/ or skills/', () => {
   assert.deepEqual(checkModelIds(REPO), []);
@@ -56,13 +56,16 @@ ok('a model line in an agent is reported', () => {
   const root = fixtureRepo('pinned', { 'a.md': 'name: a\nmodel: opus\neffort: low' }, ['./agents/a.md']);
   assert.match(checkPins(root)[0], /carry no model/);
 });
-ok('an agent with no model line and an effort is clean', () => {
-  const root = fixtureRepo('clean', { 'a.md': 'name: a\neffort: low' }, ['./agents/a.md']);
+ok('an agent with no model, effort or job line is clean', () => {
+  const root = fixtureRepo('clean', { 'a.md': 'name: a' }, ['./agents/a.md']);
   assert.deepEqual(checkPins(root), []);
 });
-ok('a missing effort is reported', () => {
-  const root = fixtureRepo('no-effort', { 'a.md': 'name: a' }, ['./agents/a.md']);
-  assert.deepEqual(checkPins(root), ['agents/a.md: no `effort:` pin']);
+ok('an effort or a job line in an agent is reported (KIT-D170)', () => {
+  const root = fixtureRepo('effort-job', { 'a.md': 'name: a\neffort: low\njob: fix' }, ['./agents/a.md']);
+  const problems = checkPins(root);
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /effort: low.*difficulty assessment/);
+  assert.match(problems[1], /job: fix.*the brief names the job/);
 });
 ok('a model id in a command or skill file is reported with its line', () => {
   const root = fixtureRepo('ids', { 'a.md': 'name: a\neffort: low' }, ['./agents/a.md']);

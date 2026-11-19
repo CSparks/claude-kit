@@ -23,6 +23,7 @@ import { jobCapabilityTable } from './job-capability.mjs';
 import { capabilityCoverage } from './capability-research.mjs';
 import { readOutcomes } from '../hooks/lib/dispatch-ledger.mjs';
 import { isMain } from './is-main.mjs';
+import { calibrationFor, calibrationLines } from './difficulty-calibration.mjs';
 
 const DOCS_MODELS = 'https://docs.claude.com/en/docs/about-claude/models/overview';
 const DOCS_PRICING = 'https://docs.claude.com/en/docs/about-claude/pricing';
@@ -116,5 +117,7 @@ if (isMain(import.meta.url)) {
   refresh({ outcomeRoots: roots }).then((r) => {
     console.log(`refreshed ${r.date}: ${r.research}${r.decision ? `\nproposed: ${r.decision}` : ''}`);
     if (r.status.stale) console.log(`gate still blocking: ${r.status.reasons.join('; ')}`);
+    // The difficulty calibration names the rows the week's assessed dispatches support re-dating (KIT-T1414).
+    for (const root of roots.length ? roots : [process.cwd()]) console.log(calibrationLines(calibrationFor(root)).map((l) => `${root}: ${l}`).join('\n'));
   }).catch((e) => { console.error(`model-refresh failed: ${e.message}`); process.exit(1); });
 }

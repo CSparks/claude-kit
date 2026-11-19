@@ -41,6 +41,7 @@ import { queueDispatch } from './lib/queued-dispatch.mjs';
 import { sharedTreeBlock } from './dispatch-shared-tree.mjs';
 import { stoppedByHarness } from './lib/subagent-transcript.mjs';
 import { SUPERSEDED_CHECK, supersededCitationWarning } from './dispatch-superseded.mjs';
+import { DIFFICULTY_CHECK, difficultyCheck } from './dispatch-difficulty.mjs';
 import { TREE_PROJECT_CHECK, treeProjectBlock } from './dispatch-tree-project.mjs';
 import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { BACKGROUND_RUN_CHECK, backgroundRunBlock } from './dispatch-background-run.mjs';
@@ -80,6 +81,7 @@ try {
     ladderBlock(root, input, prompt, p),
     unlabelledBlock(root, input, p),
     jobCheck(root, input, prompt, p),
+    difficultyGate(root, input, prompt, p),
     escalationCheck(root, input, prompt, p),
     staleTableBlock(root, input, prompt, p),
     coldWorktreeBlock(root, input, prompt),
@@ -197,6 +199,14 @@ function labelCheck(root, input, p) {
 function jobCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, JOB_CHECK, root)) return null;
   return jobBlock({ root, input, prompt, footer: excludeFooter(JOB_CHECK) });
+}
+
+// --- dispatch-difficulty (KIT-T1414, KIT-D170) -------------------------------------
+function difficultyGate(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, DIFFICULTY_CHECK, root)) return null;
+  const { block, warn } = difficultyCheck({ root, input, prompt, transcriptPath: p.transcript_path || '', footer: excludeFooter(DIFFICULTY_CHECK) });
+  if (warn) console.error(warn);
+  return block || null;
 }
 
 // --- patch-worker-discipline (KIT-T687) ----------------------------------------------

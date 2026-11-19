@@ -27,11 +27,12 @@ import * as backgroundRun from './dispatch-background-run.mjs';
 import * as pathRestore from './dispatch-path-restore.mjs';
 import * as testsNotImplicit from './dispatch-tests.mjs';
 import * as worker from './dispatch-worker.mjs';
+import * as difficulty from './dispatch-difficulty.mjs';
 import { REAL_QUESTIONS, SHORT_QUESTIONS } from './question-brief-real-fixtures.mjs';
 
 const { ok, done } = reporter('gate-protocol');
 const dir = tmpDir('gate-protocol-');
-const WARN_ONLY = new Set(['WASTE_CHECK', 'AGENT_LOADED_CHECK']);
+const WARN_ONLY = new Set(['WASTE_CHECK', 'AGENT_LOADED_CHECK', 'SUPERSEDED_CHECK']);
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const q = (...args) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), ...args], { cwd: ROOT, encoding: 'utf8', env: ENV });
 
@@ -42,7 +43,7 @@ try {
 
   const ids = new Set(GATES.agent.checks.map((c) => c.check));
   const exported = {};
-  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, framework, holder, job, lessons, rulings, treeProject, ui, backgroundRun, pathRestore, testsNotImplicit, worker, protocol]) {
+  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, framework, holder, job, lessons, rulings, treeProject, ui, backgroundRun, pathRestore, testsNotImplicit, worker, difficulty, protocol]) {
     for (const [name, value] of Object.entries(mod)) if (name.endsWith('_CHECK') && typeof value === 'string') exported[name] = value;
   }
   const guardNames = [...new Set([...read('hooks/dispatch-guard.mjs').matchAll(/pathExcluded\(root, ([A-Z_]+_CHECK), root\)/g)].map((m) => m[1]))];
@@ -88,11 +89,11 @@ try {
   const sonnetKit = jobLines(fixtureKit('sonnet'));
   ok('q gates agent lists a job with its family, fallback and one-line use from the capability table',
     /^ {2}probe\s+sonnet \(fallback haiku\)\s+fixture job$/.test(rowOf(sonnetKit, 'probe')));
-  ok('q gates agent lists an agent type with its default job and that job\'s family',
-    sonnetKit.some((l) => /^ {2}claude-kit:visual-reviewer\s+research -> sonnet$/.test(l)) && sonnetKit.some((l) => /^ {2}zz-fixture-agent\s+probe -> sonnet \(fallback haiku\)$/.test(l)));
+  ok('q gates agent lists a project agent type with its default job and that job\'s family; kit agents carry none (KIT-D170)',
+    sonnetKit.some((l) => /^ {2}zz-fixture-agent\s+probe -> sonnet \(fallback haiku\)$/.test(l)) && !sonnetKit.some((l) => /^ {2}claude-kit:visual-reviewer\s+\S+ -> /.test(l)));
   const opusKit = jobLines(fixtureKit('opus'));
   ok('a capability table change changes the printout: family of the job and of the types defaulting to it',
-    /probe\s+opus \(fallback haiku\)/.test(rowOf(opusKit, 'probe')) && opusKit.some((l) => /claude-kit:visual-reviewer\s+research -> opus$/.test(l)) && opusKit.some((l) => /zz-fixture-agent\s+probe -> opus/.test(l)));
+    /probe\s+opus \(fallback haiku\)/.test(rowOf(opusKit, 'probe')) && opusKit.some((l) => /zz-fixture-agent\s+probe -> opus/.test(l)));
   ok('the jobs section names the resolver in the form a project session runs', sonnetKit.some((l) => l.includes('resolve --job <job>') && l.includes('claude-kit-runtime/current/scripts/dispatch-ladder.mjs')));
   ok('no second copy of the table: gate-jobs.mjs and gate-protocol.mjs name no job id or family row', !/\b(targeted-change|greenfield|forensic|ui-creative)\b/.test(read('hooks/lib/gate-jobs.mjs') + read('hooks/lib/gate-protocol.mjs')));
   ok('q gates plan and q gates question carry no jobs section', !gateText('plan').includes('JOBS (') && !gateText('question').includes('JOBS ('));

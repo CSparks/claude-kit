@@ -1,7 +1,9 @@
 // The dispatch outcome ledger (KIT-T419): one row per finished subagent in .ai/dispatch-outcomes.jsonl,
 // the evidence scripts/dispatch-report.mjs weighs the capability table against.
 //
-//   outcomeRow({ id, rosterRow, stop, outcome, now }) -> { ts, id, job, model, tokens, tool_uses, duration_ms, outcome }
+//   outcomeRow({ id, rosterRow, stop, outcome, now }) -> { ts, id, job, model, tokens, tool_uses, duration_ms, outcome,
+//                                                          predicted?, tickets? }  `predicted` is the dispatch's difficulty
+//                                                          assessment { tier, sum, family } (KIT-T1414), `model` the family that finished
 //   appendOutcome(root, row) / readOutcomes(root)     -> append-only JSONL; a missing or corrupt file reads as []
 //
 // `model` is the family that ran (resolved model over the dispatch alias); `outcome` is `failed` when the
@@ -31,6 +33,8 @@ export function outcomeRow({ id, rosterRow = {}, stop = {}, outcome = {}, now = 
     outcome: stopOutcome(stop),
   };
   if (rosterRow.modelOverride) row.model_override = rosterRow.modelOverride;
+  if (rosterRow.difficulty) row.predicted = rosterRow.difficulty;
+  if (Array.isArray(rosterRow.tickets) && rosterRow.tickets.length) row.tickets = rosterRow.tickets;
   return row;
 }
 
