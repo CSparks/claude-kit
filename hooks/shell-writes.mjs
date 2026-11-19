@@ -10,7 +10,8 @@
 // the maintainer's editor) is never stamped and stays foreign. Parallel edits by another session
 // DURING this call count as ours unless an Edit or Write tool left that exact content (the accepted-writes
 // ledger, KIT-T888): a tool's write is credited by pre-write to the session that made it, never to a shell
-// call it overlapped (KIT-T953).
+// call it overlapped (KIT-T953). A removal or move another session's shell call makes inside this call's window is
+// likewise credited to both: git leaves no author and a rename's ctime or index entry changes for either call alike.
 // No-ops on unadopted repos. Fails open on any error; never blocks.
 
 import { statSync } from 'node:fs';

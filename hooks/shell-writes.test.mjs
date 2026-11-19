@@ -117,7 +117,7 @@ try {
   // KIT-T1433: a tracked file this session moved with `git mv` is its own move (both sides); another session's, or one
   // moved outside any session call, is not.
   const dm = identify(adopted());
-  for (const f of ['mv-mine.js', 'mv-theirs.js', 'mv-nobody.js']) writeFileSync(join(dm, f), `export const f = '${f}';\n`);
+  for (const f of ['mv-mine.js', 'mv-theirs.js', 'mv-early.js', 'mv-nobody.js']) writeFileSync(join(dm, f), `export const f = '${f}';\n`);
   git(['add', '.'], dm);
   git(['commit', '-q', '-m', 'seed'], dm);
   spawnHook('pre-write.mjs', { session_id: 'A', tool_input: { file_path: join(dm, 'own.js'), content: 'export const o = 1;\n' } }, dm);
@@ -131,6 +131,11 @@ try {
   shell(dm, 'B', 'm2', () => git(['mv', 'mv-theirs.js', 'moved-theirs.js'], dm));
   r = gate(dm, 'A');
   ok("KIT-T1433 control: a file another session's call moved still blocks and is named", r.code === 2 && r.out.includes('moved-theirs.js') && !r.out.includes('moved-mine.js'), r.out.trim());
+
+  shell(dm, 'B', 'm3', () => git(['mv', 'mv-early.js', 'moved-early.js'], dm));
+  shell(dm, 'A', 'm4', () => nodeWrite(dm, 'unrelated.js'));
+  r = gate(dm, 'A');
+  ok("KIT-T1433 control: a rename staged before this call began is not credited to the call, and still blocks", r.code === 2 && r.out.includes('moved-early.js'), r.out.trim());
 
   git(['mv', 'mv-nobody.js', 'moved-nobody.js'], dm);
   r = gate(dm, 'A');
