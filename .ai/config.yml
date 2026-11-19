@@ -222,6 +222,13 @@ dispatch:
       evidence: 2026-11-18
       source: "KIT-D061, KIT-D076; KIT-D091; Chris 2026-10-12: 'This is correct, and on top of that fable handles the more complicated planning. For example, coming up with a plan for how to properly roll the fucking edges and make my entrances look more integrated into the surrounding terrain.'"
       use: "frontier problems the orchestrator asks for by name"
+    run-monitor:
+      family: haiku
+      effort: low
+      cost: "cheapest; haiku 5.5 at $0.1 / $0.5 per MTok (research/models-capability-2026-11-18.md)"
+      evidence: 2026-11-18
+      source: "KIT-D171 (Chris 2026-11-18: Agents running and monitoring if ever that's needed from an actual agent should be Haiku.); KIT-D169"
+      use: "submit a broker or builds --run run with its limit, wait on its finished.log line, read the result with the sanctioned filters (builds --result, q code --dir, Read), report pass or fail with the failing lines; an expensive agent never waits on or polls a run itself: it queues the run and ends, and this job or the coordinator's Monitor resumes it with the filtered numbers"
   # Default job by ticket `type` when the ticket names no tier/model. Keys are classification
   # types (config.classifications); `*` is the catch-all.
   default_job:

@@ -23,6 +23,7 @@ Cost per landing = per-token price x tokens a job burns x retry rate. List price
 | Rank | Job | Table family | Verdict | Basis |
 |---|---|---|---|---|
 | 1 | chore | haiku | Confirmed. Lineup and price unchanged. | A (models overview 2026-11-18, Haiku page), B (OpenRouter) |
+| 1 | run-monitor | haiku | New row 2026-11-18 (KIT-D171): submitting a run, waiting on its finished.log line and reading the filtered result is automation. | M (Chris 2026-11-18: "Agents running and monitoring if ever that's needed from an actual agent should be Haiku.") |
 | 2 | targeted-change | haiku (alt local-qwen, fallback sonnet) | Confirmed. No new Haiku or Sonnet evidence; the sonnet fallback stands. | A (Haiku page), B (OpenRouter, MindStudio), M (Chris 2026-10-10) |
 | 3 | wiring | sonnet | Confirmed. Sonnet unchanged. | A (models overview 2026-11-18, Sonnet page), M (2026-10-12) |
 | 4 | fix | sonnet | Confirmed. 455 sonnet fix dispatches at about 250k tokens each against 77 opus at about 508k: sonnet stays the cheapest landing. | A (Sonnet page), B (CodeRabbit, OpenRouter), ledger 2026-11-18 |
