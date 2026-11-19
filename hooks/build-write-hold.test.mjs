@@ -189,6 +189,16 @@ closeWindow({ file: batchFile, writer: RACER });
 expect('KIT-T1219 control: an edit by a writer with no window opens none', edit('S1', 'agentRacer', 'crates', 'a', 'src', 'solo.rs').status === 0 && heldBy(RACER, OWNER) === 0 ? 1 : 0, 1);
 expect('KIT-T1175 control: a refusal with no free wait before it carries no wait note', /builds --wait returned free/.test(guardAfterNoWindow()) ? 1 : 0, 0);
 
+const failFile = join(crate, 'src', 'fail.rs');
+const failed = (session, agent, ...segments) => spawnSync(process.execPath, [fileURLToPath(new URL('./tool-write-record.mjs', import.meta.url))], { cwd: tree, encoding: 'utf8', env: process.env, input: JSON.stringify({ session_id: session, agent_id: agent, hook_event_name: 'PostToolUseFailure', tool_name: 'Edit', tool_input: { file_path: join(tree, ...segments) }, error: 'String to replace not found in file.' }) });
+hold({ scope: [crate], writer: OWNER, phase: 'running' });
+openWindow({ file: failFile, writer: RACER, seconds: FREE_WINDOW_S, kind: KIND.FREE });
+edit('S1', 'agentRacer', 'crates', 'a', 'src', 'fail.rs');
+const failedInFlight = windowFor({ file: failFile });
+failed('S1', 'agentRacer', 'crates', 'a', 'src', 'fail.rs');
+const afterFailure = windowFor({ file: failFile });
+expect('KIT-T1425: a failed edit ends its in-flight hold at the edit gap instead of holding IN_FLIGHT_S', failedInFlight.until - Date.now() > FREE_WINDOW_S * MS_PER_SECOND && afterFailure.until - Date.now() <= EDIT_GAP_S * MS_PER_SECOND ? 1 : 0, 1);
+
 function guardAfterNoWindow() {
   hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
   return edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs').stderr;

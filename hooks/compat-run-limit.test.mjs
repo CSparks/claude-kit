@@ -5,7 +5,7 @@
 
 import { spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 
 import { HOOKS, cleanup, reporter, tmpDir } from './test-harness.mjs';
 import { DEFAULT_LIMIT_MS, LONG_LIMIT_MS, hookLimitMs } from './lib/hook-limits.mjs';
@@ -16,13 +16,25 @@ const LIMIT_MS = 1500;
 const OUTER_MS = 20000;
 const NEAR_ZERO_CPU_MS = 1000;
 const FAST_EXIT_MS = 8000;
-const LIB_FILES = ['excluded-trees.mjs', 'registry.mjs', 'hook-limits.mjs'];
+const LAUNCHER = ['compat-run.mjs', 'compat-core.mjs'];
+const RELATIVE_IMPORT = /^import\s[^'"]*['"](\.{1,2}\/[^'"]+)['"]/gm;
 
+// Copies the launcher with every module it imports, followed through relative imports, so a new import of the
+// launcher needs no edit here (KIT-T1424).
 function makeHooksDir() {
   const dir = join(tmpDir('kit-limit-'), 'hooks');
-  mkdirSync(join(dir, 'lib'), { recursive: true });
-  for (const f of ['compat-run.mjs', 'compat-core.mjs']) copyFileSync(join(HOOKS, f), join(dir, f));
-  for (const f of LIB_FILES) copyFileSync(join(HOOKS, 'lib', f), join(dir, 'lib', f));
+  const pending = [...LAUNCHER];
+  const copied = new Set();
+  while (pending.length) {
+    const rel = pending.pop();
+    if (copied.has(rel)) continue;
+    copied.add(rel);
+    mkdirSync(dirname(join(dir, rel)), { recursive: true });
+    copyFileSync(join(HOOKS, rel), join(dir, rel));
+    for (const [, spec] of readFileSync(join(HOOKS, rel), 'utf8').matchAll(RELATIVE_IMPORT)) {
+      pending.push(relative(HOOKS, resolve(dirname(join(HOOKS, rel)), spec)).replace(/\\/g, '/'));
+    }
+  }
   return dir;
 }
 

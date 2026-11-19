@@ -194,6 +194,10 @@
     ],
     "PostToolUseFailure": [
       {
+        "matcher": "Write|Edit",
+        "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" tool-write-record.mjs" }]
+      },
+      {
         "matcher": "Bash|PowerShell",
         "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" broker-wait-release.mjs" }]
       }

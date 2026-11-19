@@ -9,7 +9,8 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acquireBuildSlot } from './build-slot.mjs';
-import { BATCH_MAX_S, EDIT_GAP_S, FREE_WINDOW_S, IN_FLIGHT_S, KIND, REFUSED_WINDOW_S, START_WAIT_S, blockingWindows, closeWindow, holdWindowsInFlight, openWindow, settleWindows, waitOutWindows, windowFor } from './write-window.mjs';
+import { LONG_LIMIT_MS } from '../../hooks/lib/hook-limits.mjs';
+import { BATCH_CEILING_S, BATCH_IDLE_S, EDIT_GAP_S, FREE_WINDOW_S, IN_FLIGHT_S, KIND, REFUSED_WINDOW_S, START_WAIT_S, blockingWindows, closeWindow, holdWindowsInFlight, openWindow, settleWindows, waitOutWindows, windowFor } from './write-window.mjs';
 
 const STATUS = fileURLToPath(new URL('./build-status.mjs', import.meta.url));
 const slots = mkdtempSync(join(tmpdir(), 'wwin-slots-'));
@@ -86,7 +87,7 @@ test('an edit in flight keeps the writer\'s windows open until it lands, never s
   assert.equal(windowFor({ file, now }).until, now + 10 * IN_FLIGHT_S * SECOND, 'a longer window is never shortened by an edit in flight');
 });
 
-test('a batch keeps the writer\'s windows for BATCH_MAX_S from its first edit, across files, and a build start waits that long (KIT-T1408)', () => {
+test('a batch keeps the writer\'s windows across files, and a build start waits long enough for it (KIT-T1408)', () => {
   reset();
   const now = Date.now();
   const secondFile = join(crate, 'src', 'other.rs').replace(/\\/g, '/');
@@ -95,10 +96,58 @@ test('a batch keeps the writer\'s windows for BATCH_MAX_S from its first edit, a
   settleWindows({ file: secondFile, writer: WAITER, now: now + 20 * SECOND });
   holdWindowsInFlight({ writer: WAITER, now: now + 25 * SECOND });
   assert.equal(windowFor({ file: secondFile, now: now + 25 * SECOND }).batchStart, now + 10 * SECOND, 'the second file joins the batch begun by the first edit');
+  assert.equal(windowFor({ file: secondFile, now: now + 25 * SECOND }).idleMs, 5 * SECOND, 'the gap from the landing to the next pass is idle');
   assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: now + 100 * SECOND }).length >= 1, true, 'a build at +100 s, inside the batch, yields');
-  holdWindowsInFlight({ writer: WAITER, now: now + 125 * SECOND });
-  assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: now + (10 + BATCH_MAX_S + 1) * SECOND }).length, 0, 'an edit in flight cannot keep the batch past BATCH_MAX_S');
-  assert.ok(START_WAIT_S >= BATCH_MAX_S + EDIT_GAP_S, 'a build start waits long enough for a started batch to land and settle');
+  assert.ok(START_WAIT_S >= BATCH_CEILING_S + EDIT_GAP_S, 'a build start waits long enough for a started batch to land and settle');
+});
+
+test('slow hooks: a batch whose every edit spends 120 s in the hooks keeps its hold to the last landing (KIT-T1425)', () => {
+  reset();
+  const now = Date.now();
+  const files = ['relief', 'kinds', 'projections', 'portico'].map((n) => join(crate, 'src', `${n}.rs`).replace(/\\/g, '/'));
+  const HOOK_MS = 120 * SECOND;
+  const GAP_MS = 4 * SECOND;
+  openWindow({ file: files[0], writer: WAITER, seconds: FREE_WINDOW_S, kind: KIND.FREE, now });
+  let at = now + 12 * SECOND;
+  for (const f of files) {
+    holdWindowsInFlight({ writer: WAITER, now: at });
+    assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: at + HOOK_MS - SECOND }).length >= 1, true, `a build while ${f} is still in its hooks yields`);
+    at += HOOK_MS;
+    settleWindows({ file: f, writer: WAITER, now: at });
+    at += GAP_MS;
+  }
+  const lastLanding = at - GAP_MS;
+  assert.ok(lastLanding - now > 120 * SECOND * files.length, 'the batch ran far past the old wall-clock cap');
+  assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: lastLanding + (EDIT_GAP_S - 1) * SECOND }).length >= 1, true, 'the hold lasts one edit gap past the last landing');
+  assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: lastLanding + (EDIT_GAP_S + 1) * SECOND }).length, 0, 'control: then it lapses');
+});
+
+test('control: a batch that spends BATCH_IDLE_S idle stops extending, and none outlives BATCH_CEILING_S', () => {
+  reset();
+  const now = Date.now();
+  openWindow({ file, writer: WAITER, seconds: FREE_WINDOW_S, kind: KIND.FREE, now });
+  let at = now;
+  const IDLE_STEP_MS = (EDIT_GAP_S - 1) * SECOND;
+  holdWindowsInFlight({ writer: WAITER, now: at });
+  while ((windowFor({ file, now: at })?.idleMs ?? 0) < BATCH_IDLE_S * SECOND) {
+    at += SECOND;
+    settleWindows({ file, writer: WAITER, now: at });
+    at += IDLE_STEP_MS;
+    holdWindowsInFlight({ writer: WAITER, now: at });
+  }
+  assert.equal(windowFor({ file, now: at }).until, at - IDLE_STEP_MS + EDIT_GAP_S * SECOND, 'the idle budget is spent: the edit in flight keeps only the landing\'s edit gap');
+  reset();
+  openWindow({ file, writer: WAITER, seconds: FREE_WINDOW_S, kind: KIND.FREE, now });
+  const LAND_MS = 10 * SECOND;
+  for (at = now; at < now + 2 * BATCH_CEILING_S * SECOND; at += 2 * LAND_MS) {
+    holdWindowsInFlight({ writer: WAITER, now: at });
+    settleWindows({ file, writer: WAITER, now: at + LAND_MS });
+  }
+  assert.equal(blockingWindows({ scope: [crate], writer: BUILDER, now: now + BATCH_CEILING_S * SECOND }).length, 0, 'no batch holds past the ceiling, however busy');
+});
+
+test('the in-flight hold covers one edit\'s PreToolUse and PostToolUse hook limits', () => {
+  assert.equal(IN_FLIGHT_S * SECOND, 2 * LONG_LIMIT_MS);
 });
 
 test('control: an edit that never lands holds the build start for START_WAIT_S only', () => {
@@ -142,7 +191,7 @@ test('the wait keeps a pending-edit window open while a build compiles the file,
   const after = windowFor({ file });
   assert.equal(after?.kind, KIND.FREE, 'a free wait leaves the free window');
   assert.equal(after.writer, WAITER);
-  assert.match(out, new RegExp(`within ${FREE_WINDOW_S}s`));
+  assert.match(out, new RegExp(`For ${FREE_WINDOW_S}s no other writer's build`));
 });
 
 test.after(() => {

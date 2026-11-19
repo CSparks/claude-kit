@@ -18,14 +18,14 @@ import { parseFlags } from './cli.mjs';
 import { liveHolds } from './build-slot-store.mjs';
 import { compilingHolds, describeHold, holdStarter } from '../../hooks/lib/build-write-hold.mjs';
 import { waitWindow } from './wait-limits.mjs';
-import { BATCH_MAX_S, FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, openWindow } from './write-window.mjs';
+import { BATCH_CEILING_S, BATCH_IDLE_S, FREE_WINDOW_S, KIND, REFUSED_WINDOW_S, openWindow } from './write-window.mjs';
 import { closeBatchRefusals } from './batch-refusal.mjs';
 
 // The writer a `builds --wait` without --writer belongs to: the hook wraps the command with it (hooks/lib/build-wrap.mjs, KIT-T1281).
 const WRITER_ENV = 'CLAUDE_KIT_BUILD_WRITER';
 
 const EXIT = { FREE: 0, HELD: 2 };
-const HOLD_PROMISE = `For ${FREE_WINDOW_S}s no other writer's build of this crate, or of a crate that depends on it, starts; once the batch's first edit passes, the hold lasts until the batch has landed, at most ${BATCH_MAX_S}s from that edit (KIT-T1408).`;
+const HOLD_PROMISE = `For ${FREE_WINDOW_S}s no other writer's build of this crate, or of a crate that depends on it, starts; once the batch's first edit passes, the hold lasts until the batch has landed, while it spends at most ${BATCH_IDLE_S}s idle between edits (time in the hooks does not count) and never past ${BATCH_CEILING_S}s from that edit (KIT-T1408, KIT-T1425).`;
 const DEFAULT_POLL_MS = 1000;
 const MS_PER_SECOND = 1000;
 const seconds = (ms) => Math.max(0, Math.round(ms / MS_PER_SECOND));

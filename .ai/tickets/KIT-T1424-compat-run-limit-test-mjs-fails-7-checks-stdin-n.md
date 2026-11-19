@@ -2,7 +2,7 @@
 id: KIT-T1424
 title: compat-run-limit.test.mjs fails 7 checks (stdin never written / closed at once / spinning hook / hang) with ENOENT on <tmp>/kit-limit-*/hook
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-19T02:26:07Z
-updated: 2026-11-19T02:26:07Z
+updated: 2026-11-19T02:43:14Z
 ---
 
 ## Description
@@ -27,5 +27,9 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 ## Plan
 1.
 
+## Notes
+Cause: the test copied the launcher with a hand-kept list of lib files; compat-core.mjs gained an import of lib/gate-heartbeat.mjs (and through it lib/turn-state.mjs), so the copied launcher crashed at import before reading stdin and every timing check failed. Fix: the test copies the launcher's relative-import closure. hooks/compat-run-limit.test.mjs 14 passed.
+
 ## History
 - [2026-11-19 02:26] (created) bug — compat-run-limit.test.mjs fails 7 checks (stdin never written / closed at once / spinning hook / hang) with ENOENT on <tmp>/kit-limit-*/hook
+- [2026-11-19 02:43] (status) todo → review
