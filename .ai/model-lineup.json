@@ -1,5 +1,5 @@
 {
-  "refreshed": "2026-11-11",
+  "refreshed": "2026-11-18",
   "source": "https://docs.claude.com/en/docs/about-claude/models/overview",
   "models": [
     "claude-fable-5-2",
@@ -24,10 +24,7 @@
     "claude-sonnet-3-5",
     "claude-haiku-3-5",
     "claude-opus-3",
-    "claude-haiku-3",
-    "claude-mythos-5-2",
-    "claude-mythos-5-1",
-    "claude-mythos-5"
+    "claude-haiku-3"
   ],
   "costs": {
     "fable": {
