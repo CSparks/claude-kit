@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 // PostToolUse (Write|Edit) — language-aware linter dispatcher. Never blocks
-// (always exit 0); warns to stderr and records tooling gaps. Node port of the
-// bash version, which silently no-opped — its `python - <<heredoc` consumed the
-// payload off stdin, so the edited file path was always empty. A living config:
-// extend the per-language cases freely.
+// (always exit 0); warns to stderr and records tooling gaps. Rust is linted per
+// file with no cargo build (hooks/lib/rust-lint.mjs). Extend the per-language cases freely.
 //
 // Per-project override: a `.claude-tooling-ok` file at the project root silences
 // the missing-tool warnings (its contents can document why).
@@ -12,8 +10,8 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { payload, VENDORED, LOCKFILES, fileExt, projectRoot, have, run, logGap, nodeCli, pathExcluded, legacyDir } from './lib.mjs';
 import { underLegacy } from './lib/legacy-paths.mjs';
+import { rustLintCommand } from './lib/rust-lint.mjs';
 
-const HEAD_CLIPPY = 60;
 const HEAD_LINT = 40;
 const HEAD_FMT = 10;
 
@@ -73,11 +71,11 @@ switch (ext) {
     break;
   }
   case 'rs': {
-    if (have('cargo')) {
-      emit(run('cargo', ['clippy', '--quiet', '--message-format=short'], root), HEAD_CLIPPY);
-      emit(run('cargo', ['fmt', '--check'], root), HEAD_LINT);
+    if (have('rustfmt')) {
+      const [cmd, args] = rustLintCommand(file);
+      emit(run(cmd, args, root), HEAD_LINT);
     } else {
-      missingTool('cargo/clippy', hasDocker ? 'Dockerized — configure clippy in the image' : 'install Rust via rustup, then: rustup component add clippy');
+      missingTool('rustfmt', hasDocker ? 'Dockerized — configure rustfmt in the image' : 'install Rust via rustup, then: rustup component add rustfmt');
     }
     break;
   }
