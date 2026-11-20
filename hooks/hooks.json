@@ -220,6 +220,9 @@
     "PreCompact": [
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" flush.mjs" }] }
     ],
+    "SubagentStart": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" subagent-gate-guide.mjs" }] }
+    ],
     "SubagentStop": [
       {
         "hooks": [

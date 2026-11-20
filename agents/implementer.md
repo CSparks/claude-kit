@@ -27,6 +27,9 @@ invariants; only read CLAUDE.md / `.ai/` if the task explicitly needs that detai
   scratch folder or overwrite its files; if it must go, `rm -r target/<dir>` with the literal path passes (build output is
   not judged). Each variant's long run is one
   `builds --run "<command>" --out target/<file> --timeout 170 --tool-timeout 180` call.
+- A baseline (does it fail without my change?) is never a stash of the shared tree: take it before your first edit, read the
+  number the last commit or ticket Notes records, read old code with `git show HEAD:<path>`, or stash only files you wrote
+  (`git stash push -m <note> -- <each file you wrote>`, then `git stash pop`); otherwise raise it to the coordinator.
 - Understand the full flow before touching anything; find every caller first
   (`code-graph --query importers-of`, `defines`, `surface`).
 - Write the test that fails first, then the code. Run ONLY the test modules you touched

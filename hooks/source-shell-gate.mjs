@@ -40,7 +40,7 @@ import { directoryDeleteHits } from './lib/directory-delete.mjs';
 import { deleteGuidance } from './lib/delete-guidance.mjs';
 import { copyVariableAdvice } from './lib/copy-variable.mjs';
 import { touchLifted } from './lib/touch-target.mjs';
-import { LAUNCHER_ADVICE, WRITE_ADVICE } from './lib/source-shell-advice.mjs';
+import { LAUNCHER_ADVICE, writeAdvice } from './lib/source-shell-advice.mjs';
 import { DELETE_REFUSALS } from './lib/owns-untracked-file.mjs';
 import { liveWriterNames } from './lib/live-writers.mjs';
 import { isMainThread, writerId } from './lib/tool-writes.mjs';
@@ -91,7 +91,7 @@ try {
     const couldNot = incomplete ? `  The check could not complete (${incomplete}), and a check that cannot complete refuses. Retry once git runs and the registry of live writers reads.\n` : '';
     process.stderr.write(`
 BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : what}
-${couldNot}${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep, mainThread: isMainThread(caller), holders: refusal === DELETE_REFUSALS.liveWriter ? liveWriterNames(root, rel, caller) : [] })}${found.launcherProblem ? LAUNCHER_ADVICE : WRITE_ADVICE}
+${couldNot}${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep, mainThread: isMainThread(caller), holders: refusal === DELETE_REFUSALS.liveWriter ? liveWriterNames(root, rel, caller) : [] })}${found.launcherProblem ? LAUNCHER_ADVICE : writeAdvice(found, file)}
 ${excludeFooter(CHECK)}`);
     process.exit(2);
   }

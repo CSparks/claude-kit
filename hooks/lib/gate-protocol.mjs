@@ -32,6 +32,7 @@ import { BRIEF_RULE } from './question-brief.mjs';
 import { DELETE_RULE, RESTORE_TREE_FORM } from './delete-guidance.mjs';
 import { PATH_RESTORE_CHECK } from '../dispatch-path-restore.mjs';
 import { GIT_ALLOW_RULE } from './git-call-policy.mjs';
+import { BASELINE_ROUTE } from './agent-gate-guide.mjs';
 import { VENDOR_ROUTE } from './vendor-route.mjs';
 import { READINESS_STANDARD } from './question-ready.mjs';
 
@@ -109,6 +110,7 @@ export const GATES = {
         'add the includes or imports of a new file afterwards with Edit, which judges it',
         DELETE_RULE,
         GIT_ALLOW_RULE,
+        BASELINE_ROUTE.map((line) => line.trim()).join(' '),
         VENDOR_ROUTE.join(' '),
       ], tokens: [] },
     ],

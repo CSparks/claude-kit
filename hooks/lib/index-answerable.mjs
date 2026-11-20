@@ -99,5 +99,5 @@ export function indexEquivalent(command, { qPath, root, cwd = process.cwd(), fil
   args.push(...f.ctx);
   if (f.files) args.push('-l');
   if (f.count) args.push('-c');
-  return { q: `node "${qPath}" ${args.join(' ')}`, shape };
+  return { q: `node "${qPath}" ${args.join(' ')}`, shape, pattern };
 }

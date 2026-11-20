@@ -14,6 +14,7 @@ import { quote, indexEquivalent } from './index-answerable.mjs';
 import { registryFileTarget, registryLine } from './registry-target.mjs';
 import { targetsOnlyScratch } from './pipe-tree-search.mjs';
 import { targetsOutsideRepos } from './search-outside.mjs';
+import { grepToolCall } from './agent-gate-guide.mjs';
 
 const GREP = /^(?:grep|egrep|fgrep|rg|ag|ack)$/;
 const SED_QUIET = /^-[A-Za-z]*n[A-Za-z]*$|^--(?:quiet|silent)$/;
@@ -99,6 +100,11 @@ const logLeadLines = (files) => (files.some((f) => LOG_FILE.test(f))
   ? ['This is a log or build output. FIRST: read it with the Read tool (offset, limit), or next time filter the producing command inline', "(cargo build 2>&1 | grep -E 'error|warning' | head -40). To search it, the q form below.", '']
   : []);
 
+const searchedPattern = ({ pattern, command, q, root, cwd }) => pattern || indexEquivalent(command, { qPath: q, root, cwd, file: true })?.pattern || null;
+
+// The gate judges one segment of a chain: the other segments are not refused.
+const CHAINED_LINE = 'In a chained command (&&, ;, |) keep the other segments in Bash as written; only the search segment becomes the call above.';
+
 export function oneFileMsg(call) {
   const { command, files, q } = call;
   return [
@@ -107,10 +113,14 @@ export function oneFileMsg(call) {
     `  ${trunc(command)}`,
     '',
     ...logLeadLines(files),
+    'Instead, call a tool, not Bash:',
+    `  ${grepToolCall(files, searchedPattern(call))}`,
+    `  Read tool: file_path ${JSON.stringify(files.length === 1 ? files[0] : '<file>')}, offset and limit for a line range.`,
+    `  ${CHAINED_LINE}`,
     `Exact equivalent:  ${equivalentLine(call)}`,
     ...(files.length > 1 ? ['  --dir takes one path: run it once per file, or scope with --path <dir> when they share one.'] : []),
     '',
-    'Read a file or a line range with the Read tool (offset, limit): no search, no grep.',
+    'Reading a file or a line range is the Read tool (offset, limit); searching one file is the Grep tool.',
     `Logs, build output, gitignored or sibling-checkout files: node "${q}" code <text> --dir <path> [-c|-l] [-i] [--regex] [-C 2].`,
     "Still allowed: filtering a command's own output (cargo test 2>&1 | grep -E 'test result|FAILED' | tail -20),",
     'files in a session scratchpad or outside every adopted repo, and the Grep tool on ONE file.',
