@@ -63,7 +63,7 @@ for (const [name, pattern] of PATTERNS) {
   expect(`Grep tool control: a repo source directory still blocks with ${name}`, grepTool({ pattern, path: join(repo, 'crates') }), 2);
 }
 expect('Grep tool control: a relative source directory with an apostrophe still blocks', grepTool({ pattern: "it's", path: 'crates/a/src' }), 2);
-expect('Grep tool control: an outside directory with an apostrophe still blocks', grepTool({ pattern: "it's", path: slashed(scratch) }), 2);
+expect('Grep tool (KIT-T1450): a directory outside every project with an apostrophe passes', grepTool({ pattern: "it's", path: slashed(scratch) }), 0);
 expect('Grep tool control: one repo source file with an apostrophe passes as a named file', grepTool({ pattern: "it's", path: 'crates/a/src/lib.rs' }), 0);
 
 const scratchpad = join(mkdtempSync(join(tmpdir(), 'qgt-session-')), 'scratchpad');

@@ -1,5 +1,6 @@
 // Does a copy or move destination provably land outside a repo?
 //   landsOutsideRepo(destination, root, cwd) -> boolean
+//   realPath(path)                           -> the path with the realpath of its nearest existing ancestor (junctions and symlinks resolved)
 // The destination is resolved against `cwd` (the directory the command runs in), an existing directory is NOT
 // outside proof (the file would land under it by the source's name), and the path is compared with the repo root by
 // realpath of the nearest existing ancestor, so a symlink or junction into the repo is inside it.
@@ -10,7 +11,7 @@ import { toPath } from './shell-segments.mjs';
 
 const OUTSIDE = /^\.\.(?:[\\/]|$)/;
 
-function realPath(path) {
+export function realPath(path) {
   let head = resolve(path);
   const tail = [];
   while (!existsSync(head)) {
