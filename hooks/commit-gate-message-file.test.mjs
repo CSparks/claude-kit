@@ -2,7 +2,8 @@
 // Run: node hooks/commit-gate-message-file.test.mjs
 
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
 import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 
 const { ok, done } = reporter('commit-gate-message-file');
@@ -22,6 +23,11 @@ try {
   ok('a -F file with [no-log: ...] passes', gate(`git commit -q -F ${skipped}`) === 0);
   ok('a quoted path with a space is read', gate(`git commit -q -F "${spaced}"`) === 0);
   ok('an MSYS drive path (/c/...) is read as a Windows path', process.platform !== 'win32' || gate(`git commit -q -F ${cited.replace(/^([A-Za-z]):\//, (_, d) => `/${d.toLowerCase()}/`)}`) === 0);
+  const msysTmp = (path) => `/tmp/${relative(tmpdir(), path).replace(/\\/g, '/')}`;
+  ok('KIT-T1444: a /tmp path (Git Bash temp) is read as the Windows temp dir', process.platform !== 'win32' || gate(`git commit -q -F ${msysTmp(cited)}`) === 0);
+  ok('KIT-T1444: a quoted /tmp path with a space is read', process.platform !== 'win32' || gate(`git commit -q -F "${msysTmp(spaced)}"`) === 0);
+  ok('KIT-T1444 control: an uncited /tmp file still blocks', process.platform !== 'win32' || gate(`git commit -q -F ${msysTmp(uncited)}`) === 2);
+  ok('KIT-T1444 control: a missing /tmp file with no citation still blocks', process.platform !== 'win32' || gate(`git commit -q -F /tmp/no-such-dir-kit-t1444/msg.txt`) === 2);
   ok('control: a -F file with no citation still blocks', gate(`git commit -q -F ${uncited}`) === 2);
   ok('control: a missing -F file with no citation in the command still blocks', gate(`git commit -q -F ${join(files, 'nope.txt').replace(/\\/g, '/')}`) === 2);
   ok('control: -F - with no citation in the command text still blocks', gate('git commit -q -F -') === 2);

@@ -15,10 +15,10 @@ import { resolve } from 'node:path';
 import { commitCall } from './git-calls.mjs';
 import { expandVariables, precedingValues } from './shell-variables.mjs';
 import { segments } from './shell-segments.mjs';
+import { msysToNative } from './msys-path.mjs';
 
 const MAX_MESSAGE_BYTES = 1 << 20;
 const STDIN = '-';
-const MSYS_DRIVE = /^\/([A-Za-z])\//;
 
 const VALUE_OPTIONS = new Set(['-m', '-t', '-c', '-C', '--message', '--template', '--author', '--date', '--cleanup', '--fixup', '--squash', '--reuse-message', '--reedit-message', '--trailer', '--pathspec-from-file']);
 const SHORT_VALUE_LETTERS = /[mtcC]/;
@@ -55,7 +55,7 @@ export function commitMessageFile(command, shell = 'bash') {
   return null;
 }
 
-const absolutePath = (file, cwd) => resolve(cwd, file.path.replace(MSYS_DRIVE, '$1:/'));
+const absolutePath = (file, cwd) => resolve(cwd, msysToNative(file.path));
 
 /** The absolute path of the file a `-F` names, '' for no file or stdin. */
 export function commitMessagePath(command, cwd, shell = 'bash') {

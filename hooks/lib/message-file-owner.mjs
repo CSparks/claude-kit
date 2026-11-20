@@ -12,11 +12,12 @@
 import { resolve } from 'node:path';
 import { appendTurnRecord, readTurnRecords } from './turn-state.mjs';
 import { contentHashOf } from './shell-snapshot.mjs';
+import { expandShortNames } from './short-names.mjs';
 
 const STATE_ROOT = 'file-writers';
 const SLOT = 'files';
 const RECORDS_MAX = 5000;
-const keyOf = (file) => resolve(String(file)).replace(/\\/g, '/').toLowerCase();
+const keyOf = (file) => expandShortNames(resolve(String(file)).replace(/\\/g, '/')).toLowerCase();
 
 export function recordFileWrite(file, hash, writer) {
   if (file && hash && writer) appendTurnRecord(STATE_ROOT, SLOT, { f: keyOf(file), h: hash, w: writer });

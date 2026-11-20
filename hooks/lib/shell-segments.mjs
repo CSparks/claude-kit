@@ -21,6 +21,7 @@
 // returned array carries the cut text as `.text` for gates that also test the raw command.
 
 import { inertText } from './inert-heredoc.mjs';
+import { msysToNative } from './msys-path.mjs';
 
 export { inertText };
 
@@ -113,8 +114,8 @@ export const unquoteSpans = (token) => String(token).replace(QUOTED_SPAN, (_, do
 /** Whitespace-split arguments with a quoted span kept whole and its quotes dropped. */
 export const shellArgs = (text) => shellTokens(text).map((t) => t.replace(QUOTES, '')).filter(Boolean);
 
-// A shell path argument as a native path: quotes stripped, MSYS `/d/x` drive form turned into `d:/x`.
-export const toPath = (p) => String(p).replace(/^["']|["']$/g, '').replace(/^\/([A-Za-z])\//, '$1:/');
+// A shell path argument as a native path: quotes stripped, MSYS `/d/x` and `/tmp/x` turned into their Windows paths.
+export const toPath = (p) => msysToNative(String(p).replace(/^["']|["']$/g, ''));
 
 // The directory a `cd [/d] <dir>` segment moves to, or '' when the segment is not a cd.
 export const cdTarget = (seg) => { const m = seg.match(/^cd\s+(?:\/d\s+)?(\S.*)$/s); return m ? toPath(m[1].trim()) : ''; };

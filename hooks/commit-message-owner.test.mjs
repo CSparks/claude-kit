@@ -2,8 +2,9 @@
 // agents of one session share one scratchpad, and a fixed file name collided so a commit carried another agent's message.
 // Run: node hooks/commit-message-owner.test.mjs
 
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { realpathSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
 import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 
 const { ok, done } = reporter('commit-message-owner');
@@ -47,6 +48,16 @@ try {
   const main = path('main-thread.txt');
   toolWrite(main, MINE, '');
   ok('the main thread owns the file it wrote, and an agent is refused it', commit(main, '').code === 0 && commit(main, 'agentA').code === 2);
+
+  if (process.platform === 'win32') {
+    const msysTemp = (file) => `/tmp/${relative(tmpdir(), file).replace(/\\/g, '/')}`;
+    const viaTmp = path('commit-KIT-T1444-aaaaaa.txt');
+    toolWrite(viaTmp, MINE, 'agentA');
+    ok('KIT-T1444: a /tmp spelling of this agent\'s own message file passes', commit(msysTemp(viaTmp), 'agentA').code === 0);
+    ok('KIT-T1444: a /tmp spelling does not hide a file another agent wrote', commit(msysTemp(viaTmp), 'agentB').code === 2);
+    const longForm = realpathSync.native(viaTmp).replace(/\\/g, '/');
+    ok('KIT-T1135 control: the long and short spellings of one file share an owner', commit(`"${longForm}"`, 'agentB').code === 2 && commit(`"${longForm}"`, 'agentA').code === 0);
+  }
 
   ok('negative control: a plain -m commit is not judged', hook('commit-gate.mjs', { session_id: 'S1', agent_id: 'agentA', tool_input: { command: `cd ${target} && git commit -q -m "x (implements KIT-T1135)"` } }, target, env).code === 0);
 } finally {
