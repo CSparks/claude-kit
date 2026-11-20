@@ -14,6 +14,9 @@
 // (path glob subject: the tracked hooks directory, repo-relative).
 // Also: a push whose HEAD points a submodule at a commit the submodule's remote lacks (KIT-T1363; lib/push-pins.mjs).
 // Check-id: push-pin (path glob subject: the submodule path).
+// Also: a push of a repo whose checked-out submodule is not at the commit HEAD records (unpushed work, an uncommitted pin) is
+// blocked with the order to follow: submodule push, pin commit, this push (KIT-T1447; lib/push-drift.mjs). Check-id: push-drift
+// (path glob subject: the submodule path). Main thread and subagents alike.
 
 import { resolve } from 'node:path';
 import { payload, git, gitRoot, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
@@ -21,10 +24,12 @@ import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
 import { foreignSubmissions, policyToken, pushedRepos, slugOf, CLAUDE_TRAILER, POLICY_URLS } from './lib/upstream-policy.mjs';
 import { pushHookStatus, wireCommand } from './lib/push-hooks.mjs';
 import { unpushedPinMessage, unpushedPins } from './lib/push-pins.mjs';
+import { driftMessage, submoduleDrift } from './lib/push-drift.mjs';
 
 const CHECK_ID = 'upstream-policy';
 const WIRING_CHECK_ID = 'pre-push-wired';
 const PIN_CHECK_ID = 'push-pin';
+const DRIFT_CHECK_ID = 'push-drift';
 
 const ctx = {
   resolveDir: (from, to) => resolve(from, to),
@@ -147,6 +152,22 @@ function checkPushPins(command) {
   }
 }
 
+// A `git push` of a superproject whose submodule checkout is not at the commit HEAD records is blocked, naming the steps in
+// order (KIT-T1447). A repo with no submodule drift is untouched; any error never blocks.
+function checkPushDrift(command) {
+  try {
+    const marks = markerExcludedLines(command, DRIFT_CHECK_ID);
+    if (marks.wholeFile || marks.lines.size) return;
+    for (const { dir } of pushedRepos(command, process.cwd(), ctx)) {
+      const top = gitRoot(dir);
+      const drifts = top ? submoduleDrift(top).filter((d) => !pathExcluded(top, DRIFT_CHECK_ID, d.path)) : [];
+      if (!drifts.length) continue;
+      process.stderr.write(driftMessage(top, drifts, excludeFooter(DRIFT_CHECK_ID)));
+      process.exit(2);
+    }
+  } catch { /* fail open */ }
+}
+
 try {
   const p = await payload();
   const command = (p.tool_input && p.tool_input.command) || '';
@@ -171,6 +192,7 @@ try {
   }
   checkPushHooks(command);
   checkPushPins(command);
+  checkPushDrift(command);
   process.exit(0);
 } catch {
   process.exit(0);

@@ -57,7 +57,7 @@ try {
 
   ok('a summary stored only as a narration block passes', ask(transcript([...assistant(narration(PLAIN_SUMMARY), call), answer]), SHORT_QUESTION).code === 0);
   const inQuestion = [{ ...SHORT_QUESTION[0], question: `${PLAIN_SUMMARY} Which way do the mine edits go?` }];
-  ok('a summary written in the question text passes when the turn has none', ask(noSummary(), inQuestion).code === 0);
+  ok('a summary written only in the question text is still reported (KIT-T1448): it has its own gate, the prose above the call is required too', ask(noSummary(), inQuestion).code === 2);
   const longOptionsOnly = [{ ...SHORT_QUESTION[0], options: SHORT_QUESTION[0].options.map((o) => ({ ...o, description: PLAIN_SUMMARY })) }];
   ok('control: long option descriptions are not a summary', ask(noSummary(), longOptionsOnly).code === 2);
 
@@ -70,6 +70,25 @@ try {
   const lastMarked = [{ ...SHORT_QUESTION[0], options: [{ label: 'Restore the piece', description: 'keeps your edits' }, { label: `${MARKER}Revert to HEAD`, description: 'drops them' }] }];
   const mislabelled = hook('question-gate.mjs', { tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions: lastMarked } }, repoDir);
   ok('the (Recommended)-first check still fails a question whose recommended option is not first', mislabelled.code === 2 && mislabelled.out.includes('not FIRST'));
+
+  const bash = (id) => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'q show KIT-T1' } });
+  const ran = (id) => entry('user', [{ type: 'tool_result', tool_use_id: id, content: 'ok' }]);
+  const earlier = ask(transcript([...assistant(thinking, text(PLAIN_SUMMARY), bash('toolu_e1')), ran('toolu_e1'), ...assistant(thinking, call), answer]), SHORT_QUESTION);
+  ok('KIT-T1448: a summary earlier in the turn, with a tool call between it and the questionnaire, is reported', earlier.code === 2 && earlier.out.includes('directly above'));
+  const sameEntry = ask(transcript([entry('assistant', [thinking, text(PLAIN_SUMMARY), call]), answer]), SHORT_QUESTION);
+  ok('KIT-T1448: the summary and the call as blocks of one assistant message pass', sameEntry.code === 0);
+  const parallel = ask(transcript([entry('assistant', [text(PLAIN_SUMMARY), bash('toolu_p1'), call]), ran('toolu_p1'), answer]), SHORT_QUESTION);
+  ok('KIT-T1448: a tool call in the same message between the summary and the questionnaire cuts it', parallel.code === 2);
+  const asked = { type: 'tool_use', id: 'toolu_FIRST', name: 'AskUserQuestion', input: {} };
+  const firstAnswer = entry('user', [{ type: 'tool_result', tool_use_id: 'toolu_FIRST', content: 'answered' }]);
+  const reAsk = ask(transcript([...assistant(text(PLAIN_SUMMARY), asked), firstAnswer, ...assistant(thinking, call), answer]), SHORT_QUESTION);
+  ok('KIT-T1448: a re-ask after a clarification is a new questionnaire and needs its own summary', reAsk.code === 2);
+  const reAskWithSummary = ask(transcript([...assistant(text(PLAIN_SUMMARY), asked), firstAnswer, ...assistant(thinking, text(PLAIN_SUMMARY), call), answer]), SHORT_QUESTION);
+  ok('control: the same re-ask with its own summary directly above passes', reAskWithSummary.code === 0);
+  const excluded = adopted(false);
+  writeFileSync(join(excluded, '.claude-kit-ignore.yaml'), 'question-brief:\n  - "**"\n');
+  const off = auditAsk({ tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions: SHORT_QUESTION }, transcript_path: noSummary() }, excluded);
+  ok('negative control: with the question-brief check excluded the missing summary is not reported', off.code === 0);
 
   const protocol = gateText('question');
   ok('q gates question prints the one rule: summary first, then the questionnaire, with no label list',

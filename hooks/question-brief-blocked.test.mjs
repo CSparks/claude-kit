@@ -1,6 +1,6 @@
 // question-brief-audit and a questionnaire a PreToolUse hook denied (KIT-T1060): a denied call never reached the
-// maintainer, so the Stop backstop does not judge it; the re-ask is judged over all the turn's prose; the
-// questionnaire's own question text adds to the prose count instead of replacing it.
+// maintainer, so the Stop backstop does not judge it and it does not separate the summary from the retry; the
+// questionnaire's own question text never adds to the prose count (KIT-T1448).
 // Run: node hooks/question-brief-blocked.test.mjs
 
 import { writeFileSync } from 'node:fs';
@@ -30,6 +30,7 @@ const text = (value) => ({ type: 'text', text: value });
 const askBlock = (id, questions = SHORT_QUESTIONS) => ({ type: 'tool_use', id, name: 'AskUserQuestion', input: { questions } });
 const bash = (id) => ({ type: 'tool_use', id, name: 'Bash', input: { command: 'q show KIT-T1' } });
 const reply = (...blocks) => blocks.map((b) => entry('assistant', [b]));
+const emptyAssistant = () => ({ type: 'thinking', thinking: '', signature: 'sig' });
 const hookBlocked = (id) => entry('user', [{ type: 'tool_result', tool_use_id: id, is_error: true, content: 'PreToolUse:AskUserQuestion hook error: [node question-grounded-gate.mjs]: BLOCKED: an option matches an open ticket the questionnaire does not cite.' }]);
 const dismissed = (id) => entry('user', [{ type: 'tool_result', tool_use_id: id, is_error: true, content: "The user doesn't want to proceed with this tool use." }]);
 const answered = (id) => entry('user', [{ type: 'tool_result', tool_use_id: id, content: 'answered' }]);
@@ -47,7 +48,7 @@ try {
   const realShape = transcript(
     reply(narration(NARRATION_SUMMARY), askBlock(BLOCKED_ID)), hookBlocked(BLOCKED_ID),
     reply(text(ONE_LINE), bash('toolu_b1')), ran('toolu_b1'),
-    reply(askBlock(REASK_ID, LONG_QUESTIONS)), answered(REASK_ID),
+    reply(text(REAL_FIXED_BRIEF), askBlock(REASK_ID)), answered(REASK_ID),
   );
   ok('Stop: a hook-denied call is not judged, so the real shape (short narration summary, denied call, one line, answered re-ask) is silent', silent(stop(realShape)));
 
@@ -72,7 +73,13 @@ try {
   ok('control: a call the maintainer dismissed (not a hook denial) is still judged', stop(dismissedThin).code === 2);
 
   const summed = transcript(reply(narration(NARRATION_SUMMARY), askBlock(REASK_ID, LONG_QUESTIONS)), answered(REASK_ID));
-  ok('the 30-word prose plus the 30-word question text passes: question text adds to the count', silent(reask(summed, LONG_QUESTIONS)) && silent(stop(summed)));
+  ok('the 30-word prose plus the 30-word question text stays thin (KIT-T1448): the question text is judged by its own gate, never added to the prose', reask(summed, LONG_QUESTIONS).code === 2 && stop(summed).code === 2);
+
+  const retried = transcript(reply(text(REAL_FIXED_BRIEF), askBlock(BLOCKED_ID)), hookBlocked(BLOCKED_ID), reply(emptyAssistant(), askBlock(REASK_ID)), answered(REASK_ID));
+  ok('a retry right after a hook-denied call keeps the summary above the denied call: the denial does not separate', silent(reask(retried)) && silent(stop(retried)));
+
+  const clarified = transcript(reply(text(REAL_FIXED_BRIEF), askBlock(BLOCKED_ID)), answered(BLOCKED_ID), reply(askBlock(REASK_ID)), answered(REASK_ID));
+  ok('a re-ask after an answered questionnaire needs its own summary (KIT-T1448)', reask(clarified).code === 2);
 
   const shortBoth = transcript(reply(text(THIN_BRIEF), askBlock(REASK_ID)), answered(REASK_ID));
   ok('control: thin prose plus a short question stays thin, and the Counted line reports the sum', /Counted \d+ words/.test(reask(shortBoth).out) && reask(shortBoth).code === 2);

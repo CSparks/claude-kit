@@ -153,9 +153,12 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
 
 ## ⛔ QUESTIONNAIRE PROTOCOL — a plain summary, then the questionnaire (KIT-D153)
 Every decision put to the maintainer is a plain summary (what is being decided, what each option
-does and costs, your recommendation), then an AskUserQuestion. Nothing more is required: no
-labels, no sentence shapes. The gate checks that a summary came first. `q gates question`
-prints every other requirement.
+does and costs, your recommendation), then an AskUserQuestion. No labels, no sentence shapes.
+Two places carry it (KIT-T1448; Chris: "A summary is required above EVERY questionnaire"):
+the message text directly above the call (the same message, no tool call between; a re-ask
+needs its own), and each question's own `question` field (400+ characters, bracketed tags
+not counted), because the dialog shows only the question text and the options. `q gates
+question` prints every other requirement.
 
 ## ⛔ A gate block from a failed protocol = write the protocol HERE, same turn (KIT-D146)
 When a gate blocks because a protocol was not followed, the session that hit it writes that

@@ -1,6 +1,6 @@
-// question-brief-gate counts every assistant text block since the last real maintainer message (KIT-T893): the
-// commentary Claude Code shows between tool calls is a thinking block whose signature names "narration", a turn that
-// opens with a task notification or hand-back is not cut by it, and ordinary thinking is never prose.
+// question-brief-audit counts the assistant text directly above the call (KIT-T893, KIT-T1448): the commentary Claude
+// Code shows between tool calls is a thinking block whose signature names "narration", a task notification or hand-back
+// is not a cut, a tool call or its result is, and ordinary thinking is never prose.
 // Run: node hooks/question-brief-narration.test.mjs
 
 import { writeFileSync } from 'node:fs';
@@ -42,12 +42,14 @@ const HALVES = ['The gusset bolts test fails only with your twelve uncommitted m
 const perReplyBrief = () => pieces.flatMap((piece, i) => [reply(narration(piece), bash(`toolu_${i}`)), result(`toolu_${i}`)]);
 
 try {
-  const all = ask(transcript(entry('user', SETTLED), reply(emptyThinking, text('Still blocked: the other session holds the tree.')), taskNotification, handBack, ...perReplyBrief(), reply(emptyThinking, call)));
-  ok('brief spread over narration blocks that each precede a Bash call, after a task notification and a hand-back, passes', all.code === 0);
+  const all = ask(transcript(entry('user', SETTLED), reply(emptyThinking, text('Still blocked: the other session holds the tree.')), taskNotification, handBack, reply(narration('Checking the log.'), bash('toolu_z')), result('toolu_z'), reply(emptyThinking, narration(REAL_FIXED_BRIEF), call)));
+  ok('a summary directly above the call passes after earlier tool calls, a task notification and a hand-back', all.code === 0);
+
+  const spread = ask(transcript(entry('user', SETTLED), taskNotification, handBack, ...perReplyBrief(), reply(emptyThinking, call)));
+  ok('control (KIT-T1448): a brief spread over narration blocks that each precede a Bash call is cut by the calls and reported thin', spread.code === 2);
 
   const newest = ask(transcript(entry('user', SETTLED), reply(text('Still blocked: the other session holds the tree.')), result('toolu_x'), reply(narration('Checking the log.'), bash('toolu_y')), result('toolu_y'), reply(call)));
-  ok('control: a short text block and a short narration block are reported thin, and the blocks read list both, oldest first',
-    newest.code === 2 && newest.out.indexOf('[text] "Still blocked') > 0 && newest.out.indexOf('[text] "Still blocked') < newest.out.indexOf('[narration] "Checking'));
+  ok('control: prose above earlier tool calls is neither counted nor listed in the blocks read', newest.code === 2 && !newest.out.includes('Still blocked') && !newest.out.includes('Checking the log'));
 
   const sameReply = ask(transcript(entry('user', SETTLED), reply(narration(REAL_FIXED_BRIEF), call)));
   ok('a narration block in the same reply as the call counts', sameReply.code === 0);
@@ -61,11 +63,10 @@ try {
   const priorTurn = ask(transcript(entry('user', 'Earlier ask.'), reply(narration(REAL_FIXED_BRIEF), bash('toolu_p')), result('toolu_p'), reply(text('Done.')), entry('user', SETTLED), reply(call)));
   ok('control: prose from before the last real maintainer message is not counted', priorTurn.code === 2);
 
-  const halves = HALVES.flatMap((piece, i) => [reply(narration(piece), bash(`toolu_h${i}`)), result(`toolu_h${i}`)]);
-  const aloneHalf = ask(transcript(entry('user', SETTLED), halves[0], halves[1], reply(call)));
+  const aloneHalf = ask(transcript(entry('user', SETTLED), reply(narration(HALVES[0])), reply(call)));
   ok('control: one half of the summary alone is too short', aloneHalf.code === 2);
-  const midTurnNotice = ask(transcript(entry('user', SETTLED), halves[0], halves[1], taskNotification, halves[2], halves[3], reply(call)));
-  ok('a task notification in the middle of the turn does not cut it: the narration on both sides counts', midTurnNotice.code === 0);
+  const midTurnNotice = ask(transcript(entry('user', SETTLED), reply(narration(HALVES[0])), taskNotification, reply(narration(HALVES[1])), reply(call)));
+  ok('a task notification between the halves does not cut the summary: the narration on both sides counts', midTurnNotice.code === 0);
 } finally {
   cleanup();
 }

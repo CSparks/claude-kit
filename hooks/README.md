@@ -220,6 +220,9 @@ the source lines it changes, so it is not authored source (KIT-T231).
 | `commit-gate` | `commit-log` | path glob (an excluded code path doesn't require a citation) |
 | `license-guard` | `license-guard` | path glob (an excluded path skips the dep-name check for local/vendored deps) |
 | `upstream-gate` | `upstream-policy` | path glob matched against the target `owner/repo` (`- bevyengine/bevy`); the trailing marker `# claude-kit-ignore upstream-policy` in the command also clears it |
+| `upstream-gate` | `push-pin` | path glob matched against the submodule path: a push whose HEAD points a submodule at a commit its remote lacks (KIT-T1363) |
+| `upstream-gate` | `push-drift` | path glob matched against the submodule path: a push while the checked-out submodule differs from the commit HEAD records (unpushed work, an uncommitted or staged pin, a checkout behind); names the order submodule push, pin commit, push (KIT-T1447); the trailing marker `# claude-kit-ignore push-drift` in the command also clears it |
+| `question-self-contained-gate` | `question-self-contained` | path glob matched against the checkout root: every question's own text is 400+ characters of plain summary, bracketed tags cut before counting (KIT-T1448) |
 | `wait-poll` | `wait-poll` | path glob matched against the output file (reads) or the cwd (sleep loops); the trailing marker `# claude-kit-ignore wait-poll` in the command also clears it |
 | `broker-wait-gate` | `broker-wait` | path glob matched against the checkout root; the trailing marker `# claude-kit-ignore broker-wait` in the command also clears it. |
 | `resume-check` | `agent-waste` | path glob matched against the checkout root. |

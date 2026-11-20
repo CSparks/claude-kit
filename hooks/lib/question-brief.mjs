@@ -7,7 +7,7 @@
 //   wordCount(text)      -> the words in a text
 
 export const BRIEF_MIN_WORDS = 40;
-export const BRIEF_RULE = `a plain summary first (what is being decided, what each option does and costs, your recommendation), at least ${BRIEF_MIN_WORDS} words, then the questionnaire`;
+export const BRIEF_RULE = `a plain summary first, in the same message as the call and directly above it (what is being decided, what each option does and costs, your recommendation), at least ${BRIEF_MIN_WORDS} words, then the questionnaire; a re-ask needs its own`;
 
 export const wordCount = (text) => String(text || '').split(/\s+/).filter(Boolean).length;
 
