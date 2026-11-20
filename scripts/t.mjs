@@ -56,6 +56,7 @@ import { askQuestion, resolveQuestionFile } from './t/ask.mjs';
 import { isMain } from './is-main.mjs';
 import { runVerb } from './t-verbs.mjs';
 import { splitDraft } from './t-draft.mjs';
+import { ID_VERBS, storeRootForId } from './t/id-store.mjs';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 
@@ -363,11 +364,13 @@ function parseArgs(argv) {
 async function main() {
   refuseIfExcluded('t');
   const { flags, pos } = parseArgs(process.argv.slice(2));
+  const [cmd, ...rest] = pos;
   // ONE resolution rule (KIT-T189): an explicit --root, else the nearest store above the cwd,
   // else the unbounded catch-all. The cwd stays the last resort so an uninitialized machine
   // still errors the way it always did.
-  const root = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
-  const [cmd, ...rest] = pos;
+  const resolved = flags.root || resolveStoreRoot(process.cwd()) || process.cwd();
+  // A framework item id (RG-T390) run from a game that consumes the framework addresses the framework store (KIT-T1443).
+  const root = !flags.root && ID_VERBS.has(cmd) ? storeRootForId(resolved, rest[0]) : resolved;
   const usage = 'usage: t <new|note|notes|epic|request|question|session|config|decide|revise|triage|status|tick|untick|criterion|link|comment|ack|asked|ask|resolve|move|receipt> …  (t receipt [--since <sha|30m|2h>]: the landing receipt skeleton for the commits landed in this repo and its submodules | t new <type> "<title>" [--description "<text>" | --file <path>] [--regressed-from <id> --causing-commit <sha>: both required for a regression] | t note|epic|request|question "<title>" [--body|--file] | t notes <id> "<prose>" | t session "<text>" [--append] | --replace --file <path> | t config get <dotted.key> | t config set <dotted.key> <value>… | t decide --file <draft.md> [--from <inbox-id,...>] [--ticket <id> | --no-work "<why>"] [--supersedes <id,...>] [--not-dup <id,...>] | t revise <decision-id> [--status-to <state>] [--summary "<text>"] [--promoted "<id|none (why)>"] [--ticket <id> | --no-work "<why>"] [--supersedes <id,...>] [--file <draft.md>] | t triage <inbox-file> [--type <t>] [--title "<text>"] [--skip] | t status <id> <state> [--human | --lapsed] | t tick <id> <ordinal|match> | t untick <id> <ordinal|match> | t criterion <id> "<text>" | t link <id> <rel> <target> | t comment <id> "<text>" --author <who> | t ack <id>#<n> --agent <name> | t asked <id> [--note <capture>] | t ask <Q-id> [--session <name>] | t resolve <Q-id> "<answer>" | t move <id> <repo-path>)';
 
   if (wantsHelp(process.argv.slice(2))) { process.stdout.write(usage + '\n'); return; }

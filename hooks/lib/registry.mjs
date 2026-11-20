@@ -31,13 +31,22 @@ export function readRegistry() {
   }
 }
 
+// One project's .ai store directory, or '' when it has none. A project's store lives either in its repo
+// (<repo>/.ai) or in the central data root (<dataRoot>/projects/<name>, which IS the .ai dir, not a parent of one);
+// the one holding a config.yml wins, preferring the repo (a checkout .ai with agent rosters only is no store; it is
+// the last resort when neither holds a config).
+export function projectAiDir(name, reg = readRegistry()) {
+  const repo = reg.projects[name];
+  const repoAi = repo ? join(repo, '.ai') : null;
+  const centralAi = reg.dataRoot ? join(reg.dataRoot, 'projects', name) : null;
+  if (repoAi && existsSync(join(repoAi, 'config.yml'))) return repoAi;
+  if (centralAi && existsSync(join(centralAi, 'config.yml'))) return centralAi;
+  return repoAi && existsSync(repoAi) ? repoAi : '';
+}
+
 // Every known project's .ai store directory, across ALL scopes — the cross-project
-// enumeration shared by survey (briefing) and the cache hydrator (KIT-T031). A project's
-// stores live either in its repo (<repo>/.ai) or in the central data root
-// (<dataRoot>/projects/<name>, which IS the .ai dir, not a parent of one); resolve to the
-// one holding a config.yml, preferring the repo (a checkout .ai with agent rosters only is no store;
-// it is the last resort when neither holds a config). Returns { name, aiDir } per project with stores.
-// Best-effort: any unreadable entry is skipped, never thrown.
+// enumeration shared by survey (briefing) and the cache hydrator (KIT-T031).
+// Returns { name, aiDir } per project with stores. Best-effort: any unreadable entry is skipped, never thrown.
 export function projectAiDirs() {
   const reg = readRegistry();
   const names = new Set(Object.keys(reg.projects));
@@ -52,13 +61,7 @@ export function projectAiDirs() {
   }
   const out = [];
   for (const name of names) {
-    const repo = reg.projects[name];
-    const repoAi = repo ? join(repo, '.ai') : null;
-    const centralAi = reg.dataRoot ? join(reg.dataRoot, 'projects', name) : null;
-    let aiDir = null;
-    if (repoAi && existsSync(join(repoAi, 'config.yml'))) aiDir = repoAi;
-    else if (centralAi && existsSync(join(centralAi, 'config.yml'))) aiDir = centralAi;
-    else if (repoAi && existsSync(repoAi)) aiDir = repoAi;
+    const aiDir = projectAiDir(name, reg);
     if (aiDir) out.push({ name, aiDir });
   }
   return out;

@@ -3,9 +3,9 @@
 // `.ai/config.yml`, so `t decide` there took the game's MAR key. Controls: an unregistered submodule, a submodule with a
 // store of its own, a git worktree, a plain nested repo and the game's own directories keep the nearest store.
 
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 let pass = 0;
 let fail = 0;
@@ -49,6 +49,32 @@ ok('control: a worktree named like a project keeps the game store', same(resolve
 ok('control: a plain nested repo keeps the game store', same(resolveStoreRoot(join(game, 'nested')), game));
 ok('control: a submodule with a store of its own keeps it', same(resolveStoreRoot(own), own));
 ok('control: the framework checkout that owns the store keeps it', same(resolveStoreRoot(framework), framework));
+
+// KIT-T1443: the registered checkout holds no store link and the store lives in the central data root.
+const dataRoot = join(base, 'data');
+const central = join(dataRoot, 'projects', 'rapid-game');
+mkdirSync(central, { recursive: true });
+writeFileSync(join(central, 'config.yml'), 'ids:\n  key: RGX\n');
+const centralRegistry = join(base, 'central-registry.json');
+writeFileSync(centralRegistry, JSON.stringify({ dataRoot, projects: { game, 'rapid-game': join(game, 'rapid-game') }, excluded: [] }));
+process.env.CLAUDE_KIT_REGISTRY = centralRegistry;
+
+const viaLink = resolveStoreRoot(join(game, 'rapid-game'));
+const aiOf = (root) => realpathSync.native(join(root, '.ai')).toLowerCase();
+ok('a registered checkout with no store link resolves to the central framework store', !!viaLink && aiOf(viaLink) === realpathSync.native(central).toLowerCase(), String(viaLink));
+ok('a directory deep inside it does too, through the same store root', same(resolveStoreRoot(join(game, 'rapid-game', 'rust', 'engine')), viaLink));
+ok('the store root is machine-local, beside the registry, never inside the checkout', !!viaLink && same(dirname(viaLink), join(base, 'claude-kit-store-roots')));
+ok('control: the game itself still keeps its store', same(resolveStoreRoot(game), game));
+ok('control: an unregistered submodule still keeps the game store', same(resolveStoreRoot(join(game, 'other-lib')), game));
+
+const stale = join(base, 'claude-kit-store-roots', 'rapid-game', '.ai');
+rmSync(stale, { recursive: true, force: true });
+symlinkSync(game, stale, process.platform === 'win32' ? 'junction' : 'dir');
+const repaired = resolveStoreRoot(join(game, 'rapid-game'));
+ok('a store root link that points elsewhere is repointed to the central store', !!repaired && aiOf(repaired) === realpathSync.native(central).toLowerCase());
+
+writeFileSync(centralRegistry, JSON.stringify({ projects: { game, 'rapid-game': join(game, 'rapid-game') }, excluded: [] }));
+ok('control: no data root and no store in the checkout keeps the game store', same(resolveStoreRoot(join(game, 'rapid-game')), game));
 
 console.log(`\nframework-store: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -7,11 +7,12 @@
 //
 //   frameworkStoreRoot(start, nearest, registry?) -> the owning store root, or null to keep `nearest`
 //     start:   the directory the command acts in; nearest: storeRoot(start) (null when none)
+//   projectStoreRoot(name, registry?) -> the store root of a registered project, or null (no store, or no root could be made)
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve, sep } from 'node:path';
-import { readRegistry } from './registry.mjs';
-import { storeRoot } from './paths.mjs';
+import { projectAiDir, readRegistry } from './registry.mjs';
+import { storeRootOf } from './store-link.mjs';
 
 const SUBMODULE_GITDIR = /^gitdir:\s*.*[\\/]modules[\\/]/m;
 
@@ -30,10 +31,16 @@ function submoduleRoot(start, limit) {
   return null;
 }
 
+// The registered project's store, wherever it lives (its checkout's `.ai` or the central data root), as a store root.
+export function projectStoreRoot(name, registry = readRegistry()) {
+  if (!registry.projects[name]) return null;
+  const aiDir = projectAiDir(name, registry);
+  return aiDir && existsSync(join(aiDir, 'config.yml')) ? storeRootOf(name, aiDir) || null : null;
+}
+
 export function frameworkStoreRoot(start, nearest, registry = readRegistry()) {
   const top = submoduleRoot(start, nearest);
   if (!top) return null;
-  const path = registry.projects[basename(top)];
-  const owner = path ? storeRoot(resolve(path)) : null;
+  const owner = projectStoreRoot(basename(top), registry);
   return owner && (!nearest || resolve(owner) !== resolve(nearest)) ? owner : null;
 }
