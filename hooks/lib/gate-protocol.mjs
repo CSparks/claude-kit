@@ -135,7 +135,7 @@ function checkLines({ check, wants, tokens }, root) {
   ];
 }
 
-const DIGEST_WIDTH = 110;
+const DIGEST_WIDTH = 128;
 const MODEL_HINT = /pass (model:[^;]*?) on every call/;
 
 function wrapWords(words, width, indent) {
@@ -161,13 +161,15 @@ function digestEntries(gate) {
 
 /**
  * The few lines orient prints at a compaction (KIT-T1053): per gated tool, the tag each check takes, derived from the gate
- * definitions above so it never drifts from them. `q gates <name>` prints the full requirements.
+ * definitions above so it never drifts from them. `q gates <name>` prints the full requirements. An entry another gate already
+ * printed is listed once, under the first gate that takes it, so the digest stays within its line budget.
  */
 export function gateDigest(gates = GATES) {
+  const shown = new Set();
   return [
-    `GATE DIGEST (after a compaction the tags are not remembered; read q gates ${Object.keys(gates).join('|')} before the first call):`,
+    `GATE DIGEST (a tag listed once serves every gate taking it; read q gates ${Object.keys(gates).join('|')} before the first call):`,
     ...Object.entries(gates).flatMap(([name, gate]) => {
-      const entries = digestEntries(gate);
+      const entries = digestEntries(gate).filter((e) => !shown.has(e) && shown.add(e));
       return entries.length ? wrapWords([`${name}:`, ...entries.map((e, i) => (i < entries.length - 1 ? `${e};` : e))], DIGEST_WIDTH, '  ') : [];
     }),
   ];

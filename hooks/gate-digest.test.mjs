@@ -32,6 +32,9 @@ try {
   changed.agent.checks.push({ check: 'new-check', wants: ['x'], tokens: [{ form: '[new-tag: <x>]', meaning: 'y' }] });
   const text = gateDigest(changed).join('\n');
   ok('the digest follows the gate definitions: a changed or added check changes it', text.includes('patch-worker-discipline: [roots: <dirs>]') && text.includes('new-check: [new-tag: <x>]') && !text.includes('patch-worker-discipline: [paths:'));
+  const shared = { checks: [{ check: 'shared-check', wants: ['x'], tokens: [{ form: '[shared: <x>]', meaning: 'y' }] }] };
+  const dedup = gateDigest({ one: shared, two: shared });
+  ok('an entry two gates share is listed once, under the first', dedup.length === 2 && dedup[1].startsWith('one: shared-check:'));
   ok('control: a gate with no tagged check adds no line', gateDigest({ plain: { checks: [{ check: 'c', wants: ['x'], tokens: [] }] } }).length === 1);
 
   const wiring = JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'));
