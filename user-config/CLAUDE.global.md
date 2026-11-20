@@ -157,8 +157,9 @@ does and costs, your recommendation), then an AskUserQuestion. No labels, no sen
 Two places carry it (KIT-T1448; Chris: "A summary is required above EVERY questionnaire"):
 the message text directly above the call (the same message, no tool call between; a re-ask
 needs its own), and each question's own `question` field (400+ characters, bracketed tags
-not counted), because the dialog shows only the question text and the options. `q gates
-question` prints every other requirement.
+not counted), because the dialog shows only the question text and the options. Dry-run a draft
+first: `q gates question --draft <file.json>` runs every questionnaire gate and prints all failures
+and their fixes at once (KIT-T1451). `q gates question` prints every other requirement.
 
 ## ⛔ A gate block from a failed protocol = write the protocol HERE, same turn (KIT-D146)
 When a gate blocks because a protocol was not followed, the session that hit it writes that

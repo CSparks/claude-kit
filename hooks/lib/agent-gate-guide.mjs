@@ -25,6 +25,7 @@ export const GATE_GUIDE = [
   '- Filtering a command\'s own output stays allowed: `cargo test 2>&1 | grep -E \'test result|FAILED\' | tail -20`.',
   '- Changing source: the Edit tool (old_string, new_string; replace_all for a rename) or the Write tool. Never sed -i, perl -i, a redirect, tee, a heredoc or `node -e` on a repo file.',
   ...BASELINE_ROUTE.map((line, i) => (i === 0 ? `- ${line}` : line)),
+  '- Before an AskUserQuestion: write the draft to a scratch file and run `q gates question --draft <file.json>` ({ "summary": "<text above the call>", "questions": [...] }); it prints EVERY failing questionnaire check at once, each with its fix. The real call is refused once with the same list.',
   'On any hook block your next reply says whether it was a process failure, a kit bug or a known kit bug; never retry or route around it.',
 ];
 

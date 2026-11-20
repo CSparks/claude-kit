@@ -11,37 +11,45 @@ import { join } from 'node:path';
 import { field, frontmatterBlock } from './frontmatter.mjs';
 import { words } from './question-asks.mjs';
 import { decisionHit } from './q-decision-hit.mjs';
+import { retiredStatus, supersededIds } from '../hooks/lib/superseded-decisions.mjs';
+import { longestSharedRun } from '../hooks/lib/shared-run.mjs';
 
 const MIN_TITLE_SHARED = 2;
 const MIN_BODY_SHARED = 4;
 const MAX_SHOWN = 3;
 const MIN_RESTATED_WORDS = 3;
-const RETIRED = new Set(['superseded', 'rejected', 'retired', 'reversed', 'withdrawn']);
+const TAGGED_RUN = 4;
 
 export function readDecisions(root) {
   const dir = join(root, '.ai', 'decisions');
   if (!existsSync(dir)) return [];
-  return readdirSync(dir).filter((f) => /-D\d+.*\.md$/.test(f)).flatMap((file) => {
+  const read = readdirSync(dir).filter((f) => /-D\d+.*\.md$/.test(f)).flatMap((file) => {
     try {
       const text = readFileSync(join(dir, file), 'utf8').replace(/\r\n/g, '\n');
       const fm = frontmatterBlock(text);
-      if (!fm || RETIRED.has(field(fm, 'status')) || field(fm, 'superseded_by')) return [];
+      if (!fm || retiredStatus(field(fm, 'status')) || field(fm, 'superseded_by')) return [];
       const title = field(fm, 'title');
       const hit = decisionHit(text);
-      return [{ id: field(fm, 'id'), file: join(dir, file), title, hit, summary: field(fm, 'summary') }];
+      return [{ id: field(fm, 'id'), file: join(dir, file), title, hit, summary: field(fm, 'summary'), text }];
     } catch { return []; }
   });
+  const replaced = supersededIds(read.map((d) => d.text));
+  return read.filter((d) => !replaced.has(d.id));
 }
 
 const shared = (mine, theirs) => [...mine].filter((w) => theirs.has(w)).length;
 
 // The decisions whose whole title (MIN_RESTATED_WORDS or more distinctive words) the asked text repeats: the
 // questionnaire restates what is already decided. `text` is the question and header words, never the options.
-export function restatedDecisions(text, decisions) {
-  const mine = words(text);
+// `text` is one text or a list of units (a long question judged sentence by sentence: pooled, it holds the words of most
+// titles). With `tagged` (the questionnaire asserts the ids that govern it, KIT-T1451) a unit must also repeat a run of
+// TAGGED_RUN consecutive words of the title: only a near-verbatim restatement then counts.
+export function restatedDecisions(text, decisions, { tagged = false } = {}) {
+  const units = [].concat(text).map((u) => ({ text: u, mine: words(u) }));
   return decisions.filter((d) => {
     const title = words(d.title);
-    return title.size >= MIN_RESTATED_WORDS && shared(mine, title) === title.size;
+    if (title.size < MIN_RESTATED_WORDS) return false;
+    return units.some((u) => shared(u.mine, title) === title.size && (!tagged || longestSharedRun(u.text, d.title) >= TAGGED_RUN));
   });
 }
 

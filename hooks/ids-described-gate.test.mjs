@@ -7,13 +7,13 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOOKS, adopted, cleanup, hook, reporter } from './test-harness.mjs';
 import { stems } from './lib/stems.mjs';
+import { questionGateWired } from './question-gate-wiring.mjs';
 
 const { ok, done } = reporter('ids-described-gate');
 const OPTIONS = [{ label: '(Recommended) Block', description: 'refuse the dispatch' }, { label: 'Warn', description: 'print only' }];
 
 try {
-  ok('wired into hooks.json for AskUserQuestion', JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'))
-    .hooks.PreToolUse.some((e) => e.matcher.includes('AskUserQuestion') && e.hooks.some((h) => h.command.includes('ids-described-gate'))));
+  ok('wired into hooks.json for AskUserQuestion (through question-gates)', questionGateWired('ids-described-gate'));
 
   const d = adopted(false);
   mkdirSync(join(d, '.ai', 'tickets'), { recursive: true });

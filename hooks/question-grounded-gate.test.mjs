@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENV, HOOKS, ROOT, adopted, cleanup, hook, reporter } from './test-harness.mjs';
 import { optionStems } from './lib/question-grounding.mjs';
+import { questionGateWired } from './question-gate-wiring.mjs';
 import { decisionClauses } from './lib/question-clause-grounding.mjs';
 
 const { ok, done } = reporter('question-grounded-gate');
@@ -19,8 +20,7 @@ const RULED = 'DE-D080';
 const file = (id, title, extra, body) => `---\nid: ${id}\ntitle: ${title}\n${extra}---\n${body}\n`;
 
 try {
-  ok('wired into hooks.json for AskUserQuestion', JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'))
-    .hooks.PreToolUse.some((e) => e.matcher.includes('AskUserQuestion') && e.hooks.some((h) => h.command.includes(GATE))));
+  ok('wired into hooks.json for AskUserQuestion (through question-gates)', questionGateWired(GATE));
   ok('stems: suffixes cut, stopwords and short words dropped', [...optionStems('Share meshes across the cells')].sort().join() === 'cell,mesh,shar'
     && optionStems('Yes').size === 0 && optionStems('Defer').size === 0);
 

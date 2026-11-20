@@ -7,6 +7,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOOKS, cleanup, hook, project, reporter } from './test-harness.mjs';
+import { questionGateWired } from './question-gate-wiring.mjs';
 
 const { ok, done } = reporter('decision-gate');
 
@@ -15,8 +16,7 @@ const option = (label, description = '') => ({ label, description });
 const advisory = (out) => (out.trim().startsWith('{') ? JSON.parse(out).hookSpecificOutput?.additionalContext || '' : '');
 
 try {
-  ok('wired into hooks.json for AskUserQuestion', JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'))
-    .hooks.PreToolUse.some((e) => e.matcher.includes('AskUserQuestion') && e.hooks.some((h) => h.command.includes('decision-gate'))));
+  ok('wired into hooks.json for AskUserQuestion (through question-gates)', questionGateWired('decision-gate'));
 
   const d = project('required', 'FQD');
   const dir = join(d, '.ai', 'decisions');

@@ -11,6 +11,7 @@ import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mj
 import { itemTitle } from './lib/item-title.mjs';
 import { stems, stemWords } from './lib/stems.mjs';
 import { IDS_CHECK as CHECK_ID, IDS_MIN_HITS as MIN_HITS } from './lib/question-checks.mjs';
+import { stripOptionsChecked } from './lib/options-checked.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
 const ID = /\b[A-Z][A-Z0-9]+-[TDQ]\d{1,4}\b/g;
@@ -19,8 +20,9 @@ const MAX_TITLE_SHOWN = 90;
 const optionText = (o) => `${o?.label || ''} ${o?.description || ''}`;
 const questionText = (q) => [q?.header, q?.question, ...(Array.isArray(q?.options) ? q.options.map(optionText) : [])].filter(Boolean).join(' ');
 
+// The ids inside an [options-checked: ...] tag are the author's assertion, not items the question presents: they need no description.
 function undescribed(root, q) {
-  const text = questionText(q);
+  const text = stripOptionsChecked(questionText(q));
   const said = stems(text.replace(ID, ' '));
   const lacking = [];
   for (const id of new Set(text.match(ID) || [])) {
@@ -43,9 +45,11 @@ function blockMessage(found) {
       `  ${f.id} — "${f.title.slice(0, MAX_TITLE_SHOWN)}"`,
       `    looked for ${f.needed} of its title words: ${wordList(f.looked)} (plural and hyphen forms match)`,
       `    found: ${wordList(f.found)}`,
+      `    paste: "${f.title.replace(ID, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_TITLE_SHOWN)} (${f.id})"`,
     ]),
     '',
-    'Fix: describe each item in plain words in the same question (its subject and what it does), then the id may follow as a pointer.',
+    'Fix: describe each item in plain words in the same question (its subject and what it does), then the id may follow as a pointer;',
+    'or, when the id only records that you checked it, move it into the tag [options-checked: <ids> govern this; no other recorded decision applies].',
     '',
     excludeFooter(CHECK_ID),
   ].join('\n');

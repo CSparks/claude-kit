@@ -1,8 +1,8 @@
 // question-grounded generic words (KIT-T1431): a questionnaire never matches a decision on generic engineering words (check,
 // run, work, time, usage, parallel, agent, test ...). The real case: a question about lifting the one-writer usage limit was
 // blocked by six unrelated decisions (RDG-D121, D123, D032, D060, D124, D063) and never by the two that govern it (RDG-D052,
-// RDG-D137). A restatement needs three distinct rare words; an `[options-checked: <ids> ...; the other matches do not apply]`
-// tag raises the bar to a near-verbatim restatement; the block prints the matched words.
+// RDG-D137). A restatement needs three distinct rare words and a shared run of words (KIT-T1451); an `[options-checked: <ids>
+// govern this; no other recorded decision applies]` tag raises the bar to a near-verbatim restatement; the block prints the matched words.
 // Run: node hooks/question-grounded-generic-words.test.mjs
 
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -71,11 +71,10 @@ try {
   ok('control: a question restating RDG-D063 still blocks, with its matched words', control.code === 2 && control.out.includes('RDG-D063') && control.out.includes('matched words:'));
   ok('control: citing the decision passes', ask(`${RESTATES_D063} It is RDG-D063.`).code === 0);
 
-  const tag = (ids) => `[options-checked: ${ids} govern this; the other matches do not apply: they matched on loose words]`;
+  const tag = (ids) => `[options-checked: ${ids} govern this; no other recorded decision applies]`;
   ok('the ids tag form satisfies its own pattern', TOKENS.optionsCheckedIds.pattern.test(TOKENS.optionsCheckedIds.form));
-  ok('a tag that cites no id, or says nothing is not applicable, is not the ids tag',
-    !TOKENS.optionsCheckedIds.pattern.test('[options-checked: the others matched loosely]') && !TOKENS.optionsCheckedIds.pattern.test('[options-checked: RDG-D052 governs this]'));
-  const LOOSE = 'Should one writer run at a time, with medium work for Sonnet and hard work for Opus?';
+  ok('a tag that cites no id is not the ids tag', !TOKENS.optionsCheckedIds.pattern.test('[options-checked: the others matched loosely]'));
+  const LOOSE = 'Medium work goes to Sonnet and the hard work for Opus: should that change?';
   ok('a loose match of RDG-D137 blocks untagged', ask(LOOSE).code === 2 && ask(LOOSE).out.includes('RDG-D137'));
   ok('with the ids tag the same loose match of an uncited decision passes', ask(`${LOOSE} ${tag('RDG-D052')}`).code === 0);
   const verbatim = `${D063Clause()} ${tag('RDG-D052')}`;

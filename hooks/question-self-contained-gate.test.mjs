@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { HOOKS, adopted, cleanup, hook, reporter } from './test-harness.mjs';
 import { QUESTION_MIN_CHARS, questionBody } from './lib/question-self-contained.mjs';
 import { gateText } from './lib/gate-protocol.mjs';
+import { questionGateWired } from './question-gate-wiring.mjs';
 
 const { ok, done } = reporter('question-self-contained-gate');
 const repo = adopted(false);
@@ -18,8 +19,8 @@ const run = (questions, extra = {}, cwd = repo) => hook('question-self-contained
 try {
   ok('the summary fixture clears the minimum', questionBody(SUMMARY).length >= QUESTION_MIN_CHARS);
   const wiring = JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'));
-  const entry = wiring.hooks.PreToolUse.find((e) => /AskUserQuestion/.test(e.matcher) && e.hooks.some((h) => h.command.includes('question-self-contained-gate')));
-  ok('wired into hooks.json on AskUserQuestion and request_user_input', !!entry && /request_user_input/.test(entry.matcher));
+  const entry = wiring.hooks.PreToolUse.find((e) => /AskUserQuestion/.test(e.matcher) && e.hooks.some((h) => h.command.includes('question-gates.mjs')));
+  ok('wired into hooks.json on AskUserQuestion and request_user_input (through question-gates)', questionGateWired('question-self-contained-gate') && !!entry && /request_user_input/.test(entry.matcher));
 
   const bare = run([q('Restore it or revert?')]);
   ok('a one-line question is blocked', bare.code === 2);

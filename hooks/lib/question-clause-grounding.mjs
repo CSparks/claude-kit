@@ -6,7 +6,9 @@
 // so the score reads the same in a small and a large store); a clause is a restatement when it shares GROUNDED_CLAUSE_SHARED
 // stems with one unit, at least one of them rare (in no more than GROUNDED_CLAUSE_RARE_SHARE of the clauses), and the weights
 // sum to GROUNDED_CLAUSE_SCORE: common stems (project, kit, group, scene, song) alone never restate a ruling. Units are judged
-// one by one: pooled, a long questionnaire shares stems with most clauses.
+// one by one (each sentence of the question, each option description): pooled, a long questionnaire shares stems with most
+// clauses (KIT-T1451). A restatement also shares a run of GROUNDED_CLAUSE_PHRASE consecutive words with the clause (shared-run.mjs),
+// and the score bar grows with a unit longer than GROUNDED_CLAUSE_LONG_STEMS stems.
 // Generic engineering stems (generic-stems.mjs: check, run, work, time, usage) are never in a stem set (KIT-T1431), and a
 // restatement holds GROUNDED_CLAUSE_MIN_RARE distinct rare stems. A questionnaire whose `[options-checked: <ids> ...]` tag
 // cites the decisions that govern it is judged against the higher TAGGED_BAR: only a near-verbatim restatement of an uncited
@@ -21,10 +23,11 @@
 
 import {
   GROUNDED_CLAUSE_MIN_RARE, GROUNDED_CLAUSE_PER_QUESTION, GROUNDED_CLAUSE_RARE_MIN_DF, GROUNDED_CLAUSE_RARE_SHARE, GROUNDED_CLAUSE_SCORE,
-  GROUNDED_CLAUSE_SHARED, GROUNDED_CLAUSE_TAGGED_MIN_RARE, GROUNDED_CLAUSE_TAGGED_SCORE,
+  GROUNDED_CLAUSE_PHRASE, GROUNDED_CLAUSE_SHARED, GROUNDED_CLAUSE_TAGGED_MIN_RARE, GROUNDED_CLAUSE_TAGGED_PHRASE, GROUNDED_CLAUSE_TAGGED_SCORE, GROUNDED_CLAUSE_LONG_STEMS,
 } from './question-checks.mjs';
 import { optionStems } from './question-grounding.mjs';
 import { stemRarity } from './stem-rarity.mjs';
+import { longestSharedRun } from './shared-run.mjs';
 import { ID_CITE_SRC } from './ids.mjs';
 
 const DECISION_PARAGRAPH = /\*\*Decision:\*\*([\s\S]*?)(?=\n\s*\*\*[A-Za-z][\w -]*:\*\*|$)/i;
@@ -39,7 +42,11 @@ export function decisionClauses(text) {
   return parts.map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
 }
 
-export const questionRestatementTexts = (q) => [q?.question, ...(Array.isArray(q?.options) ? q.options.map((o) => o?.description) : [])].filter(Boolean);
+const QUESTION_SENTENCE_BREAK = /(?<=[.;?!])\s+/;
+const sentences = (text) => String(text ?? '').split(QUESTION_SENTENCE_BREAK).map((s) => s.trim()).filter(Boolean);
+
+// A long question is a summary of many sentences; pooled it shares loose words with most clauses, so each sentence is a unit.
+export const questionRestatementTexts = (q) => [...sentences(q?.question), ...(Array.isArray(q?.options) ? q.options.map((o) => o?.description) : [])].filter(Boolean);
 
 const SCORE_DIGITS = 2;
 
@@ -52,23 +59,27 @@ export function indexClauses(docs) {
   return { clauses, weight, isRare };
 }
 
-function scoreClause(index, wanted, c) {
+function scoreClause(index, wanted, c, text) {
   const stems = [...wanted].filter((s) => c.stems.has(s));
   const score = stems.reduce((sum, s) => sum + index.weight(s), 0);
-  return { ...c, stems, rare: stems.filter(index.isRare), score: Number(score.toFixed(SCORE_DIGITS)) };
+  return { ...c, stems, rare: stems.filter(index.isRare), score: Number(score.toFixed(SCORE_DIGITS)), size: wanted.size, text };
 }
 
-export const CLAUSE_BAR = { minRare: GROUNDED_CLAUSE_MIN_RARE, score: GROUNDED_CLAUSE_SCORE };
-export const TAGGED_BAR = { minRare: GROUNDED_CLAUSE_TAGGED_MIN_RARE, score: GROUNDED_CLAUSE_TAGGED_SCORE };
+export const CLAUSE_BAR = { minRare: GROUNDED_CLAUSE_MIN_RARE, score: GROUNDED_CLAUSE_SCORE, phrase: GROUNDED_CLAUSE_PHRASE };
+export const TAGGED_BAR = { minRare: GROUNDED_CLAUSE_TAGGED_MIN_RARE, score: GROUNDED_CLAUSE_TAGGED_SCORE, phrase: GROUNDED_CLAUSE_TAGGED_PHRASE };
 
-const restates = (m, bar) => m.stems.length >= GROUNDED_CLAUSE_SHARED && m.rare.length >= bar.minRare && m.score >= bar.score;
+// A unit of many stems shares more by chance: past GROUNDED_CLAUSE_LONG_STEMS the score bar grows with its length.
+const lengthFactor = (size) => Math.max(1, size / GROUNDED_CLAUSE_LONG_STEMS);
+
+const restates = (m, bar) => m.stems.length >= GROUNDED_CLAUSE_SHARED && m.rare.length >= bar.minRare && m.score >= bar.score * lengthFactor(m.size)
+  && (!bar.phrase || longestSharedRun(m.text, m.clause) >= bar.phrase);
 
 export function clauseMatches(docs, text, index = indexClauses(docs), bar = CLAUSE_BAR) {
   const wanted = optionStems(text);
   if (wanted.size < GROUNDED_CLAUSE_SHARED) return [];
   const best = new Map();
   for (const c of index.clauses) {
-    const m = scoreClause(index, wanted, c);
+    const m = scoreClause(index, wanted, c, text);
     if (restates(m, bar) && m.score > (best.get(m.id)?.score ?? 0)) best.set(m.id, m);
   }
   return [...best.values()]

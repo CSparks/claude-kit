@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOOKS, cleanup, hook, project, reporter } from './test-harness.mjs';
 import { askedEntries, stampAsk } from '../scripts/question-asks.mjs';
+import { questionGateWired } from './question-gate-wiring.mjs';
 
 const { ok, done } = reporter('reask-gate');
 const TODAY = new Date().toISOString().slice(0, 10);
@@ -16,8 +17,7 @@ const QUESTION = (id, text, extra = '') => `---\nid: ${id}\nstatus: todo\nanswer
 const GRABOIDS = 'Should graboids burrow under razed camps before the raid timer ends?';
 
 try {
-  ok('wired into hooks.json for AskUserQuestion', JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'))
-    .hooks.PreToolUse.some((e) => e.matcher.includes('AskUserQuestion') && e.hooks.some((h) => h.command.includes('reask-gate'))));
+  ok('wired into hooks.json for AskUserQuestion (through question-gates)', questionGateWired('reask-gate'));
 
   const d = project('required', 'FQR');
   const qdir = join(d, '.ai', 'questions');

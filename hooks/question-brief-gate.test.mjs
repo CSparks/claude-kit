@@ -6,6 +6,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
+import { questionGateWired } from './question-gate-wiring.mjs';
 
 const { ok, done } = reporter('question-brief-gate');
 const OPTIONS = [
@@ -30,8 +31,7 @@ const prose = (value) => line('assistant', [{ type: 'text', text: value }]);
 const ask = (file, questions = QUESTIONS) => hook('question-brief-gate.mjs', { tool_name: 'AskUserQuestion', tool_use_id: CALL_ID, tool_input: { questions }, ...(file ? { transcript_path: file } : {}) }, repoDir);
 
 try {
-  ok('wired into hooks.json for AskUserQuestion', JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'))
-    .hooks.PreToolUse.some((e) => e.matcher.includes('AskUserQuestion') && e.hooks.some((h) => h.command.includes('question-brief-gate'))));
+  ok('wired into hooks.json for AskUserQuestion (through question-gates)', questionGateWired('question-brief-gate'));
 
   ok('a settled maintainer message passes', ask(transcript(SETTLED, prose('Checking the daemon log first.'))).code === 0);
   const started = Date.now();
