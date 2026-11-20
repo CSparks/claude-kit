@@ -27,7 +27,7 @@
 // An applier is the command a segment leads with, past wrappers and grouping words, also in a command another runs
 // (`bash -c "..."`, `find -exec`, `ssh host`, a `trap` string, a `$(...)` substitution: patch-apply.mjs); a copy
 // destination holding a variable the command assigns once and literally is judged by the value (shell-variables.mjs).
-// The `install` of a package manager (`npm install x@1`: package-install.mjs) is that tool's work, not the coreutils copy.
+// The `install` of a package manager that leads its command (`npm install x@1`: package-install.mjs) is that tool's work.
 // A segment led by a `touch` with only mtime options tags its hits `mtimeOnly` for the caller (touch-target.mjs).
 
 import { readFileSync, realpathSync } from 'node:fs';
@@ -51,7 +51,7 @@ import { leaderValues, resolveLeader } from './variable-leader.mjs';
 import { gitInnerHits } from './git-inner-hits.mjs';
 import { cleaned, commandTokens } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
-import { packageInstallIndexes, withoutPackageInstalls } from './package-install.mjs';
+import { blankPackageInstall, everyInstallIsPackaged } from './package-install.mjs';
 
 const BUILDS_LEAD = /^builds(?:\.cmd)?$/i;
 const RUN_FLAG = '--run';
@@ -235,9 +235,9 @@ function judgeSegment(segmentText, ctx) {
   if (quotedArgsInert || READER.test(leader) || printsOnly(leader, text, ctx.raw)) return hits;
   const touched = TOUCH_CMD.test(leader) ? judgeTouch(text.slice(words[0].at + words[0].w.length), ctx) : null;
   if (touched) return [...hits, ...touched];
-  const packageInstalls = packageInstallIndexes(text);
+  const packaged = everyInstallIsPackaged(text, words.map((x) => x.w), ctx.shell);
   for (let i = 0; i < words.length; i++) {
-    if (packageInstalls.has(words[i].at)) continue;
+    if (packaged && /^install$/i.test(words[i].w)) continue;
     const found = listed(judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length)));
     hits.push(...found.map((h) => ({ ...h, token: words[i].w })));
   }
@@ -270,12 +270,11 @@ const ambiguousWrite = (text, hit, cwd, removals) => {
   const kitPieces = pieces.filter((s) => kitLed(s.text, cwd));
   const kitRedirect = kitPieces.flatMap((s) => redirectTargets(s.text, false)).find((target) => hit(target));
   if (kitRedirect) return `> ${kitRedirect}`;
-  const unscanned = pieces
+  const rest = pieces
     .filter((s) => !kitPieces.includes(s))
-    .map((s) => s.text)
+    .map((s) => blankPackageInstall(s.text))
     .join(' ; ')
     .replace(HARMLESS_REDIRECT, ' ');
-  const rest = withoutPackageInstalls(unscanned);
   return WRITE_TOKEN.exec(rest)?.[0] || (appliesPatch(rest) ? 'a patch apply' : '') || (removals && discardsBlind(rest) ? 'a git discard' : '') || FS_WRITE.exec(rest)?.[0] || '';
 };
 

@@ -20,7 +20,10 @@ try {
     ['cargo install', 'cargo install ripgrep'],
     ['pip install', 'pip install requests'],
     ['sudo apt-get install', 'sudo apt-get -y install foo'],
-    ['an ssh npm install', 'ssh host "cd app && npm install next@16"'],
+    ['an npm install past wrappers', 'sudo -E env CI=1 npm install next@16'],
+    ['an npm install past an assignment', 'CI=1 npm install next@16'],
+    ['an npm install in a substitution', 'echo "$(npm install next@16)"'],
+    ['an ssh npm install','ssh host "cd app && npm install next@16"'],
   ];
   for (const [name, command] of passes) ok(`source gate passes ${name}`, src(command) === PASS);
   ok('ambiguous quoting: source gate passes npm install', src(`${AMBIGUOUS}npm install next@^16.4.6 2>&1 | tail -5`) === PASS);
@@ -32,8 +35,23 @@ try {
     ['coreutils install after npm and a semicolon', 'npm run build; install a.sh src/b.rs'],
     ['an npm install redirected into a source file', 'npm install x@1 > src/b.rs'],
     ['an npm segment then a redirect', 'npm install x@1 && echo y > src/b.rs'],
+    ['a manager named as an assignment value', 'FOO=npm install a.sh src/b.rs'],
+    ['a manager named as a later operand', 'foo npm install a.sh src/b.rs'],
+    ['a manager named as the value of a wrapper flag', 'sudo -u npm install a.sh src/b.rs'],
+    ['a manager named as an ssh option value', 'ssh -i npm host install a.sh src/b.rs'],
+    ['a manager named as a container image', 'docker run --rm npm install a.sh src/b.rs'],
+    ['a manager as an option value of the container shell body', 'docker run --rm node sh -c "foo --npm npm install a.sh src/b.rs"'],
+    ['one npm install beside a coreutils install', 'npm install x@1 && install a.sh src/b.rs'],
+    ['a manager whose subcommand is not install', 'npm exec install a.sh src/b.rs'],
   ];
   for (const [name, command] of blocks) ok(`source gate blocks ${name}`, src(command) === BLOCK);
+  const ambiguousBlocks = [
+    ['an assignment value', 'FOO=npm install a.sh src/b.rs'],
+    ['a later operand', 'foo npm install a.sh src/b.rs'],
+    ['a printer', 'echo npm install a.sh src/b.rs'],
+    ['a wrapper flag value', 'sudo -u npm install a.sh src/b.rs'],
+  ];
+  for (const [name, command] of ambiguousBlocks) ok(`ambiguous quoting: source gate blocks a manager named as ${name}`, src(AMBIGUOUS + command) === BLOCK);
   ok('ambiguous quoting: source gate blocks a coreutils install', src(`${AMBIGUOUS}install a.sh src/b.rs`) === BLOCK);
   ok('ambiguous quoting: source gate blocks install after an npm segment', src(`${AMBIGUOUS}npm -v && install a.sh src/b.rs`) === BLOCK);
 } finally {

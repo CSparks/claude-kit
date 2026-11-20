@@ -75,7 +75,7 @@ function closingParen(text, from, escapes) {
  * The command text inside every `$(...)`, `<(...)`, `>(...)` and backtick pair of `text` that a shell runs: none in a
  * single-quoted span or behind an escape. PowerShell has `$(...)` only. An unclosed one runs to the end; `$((1 + 2))` yields a harmless `(1 + 2)`.
  */
-function substitutions(text, shellName) {
+export function substitutions(text, shellName) {
   const bash = shellName !== 'powershell';
   const found = [];
   let quote = '';
