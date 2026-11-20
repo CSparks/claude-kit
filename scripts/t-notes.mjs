@@ -21,8 +21,8 @@ export function appendNotes(root, id, text) {
   const parts = splitFrontmatter(raw);
   if (!parts) throw new Error(`t notes: ${id} has no frontmatter block`);
   const prose = String(text).trimEnd();
-  const hasNotes = /^## Notess*$/m.test(parts.rest);
-  const history = parts.rest.search(/^## Historys*$/m);
+  const hasNotes = /^## Notes\s*$/m.test(parts.rest);
+  const history = parts.rest.search(/^## History\s*$/m);
   const body = !hasNotes && history >= 0
     ? `${parts.rest.slice(0, history)}## Notes
 ${prose}
