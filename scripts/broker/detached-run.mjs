@@ -20,7 +20,7 @@
 //   waitRun(root, id, { capS, pollMs, now, sleep })        -> record     the record once ended, or when capS passes
 //   describeRun(record, tailLines?)                        -> text for the caller
 //   runCli(argv)                                           -> exit code, printing the outcome
-// The worker is this file run with `--worker <record path>`; the command runs through bash -c (sh, then cmd.exe) with
+// The worker is this file run with `--worker <record path>`; the command runs through Git for Windows' bash -c (git-bash.mjs; never a bare `bash`, which may be WSL) with
 // bin/build-shims first on PATH, so a cargo call inside it takes cores from the machine budget like any other.
 
 import { execFileSync, spawn } from 'node:child_process';
@@ -31,6 +31,7 @@ import { LAUNCHER_EXAMPLE, LAUNCHER_NOTES, LAUNCHER_USAGE, RUN_LIMIT_S } from '.
 import { limitProblem } from '../../hooks/lib/builds-run-args.mjs';
 import { parseFlags } from './cli.mjs';
 import { recordFinished } from './finished-log.mjs';
+import { GIT_BASH_MISSING, resolveGitBash } from './git-bash.mjs';
 import { waitWindow } from './wait-limits.mjs';
 
 const SELF = fileURLToPath(import.meta.url);
@@ -96,10 +97,8 @@ export function describeRun(record, tailLines = TAIL_LINES) {
 
 function shellFor(command) {
   if (process.platform !== 'win32') return ['sh', ['-c', command]];
-  for (const shell of ['bash', 'sh']) {
-    try { execFileSync(shell, ['-c', 'exit 0'], { stdio: 'ignore', windowsHide: true }); return [shell, ['-c', command]]; } catch { /* next */ }
-  }
-  return ['cmd.exe', ['/d', '/s', '/c', command]];
+  const bash = resolveGitBash();
+  return bash ? [bash, ['-c', command]] : ['cmd.exe', ['/d', '/s', '/c', command]];
 }
 
 function killTree(pid) {
@@ -140,6 +139,10 @@ export async function runCli(argv) {
   }
   if (typeof flags.run !== 'string') {
     console.error(`builds --run: a command is required.\n  form:    ${LAUNCHER_USAGE} [--limit <s>]\n  example: ${LAUNCHER_EXAMPLE}\n  ${LAUNCHER_NOTES.join('\n  ')}`);
+    return EXIT.USAGE;
+  }
+  if (process.platform === 'win32' && !resolveGitBash()) {
+    console.error(GIT_BASH_MISSING);
     return EXIT.USAGE;
   }
   const why = typeof flags.why === 'string' ? flags.why : '';
