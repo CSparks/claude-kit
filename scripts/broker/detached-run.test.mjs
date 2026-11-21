@@ -159,7 +159,44 @@ test('the launcher and the gate refuse a raise with no reason or past the ceilin
   assert.equal(limitProblem(undefined, ''), '');
 });
 
-const WAIT_CLI = fileURLToPath(new URL('./wait.mjs', import.meta.url));
+test('a run asks cargo for the fingerprint log, records why crates rebuilt and keeps the raw lines out of the output (KIT-T1470)', () => {
+  const root = checkout();
+  const fingerprint = 'cargo::core::compiler::fingerprint';
+  const command = script(root, `console.log('env=' + process.env.CARGO_LOG.split('::').join('/')); console.log('INFO ${fingerprint}: package_id=serde v1.0.0'); console.log('INFO ${fingerprint}: dirty: MissingFile { path: "x" }'); console.log('done');`);
+  const record = startRun({ command, cwd: root, root });
+  const ended = waitRun(root, record.id, { capS: 20 });
+  assert.match(readFileSync(ended.out, 'utf8'), /env=cargo\/core\/compiler\/fingerprint=info/);
+  assert.doesNotMatch(readFileSync(ended.out, 'utf8'), /INFO cargo::core/);
+  assert.deepEqual(ended.dirty, [{ crate: 'serde', reason: 'missing file', count: 1 }]);
+  assert.match(describeRun(ended), /cargo rebuilt 1 crate: serde \(missing file\)/);
+  const quiet = startRun({ command: script(root, "console.log('nothing rebuilt');"), cwd: root, root });
+  assert.equal(waitRun(root, quiet.id, { capS: 20 }).dirty, undefined, 'control: no fingerprint lines, no dirty field');
+});
+
+test('a run with its own CARGO_LOG keeps it', () => {
+  const root = checkout();
+  const previous = process.env.CARGO_LOG;
+  process.env.CARGO_LOG = 'warn';
+  try {
+    const record = startRun({ command: script(root, "console.log('env=' + process.env.CARGO_LOG);"), cwd: root, root });
+    assert.match(readFileSync(waitRun(root, record.id, { capS: 20 }).out, 'utf8'), /env=warn/);
+  } finally {
+    if (previous === undefined) delete process.env.CARGO_LOG; else process.env.CARGO_LOG = previous;
+  }
+});
+
+test('builds --run warns before it starts when a cargo command reaches into a workspace whose .cargo it will not load', () => {
+  const root = checkout();
+  const ws = join(root, 'framework', 'rust');
+  mkdirSync(join(ws, '.cargo'), { recursive: true });
+  writeFileSync(join(ws, '.cargo', 'config.toml'), '[build]\njobs = 24\n');
+  const cli = (command) => spawnSync(process.execPath, [STATUS_CLI, '--run', command, '--timeout', '20', '--tool-timeout', '60'], { cwd: root, encoding: 'utf8' });
+  const warned = cli('cargo --version --manifest-path framework/rust/Cargo.toml');
+  assert.match(warned.stderr, /--manifest-path reaches into .*rust.* cd .*rust && cargo/);
+  assert.doesNotMatch(cli('cd framework/rust && cargo --version --manifest-path Cargo.toml').stderr, /manifest-path/);
+});
+
+const WAIT_CLI =fileURLToPath(new URL('./wait.mjs', import.meta.url));
 const waitCli = (root, id) => spawnSync(process.execPath, [WAIT_CLI, id, '--root', root, '--timeout', '30'], { cwd: root, encoding: 'utf8', env: { ...process.env, BROKER_NO_AUTOSTART: '1' } });
 
 test('wait.mjs on a builds --run id reads the record once instead of answering unknown job (KIT-T1366)', () => {

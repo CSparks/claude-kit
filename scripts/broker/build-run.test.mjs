@@ -13,6 +13,7 @@ import { HELD_ENV } from './build-env.mjs';
 import { LONG_HOLD_MS, MIN_ELASTIC_GRANT } from './build-grant.mjs';
 import { SLOT_PREFIX } from './build-slot-store.mjs';
 import { findReal } from './build-run.mjs';
+import { requestedCores } from './build-env.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
 
 const RUNNER = fileURLToPath(new URL('./build-run.mjs', import.meta.url));
@@ -54,9 +55,23 @@ function run(args, extraEnv = {}, { held = 0, heldForMs = 0 } = {}) {
 }
 
 test('jobs flags: the largest request is read and every value above the cores is cut', () => {
-  assert.equal(requestedJobs(['test', '-j', '15', '--', '--test-threads=32']), 32);
+  assert.equal(requestedJobs(['test', '-j', '15', '--', '--test-threads=32']), 15);
   assert.equal(requestedJobs(['build']), null);
   assert.deepEqual(clampJobs(['test', '-j', '24', '--jobs=30', '-j3', '-p', 'x'], 14), ['test', '-j', '14', '--jobs=14', '-j3', '-p', 'x']);
+});
+
+test('jobs flags: tokens after `--` are the test binary\'s and never count as compile cores', () => {
+  assert.equal(requestedJobs(['test', '-p', 'x', '--test', 'y', '--', '--nocapture', '--test-threads=1']), null);
+  assert.equal(requestedJobs(['test', '--', '--test-threads', '1']), null);
+  assert.equal(requestedJobs(['test', '-j', '8', '--', '--test-threads=1']), 8);
+  assert.equal(requestedJobs(['nextest', 'run', '--test-threads', '4']), 4);
+  const after = ['test', '-j', '24', '--', '--test-threads=32', '-j', '99'];
+  assert.deepEqual(clampJobs(after, 14), ['test', '-j', '14', '--', '--test-threads=32', '-j', '99']);
+});
+
+test('requestedCores: a composed command with a test-thread count after `--` falls back to the jobs given', () => {
+  assert.equal(requestedCores('cargo test -p x -- --test-threads=1', 14), 14);
+  assert.equal(requestedCores('cargo test -j 6 -p x -- --test-threads=1', 14), 6);
 });
 
 test('classify: builds are gated, a run keeps its program out of the hold, info and fmt pass', () => {
@@ -86,6 +101,28 @@ test('a project -j 24 reaches cargo as the budget, with every thread setting cut
   assert.deepEqual(r.seen.args, ['test', '-j', String(BUDGET)]);
   assert.deepEqual([r.seen.jobs, r.seen.test, r.seen.nextest], [String(BUDGET), String(BUDGET), String(BUDGET)]);
   assert.ok(r.seen.held, 'the child is marked as holding cores, so nested tools pass through');
+});
+
+test('a test thread count after `--` is the test binary\'s: the build still gets the budget and the arguments arrive as written', () => {
+  const r = run(['test', '-p', 'x', '--test', 'y', '--', '--nocapture', '--test-threads=1']);
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(r.seen.args, ['test', '-p', 'x', '--test', 'y', '--', '--nocapture', '--test-threads=1']);
+  assert.equal(r.seen.jobs, String(BUDGET));
+  assert.doesNotMatch(r.stderr, /asked for 1 cores/);
+});
+
+test('a manifest path into a workspace with its own .cargo warns on stderr and names the cd that loads it', () => {
+  const ws = mkdtempSync(join(tmpdir(), 'build-ws-'));
+  mkdirSync(join(ws, '.cargo'));
+  writeFileSync(join(ws, '.cargo', 'config.toml'), '[build]\njobs = 24\n');
+  writeFileSync(join(ws, 'Cargo.toml'), '[workspace]\n');
+  try {
+    const r = run(['test', '-p', 'x', '--manifest-path', join(ws, 'Cargo.toml')]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stderr, /--manifest-path reaches into .*build-ws-.*will not load/);
+    assert.match(r.stderr, /Run it from that workspace: cd .*build-ws-.* && cargo/);
+    assert.doesNotMatch(run(['test', '-p', 'x']).stderr, /manifest-path/);
+  } finally { rmSync(ws, { recursive: true, force: true }); }
 });
 
 test('a running game cuts the budget the build gets', () => {

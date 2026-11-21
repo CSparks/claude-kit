@@ -20,6 +20,9 @@
 //   waitRun(root, id, { capS, pollMs, now, sleep })        -> record     the record once ended, or when capS passes
 //   describeRun(record, tailLines?)                        -> text for the caller
 //   runCli(argv)                                           -> exit code, printing the outcome
+// The command runs with CARGO_LOG asking for cargo's fingerprint lines (fingerprint-log.mjs); at the end they leave the output file and the
+// record carries `dirty`, which `builds --result` summarises as the crates cargo rebuilt and why. `builds --run` warns on stderr when a cargo
+// --manifest-path reaches into a workspace whose .cargo the working directory will not load (manifest-config.mjs).
 // The worker is this file run with `--worker <record path>`; the command runs through Git for Windows' bash -c (git-bash.mjs; never a bare `bash`, which may be WSL) with
 // bin/build-shims first on PATH, so a cargo call inside it takes cores from the machine budget like any other.
 
@@ -31,6 +34,8 @@ import { LAUNCHER_EXAMPLE, LAUNCHER_NOTES, LAUNCHER_USAGE, RUN_LIMIT_S } from '.
 import { limitProblem } from '../../hooks/lib/builds-run-args.mjs';
 import { parseFlags } from './cli.mjs';
 import { recordFinished } from './finished-log.mjs';
+import { FINGERPRINT_ENV, harvestDirty } from './fingerprint-log.mjs';
+import { commandConfigWarnings } from './manifest-config.mjs';
 import { GIT_BASH_MISSING, resolveGitBash } from './git-bash.mjs';
 import { waitWindow } from './wait-limits.mjs';
 
@@ -41,6 +46,7 @@ const DEFAULT_LIMIT_S = RUN_LIMIT_S.DEFAULT;
 const POLL_MS = 500;
 const MS_PER_SECOND = 1000;
 const TAIL_LINES = 30;
+const REBUILT_SHOWN = 6;
 const EXIT = { ENDED_OK: 0, RUNNING: 2, USAGE: 64 };
 export const RUN_STATUS = { RUNNING: 'running', ENDED: 'ended', TIMEOUT: 'timeout' };
 const STATUS = RUN_STATUS;
@@ -92,7 +98,14 @@ export function describeRun(record, tailLines = TAIL_LINES) {
       '  Do not sleep or poll: write your handoff naming this id and the output file, and end; the orchestrator resumes you from that line.'].join('\n');
   }
   const verdict = record.status === STATUS.TIMEOUT ? `stopped at its ${record.limitS} s limit` : `ended with exit ${record.exit}`;
-  return [head, `  ${verdict} after ${seconds(record.startedAt, record.endedAt)} s (${limitText(record)})`, `  output: ${record.out}`, tailOf(record.out, tailLines)].join('\n');
+  return [head, `  ${verdict} after ${seconds(record.startedAt, record.endedAt)} s (${limitText(record)})`, `  output: ${record.out}`, ...rebuiltLine(record.dirty), tailOf(record.out, tailLines)].join('\n');
+}
+
+function rebuiltLine(dirty) {
+  if (!dirty?.length) return [];
+  const crates = [...new Set(dirty.map((d) => d.crate))];
+  const shown = dirty.slice(0, REBUILT_SHOWN).map((d) => `${d.crate} (${d.reason})`).join(', ');
+  return [`  cargo rebuilt ${crates.length} crate${crates.length === 1 ? '' : 's'}: ${shown}${dirty.length > REBUILT_SHOWN ? `, +${dirty.length - REBUILT_SHOWN} more` : ''}`];
 }
 
 function shellFor(command) {
@@ -113,14 +126,14 @@ async function work(path) {
   const record = JSON.parse(readFileSync(path, 'utf8'));
   const fd = openSync(record.out, 'w');
   const [file, args] = shellFor(record.command);
-  const env = { ...process.env, PATH: `${SHIM_DIR}${delimiter}${process.env.PATH || ''}`, ...(record.writer ? { [WRITER_ENV]: record.writer } : {}) };
+  const env = { ...FINGERPRINT_ENV, ...process.env, PATH: `${SHIM_DIR}${delimiter}${process.env.PATH || ''}`, ...(record.writer ? { [WRITER_ENV]: record.writer } : {}) };
   const child = spawn(file, args, { cwd: record.cwd, stdio: ['ignore', fd, fd], env, windowsHide: true });
   let timedOut = false;
   const timer = setTimeout(() => { timedOut = true; killTree(child.pid); }, record.limitS * MS_PER_SECOND);
   const end = (exit) => {
     clearTimeout(timer);
     closeSync(fd);
-    const ended = { ...record, status: timedOut ? STATUS.TIMEOUT : STATUS.ENDED, exit, endedAt: new Date().toISOString(), pid: child.pid };
+    const ended = harvestDirty({ ...record, status: timedOut ? STATUS.TIMEOUT : STATUS.ENDED, exit, endedAt: new Date().toISOString(), pid: child.pid }, record.out, () => undefined);
     writeRecord(path, ended);
     const agent = String(record.writer || '').split('|')[1] || '-';
     recordFinished({ targetDir: join(record.root, 'target') }, { id: record.id, status: timedOut ? STATUS.TIMEOUT : `exit${exit}`, agent, ...(record.why ? { limitS: record.limitS, why: record.why } : {}) });
@@ -151,6 +164,7 @@ export async function runCli(argv) {
     console.error(`builds --run: ${refused}.\n  form: ${LAUNCHER_USAGE} [--limit <s> --why "<reason>"]`);
     return EXIT.USAGE;
   }
+  for (const line of commandConfigWarnings(flags.run, process.cwd())) console.error(line);
   const record = startRun({ command: flags.run, cwd: process.cwd(), out: typeof flags.out === 'string' ? flags.out : '', writer: process.env[WRITER_ENV] || '', limitS: Number(flags.limit) || DEFAULT_LIMIT_S, why });
   const waited = waitRun(record.root, record.id, { capS: waitWindow(flags, { subagent }).seconds });
   console.log(describeRun(waited));

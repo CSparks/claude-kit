@@ -32,6 +32,7 @@ import { cargoConfigJobs } from './cargo-config-jobs.mjs';
 import { clampJobs, requestedJobs } from './jobs-flags.mjs';
 import { compiledScope } from './cargo-scope-dirs.mjs';
 import { targetSelection } from './cargo-targets.mjs';
+import { shimConfigWarnings } from './manifest-config.mjs';
 import { START_WAIT_S, waitOutWindows } from './write-window.mjs';
 
 const EXIT_QUEUED = 75;
@@ -120,7 +121,10 @@ async function main([tool, ...args]) {
   if (!real) { process.stderr.write(`[build-budget] ${tool}: not found on PATH\n`); return EXIT_NOT_FOUND; }
   const cwd = process.cwd();
   const verdict = process.env[HELD_ENV] ? { gated: false } : classify(tool, args, cwd);
-  if (verdict.gated) return runGated(real, tool, args, verdict, cwd);
+  if (verdict.gated) {
+    for (const line of shimConfigWarnings(args, cwd)) process.stderr.write(`${line}\n`);
+    return runGated(real, tool, args, verdict, cwd);
+  }
   const child = start(real, args, process.env, 'inherit');
   return new Promise((done) => child.on('exit', (code, signal) => done(code ?? (signal ? 1 : 0))));
 }
