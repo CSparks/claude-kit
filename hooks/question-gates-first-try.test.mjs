@@ -67,7 +67,7 @@ try {
   const BLANKET = '[options-checked: FQD-D030 (default menus) and FQD-D040 (pop-in) govern; no other recorded decision applies]';
   const surfaced = gate(GROUNDED, root, [persist(BLANKET)]);
   ok('KIT-T1457: a persistence question with a blanket tag naming other ids still surfaces the caching decision', surfaced.code === BLOCK && /FQD-D031/.test(surfaced.out), surfaced.out);
-  ok('control: naming the caching decision in the tag passes', gate(GROUNDED, root, [persist('[options-checked: FQD-D031 (every deterministic output is cached on disk) governs; no other recorded decision applies]')]).code === PASS);
+  ok('control: naming both persistence decisions in the tag passes', gate(GROUNDED, root, [persist('[options-checked: FQD-D031 (every deterministic output is cached on disk) and FQD-D146 (world data persists by cache age) govern]')]).code === PASS);
   ok('control: the same persistence question cites nothing and is blocked untagged', gate(GROUNDED, root, [persist()]).code === BLOCK);
 
   const cited = question('Does FQD-D030 need an override for the harbour menu?', 'Menu');

@@ -53,6 +53,7 @@ import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs'
 import { BRIEF_CHECK, briefBlock } from './dispatch-brief.mjs';
 import { RULINGS_CHECK, rulingsBlock } from './dispatch-rulings.mjs';
 import { FRAMEWORK_CHECK, frameworkBlock } from './dispatch-framework.mjs';
+import { DECISIONS_CHECK, decisionsBlock } from './dispatch-decisions.mjs';
 import { WASTE_CHECK, HANDOFF_CHECK, wasteWarning, handoffBlock, ticketsCited } from './dispatch-context.mjs';
 // The session-model resolver lives in model-tag.mjs: the activity line needs the same answer
 // (KIT-T179) — one implementation, two consumers, no drift between gate and tag.
@@ -99,6 +100,7 @@ try {
     briefCheck(root, input, prompt, p),
     rulingsCheck(root, input, prompt, p),
     frameworkCheck(root, input, prompt, p),
+    decisionsCheck(root, input, prompt, p),
     handoffCheck(root, input, prompt, p),
   ].filter(Boolean);
   const superseded = pathExcluded(root, SUPERSEDED_CHECK, root) ? '' : supersededCitationWarning(root, prompt);
@@ -287,6 +289,12 @@ function briefCheck(root, input, prompt, p) {
 function rulingsCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, RULINGS_CHECK, root)) return null;
   return rulingsBlock({ root, input, prompt, footer: excludeFooter(RULINGS_CHECK) });
+}
+
+// --- brief-decisions (KIT-T1458) ----------------------------------------------------
+function decisionsCheck(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, DECISIONS_CHECK, root)) return null;
+  return decisionsBlock({ root, input, prompt, footer: excludeFooter(DECISIONS_CHECK) });
 }
 
 // --- framework-checked (KIT-T1095) --------------------------------------------------

@@ -27,3 +27,7 @@ export const GROUNDED_CLAUSE_PER_QUESTION = 5;
 export const GROUNDED_CLAUSE_PHRASE = 3;
 export const GROUNDED_CLAUSE_LONG_STEMS = 20;
 export const GROUNDED_CLAUSE_SHOWN = 160;
+export const BRIEF_DECISIONS_TOP = 3;
+export const BRIEF_COVERAGE_MIN = 0.3;
+export const BRIEF_MIN_SHARED = 6;
+export const BRIEF_STEMS_SHOWN = 6;

@@ -22,6 +22,7 @@ import { JOB_CHECK } from '../dispatch-job.mjs';
 import { LESSONS_CHECK } from '../dispatch-lessons.mjs';
 import { RULINGS_CHECK } from '../dispatch-rulings.mjs';
 import { FRAMEWORK_CHECK } from '../dispatch-framework.mjs';
+import { DECISIONS_CHECK } from '../dispatch-decisions.mjs';
 import { UI_CHECK } from '../dispatch-ui.mjs';
 import { BACKGROUND_RUN_CHECK } from '../dispatch-background-run.mjs';
 import { TESTS_CHECK } from '../dispatch-tests.mjs';
@@ -75,6 +76,7 @@ export const GATES = {
       { check: BRIEF_GROUNDED_CHECK, wants: ['a feature or request ticket brief quotes the maintainer; a variant also names what it reuses'], tokens: [T.maintainerWords, T.reuses] },
       { check: RULINGS_CHECK, wants: ['a design or plan brief (job plan, or an analyst or researcher briefed with design words) cites the inbox search for maintainer rulings while the inbox holds un-triaged notes'], tokens: [T.rulingsChecked] },
       { check: FRAMEWORK_CHECK, wants: ['in a repo that uses a framework with a crate index (rapid-game: docs/CRATES.md), a plan or design brief names the indexed crates it read for each mechanism it proposes, or says none apply and why'], tokens: [T.frameworkChecked] },
+      { check: DECISIONS_CHECK, wants: ['a plan or design brief, and every analyst-max or perf-tuner brief, is matched against the Decision clauses of the recorded decisions (the project store and each framework store, with the questionnaire gate\'s matcher); a decision whose clause a sentence or line of the brief restates must be named by id in the brief or in a [rulings-checked: ...] tag, with what it is in plain words; the block lists each decision (id, title, clause); "none apply" clears no decision it does not name (KIT-T1458)'], tokens: [T.rulingsChecked] },
       { check: HANDOFF_CHECK, wants: ['a dispatch that replaces an agent flagged for waste waits until that agent wrote its Handoff block in the ticket Notes'], tokens: [T.handoffWaived, T.writeHandoff] },
     ],
   },

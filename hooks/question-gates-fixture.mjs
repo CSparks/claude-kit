@@ -1,5 +1,5 @@
 // Shared by the questionnaire first-try tests (KIT-T1451): a project store with decisions that pull the questionnaire gates in
-// each direction, and the helpers that put a questionnaire through one gate or through every gate at once.
+// each direction (writeDecisions(root) writes them into any repo), and the helpers that put a questionnaire through one gate or through every gate at once.
 //
 //   storeWithDecisions() -> project root     decisions FQD-D010 (a test-run rule), D020 (replaced) and D021 (its replacement),
 //                                            D030 (default menus), D040 (pop-in) and filler decisions on unrelated subjects
@@ -24,6 +24,8 @@ const DECISIONS = [
     'A new game starts with a main menu, a pause menu and a settings screen by default. Everything at menu level can be overridden.'],
   ['FQD-D031-cached-output.md', 'FQD-D031', 'What is generated deterministically is cached: every cooked output is stored by its fingerprint and read back, never regenerated',
     'Every deterministic generated output is cacheable and is cached: a cooked chunk stage, the road network, a settlement plan. Each is stored on disk under a key that names everything its cook reads (seed, world documents, the code that cooks it) and is read back in place of regenerating it. The cache is the framework\'s, one home, used by every game.'],
+  ['FQD-D146-persisted-world-data.md', 'FQD-D146', 'Generated world data persists on disk and lives by cache age; a costlier first run on a new seed is accepted',
+    'Generated world data (the world build and the loading-hold cooks) persists on disk so a repeat of the same seed loads from it. How long an entry lives is decided by its age, not by a code stamp. The first run on a new seed pays the full build and fills the cache.'],
   ['FQD-D040-pop-in.md', 'FQD-D040', 'Pop-in is hidden on every streamed system',
     'Hiding pop-in is a standing requirement on every streamed system: level-of-detail changes are cross-faded and never pop.'],
   ['FQD-D050-audio.md', 'FQD-D050', 'Engine sounds are synthesised from the vehicle model, never sampled',
@@ -38,13 +40,14 @@ const DECISIONS = [
     'Keyboard reads go through a context stack; an open menu context swallows the keys it uses.'],
 ];
 
-export function storeWithDecisions() {
-  const root = project('required', 'FQD');
+export function writeDecisions(root) {
   const dir = join(root, '.ai', 'decisions');
   mkdirSync(dir, { recursive: true });
   for (const [file, id, title, decided] of DECISIONS) writeFileSync(join(dir, file), DECISION(id, title, decided));
   return root;
 }
+
+export const storeWithDecisions = () => writeDecisions(project('required', 'FQD'));
 
 export const option = (label, description) => ({ label, description });
 

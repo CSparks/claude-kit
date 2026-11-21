@@ -18,7 +18,7 @@ const PLAN_JOB = 'plan';
 const ANALYTICAL_TYPES = new Set(['plan', 'analyst', 'analyst-max', 'researcher', 'explore']);
 const DESIGN = /\b(?:design(?:s|ing)?|architect(?:ure|ural)?|master plan|plan(?:ning)? (?:the|a|for)|propos(?:e|al|als)|blueprint|data model|storage model|spec(?:ification)?)\b/i;
 
-const typeName = (input) => String(input.subagent_type || input.agent_type || '').split(':').pop().trim().toLowerCase();
+export const typeName = (input) => String(input.subagent_type || input.agent_type || '').split(':').pop().trim().toLowerCase();
 
 export function isDesignDispatch(root, input, prompt) {
   if (dispatchJob(root, input) === PLAN_JOB) return true;
