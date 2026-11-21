@@ -64,6 +64,10 @@ undressed frame, different pixels) is LISTED in the doc, status `visible`, and n
 Numbers table (scene + mode per row), shas, probe runs used, time ledger, and the next lever
 you would take with its measured ms.
 
+## Saved output and docs files (KIT-T1453)
+- A saved probe, bench or build output file is read with Read (offset, limit) or searched with `q code <text> --path <file>` (a gitignored `target/` file: `q code <text> --dir <path>`); never shell grep, sed, head or tail.
+- A docs file (`docs/perf/theories.md`, a topic doc) is written with Write or Edit; never `node -e`, a heredoc or a redirect.
+
 ## Shell deletes (KIT-T1213)
 - A shell delete of source (`rm`, `del`, `Remove-Item`) passes only for a file you wrote with Write or Edit and have not changed since, one named file per operand: never a directory, `rm -r` or a glob; a tracked file goes through `git rm -- <path>`; another writer's file is raised to the main thread (`q gates source`).
 
