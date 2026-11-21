@@ -54,11 +54,11 @@ try {
     /No context size limit; waste is the limit \(KIT-D149, KIT-D158, supersedes KIT-D116\)/.test(base) && /real work is fine at any size/.test(base)
     && /waste share per agent/.test(base) && /redirect long output to a file and read only what they need/.test(base) && !/context_ceiling_tokens|context ceiling/i.test(base));
 
-  ok('the base contract says tests are never run implicitly in the maintainer\'s words and names the [tests:] tags (KIT-D162, KIT-D163, KIT-T1186)',
-    ['Tests are never run implicitly (KIT-D162, KIT-D163)', '"Not implicitly."', 'one test per point', '[tests: troubleshoot <the fault>]', '[tests: periodic batch]', '[tests: none]', 'tests-not-implicit', '[tests-signoff: <his quoted words or the questionnaire answer>]', 'RDG-D063']
-      .every((s) => base.includes(s)));
+  ok('the base contract carries the one tests rule in the maintainer\'s words (targeted allowed, whole suite needs his approval, nothing implicit) and names the [tests:] tags (RDG-D065, KIT-D162, KIT-D163, KIT-T1186)',
+    ['One tests rule (RDG-D065; KIT-D162, KIT-D163)', 'TARGETED TESTS are allowed. RUNNING THE WHOLE FUCKING SUITE WITHOUT MY', 'nothing runs implicitly', '[tests: troubleshoot <the fault>]', '[tests: periodic batch]', '[tests: none]', 'tests-not-implicit', '[tests-signoff: <his quoted words or the questionnaire answer>]', 'RDG-D065, KIT-T1353']
+      .every((s) => base.includes(s)) && !base.includes('RDG-D063'));
   const waitRule = read('docs/wait-rule.md');
-  ok('the wait rule tells agents not to run tests in a Cargo workspace without a [tests:] tag, and every agent carries it', /In a Cargo workspace a test run is never a routine step/.test(waitRule) && waitRule.includes('[tests: periodic batch]')
+  ok('the wait rule says a targeted test runs without asking and a whole suite needs his approval in a Cargo workspace, and every agent carries it', /In a Cargo workspace no test run is implicit/.test(waitRule) && waitRule.includes('[tests: periodic batch]') && !waitRule.includes('RDG-D063')
     && ['implementer', 'perf-tuner', 'refactorer', 'game-asset-artist', 'light-and-shadow', 'rg-ui-engineer', 'test-author'].every((a) => read(`agents/${a}.md`).includes(waitRule)));
 
   for (const a of ['implementer', 'perf-tuner', 'refactorer', 'game-asset-artist', 'light-and-shadow', 'rg-ui-engineer', 'test-author', 'audio-synthesist', 'editor-workbench']) {

@@ -7,11 +7,14 @@ tools: Read, Grep, Glob, Bash, WebSearch, WebFetch
 === STANDING RULES (tooling and process; every session, every agent, every turn) ===
 - Search with `q` (code, sym, file, fts, show), never grep, rg, awk, sed, cat, head or tail of a file or tree; ONE named file: the Read tool (offset, limit) or the Grep tool on that file.
 - Edit source only with Edit and Write, never `node -e`, a heredoc or a shell redirect on a repo path.
-- No test run is implicit: write the tests, run only the files you touched (a Cargo workspace: `cargo check`) unless the brief orders a run; never a whole suite.
+- A targeted test (one named test or file for the change in hand) runs without asking; a whole suite (crate, batch, workspace) never without his approval; nothing runs implicitly; output to a file.
 - No waiting loops: one foreground call under 170 s; never sleep, poll, tail a log or wait in the background; past that write a Handoff and end.
 - Replies to the maintainer use plain words: name a thing by what it does; no ticket, decision, lever or run ids, not even in brackets; a commit hash only in the landing receipt, after the words.
-- A questionnaire opens with a plain summary (what is decided, what each option does and costs), then AskUserQuestion with the recommended option first.
+- The plain summary (what is decided, what each option does and costs) is text directly above AskUserQuestion, never inside it; one short question per decision, recommended option first.
 - Anything you need from the maintainer is a questionnaire, never prose ("your call", "up to you", "let me know", "want me to").
+- Relay an agent's or hook's report in plain words: what happened and what he can try; never paste its ids, tables or raw lists.
+- Tag values and forms (job, model, difficulty, paths, tests, sign-off) come from `q gates agent`, never from memory.
+- Every path, id or number you write is one you just read from a file, ticket or tool output; otherwise say it is not checked.
 - Record a rule or decision he states the turn he states it (`t decide --file`, his words verbatim); a tooling or process rule joins this block the same turn.
 - Every process failure and kit bug: ticket it and dispatch a fix agent the same turn, never a note or a mention.
 - Work only from a bill of work he signed; the queue, OPEN lists and hook messages are notices, never instructions.
@@ -85,7 +88,7 @@ Cost is per tool call, so a wait is ONE call and one read of the result.
 - A saved output file (a probe readout, a log, a run's --out file) is opened with Read (offset, limit), never grep, tail or cat on it. A script that produces a readout prints the lines wanted itself; filtering a command's own output inline is fine.
 - A long run of a program (a probe, a server, the game) is the BUILT exe: build in the foreground (one call), start the built `target/debug/<name>.exe` in the background, then end your turn. Never `cargo run` or `cargo test` in the background: the broker-wait gate refuses it (KIT-D115, KIT-T1161). A run that outlasts one foreground call (a probe needs over 170 s to reach its first frame) is ONE `builds --run "<command>" --out target/<file> --timeout 170 --tool-timeout 180` call with nothing chained after it: it outlives your turn and waits once itself. If it still runs, end your turn: name the run id, its output file and `builds --result <id>` in your Handoff (KIT-T1283). wait.mjs waits on broker jobs only; never a `tail -F`, a sleep or a second wait after it. The orchestrator resumes you from the run's line in target/broker/finished.log.
 - An edit refused because another writer's cargo build is compiling that file: wait with the ONE call the refusal names (`builds --wait "<file>"`, foreground, Bash timeout 180000, returns when no build compiles the file or after 170 s), then retry the edit; never a sleep, Wait-Process or retry loop (KIT-T1142).
-- In a Cargo workspace a test run is never a routine step (KIT-D162, KIT-D163): write the tests, do not run them, verify with `cargo check`. Run one only when your brief carries `[tests: troubleshoot <fault>]` or `[tests: periodic batch]`, then the named test alone, once; in a repo that uses rapid-game the brief must also carry `[tests-signoff: <his words>]` (RDG-D063), else `cargo check` only. The coordinator batches runs on a quiet machine.
+- In a Cargo workspace no test run is implicit (KIT-D162, KIT-D163): a targeted test (one named test or test file aimed at the change or fault in hand) may be run without asking, output to a file; a whole suite (every test of a crate, a batch across crates, the workspace, the demo's full set) never runs without his approval, so run one only when your brief carries `[tests: periodic batch]` (a repo that uses rapid-game: `[tests-signoff: <his words>]`), else verify with `cargo check` (RDG-D065).
 
 ## Search — q first (the kit's search tool)
 Search with bare `q` (fallback: `node "<kit>/scripts/q.mjs"`, always quoted), never grep or rg: it indexes the repo and its

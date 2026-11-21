@@ -5,10 +5,12 @@
 // A brief that orders runs says why with `[tests: troubleshoot <fault>]`, `[tests: periodic batch]`, or
 // `[tests: none]` naming `cargo check`. A clause that forbids a run ("write the test, do not run it") is the rule itself.
 // The Cargo test is `git ls-files` of the dispatch target: a Node repo, including the kit, has none and is never judged.
-// In a repo that uses rapid-game those reasons no longer pass (RDG-D063): an ordered run needs
+// In a repo that uses rapid-game those reasons no longer pass for a whole suite (RDG-D065): a targeted test (one named
+// test or test file) needs no tag; an ordered whole suite needs
 // `[tests-signoff: <his quoted words or the questionnaire answer>]`; `--no-run`, a forbidding clause or no order passes.
 //
 //   testRunOrders(prompt)                      -> the ordered-run phrases found, [] when none
+//   wholeSuiteOrders(prompt)                   -> the ordered whole-suite phrases found, [] when none or all targeted
 //   testsBlock({ root, input, prompt, footer }) -> block message | null (check `tests-not-implicit`)
 
 import { hasTrackedCargo } from '../scripts/broker/cargo-scope.mjs';
@@ -58,6 +60,45 @@ export function testRunOrders(prompt) {
   return [...new Set(found.map((s) => s.toLowerCase()))];
 }
 
+const CARGO_TEST_REST = /\bcargo(?:\.exe)?\s+(?:test|t|nextest)\b((?:[^"'`;|&\n.]|\.(?!\s|$))*)/gi;
+const CARGO_VALUE_FLAGS = new Set(['-p', '--package', '--features', '-F', '-j', '--jobs', '--target', '--target-dir', '--manifest-path', '--profile', '--exclude']);
+const TEST_NAME = /^(?:\w*_\w*|\w+::[\w:]+)$/;
+const WHOLE_SUITE_WORDS = [
+  new RegExp(String.raw`\b${RUN_WORDS}\s+(?:the|each|every|all|these|those)?\s*(?:[\w'-]+\s+){0,2}(?:suites?|tests)\b`, 'gi'),
+  /\b(?:whole|full|entire|all)\s+(?:the\s+)?(?:test\s+)?(?:suites?|tests)\b/gi,
+  /--workspace\b/g,
+];
+
+// A `cargo test` names one test or test file when it carries `--test <file>`, a name after `--`, or a snake_case or path name.
+function selectsOneTest(rest) {
+  const tokens = rest.trim().split(/\s+/).filter(Boolean).map((t) => t.replace(/[.,)]+$/, ''));
+  let afterDashes = false;
+  for (let i = 0; i < tokens.length; i += 1) {
+    const t = tokens[i];
+    if (t === '--') { afterDashes = true; continue; }
+    if (t === '--test' || t.startsWith('--test=')) return true;
+    if (CARGO_VALUE_FLAGS.has(t)) { i += 1; continue; }
+    if (t.startsWith('-')) continue;
+    if (afterDashes || TEST_NAME.test(t)) return true;
+  }
+  return false;
+}
+
+// The orders that run a whole suite (every test of a crate, a batch across crates, the workspace, the demo's full set):
+// an unscoped `cargo test`, "the suite", "the tests", "all tests", `--workspace`. A named test or test file is not one.
+export function wholeSuiteOrders(prompt) {
+  const text = String(prompt || '');
+  const found = [];
+  for (const m of text.matchAll(CARGO_TEST_REST)) {
+    if (negated(text, m.index) || compileOnly(text, m.index, m[0].length) || selectsOneTest(m[1])) continue;
+    found.push(m[0].trim());
+  }
+  for (const re of WHOLE_SUITE_WORDS) {
+    for (const m of text.matchAll(re)) if (!negated(text, m.index) && !compileOnly(text, m.index, m[0].length)) found.push(m[0].trim());
+  }
+  return [...new Set(found.map((s) => s.toLowerCase()))];
+}
+
 function isRustTarget(root, input) {
   try { return hasTrackedCargo(dispatchTargetRoot(root, input)); } catch { return false; }
 }
@@ -70,11 +111,11 @@ function usesFramework(root, input) {
 
 function signoffBlock(orders, footer) {
   return [
-    `BLOCKED: this brief orders \`cargo test\` in a repo that uses ${FRAMEWORK_NAME} (${orders.slice(0, 3).map((o) => `"${o}"`).join(', ')}) with no maintainer sign-off.`,
-    '  RDG-D063: every test run on a framework crate, a framework-wide suite or the demo\'s slow tests needs the maintainer\'s sign-off, named in the brief.',
-    '  [tests: troubleshoot <fault>] and [tests: periodic batch] are not a sign-off here. Default: verify with `cargo check`; write tests, do not run them.',
+    `BLOCKED: this brief orders a whole suite in a repo that uses ${FRAMEWORK_NAME} (${orders.slice(0, 3).map((o) => `"${o}"`).join(', ')}) with no maintainer sign-off.`,
+    '  RDG-D065: a targeted test (one named test or test file aimed at the change or fault in hand) needs no sign-off; a whole suite (every test of a crate, a batch across crates, the workspace, the demo\'s full set) never runs without his approval.',
+    '  [tests: troubleshoot <fault>] and [tests: periodic batch] are not a sign-off here. Name the one test or test file (`cargo test -p <crate> --test <file>`), or verify with `cargo check`.',
     '',
-    'Fix: say "write the test, do not run it; verify with cargo check" (or `--no-run`), or, once he has said yes in a questionnaire or in his own words, add:',
+    'Fix: order the one named test, say "write the test, do not run it; verify with cargo check" (or `--no-run`), or, once he has said yes in a questionnaire or in his own words, add:',
     `  ${TOKENS.testsSignoff.form}`,
     '',
     footer,
@@ -86,7 +127,10 @@ export function testsBlock({ root, input, prompt, footer }) {
   if (TOKENS.testsSignoff.pattern.test(brief)) return null;
   const orders = testRunOrders(brief);
   if (!orders.length || !isRustTarget(root, input)) return null;
-  if (usesFramework(root, input)) return signoffBlock(orders, footer);
+  if (usesFramework(root, input)) {
+    const whole = wholeSuiteOrders(brief);
+    return whole.length ? signoffBlock(whole, footer) : null;
+  }
   if (reasonGiven(brief)) return null;
   return [
     `BLOCKED: this brief orders test runs as a routine step (${orders.slice(0, 3).map((o) => `"${o}"`).join(', ')}).`,

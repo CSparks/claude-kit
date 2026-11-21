@@ -84,15 +84,15 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   line gives the result, not the process. Every turn ends with a UAT receipt — what
   the maintainer can try as a user — or an explicit `[no-test: <reason>]`. They never
   have to ask "what can I test?". Gate-enforced on landings.
-- **Automated tests are Claude's, end to end (KIT-D045).** Run suites AND act on the
+- **Automated tests are Claude's, end to end (KIT-D045).** Run them and act on the
   results. Never hand the maintainer a test command as the receipt — they do UAT
   only. Cite results as already-run evidence ("116 passed", the sha), never as
-  instructions. **Tests are never run implicitly (KIT-D162, KIT-D163):** no gate on commit
-  ("There should not be a test gate for commit since multiple projects share this machine
-  and it's very taxing."); between daily full runs tests run on the touched crates only,
-  "As needed." and "Not implicitly." Rust builds are slow: a brief never orders a routine
-  test run ("one test per point" is still an implicit run); agents write tests, verify with
-  `cargo check`, and the coordinator batches runs on a quiet machine.
+  instructions. **One tests rule (RDG-D065; KIT-D162, KIT-D163):** a targeted test (one named
+  test or test file aimed at the change or fault in hand) may be run without asking, output to a
+  file; a whole suite (every test of a crate, a batch across crates, the workspace, the demo's full
+  set) is never run without his approval; nothing runs implicitly (no commit gate, not routine, not
+  per edit). His words: "TARGETED TESTS are allowed. RUNNING THE WHOLE FUCKING SUITE WITHOUT MY
+  APPROVAL is not." Rust builds are slow: a brief orders a named test, never a suite.
 - Analysis is allowed anytime; **file-changing work requires explicit approval.**
 - Run builds/tests inside Docker when the project uses it. Node.js for bulk scripts.
 - **Every session works from a bill of work (KIT-D132, supersedes KIT-D130).** The
@@ -209,8 +209,9 @@ in a block message or a decision file is a defect.
   leaving plan mode (in the plan text) add `[framework-checked: <indexed crates read, per mechanism>|none apply: <why>]`
   (KIT-T1095; `q gates plan`). In a Cargo workspace a brief that orders test runs adds
   `[tests: troubleshoot <the fault>]` or `[tests: periodic batch]`, or `[tests: none]` naming
-  `cargo check` (KIT-T1186; check `tests-not-implicit`). In a repo that uses rapid-game an ordered
-  test run needs `[tests-signoff: <his quoted words or the questionnaire answer>]` instead (RDG-D063, KIT-T1353).
+  `cargo check` (KIT-T1186; check `tests-not-implicit`). In a repo that uses rapid-game a targeted test (one
+  named test or test file) needs no tag, and an ordered whole suite needs
+  `[tests-signoff: <his quoted words or the questionnaire answer>]` (RDG-D065, KIT-T1353).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout

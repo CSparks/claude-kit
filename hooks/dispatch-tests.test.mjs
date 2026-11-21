@@ -2,14 +2,15 @@
 // dispatch-tests.test.mjs — the tests-not-implicit dispatch check (KIT-T1186, KIT-D162, KIT-D163): in a Cargo workspace a
 // brief that orders routine test runs is blocked unless it carries a [tests:] reason; a brief that forbids runs, a
 // compile-only `--no-run`, and any brief into a repo with no Cargo.toml (the kit) pass. In a repo that uses rapid-game
-// the [tests:] reasons no longer pass: only [tests-signoff:] lifts an ordered `cargo test` (RDG-D063, KIT-T1353).
+// the [tests:] reasons no longer pass for a whole suite: only [tests-signoff:] lifts it, while a targeted test (one named
+// test or test file) needs no tag (RDG-D065, KIT-T1353).
 // Run: node hooks/dispatch-tests.test.mjs
 
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ignoreFile, expect, finish, makeRepo, run } from './dispatch-guard-harness.mjs';
-import { TESTS_CHECK, testRunOrders } from './dispatch-tests.mjs';
+import { TESTS_CHECK, testRunOrders, wholeSuiteOrders } from './dispatch-tests.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 
 const rust = makeRepo({ cargo: true });
@@ -68,7 +69,11 @@ const FRAMEWORK_BLOCKED = [
   ['run the tests with a troubleshoot tag', 'Run the tests for the skirt. [tests: troubleshoot skirt gap]'],
   ['cargo test with [tests: none] naming cargo check', 'Verify with cargo check, then cargo test -p rg-flora. [tests: none]'],
   ['an empty signoff tag', 'Run cargo test -p rg-noise. [tests-signoff: ]'],
-  ['a bare cargo test', 'Step 3: cargo test -p road-generator --test mountain_look.'],
+  ['an unscoped cargo test', 'Step 3: cargo test -p road-generator.'],
+  ['the whole suite', 'When done re-run the suite for the crate.'],
+  ['all tests', 'Then run all tests in the workspace. [tests: troubleshoot walls]'],
+  ['a bare cargo test with no crate', 'Verify with cargo test.'],
+  ['cargo test with only flags after it', 'Step 3: cargo test --release -p rg-noise -j 2.'],
 ];
 for (const [name, prompt] of FRAMEWORK_BLOCKED) expect(`rapid-game repo blocks ${name}`, blocked(framework, prompt), 2);
 const FRAMEWORK_PASSING = [
@@ -78,12 +83,25 @@ const FRAMEWORK_PASSING = [
   ['a compile-only test build', 'Compile with cargo test -p rg-noise --no-run only.'],
   ['[tests: none] with no run order', 'Fix the lib. [tests: none] Verify with cargo check.'],
   ['a forbid on cargo test', 'Do not run cargo test; cargo check is the verification.'],
+  ['a named test file (RDG-D065)', 'Step 3: cargo test -p road-generator --test mountain_look.'],
+  ['a named test file with the test= form', 'Run cargo test -p rg-noise --test=noise_grid once.'],
+  ['a snake_case test name', 'Run cargo test -p rg-noise cut_wall_is_grey once.'],
+  ['a path test name', 'Run cargo test -p rg-noise town::walls::cut once.'],
+  ['a name after the double dash', 'Run cargo test -p rg-noise -- walls --nocapture once.'],
+  ['a single test, no crate words', 'Run the test for the wall when done.'],
+  ['one measuring test per point', 'Per point: cargo check; ONE measuring test per point, once.'],
+  ['a named test inside builds --run', 'Start builds --run "cargo test -p rg-terrain --test skirt_gap" --out run.txt.'],
 ];
 for (const [name, prompt] of FRAMEWORK_PASSING) expect(`rapid-game repo passes ${name}`, blocked(framework, prompt), 0);
 expect('control: a Cargo repo without rapid-game still passes a troubleshoot tag', blocked(rust, 'Run cargo test -p rg-noise. [tests: troubleshoot noise is grey]'), 0);
 expect('a signoff also passes a Cargo repo without rapid-game', blocked(rust, `Run cargo test -p x. ${SIGNOFF}`), 0);
 const signoffRefused = send(framework, 'Run cargo test -p rg-noise. [tests: troubleshoot noise is grey]');
-expect('the framework block prints RDG-D063 and the exact signoff tag form', /RDG-D063/.test(signoffRefused.err) && signoffRefused.err.includes(TOKENS.testsSignoff.form) ? 1 : 0, 1);
+expect('the framework block states the targeted-versus-whole-suite rule, cites RDG-D065 and prints the exact signoff tag form', /RDG-D065/.test(signoffRefused.err) && /targeted test/.test(signoffRefused.err) && /whole suite/.test(signoffRefused.err) && signoffRefused.err.includes(TOKENS.testsSignoff.form) ? 1 : 0, 1);
+expect('a whole-suite order beside a named test is still blocked', blocked(framework, 'Run cargo test -p rg-noise --test noise_grid, then re-run the suite.'), 2);
+expect('a whole-suite order with a signoff passes', blocked(framework, `Re-run the suite for rg-noise. ${SIGNOFF}`), 0);
+expect('the whole-suite finder skips a named test file', wholeSuiteOrders('Run cargo test -p x --test town_walls.').length, 0);
+expect('the whole-suite finder names an unscoped crate run', wholeSuiteOrders('Run cargo test -p x.').length, 1);
+expect('the whole-suite finder skips a forbidding clause', wholeSuiteOrders('Do not re-run the suite.').length, 0);
 expect('a rapid-game session dispatching into the kit checkout via [tree:] is not judged', send(framework, `Run cargo test -p x. [tests: troubleshoot y] [tree: ${node.replace(/\\/g, '/')}]`).err.includes(TESTS_CHECK) ? 1 : 0, 0);
 expect('the ignore file lifts the framework check', send(ignoreFile(frameworkRepo(), TESTS_CHECK), 'Run cargo test -p rg-noise.').code, 0);
 

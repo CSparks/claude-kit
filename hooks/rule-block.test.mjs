@@ -14,14 +14,19 @@ const { ok, done } = reporter('rule-block');
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const BLOCK_MAX_CHARS = 3200;
 const REQUIRED = [
-  /Search with `q`/, /never grep/, /ONE named file/, /No test run is implicit/, /No waiting loops/, /plain words/, /no ticket, decision, lever or run ids/,
-  /commit hash only in the landing receipt/, /plain summary/, /Anything you need from the maintainer is a questionnaire/, /Record a rule or decision/,
-  /process failure and kit bug.*dispatch a fix agent/,
+  /Search with `q`/, /never grep/, /ONE named file/, /targeted test.*runs without asking.*whole suite.*never without his approval.*nothing runs implicitly/, /No waiting loops/, /plain words/,
+  /no ticket, decision, lever or run ids/, /commit hash only in the landing receipt/, /plain summary.*directly above AskUserQuestion, never inside it/,
+  /Anything you need from the maintainer is a questionnaire/, /Record a rule or decision/, /process failure and kit bug.*dispatch a fix agent/,
+  /Relay an agent's or hook's report in plain words/, /Tag values and forms.*come from `q gates agent`/, /Every path, id or number you write is one you just read/,
 ];
+const RULE_MAX_CHARS = 200;
 const block = ruleBlockText();
 
 try {
   ok('every rule is one line', RULES.every((r) => !r.includes('\n')));
+  ok(`every rule is at most ${RULE_MAX_CHARS} characters`, RULES.every((r) => r.length <= RULE_MAX_CHARS));
+  const globalSource = readFileSync(join(ROOT, 'user-config', 'CLAUDE.global.md'), 'utf8');
+  ok('the global source carries one tests rule: targeted allowed, whole suite needs his approval, no "Run suites AND"', /One tests rule/.test(globalSource) && /TARGETED TESTS are allowed/.test(globalSource) && !/Run suites AND/.test(globalSource) && !/RDG-D063, KIT-T1353/.test(globalSource));
   ok(`the block stays short (${block.length} of ${BLOCK_MAX_CHARS} chars)`, block.length <= BLOCK_MAX_CHARS);
   ok('the block carries every named tooling and process rule', REQUIRED.every((re) => re.test(block)));
 
