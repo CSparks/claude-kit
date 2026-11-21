@@ -54,7 +54,7 @@ the receipt, and continue — do not halt to ask.
 ### The queue is a notice, never an instruction (KIT-D132)
 - **Between tickets**: when the active ticket hits `review`, stop and report. The next item
   per `config.drain` (roadmap order if a current milestone exists, else type
-  `order` + priority) is shown as one line, `next up: T-007 (needs your bill of work)`, and
+  `order` + priority) is shown as one line naming what it does, `next up: <what it does> (needs your bill of work)`, and
   waits for Chris to sign it into the bill. It may be superseded by another session or no
   longer relevant; only he knows. No `drain.auto_execute` value lifts this.
 - **Questions** (`.ai/questions/`, one `<KEY>-Q###.md` each, `answerable_by: user|claude`):

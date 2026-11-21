@@ -10,8 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { adopted, gitRoot, projectName } from './lib.mjs';
 import { fitOrientation } from './lib/orient-budget.mjs';
-import { ruleBlockText } from './lib/rule-block.mjs';
-import { cacheDir } from './lib/stat-cache.mjs';
+import { ruleBlockText } from './lib/rule-block.mjs';import { cacheDir } from './lib/stat-cache.mjs';
 import { agentsSection } from './lib/orient/agents.mjs';
 import { briefMissesSection } from './lib/orient/brief-misses.mjs';
 import { CODEX, firstExisting } from './lib/orient/common.mjs';
@@ -48,6 +47,10 @@ const roadmap = firstExisting(join(root, '.ai', 'ROADMAP.md'), join(root, 'ROADM
 const decisionsFile = firstExisting(join(root, '.ai', 'DECISIONS.md'), join(root, 'DECISIONS.md'));
 const views = decisionViews(root);
 
+try {
+  const outOfDate = (await import('../scripts/composed-claude.mjs')).orientWarning();
+  if (outOfDate) out.push(outOfDate);
+} catch { /* the warning is best-effort */ }
 out.push(ruleBlockText());
 header(ctx);
 await notices(ctx);

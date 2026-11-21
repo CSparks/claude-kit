@@ -189,7 +189,7 @@ try {
     ok('orient KIT-T071: ROADMAP gist is present (milestone header)', r.out.includes('## Milestone 1'));
     ok('orient KIT-T071: ROADMAP full pointer is present', r.out.includes('head .ai/ROADMAP.md'));
     ok('orient KIT-T071: decisions gist lists recent ids', r.out.includes('D-015') || r.out.includes('D-010'));
-    ok('orient KIT-T071: decisions overflow pointer is present', r.out.includes('q decisions'));
+    ok('orient KIT-T071: decisions overflow pointer names a q command that exists (KIT-T1464)', /\+\d+ more — q recent 30d/.test(r.out) && !r.out.includes('q decisions'));
     ok('orient KIT-T071: lineage collapsed to pointer (no full dump)', r.out.includes('lineage.yml'));
     ok('orient KIT-T071: lineage does not dump all relation details inline', !r.out.includes('[engine] rapid-game'));
     ok('orient KIT-T071: SESSION does not dump all 80 lines', !r.out.includes('## Step 80:'));

@@ -55,6 +55,10 @@ try {
   const added = JSON.parse(guide.out).hookSpecificOutput.additionalContext;
   ok('SubagentStart hands every agent the block first', added.startsWith(`${block}\n`));
 
+  const compact = hook('gate-digest.mjs', { hook_event_name: 'SessionStart', source: 'compact' }, repo);
+  ok('after a compaction the restatement carries the tag-forms digest and closes with the standing-rules block', /q gates agent/.test(compact.out) && compact.out.trim().endsWith(block));
+  ok('a startup prints no restatement', hook('gate-digest.mjs', { hook_event_name: 'SessionStart', source: 'startup' }, repo).out.trim() === '');
+
   ok('a decision with his words prints the step that adds the rule to the block', /rule-block\.mjs/.test(ruleRecordStep('**Maintainer:** "never grep"\n\n**Decision:** x')));
   ok('a decision with no maintainer paragraph prints no step', ruleRecordStep('**Decision:** x\n\n**Why:** y') === '');
   ok('the decision flow docs name the block', /standing-rules block/.test(readFileSync(join(ROOT, 'commands', 'decide.md'), 'utf8')) && /standing-rules block/.test(readFileSync(join(ROOT, 'user-config', 'CLAUDE.global.md'), 'utf8')));

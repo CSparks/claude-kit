@@ -26,6 +26,15 @@ function openCaptures(aiDir) {
   }
 }
 
+async function staleLine() {
+  try {
+    const warning = (await import('../scripts/composed-claude.mjs')).orientWarning();
+    return warning ? [warning] : [];
+  } catch {
+    return []; // the warning is best-effort
+  }
+}
+
 async function topicLine(root) {
   try {
     const { collectItems } = await import('../scripts/db-parse.mjs');
@@ -46,6 +55,7 @@ export async function orientUnbounded() {
   const id = writeIdentity(aiDir, { session: String(p.session_id || readIdentity(aiDir).session || '') });
 
   const lines = [
+    ...(await staleLine()),
     ...ruleBlockLines(),
     '=== UNBOUNDED SESSION — no .ai above this cwd; the catch-all store is in use ===',
     `store: ${aiDir}${id.session ? `   session: ${id.session.slice(0, SESSION_SHORT)}` : ''}`,

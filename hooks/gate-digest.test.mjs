@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ENV, HOOKS, cleanup, hook, reporter, repo } from './test-harness.mjs';
 import { GATES, gateDigest } from './lib/gate-protocol.mjs';
+import { RULE_BLOCK_TITLE, ruleBlockText } from './lib/rule-block.mjs';
 
 const { ok, done } = reporter('gate-digest');
 const LINE_BUDGET = 15;
@@ -21,7 +22,9 @@ try {
   ok('a compact start prints the digest and exits 0', compact.code === 0 && lines[0].startsWith('GATE DIGEST'));
   ok('it names the per-type tags the compaction summary loses', /patch-worker-discipline: \[paths:/.test(compact.out) && /conformance-named: \[conformance:/.test(compact.out) && /dispatch-job: \[job:/.test(compact.out) && /lessons-checked: \[lessons-checked:/.test(compact.out));
   ok('it names the model parameter and the question gate', /model:'sonnet'/.test(compact.out) && /^question:/m.test(compact.out));
-  ok(`it stays within ${LINE_BUDGET} lines of ${WIDTH_BUDGET} characters`, lines.length <= LINE_BUDGET && lines.every((l) => l.length <= WIDTH_BUDGET), `${lines.length} lines`);
+  const digest = lines.slice(0, lines.indexOf(RULE_BLOCK_TITLE));
+  ok(`the digest stays within ${LINE_BUDGET} lines of ${WIDTH_BUDGET} characters`, digest.length > 0 && digest.length <= LINE_BUDGET && digest.every((l) => l.length <= WIDTH_BUDGET), `${digest.length} lines`);
+  ok('the standing-rules block closes the compact restatement (KIT-T1463)', compact.out.trim().endsWith(ruleBlockText()));
 
   ok('control: a startup, resume and clear start print nothing', ['startup', 'resume', 'clear'].every((s) => start(s).code === 0 && start(s).out.trim() === ''));
   ok('control: an empty payload prints nothing and malformed stdin fails open', hook('gate-digest.mjs', {}, d).out.trim() === ''

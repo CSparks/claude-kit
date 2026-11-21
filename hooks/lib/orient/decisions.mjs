@@ -76,7 +76,7 @@ export function decisionViews(root) {
     const files = decisionFiles();
     if (!files) return '';
     const shown = files.slice(-n).map((f) => decisionLine(decisionMeta(f), retired(), titleOf)).join('\n');
-    const more = files.length > n ? `  +${files.length - n} more — full: q decisions` : '';
+    const more = files.length > n ? `  +${files.length - n} more — q recent 30d` : '';
     return shown + (more ? '\n' + more : '');
   };
   // STANDING decisions are the anti-relitigation backbone: surfaced only when in scope (`paths:` use lib's one glob dialect).
@@ -115,7 +115,7 @@ export function standingSection({ out }, views, signals, changed) {
     if (standing.shown) out.push(standing.shown);
     if (standing.deferredCount) {
       const scopes = standing.deferredScopes.length ? ` (scopes: ${standing.deferredScopes.join(', ')})` : '';
-      out.push(`  +${standing.deferredCount} more standing decision(s) out of scope${scopes} — check before deciding in those areas (q decisions).`);
+      out.push(`  +${standing.deferredCount} more standing decision(s) out of scope${scopes} — check before deciding in those areas (q fts <area>).`);
     }
   }
   return standing;

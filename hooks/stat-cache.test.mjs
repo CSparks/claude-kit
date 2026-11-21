@@ -119,10 +119,10 @@ test('orient stays inside the budget on a store with a large review queue and lo
   writeFileSync(reg, JSON.stringify({ projects: { bud: d } }));
   const r = spawnSync(process.execPath, [join(import.meta.dirname, 'orient.mjs')], {
     input: JSON.stringify({ hook_event_name: 'SessionStart' }), cwd: d, encoding: 'utf8',
-    env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot, CLAUDE_KIT_REGISTRY: reg, CLAUDE_KIT_CACHE_DIR: cache },
+    env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot, CLAUDE_KIT_REGISTRY: reg, CLAUDE_KIT_CACHE_DIR: cache, CLAUDE_HOME: pluginRoot },
   });
   assert.equal(r.status, 0, r.stderr);
-  assert.ok(r.stdout.length <= 10000, `orientation is ${r.stdout.length} chars`);
+  assert.ok(Buffer.byteLength(r.stdout) <= 9500, `orientation is ${Buffer.byteLength(r.stdout)} bytes`);
   assert.ok(r.stdout.startsWith(`${ruleBlockText()}\n`), 'the standing rules block stays whole and first');
   assert.match(r.stdout, /\+35 more in-flight — q open|--- Open work[^\n]*\n(?:[^\n]*\n)*?\s+… \(\+\d+ lines\)/);
   assert.ok(r.stdout.split('\n').every((l) => l.length <= 900), 'no single line runs away');

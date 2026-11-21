@@ -28,7 +28,7 @@ candidates and how to work an item once he has signed it.
    ticket + governing trail + open criteria programmatically, not as pasted prose (KIT-T029).
    READ its **GOVERNING DECISIONS — read before dispatch** block first: a ticket whose area is
    governed by a parking decision (`!! PARKED?`) is NEVER dispatched — surface ONE line,
-   `next up: <id> — your call: governed by <D-id> (parked)`, and wait (KIT-T232).
+   `next up: <what it does> — needs your bill of work: governed by a parking decision (<what it parks>)`, and wait (KIT-T232).
    WORK the signed ticket via the full `/work` contract — dispatch, scope confirm, `t`
    CLI mutations, Notes/History updates, evidence floor. See `/work` for the complete
    working contract; do not repeat it here. When the agent finishes, it calls
