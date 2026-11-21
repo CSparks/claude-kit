@@ -42,10 +42,21 @@ const findClauses = (rest) => rest.flatMap((word, i) => {
   return [rest.slice(i + 1, end < 0 ? rest.length : end).join(' ')];
 });
 
+const SSH_FLAG_CLUSTER = /^-[A-Za-z]{2,}$/;
+const SSH_VALUE_LETTER = /[BbcDEeFIiJLlmOoPpQRSWw]/;
+
+/** Whether the flag word takes the next word as its value: `-p`, or a cluster such as `-vp` whose first value letter ends it. */
+const takesNextWord = (word) => {
+  if (SSH_VALUE_FLAG.test(word)) return true;
+  if (!SSH_FLAG_CLUSTER.test(word)) return false;
+  const letters = word.slice(1);
+  return letters.search(SSH_VALUE_LETTER) === letters.length - 1;
+};
+
 /** The index of the host in the words after `ssh` (past its options and their values); -1 when there is none. */
 export function sshHostIndex(rest) {
   for (let i = 0; i < rest.length; i++) {
-    if (SSH_VALUE_FLAG.test(rest[i])) i++;
+    if (takesNextWord(rest[i])) i++;
     else if (!rest[i].startsWith('-')) return i;
   }
   return -1;
