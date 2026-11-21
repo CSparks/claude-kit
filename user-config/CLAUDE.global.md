@@ -93,6 +93,12 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   set) is never run without his approval; nothing runs implicitly (no commit gate, not routine, not
   per edit). His words: "TARGETED TESTS are allowed. RUNNING THE WHOLE FUCKING SUITE WITHOUT MY
   APPROVAL is not." Rust builds are slow: a brief orders a named test, never a suite.
+- **Five rules he stated, kit-wide (KIT-D174 to KIT-D178; the same lines sit in the standing-rules block):**
+  - An instruction ambiguous in a way that changes what gets built (scope, target, design fork) is asked first in one batched questionnaire, never assumed (KIT-D178).
+  - When he says a part works it is frozen: fix only the broken part, never rewrite or improve the working part in the same change (KIT-D177).
+  - Never discard work in progress (paused draft, unmerged feature, parked patch) unless something better supersedes it: keep it, flag it off or finish it; keep it in history; ship nothing broken (KIT-D174).
+  - Measure headless every defect class he has already reported before a hand-off; UAT only after that is green and only for feel, look and sound; a red test on main blocks a landing (KIT-D176).
+  - Before any benchmark or performance check make sure nothing builds and no tests run, check CPU first and record it; a number taken under load is not a result (KIT-D175; a project may be stricter, as Stiletto runs speed-dependent runs strictly alone).
 - Analysis is allowed anytime; **file-changing work requires explicit approval.**
 - Run builds/tests inside Docker when the project uses it. Node.js for bulk scripts.
 - **Every session works from a bill of work (KIT-D132, supersedes KIT-D130).** The
