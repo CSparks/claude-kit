@@ -120,6 +120,20 @@ try {
     check(`KIT-T1473: isPlainRemoteHost reads ${host} as remote`, isPlainRemoteHost(host));
   }
 
+  const ownShort = hostName.toLowerCase().split('.')[0];
+  const LOCAL_NAMES_1474 = [
+    `${ownShort}.example.com`, `${ownShort.toUpperCase()}.corp.net`, 'nas.local', 'printer.localdomain', 'box.lan', 'svc.internal',
+    'router.home.arpa', 'app.localhost', 'local', 'lan', 'internal', 'home.arpa', 'localdomain', 'a.b.local.',
+  ];
+  for (const host of LOCAL_NAMES_1474) {
+    check(`KIT-T1474: isPlainRemoteHost reads "${host}" as not remote`, !isPlainRemoteHost(host));
+    check(`KIT-T1474: blocks ssh to ${host}`, blocked(`ssh ${host}${rm}`), run(`ssh ${host}${rm}`).stderr.slice(0, 80));
+    check(`KIT-T1474: maskSshRemote leaves ssh to ${host} whole`, maskSshRemote(`ssh ${host}${rm}`) === `ssh ${host}${rm}`);
+  }
+  for (const host of ['prod.example.com', '5.78.138.74', 'locally.example.com', 'internal.example.com', 'lan.example.com', 'notlocal.com', 'x.arpa']) {
+    check(`KIT-T1474: isPlainRemoteHost still reads ${host} as remote`, isPlainRemoteHost(host));
+  }
+
   const BLOCKS_1473 = [
     ['an option that sets the host name', `ssh -oHostName=localhost prod.example.com${rm}`],
     ['-o with its value as the next word', `ssh -o ProxyCommand=true prod.example.com${rm}`],

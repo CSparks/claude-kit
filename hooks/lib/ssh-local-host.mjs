@@ -3,7 +3,8 @@
 //   isPlainRemoteHost(word) -> boolean
 //     true only for a plain DNS name (letters, digits, dots, hyphens; optional `user@`) or an IP that node:net reads and that
 //     is no loopback, unspecified, link-local or own-interface address. A numeric-looking name, localhost, this machine's
-//     hostname, and any word with a quote, expansion, port or scheme is false.
+//     hostname, a name whose first label is this machine's short hostname, a name in a local-only suffix (.local,
+//     .localdomain, .lan, .internal, .home.arpa, .localhost), and any word with a quote, expansion, port or scheme is false.
 
 import { isIP } from 'node:net';
 import { hostname, networkInterfaces } from 'node:os';
@@ -16,6 +17,7 @@ const NUMERIC_LABEL = /^(?:0x[0-9a-f]*|\d+)$/;
 const BRACKETED = /^\[(.*)\]$/;
 const CANONICAL_OCTET = /^(?:0|[1-9]\d{0,2})$/;
 const LOCALHOST_LABEL = 'localhost';
+const LOCAL_SUFFIXES = ['local', 'localdomain', 'lan', 'internal', 'home.arpa', 'localhost'];
 const V4_LOOPBACK_FIRST = 127;
 const V4_THIS_NETWORK_FIRST = 0;
 const V4_LINK_LOCAL_FIRST = 169;
@@ -69,7 +71,9 @@ function remoteDnsName(name) {
   const labels = bare.split('.');
   if (!labels.every((l) => DNS_LABEL.test(l)) || NUMERIC_LABEL.test(labels[labels.length - 1])) return false;
   const own = stripTrailingDot(hostname().toLowerCase());
-  return labels[0] !== LOCALHOST_LABEL && bare !== own && bare !== own.split('.')[0];
+  const ownShort = own.split('.')[0];
+  const localSuffix = LOCAL_SUFFIXES.some((suffix) => bare === suffix || bare.endsWith(`.${suffix}`));
+  return labels[0] !== LOCALHOST_LABEL && bare !== own && labels[0] !== ownShort && !localSuffix;
 }
 
 export function isPlainRemoteHost(word) {
