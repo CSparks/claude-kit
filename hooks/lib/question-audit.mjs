@@ -3,7 +3,7 @@
 // call; once the call has run it is on disk. The audit judges that a plain summary of reasonable length stands DIRECTLY
 // above the call (KIT-T1448): the text and narration between the last tool call or answer and this call, in the same
 // reply. Text above an earlier tool call, or above an earlier questionnaire's answer, does not count; a re-ask needs its
-// own summary. The question field's own summary is a separate PreToolUse check (question-self-contained-gate.mjs).
+// own summary. The question fields never count and never carry the summary (RDG-D145).
 //
 //   auditQuestionnaire(file, call) -> null when the call cannot be audited yet (no questions, or its entry is not in
 //                                     the transcript); else { problems, turn, words } where problems is [] for a sound
@@ -16,7 +16,6 @@ import { turnText } from './turn-text.mjs';
 import { BRIEF_CHECK } from './question-checks.mjs';
 import { excludeFooter } from './exclusions.mjs';
 
-const BLOCKS_SHOWN = 10;
 const BLOCK_CHARS = 60;
 
 export function auditQuestionnaire(file, call) {
@@ -28,16 +27,20 @@ export function auditQuestionnaire(file, call) {
 }
 
 const lines = (problems) => problems.map((p) => `  - ${p.part}: ${p.wanted}`);
-const blocksRead = (turn) => turn.blocks.slice(-BLOCKS_SHOWN).map((b) => `    [${b.kind}] "${b.text.replace(/\s+/g, ' ').slice(0, BLOCK_CHARS)}"`);
+const blocksRead = (turn) => turn.blocks.map((b) => `    [${b.kind}, ${wordCount(b.text)} words] "${b.text.replace(/\s+/g, ' ').slice(0, BLOCK_CHARS)}"`);
+const narrationOnly = (turn) => turn.blocks.length > 0 && turn.blocks.every((b) => b.kind === 'narration');
+const NARRATION_NOTE = '  Only narration blocks were recorded above the call: Claude Code stores commentary as a platform-written copy that can be shorter than the text you wrote, and this audit counts what the transcript holds.';
 
 function oneAudit({ call, audit }) {
   const header = call.input.questions.map((q) => q?.header || q?.question).filter(Boolean).join(' / ');
   const read = blocksRead(audit.turn);
+  const count = `${audit.turn.blocks.length} block${audit.turn.blocks.length === 1 ? '' : 's'}`;
   return [
     `Questionnaire "${header}": the summary above it is missing or too short`,
     ...lines(audit.problems),
-    `  Counted ${audit.words} words: the text and narration directly above the call (nothing above an earlier tool call or answer counts).${read.length ? ' Blocks read, oldest first:' : ''}`,
+    `  Counted ${audit.words} words in ${count}: every text and narration block directly above the call, back to the previous tool call or answer (nothing above that counts).${read.length ? ' Blocks counted, oldest first:' : ''}`,
     ...read,
+    ...(narrationOnly(audit.turn) ? [NARRATION_NOTE] : []),
   ].join('\n');
 }
 

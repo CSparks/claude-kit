@@ -8,7 +8,8 @@ import { join } from 'node:path';
 import { cleanup, reporter, tmpDir } from './test-harness.mjs';
 import { LONG_SUMMARY, gate, option, question, storeWithDecisions } from './question-gates-fixture.mjs';
 import { runGates } from '../scripts/q-gates.mjs';
-import { runQuestionGates } from './lib/question-gates-run.mjs';
+import { QUESTION_GATES, runQuestionGates } from './lib/question-gates-run.mjs';
+import { GATES } from './lib/gate-protocol.mjs';
 import { storeDocs } from './lib/store-docs.mjs';
 import { supersededIds } from './lib/superseded-decisions.mjs';
 
@@ -75,12 +76,16 @@ try {
   ok('a decision that governs the options, cited in the tag, is context: a near-title sentence still passes only when the run is short', gate(DECISION_GATE, root, [question(`Does the harbour want game menus by convention? ${TAG('FQD-D030')}`, 'Menus')]).code === PASS);
   ok('negative control: the near-verbatim title with a tag still blocks the decision gate', gate(DECISION_GATE, root, [governed]).code === BLOCK);
 
-  const bad = [question('Short?', 'Bare', [option('Yes', 'one'), option('No', 'two')])];
+  const bad = [question('Does FQD-D030 need an override?', 'Bare', [option('Yes', 'one'), option('No', 'two')])];
   const run = await runQuestionGates({ hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_input: { questions: bad } }, { cwd: root });
-  ok('every failing check is reported in one run (recommendation and self-contained)', run.blocks.map((b) => b.gate).join() === 'question-gate,question-self-contained-gate', run.blocks.map((b) => b.gate).join());
+  const protocol = JSON.stringify(GATES.question);
+  ok('RDG-D145: the question protocol lists no in-question summary check and says the summary lives above the call', !/self-contained|400 characters/.test(protocol) && protocol.includes('RDG-D145') && !QUESTION_GATES.includes('question-self-contained-gate.mjs'));
+  ok('every failing check is reported in one run (recommendation and ids)', run.blocks.map((b) => b.gate).join() === 'question-gate,ids-described-gate', run.blocks.map((b) => b.gate).join());
+  const shortOk = [question('Which lever goes first?', 'Lever')];
+  ok('RDG-D145: a short question with no summary inside passes every gate', gate('question-gates.mjs', root, shortOk).code === PASS);
   const hookRun = gate('question-gates.mjs', root, bad);
   ok('the orchestrator refuses once with every failure, the gate names and the triage line once', hookRun.code === BLOCK
-    && /fails 2 checks/.test(hookRun.out) && hookRun.out.includes('== question-gate ==') && hookRun.out.includes('== question-self-contained-gate ==')
+    && /fails 2 checks/.test(hookRun.out) && hookRun.out.includes('== question-gate ==') && hookRun.out.includes('== ids-described-gate ==')
     && hookRun.out.split('BLOCK TRIAGE').length === 2 && hookRun.out.includes('q gates question --draft'));
   const good = [question(LONG_SUMMARY)];
   ok('a well-formed questionnaire passes the orchestrator', gate('question-gates.mjs', root, good).code === PASS);
@@ -92,7 +97,7 @@ try {
   const passing = await dry(writeDraft('ok.json', { summary: LONG_SUMMARY, questions: good }));
   ok('the dry run passes a sound draft with its summary', passing.code === 0 && /PASS/.test(passing.out));
   const failing = await dry(writeDraft('bad.json', { summary: 'Too short.', questions: [...bad, cited] }));
-  ok('the dry run lists every failure at once: gates and the short summary', failing.code === 2 && /question-gate/.test(failing.out) && /question-self-contained-gate/.test(failing.out) && /ids-described-gate/.test(failing.out) && /summary above the call/.test(failing.out));
+  ok('the dry run lists every failure at once: gates and the short summary', failing.code === 2 && /question-gate/.test(failing.out) && /ids-described-gate/.test(failing.out) && /summary above the call/.test(failing.out) && !/self-contained/.test(failing.out));
   const noSummary = await dry(writeDraft('nosummary.json', good));
   ok('a draft with no summary passes the gates and says the audit judges the summary', noSummary.code === 0 && /no "summary"/.test(noSummary.out));
   ok('the dry run reads a bare questions array', (await dry(writeDraft('array.json', bad))).code === 2);

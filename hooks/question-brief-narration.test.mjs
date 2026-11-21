@@ -67,6 +67,30 @@ try {
   ok('control: one half of the summary alone is too short', aloneHalf.code === 2);
   const midTurnNotice = ask(transcript(entry('user', SETTLED), reply(narration(HALVES[0])), taskNotification, reply(narration(HALVES[1])), reply(call)));
   ok('a task notification between the halves does not cut the summary: the narration on both sides counts', midTurnNotice.code === 0);
+
+  const PARAGRAPHS = [
+    'Two levers are on the table: foliage and the parallel road sweep, and both need a decision before the perf agent builds anything.',
+    '| Lever | Saves | Risk |\n| Foliage cards | 6.4 M triangles | look change |\n| Road sweep | 3.7 s | uncommitted edits |',
+    '- Foliage: use the real window rows, behind a flag.\n- Sweep: wait until the other writers commit, then build it.',
+  ];
+  const paragraphEntries = reply(...PARAGRAPHS.map(text));
+  const multi = ask(transcript(entry('user', SETTLED), paragraphEntries, reply(call)));
+  ok('KIT-T1454: every text block of a multi-paragraph summary with a table and bullets counts, each in its own transcript entry', multi.code === 0);
+  const mixed = ask(transcript(entry('user', SETTLED), reply(text(PARAGRAPHS[0]), narration(PARAGRAPHS[2]), text(PARAGRAPHS[1]), call)));
+  ok('KIT-T1454: text and narration blocks of the same message add up', mixed.code === 0);
+
+  const thinBlocks = ['Foliage or sweep, one lever first.', 'The sweep waits on the other writers.'];
+  const thin = ask(transcript(entry('user', SETTLED), reply(text(thinBlocks[0]), text(thinBlocks[1]), call)));
+  ok('KIT-T1454: a thin report names the counted words, the block count and every block with its kind and words', thin.code === 2
+    && thin.out.includes('Counted 13 words in 2 blocks')
+    && thin.out.includes('[text, 6 words] "Foliage or sweep, one lever first."')
+    && thin.out.includes('[text, 7 words] "The sweep waits on the other writers."')
+    && !thin.out.includes('Only narration blocks'));
+  const onlyNarration = ask(transcript(entry('user', SETTLED), reply(narration(HALVES[0].split(' ').slice(0, 20).join(' ')), call)));
+  ok('KIT-T1454: a thin report over narration blocks alone says the transcript holds the platform copy', onlyNarration.code === 2
+    && onlyNarration.out.includes('[narration, 20 words]') && onlyNarration.out.includes('Only narration blocks were recorded'));
+  const beforeTool = ask(transcript(entry('user', SETTLED), reply(text(PARAGRAPHS[0]), bash('toolu_q')), result('toolu_q'), reply(text(thinBlocks[0]), call)));
+  ok('KIT-T1454: the report lists only the blocks after the previous tool call', beforeTool.code === 2 && beforeTool.out.includes('in 1 block:') && !beforeTool.out.includes('Two levers'));
 } finally {
   cleanup();
 }

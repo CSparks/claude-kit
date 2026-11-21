@@ -57,7 +57,7 @@ try {
 
   ok('a summary stored only as a narration block passes', ask(transcript([...assistant(narration(PLAIN_SUMMARY), call), answer]), SHORT_QUESTION).code === 0);
   const inQuestion = [{ ...SHORT_QUESTION[0], question: `${PLAIN_SUMMARY} Which way do the mine edits go?` }];
-  ok('a summary written only in the question text is still reported (KIT-T1448): it has its own gate, the prose above the call is required too', ask(noSummary(), inQuestion).code === 2);
+  ok('a summary written only in the question text never counts (RDG-D145): the prose above the call is required', ask(noSummary(), inQuestion).code === 2);
   const longOptionsOnly = [{ ...SHORT_QUESTION[0], options: SHORT_QUESTION[0].options.map((o) => ({ ...o, description: PLAIN_SUMMARY })) }];
   ok('control: long option descriptions are not a summary', ask(noSummary(), longOptionsOnly).code === 2);
 

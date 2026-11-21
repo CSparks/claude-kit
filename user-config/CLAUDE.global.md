@@ -154,12 +154,12 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
 ## ⛔ QUESTIONNAIRE PROTOCOL — a plain summary, then the questionnaire (KIT-D153)
 Every decision put to the maintainer is a plain summary (what is being decided, what each option
 does and costs, your recommendation), then an AskUserQuestion. No labels, no sentence shapes.
-Two places carry it (KIT-T1448; Chris: "A summary is required above EVERY questionnaire"):
-the message text directly above the call (the same message, no tool call between; a re-ask
-needs its own), and each question's own `question` field (400+ characters, bracketed tags
-not counted), because the dialog shows only the question text and the options. Dry-run a draft
-first: `q gates question --draft <file.json>` runs every questionnaire gate and prints all failures
-and their fixes at once (KIT-T1451). `q gates question` prints every other requirement.
+The summary is plain text in the message directly above the call (the same message, no tool call
+between; every text block since the previous tool call counts; a re-ask needs its own) and NEVER
+inside the questionnaire (RDG-D145; Chris: "The fucking summary does not go into the questionnaire."):
+each question stays one short sentence plus its options and never embeds or repeats the summary.
+Dry-run a draft first: `q gates question --draft <file.json>` runs every questionnaire gate and prints
+all failures and their fixes at once (KIT-T1451). `q gates question` prints every other requirement.
 
 ## ⛔ A gate block from a failed protocol = write the protocol HERE, same turn (KIT-D146)
 When a gate blocks because a protocol was not followed, the session that hit it writes that

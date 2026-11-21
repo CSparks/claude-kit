@@ -18,7 +18,7 @@ const HOOKS = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 export const QUESTION_GATES = [
   'question-gate.mjs', 'reask-gate.mjs', 'ids-described-gate.mjs', 'question-grounded-gate.mjs', 'question-brief-gate.mjs',
-  'question-self-contained-gate.mjs', 'decision-gate.mjs',
+  'decision-gate.mjs',
 ];
 
 function runGate(script, input, { cwd, env }) {

@@ -17,9 +17,10 @@ Resolve the maintainer's PENDING decisions as a structured questionnaire — nev
    live session: read that session's answer instead of asking again (the `reask-gate` hook blocks
    the re-ask; `[re-ask: <reason>]` in the question text overrides it).
 2. **Summary first, then the questionnaire (KIT-D153).** Write a plain summary (what is being
-   decided, what each option does and costs, your recommendation), then send AskUserQuestion. No
-   labels or sentence shapes are required. A PostToolUse audit checks that a summary came first
-   and tells you if not; then you re-ask.
+   decided, what each option does and costs, your recommendation) as plain text in the same message,
+   directly above the call, then send AskUserQuestion. The summary never goes inside the questionnaire
+   (RDG-D145): each question stays one short sentence plus its options. No labels or sentence shapes
+   are required. A PostToolUse audit checks that a summary came first and tells you if not; then you re-ask.
 3. **Present** via the **AskUserQuestion** tool — one question per decision, concrete options
    from the source. **Every question MUST carry a recommendation**: the recommended option goes
    FIRST and its **label is prefixed `(Recommended)`** (front of the label — e.g.
