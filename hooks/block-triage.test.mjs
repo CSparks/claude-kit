@@ -18,7 +18,7 @@ const NOT_A_GATE = new Map([
   ['lib/excluded-trees.mjs', 'refuses a kit CLI tool (q, cap, t) in an excluded tree; no hook block'],
 ]);
 // A gate whose text is built by a helper module of its own.
-const MESSAGE_MODULE = new Map([['question-brief-audit.mjs', 'lib/question-audit.mjs']]);
+const MESSAGE_MODULE = new Map([['question-brief-audit.mjs', 'lib/question-audit.mjs'], ['question-gates.mjs', 'lib/question-gates-run.mjs']]);
 const REACHES_FOOTER = /\b(?:excludeFooter|triageFooter)\(|\bTRIAGE_LINE\b/; // a call, so a bare import or re-export does not count
 
 try {
