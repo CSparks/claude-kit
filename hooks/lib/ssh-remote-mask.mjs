@@ -5,16 +5,18 @@
 //     scan reads no cp, sed -i, rm or redirect in it. The length is kept, so positions stay valid. ssh is found where it leads
 //     the segment past wrappers (`timeout 5 ssh`) and inside the quoted string of a shell, `eval` or `builds --run` that leads it.
 //     Words are cut with backslash escapes honoured; the text comes back whole when its quotes do not balance.
-//     Left whole (the local shell may run them): an unquoted remote command, a word after a non-quoted word, a double-quoted
-//     word holding an unescaped `$` or backtick, an `ssh` that is an operand or a flag's value (`sudo -u ssh`, `sudo -E ssh`),
-//     and an ssh to this machine (localhost, loopback, its own hostname or address, a host word holding an expansion).
+//     Fails closed, text left whole, unless every ssh option is known safe (-i -p -l -q -v -T -t -4 -6 -n) and the host is a plain
+//     remote name or address (ssh-local-host.mjs). Also whole: an unquoted remote command, a word after a non-quoted word, a
+//     double-quoted word holding an unescaped `$` or backtick, a remote word led by `-`, and an `ssh` that is an operand or a
+//     flag's value (`sudo -u ssh`, `sudo -E ssh`).
 
 import { commandName, leadIndex } from './command-lead.mjs';
 import { MAX_NESTING } from './lead-command-walk.mjs';
-import { runnerTexts, sshHostIndex } from './runner-texts.mjs';
-import { mayBeLocalHost } from './ssh-local-host.mjs';
+import { runnerTexts, sshCall } from './runner-texts.mjs';
+import { isPlainRemoteHost } from './ssh-local-host.mjs';
 
 const SSH_NAME = /^ssh$/i;
+const SAFE_OPTION_LETTERS = new Set('ipltvqT46n');
 const WORD = /(?:"(?:[^"\\]|\\.)*"|'[^']*'|\\[\s\S]|[^\s"'\\])+/g;
 const SINGLE_QUOTED = /^'([^']*)'$/;
 const DOUBLE_QUOTED = /^"((?:[^"\\]|\\.)*)"$/;
@@ -48,12 +50,21 @@ const nestedBody = ({ token }) => {
 /** The index of an `ssh` word in command position: no flag stands directly before it, as `-u` would make it that flag's value. */
 const sshLeadIndex = (tokens) => leadIndex(tokens, (name, rest) => SSH_NAME.test(name) && !tokens[tokens.length - rest.length - 2]?.startsWith('-'));
 
+/** The host index of an ssh call whose every option is known safe and whose host provably names another machine; -1 otherwise. */
+function remoteHostIndex(operands) {
+  const { host, letters } = sshCall(operands);
+  const known = host >= 0 && letters.every((letter) => SAFE_OPTION_LETTERS.has(letter));
+  return known && isPlainRemoteHost(operands[host]) ? host : -1;
+}
+
+/** A remote word whose body leads with `-` is an option ssh reads after the host, so it is never masked. */
 function maskRemote(text, words, sshAt) {
-  const host = sshHostIndex(words.slice(sshAt + 1).map((w) => w.token));
-  if (host < 0 || mayBeLocalHost(words[sshAt + 1 + host].token)) return text;
+  const host = remoteHostIndex(words.slice(sshAt + 1).map((w) => w.token));
+  if (host < 0) return text;
   let out = text;
   for (const word of words.slice(sshAt + host + 2)) {
-    if (remoteBody(word) === null) break;
+    const body = remoteBody(word);
+    if (body === null || body.startsWith('-')) break;
     out = blanked(out, word);
   }
   return out;

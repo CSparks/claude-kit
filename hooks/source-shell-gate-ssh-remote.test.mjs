@@ -7,11 +7,11 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { hostname, tmpdir } from 'node:os';
+import { hostname, networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gitRootOfFile, gitRootOfFileChecked } from './lib/paths.mjs';
-import { mayBeLocalHost } from './lib/ssh-local-host.mjs';
+import { isPlainRemoteHost } from './lib/ssh-local-host.mjs';
 import { maskSshRemote } from './lib/ssh-remote-mask.mjs';
 
 const HOOK = fileURLToPath(new URL('./source-shell-gate.mjs', import.meta.url));
@@ -48,7 +48,7 @@ try {
     ['a remote rm of a source path', "ssh host 'rm hooks/x.mjs'"],
     ['a double-quoted remote cp of source files', 'ssh host "cp a.rs b.rs"'],
     ['a redirect inside the remote string', "ssh host 'cat x > src/a.rs'"],
-    ['a remote sed -i on a source file', "ssh -p 22 -o StrictHostKeyChecking=no user@host 'sed -i s/a/b/ src/a.rs'"],
+    ['a remote sed -i on a source file', "ssh -p 22 -l user host 'sed -i s/a/b/ src/a.rs'"],
     ['a remote rm -rf of a directory that also exists locally', "ssh host 'rm -rf src'"],
     ['a remote git clean', "ssh host 'git clean -fd'"],
     ['ssh under a wrapper', "timeout 5 ssh host 'sed -i s/a/b/ src/a.rs'"],
@@ -105,9 +105,56 @@ try {
   check('KIT-T1472: maskSshRemote leaves `sudo -u ssh` whole', maskSshRemote("sudo -u ssh host 'rm a.rs'") === "sudo -u ssh host 'rm a.rs'");
   check('KIT-T1472: maskSshRemote masks a real remote host', maskSshRemote("ssh prod.example.com 'rm a.rs'") === `ssh prod.example.com ${' '.repeat("'rm a.rs'".length)}`);
   for (const host of ['localhost', '127.0.0.1', '[::1]', 'root@localhost', 'LOCALHOST', hostName]) {
-    check(`KIT-T1472: mayBeLocalHost reads ${host} as local`, mayBeLocalHost(host));
+    check(`KIT-T1472: isPlainRemoteHost reads ${host} as not remote`, !isPlainRemoteHost(host));
   }
-  check('KIT-T1472: mayBeLocalHost reads a named remote host as remote', !mayBeLocalHost('root@prod.example.com'));
+  check('KIT-T1472: isPlainRemoteHost reads a named remote host as remote', isPlainRemoteHost('root@prod.example.com'));
+
+  const ownAddress = Object.values(networkInterfaces()).flat().find((nic) => nic.family === 'IPv4' && !nic.internal)?.address;
+  const rm = " 'rm src/a.rs'";
+  const LOCAL_HOSTS = ['localhost.', 'LocalHost.', 'localhost.localdomain', '0x7f.1', '0x7f000001', '2130706433', '0177.0.0.1', '127.0.0.01', '127.1', '0.0.0.0', '0', '169.254.1.1', 'fe80::1', 'fe80::1%eth0', '::', '::ffff:127.0.0.1', '::ffff:7f00:1', '0:0:0:0:0:0:0:1', '[0::1]', '1.2.3', 'prod.1', `${hostName}.`, hostName.toUpperCase(), 'root@host:22', 'ssh://prod.example.com', "'prod.example.com'", 'prod_example.com', 'prod..example.com', 'a@b@host', '', ...(ownAddress ? [ownAddress] : [])];
+  for (const host of LOCAL_HOSTS) {
+    check(`KIT-T1473: isPlainRemoteHost reads "${host}" as not remote`, !isPlainRemoteHost(host));
+    if (host && !/\s/.test(host) && !host.includes("'")) check(`KIT-T1473: blocks ssh to ${host}`, blocked(`ssh ${host}${rm}`), run(`ssh ${host}${rm}`).stderr.slice(0, 80));
+  }
+  for (const host of ['prod.example.com', 'root@prod.example.com', '5.78.138.74', '203.0.113.7', 'root@[2001:db8::1]', '2001:db8::1', 'Prod-1.Example.COM.', 'prod']) {
+    check(`KIT-T1473: isPlainRemoteHost reads ${host} as remote`, isPlainRemoteHost(host));
+  }
+
+  const BLOCKS_1473 = [
+    ['an option that sets the host name', `ssh -oHostName=localhost prod.example.com${rm}`],
+    ['-o with its value as the next word', `ssh -o ProxyCommand=true prod.example.com${rm}`],
+    ['-F', `ssh -F cfg prod.example.com${rm}`],
+    ['-J', `ssh -J jump prod.example.com${rm}`],
+    ['-D', `ssh -D 1080 prod.example.com${rm}`],
+    ['-L', `ssh -L 1:h:2 prod.example.com${rm}`],
+    ['-R', `ssh -R 1:h:2 prod.example.com${rm}`],
+    ['-S', `ssh -S sock prod.example.com${rm}`],
+    ['-W', `ssh -W h:1 prod.example.com${rm}`],
+    ['-E', `ssh -E log prod.example.com${rm}`],
+    ['a digit cluster ending in a value letter', `ssh -4oProxyCommand=true prod.example.com${rm}`],
+    ['a cluster whose value letter holds the rest of the word', `ssh -vFcfg prod.example.com${rm}`],
+    ['a -- word', `ssh -- prod.example.com${rm}`],
+    ['an option after the host', `ssh prod.example.com -oProxyCommand=true${rm}`],
+    ['a quoted option word before the host', `ssh '-o' ProxyCommand=true prod.example.com${rm}`],
+    ['a lone - as the host', `ssh - prod.example.com${rm}`],
+  ];
+  for (const [name, command] of BLOCKS_1473) check(`KIT-T1473: blocks ${name}`, blocked(command), run(command).stderr.slice(0, 100));
+
+  const PASSES_1473 = [
+    ['the autoaudit production command', "ssh -i key root@5.78.138.74 'cd /root/autoaudit; cp docker-compose.yml docker-compose.yml.bak; sed -i s/a/b/ docker-compose.yml'"],
+    ['stacked flags and values', "ssh -vvv -4 -qT -p 22 -l root -i key prod.example.com 'rm src/a.rs'"],
+    ['a value letter that takes the rest of its word', "ssh -ikey -p22 prod.example.com 'rm src/a.rs'"],
+    ['a clustered flag pair', "ssh -tt prod.example.com 'rm src/a.rs'"],
+    ['a public IPv4 host', "ssh 203.0.113.7 'rm src/a.rs'"],
+  ];
+  for (const [name, command] of PASSES_1473) check(`KIT-T1473: allows ${name}`, passes_(command) === '', passes_(command));
+
+  const masked = (command) => maskSshRemote(command) !== command;
+  check('KIT-T1473: maskSshRemote masks a known-safe option set', masked("ssh -vp 22 -i k prod.example.com 'rm a.rs'"));
+  check('KIT-T1473: maskSshRemote leaves -o whole', !masked("ssh -o X=y prod.example.com 'rm a.rs'"));
+  check('KIT-T1473: maskSshRemote leaves a digit cluster with a value letter whole', !masked("ssh -4o X=y prod.example.com 'rm a.rs'"));
+  check('KIT-T1473: maskSshRemote leaves a remote word led by - whole', !masked("ssh prod.example.com '-oProxyCommand=rm a.rs'"));
+  check('KIT-T1473: maskSshRemote leaves a numeric host whole', !masked("ssh 2130706433 'rm a.rs'"));
 
   check('maskSshRemote: the remote operand is blanked and the length kept', maskSshRemote("ssh host 'rm a.rs'") === `ssh host ${' '.repeat("'rm a.rs'".length)}`);
   check('maskSshRemote: a command that is not ssh comes back unchanged', maskSshRemote("cp draft.rs ssh 'x'") === "cp draft.rs ssh 'x'");

@@ -18,7 +18,7 @@ const FIND_NAME = /^find$/i;
 const FIND_EXEC_FLAG = /^-(?:exec|execdir|ok|okdir)$/;
 const FIND_CLAUSE_END = /^(?:\\?;|\+)$/;
 const SSH_NAME = /^ssh$/i;
-const SSH_VALUE_FLAG = /^-[BbcDEeFIiJLlmOoPpQRSWw]$/;
+const SSH_VALUE_LETTERS = 'BbcDEeFIiJLlmOoPpQRSWw';
 const TRAP_NAME = /^trap$/i;
 const TRAP_FLAG = /^(?:--|-[lp]+)$/;
 
@@ -42,25 +42,28 @@ const findClauses = (rest) => rest.flatMap((word, i) => {
   return [rest.slice(i + 1, end < 0 ? rest.length : end).join(' ')];
 });
 
-const SSH_FLAG_CLUSTER = /^-[A-Za-z]{2,}$/;
-const SSH_VALUE_LETTER = /[BbcDEeFIiJLlmOoPpQRSWw]/;
-
-/** Whether the flag word takes the next word as its value: `-p`, or a cluster such as `-vp` whose first value letter ends it. */
-const takesNextWord = (word) => {
-  if (SSH_VALUE_FLAG.test(word)) return true;
-  if (!SSH_FLAG_CLUSTER.test(word)) return false;
-  const letters = word.slice(1);
-  return letters.search(SSH_VALUE_LETTER) === letters.length - 1;
-};
+/**
+ * The words after `ssh` read as getopt reads them: the option letters met (a cluster word is walked letter by letter, a value
+ * letter takes the rest of its word or else the next word) and the index of the host, the first non-option word; -1 when none.
+ */
+export function sshCall(rest) {
+  const letters = [];
+  for (let i = 0; i < rest.length; i++) {
+    const word = rest[i];
+    if (!word.startsWith('-') || word === '-') return { host: i, letters };
+    for (let at = 1; at < word.length; at++) {
+      letters.push(word[at]);
+      if (SSH_VALUE_LETTERS.includes(word[at])) {
+        if (at === word.length - 1) i++;
+        break;
+      }
+    }
+  }
+  return { host: -1, letters };
+}
 
 /** The index of the host in the words after `ssh` (past its options and their values); -1 when there is none. */
-export function sshHostIndex(rest) {
-  for (let i = 0; i < rest.length; i++) {
-    if (takesNextWord(rest[i])) i++;
-    else if (!rest[i].startsWith('-')) return i;
-  }
-  return -1;
-}
+export const sshHostIndex = (rest) => sshCall(rest).host;
 
 /** The words after ssh's options and host: the remote command. */
 function sshOperands(rest) {
