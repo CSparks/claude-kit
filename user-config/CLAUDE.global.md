@@ -140,7 +140,8 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   without a questionnaire the same turn. The Stop gate `prose-ask` blocks such a closing reply when no
   questionnaire reached him that turn, files a process-failure ticket, and names the phrase: put it in an
   AskUserQuestion, summary first, recommended option first. Exempt: a subagent's report, his own question,
-  quoted words, code and past-tense descriptions.
+  quoted words, code and past-tense descriptions. Before sending, scan the closing reply for "your call", "your calls",
+  "yours to decide" and "pending your decision" (KIT-T1459); turn each such item into an AskUserQuestion.
 - **A brainstorming or clarifying-question flow stays open discussion until a question is a wait (KIT-T1230).**
   A skill that says "end with an open question and invite corrections" (superpowers:brainstorming) is satisfied by
   prose questions that ask for his view, with no closing line saying work waits on him. The moment the reply names
