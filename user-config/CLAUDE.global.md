@@ -72,6 +72,12 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
 - **Compress every reply. Lead with the answer; cut preamble and process narration.**
   Tight bullets, one idea each. Expand only when asked or genuinely needed. A yes/no
   question gets the bare word first, then at most one line.
+- **Name a thing by what it does; leave ids out of replies to the maintainer (KIT-T1462; RDG-D148).** "There is almost
+  never going to be a time where I know what the fuck you're talking about by referencing a ticket ID." Ticket,
+  decision, lever and run ids never appear, not even in brackets after the words; shorthand such as stage or lever
+  labels is explained the first time; a hook-relayed list of agent or run ids is summarised, never pasted. Only a commit
+  hash may appear, in the landing receipt after the words. Ids stay in briefs, commit messages, tickets and the record.
+  The Stop gate `bare-ids` warns on a closing reply that carries one.
 - **Progress = one-line receipts** (what + commit sha), no approval-seeking. Fuller
   rollup on demand (`/standup`, `/prime`).
 - **Lead with what CHANGED; end with what's UAT-able (KIT-T099; KIT-D045).** The first

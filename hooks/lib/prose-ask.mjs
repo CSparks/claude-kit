@@ -85,7 +85,7 @@ const BLOCKQUOTE = /^[ \t]*>.*$/gm;
 const QUOTED = /"[^"\n]*"|“[^”\n]*”/g;
 const SENTENCE_BREAK = /(?<=[.!?])\s+|\n+/;
 
-const ownVoice = (text) => text.replace(FENCE, ' ').replace(BLOCKQUOTE, ' ').replace(INLINE_CODE, ' ').replace(QUOTED, ' ').replace(/\.{2,}/g, '…');
+export const ownVoice = (text) => text.replace(FENCE, ' ').replace(BLOCKQUOTE, ' ').replace(INLINE_CODE, ' ').replace(QUOTED, ' ').replace(/\.{2,}/g, '…');
 const descriptive = (sentence) => DESCRIPTIVE.some((re) => re.test(sentence));
 
 // A rollup heading that names what waits on him ("Waiting on you:", "**Needs your decision:**", "Decisions for you") with at
