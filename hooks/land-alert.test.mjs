@@ -379,5 +379,45 @@ for (const [name, lead] of [
   expect('the block states the accepted UAT lead forms', ['"To fly:"', '"To try:"', '"To look at:"', '"UAT:"'].every((f) => r.err.includes(f)) && r.err.includes('[no-test: <reason>]') ? 1 : 0, 1);
 }
 
+// ─── KIT-T1469: the closing reply is the Stop payload's last_assistant_message; the transcript may not hold it yet ───
+const assistantEntry = (...content) => JSON.stringify({ type: 'assistant', message: { role: 'assistant', content } });
+const toolResultEntry = (id) => JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: 'ok' }] } });
+const toolUse = (id, name) => ({ type: 'tool_use', id, name, input: {} });
+const FINAL_REPLY = (short) => `**Pushed:** demo \`${short}\`, the perf docs.\n\n[no-test: both fixes are being built; once they land, launch the game]`;
+
+// A transcript like a dispatch turn: triage text, Agent calls, a Bash call; the final text is written last or not yet.
+function dispatchTurnTranscript(dir, userTs, finalText) {
+  const file = join(dir, 'transcript.jsonl');
+  const lines = [
+    JSON.stringify({ type: 'user', message: { role: 'user', content: 'fix both' }, timestamp: userTs }),
+    assistantEntry({ type: 'text', text: 'Kit bug: the block misfired. Ticketing and dispatching.' }),
+    assistantEntry(toolUse('a1', 'Agent')),
+    toolResultEntry('a1'),
+    assistantEntry(toolUse('a2', 'Agent')),
+    toolResultEntry('a2'),
+    assistantEntry(toolUse('b1', 'Bash')),
+    toolResultEntry('b1'),
+  ];
+  if (finalText) lines.push(assistantEntry({ type: 'text', text: finalText }));
+  writeFileSync(file, lines.join('\n') + '\n');
+  return file;
+}
+function dispatchTurnRun({ inTranscript, inPayload, reply = FINAL_REPLY }) {
+  const d = makeRepo();
+  const userTs = new Date(Date.now() - 10000).toISOString();
+  const short = makeCommit(d, 'src/p.ts', 'export {}', 'feat: probe RDG-T104').slice(0, 7);
+  const text = reply(short);
+  const tx = dispatchTurnTranscript(d, userTs, inTranscript ? text : '');
+  return run(d, { transcript_path: tx, ...(inPayload ? { last_assistant_message: text } : {}) }, makeTurnStateDir());
+}
+expect('control: the final reply written to the transcript, sha in a code span and a no-test tag, clears the gate',
+  dispatchTurnRun({ inTranscript: true, inPayload: false }).code, 0);
+expect('the final reply only in the Stop payload (transcript ends at a Bash call) clears the gate',
+  dispatchTurnRun({ inTranscript: false, inPayload: true }).code, 0);
+expect('the Stop payload reply with no sha and no UAT line stays blocked',
+  dispatchTurnRun({ inTranscript: false, inPayload: true, reply: () => 'Both fixes are being built.' }).code, 2);
+expect('no payload reply and a transcript ending at a Bash call stays blocked',
+  dispatchTurnRun({ inTranscript: false, inPayload: false }).code, 2);
+
 console.log(`\n${testCount} tests —${failures ? `${failures} FAILED` : 'ALL PASS'}`);
 process.exit(failures ? 1 : 0);

@@ -90,7 +90,7 @@ async function main() {
 
   // Satisfied only when the reply BOTH announces the landing AND says what can be tested
   // (KIT-T099 — the maintainer must always know what can be tested). Either missing → nag once.
-  const reply = lastAssistant || '';
+  const reply = closingReply(p, lastAssistant);
   const hasLanding = LANDED_RECEIPT.test(reply) || namedInReply(landed, reply).length > 0;
   const hasTest = TEST_RECEIPT.test(reply) || UAT_LINE.test(reply);
   const listing = { listed: landed.map((c) => c.sha), turnStartMs, at: Date.now() };
@@ -102,6 +102,13 @@ async function main() {
   recordAlerted(root, head, pushed, listing);
   process.stderr.write(renderAlert(root, landed, pushed, hasLanding, hasTest) + triageFooter());
   process.exit(2); // block-once (rigid) — the same ratchet as request-gate / flush
+}
+
+// The closing reply: the Stop payload carries it whole; the transcript may not hold it yet, and
+// then its newest assistant entry is an earlier tool call with no prose (KIT-T1469).
+function closingReply(p, transcriptReply) {
+  const fromPayload = typeof p.last_assistant_message === 'string' ? p.last_assistant_message : '';
+  return fromPayload.trim() ? fromPayload : transcriptReply || '';
 }
 
 // --- the alert ------------------------------------------------------------------
