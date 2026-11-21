@@ -477,6 +477,7 @@ async function main() {
   if (cmd === 'decide') {
     if (!flags.file) { console.error('usage: t decide --file <draft.md> [--from <inbox-id,...>] [--ticket <id> | --no-work "<why>"] [--supersedes <id,...>] [--not-dup <id,...>]'); process.exit(2); }
     const { recordDecision, parseDraft } = await import('./t-decide.mjs');
+    const { ruleRecordStep } = await import('../hooks/lib/rule-block.mjs');
     const { dedupVerdict } = await import('./t-decide-dedup.mjs');
     const text = readFileSync(flags.file, 'utf8');
     const { lines, refusal: duplicate } = await dedupVerdict(root, parseDraft(text), { notDup: flags.notDup, supersedes: flags.supersedes });
@@ -485,6 +486,8 @@ async function main() {
     const r = recordDecision(root, text, { from: flags.from, ticket: flags.ticket, noWork: flags.noWork, supersedes: flags.supersedes, notDup: flags.notDup });
     await refresh(root);
     process.stdout.write(`decide: ${r.id} -> ${relative(root, r.path)}\n`);
+    const ruleStep = ruleRecordStep(text);
+    if (ruleStep) process.stdout.write(`${ruleStep}\n`);
     if (r.mirrored) process.stdout.write(`mirrored: ${r.id} -> ${r.mirrored.ticket} in the framework store (KIT-T943)\n`);
     if (r.mirrorError) process.stderr.write(`mirror failed (${r.mirrorError}): file the framework ticket by hand and add promoted: <id> to ${r.id}\n`);
     if (r.sessionError) process.stderr.write(`ACTION REQUIRED: the anchor note failed (${r.sessionError}). The anchor is stale until you run: t session "decided ${r.id}: <title>"\n`);

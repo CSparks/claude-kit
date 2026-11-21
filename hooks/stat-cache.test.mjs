@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { ruleBlockText } from './lib/rule-block.mjs';
 
 const cache = mkdtempSync(join(tmpdir(), 'statcache-'));
 process.env.CLAUDE_KIT_CACHE_DIR = cache;
@@ -122,7 +123,8 @@ test('orient stays inside the budget on a store with a large review queue and lo
   });
   assert.equal(r.status, 0, r.stderr);
   assert.ok(r.stdout.length <= 10000, `orientation is ${r.stdout.length} chars`);
-  assert.match(r.stdout, /\+35 more in-flight — q open/);
+  assert.ok(r.stdout.startsWith(`${ruleBlockText()}\n`), 'the standing rules block stays whole and first');
+  assert.match(r.stdout, /\+35 more in-flight — q open|--- Open work[^\n]*\n(?:[^\n]*\n)*?\s+… \(\+\d+ lines\)/);
   assert.ok(r.stdout.split('\n').every((l) => l.length <= 900), 'no single line runs away');
   rmSync(pluginRoot, { recursive: true, force: true });
   rmSync(d, { recursive: true, force: true });

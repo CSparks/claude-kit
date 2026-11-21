@@ -12,6 +12,7 @@ import { payload } from './lib/stdin.mjs';
 import { unboundedRoot } from './lib/unbounded.mjs';
 import { readIdentity, writeIdentity } from './lib/session-identity.mjs';
 import { BILL_HEADER, billOfWorkLines } from './lib/bill-of-work.mjs';
+import { ruleBlockLines } from './lib/rule-block.mjs';
 
 const TOPICS_SHOWN = 5;
 const SESSION_SHORT = 8;
@@ -45,6 +46,7 @@ export async function orientUnbounded() {
   const id = writeIdentity(aiDir, { session: String(p.session_id || readIdentity(aiDir).session || '') });
 
   const lines = [
+    ...ruleBlockLines(),
     '=== UNBOUNDED SESSION — no .ai above this cwd; the catch-all store is in use ===',
     `store: ${aiDir}${id.session ? `   session: ${id.session.slice(0, SESSION_SHORT)}` : ''}`,
     id.topic

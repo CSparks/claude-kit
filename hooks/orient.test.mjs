@@ -3,6 +3,7 @@
 // budget (KIT-T071). Run: node hooks/orient.test.mjs
 
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { ruleBlockText } from './lib/rule-block.mjs';
 import { basename, join } from 'node:path';
 import { finishFollowup, recordFollowup } from '../scripts/publish-followup.mjs';
 
@@ -179,7 +180,7 @@ try {
     const r = hook('orient.mjs', {}, tb, { CLAUDE_KIT_LADDER_ROOT: fixtureKit(isoDaysAgo(0)) });
 
     // The Repo: line is the test's own temp path, whose length depends on where the suite runs.
-    const content = r.out.replace(/^Repo: .*\n/m, '');
+    const content = r.out.replace(/^Repo: .*\n/m, '').replace(`${ruleBlockText()}\n`, '');
     ok(`orient KIT-T071: output is within the token budget (≤1200 tokens): ${content.length} of ${BUDGET_CHARS} chars`, content.length <= BUDGET_CHARS);
     ok('orient KIT-T071: ORIENTATION header is present', /ORIENTATION/.test(r.out));
     ok('orient KIT-D132: every session states it needs a bill of work, that a clear or resume forgets prior asks, and that OPEN lists are not orders', /BILL OF WORK REQUIRED/.test(r.out) && /dictates or signs off a bill of work/.test(r.out) && /After a clear or resume you remember no prior ask/.test(r.out) && /never orders to dispatch/.test(r.out) && !/pull and dispatch/.test(r.out));

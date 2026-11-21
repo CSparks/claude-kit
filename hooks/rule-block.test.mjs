@@ -1,0 +1,59 @@
+// rule-block (KIT-T1463): the fixed block of tooling and process rules is the FIRST thing orient prints (bounded and
+// unbounded), the first context a SubagentStart hand gives an agent, and the first body section of every agent definition,
+// verbatim; the orient budget trims listings, never the block; `t decide` prints the step that adds a stated rule to it.
+// Run: node hooks/rule-block.test.mjs
+
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
+import { fitOrientation } from './lib/orient-budget.mjs';
+import { RULES, RULE_BLOCK_TITLE, ruleBlockText, ruleRecordStep } from './lib/rule-block.mjs';
+
+const { ok, done } = reporter('rule-block');
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const BLOCK_MAX_CHARS = 3200;
+const REQUIRED = [
+  /Search with `q`/, /never grep/, /ONE named file/, /No test run is implicit/, /No waiting loops/, /plain words/, /no ticket, decision, lever or run ids/,
+  /commit hash only in the landing receipt/, /plain summary/, /Anything you need from the maintainer is a questionnaire/, /Record a rule or decision/,
+  /process failure and kit bug.*dispatch a fix agent/,
+];
+const block = ruleBlockText();
+
+try {
+  ok('every rule is one line', RULES.every((r) => !r.includes('\n')));
+  ok(`the block stays short (${block.length} of ${BLOCK_MAX_CHARS} chars)`, block.length <= BLOCK_MAX_CHARS);
+  ok('the block carries every named tooling and process rule', REQUIRED.every((re) => re.test(block)));
+
+  const agents = readdirSync(join(ROOT, 'agents')).filter((f) => f.endsWith('.md') && f !== 'README.md');
+  const bodyOf = (text) => text.replace(/^---\n[\s\S]*?\n---\n\s*/, '');
+  ok('there are agent definitions to check', agents.length >= 10);
+  for (const a of agents) ok(`agents/${a}: the block opens the body, verbatim`, bodyOf(readFileSync(join(ROOT, 'agents', a), 'utf8')).startsWith(`${block}\n`));
+
+  const repo = adopted(false);
+  const orient = hook('orient.mjs', {}, repo);
+  ok('orient prints the block as its very first lines', orient.out.startsWith(`${block}\n`));
+  ok('the block precedes the project header', orient.out.indexOf(RULE_BLOCK_TITLE) === 0 && orient.out.indexOf('PROJECT ORIENTATION') > block.length);
+
+  const unbounded = tmpDir('rule-block-unbounded-');
+  mkdirSync(join(unbounded, '.ai'), { recursive: true });
+  writeFileSync(join(unbounded, '.ai', 'config.yml'), 'key: UB\n');
+  const bare = tmpDir('rule-block-bare-');
+  const free = hook('orient.mjs', {}, bare, { CLAUDE_KIT_UNBOUNDED_AI: join(unbounded, '.ai') });
+  ok('an unbounded session prints the block first too', free.out.startsWith(`${block}\n`));
+
+  const listing = Array.from({ length: 300 }, (_, i) => `  open item ${i} with a long line of listing text to push the output over the budget`);
+  const over = fitOrientation([block, '=== PROJECT ORIENTATION ===', '--- Open work ---', ...listing].join('\n'));
+  ok('over budget, the listings are trimmed and the block survives whole and first', over.demoted.length > 0 && over.text.startsWith(`${block}\n`));
+
+  const guide = hook('subagent-gate-guide.mjs', { hook_event_name: 'SubagentStart', agent_type: 'general-purpose', cwd: repo }, repo);
+  const added = JSON.parse(guide.out).hookSpecificOutput.additionalContext;
+  ok('SubagentStart hands every agent the block first', added.startsWith(`${block}\n`));
+
+  ok('a decision with his words prints the step that adds the rule to the block', /rule-block\.mjs/.test(ruleRecordStep('**Maintainer:** "never grep"\n\n**Decision:** x')));
+  ok('a decision with no maintainer paragraph prints no step', ruleRecordStep('**Decision:** x\n\n**Why:** y') === '');
+  ok('the decision flow docs name the block', /standing-rules block/.test(readFileSync(join(ROOT, 'commands', 'decide.md'), 'utf8')) && /standing-rules block/.test(readFileSync(join(ROOT, 'user-config', 'CLAUDE.global.md'), 'utf8')));
+} finally {
+  cleanup();
+}
+done();

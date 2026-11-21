@@ -365,6 +365,8 @@ compaction summary.
   with `t decide --file` that same turn, verbatim words in the body, before any further work
   (KIT-T507). Orient replays the kit's last three days of decisions into every project's session, so
   a ruling in one session reaches the rest; a directive left in a ticket comment reaches no one.
+  A tooling or process rule he states also joins the standing-rules block (`hooks/lib/rule-block.mjs`, the top of
+  orient, every agent brief and definition) that same turn; `t decide` prints the step (KIT-T1463).
   **A `cap` note is never the home of a ruling (KIT-T938):** a capture that quotes him (verbatim,
   ruling, directive, "<name> said", a quoted sentence) prints `RULING CAPTURED: <id>`; promote it that
   turn with `t decide --file <draft.md> --from <inbox id>` (his words verbatim under `**Maintainer:**`).

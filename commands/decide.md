@@ -37,7 +37,9 @@ Resolve the maintainer's PENDING decisions as a structured questionnaire — nev
    `t resolve <Q-id> "<answer>"` (Resolution line + `status: resolved`).
    A ruling the maintainer gave in conversation that rests as an inbox note (`RULING CAPTURED`,
    KIT-T938) is recorded with `t decide --file <draft.md> --from <inbox id>`: the decision is
-   written and the note leaves the inbox in one step.
+   written and the note leaves the inbox in one step. A ruling that states a tooling or process rule also
+   joins the standing-rules block the same turn (`hooks/lib/rule-block.mjs` in the claude-kit checkout; `t decide`
+   prints the step, KIT-T1463).
 5. **Receipt** per `config.receipts` — one line per recorded decision (e.g.
    `→ HOD-D007 recorded (chose B)`).
 6. Leave the source doc's recommendation text intact; **never edit ROADMAP**. If an answer
