@@ -214,11 +214,10 @@ in a block message or a decision file is a defect.
   names (a design/opus dispatch with no ticket) adds `[escalate: <reason>]` (KIT-T940). In a repo
   that uses a framework with a crate index (rapid-game: `docs/CRATES.md`), a plan brief and every plan
   leaving plan mode (in the plan text) add `[framework-checked: <indexed crates read, per mechanism>|none apply: <why>]`
-  (KIT-T1095; `q gates plan`). In a Cargo workspace a brief that orders test runs adds
-  `[tests: troubleshoot <the fault>]` or `[tests: periodic batch]`, or `[tests: none]` naming
-  `cargo check` (KIT-T1186; check `tests-not-implicit`). In a repo that uses rapid-game a targeted test (one
-  named test or test file) needs no tag, and an ordered whole suite needs
-  `[tests-signoff: <his quoted words or the questionnaire answer>]` (RDG-D065, KIT-T1353).
+  (KIT-T1095; `q gates plan`). In a Cargo workspace a targeted test (one named test or test file) needs no tag,
+  and a brief that orders a whole suite adds `[tests: troubleshoot <the fault>]` or `[tests: periodic batch]`, or
+  `[tests: none]` naming `cargo check` (KIT-T1186; check `tests-not-implicit`). In a repo that uses rapid-game an
+  ordered whole suite needs `[tests-signoff: <his quoted words or the questionnaire answer>]` instead (RDG-D065, KIT-T1353).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
 ## Delegation COST — scale the ceremony, isolate the checkout

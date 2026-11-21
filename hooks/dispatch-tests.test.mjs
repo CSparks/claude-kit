@@ -21,19 +21,29 @@ const send = (dir, prompt) => run(dir, { subagent_type: 'general-purpose', model
 const blocked = (dir, prompt) => { const r = send(dir, prompt); return r.code === 2 && r.err.includes(TESTS_CHECK) ? 2 : r.code; };
 
 const ORDERED = [
+  ['re-run the suite', 'After each change re-run the suite.'],
+  ['the cargo t alias on a crate', 'Verify with cargo t -p rg-flora.'],
+  ['the sentence after a forbidding sentence', 'Do not touch the shaders. Then run the tests.'],
+  ['an unscoped cargo test on a crate', 'Step 3: cargo test -p road-generator.'],
+  ['all tests in the workspace', 'Then run all tests in the workspace.'],
+  ['a whole-suite order beside a named test', 'Run cargo test -p x --test town_walls, then re-run the suite.'],
+];
+for (const [name, prompt] of ORDERED) expect(`blocks ${name}`, blocked(rust, prompt), 2);
+
+// The owner's tests rule applies to every Cargo repo: a named test or test file needs no tag.
+const TARGETED = [
   ['run the test', 'Fix the cut wall. Run the test for the wall when done.'],
   ['run it once', 'Add the measuring step, then run it once.'],
   ['one measuring test per point', 'Per point: cargo check; ONE measuring test per point, once.'],
   ['a test per point', 'Cover each point with a test per point.'],
-  ['re-run the suite', 'After each change re-run the suite.'],
-  ['cargo test as a step', 'Step 3: cargo test -p road-generator --test town.'],
-  ['the cargo t alias', 'Verify with cargo t -p rg-flora.'],
+  ['cargo test on a named test file', 'Step 3: cargo test -p road-generator --test town.'],
+  ['a snake_case test name', 'Run cargo test -p rg-noise cut_wall_is_grey once.'],
+  ['a name after the double dash', 'Run cargo test -p rg-noise -- walls --nocapture once.'],
+  ['the clause after a semicolon beside a negation', 'Do not edit the lib; run the new test once it compiles.'],
   ['N passed as evidence', 'Report "tests: N passed" for each step.'],
   ['a counted pass as evidence', 'Cite 12 passed in your report.'],
-  ['the sentence after a forbidding sentence', 'Do not touch the shaders. Then run the tests.'],
-  ['the clause after a semicolon beside a negation', 'Do not edit the lib; run the new test once it compiles.'],
 ];
-for (const [name, prompt] of ORDERED) expect(`blocks ${name}`, blocked(rust, prompt), 2);
+for (const [name, prompt] of TARGETED) expect(`passes a targeted order without a tag: ${name}`, blocked(rust, prompt), 0);
 
 const PASSING = [
   ['write the test, do not run it', 'Write the test for the wall; do not run it. Verify with cargo check.'],
@@ -47,15 +57,19 @@ const PASSING = [
 ];
 for (const [name, prompt] of PASSING) expect(`passes ${name}`, blocked(rust, prompt), 0);
 
-expect('a [tests: none] without cargo check named still blocks a run order', blocked(rust, 'Run the test once. [tests: none]'), 2);
-expect('a bare [tests: troubleshoot] with no fault still blocks', blocked(rust, 'Run the test once. [tests: troubleshoot]'), 2);
+expect('a [tests: none] without cargo check named still blocks a whole-suite order', blocked(rust, 'Re-run the suite once. [tests: none]'), 2);
+expect('a bare [tests: troubleshoot] with no fault still blocks a whole-suite order', blocked(rust, 'Re-run the suite once. [tests: troubleshoot]'), 2);
+expect('a whole-suite order with a fault named passes', blocked(rust, 'Re-run the suite once. [tests: troubleshoot walls render grey]'), 0);
+expect('a whole-suite order with a signoff passes', blocked(rust, 'Re-run the suite once. [tests-signoff: "yes, the suite" - Chris, questionnaire]'), 0);
 expect('a brief into the kit (no Cargo.toml) is never judged', blocked(node, 'Run the test once; cargo test is fine; 12 passed.'), 0);
 const fromRust = send(rust, `Run the test once; cargo test is fine. [tree: ${node.replace(/\\/g, '/')}]`);
 expect('a Cargo session dispatching into the kit checkout via [tree:] is not judged', fromRust.err.includes(TESTS_CHECK) ? 1 : 0, 0);
 expect('the same brief with no [tree:] from the Cargo session is judged', send(rust, 'Run the test once; cargo test is fine.').err.includes(TESTS_CHECK) ? 1 : 0, 1);
-const refused = send(rust, 'Run the test once.');
+const refused = send(rust, 'Re-run the suite once.');
 expect('the block states the rule, the default and the tag forms', /KIT-D162/.test(refused.err) && /cargo check/.test(refused.err) && /do not run them/.test(refused.err) && /\[tests: periodic batch\]/.test(refused.err) ? 1 : 0, 1);
-expect('the ignore file lifts the check', send(ignoreFile(makeRepoCargo(), TESTS_CHECK), 'Run the test once.').code, 0);
+expect('the block says a targeted test needs no tag and a whole suite needs his approval', /targeted test/.test(refused.err) && /whole suite/.test(refused.err) && /needs no tag/.test(refused.err) ? 1 : 0, 1);
+expect('control: a targeted order beside a forbidding clause passes with no block text', send(rust, 'Run cargo test -p x --test town_walls once.').err.includes(TESTS_CHECK) ? 1 : 0, 0);
+expect('the ignore file lifts the check', send(ignoreFile(makeRepoCargo(), TESTS_CHECK), 'Re-run the suite once.').code, 0);
 expect('the phrase finder names what it found', testRunOrders('Run the test once. Then cargo test -p x.').length, 2);
 
 // RDG-D063: in a repo that uses rapid-game a run order needs [tests-signoff:]; the [tests:] reasons do not pass.

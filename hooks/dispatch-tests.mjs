@@ -2,8 +2,9 @@
 // projects share one machine, so a brief into a Cargo workspace never orders test runs as a routine step: "run the
 // test", "one measuring test per point", "re-run the suite", `cargo test` as a step, "N passed" as evidence. Default
 // verification is `cargo check`; agents write tests and do not run them; the coordinator batches runs on a quiet machine.
-// A brief that orders runs says why with `[tests: troubleshoot <fault>]`, `[tests: periodic batch]`, or
-// `[tests: none]` naming `cargo check`. A clause that forbids a run ("write the test, do not run it") is the rule itself.
+// A brief that orders a whole suite says why with `[tests: troubleshoot <fault>]`, `[tests: periodic batch]`, or
+// `[tests: none]` naming `cargo check`; a targeted test (one named test or test file) needs no tag, in any Cargo repo.
+// A clause that forbids a run ("write the test, do not run it") is the rule itself.
 // The Cargo test is `git ls-files` of the dispatch target: a Node repo, including the kit, has none and is never judged.
 // In a repo that uses rapid-game those reasons no longer pass for a whole suite (RDG-D065): a targeted test (one named
 // test or test file) needs no tag; an ordered whole suite needs
@@ -131,13 +132,14 @@ export function testsBlock({ root, input, prompt, footer }) {
     const whole = wholeSuiteOrders(brief);
     return whole.length ? signoffBlock(whole, footer) : null;
   }
-  if (reasonGiven(brief)) return null;
+  const whole = wholeSuiteOrders(brief);
+  if (!whole.length || reasonGiven(brief)) return null;
   return [
-    `BLOCKED: this brief orders test runs as a routine step (${orders.slice(0, 3).map((o) => `"${o}"`).join(', ')}).`,
-    '  Tests are never run implicitly (KIT-D162, KIT-D163): Rust builds are slow and every project shares one machine.',
-    '  Default: verify with `cargo check`; write tests, do not run them; the coordinator batches test runs on a quiet machine.',
+    `BLOCKED: this brief orders a whole suite as a routine step (${whole.slice(0, 3).map((o) => `"${o}"`).join(', ')}).`,
+    '  Nothing runs implicitly (KIT-D162, KIT-D163): Rust builds are slow and every project shares one machine. A targeted test (one named test or test file aimed at the change or fault in hand) needs no tag; a whole suite (every test of a crate, a batch across crates, the workspace) never runs without his approval.',
+    '  Default: order the one named test, or verify with `cargo check` (write tests, do not run them); the coordinator batches whole-suite runs on a quiet machine.',
     '',
-    'Fix: say "write the test, do not run it; verify with cargo check", or name why a run is wanted with one tag:',
+    'Fix: order the one named test (`cargo test -p <crate> --test <file>`), say "write the test, do not run it; verify with cargo check", or name why a whole-suite run is wanted with one tag:',
     `  ${TOKENS.tests.form}`,
     '  [tests: periodic batch]   the coordinator\'s own batch run',
     `  ${TOKENS.testsNone.form}             no run; the brief names \`cargo check\` as the verification`,
