@@ -22,6 +22,8 @@ const DECISIONS = [
     'The framework carries no patched allocator. The pooled upload path is built on the public surface of the allocator.'],
   ['FQD-D030-default-menus.md', 'FQD-D030', 'A new game gets default menus and a settings screen by convention',
     'A new game starts with a main menu, a pause menu and a settings screen by default. Everything at menu level can be overridden.'],
+  ['FQD-D031-cached-output.md', 'FQD-D031', 'What is generated deterministically is cached: every cooked output is stored by its fingerprint and read back, never regenerated',
+    'Every deterministic generated output is cacheable and is cached: a cooked chunk stage, the road network, a settlement plan. Each is stored on disk under a key that names everything its cook reads (seed, world documents, the code that cooks it) and is read back in place of regenerating it. The cache is the framework\'s, one home, used by every game.'],
   ['FQD-D040-pop-in.md', 'FQD-D040', 'Pop-in is hidden on every streamed system',
     'Hiding pop-in is a standing requirement on every streamed system: level-of-detail changes are cross-faded and never pop.'],
   ['FQD-D050-audio.md', 'FQD-D050', 'Engine sounds are synthesised from the vehicle model, never sampled',

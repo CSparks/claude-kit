@@ -50,14 +50,25 @@ try {
   const looseUntagged = gate(GROUNDED, root, [loose]);
   const looseTagged = gate(GROUNDED, root, [{ ...loose, question: `${loose.question} ${TAG('FQD-D030')}` }]);
   ok('a loose overlap with a decision (a run of shared words) blocks untagged', looseUntagged.code === BLOCK, looseUntagged.out);
-  ok('the same questionnaire with a tag naming a decision in force passes', looseTagged.code === PASS, looseTagged.out);
+  ok('KIT-T1457: a tag naming only another decision in force does not clear the loose match: the block names FQD-D010', looseTagged.code === BLOCK && /FQD-D010/.test(looseTagged.out), looseTagged.out);
+  const namedBoth = gate(GROUNDED, root, [{ ...loose, question: `${loose.question} ${TAG('FQD-D030, FQD-D010')}` }]);
+  ok('control: the tag that names the matched decision as well passes', namedBoth.code === PASS, namedBoth.out);
   const fake = gate(GROUNDED, root, [{ ...loose, question: `${loose.question} ${TAG('FQD-D999')}` }]);
   ok('a tag that names an id the store does not hold clears nothing', fake.code === BLOCK);
   const gone = gate(GROUNDED, root, [{ ...loose, question: `${loose.question} ${TAG('FQD-D020')}` }]);
   ok('a tag that names only a superseded id clears nothing', gone.code === BLOCK);
   const quoting = question(`The options differ on the framework crate suite and the cargo check. ${TAG('FQD-D030')} (FQD-D010: every framework test run needs the maintainer's sign-off before it starts)`, 'Suite');
   ok('the tag text is never matched: quoting a loose match inside the tag does not trigger it', gate(GROUNDED, root, [quoting]).code === PASS);
-  ok('a "none apply" tag still passes everything', gate(GROUNDED, root, [{ ...loose, question: `${loose.question} [options-checked: none apply: the matches are loose words]` }]).code === PASS);
+  ok('KIT-T1457: a blanket "none apply" tag clears no clause match', gate(GROUNDED, root, [{ ...loose, question: `${loose.question} [options-checked: none apply: the matches are loose words]` }]).code === BLOCK);
+  ok('a "none apply" tag that names the matched decision passes', gate(GROUNDED, root, [{ ...loose, question: `${loose.question} [options-checked: none apply: FQD-D010 is about framework runs, this is the harbour scene]` }]).code === PASS);
+
+  const PERSIST = 'Persist the road network and settlement plans on disk, keyed on seed, world documents and the code that cooks them, and read them back on a repeat of the same seed.';
+  const persist = (extra = '') => question(`How far should same-seed persistence go? ${extra}`, 'Persist', [option('(Recommended) World build first', PERSIST), option('Persist nothing', 'Keep startup as it is.')]);
+  const BLANKET = '[options-checked: FQD-D030 (default menus) and FQD-D040 (pop-in) govern; no other recorded decision applies]';
+  const surfaced = gate(GROUNDED, root, [persist(BLANKET)]);
+  ok('KIT-T1457: a persistence question with a blanket tag naming other ids still surfaces the caching decision', surfaced.code === BLOCK && /FQD-D031/.test(surfaced.out), surfaced.out);
+  ok('control: naming the caching decision in the tag passes', gate(GROUNDED, root, [persist('[options-checked: FQD-D031 (every deterministic output is cached on disk) governs; no other recorded decision applies]')]).code === PASS);
+  ok('control: the same persistence question cites nothing and is blocked untagged', gate(GROUNDED, root, [persist()]).code === BLOCK);
 
   const cited = question('Does FQD-D030 need an override for the harbour menu?', 'Menu');
   ok('an id in the question body without its plain words blocks ids-described', gate(IDS, root, [cited]).code === BLOCK);

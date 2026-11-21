@@ -7,14 +7,15 @@
 // (lib/question-clause-grounding.mjs, KIT-T1215). A match whose id the questionnaire text (header, question, option
 // labels and descriptions) or the readable turn prose never names blocks. The summary written in the same reply as the
 // call is not on disk yet, so cite in the questionnaire.
-// Escapes in the questionnaire text: `[options-checked: none apply: <why>]` passes it; `[options-checked: <ids> govern this; no
-// other recorded decision applies]` with at least one id the store holds in force clears the label matches and raises the clause
-// bar to TAGGED_BAR, a near-verbatim restatement (KIT-T1431, KIT-T1451). The tag text itself is never matched. A question is judged
-// sentence by sentence (a long summary pooled would share loose words with most decisions). Fails open on any error.
+// An `[options-checked: none apply: <why>]` tag, or one naming ids the store holds in force (`<ids> govern this; ...`), clears the
+// label matches (KIT-T1431, KIT-T1451). It never clears a clause match for a decision the questionnaire does not name: the claim
+// "no other decision applies" is the author's, so every decision whose clause the text restates is listed until its id appears in
+// the question or the tag (KIT-T1457). The tag text itself is never matched. A question is judged sentence by sentence (a long
+// summary pooled would share loose words with most decisions). Fails open on any error.
 
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { groundingMisses } from './lib/question-grounding.mjs';
-import { CLAUSE_BAR, TAGGED_BAR, clauseMisses } from './lib/question-clause-grounding.mjs';
+import { clauseMisses } from './lib/question-clause-grounding.mjs';
 import { storeDocs } from './lib/store-docs.mjs';
 import { turnText } from './lib/turn-text.mjs';
 import { GROUNDED_CHECK, GROUNDED_CLAUSE_SHOWN } from './lib/question-checks.mjs';
@@ -46,8 +47,8 @@ function blockMessage(misses, restated) {
     'The maintainer already ruled on, or filed, work like this; offering it fresh makes him re-decide a settled point.',
     'Read each item (q show <id>), then in the question text or an option description say what it is in plain words and cite it:',
     `  "${first.title.slice(0, MAX_TITLE_SHOWN)} (${first.id})" — and let the options build on it, never restate it as new.`,
-    `When none governs the options, add ${TOKENS.optionsChecked.form} to the question text.`,
-    `When some govern them and the rest matched on loose words, add ${TOKENS.optionsCheckedIds.form} with the governing ids (a decision in force, as q show reads it): only a near-verbatim restatement of an uncited decision then blocks.`,
+    `When none governs the options, add ${TOKENS.optionsChecked.form} to the question text and name each decision listed above in it with why it does not apply.`,
+    `When some govern them, add ${TOKENS.optionsCheckedIds.form} naming every decision listed above (a decision in force, as q show reads it): a tag clears a listed decision only by naming it.`,
     '',
     excludeFooter(GROUNDED_CHECK),
   ].join('\n');
@@ -61,12 +62,12 @@ try {
   if (!Array.isArray(questions) || !questions.length || !adopted(root) || pathExcluded(root, GROUNDED_CHECK, root)) process.exit(0);
   const turn = p.transcript_path ? turnText(p.transcript_path) : null;
   const cited = [...questions.map(questionText), turn?.prose || ''].join('\n');
-  if (TOKENS.optionsChecked.pattern.test(cited)) process.exit(0);
   const docs = storeDocs(root);
   const governing = assertedGoverning(cited, new Set(docs.map((d) => d.id)));
   const judged = questions.map(withoutTags);
-  const misses = governing.length ? [] : groundingMisses(docs, judged, cited);
-  const restated = clauseMisses(docs, judged, cited, governing.length ? TAGGED_BAR : CLAUSE_BAR);
+  const tagged = TOKENS.optionsChecked.pattern.test(cited) || governing.length > 0;
+  const misses = tagged ? [] : groundingMisses(docs, judged, cited);
+  const restated = clauseMisses(docs, judged, cited);
   if (misses.length || restated.length) {
     process.stderr.write(blockMessage(misses, restated));
     process.exit(2);

@@ -10,20 +10,19 @@
 // clauses (KIT-T1451). A restatement also shares a run of GROUNDED_CLAUSE_PHRASE consecutive words with the clause (shared-run.mjs),
 // and the score bar grows with a unit longer than GROUNDED_CLAUSE_LONG_STEMS stems.
 // Generic engineering stems (generic-stems.mjs: check, run, work, time, usage) are never in a stem set (KIT-T1431), and a
-// restatement holds GROUNDED_CLAUSE_MIN_RARE distinct rare stems. A questionnaire whose `[options-checked: <ids> ...]` tag
-// cites the decisions that govern it is judged against the higher TAGGED_BAR: only a near-verbatim restatement of an uncited
-// decision still blocks.
-// The decision id must be cited in the questionnaire text or the readable turn prose.
+// restatement holds GROUNDED_CLAUSE_MIN_RARE distinct rare stems.
+// The decision id must be cited in the questionnaire text (an `[options-checked: ...]` tag included) or the readable turn
+// prose; a tag clears only the decisions it names (KIT-T1457).
 //
 //   decisionClauses(text)                    -> [string] the numbered clauses (1)..(n) of the `**Decision:**` paragraph, or its sentences
 //   indexClauses(docs)                       -> the decision clauses with their stems, the stem weight and the rarity test
-//   clauseMatches(docs, text, index?, bar?)  -> [{ id, kind, title, clause, shared, stems, rare, score }] best clause per decision, highest score first; bar = CLAUSE_BAR | TAGGED_BAR
+//   clauseMatches(docs, text, index?, bar?)  -> [{ id, kind, title, clause, shared, stems, rare, score }] best clause per decision, highest score first; bar = CLAUSE_BAR
 //   clauseMisses(docs, questions, cited, bar?) -> clauseMatches of each text unit whose decision id `cited` never names
 //   questionRestatementTexts(question)       -> the question and each option description (labels stay with the label matcher)
 
 import {
   GROUNDED_CLAUSE_MIN_RARE, GROUNDED_CLAUSE_PER_QUESTION, GROUNDED_CLAUSE_RARE_MIN_DF, GROUNDED_CLAUSE_RARE_SHARE, GROUNDED_CLAUSE_SCORE,
-  GROUNDED_CLAUSE_PHRASE, GROUNDED_CLAUSE_SHARED, GROUNDED_CLAUSE_TAGGED_MIN_RARE, GROUNDED_CLAUSE_TAGGED_PHRASE, GROUNDED_CLAUSE_TAGGED_SCORE, GROUNDED_CLAUSE_LONG_STEMS,
+  GROUNDED_CLAUSE_PHRASE, GROUNDED_CLAUSE_SHARED, GROUNDED_CLAUSE_LONG_STEMS,
 } from './question-checks.mjs';
 import { optionStems } from './question-grounding.mjs';
 import { stemRarity } from './stem-rarity.mjs';
@@ -66,7 +65,6 @@ function scoreClause(index, wanted, c, text) {
 }
 
 export const CLAUSE_BAR = { minRare: GROUNDED_CLAUSE_MIN_RARE, score: GROUNDED_CLAUSE_SCORE, phrase: GROUNDED_CLAUSE_PHRASE };
-export const TAGGED_BAR = { minRare: GROUNDED_CLAUSE_TAGGED_MIN_RARE, score: GROUNDED_CLAUSE_TAGGED_SCORE, phrase: GROUNDED_CLAUSE_TAGGED_PHRASE };
 
 // A unit of many stems shares more by chance: past GROUNDED_CLAUSE_LONG_STEMS the score bar grows with its length.
 const lengthFactor = (size) => Math.max(1, size / GROUNDED_CLAUSE_LONG_STEMS);

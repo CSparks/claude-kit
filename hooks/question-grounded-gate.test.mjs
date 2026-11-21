@@ -78,7 +78,8 @@ try {
     && !restating.out.includes('(1) Three layers'));
   ok('the same restatement in an option description alone is blocked', ask([{ label: '(Recommended) Allow it', description: 'a scene render reads the Song tempo' }, PLAIN[1]], 'Which way?', 'Tempo').code === 2);
   ok('citing the decision id in the question text passes', ask(PLAIN, `${RESTATES} Generation layers: Song settings drive Scene settings (${RULED}) rules it.`, 'Tempo').code === 0);
-  ok('the escape tag passes a restating question', ask(PLAIN, `${RESTATES} [options-checked: none apply: the ruling covers a different render]`, 'Tempo').code === 0);
+  ok('KIT-T1457: a blanket escape tag does not pass a restating question', ask(PLAIN, `${RESTATES} [options-checked: none apply: the ruling covers a different render]`, 'Tempo').code === 2);
+  ok('KIT-T1457: the escape tag that names the decision and why passes', ask(PLAIN, `${RESTATES} [options-checked: none apply: ${RULED} covers a different render]`, 'Tempo').code === 0);
   ok('negative control: a question about other words passes with the decision present', ask(PLAIN, 'Which text should the stadium sign carry?', 'Sign').code === 0);
   ok('negative control: two shared stems are below the clause threshold', ask(PLAIN, 'Does the Song seed matter?', 'Seed').code === 0);
 

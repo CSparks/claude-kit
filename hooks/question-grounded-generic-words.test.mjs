@@ -76,10 +76,12 @@ try {
   ok('a tag that cites no id is not the ids tag', !TOKENS.optionsCheckedIds.pattern.test('[options-checked: the others matched loosely]'));
   const LOOSE = 'Medium work goes to Sonnet and the hard work for Opus: should that change?';
   ok('a loose match of RDG-D137 blocks untagged', ask(LOOSE).code === 2 && ask(LOOSE).out.includes('RDG-D137'));
-  ok('with the ids tag the same loose match of an uncited decision passes', ask(`${LOOSE} ${tag('RDG-D052')}`).code === 0);
+  ok('KIT-T1457: with an ids tag that does not name it, the same loose match of RDG-D137 still blocks and names it', ask(`${LOOSE} ${tag('RDG-D052')}`).code === 2 && ask(`${LOOSE} ${tag('RDG-D052')}`).out.includes('RDG-D137'));
+  ok('KIT-T1457: the ids tag that names RDG-D137 as well passes', ask(`${LOOSE} ${tag('RDG-D052, RDG-D137')}`).code === 0);
   const verbatim = `${D063Clause()} ${tag('RDG-D052')}`;
   ok('with the ids tag a near-verbatim restatement of an uncited decision still blocks', ask(verbatim).code === 2 && ask(verbatim).out.includes('RDG-D063'));
-  ok('the none-apply tag still passes a restating question', ask(`${RESTATES_D063} [options-checked: none apply: it asks about a different run]`).code === 0);
+  ok('KIT-T1457: a blanket none-apply tag clears no decision whose clause the question restates', ask(`${RESTATES_D063} [options-checked: none apply: it asks about a different run]`).code === 2);
+  ok('KIT-T1457: a none-apply tag that names the decision and why it does not apply passes', ask(`${RESTATES_D063} [options-checked: none apply: RDG-D063 covers other runs, this asks about a different run]`).code === 0);
 } finally {
   cleanup();
 }
