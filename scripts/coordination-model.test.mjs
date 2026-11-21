@@ -32,6 +32,7 @@ try {
   ok('orient is silent when the harness reports no model', !/main thread runs/.test(hook('orient.mjs', {}, repo).out));
 
   const base = readFileSync(join(KIT_ROOT, 'user-config', 'CLAUDE.global.md'), 'utf8');
-  ok('the base CLAUDE.md states the rule and no longer names opus and fable orchestrators', /Planning is separate from\s+coordination/.test(base) && /KIT-D098/.test(base) && !/Opus and fable are the\s+orchestrator models/.test(base));
+  const dispatchRules = readFileSync(join(KIT_ROOT, 'commands', 'dispatch-rules.md'), 'utf8');
+  ok('the dispatch rules state the planning-versus-coordination rule and no longer name opus and fable orchestrators; the base coordinates on sonnet and points there', /Planning is separate from\s+coordination/.test(dispatchRules) && /KIT-D098/.test(dispatchRules) && !/Opus and fable are the\s+orchestrator models/.test(base + dispatchRules) && /coordinates on sonnet/.test(base) && base.includes('`/dispatch-rules`'));
 } finally { cleanup(); }
 done();

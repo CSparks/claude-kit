@@ -159,6 +159,32 @@ is what the staleness window covers.
 - Wired into `~/.claude/settings.json` via `user-config/settings.recommended.json`;
   installed/symlinked by `bootstrap.sh`.
 
+## Hook contract (full text; the global contract keeps a pointer here)
+Portable Node enforcement hooks (from claude-kit) gate Write/Edit (code quality), `git commit` (work-log), SessionStart
+(orientation), PreCompact/Stop (flush); opt-in-aware — each no-ops unless the repo has `.ai/`, and inert under any registry
+`excluded` root (KIT-T447): no hooks, and `q`/`cap`/`t` refuse there — do not route around it.
+- **Never bypass a hook. Never loosen one without explicit approval.** A block gets a root-cause fix, not a weakened check.
+- A payload-reading hook reads stdin robustly and **fails open** on a parse error.
+- Surface a hook's warning (exit 0 + stderr) to the user in the next response.
+- **Halts in anything but exclusions.** Every gate keeps its hard block by default; the ONLY non-halt path is an explicit,
+  documented exclusion. On an apparent false-positive block, STOP and discuss before adding one (per-check, per-path, with a
+  stated reason).
+- Two exclusion surfaces, both dependency-free + fail-open: `.claude-kit-ignore.yaml` (project root; `check-id → [path globs]`,
+  `'*'`/`all` = every check) and in-source `claude-kit-ignore-*` comment markers (file / start…end / line forms). Every gate
+  footer names its check-id and both surfaces.
+- **A block is satisfied, never routed around (KIT-D147, KIT-D148).** The turn that hits a block fixes its cause for good:
+  satisfy it as written; when the block misfired or lacks a printout, ticket it and dispatch the fix agent (KIT-D145); remove
+  the session-side cause. An end-around is allowed only to repair that block itself. Before the first call to a gated tool
+  (Agent, AskUserQuestion) read `q gates agent` / `q gates question`: every requirement and exact tag form, derived from the
+  gate code.
+- **Triage every block: process failure, kit bug, or known kit bug with the fix in progress? (KIT-D154, GG-D053).** On ANY hook
+  block, the next reply says which it was, before anything else. Process failure (you broke a rule the gate enforces): ticket
+  the root cause plus a prevention that stops the recurrence. Kit bug (the gate misfired, missed or printed too little):
+  ticket it and dispatch the fix agent the same turn (KIT-D145). Known kit bug, fix in progress: name the open ticket id and
+  the agent working it; no new ticket, no new dispatch. Every gate block text ends with this line; every dispatched agent
+  inherits it.
+- `.claude-tooling-ok` silences missing-tool warnings per project.
+
 ## Exclusions — `.claude-kit-ignore.yaml` + in-source markers (KIT-T051)
 Philosophy: **halts in anything but exclusions.** Every gate keeps its hard block by
 default — the ONLY non-halt path is an explicit, documented exclusion. No check is

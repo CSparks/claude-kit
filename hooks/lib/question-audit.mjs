@@ -11,25 +11,26 @@
 //   auditMessage(audits)           -> the text sent to the model for the thin summaries in `audits`
 //                                     ([{ call, audit }] with a non-empty audit.problems)
 
-import { BRIEF_RULE, briefProblems, wordCount } from './question-brief.mjs';
+import { BRIEF_MIN_NARRATION_WORDS, BRIEF_MIN_WORDS, BRIEF_RULE, briefProblems, wordCount } from './question-brief.mjs';
 import { turnText } from './turn-text.mjs';
 import { BRIEF_CHECK } from './question-checks.mjs';
 import { excludeFooter } from './exclusions.mjs';
 
-const BLOCK_CHARS = 60;
+const BLOCK_CHARS = 400;
+
+const narrationOnly = (turn) => turn.blocks.length > 0 && turn.blocks.every((b) => b.kind === 'narration');
 
 export function auditQuestionnaire(file, call) {
   const questions = call?.input?.questions;
   if (!call?.id || !Array.isArray(questions) || !questions.length) return null;
   const turn = turnText(file, { beforeToolUseId: call.id, adjacent: true });
   if (!turn) return null;
-  return { problems: briefProblems(turn.prose), turn, words: wordCount(turn.prose) };
+  return { problems: briefProblems(turn.prose, { narrationOnly: narrationOnly(turn) }), turn, words: wordCount(turn.prose) };
 }
 
 const lines = (problems) => problems.map((p) => `  - ${p.part}: ${p.wanted}`);
 const blocksRead = (turn) => turn.blocks.map((b) => `    [${b.kind}, ${wordCount(b.text)} words] "${b.text.replace(/\s+/g, ' ').slice(0, BLOCK_CHARS)}"`);
-const narrationOnly = (turn) => turn.blocks.length > 0 && turn.blocks.every((b) => b.kind === 'narration');
-const NARRATION_NOTE = '  Only narration blocks were recorded above the call: Claude Code stores commentary as a platform-written copy that can be shorter than the text you wrote, and this audit counts what the transcript holds.';
+const NARRATION_NOTE = `  Only narration blocks were recorded above the call: Claude Code stores commentary written beside a tool call as a shortened platform copy (a 170-word summary was recorded as 37 words), so the transcript cannot show what you wrote. Such a copy is judged at ${BRIEF_MIN_NARRATION_WORDS} words instead of ${BRIEF_MIN_WORDS}; to be counted whole, write the summary as reply text (not commentary) directly above the call, and repeat it in full on a re-ask.`;
 
 function oneAudit({ call, audit }) {
   const header = call.input.questions.map((q) => q?.header || q?.question).filter(Boolean).join(' / ');

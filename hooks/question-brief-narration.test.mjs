@@ -63,7 +63,7 @@ try {
   const priorTurn = ask(transcript(entry('user', 'Earlier ask.'), reply(narration(REAL_FIXED_BRIEF), bash('toolu_p')), result('toolu_p'), reply(text('Done.')), entry('user', SETTLED), reply(call)));
   ok('control: prose from before the last real maintainer message is not counted', priorTurn.code === 2);
 
-  const aloneHalf = ask(transcript(entry('user', SETTLED), reply(narration(HALVES[0])), reply(call)));
+  const aloneHalf = ask(transcript(entry('user', SETTLED), reply(text(HALVES[0])), reply(call)));
   ok('control: one half of the summary alone is too short', aloneHalf.code === 2);
   const midTurnNotice = ask(transcript(entry('user', SETTLED), reply(narration(HALVES[0])), taskNotification, reply(narration(HALVES[1])), reply(call)));
   ok('a task notification between the halves does not cut the summary: the narration on both sides counts', midTurnNotice.code === 0);
@@ -86,9 +86,17 @@ try {
     && thin.out.includes('[text, 6 words] "Foliage or sweep, one lever first."')
     && thin.out.includes('[text, 7 words] "The sweep waits on the other writers."')
     && !thin.out.includes('Only narration blocks'));
-  const onlyNarration = ask(transcript(entry('user', SETTLED), reply(narration(HALVES[0].split(' ').slice(0, 20).join(' ')), call)));
+  const onlyNarration = ask(transcript(entry('user', SETTLED), reply(narration(HALVES[0].split(' ').slice(0, 19).join(' ')), call)));
   ok('KIT-T1454: a thin report over narration blocks alone says the transcript holds the platform copy', onlyNarration.code === 2
-    && onlyNarration.out.includes('[narration, 20 words]') && onlyNarration.out.includes('Only narration blocks were recorded'));
+    && onlyNarration.out.includes('[narration, 19 words]') && onlyNarration.out.includes('Only narration blocks were recorded'));
+  ok('KIT-T1465: the narration note says the copy is judged at 20 words and where to write the summary so it is counted whole', /judged at 20 words instead of 40/.test(onlyNarration.out) && /write the summary as reply text \(not commentary\) directly above the call/.test(onlyNarration.out));
+  const words = (count) => Array.from({ length: count }, (_, i) => `w${i}`).join(' ');
+  const shortened = ask(transcript(entry('user', SETTLED), reply(narration(words(37)), call)));
+  ok('KIT-T1465: a 37-word narration copy (a 170-word summary as stored) passes', shortened.code === 0 && shortened.out.trim() === '');
+  ok('KIT-T1465: control: the same 37 words as reply text are thin, the 40-word bar applies', ask(transcript(entry('user', SETTLED), reply(text(words(37)), call))).code === 2);
+  ok('KIT-T1465: boundary: a 19-word narration is thin, a 20-word narration passes', ask(transcript(entry('user', SETTLED), reply(narration(words(19)), call))).code === 2 && ask(transcript(entry('user', SETTLED), reply(narration(words(20)), call))).code === 0);
+  const printed = ask(transcript(entry('user', SETTLED), reply(text(words(30)), call)));
+  ok('KIT-T1465: a shortfall prints the counted text so it is explained, not just its first words', printed.code === 2 && printed.out.includes('w29') && /Counted 30 words in 1 block/.test(printed.out));
   const beforeTool = ask(transcript(entry('user', SETTLED), reply(text(PARAGRAPHS[0]), bash('toolu_q')), result('toolu_q'), reply(text(thinBlocks[0]), call)));
   ok('KIT-T1454: the report lists only the blocks after the previous tool call', beforeTool.code === 2 && beforeTool.out.includes('in 1 block:') && !beforeTool.out.includes('Two levers'));
 } finally {

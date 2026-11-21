@@ -40,7 +40,8 @@ try {
   for (const f of ['agents/analyst.md', 'agents/analyst-max.md']) ok(`${f} names the escalate tag for the dispatcher (KIT-T940)`, /\[escalate: <reason>\]/.test(read(f)));
   ok('the owning commands carry the promotion protocol', read('commands/cap.md').includes('RULING CAPTURED') && read('commands/decide.md').includes('--from <inbox id>') && read('commands/triage.md').includes('t decide --file <draft.md> --from <cap id>'));
   const MESSAGE_FILE_NAME = 'commit-<ticket id>-<six random characters>.txt';
-  ok('the base contract tells agents to write a unique commit message file in the shared scratchpad (KIT-T1135)', base.includes(MESSAGE_FILE_NAME) && /agents of one session share one\s+scratchpad/.test(base));
+  const delegation = read('docs/delegation.md');
+  ok('the base contract names the unique commit message file and the delegation doc tells agents to write it in the shared scratchpad (KIT-T1135)', base.includes(MESSAGE_FILE_NAME) && base.includes('docs/delegation.md') && /agents of one session share one\s+scratchpad/.test(delegation));
   for (const f of ['agents/README.md', 'agents/implementer.md', 'agents/perf-tuner.md', 'agents/rg-ui-engineer.md']) {
     ok(`${f} names the unique commit message file (KIT-T1135)`, read(f).includes(MESSAGE_FILE_NAME));
   }
@@ -51,8 +52,8 @@ try {
   ok('the base contract makes a dispatch the third step of a process failure and names its gate (KIT-D168)',
     /\(3\) DISPATCH an agent the same\s+turn[\s\S]{0,400}`process-failure-dispatch`/.test(base));
   ok('the base contract sets no context size limit, names the waste share and tells briefs to redirect long output to a file (KIT-D158)',
-    /No context size limit; waste is the limit \(KIT-D149, KIT-D158, supersedes KIT-D116\)/.test(base) && /real work is fine at any size/.test(base)
-    && /waste share per agent/.test(base) && /redirect long output to a file and read only what they need/.test(base) && !/context_ceiling_tokens|context ceiling/i.test(base));
+    /No context size limit; waste is the limit \(KIT-D149, KIT-D158, supersedes KIT-D116\)/.test(delegation) && /real work is fine at any size/.test(delegation) && /No context size limit; waste is the limit \(KIT-D149, KIT-D158\)/.test(base)
+    && /waste share per agent/.test(delegation) && /redirect long output to a file and read only what they need/.test(delegation) && !/context_ceiling_tokens|context ceiling/i.test(base + delegation));
 
   ok('the base contract carries the one tests rule in the maintainer\'s words (targeted allowed, whole suite needs his approval, nothing implicit) and names the [tests:] tags (RDG-D065, KIT-D162, KIT-D163, KIT-T1186)',
     ['One tests rule (RDG-D065; KIT-D162, KIT-D163)', 'TARGETED TESTS are allowed. RUNNING THE WHOLE FUCKING SUITE WITHOUT MY', 'nothing runs implicitly', '[tests: troubleshoot <the fault>]', '[tests: periodic batch]', '[tests: none]', 'tests-not-implicit', '[tests-signoff: <his quoted words or the questionnaire answer>]', 'RDG-D065, KIT-T1353']

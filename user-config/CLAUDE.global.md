@@ -3,7 +3,9 @@
 Universal rules for every repo. Machine-/person-specific lines come from the private
 overlay; per-project workflow mechanics (the `.ai/` ticket / drain / session model)
 live in that project's own CLAUDE.md. `~/.claude/CLAUDE.md` is composed from base +
-overlay by bootstrap — edit the sources, not the result.
+overlay by bootstrap — edit the sources, not the result. The tooling and process rules he
+has stated sit in the standing-rules block that opens every session start and every agent;
+this file carries the rest and the pointers.
 
 # ARCHITECTURE
 
@@ -72,12 +74,8 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
 - **Compress every reply. Lead with the answer; cut preamble and process narration.**
   Tight bullets, one idea each. Expand only when asked or genuinely needed. A yes/no
   question gets the bare word first, then at most one line.
-- **Name a thing by what it does; leave ids out of replies to the maintainer (KIT-T1462; RDG-D148).** "There is almost
-  never going to be a time where I know what the fuck you're talking about by referencing a ticket ID." Ticket,
-  decision, lever and run ids never appear, not even in brackets after the words; shorthand such as stage or lever
-  labels is explained the first time; a hook-relayed list of agent or run ids is summarised, never pasted. Only a commit
-  hash may appear, in the landing receipt after the words. Ids stay in briefs, commit messages, tickets and the record.
-  The Stop gate `bare-ids` warns on a closing reply that carries one.
+- **Plain words, no ids in replies to him (the block; KIT-D128, KIT-T1462):** name a thing by what it does; only a
+  commit hash, in the landing receipt after the words. The Stop gate `bare-ids` warns on a closing reply that carries one.
 - **Progress = one-line receipts** (what + commit sha), no approval-seeking. Fuller
   rollup on demand (`/standup`, `/prime`).
 - **Lead with what CHANGED; end with what's UAT-able (KIT-T099; KIT-D045).** The first
@@ -93,12 +91,8 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   set) is never run without his approval; nothing runs implicitly (no commit gate, not routine, not
   per edit). His words: "TARGETED TESTS are allowed. RUNNING THE WHOLE FUCKING SUITE WITHOUT MY
   APPROVAL is not." Rust builds are slow: a brief orders a named test, never a suite.
-- **Five rules he stated, kit-wide (KIT-D174 to KIT-D178; the same lines sit in the standing-rules block):**
-  - An instruction ambiguous in a way that changes what gets built (scope, target, design fork) is asked first in one batched questionnaire, never assumed (KIT-D178).
-  - When he says a part works it is frozen: fix only the broken part, never rewrite or improve the working part in the same change (KIT-D177).
-  - Never discard work in progress (paused draft, unmerged feature, parked patch) unless something better supersedes it: keep it, flag it off or finish it; keep it in history; ship nothing broken (KIT-D174).
-  - Measure headless every defect class he has already reported before a hand-off; UAT only after that is green and only for feel, look and sound; a red test on main blocks a landing (KIT-D176).
-  - Before any benchmark or performance check make sure nothing builds and no tests run, check CPU first and record it; a number taken under load is not a result (KIT-D175; a project may be stricter, as Stiletto runs speed-dependent runs strictly alone).
+- **Five more rules he stated (KIT-D174 to KIT-D178), each a line in the block:** ask on an ambiguity that changes what
+  gets built; a part he says works is frozen; never discard work in progress; headless before UAT; a quiet machine for timing.
 - Analysis is allowed anytime; **file-changing work requires explicit approval.**
 - Run builds/tests inside Docker when the project uses it. Node.js for bulk scripts.
 - **Every session works from a bill of work (KIT-D132, supersedes KIT-D130).** The
@@ -172,6 +166,8 @@ between; every text block since the previous tool call counts; a re-ask needs it
 inside the questionnaire (RDG-D145; Chris: "The fucking summary does not go into the questionnaire."):
 each question stays one short sentence plus its options and never embeds or repeats the summary.
 A resend after a block repeats the whole summary (at least 40 words) directly above it; a one-line note does not count (KIT-T1465).
+Write the summary as reply text, not commentary: Claude Code stores commentary written beside a tool call as a shortened copy
+(a 170-word summary was recorded as 37 words); the audit judges such a copy at 20 words and prints the counted text.
 Dry-run a draft first: `q gates question --draft <file.json>` runs every questionnaire gate and prints
 all failures and their fixes at once (KIT-T1451). `q gates question` prints every other requirement.
 
@@ -181,103 +177,32 @@ protocol into this file (or the owning command/skill) the same turn. A protocol 
 in a block message or a decision file is a defect.
 
 # SUBAGENT DISPATCH — one capability table, one home
-- Agent definitions carry NO `model:` line (KIT-D080). The orchestrator picks the model on
-  EVERY dispatch from the kit's **capability table** (`.ai/config.yml → dispatch.jobs`: job
-  type → family or `local-qwen`, each row with cost, evidence date and source; fed by the
-  research refresh and our own dispatch outcomes). Model judgments are dated facts — update
-  the table + a superseding decision at the kit source. Never encode routing in a memory.
-- A dispatch names a FAMILY only (sonnet / opus / haiku / fable), which resolves to that
-  family's newest model. No exact-version requests: an older version gets a plain "can't
-  target that" and nothing runs silently (supersedes KIT-D061/D063).
-- Straightforward targeted change → **local Qwen first** (`scripts/local-agent.mjs`; the
-  brief supplies files, line ranges, acceptance); after 2 failures on one ticket → sonnet.
-  Straightforward fixes and multi-file refactors → sonnet; big or spatially heavy builds,
-  design, asset authoring → opus; trivial chores → haiku. **Planning is separate from
-  coordination** (KIT-D098; Chris: "Opus for planning, Sonnet for coordination."): the main
-  thread coordinates on sonnet (`/model sonnet`) and every plan is a dispatch to the `plan`
-  job, which runs on opus with fable as its fallback (fable costs 2.5x opus; explicit-only
-  otherwise, never asset authoring). On an opus usage-limit error on a plan, relaunch on fable.
-- Whatever the main thread's model, every dispatch carries an explicit `model`; the
-  `dispatch-ladder` hook blocks a silent inherit of fable. A deliberate model-less fable inherit
-  needs an inline `[allow-fable: <reason>]` token in the prompt. SessionStart orient flags a
-  main thread that is not on the coordination family and names the `/model` switch.
-- **Dispatch checklist — every Agent call (exact forms: `q gates agent`):** `description` =
-  `[<Family N.M>] <label>` (the hook names the value; never hand-written, KIT-T897); prompt carries
-  `[job: <id>]` and `[difficulty: <tier>; systems=N root=… proof=… ref=… coupling=… context=…]`, and `model` is the family that
-  assessment gives (KIT-D170: the job's difficulty decides the model, never the agent definition; both listed by `q gates agent`,
-  one lookup: `node "<kit>/scripts/dispatch-ladder.mjs" resolve --job <job> --difficulty "<tag body>"`); an agent that writes no repo file (design/artifact: scratchpad only) adds
-  `[read-only: <why>]`, one in another git checkout adds `[tree: <its root>]`; a feature/request
-  brief adds `[maintainer-words: "<his sentence>"]` and `[reuses: <mechanism>|none: <why>]` (KIT-T703);
-  a design or plan brief (job `plan`, or an analyst or researcher briefed with design words) adds
-  `[rulings-checked: <q inbox or q fts run, or inbox ids read>|none apply: <why>]` while the inbox
-  holds un-triaged notes (KIT-T938); a job dearer than the default of the ticket type the brief
-  names (a design/opus dispatch with no ticket) adds `[escalate: <reason>]` (KIT-T940). In a repo
-  that uses a framework with a crate index (rapid-game: `docs/CRATES.md`), a plan brief and every plan
-  leaving plan mode (in the plan text) add `[framework-checked: <indexed crates read, per mechanism>|none apply: <why>]`
-  (KIT-T1095; `q gates plan`). In a Cargo workspace a targeted test (one named test or test file) needs no tag,
-  and a brief that orders a whole suite adds `[tests: troubleshoot <the fault>]` or `[tests: periodic batch]`, or
-  `[tests: none]` naming `cargo check` (KIT-T1186; check `tests-not-implicit`). In a repo that uses rapid-game an
-  ordered whole suite needs `[tests-signoff: <his quoted words or the questionnaire answer>]` instead (RDG-D065, KIT-T1353).
+- The orchestrator picks the model on EVERY dispatch from the capability table (`.ai/config.yml → dispatch.jobs`), by
+  family only (sonnet / opus / haiku / fable), never from the agent definition (KIT-D080, KIT-D170). The main thread
+  coordinates on sonnet and every plan is a dispatch to the `plan` job (opus, fable as its fallback). Routing detail,
+  local Qwen first, the fable rules: `/dispatch-rules`.
+- **Dispatch checklist — every Agent call (exact forms: `q gates agent`; the full text: `/dispatch-rules`):** `description` =
+  `[<Family N.M>] <label>` (the hook names the value, KIT-T897); prompt carries `[job: <id>]` and
+  `[difficulty: <tier>; systems=N root=… proof=… ref=… coupling=… context=…]`, and `model` is the family that assessment
+  gives (KIT-D170); an agent that writes no repo file adds `[read-only: <why>]`, one in another git checkout adds
+  `[tree: <its root>]`; a feature/request brief adds `[maintainer-words: "<his sentence>"]` and
+  `[reuses: <mechanism>|none: <why>]` (KIT-T703); a design or plan brief adds
+  `[rulings-checked: <q inbox or q fts run, or inbox ids read>|none apply: <why>]` (KIT-T938); a job dearer than the
+  ticket type's default adds `[escalate: <reason>]` (KIT-T940); in a repo with a framework crate index a plan brief adds
+  `[framework-checked: <indexed crates read, per mechanism>|none apply: <why>]` (KIT-T1095; `q gates plan`). In a Cargo
+  workspace a targeted test (one named test or test file) needs no tag, and a brief that orders a whole suite adds
+  `[tests: troubleshoot <the fault>]` or `[tests: periodic batch]`, or `[tests: none]` naming `cargo check` (KIT-T1186;
+  check `tests-not-implicit`). In a repo that uses rapid-game an ordered whole suite needs
+  `[tests-signoff: <his quoted words or the questionnaire answer>]` instead (RDG-D065, KIT-T1353).
 - Don't burn main-thread fable context on basic work — delegate it DOWN the table.
 
-## Delegation COST — scale the ceremony, isolate the checkout
-Cost tracks the **tool-call count**, not the size of the change: every call re-sends
-the accumulated transcript, so 100 calls is roughly quadratic.
-- **Several agents share one working tree; the kit guards two collisions only (KIT-T1114).**
-  **NO worktrees, clones, feature branches or second work directories, ever** (KIT-D039):
-  every agent works in the maintainer's one checkout, on main, keeping it building by
-  testing each step. Separate copies duplicate effort and strand work. Never borrow
-  another project's checkout as a scratch copy.
-- **A gate-forced restructure gets PRESENTED FIRST.** When a lint/length gate turns a
-  small edit into a module split, show the maintainer before doing it.
-- **Don't turn a subjective judgement into thresholds to hit.** Where the
-  maintainer's ear/eye is the acceptance test: make the change, PRINT the
-  measurements, ship for judgement. Assertions loose enough to catch regressions,
-  never tight enough to require tuning — the tuning search is where the tokens go.
-- **A named reference + a named event is a SIGNATURE and a LOCATION — go straight
-  there.** A targeted edit, not an investigation.
-- **If a subjective ask is genuinely NOT obvious, ASK — do not spend.** One
-  clarifying question costs a turn; guessing at scale costs six figures of tokens.
-  Never open-ended search on an unclear subjective brief.
-- **Scale verification to BLAST RADIUS**, stated in the brief: shared/load-bearing →
-  golden record + mutation-check the key invariant; contained feature → assert the
-  new behaviour, one negative control; leaf/mechanical → measure, assert, done.
-- **Any number of writers share a checkout; only a same-file write and a write into a
-  running build are refused — gate-enforced (KIT-T1114, supersedes KIT-D077 and KIT-D144's
-  one-writer limit).** The maintainer: "The aim was NEVER to stop multiple fucking writers."
-  "The aim was to stop MULTIPLE WRITERS ON THE SAME FUCKING FILE OR WHILE A BUILD WAS RUNNING."
-  A writer dispatched while another is in flight in the checkout declares
-  `[paths: <files or folders>]` (alone it needs none) and is refused only when they overlap
-  an in-flight writer's. The write guard refuses an Edit/Write to a file another live agent
-  changed and has not committed, and to a build input of a crate another writer's running
-  cargo build compiles (the refusal names the one wait, `builds --wait "<file>"`: foreground,
-  returns when no build compiles the file or after 170 s); an agent's own files and builds always pass.
-  The next ticket of the signed bill still goes to the SAME agent after it lands (warm build,
-  warm context). Read-only = no Edit/Write in the definition's `tools:` (`claude-kit:analyst`,
-  `researcher`, Explore, Plan), or `[read-only: <reason>]` on a writer-capable type. A writer in
-  a different git checkout declares `[tree: <its root>]`; that root must be the session's
-  project or the brief cites a ticket of it, else the maintainer's words:
-  `[maintainer-asked-tree: <his words>]`. Overlapping paths on purpose need the maintainer's
-  quoted words: `[maintainer-asked-parallel: <his words>]`.
-- **No context size limit; waste is the limit (KIT-D149, KIT-D158, supersedes KIT-D116).** An agent is
-  never retired, blocked or replaced for the size of its context: real work is fine at any size.
-  The session coordinator tracks the waste share per agent (bash dumps, repeated lines, raw-log
-  reads, polled waits; the avoidable lines are named in the flag) and retires or redirects an agent
-  whose context is mostly avoidable, naming the avoidable lines. Every brief tells the agent to
-  redirect long output to a file and read only what they need. An agent retired for waste MUST
-  write a `Handoff <agent id>` block (Jobs:, State:, Next:, Files:) in the ticket Notes, never a
-  scratchpad: request it (`[write-handoff]`); the dispatch guard refuses a replacement until it
-  exists.
-- **No agent waits (KIT-D115, KIT-D104's 5 minutes).** One foreground broker wait under 5 minutes
-  is fine; polling, loops, background waits and re-running a job to read it are denied. Past the
-  wait the agent writes its handoff and ends; inside the signed bill, resume it from
-  `target/broker/finished.log` (one Monitor), not by keeping it alive. Outside the bill the
-  handoff is an OPEN notice for the maintainer (KIT-D132).
-- **Commit message files are unique per run (KIT-T1135).** The agents of one session share one
-  scratchpad directory. A message file for `git commit -F` is written with the Write tool to
-  `<scratchpad>/commit-<ticket id>-<six random characters>.txt`, never to a fixed name such as
-  `msg.txt`; every dispatch brief that has an agent commit says so. The commit gate refuses a `-F`
-  file another agent of the session last wrote.
+## Delegation COST — scale the ceremony, isolate the checkout (full text: `docs/delegation.md`)
+Cost tracks the tool-call count, not the size of the change. The rules, each in full in `docs/delegation.md`:
+- One checkout, on main, no worktrees or clones (KIT-D039); any number of writers share it, refused only on a same-file write or a write into a running build (`[paths: …]`, KIT-T1114).
+- No context size limit; waste is the limit (KIT-D149, KIT-D158): briefs redirect long output to a file; a retired agent writes a `Handoff` block.
+- No agent waits (KIT-D115): one foreground wait under 5 minutes, never polling.
+- Commit message files are unique per run: `<scratchpad>/commit-<ticket id>-<six random characters>.txt` (KIT-T1135).
+- Present a gate-forced restructure first; print measurements for subjective asks; ask when a subjective ask is not obvious.
 
 ## Specialists over `general-purpose` — CREATE the missing specialist
 `general-purpose` is the last resort. Before every delegation: (1) pick `model` AND
@@ -361,29 +286,19 @@ compaction summary.
 - To discuss any past topic credibly, recreate its context first (git log/grep, the
   ticket, DECISIONS, the research doc). Every claim traces to a source.
 
-## Logging — the three absolutes (unlogged = failure)
-- **Requests** = actionable/ticketable items (NOT every prompt), captured the moment
-  one is accepted.
+## Logging — the three absolutes (unlogged = failure; extras in `docs/contract-details.md`)
+- **Requests** = actionable/ticketable items (NOT every prompt), captured the moment one is accepted.
 - **Work** is tied to its ticket and committed in the same change. The commit gate
   blocks a code commit that neither touches the plan-of-record nor cites a ticket
   (`[no-log: reason]` for genuine non-work).
-- **Decisions / directives** go in DECISIONS the turn they happen.
-  A standing directive the maintainer states (a rule, a "never", a repeated correction) is written
-  with `t decide --file` that same turn, verbatim words in the body, before any further work
-  (KIT-T507). Orient replays the kit's last three days of decisions into every project's session, so
-  a ruling in one session reaches the rest; a directive left in a ticket comment reaches no one.
-  A tooling or process rule he states also joins the standing-rules block (`hooks/lib/rule-block.mjs`, the top of
-  orient, every agent brief and definition) that same turn; `t decide` prints the step (KIT-T1463).
-  **A `cap` note is never the home of a ruling (KIT-T938):** a capture that quotes him (verbatim,
-  ruling, directive, "<name> said", a quoted sentence) prints `RULING CAPTURED: <id>`; promote it that
-  turn with `t decide --file <draft.md> --from <inbox id>` (his words verbatim under `**Maintainer:**`).
-  The Stop hook blocks once while it rests in the inbox and warns every Stop after; orient lists
-  un-promoted rulings (id, age, first line) near the top, above the generic inbox count; read them with `q show <id>` before
-  you design. A note that is not a ruling clears with `t triage <id> --skip`.
-- **Dedup before you file (KIT-T025/T159):** an item created directly (not via `cap`
-  → triage) runs `q fts` on its nouns first — duplicating a parallel session's
-  ticket is a filing bug.
-- **Lapsed tickets reopen (KIT-D107):** a ticket idle in review 14+ days with no maintainer feedback closes labelled `lapsed`. When the maintainer describes something in conversation that collides with one (`q fts`, label `lapsed`), reopen it with `t status <id> todo` (add `--remaining "…"` if it has landed commits) and a `t comment` quoting his words instead of filing new.
+- **Decisions / directives** go in DECISIONS the turn they happen. A standing directive the maintainer states (a rule,
+  a "never", a repeated correction) is written with `t decide --file` that same turn, verbatim words in the body,
+  before any further work (KIT-T507); a tooling or process rule he states also joins the standing-rules block
+  (`hooks/lib/rule-block.mjs`) that same turn, and `t decide` prints the step (KIT-T1463).
+  **A `cap` note is never the home of a ruling (KIT-T938):** a capture that quotes him prints `RULING CAPTURED: <id>`;
+  promote it that turn with `t decide --file <draft.md> --from <inbox id>` (his words verbatim under `**Maintainer:**`).
+  The Stop hook blocks once while it rests in the inbox; orient lists un-promoted rulings near the top (a note that is
+  not a ruling clears with `t triage <id> --skip`).
 
 ## Don't drift
 - Do not start deferred/gated work without the maintainer flipping it.
@@ -391,78 +306,30 @@ compaction summary.
 - Enforcement is hooks, not judgment. A block gets a root-cause fix, never a
   weakened check.
 
-## Process failure — an IMMEDIATE, self-triggered stop-and-capture
-The workflow itself broke — same response every time, the moment it's noticed,
-WITHOUT the maintainer pointing it out (having to is part of the failure). It IS a
-process failure when you: propose or start building something that ALREADY EXISTS;
-lose or re-derive a fact already in the durable record; contradict the on-disk
-record — almost always from not grounding first. Trigger → immediately, unprompted:
-(1) STOP the work resting on the lost/duplicated fact; (2) capture a KIT issue
-(`cap bug …`) naming the ROOT CAUSE, not the symptom; (3) DISPATCH an agent the same
+## Process failures and kit bugs — ticketed, fixed and dispatched the same turn (KIT-D145, KIT-D168, KIT-T286)
+A process failure is the workflow breaking (building what already exists, losing or contradicting a fact in the
+durable record); a kit bug is any misbehaviour of the kit (q cannot answer, a hook crashes or misfires, a gate false
+positive or miss) and a kit feature is anything the work needs from it. Same response every time, unprompted, no
+bill of work first: (1) STOP the work resting on the lost fact; (2) capture it in the claude-kit store (`cap bug …` /
+`cap feature …` with `--project claude-kit`, `q fts` first) naming the ROOT CAUSE, not the symptom; (3) DISPATCH an agent the same
 turn to fix the cause or build the prevention — "Every process failure needs to be followed
-up by dispatching an agent to attempt to fix/prevent future failures" (KIT-D168, extends
-KIT-D145 from kit bugs to every process failure); a capture alone closes nothing, and the
-Stop gate `process-failure-dispatch` blocks once on a capture with no dispatch; (4) keep
-this trigger codified here and push toward hook enforcement. The antidote is upstream: **ground before you
-propose** — query the work store, code graph, dependency manifest, and the governing
-framework/base-layer contract; assume it exists until checked. Before anchoring a
-PORT, enumerate EVERY candidate implementation (other languages and native crates
-included) and pick the reference on evidence — a "dead/superseded" verdict cites
-provenance (git log + graph), never a skim. (KIT-T113/T234/T237)
+up by dispatching an agent to attempt to fix/prevent future failures" (KIT-D168); a capture alone closes nothing and the
+Stop gate `process-failure-dispatch` blocks once on a capture with no dispatch; (4) keep the trigger codified here.
+Ground before you propose: query the store, code graph and manifest and assume it exists until checked; before
+anchoring a port, enumerate every candidate implementation and pick the reference on evidence.
+ONE standing kit agent (a writer in the claude-kit checkout, reused warm) takes kit fixes whole (diagnosis, fix, tests,
+publish); the orchestrator does no inline kit diagnosis: it files, dispatches and relays the runtime sha. Orient lists
+open kit tickets as OPEN notices: dispatch each now.
 
-# HOOK CONTRACT
-Portable Node enforcement hooks (from claude-kit) gate Write/Edit (code quality),
-`git commit` (work-log), SessionStart (orientation), PreCompact/Stop (flush);
-opt-in-aware — each no-ops unless the repo has `.ai/`, and inert under any registry
-`excluded` root (KIT-T447): no hooks, and `q`/`cap`/`t` refuse there — do not route around it.
-- **Never bypass a hook. Never loosen one without explicit approval.** A block gets
-  a root-cause fix, not a weakened check.
-- A payload-reading hook reads stdin robustly and **fails open** on a parse error.
-- Surface a hook's warning (exit 0 + stderr) to the user in the next response.
-- **Halts in anything but exclusions.** Every gate keeps its hard block by default;
-  the ONLY non-halt path is an explicit, documented exclusion. On an apparent
-  false-positive block, STOP and discuss before adding one (per-check, per-path,
-  with a stated reason).
-- Two exclusion surfaces, both dependency-free + fail-open: `.claude-kit-ignore.yaml`
-  (project root; `check-id → [path globs]`, `'*'`/`all` = every check) and in-source
-  `claude-kit-ignore-*` comment markers (file / start…end / line forms). Every gate
-  footer names its check-id and both surfaces.
-- **A block is satisfied, never routed around (KIT-D147, KIT-D148).** The turn that hits a
-  block fixes its cause for good: satisfy it as written; when the block misfired or lacks a
-  printout, ticket it and dispatch the fix agent (KIT-D145); remove the session-side cause. An
-  end-around is allowed only to repair that block itself. Before the first call to a gated tool
-  (Agent, AskUserQuestion) read `q gates agent` / `q gates question`: every requirement and exact
-  tag form, derived from the gate code.
-- **Triage every block: process failure, kit bug, or known kit bug with the fix in progress? (KIT-D154, GG-D053).**
-  On ANY hook block, the next reply says which it was, before anything else. Process failure (you broke
-  a rule the gate enforces): ticket the root cause plus a prevention that stops the recurrence. Kit bug
-  (the gate misfired, missed or printed too little): ticket it and dispatch the fix agent the same turn
-  (KIT-D145). Known kit bug, fix in progress: name the open ticket id and the agent working it; no new
-  ticket, no new dispatch. Every gate block text ends with this line; every dispatched agent inherits it.
-- `.claude-tooling-ok` silences missing-tool warnings per project.
-
-## Kit bugs and kit features — ticketed and fixed the same turn (KIT-T286, KIT-D145)
-The claude-kit is everyone's business: from ANY session, any misbehaviour of the kit itself — q
-cannot answer or lacks a flag, a hook crashes or misfires, cap/t/q/orient errors, a gate false
-positive or miss, a process failure traced to tooling — and any kit FEATURE the work needs
-becomes a ticket in the claude-kit store AT ONCE (`kit-bug` / `kit-feature` label) and its fix
-agent is dispatched THE SAME TURN: no bill of work, no raising it first (KIT-D145, the
-maintainer's order for every workspace). Never a silent grep or workaround, never a mention in
-prose.
-- **One standing kit agent (KIT-D094, amended by KIT-D145).** ONE kit agent (a writer in the
-  claude-kit checkout, reused warm) takes the kit fixes whole: diagnosis, fix, tests, publish. The
-  orchestrator does NO inline kit diagnosis: no hunting a launcher, reading kit source or poking
-  at a hook itself. It files the ticket, dispatches (or messages) that agent, relays the agent's
-  runtime sha and goes back to its own work.
-- Follow-up work after a hand-back (KIT-T505) goes to a fresh dispatch with the prior context in
-  the brief, or the agent reports through SendMessage; a handed-back agent never reports again
-  unprompted.
-- The kit files many of these itself (q gaps, hook crashes, a grep after an empty q, `cap bug` /
-  `cap feature` into the kit store); orient lists the open ones as OPEN notices: dispatch a
-  fix agent for each now.
-- Filing by hand: `cap bug …` / `cap feature …` with `--project claude-kit`, or `t new` in the kit
-  checkout; search first (`q fts`). The request gate counts captures written there.
-- Scope otherwise: a session covers its repo plus its submodules; q searches that by default.
+# HOOK CONTRACT (full text: `hooks/README.md`)
+Hooks are portable Node gates from claude-kit; each no-ops unless the repo has `.ai/` and is inert under a registry
+`excluded` root (`q`/`cap`/`t` refuse there — do not route around it).
+- **Never bypass a hook; never loosen one without explicit approval.** A block gets a root-cause fix and is satisfied
+  as written; read `q gates agent` / `q gates question` before the first gated call (KIT-D147, KIT-D148).
+- **Triage every block: process failure, kit bug, or known kit bug with the fix in progress? (KIT-D154).** Say which in the
+  next reply, before anything else; ticket and dispatch as in the section above.
+- Exclusions are per-check, per-path, with a stated reason; on an apparent false positive STOP and discuss before adding one.
+  Surface a hook's warning in the next response.
 
 # MEMORY HYGIENE
 - Never silently prune memory or log entries — present them; the user decides.

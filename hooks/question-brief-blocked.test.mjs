@@ -84,7 +84,7 @@ try {
   const dismissedThin = transcript(reply(text(THIN_BRIEF), askBlock(REASK_ID)), dismissed(REASK_ID));
   ok('control: a call the maintainer dismissed (not a hook denial) is still judged', stop(dismissedThin).code === 2);
 
-  const summed = transcript(reply(narration(NARRATION_SUMMARY), askBlock(REASK_ID, LONG_QUESTIONS)), answered(REASK_ID));
+  const summed = transcript(reply(text(NARRATION_SUMMARY), askBlock(REASK_ID, LONG_QUESTIONS)), answered(REASK_ID));
   ok('the 30-word prose plus the 30-word question text stays thin (KIT-T1448): the question text is never added to the prose (RDG-D145)', reask(summed, LONG_QUESTIONS).code === 2 && stop(summed).code === 2);
 
   const retried = transcript(reply(text(REAL_FIXED_BRIEF), askBlock(BLOCKED_ID)), hookBlocked(BLOCKED_ID), reply(emptyAssistant(), askBlock(REASK_ID)), answered(REASK_ID));
