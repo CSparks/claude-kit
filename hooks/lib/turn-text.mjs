@@ -19,7 +19,8 @@
 //   turnText(file, { beforeToolUseId, adjacent: true }) keeps only the prose directly above the call (KIT-T1448): the blocks of the
 //   call's own entry above it, then each earlier entry, stopping at the first tool call or tool result. Harness notices between
 //   are skipped; text above an earlier tool call, or above the answer to an earlier questionnaire, does not count. A call a
-//   PreToolUse hook refused never ran and does not separate: its retry is the same ask.
+//   PreToolUse hook refused separates like any other: a resend after a block needs the whole summary again, in the
+//   message directly above the resend (KIT-T1465).
 //
 //   turnCalls(file, toolNames) -> [{ id, name, input, denied }] the calls of those tools made in the current turn,
 //     oldest first; denied is true when a PreToolUse hook refused the call, so it never reached the maintainer.
@@ -67,14 +68,9 @@ function linesBeforeCall(lines, id, adjacent) {
   return upTo > 0 ? [...before, JSON.stringify({ type: 'assistant', message: { content: own.slice(0, upTo) } })] : before;
 }
 
-// Ids of the calls a PreToolUse hook refused: they never ran, so they do not separate a summary from its retry.
-const deniedIds = (lines) => new Set(lines.map(parsed).flatMap(toolResults).filter((b) => HOOK_DENIAL.test(resultText(b))).map((b) => b.tool_use_id));
-const allDenied = (ids, denied) => ids.length > 0 && ids.every((id) => denied.has(id));
-
 export function turnText(file, { beforeToolUseId, adjacent = false } = {}) {
   let lines = readLines(file);
   if (!lines) return null;
-  const denied = adjacent ? deniedIds(lines) : new Set();
   if (beforeToolUseId) {
     lines = linesBeforeCall(lines, beforeToolUseId, adjacent);
     if (!lines) return null;
@@ -90,7 +86,7 @@ export function turnText(file, { beforeToolUseId, adjacent = false } = {}) {
     const role = entry?.type || entry?.message?.role;
     const content = entry?.message?.content;
     if (role === 'assistant') {
-      const separates = adjacent && toolUses(entry).length > 0 && !allDenied(toolUses(entry).map((b) => b.id), denied);
+      const separates = adjacent && toolUses(entry).length > 0;
       if (!(adjacent && cut)) {
         const entryBlocks = assistantBlocksOf(separates ? afterLastToolUse(content) : content).map((b) => ({ kind: b.kind, text: b.text.trim(), afterStop: !stopSeen })).filter((b) => b.text);
         blocks.unshift(...entryBlocks);
@@ -98,7 +94,7 @@ export function turnText(file, { beforeToolUseId, adjacent = false } = {}) {
       if (separates) cut = true;
     } else if (role === 'user') {
       const text = textOf(content).trim();
-      if (isToolResult(content)) cut = cut || !allDenied(toolResults(entry).map((b) => b.tool_use_id), denied);
+      if (isToolResult(content)) cut = true;
       else if (text && !isHarness(entry, text)) return result(text);
     }
   }

@@ -1,6 +1,7 @@
 // question-brief-audit and a questionnaire a PreToolUse hook denied (KIT-T1060): a denied call never reached the
-// maintainer, so the Stop backstop does not judge it and it does not separate the summary from the retry; the
-// questionnaire's own question text never adds to the prose count (KIT-T1448).
+// maintainer, so the Stop backstop does not judge it; it does separate, so the resend needs the whole summary (at least 40
+// words) in the message directly above it (KIT-T1465). The questionnaire's own question text never adds to the prose
+// count (KIT-T1448).
 // Run: node hooks/question-brief-blocked.test.mjs
 
 import { writeFileSync } from 'node:fs';
@@ -56,8 +57,19 @@ try {
     reply(text(REAL_FIXED_BRIEF), askBlock(BLOCKED_ID)), hookBlocked(BLOCKED_ID),
     reply(text(ONE_LINE), askBlock(REASK_ID)), answered(REASK_ID),
   );
-  ok('guard: a long reply, a denied call, a one-line narration and a re-ask is silent on Stop', silent(stop(longThenBlocked)));
-  ok('guard: the re-ask judged on PostToolUse counts the long reply before the denied call', silent(reask(longThenBlocked)));
+  ok('a long reply, a denied call, then a one-line note above the resend blocks the stop (KIT-T1465)', stop(longThenBlocked).code === 2);
+  const onePoint = reask(longThenBlocked);
+  ok('the resend judged on PostToolUse counts only the one line above it, not the long reply before the denied call', onePoint.out.includes('the summary above it is missing or too short') && /Counted \d+ words in 1 block/.test(onePoint.out) && onePoint.out.includes('resend after a block'));
+
+  const resentWhole = transcript(
+    reply(text(REAL_FIXED_BRIEF), askBlock(BLOCKED_ID)), hookBlocked(BLOCKED_ID),
+    reply(text(`${ONE_LINE}\n\n${REAL_FIXED_BRIEF}`), askBlock(REASK_ID)), answered(REASK_ID),
+  );
+  ok('control: a resend that repeats the whole summary directly above it is silent on Stop and on PostToolUse', silent(stop(resentWhole)) && silent(reask(resentWhole)));
+
+  const words = (count) => Array.from({ length: count }, (_, i) => `w${i}`).join(' ');
+  const resendOf = (summary) => transcript(reply(text(REAL_FIXED_BRIEF), askBlock(BLOCKED_ID)), hookBlocked(BLOCKED_ID), reply(text(summary), askBlock(REASK_ID)), answered(REASK_ID));
+  ok('boundary: a resend with 39 words above it is thin, with 40 words it passes', reask(resendOf(words(39))).code === 2 && silent(reask(resendOf(words(40)))));
 
   const thinThenBlocked = transcript(
     reply(text(THIN_BRIEF), askBlock(BLOCKED_ID)), hookBlocked(BLOCKED_ID),
@@ -76,7 +88,7 @@ try {
   ok('the 30-word prose plus the 30-word question text stays thin (KIT-T1448): the question text is never added to the prose (RDG-D145)', reask(summed, LONG_QUESTIONS).code === 2 && stop(summed).code === 2);
 
   const retried = transcript(reply(text(REAL_FIXED_BRIEF), askBlock(BLOCKED_ID)), hookBlocked(BLOCKED_ID), reply(emptyAssistant(), askBlock(REASK_ID)), answered(REASK_ID));
-  ok('a retry right after a hook-denied call keeps the summary above the denied call: the denial does not separate', silent(reask(retried)) && silent(stop(retried)));
+  ok('a retry with no text of its own after a hook-denied call is thin: the denial separates, the earlier summary no longer counts (KIT-T1465)', reask(retried).code === 2 && stop(retried).code === 2);
 
   const clarified = transcript(reply(text(REAL_FIXED_BRIEF), askBlock(BLOCKED_ID)), answered(BLOCKED_ID), reply(askBlock(REASK_ID)), answered(REASK_ID));
   ok('a re-ask after an answered questionnaire needs its own summary (KIT-T1448)', reask(clarified).code === 2);

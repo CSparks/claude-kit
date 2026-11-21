@@ -3,7 +3,7 @@
 // call; once the call has run it is on disk. The audit judges that a plain summary of reasonable length stands DIRECTLY
 // above the call (KIT-T1448): the text and narration between the last tool call or answer and this call, in the same
 // reply. Text above an earlier tool call, or above an earlier questionnaire's answer, does not count; a re-ask needs its
-// own summary. The question fields never count and never carry the summary (RDG-D145).
+// own summary, and so does a resend after a hook refused the call (KIT-T1465). The question fields never count and never carry the summary (RDG-D145).
 //
 //   auditQuestionnaire(file, call) -> null when the call cannot be audited yet (no questions, or its entry is not in
 //                                     the transcript); else { problems, turn, words } where problems is [] for a sound
@@ -48,7 +48,7 @@ export function auditMessage(audits) {
   return [
     'Question-brief audit (KIT-D153): the questionnaire already reached the maintainer without a plain summary above it.',
     ...audits.map(oneAudit),
-    `Write the summary now, in the same message as the call and directly above it (${BRIEF_RULE}), then re-ask (or tell him what changed) so the answer rests on it. A re-ask needs its own summary.`,
+    `Write the summary now, in the same message as the call and directly above it (${BRIEF_RULE}), then re-ask (or tell him what changed) so the answer rests on it. A re-ask, and a resend after a block, needs its own whole summary (KIT-T1465).`,
     excludeFooter(BRIEF_CHECK),
   ].join('\n');
 }

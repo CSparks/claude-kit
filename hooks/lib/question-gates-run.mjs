@@ -13,6 +13,7 @@ import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TRIAGE_LINE } from './block-triage.mjs';
+import { BRIEF_MIN_WORDS } from './question-brief.mjs';
 
 const HOOKS = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -54,6 +55,7 @@ export function consolidatedBlock(blocks) {
     '',
     `BLOCKED: this questionnaire fails ${blocks.length} check${blocks.length === 1 ? '' : 's'}; every one is listed so a single rewrite passes them all.`,
     'Dry run before resending: q gates question --draft <file.json> (the same checks, every failure and fix at once).',
+    `Resending: repeat the WHOLE plain summary (at least ${BRIEF_MIN_WORDS} words: what is decided, what each option does and costs, your recommendation) in the same message, directly above the call. A one-line note does not count, and the summary above the blocked call is not read for the resend (KIT-T1465).`,
     '',
     body.join('\n\n'),
     '',

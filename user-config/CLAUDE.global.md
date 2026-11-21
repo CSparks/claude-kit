@@ -165,6 +165,7 @@ The summary is plain text in the message directly above the call (the same messa
 between; every text block since the previous tool call counts; a re-ask needs its own) and NEVER
 inside the questionnaire (RDG-D145; Chris: "The fucking summary does not go into the questionnaire."):
 each question stays one short sentence plus its options and never embeds or repeats the summary.
+A resend after a block repeats the whole summary (at least 40 words) directly above it; a one-line note does not count (KIT-T1465).
 Dry-run a draft first: `q gates question --draft <file.json>` runs every questionnaire gate and prints
 all failures and their fixes at once (KIT-T1451). `q gates question` prints every other requirement.
 

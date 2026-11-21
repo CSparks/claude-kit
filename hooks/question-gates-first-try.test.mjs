@@ -98,6 +98,8 @@ try {
   ok('the orchestrator refuses once with every failure, the gate names and the triage line once', hookRun.code === BLOCK
     && /fails 2 checks/.test(hookRun.out) && hookRun.out.includes('== question-gate ==') && hookRun.out.includes('== ids-described-gate ==')
     && hookRun.out.split('BLOCK TRIAGE').length === 2 && hookRun.out.includes('q gates question --draft'));
+  ok('every refusal says to repeat the whole summary of at least 40 words directly above a resend (KIT-T1465)', /Resending: repeat the WHOLE plain summary \(at least 40 words/.test(hookRun.out) && /directly above the call/.test(hookRun.out) && /summary above the blocked call is not read/.test(hookRun.out));
+  ok('control: a questionnaire that passes every gate carries no resend text', !/Resending:/.test(gate('question-gates.mjs', root, shortOk).out));
   const good = [question(LONG_SUMMARY)];
   ok('a well-formed questionnaire passes the orchestrator', gate('question-gates.mjs', root, good).code === PASS);
   ok('negative control: the orchestrator fails open on a payload with no questions', gate('question-gates.mjs', root, []).code === PASS);
