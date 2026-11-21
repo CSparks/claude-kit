@@ -2,7 +2,7 @@
 // STORE that owns it (storeRoot), the central data repo behind a junctioned .ai
 // (centralDataRoot), plus the path classifiers every quality gate shares.
 
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { git, gitTry } from './exec.mjs';
 
@@ -14,19 +14,27 @@ export function gitRoot(cwd = shellCwd || process.cwd()) {
   return git(['rev-parse', '--show-toplevel'], cwd).trim();
 }
 
-// The git root of the repo holding `file`, found from its nearest EXISTING ancestor directory:
-// a write that creates new folders has no directory for `git rev-parse` to run in yet.
-export function gitRootOfFile(file) {
+const isDirectory = (path) => {
+  try { return statSync(path).isDirectory(); } catch { return false; }
+};
+
+// The nearest ancestor of `file` that is an existing DIRECTORY: a write that creates new folders has no directory for
+// `git rev-parse` to run in yet, and a parent that is a file (`docker-compose.yml/any.rs`) is no working directory.
+function nearestDirectory(file) {
   let dir = dirname(file);
-  while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
-  return gitRoot(dir);
+  while (!isDirectory(dir) && dirname(dir) !== dir) dir = dirname(dir);
+  return dir;
+}
+
+// The git root of the repo holding `file`, found from its nearest existing ancestor directory.
+export function gitRootOfFile(file) {
+  return gitRoot(nearestDirectory(file));
 }
 
 // gitRootOfFile that tells "no repository here" ('') from a git call that failed (it throws): a gate that reads a failed
 // call as "outside any repo" waves a delete through (KIT-T1271).
 export function gitRootOfFileChecked(file) {
-  let dir = dirname(file);
-  while (!existsSync(dir) && dirname(dir) !== dir) dir = dirname(dir);
+  const dir = nearestDirectory(file);
   const found = gitTry(['rev-parse', '--show-toplevel'], dir);
   if (found.ok) return found.out.trim();
   if (/not a git repository/i.test(found.out)) return '';

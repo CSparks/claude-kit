@@ -21,7 +21,8 @@
 //       (git-discards.mjs) yields its named files through `hit` and, when it may take unnamed ones, a `sweep`.
 //
 // A write tool counts WHEREVER its name appears as a word (`sudo -u root sed -i`, `ssh -i k host tee x`): no wrapper
-// is parsed and no text blanked, so a deny gate cannot be steered by how a wrapper takes its options. A segment led by
+// is parsed, so a deny gate cannot be steered by how a wrapper takes its options. The one text blanked is the quoted
+// remote command of an ssh call, which runs on another machine (ssh-remote-mask.mjs, KIT-T1471). A segment led by
 // a reader or a kit verb is no write tool, but its redirects are judged: a kit or git segment counts only a `>`
 // outside quotes (KIT-T951). A node call is judged on every module it loads, except repo and package modules.
 // An applier is the command a segment leads with, past wrappers and grouping words, also in a command another runs
@@ -52,6 +53,7 @@ import { gitInnerHits } from './git-inner-hits.mjs';
 import { cleaned, commandTokens } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
 import { blankPackageInstall, everyInstallIsPackaged } from './package-install.mjs';
+import { maskSshRemote } from './ssh-remote-mask.mjs';
 
 const BUILDS_LEAD = /^builds(?:\.cmd)?$/i;
 const RUN_FLAG = '--run';
@@ -204,7 +206,8 @@ function judgeTouch(argText, ctx) {
 }
 
 function judgeSegment(segmentText, ctx) {
-  const text = resolveLeader(segmentText, ctx.leaders);
+  const whole = resolveLeader(segmentText, ctx.leaders);
+  const text = maskSshRemote(whole);
   const words = wordsIn(text);
   if (!words.length) return [];
   const leader = nameOf(words[0].w);
@@ -214,7 +217,7 @@ function judgeSegment(segmentText, ctx) {
   const quotedArgsInert = kitLed(text, ctx.cwd) || /^git$/i.test(leader) || buildsRun.length > 0;
 
   const hits = redirectTargets(text, quotedArgsInert, ctx.shell === 'bash').map(ctx.hit).filter(Boolean);
-  hits.push(...patchApplyHits(text, ctx));
+  hits.push(...patchApplyHits(whole, ctx));
   if (ctx.removals) hits.push(...discardHits(text, ctx), ...gitInnerHits(expandVariables(text, ctx.vars, ctx.shell), ctx, judgeSegment));
   const move = moveLinesCall(text, ctx.cwd);
   if (move && move.problem) hits.push(...move.paths.map(ctx.hit).filter(Boolean).map((h) => ({ ...h, moveLinesProblem: move.problem })));

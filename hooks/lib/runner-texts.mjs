@@ -42,13 +42,19 @@ const findClauses = (rest) => rest.flatMap((word, i) => {
   return [rest.slice(i + 1, end < 0 ? rest.length : end).join(' ')];
 });
 
-/** The words after ssh's options and host: the remote command. */
-function sshOperands(rest) {
+/** The index of the host in the words after `ssh` (past its options and their values); -1 when there is none. */
+export function sshHostIndex(rest) {
   for (let i = 0; i < rest.length; i++) {
     if (SSH_VALUE_FLAG.test(rest[i])) i++;
-    else if (!rest[i].startsWith('-')) return rest.slice(i + 1);
+    else if (!rest[i].startsWith('-')) return i;
   }
-  return [];
+  return -1;
+}
+
+/** The words after ssh's options and host: the remote command. */
+function sshOperands(rest) {
+  const host = sshHostIndex(rest);
+  return host < 0 ? [] : rest.slice(host + 1);
 }
 
 // `builds --run "<command>"` (KIT-T1283) runs its quoted command in a detached process: that command is judged as itself, never as operands of the launcher.

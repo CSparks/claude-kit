@@ -97,7 +97,7 @@ export const shellOfTool = (toolName) => (/powershell/i.test(String(toolName || 
 export const blindSegments = (cmd) => split(cmd, true).out;
 
 const ARG = /(?:"[^"]*"|'[^']*'|[^\s"'])+/g;
-const WHOLLY_QUOTED = /^(?:"[^"]*"|'[^']*')$/;
+export const WHOLLY_QUOTED = /^(?:"[^"]*"|'[^']*')$/;
 const QUOTES = /["']/g;
 
 /** Whitespace-split tokens with every quoted span kept whole and its quotes in place. */

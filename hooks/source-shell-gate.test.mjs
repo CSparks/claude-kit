@@ -157,7 +157,7 @@ try {
     ['dash -c', `dash -c 'echo hi > hooks/x.mjs'`],
     ['wsl sh -c', `wsl sh -c "echo hi > hooks/x.mjs"`],
     ['su -c', `su -c 'echo hi > hooks/x.mjs'`],
-    ['ssh host command', `ssh host 'rm hooks/x.mjs'`],
+    ['ssh host unquoted command', 'ssh host rm hooks/x.mjs'],
     ['xargs sh -c', `echo x | xargs sh -c 'echo hi > hooks/x.mjs'`],
     ['powershell -Command Set-Content', 'powershell -Command "Set-Content hooks/x.mjs hi"'],
     ['pwsh -c', `pwsh -c "'x' | Out-File hooks/x.mjs"`],
