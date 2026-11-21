@@ -6,7 +6,8 @@
 //
 //   proseAskMatches(text) -> [{ sentence, phrase, hard }] the matched sentences, oldest first, with the phrase that matched
 //   proseAsks(text)       -> the matched sentences only ([] when none)
-//   hasHardAsk(text)      -> true when a sentence says work waits on him (waiting on you, your call, up to you, which one is it ...)
+//   hasHardAsk(text)      -> true when a sentence says work waits on him (waiting on you, your call, a "Your calls" lead-in,
+//                            yours to decide, pending your decision, up to you, which one is it ...)
 //
 // Text that is not the reply's own voice never counts: fenced and inline code, blockquote lines, and text inside
 // double quotes (the maintainer's words, a message quoted back). A sentence in the past tense, or one that negates the
@@ -15,11 +16,16 @@
 
 import { optionQuestionMatch } from './option-question.mjs';
 
+const OWNER = "(?:your|chris'?s?|his|the maintainer'?s)";
+
 // HARD phrases say work waits on him; they block even when his newest message was a question (GG-D093), and a
 // reply carrying one lets the questionnaire gate pass a questionnaire.
 const HARD_PHRASES = [
   /\b(?:waiting|awaiting) (?:on |for )?(?:you|your|chris)\b/i,
-  /\b(?:your|chris'?s?) call\b/i,
+  new RegExp(`\\b${OWNER} call\\b`, 'i'),
+  new RegExp(`^[\\s#>*_\\-•\\d.)]*${OWNER} calls?\\b\\s*(?:[:,—–-]|$)`, 'i'),
+  /\byours to (?:decide|choose|pick|call|say|sign)\b/i,
+  /\bpending (?:your|chris'?s?) (?:decisions?|calls?|input|approval|answer|go-ahead|sign-?off|say)\b/i,
   /\bup to (?:you|chris)\b/i,
   /\bfor (?:you|chris) to (?:decide|choose|pick|say|call|sign)\b/i,
   /\bopen for (?:you|chris)\b/i,

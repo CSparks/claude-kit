@@ -93,6 +93,40 @@ try {
   ok('KIT-T1151 an in-source marker line is not read', passed(stop(turn(MARKED))));
   ok('KIT-T1151 an unmarked line next to it still blocks', blocked(stop(turn('// claude-kit-ignore-line prose-ask\nFine.\nThis one is your call.'))));
 
+  const OWNER_CALLS = [
+    'Your calls, not pending on me\n\n- Lane count for the east bend.\n- Whether the mesher ships.',
+    '## Your calls\n\n1. Lane count.\n2. Mesher ship date.',
+    '**Your calls:**\n\n- Lane count.\n- Mesher ship date.',
+    'Your calls: lane count and mesher ship date.',
+    'Your calls, then: pick the lane count.',
+    'His calls: lane count and mesher ship date.',
+    "The maintainer's calls: lane count and mesher ship date.",
+    "Chris's calls: lane count.",
+    'The lane count is his call.',
+    "The ship date is the maintainer's call.",
+    'The lane count is yours to decide.',
+    'The ship date is yours to call.',
+    'Pending your decision: the lane count.',
+    'The ship date is pending your decision.',
+    'Pending your approval on the lane count.',
+  ];
+  for (const reply of OWNER_CALLS) {
+    const first = reply.split('\n')[0];
+    ok(`KIT-T1459 owner-call form blocks: ${first}`, blocked(stop(turn(`Landed in 1a2b3c4.\n\n${reply}`))));
+    ok(`KIT-T1459 owner-call form is a hard ask: ${first}`, hasHardAsk(reply));
+    ok(`KIT-T1459 control, questionnaire in the same turn passes: ${first}`, passed(stop(turn(`Landed in 1a2b3c4.\n\n${reply}`, { extra: asked2 }))));
+  }
+  for (const [name, reply] of [
+    ['a quoted heading', 'Chris wrote "Your calls, not pending on me" above the list, so I left it.'],
+    ['a past-tense description', 'The report was waiting on your calls for a day; they landed.'],
+    ['a told description', 'He said the lane count was his call, so I picked 2.'],
+    ['a code span', 'The heading `Your calls:` is gone from the template.'],
+    ['a code fence', 'Template:\n```\nYour calls:\n- lane count\n```\nDone.'],
+    ['a negation', 'Nothing here is pending your decision.'],
+    ['function calls, not decisions', 'Your calls to the lane API all return 200.'],
+    ['a blockquote', '> Your calls:\n> - lane count\n\nLanded in 1a2b3c4.'],
+  ]) ok(`KIT-T1459 passes: ${name}`, passed(stop(turn(reply))));
+
   const BRAINSTORM = [
     'Three directions for the rig.\n\nA) Bone-driven: one skeleton, blend shapes on top.\nB) Mesh-first: sculpt then retopo.\nC) Hybrid.\n\nI would pick A.\n\nWhich of these is closest to what you picture ...?',
     'Options:\n\n- **Bone-driven** -- one skeleton.\n- **Mesh-first** -- sculpt then retopo.\n\nWhich do you prefer?',
