@@ -1,5 +1,5 @@
 // brief-decisions — a check for dispatch-guard (KIT-T1458). A plan, design, analyst-max or perf brief goes out only
-// after it names the recorded decisions it overlaps most (lib/brief-grounding.mjs: the project's store and its framework's).
+// after it names the recorded decisions it centres on (lib/brief-grounding.mjs: the project's store and its framework's).
 //
 //   decisionsBlock({ root, input, prompt, footer }) -> block message | null (check `brief-decisions`)
 //   isGroundedDispatch(root, input, prompt)          -> a plan or design dispatch, or an analyst-max or perf-tuner agent
@@ -14,11 +14,10 @@ import { TOKENS } from './lib/gate-tokens.mjs';
 export const DECISIONS_CHECK = 'brief-decisions';
 const ALWAYS_GROUNDED_TYPES = new Set(['analyst-max', 'perf-tuner']);
 const MAX_TITLE_SHOWN = 100;
-const PERCENT = 100;
 
 export const isGroundedDispatch = (root, input, prompt) => ALWAYS_GROUNDED_TYPES.has(typeName(input)) || isDesignDispatch(root, input, prompt);
 
-const line = (m) => `  ${m.id} (${m.source}) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — the brief covers ${Math.round(m.coverage * PERCENT)}% of its words (${m.stems.join(', ')})`;
+const line = (m) => `  ${m.id} (${m.source}) "${m.title.slice(0, MAX_TITLE_SHOWN)}" — ${m.stems.length} words of its title are central to the brief (${m.stems.join(', ')})`;
 
 export function decisionsBlock({ root, input, prompt, footer }) {
   if (!isGroundedDispatch(root, input, prompt)) return null;
