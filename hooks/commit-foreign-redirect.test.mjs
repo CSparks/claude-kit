@@ -53,7 +53,29 @@ try {
   const other = verdict('S1', commitOf('s2.patch'));
   ok("negative control: a file another session's redirect wrote still blocks", other.code === 2 && other.out.includes('s2.patch'), other.out.trim());
 
-  const unrelated = verdict('S1', `git -C ${target} diff > ${abs('scratch.out')} && git -C ${target} commit -m "${MSG}" -- theirs.patch`);
+  const commitIn = (rel) => `git -C ${target} commit -m "${MSG}" -- ${rel}`;
+  const diffTo = (rel) => `git -C ${target} diff > ${abs(rel)}`;
+  const rejected = [
+    ['an append (>>) is no write of the file', 'append.patch', (f) => `echo x >> ${abs(f)} && ${commitIn(f)}`],
+    ['a redirect on the right of || may never run', 'or.patch', (f) => `false || ${diffTo(f)} && ${commitIn(f)}`],
+    ['a redirect behind a && that fails is skipped while a ; commit still runs', 'skip.patch', (f) => `false && ${diffTo(f)} ; ${commitIn(f)}`],
+    ['a redirect inside quotes is text', 'quoted.patch', (f) => `echo "a > ${abs(f)}" && ${commitIn(f)}`],
+    ['a redirect in a heredoc body is text', 'heredoc.patch', (f) => `cat <<EOF\nx > ${abs(f)}\nEOF\n${commitIn(f)}`],
+    ['a redirect in a comment is text', 'comment.patch', (f) => `echo hi # > ${abs(f)}\n${commitIn(f)}`],
+    ['a redirect on the commit command itself runs after the gate', 'commit.patch', (f) => `${commitIn(f)} > ${abs(f)}`],
+    ['a redirect after the commit runs after the gate', 'after.patch', (f) => `${commitIn(f)} && ${diffTo(f)}`],
+  ];
+  for (const [what, file, build] of rejected) {
+    writeFileSync(abs(file), 'foreign\n');
+    const result = verdict('S1', build(file));
+    ok(`negative control: ${what}, so the path stays foreign`, result.code === 2 && result.out.includes(file), result.out.trim());
+  }
+
+  writeFileSync(abs('semi.patch'), 'old\n');
+  const semi = verdict('S1', `${diffTo('semi.patch')} ; ${commitIn('semi.patch')}`);
+  ok('a redirect in a segment that always runs before the commit is credited', semi.code === 0, semi.out.trim());
+
+  const unrelated =verdict('S1', `git -C ${target} diff > ${abs('scratch.out')} && git -C ${target} commit -m "${MSG}" -- theirs.patch`);
   ok('negative control: a redirect elsewhere in the command does not clear a foreign path of the commit', unrelated.code === 2 && unrelated.out.includes('theirs.patch'), unrelated.out.trim());
 } finally {
   cleanup();
