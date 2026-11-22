@@ -317,6 +317,8 @@ up by dispatching an agent to attempt to fix/prevent future failures" (KIT-D168)
 Stop gate `process-failure-dispatch` blocks once on a capture with no dispatch; (4) keep the trigger codified here.
 Ground before you propose: query the store, code graph and manifest and assume it exists until checked; before
 anchoring a port, enumerate every candidate implementation and pick the reference on evidence.
+A red test in a hand-back or capture is a fault, not a note: dispatch a fix agent per failure group the same turn, or say the fix
+agent already runs; the Stop gate `red-test-dispatch` blocks once on a reply or capture naming failing tests with no dispatch (KIT-T1484).
 ONE standing kit agent (a writer in the claude-kit checkout, reused warm) takes kit fixes whole (diagnosis, fix, tests,
 publish); the orchestrator does no inline kit diagnosis: it files, dispatches and relays the runtime sha. Orient lists
 open kit tickets as OPEN notices: dispatch each now.
