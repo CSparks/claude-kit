@@ -7,15 +7,18 @@
 // Stop         the backstop: every questionnaire of this turn not yet audited is judged; a thin one blocks the stop
 //              with the same message. Silent when PostToolUse already audited every call.
 //
+// The same audit reads the summary for an offer to accept a wait over 60 seconds (lib/question-wait-audit.mjs, check id question-wait).
 // Each audited call is recorded (lib/question-audits.mjs) so it is judged once and orient can show repeat offenders.
 
 import { payload, gitRoot, pathExcluded, projectName } from './lib.mjs';
 import { auditQuestionnaire, auditMessage } from './lib/question-audit.mjs';
 import { auditedCalls, recordAudit } from './lib/question-audits.mjs';
 import { turnCalls } from './lib/turn-text.mjs';
-import { BRIEF_CHECK } from './lib/question-checks.mjs';
+import { BRIEF_CHECK, WAIT_CHECK } from './lib/question-checks.mjs';
+import { summaryWaitOffers, waitAuditMessage } from './lib/question-wait-audit.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
+const enabled = (root, check) => !root || !pathExcluded(root, check, root);
 
 function audited(p, root, calls) {
   const done = auditedCalls();
@@ -23,10 +26,16 @@ function audited(p, root, calls) {
   for (const call of calls.filter((c) => !c.denied && !done.has(c.id))) {
     const audit = auditQuestionnaire(p.transcript_path, call);
     if (!audit) continue;
-    recordAudit({ session: p.session_id, project: projectName(root), call: call.id, parts: audit.problems.map((x) => x.part) });
-    if (audit.problems.length) results.push({ call, audit });
+    const offers = enabled(root, WAIT_CHECK) ? summaryWaitOffers(audit.turn, call) : [];
+    recordAudit({ session: p.session_id, project: projectName(root), call: call.id, parts: [...audit.problems.map((x) => x.part), ...(offers.length ? [WAIT_CHECK] : [])] });
+    if (audit.problems.length || offers.length) results.push({ call, audit, offers });
   }
   return results;
+}
+
+function reportOf(found) {
+  const thin = found.filter((r) => r.audit.problems.length);
+  return [thin.length ? auditMessage(thin) : '', waitAuditMessage(found.filter((r) => r.offers.length))].filter(Boolean).join('\n\n');
 }
 
 try {
@@ -37,12 +46,12 @@ try {
     if (p.stop_hook_active) process.exit(0);
     const thin = audited(p, root, turnCalls(p.transcript_path, TOOLS));
     if (thin.length) {
-      process.stderr.write(auditMessage(thin));
+      process.stderr.write(reportOf(thin));
       process.exit(2);
     }
   } else if (TOOLS.has(p.tool_name)) {
     const thin = audited(p, root, [{ id: p.tool_use_id, input: p.tool_input }]);
-    if (thin.length) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: auditMessage(thin) } }));
+    if (thin.length) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: reportOf(thin) } }));
   }
 } catch {
   /* fail open */

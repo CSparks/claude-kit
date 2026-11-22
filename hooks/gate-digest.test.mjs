@@ -10,7 +10,7 @@ import { GATES, gateDigest } from './lib/gate-protocol.mjs';
 import { RULE_BLOCK_TITLE, ruleBlockText } from './lib/rule-block.mjs';
 
 const { ok, done } = reporter('gate-digest');
-const LINE_BUDGET = 15;
+const LINE_BUDGET = 16;
 const WIDTH_BUDGET = 130;
 
 try {

@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { gateNames, gateText } from '../hooks/lib/gate-protocol.mjs';
 import { consolidatedBlock, runQuestionGates } from '../hooks/lib/question-gates-run.mjs';
 import { briefProblems } from '../hooks/lib/question-brief.mjs';
+import { summaryWaitOffers, waitAuditMessage } from '../hooks/lib/question-wait-audit.mjs';
 import { groundingMatches } from '../hooks/lib/question-grounding.mjs';
 import { clauseMatches } from '../hooks/lib/question-clause-grounding.mjs';
 import { GROUNDED_CLAUSE_SCORE, GROUNDED_CLAUSE_SHOWN } from '../hooks/lib/question-checks.mjs';
@@ -76,6 +77,8 @@ async function checkDraft(file, root, { out, err }) {
   if (summary !== null && summary !== undefined) {
     const problems = briefProblems(summary);
     if (problems.length) blocks.push({ gate: 'question-brief (summary above the call)', text: `${problems[0].wanted}\nFix: ${SUMMARY_FIX}.` });
+    const offers = summaryWaitOffers({ prose: summary }, { input: { questions } });
+    if (offers.length) blocks.push({ gate: 'question-wait (summary above the call)', text: waitAuditMessage([{ offers }]) });
   }
   if (blocks.length) {
     out.write(consolidatedBlock(blocks));
