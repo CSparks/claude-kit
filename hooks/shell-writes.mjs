@@ -12,12 +12,17 @@
 // ledger, KIT-T888): a tool's write is credited by pre-write to the session that made it, never to a shell
 // call it overlapped (KIT-T953). A removal or move another session's shell call makes inside this call's window is
 // likewise credited to both: git leaves no author and a rename's ctime or index entry changes for either call alike.
+// A file the call's own `>` / `>>` redirect names counts for its repo even when the call ran in another repo (KIT-T1479).
 // No-ops on unadopted repos. Fails open on any error; never blocks.
 
 import { statSync } from 'node:fs';
 import { join } from 'node:path';
 import { payload, git, gitRoot, adopted, readTurnState, writeTurnState } from './lib.mjs';
-import { recordSessionPath } from './turn-writes.mjs';
+import { recordSessionPath, repoRelative } from './turn-writes.mjs';
+import { redirectedFiles } from './lib/redirect-writes.mjs';
+import { gitRootOfFile } from './lib/paths.mjs';
+import { payloadStartDir } from './lib/shell-cwd.mjs';
+import { shellOfTool } from './lib/shell-segments.mjs';
 import { contentHashOf } from './lib/shell-snapshot.mjs';
 import { toolWriteProves, writerId } from './lib/tool-writes.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
@@ -115,6 +120,16 @@ try {
     try {
       const touched = statSync(join(root, rel)).mtimeMs >= startedAt - CLOCK_SLACK_MS;
       if (touched && !toolWriteProves(root, rel, startedAt, contentHashOf(root, rel), caller, { ownConfirmed: true })) recordSessionPath(root, rel, sid);
+    } catch { /* vanished or unreadable: not recorded */ }
+  }
+  // A redirect names its file: one that landed in another repo than the call ran in is the session's own there (KIT-T1479).
+  const command = String((p.tool_input && p.tool_input.command) || '');
+  for (const file of redirectedFiles(command, { start: payloadStartDir(p), shell: shellOfTool(p.tool_name) })) {
+    try {
+      const fileRoot = gitRootOfFile(file);
+      const rel = fileRoot && fileRoot !== root && adopted(fileRoot) ? repoRelative(fileRoot, file) : '';
+      const touched = rel && statSync(file).mtimeMs >= startedAt - CLOCK_SLACK_MS;
+      if (touched && !toolWriteProves(fileRoot, rel, startedAt, contentHashOf(fileRoot, rel), caller, { ownConfirmed: true })) recordSessionPath(fileRoot, rel, sid);
     } catch { /* vanished or unreadable: not recorded */ }
   }
 } catch {
