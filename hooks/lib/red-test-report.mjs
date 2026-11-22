@@ -20,12 +20,17 @@ const RED_PHRASES = [
   /\b\d+\s*\/\s*\d+\s+(?:\w+\s+)?(?:fail\w*|red)\b/i,
   /\bfail\w*\s+\d+\s*(?:\/|of|out of)\s*\d+/i,
   /\b(?:fail(?!-)|failing|fails|failed|broken|red)\b/i,
-  /\bpre-?existing\b/i,
+  /\bpre-?existing\b[^.!?]{0,20}\b(?:fail\w*|red|broken)\b|\b(?:fail\w*|red|broken)\b[^.!?]{0,20}\bpre-?existing\b/i,
   /\btest failures?\b/i,
 ];
 
+const FIXED = /\b(?:fixed|fixes|repaired|resolved|green|no longer|stopped failing|now pass\w*|all pass\w*|passes now)\b/i;
+const STILL_RED = /\bstill\b|\b(?:not|\w+n't|never|yet to be|un)\s*(?:\w+\s+)?(?:fixed|repaired|resolved|green)\b|\bnot (?:yet )?passing\b/i;
+const KEBAB_ID = /\b[\w]+(?:-[\w]+){2,}\b/g;
+const GATE_TALK = /\bred[- ]test[- ](?:gate|check|hook|rule|report)\b/i;
+
 const NOT_A_REPORT = [
-  /\b(?:fixed|fixes|repaired|resolved|green|no longer|stopped failing|now pass\w*|all pass\w*|passes now)\b/i,
+  GATE_TALK,
   /\b(?:no|zero|none|nothing|without|never|not|0)\s+(?:\w+\s+){0,2}(?:fail\w*|red)\b/i,
   /\b(?:write|wrote|writing|add|added|adding|watch|watched)\s+(?:the |a |an )?(?:failing|red)\b/i,
   /\b(?:should|would|must|will|expected to|to) fail\b/i,
@@ -43,9 +48,12 @@ const FIX_EXPLANATIONS = [
 const SENTENCE_BREAK = /(?<=[.!?])\s+|\n+/;
 const squash = (s) => s.replace(/\s+/g, ' ').trim();
 
+const isFixDescription = (sentence) => FIXED.test(sentence) && !STILL_RED.test(sentence);
+
 const phraseOf = (sentence) => {
+  const bare = sentence.replace(KEBAB_ID, ' ');
   for (const re of RED_PHRASES) {
-    const m = re.exec(sentence);
+    const m = re.exec(bare);
     if (m) return m[0];
   }
   return null;
@@ -55,7 +63,7 @@ export function redTestReports(text, { raw = false } = {}) {
   if (typeof text !== 'string' || !text) return [];
   const body = raw ? text : ownVoice(text);
   return body.split(SENTENCE_BREAK).map(squash).filter(Boolean).flatMap((sentence) => {
-    if (!TEST_NOUN.test(sentence) || NOT_A_REPORT.some((re) => re.test(sentence))) return [];
+    if (!TEST_NOUN.test(sentence) || isFixDescription(sentence) || NOT_A_REPORT.some((re) => re.test(sentence))) return [];
     const phrase = phraseOf(sentence);
     return phrase ? [{ sentence, phrase }] : [];
   });

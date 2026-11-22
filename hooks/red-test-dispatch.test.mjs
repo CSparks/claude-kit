@@ -32,6 +32,9 @@ const REPORTS = [
   ['a passed-and-failed summary line', 'The suite ran: 116 passed, 2 failed.'],
   ['a test file name', 'fence_preview.test.mjs fails on the owner seed.'],
   ['tests that fail', 'The owner-seed junction tests fail.'],
+  ['a still-failing count with a not-yet fix', '3 of 7 lanes tests still fail; not fixed yet.'],
+  ['a hand-back listing red tests', 'The hand-back reports red tests (rg-chunk-stream-bevy engine 5/6, lanes 3-4/7, rebaked 1/1, towns_planned_once seed_424242).'],
+  ['a kebab-named test that fails', 'The fence-preview-test example fails on seed 7.'],
 ];
 const NOT_REPORTS = [
   ['a fixed test', 'The lanes test was failing; it is fixed and passes now.'],
@@ -47,6 +50,9 @@ const NOT_REPORTS = [
   ['a red colour', 'The red light on the building looks fine.'],
   ['no test noun', 'The build is red.'],
   ['a hyphenated fail-open', 'The tests cover the fail-open path.'],
+  ['the gate named by id', 'The red-test-dispatch gate landed and its tests pass.'],
+  ['the gate named in words', 'The red test gate blocks once per report.'],
+  ['pre-existing tests that pass', 'The pre-existing tests still pass.'],
 ];
 
 try {
@@ -64,6 +70,9 @@ try {
   ok('a closing reply naming failing tests with no dispatch blocks and quotes the sentence', bare.code === 2 && bare.out.includes('3 of 7') && bare.out.includes('KIT-T1484'));
   ok('the block carries the check id, both exclusion surfaces and the triage line', bare.out.includes('id: red-test-dispatch') && bare.out.includes('.claude-kit-ignore.yaml') && bare.out.includes(TRIAGE_LINE));
   ok('a cap capture naming a red test blocks even when the reply is quiet', stop(transcript('Captured.', bash('cap bug "the rebaked test is red on main" --project x', 'toolu_A'))).code === 2);
+  const INCIDENT = 'The hand-back reports red tests (rg-chunk-stream-bevy engine 5/6, lanes 3-4/7, rebaked 1/1, towns_planned_once seed_424242).';
+  ok('the incident hand-back relayed in a reply blocks', stop(transcript(INCIDENT)).code === 2);
+  ok('the incident hand-back filed in a cap note blocks', stop(transcript('Filed.', bash(`cap note "${INCIDENT}" --project x`, 'toolu_I'))).code === 2);
   ok('a `t new` ticket naming failing tests blocks', stop(transcript('Filed.', bash('t new bug "engine tests fail 5/6"', 'toolu_B'))).code === 2);
   ok('a non-capture shell command that prints a failing test passes', stop(transcript('Ran it.', bash('echo "the rebaked test is red"', 'toolu_C'))).code === 0);
 
