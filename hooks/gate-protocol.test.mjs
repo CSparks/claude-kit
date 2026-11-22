@@ -25,6 +25,7 @@ import * as treeProject from './dispatch-tree-project.mjs';
 import * as ui from './dispatch-ui.mjs';
 import * as backgroundRun from './dispatch-background-run.mjs';
 import * as pathRestore from './dispatch-path-restore.mjs';
+import * as readonlyOrders from './dispatch-readonly-orders.mjs';
 import * as testsNotImplicit from './dispatch-tests.mjs';
 import * as worker from './dispatch-worker.mjs';
 import * as difficulty from './dispatch-difficulty.mjs';
@@ -44,7 +45,7 @@ try {
 
   const ids = new Set(GATES.agent.checks.map((c) => c.check));
   const exported = {};
-  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, framework, holder, job, lessons, rulings, treeProject, ui, backgroundRun, pathRestore, testsNotImplicit, worker, difficulty, briefDecisions, protocol]) {
+  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, framework, holder, job, lessons, rulings, treeProject, ui, backgroundRun, pathRestore, readonlyOrders, testsNotImplicit, worker, difficulty, briefDecisions, protocol]) {
     for (const [name, value] of Object.entries(mod)) if (name.endsWith('_CHECK') && typeof value === 'string') exported[name] = value;
   }
   const guardNames = [...new Set([...read('hooks/dispatch-guard.mjs').matchAll(/pathExcluded\(root, ([A-Z_]+_CHECK), root\)/g)].map((m) => m[1]))];

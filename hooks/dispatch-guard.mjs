@@ -15,6 +15,7 @@
 //   conformance-named    (KIT-T690) — the same work briefed without naming the framework's conformance test
 //   ui-framework-first   (KIT-T583) — UI sizing/layout work briefed to a generic agent in a rapid-game repo
 //   tests-not-implicit   (KIT-T1186, KIT-D162) — a Cargo-workspace brief that orders routine test runs, no [tests:] reason
+//   readonly-orders      (KIT-T1488) — a brief that orders cargo, builds --run, restore-tree or a test run for an agent type that cannot run them
 //   brief-grounded       (KIT-T703) — a feature/request brief with no quoted maintainer words, or a variant with no reuses token
 //   rulings-checked      (KIT-T938) — a design or plan brief sent while the inbox holds un-triaged notes and cites no search of them
 //   framework-checked    (KIT-T1095) — a plan or design brief in a repo that uses a framework, citing no crate of its index
@@ -47,6 +48,7 @@ import { UI_CHECK, uiBlock } from './dispatch-ui.mjs';
 import { BACKGROUND_RUN_CHECK, backgroundRunBlock } from './dispatch-background-run.mjs';
 import { PATH_RESTORE_CHECK, pathRestoreBlock } from './dispatch-path-restore.mjs';
 import { TESTS_CHECK, testsBlock } from './dispatch-tests.mjs';
+import { READONLY_ORDERS_CHECK, readOnlyOrdersBlock } from './dispatch-readonly-orders.mjs';
 import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
@@ -97,6 +99,7 @@ try {
     backgroundRunCheck(root, prompt, p),
     pathRestoreCheck(root, prompt, p),
     testsCheck(root, input, prompt, p),
+    readOnlyOrdersCheck(input, prompt, root, p),
     briefCheck(root, input, prompt, p),
     rulingsCheck(root, input, prompt, p),
     frameworkCheck(root, input, prompt, p),
@@ -277,6 +280,12 @@ function pathRestoreCheck(root, prompt, p) {
 function testsCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, TESTS_CHECK, root)) return null;
   return testsBlock({ root, input, prompt, footer: excludeFooter(TESTS_CHECK) });
+}
+
+// --- readonly-orders (KIT-T1488) --------------------------------------------------
+function readOnlyOrdersCheck(input, prompt, root, p) {
+  if (!p.tool_input || pathExcluded(root, READONLY_ORDERS_CHECK, root)) return null;
+  return readOnlyOrdersBlock({ type: label(input), prompt, footer: excludeFooter(READONLY_ORDERS_CHECK) });
 }
 
 // --- brief-grounded (KIT-T703) ----------------------------------------------------

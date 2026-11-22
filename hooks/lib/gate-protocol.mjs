@@ -32,6 +32,7 @@ import { WAIT_CHECK, WAIT_MAX_SECONDS, BRIEF_CHECK, GROUNDED_CHECK,GROUNDED_CLAU
 import { BRIEF_RULE } from './question-brief.mjs';
 import { DELETE_RULE, RESTORE_TREE_FORM } from './delete-guidance.mjs';
 import { PATH_RESTORE_CHECK } from '../dispatch-path-restore.mjs';
+import { READONLY_ORDERS_CHECK } from '../dispatch-readonly-orders.mjs';
 import { GIT_ALLOW_RULE } from './git-call-policy.mjs';
 import { BASELINE_ROUTE } from './agent-gate-guide.mjs';
 import { VENDOR_ROUTE } from './vendor-route.mjs';
@@ -71,6 +72,7 @@ export const GATES = {
       { check: CONFORMANCE_CHECK, wants: ['the same work names the framework conformance test in the brief'], tokens: [T.conformanceNotAffected] },
       { check: BACKGROUND_RUN_CHECK, wants: ['a brief never tells an agent to run `cargo run` or `cargo test` in the background, nor to "start it in the background", without naming the built exe: build in the foreground, start `target/debug/<name>.exe` in the background, end the turn (docs/wait-rule.md)'], tokens: [] },
       { check: PATH_RESTORE_CHECK, wants: [`a brief that has an agent look at an older revision of a directory (a bisect) names the kit verb restore-tree, never raw git: \`git checkout <rev> -- <dir>\` and \`git restore --source=<rev>\` leave the files the revision lacks as untracked strays no subagent may delete. ${RESTORE_TREE_FORM}; it refuses, changing nothing, when an uncommitted change would be lost`], tokens: [] },
+      { check: READONLY_ORDERS_CHECK, wants: ['a brief that orders cargo, `builds --run`, `restore-tree` or a test run goes to a writer-capable type (implementer, perf-tuner), never to analyst, analyst-max, researcher or code-reviewer: those carry no build tool and refuse the order; a clause that forbids the run, cites it as evidence or says another agent runs it passes'], tokens: [] },
       { check: TESTS_CHECK, wants: ['in a Cargo workspace a targeted test (one named test or test file) needs no tag, and a brief orders no whole suite as a routine step ("re-run the suite", "run the tests", an unscoped `cargo test`): verify with `cargo check`, write tests and do not run them, the coordinator batches whole-suite runs on a quiet machine (KIT-D162, KIT-D163); a brief that forbids runs passes; in a repo that uses rapid-game a targeted test (one named test or test file) needs no tag and a brief that orders a whole suite carries [tests-signoff: <his words>] (RDG-D065), the [tests:] reasons do not pass there'], tokens: [T.tests, T.testsNone, T.testsSignoff] },
       { check: UI_CHECK, wants: ['UI sizing or layout work goes to claude-kit:rg-ui-engineer or names the framework mechanism it reuses'], tokens: [T.uiFrameworkChecked] },
       { check: BRIEF_GROUNDED_CHECK, wants: ['a feature or request ticket brief quotes the maintainer; a variant also names what it reuses'], tokens: [T.maintainerWords, T.reuses] },
