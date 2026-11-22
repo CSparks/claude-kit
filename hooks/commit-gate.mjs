@@ -23,7 +23,6 @@ import { overlapLines } from './lib/session-overlap.mjs';
 import { overlappingHolders } from './lib/live-claims.mjs';
 import { claimSubmodulePin, foreignClaimMessage, foreignClaims } from './lib/commit-agent-claims.mjs';
 import { gitlinkPaths } from './lib/gitlinks.mjs';
-import { redirectedRepoPaths } from './lib/redirect-writes.mjs';
 import { pinCiteMessage, pinCiteProblems } from './lib/pin-cite.mjs';
 import { overlaps } from './lib/path-overlap.mjs';
 import { isGeneratedPath } from './lib/source-path.mjs';
@@ -197,9 +196,7 @@ if (!COMMIT_FOREIGN_ESCAPE.test(cited)) {
     const kit = isKitCheckout(root);
     const holders = kit ? overlappingHolders({ tree: root, session: p.session_id, agent: subagentId(p), paths: judged }) : [];
     // Build output (target/, node_modules/, dist/, build/) is a tool's, never another writer's work (KIT-T1392).
-    // A file the committing command itself redirects into is written by this call, before any hook can record it (KIT-T1479).
-    const redirected = new Set(redirectedRepoPaths(command, { root, start: startDir, shell, bases: [targetDir] }));
-    const foreign = (kit ? holders.flatMap((h) => h.files) : foreignPaths(root, judged, p.session_id).filter((f) => !redirected.has(f))).filter((f) => !pathExcluded(root, 'commit-foreign', f) && !isGeneratedPath(f));
+    const foreign = (kit ? holders.flatMap((h) => h.files) : foreignPaths(root, judged, p.session_id)).filter((f) => !pathExcluded(root, 'commit-foreign', f) && !isGeneratedPath(f));
     if (foreign.length) {
       const shown = foreign.slice(0, MAX_FOREIGN);
       process.stderr.write(
