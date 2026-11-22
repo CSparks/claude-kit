@@ -62,6 +62,11 @@ try {
   check('the main thread of that session stays blocked', blocked(rmBy('rm agent-a.rs', 'S1')));
   check('the writing agent may delete it', !blocked(rmBy('rm agent-a.rs', 'S1', 'A')));
 
+  toolWrite('resumed.rs', 'fn resumed() {}\n', 'S1', 'A');
+  check('a resumed agent (same agent id, new session id) may delete the file its earlier run wrote', !blocked(rmBy('rm resumed.rs', 'S9', 'A')));
+  check('another agent under that new session id stays blocked', blocked(rmBy('rm resumed.rs', 'S9', 'C')));
+  check('the main thread of that new session stays blocked', blocked(rmBy('rm resumed.rs', 'S9')));
+
   toolWrite('shared.rs', 'fn shared() {}\n', 'S1', 'A');
   toolWrite('shared.rs', 'fn shared() {}\n', 'S1', 'B');
   check('a file both agents left identical bytes in stays blocked', blocked(rmBy('rm shared.rs', 'S1', 'A')));

@@ -31,7 +31,7 @@ const sameWriter = (c, session, agent) => c.session === session && (c.agent || '
 // that session (any holder for a main thread, the holder of that agent for an agent).
 function liveLedgerWriters(root, rel, caller, claimants, holders) {
   const hash = contentHashOf(root, rel);
-  const writers = unique(toolWriteEntries(root, rel).filter((e) => hash && e.h === hash && e.w && e.w !== caller).map((e) => e.w));
+  const writers = unique(toolWriteEntries(root, rel).filter((e) => hash && e.h === hash && e.w && !sameWriterId(e.w, caller)).map((e) => e.w));
   return writers.flatMap((w) => {
     const [session, agent] = [writerSession(w), writerAgent(w)];
     const live = claimants.some((c) => sameWriter(c, session, agent)) || holders.some((h) => h.session === session && (!agent || h.agent === agent));

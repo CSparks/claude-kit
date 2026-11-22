@@ -13,6 +13,7 @@ import { resolve } from 'node:path';
 import { appendTurnRecord, readTurnRecords } from './turn-state.mjs';
 import { contentHashOf } from './shell-snapshot.mjs';
 import { expandShortNames } from './short-names.mjs';
+import { sameWriterId } from './tool-writes.mjs';
 
 const STATE_ROOT = 'file-writers';
 const SLOT = 'files';
@@ -26,7 +27,7 @@ export function recordFileWrite(file, hash, writer) {
 export function foreignMessageWriter(file, hash, writer) {
   const key = keyOf(file);
   const last = readTurnRecords(STATE_ROOT, SLOT).slice(-RECORDS_MAX).reverse().find((r) => r && r.f === key);
-  return last && last.h === hash && last.w !== writer ? last.w : '';
+  return last && last.h === hash && !sameWriterId(last.w, writer) ? last.w : '';
 }
 
 export function messageFileProblem(file, writer, footer) {

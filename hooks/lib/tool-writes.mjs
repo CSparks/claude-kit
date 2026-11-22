@@ -137,5 +137,5 @@ export function movedWrite(root, rel, session) {
  * parallel with a shell call does (KIT-T1212); the delete rule keeps the strict reading, where another writer's entry blocks.
  */
 export const toolWriteProves = (root, rel, sinceMs, currentHash, byWriter = '', { ownConfirmed = false } = {}) => Boolean(currentHash)
-  && toolWriteEntries(root, rel).some((e) => e.h === currentHash && !(byWriter && e.w === byWriter && !(ownConfirmed && e.c === true))
+  && toolWriteEntries(root, rel).some((e) => e.h === currentHash && !(byWriter && sameWriterId(e.w, byWriter) && !(ownConfirmed && e.c === true))
     && (e.ts || 0) >= sinceMs - (e.c ? CONFIRMED_SLACK_MS : 0));
