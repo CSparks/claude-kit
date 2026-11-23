@@ -16,6 +16,7 @@
 //   ui-framework-first   (KIT-T583) — UI sizing/layout work briefed to a generic agent in a rapid-game repo
 //   tests-not-implicit   (KIT-T1186, KIT-D162) — a Cargo-workspace brief that orders routine test runs, no [tests:] reason
 //   readonly-orders      (KIT-T1488) — a brief that orders cargo, builds --run, restore-tree or a test run for an agent type that cannot run them
+//   dispatch-unattended  (KIT-T1492) — WARNS when a rapid-game brief orders a game run and never names RG_UNATTENDED
 //   brief-grounded       (KIT-T703) — a feature/request brief with no quoted maintainer words, or a variant with no reuses token
 //   rulings-checked      (KIT-T938) — a design or plan brief sent while the inbox holds un-triaged notes and cites no search of them
 //   framework-checked    (KIT-T1095) — a plan or design brief in a repo that uses a framework, citing no crate of its index
@@ -49,6 +50,7 @@ import { BACKGROUND_RUN_CHECK, backgroundRunBlock } from './dispatch-background-
 import { PATH_RESTORE_CHECK, pathRestoreBlock } from './dispatch-path-restore.mjs';
 import { TESTS_CHECK, testsBlock } from './dispatch-tests.mjs';
 import { READONLY_ORDERS_CHECK, readOnlyOrdersBlock } from './dispatch-readonly-orders.mjs';
+import { UNATTENDED_CHECK, unattendedWarning } from './dispatch-unattended.mjs';
 import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
@@ -108,6 +110,8 @@ try {
   ].filter(Boolean);
   const superseded = pathExcluded(root, SUPERSEDED_CHECK, root) ? '' : supersededCitationWarning(root, prompt);
   if (superseded) console.error(superseded);
+  const unattended = pathExcluded(root, UNATTENDED_CHECK, root) ? '' : unattendedWarning({ root, input, prompt });
+  if (unattended) console.error(unattended);
   if (!blocks.length) {
     registerWriterDispatch(root, input, prompt, p);
     const warning = agentRegistryWarning(root, input, p);

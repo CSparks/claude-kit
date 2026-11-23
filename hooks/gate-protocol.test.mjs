@@ -34,7 +34,7 @@ import { REAL_QUESTIONS, SHORT_QUESTIONS } from './question-brief-real-fixtures.
 
 const { ok, done } = reporter('gate-protocol');
 const dir = tmpDir('gate-protocol-');
-const WARN_ONLY = new Set(['WASTE_CHECK', 'AGENT_LOADED_CHECK', 'SUPERSEDED_CHECK']);
+const WARN_ONLY = new Set(['WASTE_CHECK', 'AGENT_LOADED_CHECK', 'SUPERSEDED_CHECK', 'UNATTENDED_CHECK']);
 const read = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 const q = (...args) => spawnSync(process.execPath, [join(ROOT, 'scripts', 'q.mjs'), ...args], { cwd: ROOT, encoding: 'utf8', env: ENV });
 
