@@ -2,6 +2,7 @@
 // would then fail to check the submodule out. A pointer is pushed when a remote-tracking branch of the checked-out
 // submodule contains the commit HEAD records.
 //
+//   pinPublished(top, path, sha) -> true when a remote-tracking branch of the submodule at `path` contains `sha`
 //   unpushedPins(top) -> [{ path, sha }] gitlinks of HEAD whose commit no remote-tracking branch of the submodule contains;
 //                        a submodule that is not checked out, or has no remote, cannot be judged and is skipped
 //   unpushedPinMessage(top, pins, footer) -> the block message, naming the submodule push to do first
@@ -12,13 +13,17 @@ import { gitlinkPaths, treePin, worktreePin } from './gitlinks.mjs';
 
 const SHORT = 8;
 
+/** Does a remote-tracking branch of the checked-out submodule at `path` contain `sha`? */
+export function pinPublished(top, path, sha) {
+  const found = gitTry(['branch', '-r', '--contains', sha], join(top, path));
+  return found.ok && Boolean(found.out.trim());
+}
+
 export function unpushedPins(top) {
   return gitlinkPaths(top).flatMap((path) => {
     const sha = treePin(top, 'HEAD', path);
-    const dir = join(top, path);
-    if (!sha || !worktreePin(top, path) || !gitTry(['remote'], dir).out.trim()) return [];
-    const found = gitTry(['branch', '-r', '--contains', sha], dir);
-    return found.ok && found.out.trim() ? [] : [{ path, sha }];
+    if (!sha || !worktreePin(top, path) || !gitTry(['remote'], join(top, path)).out.trim()) return [];
+    return pinPublished(top, path, sha) ? [] : [{ path, sha }];
   });
 }
 

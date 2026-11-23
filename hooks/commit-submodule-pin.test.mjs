@@ -78,6 +78,28 @@ try {
   const bump = gate('agentTerrain', `git -C ${parent} add -- sub && git -C ${parent} commit -m "${pin()}" -- sub`, parent);
   ok('a pointer bump with another writer\'s dirty files inside the submodule and no pin claim passes', bump.code === 0, bump.out.trim());
 
+  // KIT-T1497: a pointer to a commit a remote-tracking branch of the submodule holds is published work, no writer's pending
+  // change; the claim of the writer that committed inside the submodule refuses only a pointer to a commit still local.
+  git(['add', '--', 'sub'], parent);
+  git(['commit', '-q', '-m', 'pin bumped'], parent);
+  writeFileSync(join(sub, 'apply.rs'), 'pub fn apply() -> u32 { 1 }\n');
+  const terrainText = 'pub fn terrain() -> u32 { 3 }\n';
+  const terrainWrite = { session_id: 'S1', agent_id: 'agentRoads', tool_input: { file_path: join(sub, 'terrain.rs'), content: terrainText } };
+  hook('pre-write.mjs', terrainWrite, sub, env);
+  writeFileSync(join(sub, 'terrain.rs'), terrainText);
+  hook('tool-write-record.mjs', terrainWrite, sub, env);
+  git(['add', '--', 'terrain.rs'], sub);
+  const inSub = gate('agentRoads', `git -C ${sub} commit -m "${MSG}"`, sub);
+  ok('setup: the writer commits inside the submodule, claiming its pointer', inSub.code === 0, inSub.out.trim());
+  git(['commit', '-q', '-m', MSG], sub);
+  git(['add', '--', 'sub'], parent);
+  const pinCommit = () => gate('agentTerrain', `git -C ${parent} commit -m "${pin()}" -- sub`, parent);
+  const local = pinCommit();
+  ok('control: a pointer to a commit still local to the submodule stays refused for another writer', local.code === 2 && /sub: agent agentRoads/.test(local.out), local.out.trim());
+  git(['update-ref', 'refs/remotes/origin/published-pin', 'HEAD'], sub);
+  const published = pinCommit();
+  ok('a pointer commit to a published submodule commit passes though another writer holds the pin claim and files inside the submodule are uncommitted', published.code === 0, published.out.trim());
+
   writeFileSync(join(parent, 'road.rs'), 'pub fn road() -> u32 { 1 }\n');
   git(['add', '--', 'road.rs'], parent);
   git(['commit', '-q', '-m', 'road'], parent);
@@ -85,6 +107,9 @@ try {
   claimFile({ tree: top, session: 'S1', agent: 'agentRoads', label: 'roads', rel: 'road.rs', head: head() });
   const realForeign = gate('agentTerrain', `git -C ${parent} add -- road.rs && git -C ${parent} commit -m "${MSG}" -- road.rs`, parent);
   ok('control: a real foreign path in the superproject still blocks, naming it, with the [commit-foreign: reason] hint', realForeign.code === 2 && /^\s+road\.rs/m.test(realForeign.out) && /\[commit-foreign: <reason>\]/.test(realForeign.out) && /id: commit-foreign/.test(realForeign.out), realForeign.out.trim());
+
+  const both = gate('agentTerrain', `git -C ${parent} add -- road.rs sub && git -C ${parent} commit -m "${pin()}" -- road.rs sub`, parent);
+  ok('a staged regular file another writer changed is still refused beside a published pointer, and only that file is named', both.code === 2 && /^\s+road\.rs/m.test(both.out) && !/^\s+sub:/m.test(both.out), both.out.trim());
 } finally {
   cleanup();
   done();

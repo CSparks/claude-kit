@@ -3,7 +3,8 @@
 // write ledger cannot tell two agents of one session apart, so this reads the per-writer claims (checkout-holder.mjs): a path
 // is foreign when another live writer's claim on it stands (dirty, uncommitted since the claim, agent-claims.mjs) and this
 // writer holds none. Store (.ai/) paths are never judged. A submodule gitlink is claimed by the writer that committed inside
-// the submodule (claimSubmodulePin) and judged by the pointer it records: dirty files inside the submodule never count.
+// the submodule (claimSubmodulePin) and judged by the pointer it records: dirty files inside the submodule never count, and
+// a pointer to a commit a remote-tracking branch of the submodule holds is published work that no claim refuses (KIT-T1497).
 //
 //   foreignClaims({ tree, session, agent, paths, now }) -> [{ rel, claimants }] paths of `paths` held by another live writer
 //   claimSubmodulePin({ subRoot, session, agent, label }) -> claim the gitlink of `subRoot` in its superproject (KIT-T1257)
@@ -15,17 +16,34 @@ import { claimConflicts, describeWriter, sameWriter } from './agent-claims.mjs';
 import { git } from './exec.mjs';
 import { adopted } from '../lib.mjs';
 import { repoRelative } from '../turn-writes.mjs';
+import { gitlinkPaths, stagedPin, treePin, worktreePin } from './gitlinks.mjs';
+import { pinPublished } from './push-pins.mjs';
 
 const STORE_DIR = '.ai/';
 const MAX_SHOWN = 10;
+const POINTER_NOTE = ' (the pointer: that writer\'s commit inside the submodule moved it and no remote branch of the submodule holds it yet; push the submodule first)';
+
+// The commit a gitlink in `paths` would record: the staged pointer when it moves, else the checked-out submodule's HEAD
+// (a pathspec commit takes the work tree). A pointer whose commit a remote-tracking branch holds is published work.
+const publishedPointer = (tree, rel) => {
+  try {
+    const staged = stagedPin(tree, rel);
+    const recorded = staged && staged !== treePin(tree, 'HEAD', rel) ? staged : worktreePin(tree, rel) || staged;
+    return Boolean(recorded) && pinPublished(tree, rel, recorded);
+  } catch {
+    return false;
+  }
+};
 
 export function foreignClaims({ tree, session, agent = '', paths, now = Date.now() }) {
   const mine = liveClaimants(tree, now).filter((c) => sameWriter(c, session, agent));
+  const links = new Set(gitlinkPaths(tree));
   return paths
     .filter((rel) => !rel.startsWith(STORE_DIR) && !mine.some((c) => Object.hasOwn(c.claims || {}, rel)))
+    .filter((rel) => !(links.has(rel) && publishedPointer(tree, rel)))
     .flatMap((rel) => {
       const claimants = claimConflicts({ tree, session, agent, rel, now });
-      return claimants.length ? [{ rel, claimants }] : [];
+      return claimants.length ? [{ rel, claimants, pointer: links.has(rel) }] : [];
     });
 }
 
@@ -52,7 +70,7 @@ export function foreignClaimMessage({ found, paths, messageArg, footer }) {
     '',
     `BLOCKED: ${found.length} path(s) this commit would take are uncommitted work of another live writer (KIT-T1256).`,
     '',
-    ...found.slice(0, MAX_SHOWN).map((f) => `  ${f.rel}: ${f.claimants.map(describeWriter).join(' and ')}`),
+    ...found.slice(0, MAX_SHOWN).map((f) => `  ${f.rel}: ${f.claimants.map(describeWriter).join(' and ')}${f.pointer ? POINTER_NOTE : ''}`),
     ...more(found),
     '',
     'Every writer of this checkout shares one git index, so a bare `git commit` (or one after your `git add`) takes what',
