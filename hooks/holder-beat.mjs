@@ -9,7 +9,9 @@
 //     A refusal names every crate the writer left unchecked or marked broken (lib/broken-crates.mjs, KIT-T1247); an edit by the
 //     writer that last edited a crate marked broken is never refused by a build hold: it is the repair (KIT-T1245). A batch lands
 //     whole or not at all: once an edit of a crate was refused by a build hold, the writer's later edits to that crate are refused
-//     too for BATCH_REFUSAL_S, or until its `builds --wait` returns free (scripts/broker/batch-refusal.mjs, KIT-T1281).
+//     too for BATCH_REFUSAL_S, or until its `builds --wait` returns free (scripts/broker/batch-refusal.mjs, KIT-T1281). The other
+//     way round, an edit continuing a batch whose earlier edits already landed in the crate passes a build that started after
+//     them: refusing it would leave the crate half edited (lib/batch-continue.mjs, KIT-T1510).
 // A passing edit beats the session's checkout-holder entry and records the writer's claim on the file. Store (.ai/) files
 // never count. Fails open on any error.
 
@@ -22,6 +24,7 @@ import { claimConflicts, claimMessage } from './lib/agent-claims.mjs';
 import { batchRefusalMessage, buildHoldConflict, buildHoldMessage, isHeldKind, noteEditInFlight, noteRefusedEdit } from './lib/build-write-hold.mjs';
 import { noteBatchRefusal, refusedEarlierInBatch } from '../scripts/broker/batch-refusal.mjs';
 import { writerId } from './lib/tool-writes.mjs';
+import { continuesLandedBatch } from './lib/batch-continue.mjs';
 import { leftBrokenNote, repairsOwnBrokenCrate } from './lib/broken-crates.mjs';
 import { repoRelative } from './turn-writes.mjs';
 
@@ -53,6 +56,7 @@ function refusal({ tree, file, rel, session, agent }) {
     const earlier = isHeldKind(file) ? refusedEarlierInBatch({ file, writer }) : null;
     return earlier ? { text: batchRefusalMessage({ file: rel, earlier, writer, footer: excludeFooter(HOLDER_CHECK) }) } : null;
   }
+  if (continuesLandedBatch({ tree, absFile: file, writer, hold })) return null;
   const extra = leftBrokenNote({ tree, checksRoot: gitRoot(), absFile: file, writer, notAfter: Date.now() - PREDICTED_WRITE_SLACK_MS });
   return { text: buildHoldMessage({ file: rel, absFile: file, hold, writer, extra, footer: excludeFooter(HOLDER_CHECK) }), build: true, scope: hold.scope };
 }

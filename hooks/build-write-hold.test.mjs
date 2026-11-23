@@ -201,7 +201,30 @@ expect('KIT-T1425: a failed edit ends its in-flight hold at the edit gap instead
 
 function guardAfterNoWindow() {
   hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
-  return edit('S1', 'agentRacer', 'crates', 'a', 'src', 'race.rs').stderr;
+  return edit('S1', 'agentNoWindow', 'crates', 'a', 'src', 'race.rs').stderr;
 }
+
+// KIT-T1510: a build that starts between two edits of a batch must not strand the rest of it.
+const BATCHER = 'S1|agentBatcher';
+const { recordToolWrite } = await import('./lib/tool-writes.mjs');
+const { contentHashOf } = await import('./lib/shell-snapshot.mjs');
+const relOf = (...segments) => segments.join('/');
+writeFileSync(join(crate, 'src', 'lib.rs'), 'mod b1;\nmod b2;\nmod b3;\nmod b4;\n');
+hold({ scope: [crate], writer: OWNER, phase: 'running' });
+expect('KIT-T1510 setup: the first edit of the batch passes while no build compiles the crate', edit('S1', 'agentBatcher', 'crates', 'a', 'src', 'b1.rs').status, 0);
+land('S1', 'agentBatcher', 'crates', 'a', 'src', 'b1.rs');
+hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
+expect('KIT-T1510: a build that started after the batch\'s landed edit does not refuse the next edit of the batch', edit('S1', 'agentBatcher', 'crates', 'a', 'src', 'b2.rs').status, 0);
+expect('KIT-T1510 control: another agent\'s edit of the same crate is still refused', edit('S1', 'agentStranger', 'crates', 'a', 'src', 'b3.rs').status, 2);
+const refusedText = edit('S2', '', 'crates', 'a', 'src', 'b3.rs').stderr;
+expect('KIT-T1510: a refusal says the edits of the batch that landed stand and this edit is retried first', /Edits of this batch that already landed stand/.test(refusedText) ? 1 : 0, 1);
+hold({ scope: [crate], writer: OWNER, phase: 'compiling', ts: new Date(Date.now() - 60 * MS_PER_SECOND).toISOString() });
+expect('KIT-T1510 control: a build that started before the landed edit is not a mid-batch build', edit('S1', 'agentBatcher', 'crates', 'a', 'src', 'b3.rs').status, 2);
+writeFileSync(join(crate, 'src', 'b4.rs'), 'old\n');
+const staleRel = relOf('crates', 'a', 'src', 'b4.rs');
+recordToolWrite(tree, staleRel, contentHashOf(tree, staleRel), Date.now() - 600 * MS_PER_SECOND, 'S1|agentStale');
+hold({ scope: [crate], writer: OWNER, phase: 'compiling' });
+expect('KIT-T1510 control: a writer whose last landed edit is older than the batch idle window starts a new batch and is refused', edit('S1', 'agentStale', 'crates', 'a', 'src', 'b3.rs').status, 2);
+void BATCHER;
 
 finish();

@@ -127,6 +127,7 @@ export function buildHoldMessage({ file, absFile = file, hold, footer, window = 
     ...afterWaitLines({ window, hold }),
     ...extra,
     '',
+    'Edits of this batch that already landed stand: this refused edit may be the one that completes them, so retry it first.',
     'A write now lands in the sources that build reads; this edit is refused, not queued. Edits outside what the build',
     'compiles, and your own builds, are never held. Wait once, in ONE foreground call, then retry the edit:',
     `  ${buildWaitCommand(absFile, writer)}`,
