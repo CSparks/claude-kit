@@ -18,6 +18,7 @@ import { decisionViews, kitDecisionsSection, recentSection, standingSection } fr
 import { header, identity, notices } from './lib/orient/notices.mjs';
 import { lineageSection, roadmapSection, sessionSection } from './lib/orient/record.mjs';
 import { rulingsSection } from './lib/orient/rulings.mjs';
+import { redByDesignSection } from './lib/orient/red-by-design.mjs';
 import { ruledNotBuiltSection } from './lib/orient/ruled-not-built.mjs';
 import { worktreeSection } from './lib/orient/worktree.mjs';
 import { governsSection, mentionsSection, openWorkSection, porcelainPath, zombiesSection } from './lib/orient/work.mjs';
@@ -56,6 +57,7 @@ header(ctx);
 await notices(ctx);
 rulingsSection(ctx);
 ruledNotBuiltSection(ctx);
+redByDesignSection(ctx);
 const foundational = identity(ctx, views);
 const { repos, wips, recentCommitLines } = await worktreeSection(ctx);
 sessionSection(ctx, join(root, '.ai', 'SESSION.md'));

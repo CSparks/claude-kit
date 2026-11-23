@@ -10,7 +10,7 @@
 import { FS_WRITE, readTempScript, scanShellWrites } from './shell-write-scan.mjs';
 import { ITEM_VERBS } from './store-write-gate.mjs';
 
-const ITEM_DIRS = 'tickets|decisions|questions|notes|epics|requests|inbox|resolved|reminders';
+const ITEM_DIRS = 'tickets|decisions|questions|notes|epics|requests|inbox|resolved|reminders|red-by-design';
 const STORE_PATH = new RegExp(`(?:\\.ai|projects[\\\\/][^\\\\/\\s"']+)[\\\\/](?:(${ITEM_DIRS})[\\\\/]|SESSION\\.md|agents\\.jsonl|read-receipts\\.json|REGRESSIONS\\.md|SUPERSEDED\\.md)`, 'i');
 const BUILT_PATH = new RegExp(`['"]\\.ai['"][\\s\\S]*['"](?:${ITEM_DIRS}|SESSION\\.md)['"]`, 'i');
 
@@ -24,6 +24,7 @@ const HINTS = {
   requests: `t request "<title>" | ${ITEM_VERBS.requests}`,
   resolved: 'cap --done [type] "<text>"',
   reminders: 'rem add "<title>" --every <days>',
+  'red-by-design': `t red-by-design add <test> --decided-by <id,...> --reason "<why>" | remove <test>`,
   session: 't session "<text>" | --append | --replace --file <draft> | --fix "<old>" "<new>" | --drop "<text>"',
   other: 'the verb that owns this file (t, cap, rem); t move <id> <repo-path> moves an item between repos',
 };

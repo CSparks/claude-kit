@@ -118,6 +118,7 @@ History and regenerates the views. The pre-write hook (check-id `store-write`) r
 | ticket/epic/request/note Notes prose | `t notes <id> "<prose>"` appends; `t edit <id> --section Description\|Plan\|Notes --file <path>` replaces (a hand Edit of an existing item is refused, KIT-D120) |
 | decision | `t decide --file <draft.md>` |
 | question | `t question "<q>"`, `t ask`, `t resolve` |
+| red-by-design test (named debt the red-test gate exempts) | `t red-by-design add <test> --decided-by <id,...> --reason "<why>" [--owner <who>]` (renews the date), `remove <test>`, `list`; one file per entry in `.ai/red-by-design/` |
 | note / epic / request | `t note` / `t epic` / `t request "<title>" [--body|--file]`; `t status`/`t tick` also address epics and requests |
 | inbox capture, resolved event | `cap [type] "<text>"`, `cap --done`; promotion by `triage.mjs --plan/--apply` |
 | reminder | `rem add`/`done`/`snooze` |

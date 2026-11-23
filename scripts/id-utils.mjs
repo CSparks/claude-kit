@@ -44,7 +44,8 @@ const KNOWN_STORE_ORDER = ['tickets', 'decisions', 'notes', 'questions', 'inbox'
 // id-collision scan / the board / the cache) must never treat REM files as keyed items. The
 // reminders CLI (rem.mjs) scans `.ai/reminders/` directly; nothing keyed needs to see it.
 // Dot-directories (`.session-backups`, `.cache`) hold machine-local files, never items (KIT-T526).
-const NON_STORE_DIRS = new Set(['archive', 'resolved', 'reminders']);
+// `red-by-design` holds the named-debt test list the red-test gate reads (`t red-by-design`): entries cite ids, mint none.
+const NON_STORE_DIRS = new Set(['archive', 'resolved', 'reminders', 'red-by-design']);
 
 function storeDirs(ai) {
   const present = [];

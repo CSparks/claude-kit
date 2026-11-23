@@ -1,10 +1,11 @@
 // red-test-dispatch (KIT-T1484): a closing reply or a cap / t new capture that reports failing tests, with no Agent, Task or
 // SendMessage call in the turn, blocks the stop once. Run: node hooks/red-test-dispatch.test.mjs
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { HOOKS, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 import { TRIAGE_LINE } from './lib/block-triage.mjs';
+import { writeEntry } from './lib/red-by-design.mjs';
 import { explainsFix, redTestReports } from './lib/red-test-report.mjs';
 
 const { ok, done } = reporter('red-test-dispatch');
@@ -93,6 +94,30 @@ try {
   ok('negative control: a subagent is exempt', stop(transcript(REPLY), { agent_id: 'a1b2c3d4e5f6a7b8c' }).code === 0);
   ok('negative control: stop_hook_active allows', stop(transcript(REPLY), { stop_hook_active: true }).code === 0);
   ok('fail-open on a missing transcript', stop('/no/such/file.jsonl').code === 0);
+  const listed = adopted(false);
+  mkdirSync(join(listed, '.ai', 'decisions'), { recursive: true });
+  writeFileSync(join(listed, '.ai', 'decisions', 'TT-D001-ruling.md'), '---\nid: TT-D001\ntitle: ruled red\n---\n');
+  for (const test of ['crates/rdg-world/tests/frontage_census.rs', 'crates/rdg-world/tests/road_geometry.rs']) {
+    writeEntry(listed, { test, decidedBy: ['TT-D001'], reason: 'measures today\'s world; fix unsigned' });
+  }
+  const stopListed = (reply, ...calls) => hook(GATE, { hook_event_name: 'Stop', session_id: `s${RUN}-${s++}`, transcript_path: transcript(reply, ...calls) }, listed);
+  ok('a listed test named by its file stem passes', stopListed('The frontage census test is red by design.').code === 0);
+  ok('a listed test named in words with a count passes', stopListed('The road geometry test fails on today\'s world, 4 of 9.').code === 0);
+  ok('a listed test named in backticks passes', stopListed('The `frontage_census` test is red by design.').code === 0);
+  ok('control: a listed test named in a capture still blocks (only a closing reply is exempt)', stopListed('Filed.', bash('cap note "the frontage census test is red by design" --project x', 'toolu_L')).code === 2);
+  ok('control: an unlisted red naming the listed stem with no test noun after it still blocks', stopListed('The junction tests fail on the new road geometry.').code === 2);
+  ok('control: an unlisted red in a listed project still blocks', stopListed('The lanes tests are failing, 3 of 7.').code === 2);
+  ok('control: a listed red then an unlisted red in the next sentence still blocks on the unlisted one', (() => {
+    const r = stopListed('The frontage census test is red by design. The lanes tests are failing, 3 of 7.');
+    return r.code === 2 && r.out.includes('lanes');
+  })());
+  ok('control: an unlisted red in a capture still blocks', stopListed('Filed.', bash('cap bug "the rebaked test is red" --project x', 'toolu_M')).code === 2);
+  ok('the block names the way to list a red-by-design test', bare.out.includes('t red-by-design add'));
+
+  const broken = adopted(false);
+  mkdirSync(join(broken, '.ai', 'red-by-design'), { recursive: true });
+  writeFileSync(join(broken, '.ai', 'red-by-design', 'junk.md'), 'not frontmatter at all\n');
+  ok('control: an unreadable list exempts nothing', hook(GATE, { hook_event_name: 'Stop', session_id: `s${RUN}-${s++}`, transcript_path: transcript('The frontage census test is red by design.') }, broken).code === 2);
   ok('wired into the Stop list', JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8')).hooks.Stop.some((e) => e.hooks.some((h) => h.command.includes(GATE))));
 } finally {
   cleanup();

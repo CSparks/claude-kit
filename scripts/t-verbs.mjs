@@ -11,8 +11,10 @@ import { appendNotes } from './t-notes.mjs';
 import { editSection } from './t-edit.mjs';
 import { editSession, writeSession } from './t-session.mjs';
 import { runConfig } from './config-edit.mjs';
+import { RED_USAGE, runRedByDesign } from './t/red-by-design.mjs';
 
 const USAGE = {
+  'red-by-design': RED_USAGE,
   note: 't note "<title>" [--body "<text>" | --file <path>] [--links A,B]',
   epic: 't epic "<title>" [--body "<text>" | --file <path>] [--priority <p>] [--links A,B]',
   request: 't request "<title>" [--body "<text>" | --file <path>] [--priority <p>] [--links A,B]',
@@ -47,6 +49,16 @@ export async function runVerb(cmd, rest, flags, root, refresh) {
     await refresh(root);
     const how = flags.replace ? 'replaced' : flags.append ? 'appended' : 'noted';
     process.stdout.write(`session: ${relative(root, r.path)} ${how} (${r.lines} lines)${r.backup ? `; previous kept at ${relative(root, r.backup)}` : ''}\n`);
+    return true;
+  }
+  if (cmd === 'red-by-design') {
+    try {
+      process.stdout.write(`${runRedByDesign(root, rest, flags)}\n`);
+    } catch (e) {
+      if (e.message === 'usage') fail(cmd);
+      console.error(e.message);
+      process.exit(1);
+    }
     return true;
   }
   if (cmd === 'config') {

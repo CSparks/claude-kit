@@ -6,13 +6,17 @@
 // the reply why one already runs.
 //
 // Exempt: a subagent's report (its reader is the orchestrator), a turn that dispatched, a reply that says a fix agent
-// already runs, quoted text, code, past-tense fixes and negated counts (lib/red-test-report.mjs).
+// already runs, quoted text, code, past-tense fixes and negated counts (lib/red-test-report.mjs), and a closing-reply
+// sentence that names a test on the project's red-by-design list (`.ai/red-by-design/`, written by `t red-by-design`,
+// lib/red-by-design.mjs): named debt is no new fault, any other red still demands a fix agent. A capture is never exempt.
 // `stop_hook_active` allows; fails open on any error.
 // Check-id: red-test-dispatch (path glob matched against the project root, `.`). In a reply, a line under
 // `// claude-kit-ignore-line red-test-dispatch` (or a start/end block) is not read.
 
 import { firstSighting } from './block-once.mjs';
 import { adopted, excludeFooter, gitRoot, markerExcludedLines, pathExcluded, payload } from './lib.mjs';
+import { readEntries } from './lib/red-by-design.mjs';
+import { unlistedReports } from './lib/red-by-design-match.mjs';
 import { explainsFix, redTestReports } from './lib/red-test-report.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
 import { turnCalls, turnText } from './lib/turn-text.mjs';
@@ -44,6 +48,7 @@ const message = ({ sentence, phrase, source }) => [
   'A failing test is a fault to fix, not a note: a capture or a relayed hand-back closes nothing. Dispatch a fix agent THIS turn for each',
   'failure group (q gates agent for the tags; one agent per root cause, the failing test named in the brief). A failure that already has',
   'a fix agent running: say so in the reply ("the fix agent for X is already running"). A fix landing in this same turn: say "fixed".',
+  'A test red by design (a ruling or a signed-later fix): t red-by-design add <test> --decided-by <id> --reason "<why>" [--owner <who>]; a closing reply naming a listed test passes (a capture does not).',
 ].join('\n');
 
 try {
@@ -56,7 +61,8 @@ try {
   const captured = turnCalls(p.transcript_path, SHELL_TOOLS)
     .map((c) => String(c.input?.command || '')).filter(isCapture)
     .flatMap((command) => redTestReports(command, { raw: true }).map((r) => ({ ...r, source: 'a capture' })));
-  const [report] = [...redTestReports(reply).map((r) => ({ ...r, source: 'your closing reply' })), ...captured];
+  const replied = unlistedReports(redTestReports(reply), reply, readEntries(root)).map((r) => ({ ...r, source: 'your closing reply' }));
+  const [report] = [...replied, ...captured];
   if (!report) process.exit(0);
   if (turnCalls(p.transcript_path, DISPATCH_TOOLS).some((c) => !c.denied) || explainsFix(reply)) process.exit(0);
   if (!firstSighting(`red-test-dispatch-${p.session_id || 'nosession'}`, report.sentence)) process.exit(0);

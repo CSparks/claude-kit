@@ -22,6 +22,7 @@ const DEMOTE = [
   { match: /^--- FRAMEWORK LESSONS/, keep: 12 },
   { match: /^--- OPEN, awaiting a bill of work/, keep: 2, command: '`q open`' },
   { match: /^--- RULED, NOT BUILT/, keep: 2, command: '`t revise <id> --ticket <ticket>`' },
+  { match: /^--- RED BY DESIGN/, keep: 3, command: '`t red-by-design list`' },
   { match: /^--- UNPROMOTED KIT\/FRAMEWORK DECISIONS/, keep: 2, command: '`q recent 30d`' },
   { match: /^--- Decisions \(recent\)/i, keep: 1 },
   { match: /^--- Lineage/, keep: 0 },

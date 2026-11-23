@@ -20,6 +20,7 @@ export const ITEM_VERBS = {
   notes: PROSE,
   epics: `t status <id> <state> | ${PROSE}`,
   requests: `t status <id> <state> | ${PROSE}`,
+  'red-by-design': 't red-by-design add <test> --decided-by <id,...> --reason "<why>" (renews) | t red-by-design remove <test>',
 };
 
 const CREATE = {
@@ -32,6 +33,7 @@ const CREATE = {
   inbox: ['cap [type] "<text>"  (then triage promotes it)', 'an inbox capture'],
   resolved: ['cap --done [type] "<text>"', 'a resolved event'],
   reminders: ['rem add "<title>" --every <days>', 'a reminder'],
+  'red-by-design': ['t red-by-design add <test> --decided-by <id,...> --reason "<why>"', 'a red-by-design entry'],
 };
 
 const FIXED = {
