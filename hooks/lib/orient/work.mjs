@@ -9,6 +9,7 @@
 //   governsSection(ctx, { changedPaths, standing, foundational })
 
 import { scanStaleDoingTickets } from '../../lib.mjs';
+import { scopeSummary } from './scope-summary.mjs';
 import { INFLIGHT_SHOWN, LINE_MAX, MENTIONS_SHOWN, ORIENT_DOING_STALE_MS, ORIENT_TRAIL_LINES, TRAILS_SHOWN, clip } from './common.mjs';
 
 const MS_PER_HOUR = 3600000;
@@ -36,7 +37,7 @@ export async function openWorkSection({ out, root }) {
     for (const r of openRows) { const s = scopeOf(r.id); byScope.set(s, (byScope.get(s) || 0) + 1); }
     out.push('');
     out.push('--- Open work ---');
-    out.push('  by scope: ' + [...byScope.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([s, n]) => `${s}:${n}`).join('  '));
+    out.push(`  by scope: ${scopeSummary(byScope)}`);
     if (inFlight.length) {
       out.push(`  in-flight (${key}):`);
       const shownFlight = [...inFlight.filter((x) => x.status === 'doing'), ...inFlight.filter((x) => x.status !== 'doing')].slice(0, INFLIGHT_SHOWN);
@@ -54,7 +55,6 @@ export async function openWorkSection({ out, root }) {
     const built = builtButUnticked(root);
     for (const r of built.slice(0, INFLIGHT_SHOWN)) out.push(`    [${r.status}] ${r.id} built-but-unticked (${r.count} landed commits) — ${clip(r.title, LINE_MAX)}`);
     if (built.length > INFLIGHT_SHOWN) out.push(`    +${built.length - INFLIGHT_SHOWN} more built-but-unticked — q show <id> prints LANDED COMMITS`);
-    out.push(`  drill-in: q open | q trail <id> | q fts <terms>`);
   } catch {
     /* cache + fallback both unavailable — orientation proceeds without the open-work view */
   }
