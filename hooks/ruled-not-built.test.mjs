@@ -4,14 +4,15 @@
 // Run: node hooks/ruled-not-built.test.mjs
 
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const tmp = mkdtempSync(join(tmpdir(), 'kit-ruled-'));
 process.env.CLAUDE_KIT_CACHE_DIR = join(tmp, 'cache');
+// The harness redirects the registry and the Claude home to temp paths, so orient never reads this machine's state.
+const { cleanup, hook } = await import('./test-harness.mjs');
 const { RULED_HEADER, ruledNotBuilt, ruledNotBuiltLines } = await import('./lib/orient/ruled-not-built.mjs');
 const { reviseDecision } = await import('../scripts/t-revise.mjs');
 
@@ -76,10 +77,11 @@ try {
     execFileSync('git', ['init', '-q'], { cwd: repo });
     writeFileSync(join(repo, '.ai', 'config.yml'), 'ids:\n  key: "OR"\n  pad: 3\n');
     writeFileSync(join(repo, '.ai', 'decisions', 'OR-D001-old.md'), '---\nid: OR-D001\ntitle: an old unbuilt ruling\ndate: 2020-01-01\nimplemented_by: \nno_work: \n---\n\n**Decision:** x\n\n**Why:** y\n');
-    const r = spawnSync(process.execPath, [fileURLToPath(new URL('./orient.mjs', import.meta.url))], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDE_KIT_CACHE_DIR: join(tmp, 'cache2') } });
-    assert.match(r.stdout, /RULED, NOT BUILT[\s\S]*OR-D001 \(\d+d\) an old unbuilt ruling/, r.stdout.slice(0, 300) + r.stderr.slice(0, 200));
+    const r = hook('orient.mjs', {}, repo, { CLAUDE_KIT_CACHE_DIR: join(tmp, 'cache2'), CLAUDE_KIT_BUG_STORE: join(tmp, 'no-kit-store') });
+    assert.match(r.out, /RULED, NOT BUILT[\s\S]*OR-D001 \(\d+d\) an old unbuilt ruling/, r.out.slice(0, 300));
   });
 } finally {
   rmSync(tmp, { recursive: true, force: true });
+  cleanup();
 }
 console.log(`ruled-not-built: ${passed} passed, 0 failed`);
