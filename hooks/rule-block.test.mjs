@@ -21,6 +21,7 @@ const REQUIRED = [
   /Measure headless every defect class he has already reported.*red test on main blocks a landing/, /Before any benchmark or performance check make sure nothing builds and no tests run.*not a result/,
   /Relay an agent's or hook's report in plain words/, /Tag values and forms.*come from `q gates agent`/, /Every path, id or number you write is one you just read/,
   /game run an agent, a probe or a test starts.*sets `RG_UNATTENDED=1`.*never locks the cursor or takes focus/,
+  /writer agent ends every turn with the crates it edited compiling.*`cargo check` them.*blocks every other writer's builds/,
 ];
 const RULE_MAX_CHARS = 200;
 const block = ruleBlockText();

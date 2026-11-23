@@ -17,6 +17,7 @@
 //   tests-not-implicit   (KIT-T1186, KIT-D162) — a Cargo-workspace brief that orders routine test runs, no [tests:] reason
 //   readonly-orders      (KIT-T1488) — a brief that orders cargo, builds --run, restore-tree or a test run for an agent type that cannot run them
 //   dispatch-unattended  (KIT-T1492) — WARNS when a rapid-game brief orders a game run and never names RG_UNATTENDED
+//   dispatch-compile-state (KIT-T1510) — WARNS when a Cargo writer brief with another live writer names no compile state to leave
 //   brief-grounded       (KIT-T703) — a feature/request brief with no quoted maintainer words, or a variant with no reuses token
 //   rulings-checked      (KIT-T938) — a design or plan brief sent while the inbox holds un-triaged notes and cites no search of them
 //   framework-checked    (KIT-T1095) — a plan or design brief in a repo that uses a framework, citing no crate of its index
@@ -51,6 +52,7 @@ import { PATH_RESTORE_CHECK, pathRestoreBlock } from './dispatch-path-restore.mj
 import { TESTS_CHECK, testsBlock } from './dispatch-tests.mjs';
 import { READONLY_ORDERS_CHECK, readOnlyOrdersBlock } from './dispatch-readonly-orders.mjs';
 import { UNATTENDED_CHECK, unattendedWarning } from './dispatch-unattended.mjs';
+import { COMPILE_STATE_CHECK, compileStateWarning } from './dispatch-compile-state.mjs';
 import { HOLDER_CHECK, holderBlock, registerWriter } from './dispatch-holder.mjs';
 import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
@@ -112,6 +114,8 @@ try {
   if (superseded) console.error(superseded);
   const unattended = pathExcluded(root, UNATTENDED_CHECK, root) ? '' : unattendedWarning({ root, input, prompt });
   if (unattended) console.error(unattended);
+  const compileState = compileStateNote(root, input, prompt);
+  if (compileState) console.error(compileState);
   if (!blocks.length) {
     registerWriterDispatch(root, input, prompt, p);
     const warning = agentRegistryWarning(root, input, p);
@@ -393,6 +397,14 @@ function sharedTreeCheck(root, input, prompt) {
   const { root: tree, source } = dispatchTarget(root, input);
   const writers = liveAgents(root, now, tree).filter((r) => !readOnlyRow(root, r));
   return sharedTreeBlock({ agent: label(input), tree, source, prompt, writers, now, footer: excludeFooter(SHARED_TREE_CHECK) });
+}
+
+// --- dispatch-compile-state (KIT-T1510): a warning ---------------------------------
+function compileStateNote(root, input, prompt) {
+  if (isWorktreeIsolation(input.isolation) || readOnlyDispatch(root, label(input), prompt) || pathExcluded(root, COMPILE_STATE_CHECK, root)) return '';
+  const { root: tree } = dispatchTarget(root, input);
+  const liveWriters = liveAgents(root, Date.now(), tree).filter((r) => !readOnlyRow(root, r)).length;
+  return compileStateWarning({ root, input, prompt, liveWriters });
 }
 
 // --- checkout-holder (KIT-T811) ------------------------------------------------

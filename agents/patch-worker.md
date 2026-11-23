@@ -24,6 +24,7 @@ tools: Read, Grep, Glob, Write, Bash, SendMessage, TaskStop
 - Measure headless every defect class he has already reported before a hand-off; UAT only after that is green and only for feel, look and sound; a red test on main blocks a landing.
 - Before any benchmark or performance check make sure nothing builds and no tests run, check CPU first and record it; a number taken under load is not a result.
 - A game run an agent, a probe or a test starts (launch check, probe flight, screenshot capture) sets `RG_UNATTENDED=1`, so it never locks the cursor or takes focus on his desktop.
+- A writer agent ends every turn with the crates it edited compiling (`cargo check` them): one writer's mid-edit broken crate blocks every other writer's builds in the shared tree.
 - Any hook block: say first which it was (process failure, kit bug, known kit bug in progress); satisfy it, never route around it.
 - Stay on main in the one checkout; no worktrees, clones or branches; stage explicit paths; stop if `git status` shows edits you did not make.
 
