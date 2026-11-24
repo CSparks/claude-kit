@@ -12,7 +12,7 @@ import { RULES, RULE_BLOCK_TITLE, ruleBlockText, ruleRecordStep } from './lib/ru
 
 const { ok, done } = reporter('rule-block');
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const BLOCK_MAX_CHARS = 3500;
+const BLOCK_MAX_CHARS = 3700;
 const REQUIRED = [
   /Search with `q`/, /never grep/, /ONE named file/, /targeted test.*runs without asking.*whole suite.*never without his approval.*nothing runs implicitly/, /No waiting loops/, /plain words/,
   /no ticket, decision, lever or run ids/, /commit hash only in the landing receipt/, /plain summary.*directly above AskUserQuestion, never inside it/,
@@ -22,6 +22,7 @@ const REQUIRED = [
   /Relay an agent's or hook's report in plain words/, /Tag values and forms.*come from `q gates agent`/, /Every path, id or number you write is one you just read/,
   /game run an agent, a probe or a test starts.*sets `RG_UNATTENDED=1`.*never locks the cursor or takes focus/,
   /writer agent ends every turn with the crates it edited compiling.*`cargo check` them.*blocks every other writer's builds/,
+  /summary defines each term of art a question uses with a project example.*states each option's effect and cost.*no option bundles several decisions unless the summary explains each/,
 ];
 const RULE_MAX_CHARS = 200;
 const block = ruleBlockText();

@@ -13,6 +13,7 @@ import { gateNames, gateText } from '../hooks/lib/gate-protocol.mjs';
 import { consolidatedBlock, runQuestionGates } from '../hooks/lib/question-gates-run.mjs';
 import { briefProblems } from '../hooks/lib/question-brief.mjs';
 import { summaryWaitOffers, waitAuditMessage } from '../hooks/lib/question-wait-audit.mjs';
+import { bundleAuditMessage, summaryBundleProblems, summaryTermWarnings, termDocs, termWarningMessage } from '../hooks/lib/question-explain-audit.mjs';
 import { groundingMatches } from '../hooks/lib/question-grounding.mjs';
 import { clauseMatches } from '../hooks/lib/question-clause-grounding.mjs';
 import { GROUNDED_CLAUSE_SCORE, GROUNDED_CLAUSE_SHOWN } from '../hooks/lib/question-checks.mjs';
@@ -74,17 +75,24 @@ async function checkDraft(file, root, { out, err }) {
   }
   const { blocks, context } = await runQuestionGates({ hook_event_name: 'PreToolUse', tool_name: 'AskUserQuestion', tool_input: { questions }, cwd: root }, { cwd: root });
   const summary = Array.isArray(draft) ? null : draft.summary;
+  const notes = [];
   if (summary !== null && summary !== undefined) {
     const problems = briefProblems(summary);
     if (problems.length) blocks.push({ gate: 'question-brief (summary above the call)', text: `${problems[0].wanted}\nFix: ${SUMMARY_FIX}.` });
     const offers = summaryWaitOffers({ prose: summary }, { input: { questions } });
     if (offers.length) blocks.push({ gate: 'question-wait (summary above the call)', text: waitAuditMessage([{ offers }]) });
+    const bundles = summaryBundleProblems(summary, questions);
+    if (bundles.length) blocks.push({ gate: 'question-bundle (summary above the call)', text: bundleAuditMessage(bundles) });
+    notes.push(termWarningMessage(summaryTermWarnings(summary, questions, termDocs(root))));
   }
+  const warnings = notes.filter(Boolean);
   if (blocks.length) {
     out.write(consolidatedBlock(blocks));
+    for (const w of warnings) out.write(`\n${w}\n`);
     return 2;
   }
   out.write('PASS: every PreToolUse questionnaire gate accepts this draft.\n');
+  for (const w of warnings) out.write(`WARN: ${w}\n`);
   if (summary === null || summary === undefined) out.write(`NOTE: the draft has no "summary". The audit after the call judges it: ${SUMMARY_FIX}. Add "summary" to the draft to check its length now.\n`);
   out.write('NOTE: question-ready (is the topic ready to ask) reads the live transcript and is not judged here.\n');
   for (const c of context) out.write(`\n${c}\n`);

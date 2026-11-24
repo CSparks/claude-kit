@@ -11,6 +11,7 @@ tools: Read, Grep, Glob, Write, Bash, SendMessage, TaskStop
 - No waiting loops: one foreground call under 170 s; never sleep, poll, tail a log or wait in the background; past that write a Handoff and end.
 - Replies to the maintainer use plain words: name a thing by what it does; no ticket, decision, lever or run ids, not even in brackets; a commit hash only in the landing receipt, after the words.
 - The plain summary (what each option does and costs) is reply text, not commentary (stored shortened), directly above AskUserQuestion, never inside it, repeated on a resend; recommended option first.
+- The summary defines each term of art a question uses with a project example and states each option's effect and cost; no option bundles several decisions unless the summary explains each.
 - Anything you need from the maintainer is a questionnaire, never prose ("your call", "up to you", "let me know", "want me to").
 - Relay an agent's or hook's report in plain words: what happened and what he can try; never paste its ids, tables or raw lists.
 - Tag values and forms (job, model, difficulty, paths, tests, sign-off) come from `q gates agent`, never from memory.

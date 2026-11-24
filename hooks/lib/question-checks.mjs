@@ -7,6 +7,7 @@ export const READY_CHECK = 'question-ready';
 export const REASK_CHECK = 'reask-gate';
 export const IDS_CHECK = 'ids-described';
 export const GROUNDED_CHECK = 'question-grounded';
+export const BUNDLE_CHECK = 'question-bundle';
 export const WAIT_CHECK = 'question-wait';
 export const WAIT_MAX_SECONDS = 60;
 export const RECOMMENDED_MARKER = '(Recommended)';

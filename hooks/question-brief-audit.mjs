@@ -7,15 +7,18 @@
 // Stop         the backstop: every questionnaire of this turn not yet audited is judged; a thin one blocks the stop
 //              with the same message. Silent when PostToolUse already audited every call.
 //
-// The same audit reads the summary for an offer to accept a wait over 60 seconds (lib/question-wait-audit.mjs, check id question-wait).
+// The same audit reads the summary for an offer to accept a wait over 60 seconds (lib/question-wait-audit.mjs, check id question-wait),
+// for a bundling option label whose parts the summary does not name (blocks the Stop backstop), and for terms of art no sentence
+// of the summary mentions (an advisory only: never blocks, never recorded) (lib/question-explain-audit.mjs, check id question-bundle).
 // Each audited call is recorded (lib/question-audits.mjs) so it is judged once and orient can show repeat offenders.
 
 import { payload, gitRoot, pathExcluded, projectName } from './lib.mjs';
 import { auditQuestionnaire, auditMessage } from './lib/question-audit.mjs';
 import { auditedCalls, recordAudit } from './lib/question-audits.mjs';
 import { turnCalls } from './lib/turn-text.mjs';
-import { BRIEF_CHECK, WAIT_CHECK } from './lib/question-checks.mjs';
+import { BRIEF_CHECK, BUNDLE_CHECK, WAIT_CHECK } from './lib/question-checks.mjs';
 import { summaryWaitOffers, waitAuditMessage } from './lib/question-wait-audit.mjs';
+import { bundleAuditMessage, summaryBundleProblems, summaryTermWarnings, termDocs, termWarningMessage } from './lib/question-explain-audit.mjs';
 
 const TOOLS = new Set(['AskUserQuestion', 'request_user_input']);
 const enabled = (root, check) => !root || !pathExcluded(root, check, root);
@@ -27,15 +30,25 @@ function audited(p, root, calls) {
     const audit = auditQuestionnaire(p.transcript_path, call);
     if (!audit) continue;
     const offers = enabled(root, WAIT_CHECK) ? summaryWaitOffers(audit.turn, call) : [];
-    recordAudit({ session: p.session_id, project: projectName(root), call: call.id, parts: [...audit.problems.map((x) => x.part), ...(offers.length ? [WAIT_CHECK] : [])] });
-    if (audit.problems.length || offers.length) results.push({ call, audit, offers });
+    const explained = enabled(root, BUNDLE_CHECK) && !audit.problems.length;
+    const bundles = explained ? summaryBundleProblems(audit.turn.prose, call.input.questions) : [];
+    const terms = explained ? summaryTermWarnings(audit.turn.prose, call.input.questions, termDocs(root)) : [];
+    recordAudit({ session: p.session_id, project: projectName(root), call: call.id, parts: [...audit.problems.map((x) => x.part), ...(offers.length ? [WAIT_CHECK] : []), ...(bundles.length ? [BUNDLE_CHECK] : [])] });
+    if (audit.problems.length || offers.length || bundles.length || terms.length) results.push({ call, audit, offers, bundles, terms });
   }
   return results;
 }
 
+const blocking = (r) => r.audit.problems.length || r.offers.length || r.bundles.length;
+
 function reportOf(found) {
   const thin = found.filter((r) => r.audit.problems.length);
-  return [thin.length ? auditMessage(thin) : '', waitAuditMessage(found.filter((r) => r.offers.length))].filter(Boolean).join('\n\n');
+  return [
+    thin.length ? auditMessage(thin) : '',
+    waitAuditMessage(found.filter((r) => r.offers.length)),
+    bundleAuditMessage(found.flatMap((r) => r.bundles)),
+    termWarningMessage([...new Set(found.flatMap((r) => r.terms))]),
+  ].filter(Boolean).join('\n\n');
 }
 
 try {
@@ -44,7 +57,7 @@ try {
   if (!p.transcript_path || (root && pathExcluded(root, BRIEF_CHECK, root))) process.exit(0);
   if (p.hook_event_name === 'Stop') {
     if (p.stop_hook_active) process.exit(0);
-    const thin = audited(p, root, turnCalls(p.transcript_path, TOOLS));
+    const thin = audited(p, root, turnCalls(p.transcript_path, TOOLS)).filter(blocking);
     if (thin.length) {
       process.stderr.write(reportOf(thin));
       process.exit(2);
