@@ -45,7 +45,7 @@ blocks('an install of a source file in a loop', 'for w in a; do install a.txt ho
 blocks('a cp onto a source file behind do', 'for w in a; do cp a.txt hooks/a.mjs; done');
 blocks('a write behind an env assignment', 'FOO=1 tee hooks/a.mjs');
 blocks('a node call on a variable script redirected into a source file', 'node "$Q" code x > hooks/a.mjs');
-blocks('a node call on a literal non-kit script with a write word argument', 'node scripts/tool.mjs install a.txt hooks/a.mjs');
+blocks('a node call on a literal non-kit script with a write word argument', 'node scripts/tool.mjs cp a.txt hooks/a.mjs');
 blocks('a sed -i after a kit call in the same loop', 'for w in a; do q code x; sed -i s/a/b/ hooks/a.mjs; done');
 
 console.log(`\nsource-shell-gate-compound-kit: ${passes} passed, ${fails} failed`);

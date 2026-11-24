@@ -1,83 +1,55 @@
-// The `install` subcommand of a package manager (`npm install x@1`, `sudo apt-get -y install foo`, `cargo install t`) is the
-// manager's own work, not the coreutils `install` that copies a file to a destination. `rustup toolchain install v` counts: its
-// `install` sits one level below the `toolchain` group.
+// `install` is the coreutils copy only where a shell takes it as a command: the start of a segment, past wrappers (`sudo`,
+// `env`, `command`, `timeout 5`), assignments and grouping words. The word as an argument of any other command is that
+// command's own subcommand or target (`npm install x@1`, `ninja -C build install`, `make install`, `cmake --install build`,
+// `rustup toolchain install v`) and writes no file by hand.
 //
-//   everyInstallIsPackaged(text, words, shell) -> boolean
-//     true when `words` (the words of the segment `text`) hold `install` words and a package manager leads a command, past
-//     wrappers, for each of them: in the segment itself, in the string a shell, ssh, find -exec or trap runs (also behind
-//     `docker run ... sh -c`), or in a substitution. A manager named as an option value, a later operand or an assignment
-//     value leads nothing.
-//   blankPackageInstall(piece) -> string
-//     one blind segment (quote pairing untrusted) with its first `install` word blanked when a package manager leads the
-//     piece and that word is the manager's subcommand.
+//   leadsNoInstall(text, shell) -> boolean
+//     true when no `install` leads a command in the segment `text`: not in the segment itself, not in the string a shell,
+//     ssh, find -exec or trap runs (also behind `docker run ... sh -c`), not in a substitution.
+//   blankArgumentInstall(piece) -> string
+//     one blind segment (quote pairing untrusted) with every `install` word blanked when none of them leads a command.
 
 import { commandName, leadIndex } from './command-lead.mjs';
 import { MAX_NESTING, cleaned, commandTokens, substitutions, withoutRedirects } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
-import { segments, shellArgs } from './shell-segments.mjs';
+import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
 
-const MANAGER = /^(?:npm|pnpm|yarn|bun|npx|cargo|pip3?|pipx|uv|poetry|gem|bundle|brew|apt(?:-get)?|dnf|yum|apk|choco|winget|scoop|go|composer|dotnet|nuget|mix|pacman|zypper|snap|flatpak)$/i;
-const TOOLCHAIN_MANAGER = /^rustup$/i;
-const TOOLCHAIN_GROUP = /^toolchain$/i;
 const INSTALL = /^install$/i;
-const INSTALL_WORD = /(?<![\w.-])install(?![\w.-])/i;
-const OPTION_TAKING_A_VALUE = /^(?:--prefix|--cwd|--dir|--directory|--workspace|--registry|--cache|--userconfig|--manifest-path|--root|--filter|--target-dir|-C|-w|-F)$/;
-const WRAPPER_VALUE_FLAG = /^-[A-Za-z]$/;
-const WRAPPER_BOOLEAN_FLAG = /^-[EHSn]$/;
+const INSTALL_WORD = /\binstall\b/gi;
 const BLIND_SEPARATOR = /[\s"'`]+/;
 
-// The index in `rest` (the manager's words after its name) of the subcommand: the first word that is no option and no value
-// of a known option that takes one.
-function subcommandAt(rest) {
-  for (let i = 0; i < rest.length; i++) {
-    if (!rest[i].startsWith('-')) return i;
-    if (OPTION_TAKING_A_VALUE.test(rest[i])) i++;
-  }
-  return -1;
-}
+const leadsAnInstall = (words) => leadIndex(words, (name) => INSTALL.test(name)) >= 0;
 
-// `sudo -u npm install ...` names a user, not the manager: a short wrapper flag that takes a value stands directly before the name.
-const valueOfWrapperFlag = (lead) => {
-  const last = lead[lead.length - 1] || '';
-  return WRAPPER_VALUE_FLAG.test(last) && !WRAPPER_BOOLEAN_FLAG.test(last);
-};
-
-// The index in `words` of the `install` that the package manager leading `words` owns, or -1.
-function ownedInstallAt(words) {
-  const at = leadIndex(words, (name) => MANAGER.test(name) || TOOLCHAIN_MANAGER.test(name));
-  if (at < 0 || valueOfWrapperFlag(words.slice(0, at))) return -1;
-  const rest = words.slice(at + 1);
-  let sub = subcommandAt(rest);
-  if (sub >= 0 && TOOLCHAIN_MANAGER.test(commandName(words[at])) && TOOLCHAIN_GROUP.test(rest[sub])) {
-    const next = subcommandAt(rest.slice(sub + 1));
-    sub = next < 0 ? -1 : sub + 1 + next;
-  }
-  return sub >= 0 && INSTALL.test(rest[sub]) ? at + 1 + sub : -1;
-}
-
-function ownedInstalls(text, shell, depth = 0) {
-  let owned = 0;
+function leadingInstalls(text, shell, depth = 0) {
+  let leading = 0;
   for (const seg of segments(text, { shell })) {
-    if (ownedInstallAt(cleaned(shellArgs(withoutRedirects(seg.text)))) >= 0) owned++;
+    if (leadsAnInstall(cleaned(shellArgs(withoutRedirects(seg.text))))) leading++;
     if (depth >= MAX_NESTING) continue;
     const tokens = cleaned(commandTokens(seg.text));
     const runs = [
       ...tokens.flatMap((token, i) => runnerTexts(commandName(token), tokens.slice(i + 1), { shell })),
       ...substitutions(seg.text, shell).map((inner) => ({ text: inner, shell })),
     ];
-    for (const run of runs) owned += ownedInstalls(run.text, run.shell, depth + 1);
+    for (const run of runs) leading += leadingInstalls(run.text, run.shell, depth + 1);
   }
-  return owned;
+  return leading;
 }
 
-export function everyInstallIsPackaged(text, words, shell) {
-  const installs = words.filter((word) => INSTALL.test(word)).length;
-  return installs > 0 && ownedInstalls(text, shell) >= installs;
+function leadingBlindInstalls(piece, depth = 0) {
+  const words = cleaned(String(piece).split(BLIND_SEPARATOR));
+  let leading = leadsAnInstall(words) ? 1 : 0;
+  if (depth >= MAX_NESTING) return leading;
+  for (let i = 0; i < words.length; i++) {
+    for (const run of runnerTexts(commandName(words[i]), words.slice(i + 1), { blind: true })) {
+      for (const seg of blindSegments(run.text)) leading += leadingBlindInstalls(seg.text, depth + 1);
+    }
+  }
+  return leading;
 }
 
-export function blankPackageInstall(piece) {
+export const leadsNoInstall = (text, shell) => leadingInstalls(text, shell) === 0;
+
+export function blankArgumentInstall(piece) {
   const text = String(piece);
-  const words = cleaned(text.split(BLIND_SEPARATOR));
-  const at = ownedInstallAt(words);
-  return at >= 0 && words.findIndex((word) => INSTALL.test(word)) === at ? text.replace(INSTALL_WORD, ' ') : text;
+  return leadingBlindInstalls(text) === 0 ? text.replace(INSTALL_WORD, ' ') : text;
 }
