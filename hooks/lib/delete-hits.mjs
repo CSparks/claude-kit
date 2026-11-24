@@ -4,13 +4,16 @@
 //     ctx:  the scan context (`hit`, `removals`, `vars`, `shell`), as shell-write-scan.mjs builds it
 //     every hit carries `deletes: true`. With `removals` the operands are read after the command's own literal variables
 //     expand, and the ones no segment resolves to a file are the caller's `unresolved` hits.
-// The operands are shell-lexer.mjs words with every substitution split open, so the words a substitution carries are
-// judged too; a `$(...)` itself is an unresolved operand.
+// The operands are every word either reading finds: the shell's (shell-lexer.mjs, substitutions split open) and the
+// blind one that splits at every quote and bracket, so a word inside a quoted `$(...)` is judged too. An operand that
+// holds a substitution, quoted or not, is unresolved.
 
 import { deleteOperandText, isStatusParameter } from './delete-operands.mjs';
-import { lex } from './shell-lexer.mjs';
+import { lex, words } from './shell-lexer.mjs';
 import { expandVariables } from './shell-variables.mjs';
 
+const SUBSTITUTION = /\$\(/;
+const BACKTICK = '`';
 const RECURSIVE_BASH = /^(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive)$/;
 const RECURSIVE_POWERSHELL = /^-r(?:ec[a-z]*)?$/i;
 const POWERSHELL_SUBEXPRESSION = /(?:^|\s)@?\(/;
@@ -27,17 +30,20 @@ function decidingParts(operand, recursive) {
 function unresolvedOperands({ operands, substitutions }, argText, ctx) {
   const power = ctx.shell === 'powershell';
   const recursive = operands.some((o) => (power ? RECURSIVE_POWERSHELL : RECURSIVE_BASH).test(o));
-  const open = operands.filter((o) => o.includes('$') && (decidingParts(o, recursive).some((p) => p.includes('$')) || ctx.hit(o)));
+  const substituted = (o) => SUBSTITUTION.test(o) || (!power && o.includes(BACKTICK));
+  const open = operands.filter((o) => substituted(o) || (o.includes('$') && (decidingParts(o, recursive).some((p) => p.includes('$')) || ctx.hit(o))));
   const shown = [...open.map((o) => (o === '$' ? '$(...)' : o)), ...Array(substitutions).fill('$(...)')];
   if (!power && argText.includes('`')) shown.push('`...`');
   if (power && POWERSHELL_SUBEXPRESSION.test(argText)) shown.push('(...)');
   return { open, shown };
 }
 
-// The operand words (status parameters dropped) and how many `$(...)` substitutions the text opens.
+// The operand words of both readings (status parameters dropped) and how many unquoted `$(...)` the text opens.
 function fileOperands(text, shell) {
   const { tokens } = lex(text, { shell, flat: true });
-  const operands = tokens.filter((t) => t.kind === 'word' && !isStatusParameter(t.literal)).map((t) => t.literal);
+  const read = tokens.filter((t) => t.kind === 'word').map((t) => t.literal);
+  const blind = words(text, { blind: true }).map((t) => t.raw);
+  const operands = [...new Set([...read, ...blind])].filter((w) => !isStatusParameter(w));
   return { operands, substitutions: tokens.filter((t) => t.kind === 'open' && t.op === '$(').length };
 }
 

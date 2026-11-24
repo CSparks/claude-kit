@@ -45,6 +45,16 @@ try {
   const escapedQuote = 'rm "target\\" " src/a.rs %X%" "';
   check('KIT-T1528: a bash-escaped quote inside double quotes hides no delete target', treeDeleteTargets(escapedQuote, live, live, 'bash').includes(join(live, 'src', 'a.rs')));
   check('KIT-T1528: the gate blocks the delete behind the escaped quote', run(live, escapedQuote).status === 2);
+  mkdirSync(join(live, 'src'), { recursive: true });
+  writeFileSync(join(live, 'src', 'a.rs'), 'fn main() {}\n');
+  const source = join(live, 'src', 'a.rs');
+  check('KIT-T1528: a bash backslash escape is judged as bash reads it too (\\target/../src reads target/../src)', run(live, 'rm -rf \\target/../src/a.rs').status === 2);
+  check('KIT-T1528: quotes inside a comment hide no later delete', run(live, "echo x # 'a\nrm -rf src/a.rs\n# b'").status === 2);
+  check('KIT-T1528: quotes inside a heredoc body hide no later delete', run(live, "cat <<EOF\n'\nEOF\nrm -rf src/a.rs\ncat <<EOF\n'\nEOF").status === 2);
+  check('KIT-T1528: quotes inside a PowerShell here-string hide no later delete', treeDeleteTargets("$x = @'\na'\n'@; Remove-Item src/a.rs; $y = @'\n'\n'@", live, live, 'powershell').includes(source));
+  check('KIT-T1528: a quote inside a double-quoted substitution makes the line ambiguous', run(live, 'echo "$(true "x" ; rm -rf src/a.rs)"').status === 2);
+  check('KIT-T1528: a delete inside a substitution is its own segment and blocks', run(live, 'echo $(true; rm -rf src/a.rs)').status === 2);
+  check('KIT-T1528 control: the heredoc commit message form passes', run(live, `git commit -m "$(cat <<'EOF'\nfix: it's done; rm old\nEOF\n)"`).status === 0);
   check('blocks Remove-Item too', run(live, 'Remove-Item -Recurse -Force assets\\tmp').status === 2);
   check('allows an rm of build output', run(live, 'rm -rf target/debug').status === 0);
   check('allows an rm in the temp dir', run(live, `rm -rf ${join(tmpdir(), 'scratch')}`).status === 0);

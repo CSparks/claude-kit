@@ -49,6 +49,7 @@ try {
     ['an append', 'echo x >> legacy/old/a.ts'],
     ['rm', 'rm legacy/old/a.ts'],
     ['rm -rf of the directory', 'rm -rf legacy'],
+    ['an rm inside a quoted substitution (KIT-T1528)', 'rm "$(echo legacy/old/a.ts)"'],
     ['sed -i', "sed -i 's/1/2/' legacy/old/a.ts"],
     ['a plain mv INTO legacy (use git mv)', 'mv src/x.ts legacy/old/x.ts'],
     ['a plain mv OUT of legacy', 'mv legacy/old/a.ts src/a.ts'],

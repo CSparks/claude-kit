@@ -4,6 +4,7 @@
 // Run: node hooks/shell-lexer.test.mjs
 
 import { lex, REASON, words } from './lib/shell-lexer.mjs';
+import { segments } from './lib/shell-segments.mjs';
 
 let fails = 0;
 let passes = 0;
@@ -89,6 +90,23 @@ check('a top-level comment is a token with no mark', (() => { const l = lex('a #
 check('a stray close paren is a token and keeps depth at zero', lex('a ) b; c', { shell: 'bash' }).tokens.filter((t) => t.kind === 'op').every((t) => t.depth === 0));
 check('a heredoc operator is a token', lex("cat <<'EOF'", { shell: 'bash' }).tokens.some((t) => t.kind === 'heredoc' && t.op === '<<'));
 check('substitutions are open and close tokens', lex('a $(b) `c` <(d)', { shell: 'bash' }).tokens.filter((t) => t.kind === 'open').map((t) => t.op).join() === '$(,`,<(');
+
+// Comments, heredoc bodies and here-strings: their quotes hide no later command.
+const texts = (text, shell = 'bash') => segments(text, { shell }).map((s) => s.text.trim());
+check('a quote inside a comment opens nothing', texts("echo x # 'a\nrm src/a.rs\n# b'").includes('rm src/a.rs') && lex("echo x # it's", { shell: 'bash' }).ambiguity === null);
+check('an escape at a comment end does not join the next line', texts('echo x # \\\nrm src/a.rs').includes('rm src/a.rs'));
+check('a comment inside a group is read to its line end', texts("x $(echo # ')\nrm src/a.rs\n)").includes('rm src/a.rs') && lex("x $(echo # ')\nrm src/a.rs\n)", { shell: 'bash' }).ambiguity === null);
+check('an operator inside a comment still splits', ops('a # b; c', 'bash').length === 1);
+check('a PowerShell block comment is inert to its close', texts("a <# '\n#> ; rm src/a.rs ; <# '\n#>", 'powershell').includes('rm src/a.rs'));
+check('quotes inside a heredoc body open nothing', texts("cat <<EOF\n'\nEOF\nrm src/a.rs\ncat <<EOF\n'\nEOF").includes('rm src/a.rs'));
+check('a heredoc with no terminator line is lexed as commands', lex("cat <<'EOF'\nls 'a'", { shell: 'bash' }).ambiguity === null && words("cat <<'EOF'\nls 'a'", { shell: 'bash' }).some((w) => w.value === 'a'));
+check('a here-string is one PowerShell word', values("$x = @'\nit's\n'@; ls", { shell: 'powershell' }).includes("it's"));
+check('a here-string hides no later command', texts("$x = @'\na'\n'@; rm src/a.rs; $y = @'\n'\n'@", 'powershell').includes('rm src/a.rs'));
+check('a here-string is ambiguous when the shell is unknown', lex("$x = @'\nz\n'@", { shell: '' }).ambiguity?.reason === REASON.hereString);
+check('a quote inside a double-quoted substitution is ambiguous', ambiguity('echo "$(true "x" ; rm src)"', 'bash') === REASON.quoteInSubstitution);
+check('a heredoc commit message inside a double-quoted substitution is not', ambiguity(`git commit -m "$(cat <<'EOF'\nsay "hi"; it's\nEOF\n)"`, 'bash') === null);
+check('a quote inside a double-quoted backtick span is ambiguous', reasons('echo "`true "x" ; rm src` a"', { shell: 'bash' }).includes(REASON.quoteInSubstitution) && ambiguity('echo "`true "x" ; rm src` a"', 'bash') !== null);
+check('a case statement where a command starts is ambiguous; the word as an argument is not', ambiguity('case x in a) rm y;; esac', 'bash') === REASON.caseStatement && ambiguity('echo case x', 'bash') === null);
 
 console.log(`\n${passes} passed, ${fails} failed`);
 process.exit(fails ? 1 : 0);

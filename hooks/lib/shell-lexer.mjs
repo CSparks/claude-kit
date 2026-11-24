@@ -10,41 +10,27 @@
 //     dropped, escapes resolved as the shell does; literal: under bash a backslash before a letter, digit, `.`, `_` or
 //     `-` stays, so `C:\dev\x` reads as written; redirect: the word a redirection names), { kind: 'op', op, depth }
 //     (`;` `|` `||` `&&` `&`, a newline is `;`, at every depth), { kind: 'redirect' | 'heredoc', op } (an fd number is
-//     part of it; heredoc bodies are lexed as commands), { kind: 'open' | 'close', op } (`(` a group, `$(` `<(` `>(` and
-//     a backtick a substitution) and { kind: 'comment' } (lexed on: its text is judged as code).
-//   ambiguity  the first construct that leaves the quoting unresolvable, { reason, at, span }; null when none
-//   marks      [{ reason, at }] every construct not modelled, in text order: the quoting ambiguities and the spans it
-//              cannot bound (a substitution inside double quotes, a comment or heredoc inside a group, a case statement,
-//              a substitution that never closes, an unknown shell's escape). A consumer fails closed on a mark.
+//     part of it), { kind: 'open' | 'close', op } (`(` a group, `$(` `<(` `>(` and a backtick a substitution) and
+//     { kind: 'comment' }. Comment text and heredoc bodies are inert (no quote or escape read; operators still split, so
+//     their text is judged as code); a PowerShell here-string is one quoted span (shell-lexer-spans.mjs).
+//   ambiguity  the first construct that leaves the reading unresolvable, { reason, at, span }; null when none (the
+//              reasons of shell-lexer-rules.mjs AMBIGUOUS)
+//   marks      [{ reason, at }] every construct not modelled exactly, in text order (also a substitution inside double
+//              quotes, a comment or heredoc inside a group, an unknown shell's escape). A text cut fails closed on any.
 //   words(text, opts) -> the word tokens of lex(text, opts)
 
 import { belongsToRedirection } from './redirection-operator.mjs';
+import { AMBIGUOUS, REASON, readsTypographicQuote, rulesFor, TYPOGRAPHIC_QUOTE } from './shell-lexer-rules.mjs';
+import { backtickHoldsQuote, hasTerminator, heredocDelimiter, hereString as readHereString, opensHereString, substitutionHoldsQuote, terminates } from './shell-lexer-spans.mjs';
 
-export const REASON = Object.freeze({
-  dollar: "a $' or $\" string",
-  typographic: 'a typographic quote PowerShell reads as a quote',
-  escape: 'an escape character before a quote',
-  textQuote: 'a single quote cmd reads as text',
-  unclosed: 'a quote that never closes',
-  quotedSubstitution: 'a substitution inside double quotes',
-  groupComment: 'a comment or heredoc inside a group',
-  caseStatement: 'a case statement',
-  unclosedSubstitution: 'a substitution that never closes',
-  unknownEscape: 'an escape character of an unknown shell',
-});
-const QUOTING = [REASON.dollar, REASON.typographic, REASON.escape, REASON.textQuote, REASON.unclosed];
-
-// The Unicode single and double quotes PowerShell reads as quote characters (U+2018 to U+201B, U+201C to U+201E).
-export const TYPOGRAPHIC_QUOTE = /[‘-„]/;
-
-/** True when a typographic quote may be a quote: PowerShell reads it as one, and a caller that does not know its shell must assume so. */
-export const readsTypographicQuote = (shell) => shell === 'powershell' || !shell;
+export { REASON, readsTypographicQuote, TYPOGRAPHIC_QUOTE };
 
 const LEGACY_ESCAPE = /[\\`]["']/;
 const UNKNOWN_ESCAPE = /[`^]|\\["'();|&]/;
 const PLAIN_HASH_LEAD = /[\w${]/;
 const CASE_WORD = 'case';
 const CASE_LEAD = /[\s;&|(]/;
+const COMMAND_BEFORE = /(?:^|[;&|()\n]|(?:^|\s)(?:then|do|else|elif|time|!|\{))\s*$/;
 const SPACE = /\s/;
 const QUOTE = /["']/;
 const PATH_CHARACTER = /[A-Za-z0-9._-]/;
@@ -53,17 +39,9 @@ const FD = /^\d+$/;
 const BASH_DOUBLE_ESCAPES = '$`"\\\n';
 const SPAN_RADIUS = 24;
 
-const RULES = {
-  bash: { escape: '\\', quotes: `"'`, inDouble: true, backtick: true, subs: true, ops: ';|&\n', flags: '`', ansi: true, comments: true },
-  powershell: { escape: '`', quotes: `"'`, inDouble: true, subs: true, ops: ';|&\n', flags: '`\\', doubled: true, comments: true },
-  cmd: { escape: '^', quotes: '"', ops: '|&\n', flags: '`', textQuote: "'" },
-};
-const UNKNOWN = { quotes: `"'`, backtick: true, subs: true, ops: ';|&\n', legacy: true, comments: true };
-const BLIND = { quotes: '', ops: ';|&\n', separators: `"'\`()<>` };
-
 const depthOf = (s) => s.stack.length + (s.backtick >= 0 ? 1 : 0);
 const inSpan = (s) => s.spans && (s.backtick >= 0 || s.stack.some((open) => open.op !== '('));
-const mark = (s, reason, at) => s.marks.push({ reason, at });
+const mark = (s, reason, at, extra) => s.marks.push({ reason, at, ...extra });
 const emit = (s, kind, op, start, end) => s.tokens.push({ kind, op, start, end, depth: depthOf(s) });
 
 // Appends text[from, to) to the current word: its raw characters inside a substitution, else `value` (and `literal`).
@@ -107,9 +85,45 @@ function quoted(s, i) {
     return i + 2;
   }
   if (ch === '"') return closeQuote(s, i, '"');
-  if ((ch === '$' && next === '(') || (ch === '`' && rules.backtick)) mark(s, REASON.quotedSubstitution, i);
+  const substitution = ch === '$' && next === '(';
+  if (substitution || (ch === '`' && rules.backtick)) mark(s, REASON.quotedSubstitution, i);
+  if (substitution && rules.subs && substitutionHoldsQuote(src, i, rules.escape || '\\')) mark(s, REASON.quoteInSubstitution, i);
+  if (ch === '`' && rules.backtick && backtickHoldsQuote(src, i)) mark(s, REASON.quoteInSubstitution, i);
   add(s, i, i + 1, ch);
   return i + 1;
+}
+
+// A PowerShell here-string is one quoted span to its closing line; a shell that may not read one marks it.
+function hereString(s, i) {
+  if (s.rules.markHereStrings) { mark(s, REASON.hereString, i); return -1; }
+  const found = readHereString(s.src, i);
+  if (!found) { mark(s, REASON.unclosed, i); return -1; }
+  if (s.src[i + 1] === '"' && found.body.includes('$(')) mark(s, REASON.quotedSubstitution, i);
+  add(s, i, found.end, found.body);
+  return found.end;
+}
+
+// Comment text and heredoc bodies are inert: no quote, escape or substitution is read, operators still split.
+function inert(s, i) {
+  const { src, rules } = s;
+  const ch = src[i];
+  if (s.inert === 'block' && src.startsWith('#>', i)) { s.inert = ''; add(s, i, i + 2, '#>'); return i + 2; }
+  if (ch === '\n' || (rules.ops.includes(ch) && !((ch === '|' || ch === '&') && belongsToRedirection(src, i)))) return operator(s, i);
+  if (SPACE.test(ch) && !inSpan(s)) { endWord(s, i); return i + 1; }
+  add(s, i, i + 1, ch);
+  return i + 1;
+}
+
+// A newline ends a line comment, steps a heredoc body on to its terminator, and opens the bodies the line declared.
+function newline(s, i) {
+  const line = s.src.slice(s.lineStart, i);
+  s.lineStart = i + 1;
+  if (s.inert === 'line') s.inert = '';
+  if (s.inert === 'body' && terminates(line, s.pending[0])) s.pending.shift();
+  if (s.inert === 'body' && !s.pending.length) s.inert = '';
+  if (s.inert || !s.pending.length) return;
+  s.pending = s.pending.filter((heredoc) => hasTerminator(s.src, i + 1, heredoc));
+  if (s.pending.length) s.inert = 'body';
 }
 
 // An escaped escape character still reads as one to a program's own argument parser (`` `\" `` under PowerShell).
@@ -140,17 +154,24 @@ function openQuote(s, i) {
   return i + 1;
 }
 
-// Marks a comment, heredoc or case statement where the lexer cannot bound what follows.
+// Marks a case statement, and a comment or heredoc inside a group; a heredoc's delimiter waits for its body, a hash
+// starts an inert comment (a PowerShell or unknown shell's `<#` one to its `#>`).
 function markUnbounded(s, i) {
-  const { src } = s;
+  const { src, rules } = s;
   const after = src[i + CASE_WORD.length];
-  if (src.startsWith(CASE_WORD, i) && (i === 0 || CASE_LEAD.test(src[i - 1])) && (after === undefined || SPACE.test(after))) mark(s, REASON.caseStatement, i);
+  if (src.startsWith(CASE_WORD, i) && (i === 0 || CASE_LEAD.test(src[i - 1])) && (after === undefined || SPACE.test(after))) {
+    mark(s, REASON.caseStatement, i, { command: COMMAND_BEFORE.test(src.slice(0, i)) });
+  }
   const hash = src[i] === '#' && (i === 0 || !PLAIN_HASH_LEAD.test(src[i - 1]));
   if ((hash || src.startsWith('<<', i)) && depthOf(s) > 0) mark(s, REASON.groupComment, i);
-  if (hash && s.rules.comments) {
-    const end = src.indexOf('\n', i);
-    s.tokens.push({ kind: 'comment', start: i, end: end < 0 ? src.length : end });
+  if (src.startsWith('<<', i) && !src.startsWith('<<<', i) && src[i - 1] !== '<') {
+    const heredoc = heredocDelimiter(src, i);
+    if (heredoc) s.pending.push(heredoc);
   }
+  if (!hash) return;
+  s.inert = rules.blockComments && src[i - 1] === '<' ? 'block' : 'line';
+  const end = s.inert === 'block' ? src.indexOf('#>', i) : src.indexOf('\n', i);
+  s.tokens.push({ kind: 'comment', start: i, end: end < 0 ? src.length : end });
 }
 
 function open(s, i, op) {
@@ -199,6 +220,7 @@ function operator(s, i) {
   if (inSpan(s)) add(s, i, i + length, pair.slice(0, length));
   else endWord(s, i);
   emit(s, 'op', length === 2 ? pair : src[i] === '\n' ? ';' : src[i], i, i + length);
+  if (src[i] === '\n') newline(s, i);
   return i + length;
 }
 
@@ -206,9 +228,14 @@ function step(s, i) {
   const { src, rules } = s;
   const ch = src[i];
   const next = src[i + 1] ?? '';
+  if (s.inert) return inert(s, i);
   if (rules.flags?.includes(ch) && s.quote !== "'" && s.quote !== "$'" && QUOTE.test(next)) mark(s, REASON.escape, i);
   if (s.quote) return quoted(s, i);
   if (rules.escape && ch === rules.escape && i + 1 < src.length) return escaped(s, i);
+  if (rules.hereStrings && ch === '@' && opensHereString(src, i)) {
+    const end = hereString(s, i);
+    if (end >= 0) return end;
+  }
   if (rules.quotes.includes(ch)) return openQuote(s, i);
   if (ch === rules.textQuote) mark(s, REASON.textQuote, i);
   if (!s.blind) markUnbounded(s, i);
@@ -251,14 +278,15 @@ function finish(s, shell) {
   if (typographic >= 0) mark(s, REASON.typographic, typographic);
   s.marks.sort((a, b) => a.at - b.at);
   s.tokens.sort((a, b) => a.start - b.start);
-  const first = QUOTING.map((reason) => s.marks.find((m) => m.reason === reason)).find(Boolean);
+  const counts = (m) => m.reason !== REASON.caseStatement || m.command;
+  const first = AMBIGUOUS.map((reason) => s.marks.find((m) => m.reason === reason && counts(m))).find(Boolean);
   return { tokens: s.tokens, marks: s.marks, ambiguity: first ? describe(src, first.reason, first.at) : null };
 }
 
 export function lex(text, { shell = '', blind = false, flat = false } = {}) {
   const src = String(text);
-  const rules = blind ? BLIND : RULES[shell] || UNKNOWN;
-  const s = { src, rules, blind, spans: !blind && !flat, tokens: [], marks: [], stack: [], backtick: -1, quote: '', quoteAt: -1, word: null, target: false, escapedTo: -1 };
+  const rules = rulesFor(shell, blind);
+  const s = { src, rules, blind, spans: !blind && !flat, tokens: [], marks: [], stack: [], backtick: -1, quote: '', quoteAt: -1, word: null, target: false, escapedTo: -1, inert: '', pending: [], lineStart: 0 };
   for (let i = 0; i < src.length;) i = step(s, i);
   return finish(s, shell);
 }
