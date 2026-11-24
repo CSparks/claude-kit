@@ -1,6 +1,6 @@
 // Quote-aware split of a shell line into segments, each tagged with the operator BEFORE it
 // ('start', '|', '||', '&&', ';', '&'). A newline is a ';'. Operators inside strings don't
-// split; `>&` / `&>` are redirections, not separators. Shared by the query gate and the
+// split; `>|`, `>&`, `<&`, `&>` and `&>>` are redirections, not separators. Shared by the query gate and the
 // search telemetry so both judge the same commands.
 //
 // The split follows plain quote pairing only. Shells disagree about escapes (a backslash before a quote in
@@ -22,6 +22,7 @@
 
 import { inertText } from './inert-heredoc.mjs';
 import { msysToNative } from './msys-path.mjs';
+import { belongsToRedirection } from './redirection-operator.mjs';
 
 export { inertText };
 
@@ -49,7 +50,7 @@ function split(cmd, blind = false, shell = '') {
       if (cmd[i - 1] === '$') { if (!dollarQuoted) at.dollar = i - 1; dollarQuoted = true; }
       q = ch; at.open = i; cur += ch; continue;
     }
-    if (ch === '&' && (cmd[i - 1] === '>' || cmd[i + 1] === '>')) { cur += ch; continue; }
+    if ((ch === '|' || ch === '&') && belongsToRedirection(cmd, i)) { cur += ch; continue; }
     if (ch === '|' || ch === '&' || ch === ';' || ch === '\n') {
       const pair = ch + (cmd[i + 1] || '');
       const sep = pair === '||' || pair === '&&' ? pair : ch === '\n' ? ';' : ch;

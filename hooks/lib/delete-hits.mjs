@@ -34,7 +34,7 @@ function unresolvedOperands(operands, argText, ctx) {
 
 export function deleteHits(ctx, allArgText) {
   const { hit, removals } = ctx;
-  const argText = deleteOperandText(allArgText);
+  const argText = deleteOperandText(allArgText, ctx.shell);
   const deleting = (h) => ({ ...h, deletes: true });
   const fileOperands = (text) => wordsIn(text).map((x) => x.w).filter((w) => !isStatusParameter(w));
   if (!removals) return fileOperands(argText).map(hit).filter(Boolean).map(deleting);

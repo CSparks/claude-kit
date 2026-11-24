@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // source-shell-gate-delete-segment.test.mjs — the operands of a delete end at the segment boundary (`;`, `&&`, `||`, `|`,
 // newline), also inside the quoted string of a wrapped shell, and a bare `$?`, `$!`, `$$` or `$#` is never a file operand
-// (KIT-T1522). A real delete of source, an unresolved variable, a glob and `git rm -f` stay blocked.
+// (KIT-T1522). A real delete of source, an unresolved variable, a glob and `git rm -f` stay blocked, also after a construct
+// the operand cut does not model: an ANSI-C string, a redirect token with `|` or `&`, a case statement (KIT-T1524).
 // Run: node hooks/source-shell-gate-delete-segment.test.mjs
 
 import { BLOCK, PASS, wrappedHarness } from './source-shell-gate-wrapped-harness.mjs';
@@ -44,6 +45,31 @@ try {
     ['rm of source in a builds --run command', "builds --run 'rm src/a.rs'"],
   ];
   for (const [name, command] of blocks) ok(`source gate blocks ${name}`, src(command) === BLOCK);
+
+  const powershell = 'PowerShell';
+  const modelled = [
+    ['rm of source after an ANSI-C string with an escaped quote', String.raw`bash -c "rm \$'x\\'y;z' src/a.rs"`],
+    ['rm of source after a redirect with a pipe', "bash -c 'rm >| out src/a.rs'"],
+    ['rm of source after a top-level redirect with a pipe', 'rm >| out src/a.rs'],
+    ['rm of source after an fd redirect with a pipe', "bash -c 'rm 2>| out src/a.rs'"],
+    ['rm of source after an input duplication', "bash -c 'rm a <&3 src/a.rs'"],
+    ['rm of source after an ampersand redirect', "bash -c 'rm a &> log src/a.rs'"],
+    ['rm of source after an appending ampersand redirect', "bash -c 'rm a &>> log src/a.rs'"],
+    ['rm of source after a case statement in a process substitution', "bash -c 'rm <(case x in a) echo q;; esac) src/a.rs'"],
+    ['rm of source after a substitution inside double quotes', `bash -c 'rm "$(echo "x;y" )" src/a.rs'`],
+  ];
+  for (const [name, command] of modelled) ok(`source gate blocks ${name}`, src(command) === BLOCK);
+  ok('source gate blocks rm of source after a backtick-escaped quote in PowerShell',
+    src('powershell -Command \'rm "a`";b" src/a.rs\'', powershell) === BLOCK);
+
+  const stillCut = [
+    ['rm then a redirect with a pipe and a later source name', "bash -c 'rm -rf build >| log; ls src/a.rs'"],
+    ['rm then an appending ampersand redirect and a status echo', 'rm -rf build &>> log; echo $?'],
+    ['rm then a group-closing rm and a later source name', "bash -c '( cd x && rm -rf build ) && ls src/a.rs'"],
+  ];
+  for (const [name, command] of stillCut) ok(`source gate passes ${name}`, src(command) === PASS);
+  ok('source gate passes rm then a later source name in PowerShell',
+    src("powershell -Command 'rm -rf build; ls src/a.rs'", powershell) === PASS);
 } finally {
   finish();
 }
