@@ -11,7 +11,7 @@
 //     piece is cut at every substitution, group and brace opener first, so each starts its own command.
 
 import { commandName } from './command-lead.mjs';
-import { unownedInstalls } from './install-owner.mjs';
+import { installWordCount, ownerLeadIndex, unownedInstalls } from './install-owner.mjs';
 import { MAX_NESTING, cleaned, commandTokens, substitutions, withoutRedirects } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
 import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
@@ -35,16 +35,31 @@ function countUnowned(text, shell, depth = 0) {
   return unowned;
 }
 
+const blindWords = (text) => cleaned(String(text).split(BLIND_SEPARATOR));
+
+// The command word and everything after it is the command's own: the first runner the owner walk can reach, never a word
+// it skipped as a wrapper option's value or an operand.
+function blindRunner(words, runs) {
+  const lead = ownerLeadIndex(words);
+  if (lead < 0) return -1;
+  return words.findIndex((word, i) => i >= lead && runs(i).length > 0);
+}
+
 function countBlindUnowned(piece, depth = 0) {
   let unowned = 0;
   for (const part of String(piece).split(BLIND_COMMAND_START)) {
-    const words = cleaned(part.split(BLIND_SEPARATOR));
+    const words = blindWords(part);
     const runs = (i) => runnerTexts(commandName(words[i]), words.slice(i + 1), { blind: true });
-    const runner = words.findIndex((word, i) => runs(i).length > 0);
-    const nests = runner >= 0 && depth < MAX_NESTING;
-    unowned += unownedInstalls(nests ? words.slice(0, runner + 1) : words);
-    if (!nests) continue;
-    for (const run of runs(runner)) {
+    const runner = depth < MAX_NESTING ? blindRunner(words, runs) : -1;
+    if (runner < 0) {
+      unowned += unownedInstalls(words);
+      continue;
+    }
+    const nested = runs(runner);
+    const covered = nested.reduce((sum, run) => sum + installWordCount(blindWords(run.text)), 0);
+    unowned += unownedInstalls(words.slice(0, runner + 1));
+    unowned += Math.max(0, installWordCount(words.slice(runner + 1)) - covered);
+    for (const run of nested) {
       for (const seg of blindSegments(run.text)) unowned += countBlindUnowned(seg.text, depth + 1);
     }
   }

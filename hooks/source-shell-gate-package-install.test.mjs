@@ -37,6 +37,10 @@ try {
     ['make install', 'make install'],
     ['make install with a prefix variable', 'make -C build install DESTDIR=out'],
     ['cmake --install', 'cmake --install build'],
+    ['cmake --build with the install target', 'cmake --build build --config Release --target install'],
+    ['make with a job count and a directory', 'make -j4 -C build install'],
+    ['ninja with a job count', 'ninja -C build -j 4 install'],
+    ['npm with an attached option value', 'npm --prefix=app install x@1'],
     ['go install', 'go install ./cmd/tool@latest'],
     ['pip install', 'pip install -r requirements.txt'],
     ['gem install', 'gem install bundler'],
@@ -124,6 +128,28 @@ try {
     ['sudo before install', 'sudo install a.rs src/b.rs'],
   ];
   for (const [name, command] of ambiguousBlocks) ok(`ambiguous quoting: source gate blocks a manager named as ${name}`, src(AMBIGUOUS + command) === BLOCK);
+  const ownerForms = [
+    ['cmake -E running a command', 'cmake -E env install a.rs src/b.rs'],
+    ['cmake --build without the install target', 'cmake --build . install a.rs src/b.rs'],
+    ['cmake --build with install after the native-tool separator', 'cmake --build . --target all -- install a.rs src/b.rs'],
+    ['meson devenv running a command', 'meson devenv install a.rs src/b.rs'],
+    ['env running install', 'env install a.rs src/b.rs'],
+    ['pnpm with a workspace-root flag before exec', 'pnpm -w exec install a.rs src/b.rs'],
+    ['a manager option that is another manager option', 'cargo --prefix exec install a.rs src/b.rs'],
+    ['a value option that took install as its value', 'npm --prefix install a.rs src/b.rs'],
+    ['an option the manager does not list', 'apt-get --frobnicate exec install a.rs src/b.rs'],
+    ['a name that is an object property', 'constructor install a.rs src/b.rs'],
+  ];
+  for (const [name, command] of ownerForms) {
+    ok(`source gate blocks ${name}`, src(command) === BLOCK);
+    ok(`ambiguous quoting: source gate blocks ${name}`, src(AMBIGUOUS + command) === BLOCK);
+  }
+  const hiddenRunners = [
+    ['a wrapper option value taken as ssh', 'sudo -u ssh install a.rs src/b.rs'],
+    ['a wrapper option value taken as su', 'sudo -u su install -c a.rs src/b.rs'],
+    ['an install behind an owner after a fake ssh runner', 'sudo -u ssh flock npm install a.rs src/b.rs'],
+  ];
+  for (const [name, command] of hiddenRunners) ok(`ambiguous quoting: source gate blocks install hidden by ${name}`, src(AMBIGUOUS + command) === BLOCK);
   ok('ambiguous quoting: source gate blocks a shell body install', src(`${AMBIGUOUS}sh -c install a.sh src/b.rs`) === BLOCK);
   ok('ambiguous quoting: source gate blocks a build tool install redirected', src(`${AMBIGUOUS}ninja -C build install > src/b.rs`) === BLOCK);
   ok('ambiguous quoting: source gate blocks a coreutils install', src(`${AMBIGUOUS}install a.sh src/b.rs`) === BLOCK);
