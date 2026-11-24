@@ -38,7 +38,13 @@ function countUnowned(text, shell, depth = 0) {
   return unowned;
 }
 
-const blindWords = (text) => cleaned(words(text, { blind: true }).map((word) => word.raw));
+const AFTER_REDIRECT = /[<>][&|]?\s*$/;
+
+// The blind words without the one a redirection names (`<npm` reads a file named npm; it owns nothing).
+const blindWords = (text) => {
+  const source = String(text);
+  return cleaned(words(source, { blind: true }).filter((word) => !AFTER_REDIRECT.test(source.slice(0, word.start))).map((word) => word.raw));
+};
 
 // The command word and everything after it is the command's own: the first runner the owner walk can reach, never a word
 // it skipped as a wrapper option's value or an operand.

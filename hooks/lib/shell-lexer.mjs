@@ -28,6 +28,7 @@ export { REASON, readsTypographicQuote, TYPOGRAPHIC_QUOTE };
 const LEGACY_ESCAPE = /[\\`]["']/;
 const UNKNOWN_ESCAPE = /[`^]|\\["'();|&]/;
 const PLAIN_HASH_LEAD = /[\w${]/;
+const COMMENT_LEAD = /[\s;&|()]/;
 const CASE_WORD = 'case';
 const CASE_LEAD = /[\s;&|(]/;
 const COMMAND_BEFORE = /(?:^|[;&|()\n]|(?:^|\s)(?:then|do|else|elif|time|!|\{))\s*$/;
@@ -154,8 +155,8 @@ function openQuote(s, i) {
   return i + 1;
 }
 
-// Marks a case statement, and a comment or heredoc inside a group; a heredoc's delimiter waits for its body, a hash
-// starts an inert comment (a PowerShell or unknown shell's `<#` one to its `#>`).
+// Marks a case statement, and a comment or heredoc inside a group; a heredoc's delimiter (none inside `$((` or `((`)
+// waits for its body, a hash that starts a word starts an inert comment (a PowerShell or unknown shell's `<#` one to `#>`).
 function markUnbounded(s, i) {
   const { src, rules } = s;
   const after = src[i + CASE_WORD.length];
@@ -164,12 +165,16 @@ function markUnbounded(s, i) {
   }
   const hash = src[i] === '#' && (i === 0 || !PLAIN_HASH_LEAD.test(src[i - 1]));
   if ((hash || src.startsWith('<<', i)) && depthOf(s) > 0) mark(s, REASON.groupComment, i);
-  if (src.startsWith('<<', i) && !src.startsWith('<<<', i) && src[i - 1] !== '<') {
+  const arithmetic = s.stack.some((opened) => opened.arithmetic);
+  if (src.startsWith('<<', i) && !src.startsWith('<<<', i) && src[i - 1] !== '<' && !arithmetic) {
     const heredoc = heredocDelimiter(src, i);
     if (heredoc) s.pending.push(heredoc);
   }
-  if (!hash) return;
-  s.inert = rules.blockComments && src[i - 1] === '<' ? 'block' : 'line';
+  const prev = src[i - 1];
+  const block = rules.blockComments && prev === '<';
+  const wordStart = i === 0 || COMMENT_LEAD.test(prev) || (rules.backtick && prev === '`') || block;
+  if (src[i] !== '#' || !wordStart) return;
+  s.inert = block ? 'block' : 'line';
   const end = s.inert === 'block' ? src.indexOf('#>', i) : src.indexOf('\n', i);
   s.tokens.push({ kind: 'comment', start: i, end: end < 0 ? src.length : end });
 }
@@ -179,7 +184,7 @@ function open(s, i, op) {
   if (sub && !s.spans) endWord(s, i);
   if (!sub && !inSpan(s)) endWord(s, i);
   emit(s, 'open', op, i, i + op.length);
-  s.stack.push({ op, at: i });
+  s.stack.push({ op, at: i, arithmetic: s.src[i + op.length] === '(' });
   if (inSpan(s)) add(s, i, i + op.length, op);
   return i + op.length;
 }

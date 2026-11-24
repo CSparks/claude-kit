@@ -11,9 +11,8 @@
 //                                                         bodies, comments and single quotes, or never closes
 //   backtickHoldsQuote(text, at) -> boolean               the backtick span at `at` holds a double quote or never closes
 
-const DELIMITER_END = /[\s;&|<>()]/;
+const DELIMITER_END = /[ \t\n;&|<>()]/;
 const LEADING_TABS = /^\t+/;
-const TRAILING_CR = /\r$/;
 const HERE_STRING_OPEN = /^@(['"])[ \t]*\r?\n/;
 const COMMENT_LEAD = /[\s;&|(]/;
 
@@ -35,10 +34,8 @@ export function heredocDelimiter(text, at) {
   return word && !quote ? { word, dash } : null;
 }
 
-export const terminates = (line, { word, dash }) => {
-  const plain = line.replace(TRAILING_CR, '');
-  return (dash ? plain.replace(LEADING_TABS, '') : plain) === word;
-};
+// Exact, as bash compares: a terminator line ending in a carriage return ends nothing.
+export const terminates = (line, { word, dash }) => (dash ? line.replace(LEADING_TABS, '') : line) === word;
 
 export const hasTerminator = (text, from, heredoc) => text.slice(from).split('\n').some((line) => terminates(line, heredoc));
 

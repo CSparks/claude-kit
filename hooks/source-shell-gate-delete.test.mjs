@@ -53,6 +53,7 @@ try {
   check('tracked source stays blocked even when the caller edited it', blocked(rmBy('rm tracked.rs', 'S1')));
   check('rm of an owned file beside a tracked one is blocked on the tracked operand', blocked(rmBy('rm mine.rs tracked.rs', 'S1')));
 
+  check('KIT-T1528: a quoted delete command name stays blocked', blocked(rmBy('r"m" tracked.rs', 'S1')) && blocked(rmBy("r'm' -f tracked.rs", 'S1')));
   check('KIT-T1528: a source delete inside a quoted substitution stays blocked', blocked(rmBy('rm "$(echo tracked.rs)"', 'S1')));
   check('KIT-T1528: a source delete inside a quoted substitution in a path stays blocked', blocked(rmBy('rm -f "./$(echo tracked).rs"', 'S1')));
 

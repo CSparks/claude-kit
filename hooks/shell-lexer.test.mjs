@@ -96,6 +96,10 @@ const texts = (text, shell = 'bash') => segments(text, { shell }).map((s) => s.t
 check('a quote inside a comment opens nothing', texts("echo x # 'a\nrm src/a.rs\n# b'").includes('rm src/a.rs') && lex("echo x # it's", { shell: 'bash' }).ambiguity === null);
 check('an escape at a comment end does not join the next line', texts('echo x # \\\nrm src/a.rs').includes('rm src/a.rs'));
 check('a comment inside a group is read to its line end', texts("x $(echo # ')\nrm src/a.rs\n)").includes('rm src/a.rs') && lex("x $(echo # ')\nrm src/a.rs\n)", { shell: 'bash' }).ambiguity === null);
+check('a hash inside a word starts no comment: its quotes still pair', texts('echo "a"#" ; rm src/a.rs ; "').length === 1 && !lex('echo "a"#b', { shell: 'bash' }).tokens.some((t) => t.kind === 'comment'));
+check('a hash after a backtick opens a comment inside the span', lex('echo `#x`', { shell: 'bash' }).tokens.some((t) => t.kind === 'comment'));
+check('a shift inside arithmetic opens no heredoc: a quote after it still pairs', texts("x=$((1<<2))\n'\n2\n' ; echo b").includes("'\n2\n'") && texts("((y=1<<2))\n'\n2\n'").includes("'\n2\n'"));
+check('a carriage-return terminator line ends only a delimiter that carries one', texts("cat <<EOF\r\nx\r\nEOF\r\nrm src/a.rs").includes('rm src/a.rs') && texts("cat <<EOF\n'\nEOF\r\n'; rm src/a.rs").length === 3);
 check('an operator inside a comment still splits', ops('a # b; c', 'bash').length === 1);
 check('a PowerShell block comment is inert to its close', texts("a <# '\n#> ; rm src/a.rs ; <# '\n#>", 'powershell').includes('rm src/a.rs'));
 check('quotes inside a heredoc body open nothing', texts("cat <<EOF\n'\nEOF\nrm src/a.rs\ncat <<EOF\n'\nEOF").includes('rm src/a.rs'));

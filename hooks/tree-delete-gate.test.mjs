@@ -54,6 +54,9 @@ try {
   check('KIT-T1528: quotes inside a PowerShell here-string hide no later delete', treeDeleteTargets("$x = @'\na'\n'@; Remove-Item src/a.rs; $y = @'\n'\n'@", live, live, 'powershell').includes(source));
   check('KIT-T1528: a quote inside a double-quoted substitution makes the line ambiguous', run(live, 'echo "$(true "x" ; rm -rf src/a.rs)"').status === 2);
   check('KIT-T1528: a delete inside a substitution is its own segment and blocks', run(live, 'echo $(true; rm -rf src/a.rs)').status === 2);
+  check('KIT-T1528: a hash inside a word opens no comment that hides a later delete', run(live, 'echo "a"#"\n"; rm -rf src/a.rs; #"').status === 2);
+  check('KIT-T1528: a shift inside arithmetic opens no heredoc that hides a later delete', run(live, "x=$((1<<2))\n'\n2\n'; rm -rf src/a.rs; echo \\'").status === 2);
+  check('KIT-T1528: a carriage-return line does not end a heredoc early and hide a later delete', run(live, "cat <<EOF\nEOF\r\n'\nEOF\nrm -rf src/a.rs; echo \\'").status === 2);
   check('KIT-T1528 control: the heredoc commit message form passes', run(live, `git commit -m "$(cat <<'EOF'\nfix: it's done; rm old\nEOF\n)"`).status === 0);
   check('blocks Remove-Item too', run(live, 'Remove-Item -Recurse -Force assets\\tmp').status === 2);
   check('allows an rm of build output', run(live, 'rm -rf target/debug').status === 0);

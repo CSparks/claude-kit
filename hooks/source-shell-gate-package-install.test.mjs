@@ -64,6 +64,8 @@ try {
     ['coreutils install of a source file', 'install -m 755 a.sh src/b.rs'],
     ['a backslash-escaped install (KIT-T1528)', 'in\\stall -m 755 a.sh src/b.rs'],
     ['a backslash-escaped cp (KIT-T1528)', 'c\\p a.sh src/b.rs'],
+    ['a quoted cp (KIT-T1528)', "c'p' a.sh src/b.rs"],
+    ['a partly quoted install (KIT-T1528)', 'in"st"all -m 755 a.sh src/b.rs'],
     ['coreutils install after an npm segment', 'npm -v && install a.sh src/b.rs'],
     ['coreutils install after an npm call in a container body', 'docker run --rm node sh -c "npm -v && install a.sh src/b.rs"'],
     ['coreutils install after npm and a semicolon', 'npm run build; install a.sh src/b.rs'],
@@ -155,6 +157,7 @@ try {
   ok('ambiguous quoting: source gate blocks a shell body install', src(`${AMBIGUOUS}sh -c install a.sh src/b.rs`) === BLOCK);
   ok('ambiguous quoting: source gate blocks a build tool install redirected', src(`${AMBIGUOUS}ninja -C build install > src/b.rs`) === BLOCK);
   ok('ambiguous quoting: source gate blocks a coreutils install', src(`${AMBIGUOUS}install a.sh src/b.rs`) === BLOCK);
+  ok('ambiguous quoting: a redirect target named like a manager owns no install (KIT-T1528)', ['<npm', '< npm', '<<<npm', '<&npm', '>npm'].every((lead) => src(`${AMBIGUOUS}${lead} install a.sh src/b.rs`) === BLOCK));
   ok('ambiguous quoting: source gate blocks install after an npm segment', src(`${AMBIGUOUS}npm -v && install a.sh src/b.rs`) === BLOCK);
 } finally {
   finish();
