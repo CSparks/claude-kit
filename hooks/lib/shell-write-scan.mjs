@@ -101,6 +101,7 @@ const OPEN_FOR_WRITE = String.raw`\bopen\s*\([^)]*['"][rbtU]*[wax+][bt+]*['"]`;
 export const FS_WRITE = new RegExp(String.raw`\b(?:${WRITE_NAMES})\b|\.(?:${WRITE_CALLS})\s*\(|${PYTHON_MODULE_WRITE}|\bfs\s*\[|\.promises\b|${OPEN_FOR_WRITE}`);
 
 const nameOf = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
+const BASH_ESCAPE = /\\(.)/gs;
 const listed = (found) => [].concat(found || []);
 
 /**
@@ -207,12 +208,18 @@ function judgeSegment(segmentText, ctx) {
   if (touched) return [...hits, ...touched];
   const installIsArgument = leadsNoInstall(text, ctx.shell);
   for (let i = 0; i < words.length; i++) {
-    if (installIsArgument && /^install$/i.test(words[i].w)) continue;
-    const found = listed(judgeTool(nameOf(words[i].w), words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length)));
-    hits.push(...found.map((h) => ({ ...h, token: words[i].w })));
+    const read = unescaped(words[i].w, ctx.shell);
+    if (installIsArgument && /^install$/i.test(read)) continue;
+    for (const name of new Set([nameOf(words[i].w), nameOf(read)])) {
+      const found = listed(judgeTool(name, words.slice(i + 1), text, ctx, text.slice(words[i].at + words[i].w.length)));
+      hits.push(...found.map((h) => ({ ...h, token: words[i].w })));
+    }
   }
   return hits;
 }
+
+// A word as bash reads it: a backslash outside quotes escapes the next character (`r\m` runs rm).
+const unescaped = (word, shell) => (shell === 'bash' ? word.replace(BASH_ESCAPE, '$1') : word);
 
 /** The text of a script under the temp dir ('' elsewhere or when unreadable): scratch scripts are judged, repo scripts are not. */
 export function readTempScript(path) {

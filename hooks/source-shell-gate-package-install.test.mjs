@@ -62,6 +62,8 @@ try {
 
   const blocks = [
     ['coreutils install of a source file', 'install -m 755 a.sh src/b.rs'],
+    ['a backslash-escaped install (KIT-T1528)', 'in\\stall -m 755 a.sh src/b.rs'],
+    ['a backslash-escaped cp (KIT-T1528)', 'c\\p a.sh src/b.rs'],
     ['coreutils install after an npm segment', 'npm -v && install a.sh src/b.rs'],
     ['coreutils install after an npm call in a container body', 'docker run --rm node sh -c "npm -v && install a.sh src/b.rs"'],
     ['coreutils install after npm and a semicolon', 'npm run build; install a.sh src/b.rs'],

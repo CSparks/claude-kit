@@ -12,18 +12,21 @@
 
 import { commandName } from './command-lead.mjs';
 import { installWordCount, ownerLeadIndex, unownedInstalls } from './install-owner.mjs';
-import { MAX_NESTING, cleaned, commandTokens, substitutions, withoutRedirects } from './lead-command-walk.mjs';
+import { MAX_NESTING, cleaned, commandTokens, substitutions } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
-import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
+import { words } from './shell-lexer.mjs';
+import { blindSegments, segments } from './shell-segments.mjs';
 
 const INSTALL_WORD = /\binstall\b/gi;
-const BLIND_SEPARATOR = /[\s"'`]+/;
 const BLIND_COMMAND_START = /\$\(|[<>]\(|[`(){}]/;
+
+// One segment's command words as the shell reads them (escapes resolved), redirections and their targets left out.
+const commandWords = (text, shell) => cleaned(words(text, { shell }).filter((word) => !word.redirect).map((word) => word.value));
 
 function countUnowned(text, shell, depth = 0) {
   let unowned = 0;
   for (const seg of segments(text, { shell })) {
-    unowned += unownedInstalls(cleaned(shellArgs(withoutRedirects(seg.text))));
+    unowned += unownedInstalls(commandWords(seg.text, shell));
     if (depth >= MAX_NESTING) continue;
     const tokens = cleaned(commandTokens(seg.text));
     const runs = [
@@ -35,7 +38,7 @@ function countUnowned(text, shell, depth = 0) {
   return unowned;
 }
 
-const blindWords = (text) => cleaned(String(text).split(BLIND_SEPARATOR));
+const blindWords = (text) => cleaned(words(text, { blind: true }).map((word) => word.raw));
 
 // The command word and everything after it is the command's own: the first runner the owner walk can reach, never a word
 // it skipped as a wrapper option's value or an operand.
