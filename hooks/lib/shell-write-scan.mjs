@@ -28,8 +28,8 @@
 // An applier is the command a segment leads with, past wrappers and grouping words, also in a command another runs
 // (`bash -c "..."`, `find -exec`, `ssh host`, a `trap` string, a `$(...)` substitution: patch-apply.mjs); a copy
 // destination holding a variable the command assigns once and literally is judged by the value (shell-variables.mjs).
-// An `install` that is an argument of another command (`npm install x@1`, `ninja -C build install`: package-install.mjs) is that tool's work;
-// only an `install` leading a command is the coreutils copy.
+// An `install` that a known non-copying command owns (`npm install x@1`, `ninja -C build install`: install-owner.mjs) is that
+// tool's work; an `install` leading a command, or following an unknown command, is the coreutils copy.
 // A segment led by a `touch` with only mtime options tags its hits `mtimeOnly` for the caller (touch-target.mjs).
 
 import { readFileSync, realpathSync } from 'node:fs';
@@ -55,7 +55,8 @@ import { cleaned, commandTokens } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
 import { blankArgumentInstall, leadsNoInstall } from './package-install.mjs';
 import { maskSshRemote } from './ssh-remote-mask.mjs';
-import { deleteOperandText, isStatusParameter } from './delete-operands.mjs';
+import { deleteHits } from './delete-hits.mjs';
+import { wordsIn } from './shell-words.mjs';
 
 const BUILDS_LEAD = /^builds(?:\.cmd)?$/i;
 const RUN_FLAG = '--run';
@@ -80,7 +81,6 @@ const INTERPRETER = /^(?:node|python3?|py|powershell|pwsh)$/i;
 const INLINE_FLAG = /^(?:-e|--eval|-p|--print|-c|-command)$/i;
 const SCRIPT_FILE = /\.(?:m?js|cjs|py|ps1)$/i;
 const DATA_URL = /^data:/i;
-const WORD = /[^\s'"`;|&()<>]+/g;
 const REDIRECT = /(?<![-=])>>?\s*(["']?)([^\s"'|;&<>)`]+)/g;
 const HEREDOC_CODE = /\b(?:node|python3?)(?:\.exe)?\s+-?\s*<<-?/i;
 const PIPED_CODE = /\|\s*(?:node|python3?|py)(?:\.exe)?(?:\s+-)?\s*(?:$|[|;&\n])/i;
@@ -98,7 +98,6 @@ const OPEN_FOR_WRITE = String.raw`\bopen\s*\([^)]*['"][rbtU]*[wax+][bt+]*['"]`;
 export const FS_WRITE = new RegExp(String.raw`\b(?:${WRITE_NAMES})\b|\.(?:${WRITE_CALLS})\s*\(|${PYTHON_MODULE_WRITE}|\bfs\s*\[|\.promises\b|${OPEN_FOR_WRITE}`);
 
 const nameOf = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
-const wordsIn = (text) => [...text.matchAll(WORD)].map((m) => ({ w: m[0], at: m.index }));
 const listed = (found) => [].concat(found || []);
 
 /**
@@ -142,45 +141,6 @@ function judgeCopy(tool, argText, ctx) {
     ? proven.sources.flatMap((source, i) => { const h = hit(source); return h ? [{ ...h, outsideTo: proven.landings[i] }] : []; })
     : [];
   return [proven.destination, ...proven.under].map(hit).concat(tagged).filter(Boolean);
-}
-
-const RECURSIVE_BASH = /^(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive)$/;
-const RECURSIVE_POWERSHELL = /^-r(?:ec[a-z]*)?$/i;
-const POWERSHELL_SUBEXPRESSION = /(?:^|\s)@?\(/;
-
-// The path components that decide which files a delete removes: the last one, trailing separators and `.` dropped; all of
-// them when the delete is recursive.
-function decidingParts(operand, recursive) {
-  const parts = operand.split(/[\\/]+/).filter((p) => p !== '' && p !== '.');
-  return recursive ? parts : parts.slice(-1);
-}
-
-// The delete operands no segment of the command resolves to a file: a variable or substitution left in a deciding
-// component, a source-looking name behind a variable, a bash backtick or a PowerShell subexpression.
-function unresolvedOperands(operands, argText, ctx) {
-  const power = ctx.shell === 'powershell';
-  const recursive = operands.some((o) => (power ? RECURSIVE_POWERSHELL : RECURSIVE_BASH).test(o));
-  const open = operands.filter((o) => o.includes('$') && (decidingParts(o, recursive).some((p) => p.includes('$')) || ctx.hit(o)));
-  const shown = open.map((o) => (o === '$' ? '$(...)' : o));
-  if (!power && argText.includes('`')) shown.push('`...`');
-  if (power && POWERSHELL_SUBEXPRESSION.test(argText)) shown.push('(...)');
-  return { open, shown };
-}
-
-// The hits of a delete. With `removals` the operands are read after the command's own literal variables expand, and the
-// ones no segment resolves are the caller's `unresolved` hits.
-function deleteHits(ctx, allArgText) {
-  const { hit, removals } = ctx;
-  const argText = deleteOperandText(allArgText);
-  const deleting = (h) => ({ ...h, deletes: true });
-  const fileOperands = (text) => wordsIn(text).map((x) => x.w).filter((w) => !isStatusParameter(w));
-  if (!removals) return fileOperands(argText).map(hit).filter(Boolean).map(deleting);
-  const operands = fileOperands(expandVariables(argText, ctx.vars, ctx.shell));
-  const { open, shown } = unresolvedOperands(operands, argText, ctx);
-  return [
-    ...operands.filter((o) => !open.includes(o)).map(hit).filter(Boolean).map(deleting),
-    ...shown.map((o) => deleting(removals.unresolved(o))),
-  ];
 }
 
 function judgeTool(tool, rest, text, ctx, argText) {

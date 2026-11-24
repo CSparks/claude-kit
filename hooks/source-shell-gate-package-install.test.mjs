@@ -45,8 +45,12 @@ try {
     ['a build tool install behind sudo', 'sudo ninja -C build install'],
     ['a build tool install in a chain', 'ninja -C build && ninja -C build install'],
     ['a build tool install in a container shell body', 'docker run img sh -c "ninja -C build install"'],
-    ['an unknown tool with an install argument', 'frobnicate install a.rs src/b.rs'],
-    ['an npm exec install argument', 'npm exec install a.rs'],
+    ['make install behind fakeroot', 'fakeroot make install'],
+    ['an npm install behind a chroot directory', 'chroot /newroot npm install next@16'],
+    ['an npm install behind a flock file', 'flock /tmp/lock npm install next@16'],
+    ['an apt-get install behind taskset options', 'taskset -c 0 apt-get install -y x'],
+    ['an npm install behind wsl', 'wsl -d Ubuntu -- npm install next@16'],
+    ['a go install after an assignment of a substitution', 'X=$(pwd) go install ./cmd/tool@latest'],
   ];
   for (const [name, command] of [...passes, ...argumentInstalls]) ok(`source gate passes ${name}`, src(command) === PASS);
   ok('ambiguous quoting: source gate passes npm install', src(`${AMBIGUOUS}npm install next@^16.4.6 2>&1 | tail -5`) === PASS);
@@ -78,8 +82,42 @@ try {
     ['rustup toolchain install redirected into a source file', 'rustup toolchain install 1.95.0 > src/b.rs'],
     ['a build tool install redirected into a source file', 'ninja -C build install > src/b.rs'],
     ['make install redirected into a source file', 'make install >> src/b.rs'],
+    ['an unknown tool with an install argument', 'frobnicate install a.rs src/b.rs'],
+    ['an npm exec install argument', 'npm exec install a.rs src/b.rs'],
+    ['a manager named as a later operand', 'foo npm install a.sh src/b.rs'],
+    ['a manager named as a container image', 'docker run --rm npm install a.sh src/b.rs'],
+    ['a manager as an option value of the container shell body', 'docker run --rm node sh -c "foo --npm npm install a.sh src/b.rs"'],
+    ['a rustup subcommand that is not a toolchain install', 'rustup run install a.rs src/b.rs'],
+    ['install behind busybox', 'busybox install a.rs src/b.rs'],
+    ['install behind fakeroot', 'fakeroot install a.rs src/b.rs'],
+    ['install behind chroot', 'chroot /newroot install a.rs src/b.rs'],
+    ['a manager in the chroot directory slot', 'chroot npm install a.rs src/b.rs'],
+    ['install behind strace', 'strace -o out install a.rs src/b.rs'],
+    ['install behind flock', 'flock /tmp/lock install a.rs src/b.rs'],
+    ['a manager in the flock file slot', 'flock npm install a.rs src/b.rs'],
+    ['install behind nsenter', 'nsenter -t 1 -m install a.rs src/b.rs'],
+    ['install behind taskset', 'taskset 0x1 install a.rs src/b.rs'],
+    ['a manager in the taskset mask slot', 'taskset npm install a.rs src/b.rs'],
+    ['install behind parallel', 'parallel install a.rs src/b.rs'],
+    ['install behind wsl', 'wsl -d Ubuntu -- install a.rs src/b.rs'],
+    ['install after a substitution inside a manager call', 'npm install $(install a.rs src/b.rs)'],
+    ['install after an assignment of a substitution', 'X=$(date +%s) install a.rs src/b.rs'],
+    ['install in a group', '{ install a.rs src/b.rs; }'],
   ];
   for (const [name, command] of blocks) ok(`source gate blocks ${name}`, src(command) === BLOCK);
+  const blindOpeners = [
+    ['a command substitution', 'echo $(install a.rs src/b.rs)'],
+    ['a backtick', 'echo `install a.rs src/b.rs`'],
+    ['a process substitution', 'cat <(install a.rs src/b.rs)'],
+    ['a subshell', '(install a.rs src/b.rs)'],
+    ['a brace group', '{ install a.rs src/b.rs; }'],
+    ['an assignment of a substitution', 'X=$(pwd) install a.rs src/b.rs'],
+    ['an unknown command word', 'frobnicate install a.rs src/b.rs'],
+    ['a manager named as a later operand', 'foo npm install a.sh src/b.rs'],
+    ['a manager subcommand that is not install', 'npm exec install a.rs src/b.rs'],
+    ['an installing wrapper', 'fakeroot install a.rs src/b.rs'],
+  ];
+  for (const [name, command] of blindOpeners) ok(`ambiguous quoting: source gate blocks install after ${name}`, src(AMBIGUOUS + command) === BLOCK);
   const ambiguousBlocks = [
     ['an assignment value', 'FOO=npm install a.sh src/b.rs'],
     ['a wrapper flag value', 'sudo -u npm install a.sh src/b.rs'],
