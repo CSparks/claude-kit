@@ -45,6 +45,14 @@ const whole = [
   ['a comment right after a group opens', ' $(# )\n) c; d', 'bash'],
   ['a comment after a semicolon inside a group', ' $(echo x;# )\n) c; d', 'bash'],
   ['a heredoc inside a group', ' $(cat <<EOF\n)\nEOF\n) c; d', 'bash'],
+  ['a hash after a close paren inside a group', ' $(echo $(echo a)#)\n) c; d', 'bash'],
+  ['a hash after a less-than inside a group', ' $(echo x <#)\n) c; d', 'bash'],
+  ['a hash after a greater-than inside a group', ' $(echo x >#)\n) c; d', 'bash'],
+  ['a hash right after a backtick span opens', ' `#`\nc; d', 'bash'],
+  ['a hash after a close paren inside a PowerShell group', ' $(echo (a)#)\n) c; d', 'powershell'],
+  ['a hash after a close paren inside a group of an unknown shell', ' $(echo $(echo a)#)\n) c; d', ''],
+  ['a curly double quote under an unknown shell', ' “a;b” c; d', ''],
+  ['a curly single quote under an unknown shell', ' ‘a;b’ c; d', ''],
   ['a caret under an unknown shell', ' a^&b; c', ''],
   ['a backtick under an unknown shell', ' a`;b; c', ''],
   ['an escaped quote under an unknown shell', ' \\"a;b\\" c; d', ''],
@@ -55,6 +63,9 @@ for (const [name, text, shell] of whole) ok(`the text stays whole at ${name}`, c
 ok('a curly quote is plain text in bash', cut(' “a b”; ls', 'bash') === ' “a b”');
 ok('a hash inside a word in a group is no comment', cut(' $(echo a#b; c) d; e', 'bash') === ' $(echo a#b; c) d');
 ok('a parameter-length hash in a group is no comment', cut(' $(echo $#; c) d; e', 'bash') === ' $(echo $#; c) d');
+ok('a braced parameter-length hash in a group is no comment', cut(' $(echo ${#x}; c) d; e', 'bash') === ' $(echo ${#x}; c) d');
+ok('a hash inside a word in a backtick span is no comment', cut(' `echo a#b` d; e', 'bash') === ' `echo a#b` d');
+ok('a curly quote is plain text in cmd', cut(' “a b” & ls', 'cmd') === ' “a b” ');
 ok('a hash outside a group leaves the cut alone', cut(' a #b; c', 'bash') === ' a #b');
 ok('a case-named file is no case statement', cut(' case.txt; ls', 'bash') === ' case.txt');
 ok('an unknown shell cuts plain text', cut(' -rf build; ls', '') === ' -rf build');

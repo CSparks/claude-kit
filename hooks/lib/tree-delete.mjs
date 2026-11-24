@@ -4,7 +4,8 @@
 // ($VAR, $(…), `…`, %VAR%, ~) is unknown, so it is never resolved against the checkout; a `cd` to
 // one leaves the directory unknown for the relative paths that follow.
 //
-//   treeDeleteTargets(command, root, cwd) -> absolute paths
+//   treeDeleteTargets(command, root, cwd, shell) -> absolute paths
+//     shell: 'bash' | 'powershell', shellOfTool of the hook payload; omitted, the quoting rules of an unknown shell apply
 
 import { isAbsolute, relative, resolve } from 'node:path';
 import { segments, cdTarget, toPath } from './shell-segments.mjs';
@@ -24,8 +25,8 @@ const within = (base, abs) => {
 };
 
 // With ambiguous quoting no path can be resolved: a delete word anywhere makes the whole checkout the target.
-export function treeDeleteTargets(command, root, cwd) {
-  const parts = segments(command);
+export function treeDeleteTargets(command, root, cwd, shell = '') {
+  const parts = segments(command, { shell });
   if (parts.ambiguous) return DELETE_WORD.test(command) ? [root] : [];
   const hits = [];
   let here = cwd;

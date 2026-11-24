@@ -2,7 +2,7 @@
 // as delete hits for source-shell-gate to judge like `rm <file>` (KIT-T1246): without them a directory operand, which has
 // no source extension, removed any writer's files unjudged.
 //
-//   directoryDeleteHits(command, cwd) -> [{ path, deletes: true, from }] one per hand-authored source file, tracked or
+//   directoryDeleteHits(command, cwd, shell) -> [{ path, deletes: true, from }] one per hand-authored source file, tracked or
 //     untracked and not ignored, beneath a directory the command deletes; `path` is absolute, `from` the directory it
 //     resolves from. A symlink or junction to a directory is judged as its target. A directory whose files git cannot
 //     list yields one `<dir>/*` glob hit, which the gate refuses ("name each file"); so does a nested repository inside
@@ -55,7 +55,7 @@ function sourceFilesBeneath(dirPath) {
   });
 }
 
-export function directoryDeleteHits(command, cwd) {
+export function directoryDeleteHits(command, cwd, shell = '') {
   const anyRoot = parse(cwd).root;
-  return [...new Set(treeDeleteTargets(command, anyRoot, cwd))].filter(isDirectory).flatMap((dir) => sourceFilesBeneath(dir));
+  return [...new Set(treeDeleteTargets(command, anyRoot, cwd, shell))].filter(isDirectory).flatMap((dir) => sourceFilesBeneath(dir));
 }

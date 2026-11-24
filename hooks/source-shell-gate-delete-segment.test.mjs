@@ -5,6 +5,7 @@
 // the operand cut does not model: an ANSI-C string, a redirect token with `|` or `&`, a case statement (KIT-T1524).
 // Run: node hooks/source-shell-gate-delete-segment.test.mjs
 
+import { shellSourceWrites } from './lib/shell-source-write.mjs';
 import { BLOCK, PASS, wrappedHarness } from './source-shell-gate-wrapped-harness.mjs';
 
 const { ok, src, finish } = wrappedHarness('source-shell-gate-delete-segment');
@@ -72,8 +73,21 @@ try {
     ['rm of source after a comment inside a substitution', 'rm $(echo x # )\n) src/a.rs'],
     ['rm of source after a comment inside a process substitution', "bash -c 'rm <(echo x # ) \n) src/a.rs'"],
     ['rm of source after a heredoc inside a substitution', 'rm $(cat <<EOF\n)\nEOF\n) src/a.rs'],
+    ['rm of source after a hash behind a close paren inside a substitution', 'rm $(echo $(echo a)#)\n) src/a.rs'],
+    ['rm of source after a hash behind a less-than inside a substitution', 'rm $(echo x <#)\n) src/a.rs'],
+    ['rm of source after a hash behind a greater-than inside a substitution', 'rm $(echo x >#)\n) src/a.rs'],
+    ['rm of source after a hash opening a backtick span', 'rm `#`\nsrc/a.rs'],
   ];
   for (const [name, command] of openGroup) ok(`source gate blocks ${name}`, src(command) === BLOCK);
+
+  const unknownShell = [
+    ['rm of source after a curly double-quoted string', 'rm “a;b” src/a.rs'],
+    ['rm of source after a curly single-quoted string', 'rm ‘a;b’ src/a.rs'],
+  ];
+  for (const [name, command] of unknownShell) {
+    ok(`an unknown shell blocks ${name}`, shellSourceWrites(command).length > 0);
+    ok(`bash judges ${name} as plain text`, shellSourceWrites(command, { shell: 'bash' }).length === 0);
+  }
 
   const stillCut = [
     ['rm then a redirect with a pipe and a later source name', "bash -c 'rm -rf build >| log; ls src/a.rs'"],

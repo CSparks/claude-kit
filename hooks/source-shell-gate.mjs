@@ -53,7 +53,7 @@ try {
   const p = await payload();
   const command = String((p.tool_input && p.tool_input.command) || '');
   const shell = shellOfTool(p.tool_name);
-  const hits = command ? [...shellSourceWrites(command, { shell }), ...directoryDeleteHits(command, process.cwd())] : [];
+  const hits = command ? [...shellSourceWrites(command, { shell }), ...directoryDeleteHits(command, process.cwd(), shell)] : [];
   const caller = writerId(p.session_id, subagentId(p));
   const namedPath = hitPathResolver(command, shell);
   for (const found of hits) {

@@ -14,6 +14,7 @@ import { onlyIdenticalRenames } from './lib/identical-renames.mjs';
 import { relativeTo, underLegacy } from './lib/legacy-paths.mjs';
 import { legacyReferences } from './lib/legacy-refs.mjs';
 import { legacyShellViolation } from './lib/legacy-shell.mjs';
+import { shellOfTool } from './lib/shell-segments.mjs';
 
 const CHECK = 'legacy-freeze';
 
@@ -52,11 +53,12 @@ function fileViolation(root, dir, file, input) {
   return refs.length ? refusal('this write references legacy code', refs.map((r) => `${file}:${r.line}  ${r.text}  (${r.what})`)) : '';
 }
 
-function shellViolation(root, dir, command) {
+function shellViolation(root, dir, command, shell) {
   const found = legacyShellViolation({
     root,
     dir,
     command,
+    shell,
     excluded: (path) => pathExcluded(root, CHECK, path),
     movedIn: (path, base) => onlyIdenticalRenames(root, relativeTo(root, path, base)),
   });
@@ -70,7 +72,7 @@ try {
   const command = String(input.command || '');
   const root = file ? gitRootOfFile(file) : gitRoot();
   const dir = adopted(root) ? legacyDir(root) : '';
-  const verdict = dir ? (file ? fileViolation(root, dir, file, input) : command && shellViolation(root, dir, command)) : '';
+  const verdict = dir ? (file ? fileViolation(root, dir, file, input) : command && shellViolation(root, dir, command, shellOfTool(p.tool_name))) : '';
   if (verdict) {
     process.stderr.write(verdict);
     process.exit(2);

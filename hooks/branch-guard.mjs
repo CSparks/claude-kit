@@ -16,7 +16,7 @@ import { payload, git, gitRoot, adopted } from './lib.mjs';
 import { classifyGitSegment, tokenize } from './lib/branch-ops.mjs';
 import { gitCommand } from './lib/git-subcommand.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
-import { AMBIGUOUS_MESSAGE, cdTarget, segments, toPath } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, cdTarget, segments, shellOfTool, toPath } from './lib/shell-segments.mjs';
 
 const ESCAPE = /\[maintainer-asked-branch:\s*[^\]\s][^\]]*\]/i;
 
@@ -89,7 +89,8 @@ try {
   const command = (p.tool_input && p.tool_input.command) || '';
   if (!/\bgit\b/.test(command) || !/\b(?:switch|checkout|branch|worktree|clone)\b/.test(command)) process.exit(0);
   if (ESCAPE.test(command)) process.exit(0);
-  if (segments(command).ambiguous) {
+  const shell = shellOfTool(p.tool_name);
+  if (segments(command, { shell }).ambiguous) {
     const here = gitRoot();
     if (!here || adopted(here)) {
       process.stderr.write(`\nBLOCKED: a git command that may switch, branch or clone cannot be judged (KIT-D039). ${AMBIGUOUS_MESSAGE}\n${triageFooter()}`);
@@ -107,7 +108,7 @@ try {
   };
 
   let cwd = process.cwd();
-  for (const seg of segments(command).map((s) => s.text.trim()).filter(Boolean)) {
+  for (const seg of segments(command, { shell }).map((s) => s.text.trim()).filter(Boolean)) {
     const cdTo = cdTarget(seg);
     if (cdTo) { cwd = resolve(cwd, cdTo); continue; }
     const m = seg.match(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git(?:\.exe)?\s+(.+)/s); // a git INVOCATION, not git quoted inside another command

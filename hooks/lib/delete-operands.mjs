@@ -8,16 +8,17 @@
 //
 // The cut fails closed: where the scan meets a construct it does not model (a `$'...'` or `$"..."` string, a `case`
 // statement, a substitution inside double quotes, an escape character of an unknown shell, a quoting the segment splitter
-// calls ambiguous, a PowerShell typographic quote, a comment or heredoc inside a group) it cuts nothing and every remaining word is judged as an operand.
+// calls ambiguous, a typographic quote under PowerShell or an unknown shell, a heredoc or a hash inside a group that is not
+// part of a word or a parameter) it cuts nothing and every remaining word is judged as an operand.
 
 import { belongsToRedirection } from './redirection-operator.mjs';
-import { segments, TYPOGRAPHIC_QUOTE } from './shell-segments.mjs';
+import { readsTypographicQuote, segments, TYPOGRAPHIC_QUOTE } from './shell-segments.mjs';
 
 const STATUS_PARAMETER = /^\$[?!$#]$/;
 const WHITESPACE = /\s/;
 const CASE_WORD = 'case';
 const CASE_LEAD = /[\s;&|(]/;
-const COMMENT_LEAD = /[\s;&|(]/;
+const PLAIN_HASH_LEAD = /[\w${]/;
 const UNKNOWN_SHELL_ESCAPE = /[`^]|\\["'();|&]/;
 
 const BASH = { escape: '\\', quotes: `"'`, boundary: ';|&\n', escapesInDouble: true, backtickSpan: true };
@@ -33,8 +34,9 @@ const opensCase = (text, i) => text.startsWith(CASE_WORD, i)
   && (i === 0 || CASE_LEAD.test(text[i - 1]))
   && (i + CASE_WORD.length === text.length || WHITESPACE.test(text[i + CASE_WORD.length]));
 
+// A hash is plainly no comment only inside a word (`a#b`) or as a parameter (`$#`, `${#x}`); after any other character it may start one.
 const opensCommentOrHeredoc = (text, i) => text.startsWith('<<', i)
-  || (text[i] === '#' && (i === 0 || COMMENT_LEAD.test(text[i - 1])));
+  || (text[i] === '#' && (i === 0 || !PLAIN_HASH_LEAD.test(text[i - 1])));
 
 const opensSubstitution = (text, i, rules) => (text[i] === '$' && text[i + 1] === '(') || (text[i] === '`' && rules.backtickSpan);
 
@@ -42,7 +44,7 @@ export function deleteOperandText(argText, shell = '') {
   const text = String(argText);
   const known = RULES[shell];
   if (!known && UNKNOWN_SHELL_ESCAPE.test(text)) return text;
-  if (shell === 'powershell' && TYPOGRAPHIC_QUOTE.test(text)) return text;
+  if (readsTypographicQuote(shell) && TYPOGRAPHIC_QUOTE.test(text)) return text;
   const rules = known || BASH;
   let quote = '';
   let depth = 0;

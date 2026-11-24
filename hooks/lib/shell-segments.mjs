@@ -14,8 +14,8 @@
 // A caller that knows the shell passes `{ shell }` and gets that shell's escape rules instead: under 'bash' a backslash
 // escapes the next character outside single quotes, so `\"` inside a double-quoted argument is no ambiguity (KIT-T941);
 // under 'powershell' a backslash or backtick before a quote outside single quotes still is. Single-quoted spans are
-// literal in both. A `$'` or `$"` string, a backtick before a quote, an unclosed quote and, under 'powershell', a typographic
-// quote (U+2018 to U+201E, which PowerShell reads as a quote) stay ambiguous. Without
+// literal in both. A `$'` or `$"` string, a backtick before a quote, an unclosed quote and, under 'powershell' or an unknown
+// shell, a typographic quote (U+2018 to U+201E, which PowerShell reads as a quote) stay ambiguous. Without
 // `shell` the legacy test applies: an escape before a quote anywhere.
 //
 // The bodies of quoted heredocs read by a data consumer are cut first (inert-heredoc.mjs, KIT-T784); the
@@ -36,6 +36,9 @@ const QUOTE = /["']/;
 // The Unicode single and double quotes PowerShell reads as quote characters (U+2018 to U+201B, U+201C to U+201E).
 export const TYPOGRAPHIC_QUOTE = /[‘-„]/;
 
+/** True when a typographic quote may be a quote: PowerShell reads it as one, and a caller that does not know its shell must assume so. */
+export const readsTypographicQuote = (shell) => shell === 'powershell' || !shell;
+
 function split(cmd, blind = false, shell = '') {
   const out = [];
   let cur = '';
@@ -47,7 +50,7 @@ function split(cmd, blind = false, shell = '') {
   const at = { open: -1, escaped: -1, dollar: -1, typographic: -1 };
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i];
-    if (shell === 'powershell' && TYPOGRAPHIC_QUOTE.test(ch)) { if (!typographic) at.typographic = i; typographic = true; }
+    if (readsTypographicQuote(shell) && TYPOGRAPHIC_QUOTE.test(ch)) { if (!typographic) at.typographic = i; typographic = true; }
     if (shell === 'bash' && !blind && ch === '\\' && q !== "'" && i + 1 < cmd.length) { cur += ch + cmd[++i]; continue; }
     const escapeChar = ch === '`' || (shell === 'powershell' && ch === '\\');
     if (shell && escapeChar && q !== "'" && QUOTE.test(cmd[i + 1] || '')) { if (!escaped) at.escaped = i; escaped = true; }

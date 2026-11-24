@@ -8,7 +8,7 @@ import { realpathSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
 import { treeDeleteTargets } from './lib/tree-delete.mjs';
-import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, segments, shellOfTool } from './lib/shell-segments.mjs';
 import { blockingLane } from './dispatch-broker.mjs';
 
 const CHECK = 'tree-delete';
@@ -17,11 +17,12 @@ try {
   const command = String((p.tool_input && p.tool_input.command) || '');
   const root = gitRoot();
   if (command && adopted(root)) {
-    const targets = treeDeleteTargets(command, root, realpathSync.native(process.cwd())).filter((t) => !pathExcluded(root, CHECK, t));
+    const shell = shellOfTool(p.tool_name);
+    const targets = treeDeleteTargets(command, root, realpathSync.native(process.cwd()), shell).filter((t) => !pathExcluded(root, CHECK, t));
     const lane = targets.length ? blockingLane('', root) : null;
     if (lane) {
       const shown = relative(root, targets[0]).split('\\').join('/') || '.';
-      const why = segments(command).ambiguous ? ` ${AMBIGUOUS_MESSAGE}` : '';
+      const why = segments(command, { shell }).ambiguous ? ` ${AMBIGUOUS_MESSAGE}` : '';
       process.stderr.write(`
 BLOCKED: a broker daemon owns this checkout (pid ${lane.held.pid}); a shell delete inside it races the daemon (${shown}).${why}
   Untracked leftover (a stray __pycache__, a build product):  node "${join(import.meta.dirname, '..', 'scripts', 'broker', 'broker.mjs')}" clean ${shown} --root ${root}

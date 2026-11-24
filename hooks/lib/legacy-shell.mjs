@@ -5,7 +5,8 @@
 // the generic write scan. A git or dependency segment is judged in the directory the commands before it moved to; the
 // generic write scan runs once per directory the command visits, so a `cd` back out does not hide an earlier write.
 //
-//   legacyShellViolation({ root, dir, command, cwd, excluded, movedIn }) -> null | { headline, lines }
+//   legacyShellViolation({ root, dir, command, cwd, excluded, movedIn, shell }) -> null | { headline, lines }
+//     shell: 'bash' | 'powershell', shellOfTool of the hook payload; omitted, the quoting rules of an unknown shell apply
 //     excluded(path) -> true when .claude-kit-ignore.yaml lifts the check for that path
 //     movedIn(path, base) -> true when nothing under the path changed except by unchanged git renames
 
@@ -37,20 +38,20 @@ function dependencyViolation(text, cwd, ctx) {
 }
 
 function writeViolation(command, base, ctx) {
-  const { root, dir, excluded } = ctx;
+  const { root, dir, excluded, shell } = ctx;
   const mentions = new RegExp(`(?:^|[^\\w-])${escapeRe(dir)}(?:[\\\\/]|$|\\s|["'])`, 'i').test(command);
   const hit = (path) => (underLegacy(root, dir, path, base) && !excluded(path) ? { path } : null);
   const codeHit = (code) => (FS_WRITE.test(code) && new RegExp(`(?:^|[^\\w-])${escapeRe(dir)}[\\\\/]`, 'i').test(code) ? { path: `${dir}/…` } : null);
   const ambiguous = () => (mentions ? { path: `${dir}/…`, ambiguous: true } : null);
-  const found = scanAllShellWrites(command.replace(GIT_MV, '$1git-mv'), { hit, codeHit, ambiguous, judgeMoveSources: true }).find(Boolean);
+  const found = scanAllShellWrites(command.replace(GIT_MV, '$1git-mv'), { hit, codeHit, ambiguous, judgeMoveSources: true, shell }).find(Boolean);
   if (!found) return null;
   const how = found.ambiguous ? ['a shell command may write legacy code and cannot be judged.', AMBIGUOUS_MESSAGE] : ['a shell command writes legacy code:', found.path];
   return { headline: 'legacy/ is frozen', lines: [...how, MOVE_IN_HINT] };
 }
 
-export function legacyShellViolation({ root, dir, command, cwd = process.cwd(), excluded, movedIn }) {
-  const ctx = { root, dir, excluded, movedIn };
-  const parts = segments(command);
+export function legacyShellViolation({ root, dir, command, cwd = process.cwd(), excluded, movedIn, shell = '' }) {
+  const ctx = { root, dir, excluded, movedIn, shell };
+  const parts = segments(command, { shell });
   let here = cwd;
   const bases = [cwd];
   if (!parts.ambiguous) {
