@@ -56,7 +56,10 @@ import { runnerTexts } from './runner-texts.mjs';
 import { blankArgumentInstall, leadsNoInstall } from './package-install.mjs';
 import { maskSshRemote } from './ssh-remote-mask.mjs';
 import { deleteHits } from './delete-hits.mjs';
-import { wordsIn } from './shell-words.mjs';
+import { words } from './shell-lexer.mjs';
+
+// Every run of characters outside whitespace, quotes, backticks, operators, brackets and angle brackets, with its start.
+const wordsIn = (text) => words(text, { blind: true }).map((word) => ({ w: word.raw, at: word.start }));
 
 const BUILDS_LEAD = /^builds(?:\.cmd)?$/i;
 const RUN_FLAG = '--run';

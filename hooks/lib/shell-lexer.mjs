@@ -115,6 +115,7 @@ function quoted(s, i) {
 // An escaped escape character still reads as one to a program's own argument parser (`` `\" `` under PowerShell).
 const flagEscaped = (s, i) => {
   if (s.rules.flags?.includes(s.src[i + 1]) && QUOTE.test(s.src[i + 2] ?? '')) mark(s, REASON.escape, i + 1);
+  if (s.src[i + 1] === s.rules.textQuote) mark(s, REASON.textQuote, i + 1);
 };
 
 function escaped(s, i) {
