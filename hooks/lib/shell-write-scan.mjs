@@ -55,6 +55,7 @@ import { cleaned, commandTokens } from './lead-command-walk.mjs';
 import { runnerTexts } from './runner-texts.mjs';
 import { blankArgumentInstall, leadsNoInstall } from './package-install.mjs';
 import { maskSshRemote } from './ssh-remote-mask.mjs';
+import { deleteOperandText, isStatusParameter } from './delete-operands.mjs';
 
 const BUILDS_LEAD = /^builds(?:\.cmd)?$/i;
 const RUN_FLAG = '--run';
@@ -168,11 +169,13 @@ function unresolvedOperands(operands, argText, ctx) {
 
 // The hits of a delete. With `removals` the operands are read after the command's own literal variables expand, and the
 // ones no segment resolves are the caller's `unresolved` hits.
-function deleteHits(rest, ctx, argText) {
+function deleteHits(ctx, allArgText) {
   const { hit, removals } = ctx;
+  const argText = deleteOperandText(allArgText);
   const deleting = (h) => ({ ...h, deletes: true });
-  if (!removals) return rest.map((r) => r.w).map(hit).filter(Boolean).map(deleting);
-  const operands = wordsIn(expandVariables(argText, ctx.vars, ctx.shell)).map((x) => x.w);
+  const fileOperands = (text) => wordsIn(text).map((x) => x.w).filter((w) => !isStatusParameter(w));
+  if (!removals) return fileOperands(argText).map(hit).filter(Boolean).map(deleting);
+  const operands = fileOperands(expandVariables(argText, ctx.vars, ctx.shell));
   const { open, shown } = unresolvedOperands(operands, argText, ctx);
   return [
     ...operands.filter((o) => !open.includes(o)).map(hit).filter(Boolean).map(deleting),
@@ -183,7 +186,7 @@ function deleteHits(rest, ctx, argText) {
 function judgeTool(tool, rest, text, ctx, argText) {
   const { hit, codeHit, readScript } = ctx;
   const operands = rest.map((r) => r.w);
-  if (DELETE_CMD.test(tool)) return deleteHits(rest, ctx, argText);
+  if (DELETE_CMD.test(tool)) return deleteHits(ctx, argText);
   if (WRITING_CMD.test(tool)) return operands.map(hit).find(Boolean) || null;
   if (MOVE_CMD.test(tool) && ctx.judgeMoveSources) return operands.map(hit).find(Boolean) || null;
   if (COPY_CMD.test(tool)) return judgeCopy(tool, argText, ctx);
