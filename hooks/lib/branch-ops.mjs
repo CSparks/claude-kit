@@ -3,6 +3,9 @@
 // returned as { clone: { src, dest } } for the caller to resolve against the filesystem.
 //
 // classifyGitSegment(tokens, lookups) → '' (allowed) | { flip: '<git …>' } | { clone: {src, dest} }
+// tokenize(text, shell) → the word values shell-lexer.mjs reads, by the same shell rules as the segment split
+
+import { words } from './shell-lexer.mjs';
 
 const GLOBAL_VALUE_OPTS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace']);
 const BRANCH_DELETE = new Set(['-d', '-D', '--delete']);
@@ -18,7 +21,7 @@ const CLONE_VALUE_OPTS = new Set([
   '-j', '--jobs', '--filter', '--template', '--server-option', '--bundle-uri',
 ]);
 
-export const tokenize = (s) => [...s.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((t) => t[1] ?? t[2] ?? t[3]);
+export const tokenize = (s, shell = '') => words(s, { shell }).map((word) => word.value);
 
 // Tokens after `git`, with git's global options skipped → { sub, rest }.
 export function subcommand(toks) {

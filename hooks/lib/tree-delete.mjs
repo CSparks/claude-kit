@@ -6,9 +6,12 @@
 //
 //   treeDeleteTargets(command, root, cwd, shell) -> absolute paths
 //     shell: 'bash' | 'powershell', shellOfTool of the hook payload; omitted, the quoting rules of an unknown shell apply
+// The words of each segment come from shell-lexer.mjs, read by the same shell rules as the segment split.
 
 import { isAbsolute, relative, resolve } from 'node:path';
-import { segments, cdTarget, toPath } from './shell-segments.mjs';
+import { msysToNative } from './msys-path.mjs';
+import { segments, cdTarget } from './shell-segments.mjs';
+import { words } from './shell-lexer.mjs';
 
 const DELETE_CMD = /^(?:rm|rmdir|del|erase|unlink|remove-item|ri)$/i;
 const DELETE_WORD = /\b(?:rm|rmdir|del|erase|unlink|remove-item|ri)\b/i;
@@ -33,11 +36,11 @@ export function treeDeleteTargets(command, root, cwd, shell = '') {
   for (const { text } of parts) {
     const dir = cdTarget(text.trim());
     if (dir) { here = moveTo(here, dir); continue; }
-    const tok = text.trim().match(/"[^"]*"|'[^']*'|\S+/g) || [];
-    if (!tok.length || !DELETE_CMD.test(tok[0].replace(/.*[\\/]/, ''))) continue;
-    for (const a of tok.slice(1)) {
-      if (a.startsWith('-') || EXPANDS.test(a)) continue;
-      const path = toPath(a);
+    const tok = words(text, { shell });
+    if (!tok.length || !DELETE_CMD.test(tok[0].value.replace(/.*[\\/]/, ''))) continue;
+    for (const { raw, literal } of tok.slice(1)) {
+      if (literal.startsWith('-') || EXPANDS.test(raw)) continue;
+      const path = msysToNative(literal);
       if (here === null && !isAbsolute(path)) continue;
       const abs = resolve(here ?? '', path);
       const rel = relative(root, abs);

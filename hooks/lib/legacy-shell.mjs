@@ -27,13 +27,13 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 function gitViolation(text, cwd, ctx) {
   const git = GIT_FROM.exec(text);
   if (!git) return null;
-  const found = gitLegacyWrite(tokenize(git[1]), (path, from) => underLegacy(ctx.root, ctx.dir, path, from), cwd, ctx.movedIn);
+  const found = gitLegacyWrite(tokenize(git[1], ctx.shell),(path, from) => underLegacy(ctx.root, ctx.dir, path, from), cwd, ctx.movedIn);
   return found && !ctx.excluded(found.path) ? { headline: `${found.op} touches legacy code`, lines: [found.path] } : null;
 }
 
 function dependencyViolation(text, cwd, ctx) {
   if (!ADD_DEPENDENCY.test(text)) return null;
-  const path = tokenize(text).map((t) => t.replace(DEPENDENCY_PREFIX, '')).find((t) => underLegacy(ctx.root, ctx.dir, t, cwd));
+  const path = tokenize(text, ctx.shell).map((t) => t.replace(DEPENDENCY_PREFIX, '')).find((t) => underLegacy(ctx.root, ctx.dir, t, cwd));
   return path && !ctx.excluded(path) ? { headline: 'this command references legacy code', lines: [text.trim(), `${path} is under the frozen ${ctx.dir}/`] } : null;
 }
 

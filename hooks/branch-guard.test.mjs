@@ -39,6 +39,7 @@ try {
   ok('git switch <branch> blocks', blocks('git switch feature-x'));
   ok('KIT-T705 negative control: node -e with escaped quotes and no git word passes', !blocks('node -e "console.log(\\"x\\")"'));
   ok('KIT-T705: a branch flip hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('git checkout -b hidden-x').every((c) => blocks(c)));
+  ok('KIT-T1528: a branch create behind a bash-escaped quote inside double quotes blocks', blocks('git checkout "a\\" " -b hidden-y " "'));
   ok('git switch -c <new> blocks', blocks('git switch -c another'));
   ok('git checkout -b <new> blocks', blocks('git checkout -b brand-new'));
   ok('git checkout -B <new> blocks', blocks('git checkout -B brand-new'));

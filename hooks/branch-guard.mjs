@@ -113,7 +113,7 @@ try {
     if (cdTo) { cwd = resolve(cwd, cdTo); continue; }
     const m = seg.match(/^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git(?:\.exe)?\s+(.+)/s); // a git INVOCATION, not git quoted inside another command
     if (!m) continue;
-    const toks = tokenize(m[1]);
+    const toks = tokenize(m[1], shell);
     const dir = segmentDir(toks, cwd);
     const root = gitRoot(dir);
     const verdict = classifyGitSegment(toks, lookupsFor(root));

@@ -1,102 +1,52 @@
-// Quote-aware split of a shell line into segments, each tagged with the operator BEFORE it
-// ('start', '|', '||', '&&', ';', '&'). A newline is a ';'. Operators inside strings don't
-// split; `>|`, `>&`, `<&`, `&>` and `&>>` are redirections, not separators. Shared by the query gate and the
-// search telemetry so both judge the same commands.
+// Split of a shell line into segments at the operators shell-lexer.mjs finds, each tagged with the operator BEFORE it
+// ('start', '|', '||', '&&', ';', '&'). A newline is a ';'. Operators inside strings or escaped don't split; `>|`, `>&`,
+// `<&`, `&>` and `&>>` are redirections, not separators; an operator inside a substitution or group splits too. Shared by
+// the query gate and the search telemetry so both judge the same commands.
 //
-// The split follows plain quote pairing only. Shells disagree about escapes (a backslash before a quote in
-// bash, a backtick in PowerShell, `$'…'` strings), so a line with an escape character directly before a
-// quote, a `$'` or `$"` string (a quote OPENED right after `$`; a `$` that ends a quoted span, as in the
-// grep pattern '^\s*$', is plain text) or a quote that never closes is ambiguous: the returned array carries
-// `ambiguous: true` and `ambiguity: { reason, at, span }` (what, where, the text around it) and its segments cannot be trusted. A deny gate that sees the flag skips per-segment
-// parsing and tests the raw command for its own target words anywhere (KIT-T705, KIT-D117), or judges the
-// pieces from `blindSegments`, which split on every operator whatever the quoting.
+// A line whose quoting the lexer cannot resolve is ambiguous: the returned array carries `ambiguous: true` and
+// `ambiguity: { reason, at, span }` (what, where, the text around it) and its segments cannot be trusted. A deny gate
+// that sees the flag skips per-segment parsing and tests the raw command for its own target words anywhere (KIT-T705,
+// KIT-D117), or judges the pieces from `blindSegments`, which split on every operator whatever the quoting.
 //
-// A caller that knows the shell passes `{ shell }` and gets that shell's escape rules instead: under 'bash' a backslash
-// escapes the next character outside single quotes, so `\"` inside a double-quoted argument is no ambiguity (KIT-T941);
-// under 'powershell' a backslash or backtick before a quote outside single quotes still is. Single-quoted spans are
-// literal in both. A `$'` or `$"` string, a backtick before a quote, an unclosed quote and, under 'powershell' or an unknown
-// shell, a typographic quote (U+2018 to U+201E, which PowerShell reads as a quote) stay ambiguous. Without
-// `shell` the legacy test applies: an escape before a quote anywhere.
+// A caller passes the tool's `{ shell }` ('bash', 'powershell'; shellOfTool). Under bash a backslash escapes the next
+// character outside single quotes (KIT-T941); under PowerShell a backtick does, and a backslash or backtick before a quote
+// stays ambiguous. A `$'` or `$"` string, a backtick before a quote, an unclosed quote and, under PowerShell or an
+// unknown shell, a typographic quote stay ambiguous. Without `shell` no escape is honoured and an escape before a quote
+// anywhere is ambiguous.
 //
 // The bodies of quoted heredocs read by a data consumer are cut first (inert-heredoc.mjs, KIT-T784); the
 // returned array carries the cut text as `.text` for gates that also test the raw command.
 
 import { inertText } from './inert-heredoc.mjs';
 import { msysToNative } from './msys-path.mjs';
-import { belongsToRedirection } from './redirection-operator.mjs';
+import { lex } from './shell-lexer.mjs';
 
 export { inertText };
-
-const ESCAPE_BEFORE_QUOTE = /[\\`]["']/;
+export { readsTypographicQuote, TYPOGRAPHIC_QUOTE } from './shell-lexer.mjs';
 
 export const AMBIGUOUS_MESSAGE = 'Ambiguous shell quoting: rewrite the command without escaped quotes, or put the code in a scratchpad file.';
 
-const QUOTE = /["']/;
-
-// The Unicode single and double quotes PowerShell reads as quote characters (U+2018 to U+201B, U+201C to U+201E).
-export const TYPOGRAPHIC_QUOTE = /[‘-„]/;
-
-/** True when a typographic quote may be a quote: PowerShell reads it as one, and a caller that does not know its shell must assume so. */
-export const readsTypographicQuote = (shell) => shell === 'powershell' || !shell;
-
-function split(cmd, blind = false, shell = '') {
+// The text between the operator tokens, each piece tagged with the operator before it.
+function pieces(text, tokens) {
   const out = [];
-  let cur = '';
-  let op = 'start';
-  let q = '';
-  let escaped = false;
-  let dollarQuoted = false;
-  let typographic = false;
-  const at = { open: -1, escaped: -1, dollar: -1, typographic: -1 };
-  for (let i = 0; i < cmd.length; i++) {
-    const ch = cmd[i];
-    if (readsTypographicQuote(shell) && TYPOGRAPHIC_QUOTE.test(ch)) { if (!typographic) at.typographic = i; typographic = true; }
-    if (shell === 'bash' && !blind && ch === '\\' && q !== "'" && i + 1 < cmd.length) { cur += ch + cmd[++i]; continue; }
-    const escapeChar = ch === '`' || (shell === 'powershell' && ch === '\\');
-    if (shell && escapeChar && q !== "'" && QUOTE.test(cmd[i + 1] || '')) { if (!escaped) at.escaped = i; escaped = true; }
-    if (q) { cur += ch; if (ch === q) q = ''; continue; }
-    if (!blind && (ch === '"' || ch === "'")) {
-      if (cmd[i - 1] === '$') { if (!dollarQuoted) at.dollar = i - 1; dollarQuoted = true; }
-      q = ch; at.open = i; cur += ch; continue;
-    }
-    if ((ch === '|' || ch === '&') && belongsToRedirection(cmd, i)) { cur += ch; continue; }
-    if (ch === '|' || ch === '&' || ch === ';' || ch === '\n') {
-      const pair = ch + (cmd[i + 1] || '');
-      const sep = pair === '||' || pair === '&&' ? pair : ch === '\n' ? ';' : ch;
-      if (sep.length === 2) i++;
-      out.push({ text: cur, after: op });
-      cur = '';
-      op = sep;
-      continue;
-    }
-    cur += ch;
+  let from = 0;
+  let after = 'start';
+  for (const token of tokens) {
+    if (token.kind !== 'op') continue;
+    out.push({ text: text.slice(from, token.start), after });
+    from = token.end;
+    after = token.op;
   }
-  out.push({ text: cur, after: op });
-  return { out, open: q !== '', escaped, dollarQuoted, typographic, at };
-}
-
-const SPAN_RADIUS = 24;
-
-function describe(text, reason, index) {
-  const span = text.slice(Math.max(0, index - SPAN_RADIUS), index + SPAN_RADIUS).replace(/\r?\n/g, '\\n');
-  return { reason, at: index, span };
-}
-
-// The first construct that made the line ambiguous: what it is, where it starts, and the text around it.
-function ambiguityOf(text, found, shell) {
-  if (found.dollarQuoted) return describe(text, "a $' or $\" string", found.at.dollar);
-  if (found.typographic) return describe(text, 'a typographic quote PowerShell reads as a quote', found.at.typographic);
-  const escapeAt = shell ? found.at.escaped : text.search(ESCAPE_BEFORE_QUOTE);
-  if (escapeAt >= 0) return describe(text, 'an escape character before a quote', escapeAt);
-  return describe(text, 'a quote that never closes', found.at.open);
+  out.push({ text: text.slice(from), after });
+  return out;
 }
 
 export function segments(cmd, { shell = '' } = {}) {
   const text = inertText(cmd);
-  const found = split(text, false, shell);
-  const { out, open, escaped, dollarQuoted, typographic } = found;
-  out.ambiguous = open || dollarQuoted || typographic || (shell ? escaped : ESCAPE_BEFORE_QUOTE.test(text));
-  out.ambiguity = out.ambiguous ? ambiguityOf(text, found, shell) : null;
+  const { tokens, ambiguity } = lex(text, { shell });
+  const out = pieces(text, tokens);
+  out.ambiguous = ambiguity !== null;
+  out.ambiguity = ambiguity;
   out.text = text;
   return out;
 }
@@ -105,7 +55,7 @@ export function segments(cmd, { shell = '' } = {}) {
 export const shellOfTool = (toolName) => (/powershell/i.test(String(toolName || '')) ? 'powershell' : 'bash');
 
 /** Operator split that ignores quoting: the pieces a command leads with when quote pairing cannot be trusted. */
-export const blindSegments = (cmd) => split(cmd, true).out;
+export const blindSegments = (cmd) => pieces(String(cmd), lex(cmd, { blind: true }).tokens);
 
 const ARG = /(?:"[^"]*"|'[^']*'|[^\s"'])+/g;
 export const WHOLLY_QUOTED = /^(?:"[^"]*"|'[^']*')$/;
