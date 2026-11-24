@@ -44,6 +44,8 @@ check('KIT-T941: an escape inside single quotes is literal in both shells', bash
 check('KIT-T941: a backslash-escaped quote outside quotes does not open a string in bash', bash('echo \\" ; ls').ambiguous === false);
 check('KIT-T941 control: a $\' string stays ambiguous in bash', bash("echo $'a\\' ; b").ambiguous === true);
 check('KIT-T941 control: a backtick before a quote stays ambiguous in bash', bash("echo `' ; b").ambiguous === true);
+check('KIT-T1526: a typographic quote is ambiguous in powershell', ['‘', '’', '‚', '‛', '“', '”', '„'].every((q) => powershell(`rm ${q}a;b${q} x`).ambiguous === true));
+check('KIT-T1526: a typographic quote is plain text in bash', bash('echo “a b” ; ls').ambiguous === false);
 check('KIT-T941 control: an unclosed quote stays ambiguous in bash', bash("echo it's ; rm x").ambiguous === true);
 check('KIT-T941 control: a bash escaped backslash then a closing quote ends the argument', bash('cap "a\\\\" ; sed -i x y').map((s) => s.text.trim()).join('|') === 'cap "a\\\\"|sed -i x y');
 check('KIT-T941: without a shell the legacy test flags any escape before a quote', segments(escaped).ambiguous === true);

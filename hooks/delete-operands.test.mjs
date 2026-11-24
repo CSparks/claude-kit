@@ -37,6 +37,14 @@ const whole = [
   ['a backtick-escaped quote in PowerShell', ' "a`";b" c; d', 'powershell'],
   ['a backslash before a quote in PowerShell', ' "a\\";b c', 'powershell'],
   ['a single quote the splitter pairs but cmd does not', " 'a & b", 'cmd'],
+  ['a curly double quote in PowerShell', ' “a;b” c; d', 'powershell'],
+  ['a curly single quote in PowerShell', ' ‘a;b’ c; d', 'powershell'],
+  ['a low curly single quote in PowerShell', ' ‚a;b‛ c; d', 'powershell'],
+  ['a low curly double quote in PowerShell', ' „a;b“ c; d', 'powershell'],
+  ['a comment inside a group', ' $(echo x # )\n) c; d', 'bash'],
+  ['a comment right after a group opens', ' $(# )\n) c; d', 'bash'],
+  ['a comment after a semicolon inside a group', ' $(echo x;# )\n) c; d', 'bash'],
+  ['a heredoc inside a group', ' $(cat <<EOF\n)\nEOF\n) c; d', 'bash'],
   ['a caret under an unknown shell', ' a^&b; c', ''],
   ['a backtick under an unknown shell', ' a`;b; c', ''],
   ['an escaped quote under an unknown shell', ' \\"a;b\\" c; d', ''],
@@ -44,6 +52,10 @@ const whole = [
 ];
 for (const [name, text, shell] of whole) ok(`the text stays whole at ${name}`, cut(text, shell) === text);
 
+ok('a curly quote is plain text in bash', cut(' “a b”; ls', 'bash') === ' “a b”');
+ok('a hash inside a word in a group is no comment', cut(' $(echo a#b; c) d; e', 'bash') === ' $(echo a#b; c) d');
+ok('a parameter-length hash in a group is no comment', cut(' $(echo $#; c) d; e', 'bash') === ' $(echo $#; c) d');
+ok('a hash outside a group leaves the cut alone', cut(' a #b; c', 'bash') === ' a #b');
 ok('a case-named file is no case statement', cut(' case.txt; ls', 'bash') === ' case.txt');
 ok('an unknown shell cuts plain text', cut(' -rf build; ls', '') === ' -rf build');
 ok('a bare status parameter is no operand', ['$?', '$!', '$$', '$#'].every(isStatusParameter) && !isStatusParameter('$?x'));

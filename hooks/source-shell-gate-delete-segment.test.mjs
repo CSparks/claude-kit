@@ -62,6 +62,19 @@ try {
   ok('source gate blocks rm of source after a backtick-escaped quote in PowerShell',
     src('powershell -Command \'rm "a`";b" src/a.rs\'', powershell) === BLOCK);
 
+  const curlyPowershell = [
+    ['rm of source after a curly double-quoted string holding a semicolon', 'rm “a;b” src/a.rs'],
+    ['rm of source after a curly single-quoted string holding a semicolon', 'rm ‘a;b’ src/a.rs'],
+    ['rm of source after a low curly quote holding a semicolon', 'rm „a;b“ src/a.rs'],
+  ];
+  for (const [name, command] of curlyPowershell) ok(`source gate blocks ${name} in PowerShell`, src(command, powershell) === BLOCK);
+  const openGroup = [
+    ['rm of source after a comment inside a substitution', 'rm $(echo x # )\n) src/a.rs'],
+    ['rm of source after a comment inside a process substitution', "bash -c 'rm <(echo x # ) \n) src/a.rs'"],
+    ['rm of source after a heredoc inside a substitution', 'rm $(cat <<EOF\n)\nEOF\n) src/a.rs'],
+  ];
+  for (const [name, command] of openGroup) ok(`source gate blocks ${name}`, src(command) === BLOCK);
+
   const stillCut = [
     ['rm then a redirect with a pipe and a later source name', "bash -c 'rm -rf build >| log; ls src/a.rs'"],
     ['rm then an appending ampersand redirect and a status echo', 'rm -rf build &>> log; echo $?'],

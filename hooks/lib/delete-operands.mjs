@@ -8,15 +8,16 @@
 //
 // The cut fails closed: where the scan meets a construct it does not model (a `$'...'` or `$"..."` string, a `case`
 // statement, a substitution inside double quotes, an escape character of an unknown shell, a quoting the segment splitter
-// calls ambiguous) it cuts nothing and every remaining word is judged as an operand.
+// calls ambiguous, a PowerShell typographic quote, a comment or heredoc inside a group) it cuts nothing and every remaining word is judged as an operand.
 
 import { belongsToRedirection } from './redirection-operator.mjs';
-import { segments } from './shell-segments.mjs';
+import { segments, TYPOGRAPHIC_QUOTE } from './shell-segments.mjs';
 
 const STATUS_PARAMETER = /^\$[?!$#]$/;
 const WHITESPACE = /\s/;
 const CASE_WORD = 'case';
 const CASE_LEAD = /[\s;&|(]/;
+const COMMENT_LEAD = /[\s;&|(]/;
 const UNKNOWN_SHELL_ESCAPE = /[`^]|\\["'();|&]/;
 
 const BASH = { escape: '\\', quotes: `"'`, boundary: ';|&\n', escapesInDouble: true, backtickSpan: true };
@@ -32,12 +33,16 @@ const opensCase = (text, i) => text.startsWith(CASE_WORD, i)
   && (i === 0 || CASE_LEAD.test(text[i - 1]))
   && (i + CASE_WORD.length === text.length || WHITESPACE.test(text[i + CASE_WORD.length]));
 
+const opensCommentOrHeredoc = (text, i) => text.startsWith('<<', i)
+  || (text[i] === '#' && (i === 0 || COMMENT_LEAD.test(text[i - 1])));
+
 const opensSubstitution = (text, i, rules) => (text[i] === '$' && text[i + 1] === '(') || (text[i] === '`' && rules.backtickSpan);
 
 export function deleteOperandText(argText, shell = '') {
   const text = String(argText);
   const known = RULES[shell];
   if (!known && UNKNOWN_SHELL_ESCAPE.test(text)) return text;
+  if (shell === 'powershell' && TYPOGRAPHIC_QUOTE.test(text)) return text;
   const rules = known || BASH;
   let quote = '';
   let depth = 0;
@@ -56,6 +61,7 @@ export function deleteOperandText(argText, shell = '') {
       continue;
     }
     if (opensCase(text, i)) return text;
+    if ((depth > 0 || backtick) && opensCommentOrHeredoc(text, i)) return text;
     if (ch === '`' && rules.backtickSpan) { backtick = !backtick; continue; }
     if (ch === '(') { depth++; continue; }
     if (ch === ')') { depth = Math.max(0, depth - 1); continue; }

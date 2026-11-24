@@ -14,7 +14,8 @@
 // A caller that knows the shell passes `{ shell }` and gets that shell's escape rules instead: under 'bash' a backslash
 // escapes the next character outside single quotes, so `\"` inside a double-quoted argument is no ambiguity (KIT-T941);
 // under 'powershell' a backslash or backtick before a quote outside single quotes still is. Single-quoted spans are
-// literal in both. A `$'` or `$"` string, a backtick before a quote and an unclosed quote stay ambiguous. Without
+// literal in both. A `$'` or `$"` string, a backtick before a quote, an unclosed quote and, under 'powershell', a typographic
+// quote (U+2018 to U+201E, which PowerShell reads as a quote) stay ambiguous. Without
 // `shell` the legacy test applies: an escape before a quote anywhere.
 //
 // The bodies of quoted heredocs read by a data consumer are cut first (inert-heredoc.mjs, KIT-T784); the
@@ -32,6 +33,9 @@ export const AMBIGUOUS_MESSAGE = 'Ambiguous shell quoting: rewrite the command w
 
 const QUOTE = /["']/;
 
+// The Unicode single and double quotes PowerShell reads as quote characters (U+2018 to U+201B, U+201C to U+201E).
+export const TYPOGRAPHIC_QUOTE = /[‘-„]/;
+
 function split(cmd, blind = false, shell = '') {
   const out = [];
   let cur = '';
@@ -39,9 +43,11 @@ function split(cmd, blind = false, shell = '') {
   let q = '';
   let escaped = false;
   let dollarQuoted = false;
-  const at = { open: -1, escaped: -1, dollar: -1 };
+  let typographic = false;
+  const at = { open: -1, escaped: -1, dollar: -1, typographic: -1 };
   for (let i = 0; i < cmd.length; i++) {
     const ch = cmd[i];
+    if (shell === 'powershell' && TYPOGRAPHIC_QUOTE.test(ch)) { if (!typographic) at.typographic = i; typographic = true; }
     if (shell === 'bash' && !blind && ch === '\\' && q !== "'" && i + 1 < cmd.length) { cur += ch + cmd[++i]; continue; }
     const escapeChar = ch === '`' || (shell === 'powershell' && ch === '\\');
     if (shell && escapeChar && q !== "'" && QUOTE.test(cmd[i + 1] || '')) { if (!escaped) at.escaped = i; escaped = true; }
@@ -63,7 +69,7 @@ function split(cmd, blind = false, shell = '') {
     cur += ch;
   }
   out.push({ text: cur, after: op });
-  return { out, open: q !== '', escaped, dollarQuoted, at };
+  return { out, open: q !== '', escaped, dollarQuoted, typographic, at };
 }
 
 const SPAN_RADIUS = 24;
@@ -76,6 +82,7 @@ function describe(text, reason, index) {
 // The first construct that made the line ambiguous: what it is, where it starts, and the text around it.
 function ambiguityOf(text, found, shell) {
   if (found.dollarQuoted) return describe(text, "a $' or $\" string", found.at.dollar);
+  if (found.typographic) return describe(text, 'a typographic quote PowerShell reads as a quote', found.at.typographic);
   const escapeAt = shell ? found.at.escaped : text.search(ESCAPE_BEFORE_QUOTE);
   if (escapeAt >= 0) return describe(text, 'an escape character before a quote', escapeAt);
   return describe(text, 'a quote that never closes', found.at.open);
@@ -84,8 +91,8 @@ function ambiguityOf(text, found, shell) {
 export function segments(cmd, { shell = '' } = {}) {
   const text = inertText(cmd);
   const found = split(text, false, shell);
-  const { out, open, escaped, dollarQuoted } = found;
-  out.ambiguous = open || dollarQuoted || (shell ? escaped : ESCAPE_BEFORE_QUOTE.test(text));
+  const { out, open, escaped, dollarQuoted, typographic } = found;
+  out.ambiguous = open || dollarQuoted || typographic || (shell ? escaped : ESCAPE_BEFORE_QUOTE.test(text));
   out.ambiguity = out.ambiguous ? ambiguityOf(text, found, shell) : null;
   out.text = text;
   return out;
