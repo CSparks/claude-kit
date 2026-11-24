@@ -24,6 +24,11 @@ try {
     ['an npm install past an assignment', 'CI=1 npm install next@16'],
     ['an npm install in a substitution', 'echo "$(npm install next@16)"'],
     ['an ssh npm install','ssh host "cd app && npm install next@16"'],
+    ['rustup toolchain install of a version', 'rustup toolchain install 1.95.0'],
+    ['rustup toolchain install with options', 'rustup toolchain install 1.95.0 --profile minimal -c clippy'],
+    ['cargo install with a flag', 'cargo install --locked x'],
+    ['apt-get install with a flag', 'apt-get install -y x'],
+    ['the reported wsl rustup install', "wsl.exe -d Ubuntu -- bash -c 'rustup toolchain install 1.95.0 --profile minimal -c clippy > /root/rustup.log 2>&1; cat /root/rustup.log'"],
   ];
   for (const [name, command] of passes) ok(`source gate passes ${name}`, src(command) === PASS);
   ok('ambiguous quoting: source gate passes npm install', src(`${AMBIGUOUS}npm install next@^16.4.6 2>&1 | tail -5`) === PASS);
@@ -43,6 +48,11 @@ try {
     ['a manager as an option value of the container shell body', 'docker run --rm node sh -c "foo --npm npm install a.sh src/b.rs"'],
     ['one npm install beside a coreutils install', 'npm install x@1 && install a.sh src/b.rs'],
     ['a manager whose subcommand is not install', 'npm exec install a.sh src/b.rs'],
+    ['coreutils install with a mode and a source file', 'install -m 644 a.rs src/b.rs'],
+    ['cp of a source file', 'cp a.rs src/b.rs'],
+    ['rustup then a coreutils install', 'rustup toolchain install 1.95.0 && install a.rs src/b.rs'],
+    ['a rustup subcommand that is not a toolchain install', 'rustup run install a.rs src/b.rs'],
+    ['rustup toolchain install redirected into a source file', 'rustup toolchain install 1.95.0 > src/b.rs'],
   ];
   for (const [name, command] of blocks) ok(`source gate blocks ${name}`, src(command) === BLOCK);
   const ambiguousBlocks = [
