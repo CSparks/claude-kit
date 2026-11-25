@@ -8,7 +8,8 @@ import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SR
 import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
-import { literalAdds, pathspecFiles, pathspecStatus, sameCommandAdds } from './lib/commit-files.mjs';
+import { pathspecFiles, pathspecStatusStrict, sameCommandAdds } from './lib/commit-files.mjs';
+import { addsMayReach } from './lib/pin-reach.mjs';
 import { commitSpec } from './lib/commit-spec.mjs';
 import { commitCall, firstGitCall } from './lib/git-calls.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
@@ -97,7 +98,12 @@ const uniq = (a) => [...new Set(a)];
 // KIT-T1158: a `git add` earlier in the same command has not run when this hook does; its pathspecs name files the
 // commit will carry. -uall lists an untracked directory file by file, so it is judged by its files, not as `dir/`.
 // Untracked entries stay in every judged set (fail-closed, KIT-T1159).
-const statusAll = (paths) => pathspecStatus(root, paths);
+let statusFailed = false;
+const statusAll = (paths) => {
+  const out = pathspecStatusStrict(root, paths);
+  statusFailed ||= out === null;
+  return out ?? '';
+};
 const addedFiles = () => (adds.length ? pathspecFiles(statusAll(adds), { staged: true }) : []);
 
 // KIT-T052: judge the COMMIT'S file set, not the whole dirty tree (commit-spec.mjs): an explicit pathspec by git's own
@@ -121,7 +127,7 @@ if (spec.mode === 'paths') {
     ...lines(git(['-C', root, 'ls-files', '--others', '--exclude-standard'])),
   ]);
 }
-if (!changed.length) process.exit(0);
+if (!changed.length && !statusFailed) process.exit(0);
 
 // KIT-T230: in the shared data repo, a commit spanning more than one `projects/<name>/` subtree
 // publishes another live session's in-flight edits under this project's label. Hard block — the
@@ -150,13 +156,13 @@ if (!adopted(root)) process.exit(0);
 
 // KIT-T1363: a commit that moves a submodule pointer names the sha it records; the pin-sha ignore key lifts it.
 try {
-  const links = new Set(gitlinkPaths(root));
-  const pins = changed.filter((f) => links.has(f) && !pathExcluded(root, 'pin-sha', f));
-  // A bare commit records the index; the work tree counts only for a same-command add git matches to the pointer by its own
-  // pathspec rules. An add holding a shell expansion cannot be resolved here and is left to the index.
-  const literal = literalAdds(command);
-  const addedPins = new Set(literal.length ? pathspecFiles(statusAll(literal), { staged: true }) : []);
-  const fromWorktree = (f) => spec.mode !== 'staged' || addedPins.has(f);
+  const links = gitlinkPaths(root);
+  // A pin the commit or a same-command add may reach is judged from the work tree; any other staged pin from the index
+  // (pin-reach.mjs). A failed status call makes every pointer reachable.
+  const reach = { root, shell, cwd: startDir };
+  const reachable = (f) => statusFailed || spec.mode !== 'staged' || addsMayReach(command, reach, f);
+  const pins = links.filter((f) => !pathExcluded(root, 'pin-sha', f) && (changed.includes(f) || statusFailed || (spec.mode === 'staged' && addsMayReach(command, reach, f))));
+  const fromWorktree = reachable;
   const unnamed = pins.length ? pinCiteProblems({ root, paths: pins, message: cited, fromWorktree }) : [];
   if (unnamed.length) {
     process.stderr.write(pinCiteMessage(unnamed, excludeFooter('pin-sha')));

@@ -5,7 +5,8 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { adopted, cleanup, git, hook, identify, reporter, repo, tmpDir } from './test-harness.mjs';
-import { literalAdds, sameCommandAdds } from './lib/commit-files.mjs';
+import { sameCommandAdds } from './lib/commit-files.mjs';
+import { addsMayReach } from './lib/pin-reach.mjs';
 
 const { ok, done } = reporter('pin-sha-push');
 
@@ -71,19 +72,26 @@ try {
   const variable = (add) => commit(`${add} && git commit -m "more: ${MSG}"`);
   const expansions = ['git add -- "$P/more.rs"', 'git add -- "${DIR}/more.rs"', 'git add -- $P/more.rs', 'git add -- "$P"', 'git add -- "$P/*"',
     'git add -- "$P/sub"', 'git add -- "$D"/../more.rs', 'git add -- "$X"', 'git add -- $(git ls-files -m)'];
-  ok('a pathspec holding an expansion is not read for the pin: the unstaged pointer never blocks the commit', expansions.every((add) => variable(add).code === 0));
-  ok('a tree-wide add stages the pointer: judged by the work tree', variable('git add .').code === 2 && variable('git add -A').code === 2);
-  ok('a literal add naming the submodule stages the pointer: judged by the work tree', variable('git add -- sub').code === 2);
-  ok('a glob or magic pathspec git matches to the submodule is judged by the work tree', variable('git add -- "su*"').code === 2 && variable('git add -- ":(glob)su*"').code === 2);
-  ok('a literal add of other files leaves the unstaged pointer alone', variable('git add -- more.rs').code === 0);
+  ok('KIT-T1562: the pointer moved only in the work tree and the commit adds plain other files: it passes', variable('git add -- more.rs').code === 0 && variable('git add -- more.rs notes.rs').code === 0);
+  ok('a pathspec holding an expansion may reach the pointer: judged by the work tree', expansions.every((add) => variable(add).code === 2));
+  ok('a tree-wide add and an add naming the submodule are judged by the work tree', ['git add .', 'git add -A', 'git add -- sub'].every((add) => variable(add).code === 2));
+  ok('a glob, magic, ./, .. or absolute pathspec is judged by the work tree',
+    ['git add -- "su*"', 'git add -- ":(glob)su*"', 'git add -- ./more.rs', 'git add -- ../x', 'git add -- /abs/more.rs'].every((add) => variable(add).code === 2));
+  ok('an add under -C or after a cd is judged by the work tree', ['git -C . add -- more.rs', 'cd . && git add -- more.rs'].every((add) => variable(add).code === 2));
+  ok('a failed status call makes the pointer reachable', variable('git add -- ":(bogus)x"').code === 2);
   git(['add', '--', 'sub'], parent);
-  ok('a pointer staged in the index is judged whatever the add says: a wrong sha is refused', expansions.every((add) => variable(add).code === 2) && variable('git add -- more.rs').code === 2);
+  ok('a pointer staged in the index is judged from the index when the adds are plain other files: a wrong sha is refused', variable('git add -- more.rs').code === 2);
   git(['reset', '-q', '--', 'sub'], parent);
 
-  const adds = (add) => sameCommandAdds(`${add} && git commit -m x`);
-  ok('sameCommandAdds: a pathspec holding an expansion covers the whole tree, the pin path and every other', ['git add -- $D/x', 'git add -- "$X"', 'git add -- "${D}/rapid-game"', 'git add -- $(git ls-files -m)'].every((add) => adds(add).includes('.')) && adds('git add -- "$X"').join() === '.');
-  ok('literalAdds: only the pathspecs without an expansion remain, a bare add stays the whole tree',
-    literalAdds('git add -- a "$X" b').join() === 'a,b' && literalAdds('git add -- "$X"').length === 0 && literalAdds('git add .').join() === '.');
+  const reach = (add, pin = 'a/b/sub') => addsMayReach(`${add} && git commit -m x`, { root: parent, shell: 'bash', cwd: parent }, pin);
+  ok('addsMayReach: plain root-relative files that are not the pin, inside it or a parent of it do not reach', !reach('git add -- a/c.rs d.rs') && !reach('git add -- a/b/other.rs') && !reach('git stage -- x.rs'));
+  ok('addsMayReach: the pin, a parent directory of it, a path inside it, and . reach', ['git add -- a/b/sub', 'git add -- a/b', 'git add -- a', 'git add -- a/b/sub/x.rs', 'git add -- .'].every((add) => reach(add)));
+  ok('addsMayReach: names compare without case', reach('git add -- A/B/SUB'));
+  ok('addsMayReach: an expansion, a glob, magic, .., ./, an absolute or drive path reach',
+    ['git add -- $D/x', 'git add -- "$X"', 'git add -- "a/*"', 'git add -- ":(glob)a"', 'git add -- ../a', 'git add -- ./a/c.rs', 'git add -- /abs/x', 'git add -- C:/abs/x', 'git add -- "a\\c"'].every((add) => reach(add)));
+  ok('addsMayReach: an add from a directory other than the root reaches', addsMayReach('git add -- x.rs && git commit -m x', { root: parent, shell: 'bash', cwd: join(parent, 'sub') }, 'a/b/sub'));
+  ok('addsMayReach: a command with no add reaches nothing', !addsMayReach('git commit -m x', { root: parent, shell: 'bash', cwd: parent }, 'a/b/sub'));
+  ok('sameCommandAdds: a pathspec holding an expansion still covers the whole tree for the file-set checks', ['git add -- $D/x', 'git add -- "$X"'].every((add) => sameCommandAdds(`${add} && git commit -m x`).includes('.')));
 } finally {
   cleanup();
   done();

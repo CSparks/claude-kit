@@ -1,7 +1,8 @@
 // The files a `git commit` would include, from `git status --porcelain -uall -- <paths>` (KIT-T1020, KIT-T1158, KIT-T1159).
 //   pathspecFiles(porcelain, { staged })  -> string[]  the entries a pathspec commit takes; untracked entries only when `staged`
 //   pathspecStatus(root, paths)           -> string  the porcelain of `paths`, untracked directories listed file by file
-//   literalAdds(command)                  -> string[]  the add pathspecs holding no shell expansion, for git to match as written (the pin check)
+//   addSpecs(command)                     -> string[]  the add pathspecs as written, an expansion kept raw (pin-reach.mjs)
+//   pathspecStatusStrict(root, paths)     -> string | null  pathspecStatus, null when git's status fails
 //   sameCommandAdds(command)              -> string[]  the pathspecs of every `git add` or `git stage` in the command
 //     ('.' for a bare add, -A or -u with no pathspec, a --pathspec-from-file add, a pathspec holding a variable or a find `{}`, and any add the
 //     parser cannot place: it fails closed; a grouping `(`, `$(` or backtick around the add is read through)
@@ -56,7 +57,8 @@ function statusOf(root, flags, paths) {
 }
 
 /** The porcelain of `paths`, untracked directories listed file by file; an output too large for -uall falls back to git's collapsed `dir/` entries. */
-export const pathspecStatus = (root, paths) => statusOf(root, ['-uall'], paths) ?? statusOf(root, [], paths) ?? '';
+export const pathspecStatusStrict = (root, paths) => statusOf(root, ['-uall'], paths) ?? statusOf(root, [], paths);
+export const pathspecStatus = (root, paths) => pathspecStatusStrict(root, paths) ?? '';
 
 // `-A`, `--all`, `-u` and `--update` widen an add to the whole tree only when no pathspec follows: `git add -A crates/a
 // crates/b` stages every change under those two folders and nothing else (KIT-T1392). A bare `.` is the whole tree.
@@ -102,5 +104,5 @@ function rawAdds(command) {
 
 export const sameCommandAdds = (command) => [...new Set(rawAdds(command).map((t) => (UNRESOLVED_SPEC.test(t) ? '.' : t)))];
 
-/** The pathspecs of the command's adds that hold no shell expansion: git can match each as written. A bare or tree-wide add is '.'. */
-export const literalAdds = (command) => rawAdds(command).filter((spec) => !UNRESOLVED_SPEC.test(spec));
+/** The pathspecs of every add of the command as written (an expansion kept raw); a bare or tree-wide add is '.'. */
+export const addSpecs = (command) => rawAdds(command);
