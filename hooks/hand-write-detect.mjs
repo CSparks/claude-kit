@@ -7,9 +7,6 @@
 // test runner, a kit verb, a reader, no redirect into a source file; lib/inert-command.mjs, KIT-T1001) owns no changed
 // file, and so is a file whose content an Edit or Write of any session left during the call (the accepted-writes
 // ledger, tool-write-record.mjs): another writer's concurrent edit, judged by pre-write, never the call's (KIT-T888).
-// A changed file whose bytes a live writer other than the caller left through its own Edit or Write (a ledger hash match, LF or CRLF,
-// whenever it wrote) and that the caller holds no claim on is that writer's judged work, not the call's; a claim or a dirty
-// ledger entry alone exempts nothing (lib/live-writers.mjs, KIT-T1541).
 // A file holding another writer's predicted content whose confirmation has not landed yet waits for it (lib/settle-writes.mjs, KIT-T1010).
 // A file git put back (content equal to HEAD, a blob a reachable commit holds for that path or an earlier Edit's content, in a call that runs git) is no write either
 // (lib/restored-content.mjs, KIT-T982), and so is a byte-identical git rename (lib/identical-renames.mjs, KIT-T991).
@@ -26,7 +23,6 @@ import { restoredSources } from './lib/restored-content.mjs';
 import { hasPendingPrediction, settleOwned, settleMsFromEnv } from './lib/settle-writes.mjs';
 import { unmovedHandWrites } from './lib/identical-renames.mjs';
 import { subagentId } from './lib/subagent-id.mjs';
-import { producedByOthers } from './lib/live-writers.mjs';
 import { isInertCommand } from './lib/inert-command.mjs';
 import { shellOfTool } from './lib/shell-segments.mjs';
 
@@ -78,7 +74,7 @@ try {
   let candidates;
   try {
     candidates = handWrittenSources(root, before.files || {}, command, before.head || '', { shell: shellOfTool(p.tool_name), ignoreBefore: before.ignore })
-      .filter((rel) => !pathExcluded(root, CHECK, rel) && !producedByOthers(root, rel, caller));
+      .filter((rel) => !pathExcluded(root, CHECK, rel));
   } catch (e) {
     couldNotComplete(String((e && e.message) || e));
   }
