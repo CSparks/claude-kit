@@ -5,7 +5,8 @@
 //                                             claim on it (agent-claims.mjs), another live session whose write ledger still lists
 //                                             it dirty (live-claims.mjs), and every live writer whose Edit or Write left the bytes
 //                                             on disk now (the ledger), whether or not it claimed the file
-//   heldByOthersOnly(root, rel, caller)    -> true when another live writer holds `rel` and `caller` has no claim on it (hand-write-detect)
+//   producedByOthers(root, rel, caller)    -> true when a live writer other than `caller` left the bytes `rel` holds now (ledger hash match,
+//                                             LF or CRLF) and `caller` has no claim on it (hand-write-detect)
 //   otherLiveWriters(root, caller, opts)   -> descriptions of every live writer of the checkout other than `caller`
 //   liveWritersFor(root, rel, caller)      -> fileHolders, else otherLiveWriters: who a file with no recorded writer may belong to
 //   liveWriterNames(root, rel, caller)     -> liveWritersFor for a block text, [] when the registry cannot be read
@@ -18,9 +19,8 @@ import { liveClaimants, liveHolders } from './checkout-holder.mjs';
 import { gitTry } from './exec.mjs';
 import { overlappingHolders } from './live-claims.mjs';
 import { committedSince } from './session-overlap.mjs';
-import { contentHashOf } from './shell-snapshot.mjs';
 import { toolWriteEntries } from './tool-write-ledger.mjs';
-import { sameWriterId, writerAgent, writerId, writerSession } from './tool-writes.mjs';
+import { contentHashVariants, sameWriterId, writerAgent, writerId, writerSession } from './tool-writes.mjs';
 
 const STRICT = Object.freeze({ strict: true });
 const describeSession = (session, label) => `the ${label || 'writer'} of session ${session}`;
@@ -31,8 +31,8 @@ const sameWriter = (c, session, agent) => c.session === session && (c.agent || '
 // Writers whose tool left the bytes `rel` holds now and that are live: a claimant of that session and agent, or a holder of
 // that session (any holder for a main thread, the holder of that agent for an agent).
 function liveLedgerWriters(root, rel, caller, claimants, holders) {
-  const hash = contentHashOf(root, rel);
-  const writers = unique(toolWriteEntries(root, rel).filter((e) => hash && e.h === hash && e.w && !sameWriterId(e.w, caller)).map((e) => e.w));
+  const hashes = contentHashVariants(root, rel);
+  const writers = unique(toolWriteEntries(root, rel).filter((e) => hashes.includes(e.h) && e.w && !sameWriterId(e.w, caller)).map((e) => e.w));
   return writers.flatMap((w) => {
     const [session, agent] = [writerSession(w), writerAgent(w)];
     const live = claimants.some((c) => sameWriter(c, session, agent)) || holders.some((h) => h.session === session && (!agent || h.agent === agent));
@@ -52,14 +52,15 @@ export function fileHolders(root, rel, caller) {
 }
 
 /**
- * True when `rel` is another live writer's and not the caller's: another writer holds it and the caller has no standing claim
- * on it, so a change the caller's shell call saw there is not the caller's to answer for. An unreadable registry answers false.
+ * True when a live writer other than the caller demonstrably produced the bytes `rel` holds now (its own Edit or Write left them,
+ * under LF or CRLF endings) and the caller has no standing claim on `rel`: a change the caller's shell call saw there is that
+ * writer's judged work. A claim or a dirty ledger entry alone proves nothing. An unreadable registry answers false.
  */
-export function heldByOthersOnly(root, rel, caller) {
+export function producedByOthers(root, rel, caller) {
   try {
-    const [session, agent] = [writerSession(caller), writerAgent(caller)];
-    const mine = liveClaimants(root, Date.now(), STRICT).some((c) => sameWriter(c, session, agent) && Object.hasOwn(c.claims || {}, rel));
-    return !mine && fileHolders(root, rel, caller).length > 0;
+    const claimants = liveClaimants(root, Date.now(), STRICT);
+    const mine = claimants.some((c) => sameWriterId(writerId(c.session, c.agent), caller) && Object.hasOwn(c.claims || {}, rel));
+    return !mine && liveLedgerWriters(root, rel, caller, claimants, liveHolders(root, Date.now(), STRICT)).length > 0;
   } catch {
     return false;
   }

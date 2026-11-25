@@ -292,17 +292,43 @@ try {
     const tree = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: d2, encoding: 'utf8' }).trim();
     claimFile({ tree, session, agent, label: 'a roadnet writer', rel: 'src/a.mjs', head: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: d2, encoding: 'utf8' }).trim() });
   };
-  const others = fresh();
-  claimed(others, 'SW', 'agentW1234567890');
-  const heldElsewhere = call(others, 'S2', 'node scratch.js', () => rewrite(others, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
-  ok('KIT-T1541: a file another live writer holds, changed while this call ran, is not blamed on the call', heldElsewhere.status === 0);
+  process.env.CLAUDE_KIT_TURN_STATE = state;
+  const { hashOf, recordToolWrite: ledgerWrite } = await import('./lib/tool-writes.mjs');
+  const WRITER = 'SW|agentW1234567890';
+  const OTHERS_TEXT = 'export const a = 9;\n';
+  const treeOf = (d2) => execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: d2, encoding: 'utf8' }).trim();
+  const leftBy = (d2, text) => ledgerWrite(treeOf(d2), 'src/a.mjs', hashOf(text), Date.now() - 20 * 60000, WRITER);
+  const hand = "fs.writeFileSync(p, 'export const a = 9;\\n')";
+
+  const claimOnly = fresh();
+  claimed(claimOnly, 'SW', 'agentW1234567890');
+  const claimNoLedger = call(claimOnly, 'S2', 'node scratch.js', () => rewrite(claimOnly, hand));
+  ok('KIT-T1541: another writer holding the file with no ledger entry of its own for these bytes is not an exemption: flagged', claimNoLedger.status === 2 && claimNoLedger.stderr.includes('src/a.mjs'));
+  const wrongBytes = fresh();
+  claimed(wrongBytes, 'SW', 'agentW1234567890');
+  leftBy(wrongBytes, 'export const a = 1000;\n');
+  const ledgerOfOther = call(wrongBytes, 'S2', 'node scratch.js', () => rewrite(wrongBytes, hand));
+  ok('KIT-T1541: a holder whose ledger entries name other bytes than the file holds is flagged', ledgerOfOther.status === 2 && ledgerOfOther.stderr.includes('src/a.mjs'));
+
+  const produced = fresh();
+  claimed(produced, 'SW', 'agentW1234567890');
+  leftBy(produced, OTHERS_TEXT);
+  const exempt = call(produced, 'S2', 'node scratch.js', () => rewrite(produced, hand));
+  ok('KIT-T1541: bytes a live writer\'s own tool left (its ledger hash matches the file) are its work, not the call\'s', exempt.status === 0);
+  const crlf = fresh();
+  claimed(crlf, 'SW', 'agentW1234567890');
+  leftBy(crlf, OTHERS_TEXT);
+  const crlfExempt = call(crlf, 'S2', 'node scratch.js', () => rewrite(crlf, "fs.writeFileSync(p, 'export const a = 9;\\r\\n')"));
+  ok('KIT-T1541: the match tolerates CRLF endings git writes', crlfExempt.status === 0);
+
   const sharing = fresh();
   claimed(sharing, 'SW', 'agentW1234567890');
   claimed(sharing, 'S2', '');
-  const heldByBoth = call(sharing, 'S2', 'node scratch.js', () => rewrite(sharing, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
-  ok('KIT-T1541 control: a file the caller also holds is still flagged', heldByBoth.status === 2 && heldByBoth.stderr.includes('src/a.mjs'));
-  const unheld = call(others, 'S2', 'node scratch.js', () => node(others, "require('fs').writeFileSync('src/b.mjs', 'export const b = 9;\\n')"));
-  ok('KIT-T1541 control: a file no other writer holds is still flagged', unheld.status === 2 && unheld.stderr.includes('src/b.mjs'));
+  leftBy(sharing, OTHERS_TEXT);
+  const heldByBoth = call(sharing, 'S2', 'node scratch.js', () => rewrite(sharing, hand));
+  ok('KIT-T1541: a file the caller also claims is flagged even when the other writer\'s ledger matches', heldByBoth.status === 2 && heldByBoth.stderr.includes('src/a.mjs'));
+  const unheld = call(produced, 'S2', 'node scratch.js', () => node(produced, "require('fs').writeFileSync('src/b.mjs', 'export const b = 9;\\n')"));
+  ok('KIT-T1541 control: a file no other writer produced is still flagged', unheld.status === 2 && unheld.stderr.includes('src/b.mjs'));
 
   const plain = repo();
   writeFileSync(join(plain, 'x.mjs'), 'x\n');
