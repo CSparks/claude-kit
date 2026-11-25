@@ -80,6 +80,11 @@ process failure; the stale-doing detector (housekeeping + orient) will flag it l
 | [editor-workbench](editor-workbench.md) | rapid-game HTML editor: manifest injection, the `/api/editor/recipes` contract, per-game vite config | Read, Grep, Glob, Edit, Write, Bash |
 | [game-asset-artist](game-asset-artist.md) | Authors procedural game assets (mesh/material/texture factories); verifies numerically, never visually | Read, Grep, Glob, Edit, Write, Bash |
 | [perf-tuner](perf-tuner.md) | Performance-tuning writer: one lever per dispatch, ledgered theories, scene-named numbers, fidelity-neutral proof, max 3 probe runs | Read, Grep, Glob, Edit, Write, Bash |
+| [rg-implementer](rg-implementer.md) | rapid-game writer carrying the framework's working rules (framework first, shared checkout, compiling batches, cache and pin discipline, launch check); for rapid-game work with no narrower domain agent | Read, Grep, Glob, Edit, Write, Bash |
+| [rg-roads](rg-roads.md) | rapid-game roads: road web and journal, road works, road meshes, interchanges, alignment, cross-sections | Read, Grep, Glob, Edit, Write, Bash |
+| [rg-terrain-mesh](rg-terrain-mesh.md) | rapid-game terrain volume mesher: edge lines, creases, roughness, cut walls, chunk seams; road land wins under a road surface | Read, Grep, Glob, Edit, Write, Bash |
+| [rg-townplan](rg-townplan.md) | rapid-game settlement layout: streets before lots, cut-through cap, lots, buildings, drives, fences, furniture, streets into the one road web | Read, Grep, Glob, Edit, Write, Bash |
+| [rg-claims](rg-claims.md) | rapid-game land claims: the use-agnostic core, the land record, plan map, curb runs and roadside tiers; collisions only in the core, parity by outcome digests | Read, Grep, Glob, Edit, Write, Bash |
 | [visual-reviewer](visual-reviewer.md) | Captures set views through the game's own capture path and critiques screenshots for quality (art, composition, polish, breakage) with severity and a fix per finding; never a pass/fail gate, numbers stay the gate (KIT-D109) | Read, Grep, Glob, Bash (read-only) |
 
 No agent here carries a `model:` line (KIT-D080): the orchestrator names a family on every

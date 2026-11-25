@@ -44,6 +44,11 @@
     "./agents/perf-tuner.md",
     "./agents/refactorer.md",
     "./agents/researcher.md",
+    "./agents/rg-claims.md",
+    "./agents/rg-implementer.md",
+    "./agents/rg-roads.md",
+    "./agents/rg-terrain-mesh.md",
+    "./agents/rg-townplan.md",
     "./agents/rg-ui-engineer.md",
     "./agents/test-author.md",
     "./agents/visual-reviewer.md"
