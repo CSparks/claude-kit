@@ -7,7 +7,9 @@
 //   assessedFamily(text)   -> the family a well-formed tag implies, or ''
 //   splitReason(assessment, prompt) -> '' or why the brief must be split into one dispatch per concern
 //   tierOfSum(sum)         -> automation | medium | very-hard | extreme
-//   FAMILY_OF_TIER, DEFAULT_EFFORT, RUBRIC_LINES, EXAMPLE_TAG
+//   acceptedValueLines()   -> the tier names, each field's values with their scores and the sum-to-tier mapping, built from
+//                             the tables parseDifficulty checks (`q gates agent` prints them, KIT-T1475)
+//   TIERS, FIELDS, FAMILY_OF_TIER, DEFAULT_EFFORT, RUBRIC_LINES, EXAMPLE_TAG
 
 export const TIERS = ['automation', 'medium', 'very-hard', 'extreme'];
 export const FAMILY_OF_TIER = { automation: 'haiku', medium: 'sonnet', 'very-hard': 'opus', extreme: 'fable' };
@@ -17,7 +19,7 @@ export const DEFAULT_EFFORT = { haiku: 'low', sonnet: 'high', opus: 'medium', fa
 const TIER_TOPS = [['automation', 1], ['medium', 5], ['very-hard', 8], ['extreme', 12]];
 
 // field -> { value -> score }; `systems` takes a count.
-const FIELDS = {
+export const FIELDS = {
   root: { known: 0, area: 1, unknown: 2 },
   proof: { numeric: 0, mixed: 1, judgement: 2 },
   ref: { yes: 0, partial: 1, no: 2 },
@@ -25,7 +27,9 @@ const FIELDS = {
   context: { s: 0, m: 1, l: 2 },
 };
 const FIELD_NAMES = ['systems', ...Object.keys(FIELDS)];
-const SYSTEMS_SCORE = (n) => (n <= 1 ? 0 : n <= 3 ? 1 : 2);
+// [highest count, score] per band of the `systems` count.
+const SYSTEMS_BANDS = [[1, 0], [3, 1], [Infinity, 2]];
+const SYSTEMS_SCORE = (n) => SYSTEMS_BANDS.find(([top]) => n <= top)[1];
 const MAX_SCORE = 2;
 const TAG = /\[difficulty:\s*([^\]]*)\]/i;
 const CONCERNS_LINE = /^\s*(?:concerns?|parts?)\s*:/im;
@@ -43,6 +47,26 @@ export const RUBRIC_LINES = [
   'Split first: systems scoring 2 together with context=l, or a brief with two or more independent concerns, is one dispatch per concern.',
 ];
 export const EXAMPLE_TAG = '[difficulty: medium; systems=2 root=area proof=numeric ref=yes coupling=own context=m]';
+
+// [[top, x], ...] from `low` -> [['1', x], ['2-3', y], ['4+', z]]
+function bandLabels(bands, low) {
+  return bands.map(([top, x], i) => {
+    const from = i ? bands[i - 1][0] + 1 : low;
+    return [top === Infinity ? `${from}+` : from === top ? `${from}` : `${from}-${top}`, x];
+  });
+}
+
+export function acceptedValueLines() {
+  const scored = (pairs) => pairs.map(([value, score]) => `${value} (${score})`).join(' | ');
+  return [
+    `Accepted tier names (exact; no other word is accepted): ${TIERS.join(' | ')}`,
+    'Accepted field values, each with its score:',
+    `  systems=<count>  ${scored(bandLabels(SYSTEMS_BANDS, 1))}`,
+    ...Object.entries(FIELDS).map(([name, values]) => `  ${name}=${scored(Object.entries(values))}`),
+    `Sum to tier (the tag's tier must be the one its sum gives): ${bandLabels(TIER_TOPS.map(([tier, top]) => [top, tier]), 0)
+      .map(([range, tier]) => `${range} ${tier} (${FAMILY_OF_TIER[tier]})`).join(', ')}`,
+  ];
+}
 
 export function tierOfSum(sum) {
   return (TIER_TOPS.find(([, top]) => sum <= top) || TIER_TOPS[TIER_TOPS.length - 1])[0];

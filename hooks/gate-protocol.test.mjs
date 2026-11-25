@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { ENV, ROOT, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 import { GATES, gateText } from './lib/gate-protocol.mjs';
+import { FIELDS as DIFFICULTY_FIELDS, RUBRIC_LINES, TIERS, parseDifficulty } from './lib/difficulty.mjs';
 import * as protocol from './lib/gate-protocol.mjs';
 import * as capabilityStale from './lib/capability-stale.mjs';
 import * as brief from './dispatch-brief.mjs';
@@ -64,6 +65,18 @@ try {
   ok('q gates agent prints every check id', agent.status === 0 && [...ids].every((id) => agent.stdout.includes(id)));
   ok('q gates agent prints every tag form exactly', Object.values(TOKENS).filter((t) => GATES.agent.checks.some((c) => c.tokens.includes(t))).every((t) => agent.stdout.includes(t.form)));
   ok('q gates agent states the canonical description form', agent.stdout.includes('[Sonnet 5.5]'));
+  const agentLines = agent.stdout.split('\n');
+  const tierLine = agentLines.find((l) => l.includes('Accepted tier names')) || '';
+  ok('q gates agent names every tier the difficulty validator accepts (KIT-T1475)', TIERS.length === 4 && TIERS.every((t) => tierLine.split(/[:|]/).map((s) => s.trim()).includes(t)));
+  ok('every printed tier name passes the validator, and no refused alias is printed as a tier',
+    TIERS.every((t) => !parseDifficulty(`[difficulty: ${t}; systems=1 root=known proof=numeric ref=yes coupling=own context=s]`).problems.some((p) => p.startsWith('tier')))
+    && !/\b(low|hard|high)\b/.test(tierLine.replace('very-hard', '')));
+  const fieldLine = (name) => agentLines.find((l) => l.includes(`  ${name}=`) && l.includes('(0)')) || '';
+  ok('q gates agent prints every accepted value of each difficulty field with its score',
+    Object.entries(DIFFICULTY_FIELDS).every(([name, values]) => Object.entries(values).every(([v, s]) => fieldLine(name).includes(`${v} (${s})`))) && fieldLine('systems').includes('4+ (2)'));
+  const sumLine = agentLines.find((l) => l.includes('Sum to tier')) || '';
+  ok('q gates agent prints the sum-to-tier mapping with each family', ['0-1 automation (haiku)', '2-5 medium (sonnet)', '6-8 very-hard (opus)', '9-12 extreme (fable)'].every((s) => sumLine.includes(s)));
+  ok('the rubric text and the tag form name only accepted tiers', TIERS.every((t) => RUBRIC_LINES.join('\n').includes(t)) && parseDifficulty(TOKENS.difficulty.form).problems.length === 0);
   const game = tmpDir('gate-game-');
   writeFileSync(join(game, '.gitmodules'), '[submodule "rapid-game"]\n\tpath = rapid-game\n');
   const plain = tmpDir('gate-plain-');

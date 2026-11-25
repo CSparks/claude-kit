@@ -12,6 +12,7 @@ import { TOKENS } from './gate-tokens.mjs';
 import { jobsSection } from './gate-jobs.mjs';
 import { STALE_TABLE_CHECK } from './capability-stale.mjs';
 import { DIFFICULTY_CHECK } from '../dispatch-difficulty.mjs';
+import { acceptedValueLines } from './difficulty.mjs';
 import { BRIEF_CHECK as BRIEF_GROUNDED_CHECK } from '../dispatch-brief.mjs';
 import { BROKER_OWNED_CHECK } from '../dispatch-broker.mjs';
 import { CONFORMANCE_CHECK, conformanceTestsFor } from '../dispatch-conformance.mjs';
@@ -60,7 +61,7 @@ export const GATES = {
       { check: LABEL_CHECK, wants: LABEL_REQUIREMENTS.map((r) => `${r.part}: ${r.wants}`), tokens: [] },
       { check: LADDER_CHECK, wants: ["a model resolvable to a known family: pass model:'sonnet' | 'opus' | 'haiku' | 'fable' on every call; a model-less call that would inherit a fable session is refused"], tokens: [T.allowFable] },
       { check: JOB_CHECK, wants: ["a job: [job: <id>] in the prompt or description (kit agents carry no default job); a model outside the job row's families needs the override tag or a difficulty assessment that gives that family"], tokens: [T.job, T.modelOverride], digest: [T.job, T.modelOverride] },
-      { check: DIFFICULTY_CHECK, wants: ['a difficulty assessment on every brief (KIT-T1414): six fields scored 0-2, sum 0-1 haiku, 2-5 sonnet, 6-8 opus, 9-12 fable; the model must be that family (or the override tag); a brief with four or more systems and an over-200k context, or two or more listed concerns, is split first; refused only in sessions begun after the check took effect, a warning before'], tokens: [T.difficulty, T.modelOverride], digest: [T.difficulty] },
+      { check: DIFFICULTY_CHECK, wants: ['a difficulty assessment on every brief (KIT-T1414): six fields scored 0-2, the sum names the tier and the tier the family; the model must be that family (or the override tag); a brief with four or more systems and an over-200k context, or two or more listed concerns, is split first; refused only in sessions begun after the check took effect, a warning before', ...acceptedValueLines()], tokens: [T.difficulty, T.modelOverride], digest: [T.difficulty] },
       { check: STALE_TABLE_CHECK, wants: ['no dispatch while a capability table row is older than dispatch.refresh_days (a reminder prints from 2 days before); the weekly reassessment is exempt: [job: research], a brief naming research/models-capability-<date>.md, [paths:] only under research/, .ai/config.yml, .ai/decisions/, .ai/model-lineup.json'], tokens: [T.modelRefresh] },
       { check: ESCALATION_CHECK, wants: ['a job no dearer than the default of the ticket type the brief names'], tokens: [T.escalate] },
       { check: COLD_BUILD_CHECK, wants: ['no worktree, clone or second checkout: one checkout, on main'], tokens: [T.maintainerWorktree] },
