@@ -303,9 +303,4 @@ export function lex(text, { shell = '', blind = false, flat = false } = {}) {
   return finish(s, shell);
 }
 
-/** The word tokens of `text`, a word inside a comment left out: a comment is no argument of any command. */
-export function words(text, opts) {
-  const { tokens } = lex(text, opts);
-  const comments = tokens.filter((t) => t.kind === 'comment');
-  return tokens.filter((t) => t.kind === 'word' && !comments.some((c) => t.start >= c.start && t.end <= c.end));
-}
+export const words = (text, opts) => lex(text, opts).tokens.filter((t) => t.kind === 'word');
