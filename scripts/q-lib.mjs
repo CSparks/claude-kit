@@ -57,6 +57,7 @@ import {
 } from './q-model.mjs';
 import { orphanRows } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
+import { checkoutOfStoreRoot } from '../hooks/lib/store-link.mjs';
 import { searchScopes } from './q-framework.mjs';
 import { showArgs, showManyRows, withAsked } from './q-show.mjs';
 import { unsupportedFlags, reportGap, flagHint } from './q-gap.mjs';
@@ -408,7 +409,7 @@ async function queryOnce(cmd, args, { root, cwdRoot = root || process.cwd(), noD
   // code/sym/file answer from the code index (scripts/code-index.mjs), not the workflow cache.
   if (cmd === 'code' || cmd === 'sym' || cmd === 'file') {
     const crate = takeRegistry(args).spec !== undefined;
-    return { rows: await (crate ? registryRows(cmd, args, { root: cwdRoot }) : codeVerbRows(cmd, args, cwdRoot)), cached: false };
+    return { rows: await (crate ? registryRows(cmd, args, { root: cwdRoot }) : codeVerbRows(cmd, args, checkoutOfStoreRoot(cwdRoot))), cached: false };
   }
   if (cmd === 'governing' || cmd === 'drift' || cmd === 'mentions' || cmd === 'topics' || cmd === 'topic') {
     return { rows: fallback(cmd, args, cwdRoot), cached: false };

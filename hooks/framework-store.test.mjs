@@ -67,6 +67,11 @@ ok('the store root is machine-local, beside the registry, never inside the check
 ok('control: the game itself still keeps its store', same(resolveStoreRoot(game), game));
 ok('control: an unregistered submodule still keeps the game store', same(resolveStoreRoot(join(game, 'other-lib')), game));
 
+// KIT-T1538: a code search from the submodule reads the checkout, never the machine-local link directory.
+const { checkoutOfStoreRoot } = await import('./lib/store-link.mjs');
+ok('a machine-local store root maps to the registered checkout', same(checkoutOfStoreRoot(viaLink), join(game, 'rapid-game')), String(checkoutOfStoreRoot(viaLink)));
+ok('control: a store root that is a checkout stays itself', same(checkoutOfStoreRoot(game), game) && checkoutOfStoreRoot('') === '');
+
 const stale = join(base, 'claude-kit-store-roots', 'rapid-game', '.ai');
 rmSync(stale, { recursive: true, force: true });
 symlinkSync(game, stale, process.platform === 'win32' ? 'junction' : 'dir');

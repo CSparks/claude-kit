@@ -5,10 +5,12 @@
 //   storeRootOf(name, aiDir) -> string   aiDir's parent when it is named `.ai`; else a machine-local directory
 //                                        `<registry dir>/claude-kit-store-roots/<name>` holding a `.ai` junction to aiDir,
 //                                        created or repointed here; '' when the link cannot be made
+//   checkoutOfStoreRoot(root, reg?) -> string  the registered checkout for such a machine-local root (a code search there
+//                                        reads the checkout, not the link directory); any other root unchanged
 
 import { existsSync, lstatSync, mkdirSync, realpathSync, symlinkSync, unlinkSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { registryPath } from './registry.mjs';
+import { readRegistry, registryPath } from './registry.mjs';
 
 export const STORE_ROOTS_DIR = 'claude-kit-store-roots';
 
@@ -19,6 +21,13 @@ const realDir = (path) => {
 const isLink = (path) => {
   try { return lstatSync(path).isSymbolicLink(); } catch { return false; }
 };
+
+/** The checkout a store root's code lives in: the registered project path for a machine-local store root, else `root`. */
+export function checkoutOfStoreRoot(root, registry = readRegistry()) {
+  const parent = root ? realDir(dirname(root)) : null;
+  if (!parent || parent !== realDir(join(dirname(registryPath()), STORE_ROOTS_DIR))) return root;
+  return registry.projects[basename(root)] || root;
+}
 
 export function storeRootOf(name, aiDir) {
   if (!aiDir) return '';
