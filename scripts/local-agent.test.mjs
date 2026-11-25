@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { reporter, tmpDir, cleanup } from '../hooks/test-harness.mjs';
-import { LOCAL_MODEL, PATCH_BEGIN, PATCH_END, modeFor, buildPrompt, buildInvocation, extractPatch, submitArgs, acquireSlot } from './local-agent-lib.mjs';
+import { LOCAL_MODEL, PATCH_BEGIN, PATCH_END, modeFor, buildPrompt, buildInvocation, laneConfig, extractPatch, submitArgs, acquireSlot } from './local-agent-lib.mjs';
 
 const { ok, done } = reporter('local-agent');
 const CLI = fileURLToPath(new URL('./local-agent.mjs', import.meta.url));
@@ -26,15 +26,25 @@ const brokerTree = () => {
 };
 
 try {
-  const direct = buildInvocation({ repo: 'D:/r', mode: 'direct', outFile: 'o.txt', rigDir: 'D:\\llm' });
-  const broker = buildInvocation({ repo: 'D:/r', mode: 'broker', outFile: 'o.txt', rigDir: 'D:\\llm' });
-  ok('invocation: goes through the rig codex launcher', /codex-local\.cmd$/.test(direct.command));
-  ok('invocation: exec, the 3-slot model, the repo, the output file, prompt on stdin',
-    direct.args[0] === 'exec' && direct.args.includes(LOCAL_MODEL) && direct.args[direct.args.indexOf('--cd') + 1] === 'D:/r'
-      && direct.args[direct.args.indexOf('--output-last-message') + 1] === 'o.txt' && direct.args.at(-1) === '-');
-  ok('invocation: a direct tree is workspace-write, a broker tree is read-only',
-    direct.args[direct.args.indexOf('--sandbox') + 1] === 'workspace-write' && broker.args[broker.args.indexOf('--sandbox') + 1] === 'read-only');
-  ok('invocation: an explicit model wins', buildInvocation({ repo: 'r', mode: 'direct', outFile: 'o', model: 'qwen3.8-27b' }).args.includes('qwen3.8-27b'));
+  const direct = buildInvocation({ repo: 'D:/r', mode: 'direct', checks: ['cargo t -p x'], bin: 'C:/oc/opencode.exe' });
+  const broker = buildInvocation({ repo: 'D:/r', mode: 'broker', bin: 'C:/oc/opencode.exe' });
+  const cfg = (inv) => JSON.parse(inv.env.OPENCODE_CONFIG_CONTENT);
+  ok('invocation: runs the opencode binary directly', direct.command === 'C:/oc/opencode.exe');
+  ok('invocation: run, the 3-slot model on the llamacpp provider, the repo dir',
+    direct.args.join(' ') === `run --model llamacpp/${LOCAL_MODEL} --dir D:/r`);
+  ok('invocation: the lane model entry is injected with one slot of context',
+    cfg(direct).provider.llamacpp.models[LOCAL_MODEL].limit.context === 65536 && direct.env.NO_COLOR === '1');
+  ok('invocation: an explicit model wins and is not redefined',
+    (() => { const inv = buildInvocation({ repo: 'r', mode: 'direct', model: 'qwen3.8-27b', bin: 'x' });
+      return inv.args.includes('llamacpp/qwen3.8-27b') && Object.keys(cfg(inv).provider.llamacpp.models).length === 0; })());
+  ok('permissions: a broker tree denies edits and every command',
+    cfg(broker).permission.edit === 'deny' && JSON.stringify(cfg(broker).permission.bash) === '{"*":"deny"}');
+  ok('permissions: a direct tree edits, runs read-only git and the brief checks, nothing else',
+    (() => { const p = cfg(direct).permission;
+      return p.edit === 'allow' && p.bash['*'] === 'deny' && p.bash['git diff*'] === 'allow' && p.bash['cargo t -p x'] === 'allow'
+        && !('git commit*' in p.bash); })());
+  ok('permissions: paths outside the repo are denied in both modes',
+    laneConfig({ mode: 'direct' }).permission.external_directory === 'deny' && laneConfig({ mode: 'broker' }).permission.external_directory === 'deny');
 
   const bp = buildPrompt({ brief: 'Change X in a.rs L10-20', mode: 'broker', ticket: 'KIT-T1' });
   const dp = buildPrompt({ brief: 'Change X in a.rs L10-20', mode: 'direct' });
@@ -87,7 +97,8 @@ try {
   const dry = spawnSync(process.execPath, [CLI, '--brief', brief, '--repo', brokerTree(), '--report', join(tmpDir('la-rep-'), 'r.md'), '--dry-run'], { encoding: 'utf8' });
   const plan = JSON.parse(dry.stdout || '{}');
   ok('cli: --dry-run assembles the broker-mode invocation without spawning anything',
-    dry.status === 0 && plan.mode === 'broker' && plan.model === LOCAL_MODEL && plan.args.includes('read-only') && plan.prompt.includes('Rename foo to bar'));
+    dry.status === 0 && plan.mode === 'broker' && plan.model === LOCAL_MODEL && plan.args[0] === 'run'
+      && JSON.parse(plan.env.OPENCODE_CONFIG_CONTENT).permission.edit === 'deny' && plan.prompt.includes('Rename foo to bar'));
   const usage = spawnSync(process.execPath, [CLI, '--brief', brief], { encoding: 'utf8' });
   ok('cli: missing --repo/--report is a usage error (exit 2)', usage.status === 2);
 } finally {

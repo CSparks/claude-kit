@@ -5,7 +5,7 @@
 //   LOCAL_MODEL                          the router preset id: 3 agents share one load of the 27B
 //   modeFor(repo)                        'broker' when a broker daemon owns the tree, else 'direct'
 //   buildPrompt({ brief, mode, ... })    the full prompt the local agent receives on stdin
-//   buildInvocation({ repo, model, mode, outFile, rigDir })  { command, args } for codex-local.cmd
+//   buildInvocation({ repo, model, mode, bin })  { command, args, env } for headless `opencode run`
 //   extractPatch(text)                   the patch envelope between the PATCH markers, or ''
 //   submitArgs({ root, ticket, ... })    argv for scripts/broker/submit.mjs
 //   acquireSlot({ dir, slots, repo, mode })  { index, release } or null (all slots busy / writer clash)
@@ -62,19 +62,44 @@ export function buildPrompt({ brief, mode, ticket }) {
   ].join('\n');
 }
 
-/** `codex exec` through the rig launcher: it starts the router if needed and applies `--profile local`. */
-export function buildInvocation({ repo, model = LOCAL_MODEL, mode, outFile, rigDir = 'D:\\llm' }) {
+export const OPENCODE_PROVIDER = 'llamacpp';
+export const ROUTER_URL = 'http://127.0.0.1:8080/v1';
+
+// Lane presets the maintainer's opencode.json does not list; 65536 tokens is one of the three slots.
+const LANE_MODELS = { [LOCAL_MODEL]: { name: 'Qwen3.8-27B 3 slots x 64K (local lane)', tool_call: true, reasoning: true, limit: { context: 65536, output: 8192 } } };
+
+export function defaultOpencodeBin(env = process.env) {
+  return join(env.APPDATA || '', 'npm', 'node_modules', 'opencode-ai', 'bin', 'opencode.exe');
+}
+
+// Read-only git commands every direct-mode agent may run; the brief's acceptance checks are added per run.
+const DIRECT_BASH_ALLOW = ['git status*', 'git diff*', 'git log*', 'git show*'];
+
+/**
+ * The config OpenCode merges over the user's opencode.json: the lane model entry and the mode's
+ * permissions. Broker mode denies every edit and command; direct mode edits the repo and runs only
+ * the read-only git commands plus `checks` (the brief's acceptance commands). Paths outside the
+ * repo are denied in both.
+ */
+export function laneConfig({ model = LOCAL_MODEL, mode, checks = [] }) {
+  const models = LANE_MODELS[model] ? { [model]: LANE_MODELS[model] } : {};
+  const bash = { '*': 'deny' };
+  if (mode !== 'broker') for (const cmd of [...DIRECT_BASH_ALLOW, ...checks]) bash[cmd] = 'allow';
   return {
-    command: join(rigDir, 'codex-local.cmd'),
-    args: [
-      'exec',
-      '--model', model,
-      '--cd', repo,
-      '--sandbox', mode === 'broker' ? 'read-only' : 'workspace-write',
-      '--skip-git-repo-check',
-      '--output-last-message', outFile,
-      '-',
-    ],
+    provider: { [OPENCODE_PROVIDER]: { models } },
+    permission: { edit: mode === 'broker' ? 'deny' : 'allow', bash, external_directory: 'deny' },
+  };
+}
+
+/**
+ * Headless `opencode run` on the real binary (no cmd.exe hop, no per-directory --continue): a fresh
+ * session in `repo`, the prompt on stdin, the reply on stdout.
+ */
+export function buildInvocation({ repo, model = LOCAL_MODEL, mode, checks = [], bin = defaultOpencodeBin() }) {
+  return {
+    command: bin,
+    args: ['run', '--model', `${OPENCODE_PROVIDER}/${model}`, '--dir', repo],
+    env: { OPENCODE_CONFIG_CONTENT: JSON.stringify(laneConfig({ model, mode, checks })), NO_COLOR: '1' },
   };
 }
 

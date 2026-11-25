@@ -3,10 +3,11 @@
 //
 //   node scripts/local-agent.mjs --brief <file> --repo <dir> --report <file>
 //        [--ticket ID] [--title "…"] [--test "cargo t -p x"]... [--land] [--job targeted-change]
-//        [--model qwen3.8-27b-3x] [--max-revisions 2] [--slots 3] [--rig D:\llm] [--dry-run]
+//        [--model qwen3.8-27b-3x] [--max-revisions 2] [--slots 3] [--rig D:\llm] [--opencode <exe>] [--dry-run]
 //
-// The brief (a file) is the whole task; the report (a file) is the whole answer. Launches
-// `codex exec` through the rig's codex-local.cmd, which starts the router when it is down.
+// The brief (a file) is the whole task; the report (a file) is the whole answer. Runs headless
+// `opencode run` (a fresh session, prompt on stdin, reply on stdout) against the rig's router,
+// starting the router through <rig>\start-server.cmd when it is down (at most 120 s).
 // Up to --slots (3) agents run at once; a direct-mode writer excludes a second writer in one repo.
 //
 // BROKER-OWNED TREE (target/broker/broker.lock live): the agent gets a read-only view and returns a
@@ -16,17 +17,21 @@
 //
 // Exit: 0 done (or patch passed), 1 failed after revisions, 2 usage, 75 no free slot.
 
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { recordAgent } from '../hooks/lib/agent-roster.mjs';
-import { LOCAL_MODEL, DEFAULT_SLOTS, modeFor, buildPrompt, buildInvocation, extractPatch, submitArgs, acquireSlot } from './local-agent-lib.mjs';
+import { LOCAL_MODEL, DEFAULT_SLOTS, ROUTER_URL, defaultOpencodeBin, modeFor, buildPrompt, buildInvocation, extractPatch, submitArgs, acquireSlot } from './local-agent-lib.mjs';
 
 const KIT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EX_USAGE = 2;
 const EX_NO_SLOT = 75;
+const EX_NO_ROUTER = 69;
+const ROUTER_WAIT_MS = 120_000;
+const ROUTER_PROBE_MS = 3_000;
+const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 
 function parseArgs(argv) {
   const opts = { test: [] };
@@ -40,12 +45,31 @@ function parseArgs(argv) {
   return opts;
 }
 
-function runLauncher({ repo, model, mode, rigDir, prompt, outFile }) {
-  const { command, args } = buildInvocation({ repo, model, mode, outFile, rigDir });
-  const r = spawnSync('cmd.exe', ['/c', command, ...args], { cwd: repo, input: prompt, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  let message = '';
-  try { message = readFileSync(outFile, 'utf8'); } catch { message = r.stdout || ''; }
-  return { code: r.status, message, stderr: r.stderr || '' };
+async function routerUp() {
+  try {
+    const res = await fetch(`${ROUTER_URL}/models`, { signal: AbortSignal.timeout(ROUTER_PROBE_MS) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** True once the router answers; starts it through the rig's start-server.cmd when it is down. */
+async function ensureRouter(rigDir) {
+  if (await routerUp()) return true;
+  spawn('cmd.exe', ['/c', join(rigDir, 'start-server.cmd')], { detached: true, stdio: 'ignore' }).unref();
+  const deadline = Date.now() + ROUTER_WAIT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, ROUTER_PROBE_MS));
+    if (await routerUp()) return true;
+  }
+  return false;
+}
+
+function runAgent({ invocation, repo, prompt }) {
+  const { command, args, env } = invocation;
+  const r = spawnSync(command, args, { cwd: repo, input: prompt, env: { ...process.env, ...env }, encoding: 'utf8', maxBuffer: MAX_OUTPUT_BYTES });
+  return { code: r.status, message: r.stdout || '', stderr: `${r.stderr || ''}${r.error ? String(r.error) : ''}` };
 }
 
 function node(args, input, cwd) {
@@ -62,7 +86,7 @@ function submitToBroker({ patch, opts, repo, revises }) {
   return { passed: wait.code === 0, id, text: wait.out };
 }
 
-function main() {
+async function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (!opts.brief || !opts.repo || !opts.report) {
     console.error('usage: local-agent.mjs --brief <file> --repo <dir> --report <file> [--ticket ID] [--dry-run]');
@@ -73,13 +97,17 @@ function main() {
   const model = opts.model || LOCAL_MODEL;
   const rigDir = opts.rig || process.env.LLM_RIG_DIR || 'D:\\llm';
   const brief = readFileSync(resolve(opts.brief), 'utf8');
-  const scratch = mkdtempSync(join(tmpdir(), 'local-agent-'));
-  const outFile = join(scratch, 'last-message.txt');
   const prompt = buildPrompt({ brief, mode, ticket: opts.ticket });
+  const invocation = buildInvocation({ repo, model, mode, checks: opts.test, bin: opts.opencode || process.env.OPENCODE_BIN || defaultOpencodeBin() });
 
   if (opts['dry-run']) {
-    console.log(JSON.stringify({ mode, model, ...buildInvocation({ repo, model, mode, outFile, rigDir }), prompt }, null, 2));
+    console.log(JSON.stringify({ mode, model, ...invocation, prompt }, null, 2));
     return 0;
+  }
+
+  if (!(await ensureRouter(rigDir))) {
+    console.error(`local router not answering at ${ROUTER_URL} after ${ROUTER_WAIT_MS / 1000} s (started ${join(rigDir, 'start-server.cmd')})`);
+    return EX_NO_ROUTER;
   }
 
   const slot = acquireSlot({ dir: join(tmpdir(), 'kit-local-agent'), slots: Number(opts.slots) || DEFAULT_SLOTS, repo, mode });
@@ -96,8 +124,8 @@ function main() {
     let nextPrompt = prompt;
     let revises = '';
     for (let attempt = 0; attempt <= maxRevisions; attempt++) {
-      const run = runLauncher({ repo, model, mode, rigDir, prompt: nextPrompt, outFile });
-      log.push(`## Attempt ${attempt + 1} (launcher exit ${run.code})`, run.message.trim() || run.stderr.trim() || '(no output)');
+      const run = runAgent({ invocation, repo, prompt: nextPrompt });
+      log.push(`## Attempt ${attempt + 1} (opencode exit ${run.code})`, run.message.trim() || run.stderr.trim() || '(no output)');
       if (mode !== 'broker') {
         ok = run.code === 0;
         break;
@@ -119,7 +147,6 @@ function main() {
     status = ok ? 'done' : 'error';
   } finally {
     slot.release();
-    rmSync(scratch, { recursive: true, force: true });
   }
   const header = [`# local-agent report`, `mode: ${mode}`, `model: ${model}`, `job: ${opts.job || 'targeted-change'}`, `status: ${status}`, `seconds: ${Math.round((Date.now() - started) / 1000)}`, ''];
   mkdirSync(dirname(resolve(opts.report)), { recursive: true });
@@ -128,4 +155,4 @@ function main() {
   return ok ? 0 : 1;
 }
 
-process.exit(main());
+process.exit(await main());

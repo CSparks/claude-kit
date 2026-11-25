@@ -45,8 +45,13 @@ node <kit>/scripts/local-agent.mjs --brief <brief.md> --repo <dir> --report <rep
   --ticket <ID> --title "<commit-style title>" [--test "cargo t -p x"] [--job targeted-change]
 ```
 
-- Launches `codex exec` through `D:\llm\codex-local.cmd` (profile `local`), model `qwen3.8-27b-3x`.
-  The launcher starts the router if it is down. Override the rig dir with `--rig` or `LLM_RIG_DIR`.
+- Runs headless `opencode run --model llamacpp/qwen3.8-27b-3x --dir <repo>` on the real binary
+  (`%APPDATA%\npm\node_modules\opencode-ai\bin\opencode.exe`; override with `--opencode` or
+  `OPENCODE_BIN`): a fresh session, the prompt on stdin, the reply on stdout. `OPENCODE_CONFIG_CONTENT`
+  adds the 3-slot model to the `llamacpp` provider (64K context) and sets the mode's permissions; the
+  user's `opencode.json` is never edited.
+- If the router on `127.0.0.1:8080` is down the wrapper starts it with `<rig>\start-server.cmd` and
+  waits up to 120 s (exit 69 when it never answers). Override the rig dir with `--rig` or `LLM_RIG_DIR`.
 - Up to 3 run at once (`--slots`). A fourth exits 75. Slot files live in `%TEMP%\kit-local-agent`.
 - `--dry-run` prints the launcher command, arguments and prompt without spawning.
 - The report file carries `mode`, `model`, `job`, `status`, seconds, and every attempt's reply.
@@ -55,13 +60,16 @@ node <kit>/scripts/local-agent.mjs --brief <brief.md> --repo <dir> --report <rep
 
 ### Direct tree
 
-The agent edits files in `--repo` (sandbox `workspace-write`). That makes it a writer: the one
+The agent edits files in `--repo`. Its shell is deny-by-default: it may run read-only git (`status`,
+`diff`, `log`, `show`) and each `--test` command, nothing else; paths outside the repo are denied.
+That makes it a writer: the one
 read/write agent per checkout rule applies (KIT-D077), and the wrapper refuses a second direct-mode
 agent in the same repo. Run three in parallel only in three different checkouts, or in a broker tree.
 
 ### Broker-owned tree
 
-When `target/broker/broker.lock` is live the agent gets a read-only view and returns a patch
+When `target/broker/broker.lock` is live the agent gets a read-only view (every edit and command
+denied) and returns a patch
 envelope between `=== PATCH BEGIN ===` and `=== PATCH END ===`. The wrapper submits it
 (`scripts/broker/submit.mjs`), waits (`wait.mjs`), and on `stale`, `gate` or `failed` feeds the
 verdict back for up to `--max-revisions` (default 2) revisions, per `skills/patch-worker`. The
@@ -72,5 +80,5 @@ local agent never writes the tree. `--land` resubmits a green patch with `--land
 
 `D:\llm\run.ps1` writes the 3-slot preset `qwen3.8-27b-3x` into `models.ini` (never hand-edit it):
 `parallel = 3` with `ctx-size = 3 x 65536`. Context is split evenly across the slots, so each agent
-has 64K; the codex/opencode system prompt and tool schemas take about 12K of that, which is why the
+has 64K; the OpenCode system prompt and tool schemas take about 12K of that, which is why the
 brief must be tight. See `D:\llm\README.md` for the VRAM figure and the apply command.
