@@ -20,7 +20,7 @@
 
 import { resolve } from 'node:path';
 import { payload, git, gitRoot, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
-import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, segments, shellOfTool } from './lib/shell-segments.mjs';
 import { foreignSubmissions, policyToken, pushedRepos, slugOf, CLAUDE_TRAILER, POLICY_URLS } from './lib/upstream-policy.mjs';
 import { pushHookStatus, wireCommand } from './lib/push-hooks.mjs';
 import { unpushedPinMessage, unpushedPins } from './lib/push-pins.mjs';
@@ -172,10 +172,12 @@ try {
   const p = await payload();
   const command = (p.tool_input && p.tool_input.command) || '';
   if (!/\b(?:gh|git)(?:\.exe)?\b/.test(command) || !/\b(?:create|comment|push)\b/.test(command)) process.exit(0);
+  const shell = shellOfTool(p.tool_name);
+  ctx.shell = shell;
   const marks = markerExcludedLines(command, CHECK_ID);
   const upstreamMarked = marks.wholeFile || marks.lines.size;
 
-  if (segments(command).ambiguous && !upstreamMarked) {
+  if (segments(command, { shell }).ambiguous && !upstreamMarked) {
     process.stderr.write(`\nBLOCKED: a gh or git submission cannot be matched to its target repo (KIT-T395). ${AMBIGUOUS_MESSAGE}\n${excludeFooter(CHECK_ID)}`);
     process.exit(2);
   }

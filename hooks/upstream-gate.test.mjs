@@ -46,6 +46,13 @@ try {
   ok('no -R: the upstream remote of the fork is the target', blocks('gh pr create --title t --body b'));
   ok('KIT-T705 negative control: node -e with escaped quotes and no gh or git word passes', !blocks('node -e "console.log(\\"x\\")"'));
   ok('KIT-T705: a foreign submission hidden behind an escaped quote or a $\'…\' string blocks', hiddenBehindQuotes('gh pr create --repo bevyengine/bevy --title t').every((c) => blocks(c)));
+  const bash = (command) => hook('upstream-gate.mjs', { tool_name: 'Bash', tool_input: { command } }, fork).code === 2;
+  const prose = 't notes KIT-T1 "baseline: use \\"git stash push -m x -- f\\" then pop"';
+  ok('KIT-T1564: a Bash store-verb note naming git commands inside escaped quotes is not a submission', !bash(prose));
+  ok('KIT-T1564: the same note under PowerShell, where a backslash does not escape, stays refused as ambiguous',
+    hook('upstream-gate.mjs', { tool_name: 'PowerShell', tool_input: { command: prose } }, fork).code === 2);
+  ok('KIT-T1564: a real foreign push chained after such a note still blocks under Bash', bash(`${prose} && gh pr create --repo bevyengine/bevy --title t`));
+  ok('KIT-T1564: a foreign submission hidden behind an escaped quote still blocks under Bash', hiddenBehindQuotes('gh pr create --repo bevyengine/bevy --title t').every((c) => bash(c)));
   ok('chained segment blocks', blocks('git status && gh pr create --repo bevyengine/bevy --title t'));
 
   ok('token with ai-allowed: yes clears', !blocks(`gh pr create --repo bevyengine/bevy --title t  # ${TOKEN_YES}`));

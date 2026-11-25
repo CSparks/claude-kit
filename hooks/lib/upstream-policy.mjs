@@ -91,14 +91,14 @@ export function pushedRepos(command, cwd, ctx) {
 
 // One command text: each segment, then the command strings it runs (`bash -c`, `ssh`, `eval`, substitutions), each from
 // the directory the segments before it reached.
-function collectSubmissions(command, cwd, ctx, out, depth, every) {
+function collectSubmissions(command, cwd, ctx, out, depth, every, shell = ctx.shell || '') {
   let dir = cwd;
-  for (const { text } of segments(command)) {
+  for (const { text } of segments(command, { shell })) {
     const seg = text.trim();
     if (!seg) continue;
     const cd = cdTarget(seg);
     if (cd) { dir = ctx.resolveDir(dir, cd); continue; }
-    if (depth < MAX_NESTING) commandRuns(seg, '').forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1, every));
+    if (depth < MAX_NESTING) commandRuns(seg, '').forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1, every, run.shell || ''));
     const toks = tokenize(seg);
     const env = {};
     while (toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[0])) { const [k, ...v] = toks.shift().split('='); env[k] = v.join('='); }
