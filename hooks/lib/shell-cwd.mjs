@@ -25,6 +25,36 @@ function madeDirectories(text, cwd) {
 // cwd, which is the session project root and not the directory a subagent's shell sits in (KIT-T1347).
 export const payloadStartDir = (p) => (typeof p?.cwd === 'string' && p.cwd && isDirectory(p.cwd) ? p.cwd : process.cwd());
 
+const FLOW_OPEN = /^(?:if|while|until|for|select|case|function)\b/;
+const LEADING_FLOW = /^(?:(?:then|else|elif|do|if|while|until|time|!)\s+|[({]\s*)+/;
+
+/**
+ * Every directory a hit in segment `upto` may run in, after the `cd` segments before it: one when each cd surely ran in this
+ * shell (joined from the start by `;` or `&&` after a cd that cannot fail, outside any pipeline, group or control structure),
+ * else the directory with the cd followed and the one without it, so a gate judging each fails closed.
+ */
+export function cwdsBefore(command, start = process.cwd(), { upto = Infinity, shell = '' } = {}) {
+  const parts = [...segments(String(command || ''), { shell })];
+  let dirs = new Set([start]);
+  const made = new Set();
+  let flow = false;
+  let cannotFail = true;
+  parts.slice(0, Math.min(upto, parts.length)).forEach((part, k) => {
+    const text = part.text.trim();
+    const bare = text.replace(LEADING_FLOW, '').replace(/\s*[)}]+$/, '');
+    if (FLOW_OPEN.test(bare)) flow = true;
+    const piped = part.after === '|' || parts[k + 1]?.after === '|';
+    const joined = part.after === 'start' || part.after === ';' || (part.after === '&&' && cannotFail);
+    const sure = joined && !piped && !flow && bare === text;
+    const target = cdTarget(bare);
+    [...dirs].forEach((dir) => madeDirectories(bare, dir).forEach((dirMade) => made.add(dirMade)));
+    const moved = target ? [...dirs].map((dir) => resolve(dir, target)).filter((next) => isDirectory(next) || made.has(next)) : [];
+    cannotFail = sure && moved.length > 0;
+    if (moved.length) dirs = sure ? new Set(moved) : new Set([...dirs, ...moved]);
+  });
+  return [...dirs];
+}
+
 export function commandCwd(command, start = process.cwd(), { upto = Infinity, shell = '' } = {}) {
   let cwd = start;
   let index = 0;

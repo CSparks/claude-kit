@@ -119,6 +119,22 @@ check('KIT-T1313 control: a real hand write keeps the Write-tool advice and no l
   const inSub = [`builds --run "cd sub && git stash push -u -- own.rs" --out target/x.txt`, 'bash -c "cd sub && git stash push -u -- own.rs"', 'sh -c "cd sub; git stash push -u -- own.rs"'];
   check('a git stash inside a quoted command is judged in the directory its cd chose', inSub.every((c) => places(c).length > 0 && places(c).every((p) => p === real(join(root, 'sub')))));
   check('control: a git stash before the cd inside the quoted command keeps the outer directory', places('builds --run "git stash push -u -- own.rs && cd sub" --out target/x.txt').every((p) => p === real(root)));
+  // A cd that may not run in this shell is no proof of where the call runs (security review of the KIT-T1552 fix): both directories are judged.
+  const distinct = (command) => [...new Set(places(command))].sort();
+  const here = real(root);
+  const there = real(join(root, 'sub'));
+  const both = [here, there].sort();
+  check('a cd joined by && from the start is followed alone', JSON.stringify(distinct('bash -c "cd sub && git stash push -u -- own.rs"')) === JSON.stringify([there]));
+  check('a cd after ; is followed alone', JSON.stringify(distinct('bash -c "git status; cd sub; git stash push -u -- own.rs"')) === JSON.stringify([there]));
+  const unsure = {
+    'a cd in an || branch': 'bash -c "false || cd sub; git stash push -u -- own.rs"',
+    'a cd after a command that can fail and skip it': 'bash -c "false && cd sub; git stash push -u -- own.rs"',
+    'a cd in a subshell': 'bash -c "(cd sub); git stash push -u -- own.rs"',
+    'a cd in a pipeline': 'bash -c "cd sub | true; git stash push -u -- own.rs"',
+    'a cd in an if branch': 'bash -c "if true; then cd sub; fi; git stash push -u -- own.rs"',
+    'a cd in a group': 'bash -c "{ cd sub; }; git stash push -u -- own.rs"',
+  };
+  for (const [name, command] of Object.entries(unsure)) check(`${name} judges the hit in both directories`, JSON.stringify(distinct(command)) === JSON.stringify(both));
   check('control: a git stash in a direct call is unchanged', shellSourceWrites('git stash push -u -- own.rs', { shell: 'bash' }).some((h) => h.path === 'own.rs' && !h.from));
   process.chdir(before);
   const absolute = shellSourceWrites(`git -C "${top}" stash push -u -- "${top}/mine.rs"`, { shell: 'bash', tempDir: '/no-such-temp' });
