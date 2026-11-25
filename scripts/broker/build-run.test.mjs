@@ -177,3 +177,22 @@ test('a build that does not compile, and a tool a build started, pass untouched 
   const nested = run(['test', '-j', '24'], { [HELD_ENV]: '1' });
   assert.deepEqual(nested.seen.args, ['test', '-j', '24']);
 });
+
+test('KIT-T1550: starting a .cmd wrapper raises no deprecation warning, however many times it starts', () => {
+  const strict = run(['--version', 'a b'], { NODE_OPTIONS: '--throw-deprecation' });
+  assert.equal(strict.status, 0, strict.stderr);
+  assert.doesNotMatch(strict.stderr, /DEP0190/);
+  assert.deepEqual(strict.seen.args, ['--version', 'a b']);
+});
+
+test('KIT-T1550: a tool that cannot be started is named and exits 126, not silently', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'build-run-bad-'));
+  const bad = join(dir, process.platform === 'win32' ? 'cargo.exe' : 'cargo');
+  writeFileSync(bad, 'not a program');
+  if (process.platform !== 'win32') chmodSync(bad, 0o755);
+  try {
+    const r = spawnSync(process.execPath, [RUNNER, 'cargo', '--version'], { env: { ...process.env, PATH: `${dir}${delimiter}${process.env.PATH}`, CLAUDE_KIT_BUG_STORE: join(dir, 'none') }, cwd: dir, encoding: 'utf8' });
+    assert.equal(r.status, 126);
+    assert.match(r.stderr, /\[build-budget\] could not start .*cargo/);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});

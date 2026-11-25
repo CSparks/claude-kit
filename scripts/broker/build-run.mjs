@@ -37,6 +37,7 @@ import { START_WAIT_S, waitOutWindows } from './write-window.mjs';
 
 const EXIT_QUEUED = 75;
 const EXIT_NOT_FOUND = 127;
+const EXIT_NOT_STARTED = 126;
 const DEFAULT_MAX_WAIT_S = 280;
 const LABEL_CHARS = 100;
 const SHIM_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'bin', 'build-shims');
@@ -58,9 +59,21 @@ export function findReal(tool, env = process.env, shimDir = SHIM_DIR) {
 
 const quoted = (a) => (/[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
 
+// A .cmd or .bat wrapper runs through cmd.exe as one command line (an argument list beside `shell: true` is DEP0190, a warning per start).
+// A start that fails (spawn throws for a file the system cannot execute, or emits `error`) names the program and ends the run
+// with EXIT_NOT_STARTED instead of a bare stack trace.
 function start(real, args, env, stdio) {
-  if (/\.(cmd|bat)$/i.test(real)) return spawn(`"${real}"`, args.map(quoted), { stdio, env, shell: true });
-  return spawn(real, args, { stdio, env });
+  const report = (e) => process.stderr.write(`[build-budget] could not start ${real}: ${e.message}\n`);
+  try {
+    const child = /\.(cmd|bat)$/i.test(real)
+      ? spawn([`"${real}"`, ...args.map(quoted)].join(' '), { stdio, env, shell: true })
+      : spawn(real, args, { stdio, env });
+    child.on('error', report);
+    return child;
+  } catch (e) {
+    report(e);
+    return null;
+  }
 }
 
 function lowerPriority(child, game) {
@@ -108,12 +121,16 @@ async function runGated(real, tool, args, verdict, cwd) {
   if (requested > cores) process.stderr.write(`[build-budget] ${tool} asked for ${requested} cores, running on ${cores}\n`);
   const env = { ...process.env, ...heldEnv(process.env, cores) };
   const child = start(real, clampJobs(args, cores), env, ['inherit', 'inherit', verdict.runs ? 'pipe' : 'inherit']);
+  if (!child) { slot.release(); return EXIT_NOT_STARTED; }
   lowerPriority(child, snapshot().game);
   if (verdict.runs) forwardUntilProgram(child, () => slot.release());
   for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => child.kill(sig));
   const phase = phaseWatch({ slot, pid: child.pid, tests: verdict.tests });
   const watching = setInterval(() => phase.poll(), PHASE_POLL_MS);
-  return new Promise((done) => child.on('exit', (code, signal) => { clearInterval(watching); slot.release(); done(code ?? (signal ? 1 : 0)); }));
+  return new Promise((done) => {
+    child.on('exit', (code, signal) => { clearInterval(watching); slot.release(); done(code ?? (signal ? 1 : 0)); });
+    child.on('error', () => { clearInterval(watching); slot.release(); done(EXIT_NOT_STARTED); });
+  });
 }
 
 async function main([tool, ...args]) {
@@ -126,7 +143,11 @@ async function main([tool, ...args]) {
     return runGated(real, tool, args, verdict, cwd);
   }
   const child = start(real, args, process.env, 'inherit');
-  return new Promise((done) => child.on('exit', (code, signal) => done(code ?? (signal ? 1 : 0))));
+  if (!child) return EXIT_NOT_STARTED;
+  return new Promise((done) => {
+    child.on('exit', (code, signal) => done(code ?? (signal ? 1 : 0)));
+    child.on('error', () => done(EXIT_NOT_STARTED));
+  });
 }
 
 if (isMain(import.meta.url)) {
