@@ -1,6 +1,7 @@
 // The files a `git commit` would include, from `git status --porcelain -uall -- <paths>` (KIT-T1020, KIT-T1158, KIT-T1159).
 //   pathspecFiles(porcelain, { staged })  -> string[]  the entries a pathspec commit takes; untracked entries only when `staged`
 //   pathspecStatus(root, paths)           -> string  the porcelain of `paths`, untracked directories listed file by file
+//   addsReach(command, path)              -> boolean  whether an add of the command may stage `path` (an unresolved pathspec by its literal tail)
 //   sameCommandAdds(command)              -> string[]  the pathspecs of every `git add` or `git stage` in the command
 //     ('.' for a bare add, -A or -u with no pathspec, a --pathspec-from-file add, a pathspec holding a variable or a find `{}`, and any add the
 //     parser cannot place: it fails closed; a grouping `(`, `$(` or backtick around the add is read through)
@@ -12,6 +13,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
+import { overlaps } from './path-overlap.mjs';
 
 const UNTRACKED = '??';
 const STATUS_COLUMNS = 'XY '.length;
@@ -28,9 +30,14 @@ const FROM_FILE = /^--pathspec-from-file(?:=|$)/;
 const FIND_PLACEHOLDER = '{}';
 const UNRESOLVED_SPEC = /[$`]|\{\}/;
 const GROUPING_AROUND_WORD = /^(?:\$\(|[({]|`(?=git\b))+|[)}]+$/g;
+const ARG_GROUPING = /^[({]+|[)}]+$/g;
 const STATUS_MAX_BYTES = 256 * 1024 * 1024;
+const EXPANSION = /\$\{[^}]*\}|\$[A-Za-z_]\w*|\$\(|`/g;
+const GLOB_OR_SYNTAX = /[*?[\]${}()`]/;
 
 const baseName = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
+// An add's argument keeps a leading `$(` or backtick (an expansion, unresolved) and loses only the grouping that closes the call.
+const argWord = (word) => (word === FIND_PLACEHOLDER ? word : word.replace(ARG_GROUPING, ''));
 const ungrouped = (word) => (word === FIND_PLACEHOLDER ? word : word.replace(GROUPING_AROUND_WORD, ''));
 
 export function pathspecFiles(porcelain, { staged = false } = {}) {
@@ -60,7 +67,7 @@ function addPathspecs(args) {
   if (args.some((t) => FROM_FILE.test(t))) return WHOLE_TREE;
   const dashAt = args.indexOf('--');
   const paths = dashAt === -1 ? args.filter((t) => !t.startsWith('-')) : args.slice(dashAt + 1);
-  return paths.length ? paths.map((t) => (UNRESOLVED_SPEC.test(t) ? '.' : t)) : WHOLE_TREE;
+  return paths.length ? paths : WHOLE_TREE;
 }
 
 // The subcommand index after git's global options, -1 when the walk meets an option it cannot place.
@@ -76,20 +83,44 @@ function subcommandAt(words, from) {
 }
 
 function segmentAdds(text) {
-  const words = shellArgs(text).map(ungrouped).filter(Boolean);
+  const entries = shellArgs(text).map((raw) => ({ raw, word: ungrouped(raw) })).filter((e) => e.word);
+  const words = entries.map((e) => e.word);
+  const argsAfter = (at) => entries.slice(at).map((e) => argWord(e.raw)).filter(Boolean);
   const gitAt = words.findIndex((w) => baseName(w) === 'git');
-  if (gitAt === -1) return words.filter((w) => SHELL_STRING.test(w) && /\bgit\b/.test(w)).flatMap(sameCommandAdds);
+  if (gitAt === -1) return words.filter((w) => SHELL_STRING.test(w) && /\bgit\b/.test(w)).flatMap(rawAdds);
   const subAt = subcommandAt(words, gitAt + 1);
   if (subAt === -1) return words.slice(gitAt + 1).some((w) => ADD_VERBS.has(w)) ? WHOLE_TREE : [];
   const sub = words[subAt];
   if (sub === undefined) return [];
   if (UNRESOLVED_WORD.test(sub)) return WHOLE_TREE;
-  return ADD_VERBS.has(sub) ? addPathspecs(words.slice(subAt + 1)) : [];
+  return ADD_VERBS.has(sub) ? addPathspecs(argsAfter(subAt + 1)) : [];
 }
 
-export function sameCommandAdds(command) {
+function rawAdds(command) {
   const text = String(command);
   const parts = segments(text);
   const pieces = parts.ambiguous ? blindSegments(text) : parts;
   return [...new Set([...pieces].flatMap(({ text: segment }) => segmentAdds(segment)))];
+}
+
+export const sameCommandAdds = (command) => [...new Set(rawAdds(command).map((t) => (UNRESOLVED_SPEC.test(t) ? '.' : t)))];
+
+// The literal path components an unresolved pathspec ends with, [] when the end of it is itself unresolved or a glob.
+function literalTail(spec) {
+  const tail = spec.slice(Math.max(...[...spec.matchAll(EXPANSION)].map((m) => m.index + m[0].length), 0));
+  if (!tail.startsWith('/') || GLOB_OR_SYNTAX.test(tail)) return [];
+  return tail.split('/').filter(Boolean);
+}
+
+const hasRun = (parts, run) => run.length > 0 && parts.some((_, at) => run.every((c, i) => parts[at + i] === c));
+
+/** True when a `git add` of the command may stage `path`: a bare or tree-wide add, a pathspec naming it, or an unresolved pathspec whose literal tail can name it (fail-closed otherwise). */
+export function addsReach(command, path) {
+  const parts = String(path).replace(/\\/g, '/').split('/').filter(Boolean);
+  return rawAdds(command).some((spec) => {
+    if (spec === WHOLE_TREE[0]) return true;
+    if (!UNRESOLVED_SPEC.test(spec)) return overlaps([spec], [path]);
+    const tail = literalTail(spec);
+    return tail.length === 0 || hasRun(parts, tail);
+  });
 }

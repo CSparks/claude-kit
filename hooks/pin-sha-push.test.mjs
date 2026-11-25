@@ -61,6 +61,21 @@ try {
   git(['add', '--', 'a.rs'], plain);
   git(['commit', '-q', '-m', 'a'], plain);
   ok('control: a repo without submodules pushes unaffected', push(plain).code === 0);
+
+  writeFileSync(join(sub, 'lib.rs'), 'pub fn lib() -> u32 { 3 }\n');
+  git(['commit', '-q', '-am', 'a later framework change'], sub);
+  const unstaged = git(['rev-parse', 'HEAD'], sub).trim();
+  ok('setup: the work-tree pointer differs from the index', unstaged !== git(['ls-files', '-s', '--', 'sub'], parent).split(/\s+/)[1]);
+  writeFileSync(join(parent, 'more.rs'), 'pub fn more() -> u32 { 1 }\n');
+  const variable = (add) => commit(`${add} && git commit -m "more: ${MSG}"`);
+  ok('an add of a variable path with a file tail cannot stage the pointer: the unstaged pointer is not judged', variable('git add -- $P/more.rs').code === 0);
+  ok('a braced variable with a file tail passes the same way', variable('git add -- ${DIR}/more.rs').code === 0);
+  ok('a variable path whose tail can name the submodule is judged by the work tree', variable('git add -- $P/sub').code === 2);
+  ok('a bare variable path may be anything: judged by the work tree', variable('git add -- $P').code === 2);
+  ok('a variable path with a glob tail may be anything: judged by the work tree', variable('git add -- $P/*').code === 2);
+  ok('a command substitution path may be anything: judged by the work tree', variable('git add -- $(git ls-files -m)').code === 2);
+  ok('a tree-wide add stages the pointer: judged by the work tree', variable('git add .').code === 2);
+  ok('a literal add of other files leaves the unstaged pointer alone', variable('git add -- more.rs').code === 0);
 } finally {
   cleanup();
   done();
