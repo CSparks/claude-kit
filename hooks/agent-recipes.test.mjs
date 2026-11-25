@@ -17,6 +17,7 @@ const rule = readFileSync(join(ROOT, 'docs', 'wait-rule.md'), 'utf8');
 check('the wait rule names ONE builds --run call with nothing chained after it', /is ONE `builds --run "<command>" --out target\/<file> --timeout 170 --tool-timeout 180` call with nothing chained after it/.test(rule));
 check('the wait rule says to end the turn and that wait.mjs waits on broker jobs only', /If it still runs, end your turn/.test(rule) && /wait\.mjs waits on broker jobs only/.test(rule));
 check('the wait rule opens a saved output file with Read, never grep, tail or cat', /opened with Read \(offset, limit\), never grep, tail or cat/.test(rule));
+check('the wait rule names head, the last lines by Read offset and the q search of a saved log (KIT-T1551)', /nor head/.test(rule) && /last lines are Read with offset/.test(rule) && rule.includes('`q code <text> --dir <file>`') && /own summary flag/.test(rule));
 const agents = readdirSync(join(ROOT, 'agents')).filter((f) => f.endsWith('.md') && f !== 'README.md');
 check('every agent definition carries the new wait rule verbatim', agents.length >= 10 && agents.every((a) => readFileSync(join(ROOT, 'agents', a), 'utf8').includes(rule.trim())));
 
