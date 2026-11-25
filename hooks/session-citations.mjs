@@ -28,14 +28,56 @@ const NOT_A_PATH = /^\w+:\/\/|[*?]/;
 // artifact: `/srv/app/.env`, `~/.ssh/config`.
 const HOST_OR_HOME_PATH = /^[\/~]/;
 
+const TOKEN_CHARS = '[^\\s`\'"()[\\]<>,;]';
+const EXT = `\\.[A-Za-z0-9]{1,${EXTENSION_MAX_LEN}}(?![A-Za-z0-9])`;
+// A drive-rooted path whose directory name holds one space (`C:/Users/Chris Sparks/.claude/x.md`): the first word
+// carries no extension, the second word carries a separator and the extension.
+const SPACED_DRIVE_PATH = new RegExp(
+  `[A-Za-z]:[\\\\/]${TOKEN_CHARS}*(?<!\\.[A-Za-z0-9]{1,${EXTENSION_MAX_LEN}}) ${TOKEN_CHARS}*[\\\\/]${TOKEN_CHARS}*${EXT}`,
+  'g',
+);
+// A clause ends at a newline, a semicolon or a sentence stop.
+const CLAUSE_BREAK = /\n|;|\.(?=\s)/;
+// A directory on another host or the user's machine (`/root/dev/mesa/build2`, `~/proj/`): a path that follows it in
+// the same clause is relative to that directory, not to this repo.
+const HOST_DIR = new RegExp(`(?:^|[\\s(=\`'"])((?:~\\/|\\/)${TOKEN_CHARS}*)`, 'g');
+const MAX_WORDS_AFTER_HOST_DIR = 3;
+const LETTER = /[A-Za-z]/;
+
+function hostDirEnds(clause) {
+  const ends = [];
+  for (const m of clause.matchAll(HOST_DIR)) {
+    const token = m[1].replace(/[.:)]+$/, '');
+    const last = token.replace(/\/$/, '').split('/').pop();
+    if (token.replace(/\/$/, '').length > 1 && (token.endsWith('/') || !last.includes('.'))) ends.push(m.index + m[0].length);
+  }
+  return ends;
+}
+
+function followsHostDir(clause, index, ends) {
+  const end = ends.filter((e) => e <= index).pop();
+  if (end === undefined) return false;
+  return clause.slice(end, index).split(/\s+/).filter(Boolean).length <= MAX_WORDS_AFTER_HOST_DIR;
+}
+
+// A token with a letter before its final extension is a path; `23.6/22.8/22.1` is a run of timings.
+const hasLetterStem = (raw) => LETTER.test(raw.slice(0, raw.lastIndexOf('.')));
+
 export function citedPaths(text) {
   const out = new Set();
-  const scrubbed = String(text || '').replace(/\w+:\/\/\S+/g, ' '); // URLs are not on-disk paths
-  for (const m of scrubbed.matchAll(CITATION_RE)) {
-    const raw = m[0].replace(/[.,;:)]+$/, '');
-    if (!raw || NOT_A_PATH.test(raw) || HOST_OR_HOME_PATH.test(raw)) continue;
-    if (!/[\/]/.test(raw)) continue;
-    out.add(raw);
+  const scrubbed = String(text || '')
+    .replace(/\w+:\/\/\S+/g, ' ') // URLs are not on-disk paths
+    .replace(SPACED_DRIVE_PATH, (m) => { out.add(m); return ' '.repeat(m.length); });
+  for (const clause of scrubbed.split(CLAUSE_BREAK)) {
+    const hostDirs = hostDirEnds(clause);
+    for (const m of clause.matchAll(CITATION_RE)) {
+      const raw = m[0].replace(/[.,;:)]+$/, '');
+      if (!raw || NOT_A_PATH.test(raw) || HOST_OR_HOME_PATH.test(raw)) continue;
+      if (!/[\/]/.test(raw)) continue;
+      if (!/^[A-Za-z]:/.test(raw) && !hasLetterStem(raw)) continue;
+      if (followsHostDir(clause, m.index, hostDirs)) continue;
+      out.add(raw);
+    }
   }
   return [...out];
 }

@@ -50,6 +50,23 @@ try {
   ok('only the newest dated entries are checked', found.includes('docs/old14.md') && found.includes('docs/old5.md') && !found.includes('docs/old1.md'));
   ok('control: an undated line is always checked', missing(anchor(...entries, 'plain line cites docs/undated.md')).includes('docs/undated.md'));
   ok('citedPaths still lists every path-shaped token', citedPaths(anchor(L30)).includes('tests/test_GroupPads.cpp'));
+
+  const TIMINGS = 'Timing one-line edit rebuild: Windows cargo 23.6/22.8/22.1 s; WSL cargo 17.8/10.1/10.4 s; also 1.5/2.5ms and 18.30/17.52.';
+  ok('slash-separated timings are not citations', citedPaths(TIMINGS).length === 0 && missing(anchor(TIMINGS)).length === 0);
+  ok('control: a digit-named file under a lettered directory is still a citation', citedPaths('wrote out/1.5.json').includes('out/1.5.json'));
+
+  const PLAN = 'Plan: C:/Users/Chris Sparks/.claude/plans/i-want-the-road-hazy-graham-of-2c9ca620.md. Dispatching: unblock.';
+  ok('a drive path with one space in a directory name is one citation', citedPaths(PLAN).join() === 'C:/Users/Chris Sparks/.claude/plans/i-want-the-road-hazy-graham-of-2c9ca620.md');
+  ok('the truncated fragment after the space is not reported', missing(anchor(PLAN)).every((p) => p.startsWith('C:')) );
+  ok('control: two adjacent drive paths are not joined', citedPaths('C:/a/b.md C:/c/d.md').join() === 'C:/a/b.md,C:/c/d.md');
+  ok('control: a drive path then a relative path stay two citations', citedPaths('C:/a/b.md docs/x.md').join() === 'C:/a/b.md,docs/x.md');
+
+  const WSL = 'Dozen Vulkan driver built at /root/dev/mesa/build2 (ICD json src/microsoft/vulkan/dzn_devenv_icd.x86_64.json). Launch in WSL.';
+  ok('a path continuing an absolute directory on another host is not a repo citation', citedPaths(WSL).length === 0);
+  ok('the same holds when the directory ends in a slash', citedPaths('wrote /root/dev/mesa/build2/ then src/a/b.json').length === 0);
+  ok('control: a repo path in the next sentence is still a citation', citedPaths(`${WSL} See docs/missing.md`).join() === 'docs/missing.md');
+  ok('control: a repo path after a host directory in another clause is still a citation', citedPaths('built at /root/dev/mesa; wrote docs/missing.md').join() === 'docs/missing.md');
+  ok('control: a repo path far from the host directory is still a citation', citedPaths('built at /root/dev/mesa and then after many words later wrote docs/missing.md').join() === 'docs/missing.md');
 } finally {
   cleanup();
 }
