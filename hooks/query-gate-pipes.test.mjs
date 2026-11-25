@@ -83,7 +83,7 @@ const ALLOWED = [
   ['a scratchpad glob into grep', 'cat C:/Users/x/scratchpad/*.txt | grep ramps'],
   ['a grep of one scratchpad file', 'grep -E "census|ramps" C:/Users/x/scratchpad/census.txt'],
   ['an output filter to a scratch file', 'cargo run 2>&1 | grep -E "ramps|bridges" > C:/Users/x/scratchpad/census.txt'],
-  ['a Rust glob grep (no exact index answer: KIT-T085)', 'grep -n fn crates/rdg-world/src/*.rs'],
+  ['a Rust glob grep with a wildcard directory (no exact index answer: KIT-T085)', 'grep -n fn crates/*/src/*.rs'],
 ];
 for (const [name, cmd] of ALLOWED) expect(`KIT-T1121 control: allows ${name}`, run(d, cmd).code, 0);
 
@@ -106,7 +106,8 @@ expect('KIT-T1342 control: PowerShell passes a build output piped into Select-St
 
 // Glob operands follow the recursive-search policy (KIT-T085): an indexed JS/TS glob is the code graph's; a non-indexed one passes.
 expect('KIT-T1121: blocks a non-recursive grep of a TS glob', run(d, 'grep -n useState src/*.ts').code, 2);
-expect('KIT-T1121 control: a markdown glob grep passes', run(d, 'grep -n usage docs/*.md').code, 0);
+expect('KIT-T1557: a markdown glob grep in one directory blocks (the index answers it)', run(d, 'grep -n usage docs/*.md').code, 2);
+expect('KIT-T1557: a Rust glob grep in one directory blocks', run(d, 'grep -n fn crates/rdg-world/src/*.rs').code, 2);
 expect('KIT-T1342: a grep of one TS file blocks', run(d, 'grep -n useState src/App.ts').code, 2);
 expect('KIT-T1551: a head of one named file blocks (Read has offset and limit)', run(d, 'head -n 40 crates/rdg-world/src/lib.rs').code, 2);
 

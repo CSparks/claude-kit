@@ -19,6 +19,7 @@ const GREP_TOOLS = new Set(['grep', 'egrep', 'fgrep', 'rg']);
 const RG_TYPE = { rust: 'rust', py: 'py', python: 'py', md: 'md', markdown: 'md', toml: 'toml', json: 'json', yaml: 'yaml', sh: 'sh', css: 'css', html: 'html', go: 'go', java: 'java', c: 'c', cpp: 'cpp' };
 const IGNORED_FLAGS = new Set(['-r', '-R', '-n', '-H', '-s', '--recursive', '--line-number', '--no-heading', '--with-filename', '--no-messages', '-I', '--no-ignore-messages']);
 const REGEX_META = /[.[\]\\^$*+?(){}|]/;
+const GLOB_EXT = /^(?:(.*)[\\/])?\*\.([A-Za-z0-9]+)$/;
 // Constructs the JS RegExp engine reads differently from grep/rg.
 const FOREIGN_REGEX = /\(\?(?!:)|\[\[:|\\[pPhRAzZKGXQE]|\(\?P</;
 // realpath of the nearest existing ancestor plus the remainder, so a path that does not exist yet
@@ -68,13 +69,18 @@ export function indexEquivalent(command, { qPath, root, cwd = process.cwd(), fil
     else if (/^-[rRnHsi]{2,}$/.test(t)) { if (t.includes('i')) f.ignore = true; }
     else return null; // an option the index does not model
   }
+  // A lone `<dir>/*.<ext>` operand is the language scope of its extension within that directory (the index also walks below it).
+  const globLang = !file && !f.lang && pos.length === 2 ? classify(`x.${GLOB_EXT.exec(pos[1])?.[2]}`)?.lang : '';
+  if (globLang) f.lang = globLang;
   if (pos.length < 1 || (!file && (!f.lang || f.lang === '!'))) return null;
   const pattern = pos[0];
   if (!pattern || pattern.includes('\n')) return null;
   if (file && pos.length !== 2) return null;
   const rel = [];
   for (const p of file ? [] : pos.slice(1)) {
-    const abs = canon(isAbsolute(p) ? p : resolve(cwd, p));
+    const glob = GLOB_EXT.exec(p);
+    const place = glob ? glob[1] ?? '.' : p;
+    const abs = canon(isAbsolute(place) ? place : resolve(cwd, place));
     const r = relative(canon(root), abs).replace(/\\/g, '/');
     if (r.startsWith('..') || isAbsolute(r) || /[*?[]/.test(r)) return null;
     rel.push(r === '' ? '' : r);

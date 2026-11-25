@@ -327,7 +327,7 @@ function judge(c, piped = false, base = '') {
       if (targetsWorkflowData(c)) return null;             // workflow data — RULE 1's business
       // The code index answers a language-scoped grep exactly (KIT-T101): redirect those and keep
       // allowing the shapes it cannot answer (unmodelled flags, foreign regex dialects).
-      const eq = indexEquivalent(c, { qPath: Q, root: repoRoot, cwd: process.cwd() });
+      const eq = indexEquivalent(c, { qPath: Q, root: repoRoot, cwd: segmentCwd });
       const unresolved = unresolvedTargetNote(paths);
       if (eq) return { id: 'source-discovery', msg: indexMsg(c, eq) + unresolved };
       if (targetsOnlyNonIndexedExtensions(c)) return null; // no exact index answer — allow

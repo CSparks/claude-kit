@@ -63,7 +63,9 @@ try {
     ['rg of a session scratchpad file', 'rg -n ramps C:/Users/x/AppData/Local/Temp/claude/scratchpad/census.txt', PASS],
     ['grep of the .ai config file (q does not index it)', 'grep uat .ai/config.yml', PASS],
     ['grep of SESSION.md', 'grep -n next .ai/SESSION.md', PASS],
-    ['grep of a glob scoped to non-indexed source (not one file)', 'grep -n usePhysics crates/x/src/*.rs', PASS],
+    ['KIT-T1557: grep of a <dir>/*.rs glob (the index answers it by language and directory)', 'grep -n usePhysics crates/x/src/*.rs', BLOCK],
+    ['KIT-T1557: grep of a glob after a cd (the ticket form)', 'cd crates/x && grep -n "pub fn rules" -A8 src/*.rs', BLOCK],
+    ['KIT-T1557 control: a glob with a directory wildcard has no exact index answer', 'grep -n usePhysics crates/*/src/*.rs', PASS],
   ];
   for (const [name, command, want] of verdicts) ok(`KIT-T1342: ${name} (${want === BLOCK ? 'blocks' : 'passes'})`, gate(command).code === want);
 
