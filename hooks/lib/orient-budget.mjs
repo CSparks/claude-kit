@@ -29,6 +29,7 @@ const DEMOTE = [
   { match: /^--- Plan-of-record/, keep: 1 },
   { match: /^--- DOC TREE/, keep: 2 },
   { match: /^--- STANDING decisions/, keep: 2 },
+  { match: /^--- EARLIER UNCOMMITTED WORK/, keep: 4 },
   { match: /^--- Recent commits/, keep: 2 },
   { match: /^--- Working tree/, keep: 3 },
   { match: /^--- In-flight agents/, keep: 3 },

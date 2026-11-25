@@ -19,6 +19,7 @@
 //   dispatch-unattended  (KIT-T1492) — WARNS when a rapid-game brief orders a game run and never names RG_UNATTENDED
 //   dispatch-compile-state (KIT-T1510) — WARNS when a Cargo writer brief with another live writer names no compile state to leave
 //   brief-grounded       (KIT-T703) — a feature/request brief with no quoted maintainer words, or a variant with no reuses token
+//   prior-work-checked   (KIT-T1553) — a build or fix brief into paths holding untracked source files or stashes, no [prior-work-checked:]
 //   rulings-checked      (KIT-T938) — a design or plan brief sent while the inbox holds un-triaged notes and cites no search of them
 //   framework-checked    (KIT-T1095) — a plan or design brief in a repo that uses a framework, citing no crate of its index
 //   handoff-before-replace (KIT-D149) — a dispatch replacing an agent flagged for waste that wrote no handoff (and a warning listing wasteful agents)
@@ -58,6 +59,7 @@ import { LESSONS_CHECK, lessonsBlock } from './dispatch-lessons.mjs';
 import { CONFORMANCE_CHECK, conformanceBlock } from './dispatch-conformance.mjs';
 import { BRIEF_CHECK, briefBlock } from './dispatch-brief.mjs';
 import { RULINGS_CHECK, rulingsBlock } from './dispatch-rulings.mjs';
+import { PRIOR_WORK_CHECK, priorWorkBlock } from './dispatch-prior-work.mjs';
 import { FRAMEWORK_CHECK, frameworkBlock } from './dispatch-framework.mjs';
 import { DECISIONS_CHECK, decisionsBlock } from './dispatch-decisions.mjs';
 import { WASTE_CHECK, HANDOFF_CHECK, wasteWarning, handoffBlock, ticketsCited } from './dispatch-context.mjs';
@@ -105,6 +107,7 @@ try {
     testsCheck(root, input, prompt, p),
     readOnlyOrdersCheck(input, prompt, root, p),
     briefCheck(root, input, prompt, p),
+    priorWorkCheck(root, input, prompt, p),
     rulingsCheck(root, input, prompt, p),
     frameworkCheck(root, input, prompt, p),
     decisionsCheck(root, input, prompt, p),
@@ -300,6 +303,12 @@ function readOnlyOrdersCheck(input, prompt, root, p) {
 function briefCheck(root, input, prompt, p) {
   if (!p.tool_input || pathExcluded(root, BRIEF_CHECK, root)) return null;
   return briefBlock({ root, input, prompt, footer: excludeFooter(BRIEF_CHECK) });
+}
+
+// --- prior-work-checked (KIT-T1553) -------------------------------------------------
+function priorWorkCheck(root, input, prompt, p) {
+  if (!p.tool_input || pathExcluded(root, PRIOR_WORK_CHECK, root)) return null;
+  return priorWorkBlock({ root, input, prompt, footer: excludeFooter(PRIOR_WORK_CHECK) });
 }
 
 // --- rulings-checked (KIT-T938) -----------------------------------------------------

@@ -30,6 +30,7 @@ import * as testsNotImplicit from './dispatch-tests.mjs';
 import * as worker from './dispatch-worker.mjs';
 import * as difficulty from './dispatch-difficulty.mjs';
 import * as briefDecisions from './dispatch-decisions.mjs';
+import * as priorWork from './dispatch-prior-work.mjs';
 import { REAL_QUESTIONS, SHORT_QUESTIONS } from './question-brief-real-fixtures.mjs';
 
 const { ok, done } = reporter('gate-protocol');
@@ -45,7 +46,7 @@ try {
 
   const ids = new Set(GATES.agent.checks.map((c) => c.check));
   const exported = {};
-  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, framework, holder, job, lessons, rulings, treeProject, ui, backgroundRun, pathRestore, readonlyOrders, testsNotImplicit, worker, difficulty, briefDecisions, protocol]) {
+  for (const mod of [capabilityStale, brief, broker, conformance, context, escalation, framework, holder, job, lessons, rulings, treeProject, ui, backgroundRun, pathRestore, readonlyOrders, testsNotImplicit, worker, difficulty, briefDecisions, priorWork, protocol]) {
     for (const [name, value] of Object.entries(mod)) if (name.endsWith('_CHECK') && typeof value === 'string') exported[name] = value;
   }
   const guardNames = [...new Set([...read('hooks/dispatch-guard.mjs').matchAll(/pathExcluded\(root, ([A-Z_]+_CHECK), root\)/g)].map((m) => m[1]))];

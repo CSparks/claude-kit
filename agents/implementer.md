@@ -57,6 +57,11 @@ invariants; only read CLAUDE.md / `.ai/` if the task explicitly needs that detai
   (`git stash push -m <note> -- <each file you wrote>`, then `git stash pop`); otherwise raise it to the coordinator.
 - Understand the full flow before touching anything; find every caller first
   (`code-graph --query importers-of`, `defines`, `surface`).
+- Prior work first (KIT-T1553): before writing, list the untracked files, stashes and parked patches that touch your crates and
+  declared paths (`git status --short`, `git ls-files --others --exclude-standard <paths>`, `git stash list` then
+  `git stash show --stat stash@{n}`), read each, and reconcile it: use it, merge it, or report it in the Handoff. An untracked file
+  is earlier work (possibly a switched-off feature), never another writer's to leave alone while you build the same rule again;
+  never re-implement what one already holds. The brief carries `[prior-work-checked: <what was read>]`.
 - Write the test that fails first, then the code. Run ONLY the test modules you touched
   plus the modules that import what you changed (a Cargo workspace: one named test or test file, see
   the waiting rule below). NEVER run the whole suite without his approval and NEVER poll

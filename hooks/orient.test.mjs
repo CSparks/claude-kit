@@ -2,13 +2,14 @@
 // staleness and the zombie-`doing` banner (KIT-T062 / KIT-T028), and the gist+pointer token
 // budget (KIT-T071). Run: node hooks/orient.test.mjs
 
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { ruleBlockText } from './lib/rule-block.mjs';
 import { basename, join } from 'node:path';
 import { finishFollowup, recordFollowup } from '../scripts/publish-followup.mjs';
 
 import {
-  adopted, ageFile, cleanup, fixtureKit, git, hook, isoDaysAgo, project, reporter, repo, tmpDir, TMP_REG,
+  adopted, ageFile, cleanup, fixtureKit, git, hook, identify, isoDaysAgo, project, reporter, repo, tmpDir, TMP_REG,
 } from './test-harness.mjs';
 
 const { ok, done } = reporter('orient');
@@ -209,6 +210,30 @@ try {
     finishFollowup(runtime, { failed: [] });
     const passed = hook('orient.mjs', {}, o, { CLAUDE_KIT_RUNTIME: runtime });
     ok('orient KIT-T839: a passed follow-up is shown without the alarm', passed.out.includes('PUBLISH FOLLOW-UP passed') && !passed.out.includes('!! PUBLISH FOLLOW-UP'));
+  }
+
+  // --- earlier uncommitted work older than a day is listed with its age (KIT-T1553) ---------
+  {
+    const o = identify(adopted(false));
+    mkdirSync(join(o, 'src'));
+    writeFileSync(join(o, 'src', 'kept.rs'), 'pub fn kept() {}\n');
+    git(['add', '-A'], o);
+    git(['commit', '-q', '-m', 'seed'], o);
+    const quiet = hook('orient.mjs', {}, o);
+    ok('orient KIT-T1553: a checkout with no untracked source file or stash lists nothing', !quiet.out.includes('EARLIER UNCOMMITTED WORK'));
+    writeFileSync(join(o, 'src', 'through_class.rs'), 'pub fn through_class() {}\n');
+    writeFileSync(join(o, 'src', 'fresh.rs'), 'pub fn fresh() {}\n');
+    writeFileSync(join(o, 'notes.txt'), 'not source\n');
+    ageFile(join(o, 'src', 'through_class.rs'), 3);
+    writeFileSync(join(o, 'src', 'kept.rs'), 'pub fn kept() { 1 }\n');
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * MS_PER_HOUR).toISOString();
+    execFileSync('git', ['stash', 'push', '-q', '-m', 'roadbugs-chain-class', '--', 'src/kept.rs'], { cwd: o, env: { ...process.env, GIT_COMMITTER_DATE: threeDaysAgo, GIT_AUTHOR_DATE: threeDaysAgo } });
+    const listed = hook('orient.mjs', {}, o).out;
+    ok('orient KIT-T1553: an untracked source file older than a day is listed with its age', /untracked src\/through_class\.rs \(3d old\)/.test(listed));
+    ok('orient KIT-T1553: a stash older than a day is listed with its age and its message', /stash stash@\{0\} \(3d old\): .*roadbugs-chain-class/.test(listed));
+    const block = listed.split('--- EARLIER UNCOMMITTED WORK')[1].split('\n---')[0];
+    ok('orient KIT-T1553: a fresh untracked file and a non-source file are not listed', !block.includes('fresh.rs') && !block.includes('notes.txt'));
+    ok('orient KIT-T1553: the block says to read each and never rebuild it', /Read each before building beside it/.test(listed));
   }
 } finally {
   cleanup();

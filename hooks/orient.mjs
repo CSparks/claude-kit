@@ -20,6 +20,7 @@ import { lineageSection, roadmapSection, sessionSection } from './lib/orient/rec
 import { rulingsSection } from './lib/orient/rulings.mjs';
 import { redByDesignSection } from './lib/orient/red-by-design.mjs';
 import { ruledNotBuiltSection } from './lib/orient/ruled-not-built.mjs';
+import { priorWorkSection } from './lib/orient/prior-work.mjs';
 import { worktreeSection } from './lib/orient/worktree.mjs';
 import { governsSection, mentionsSection, openWorkSection, porcelainPath, zombiesSection } from './lib/orient/work.mjs';
 
@@ -60,6 +61,7 @@ ruledNotBuiltSection(ctx);
 redByDesignSection(ctx);
 const foundational = identity(ctx, views);
 const { repos, wips, recentCommitLines } = await worktreeSection(ctx);
+priorWorkSection(ctx);
 sessionSection(ctx, join(root, '.ai', 'SESSION.md'));
 await agentsSection(ctx);
 roadmapSection(ctx, roadmap);

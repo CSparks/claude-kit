@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureKit, isoDaysAgo } from './test-harness.mjs';
 import { expect, finish, ignoreFile, makeRepo, run, runRaw, transcript } from './dispatch-guard-harness.mjs';
+import { gateText } from './lib/gate-protocol.mjs';
 
 const d = makeRepo();
 const un = makeRepo({ adopt: false });
@@ -98,6 +99,44 @@ expect('block message carries the exclude footer', /dispatch-ladder/.test(msg) ?
   expect('an unprefixed type gets no warning', /WARNING: agent type/.test(send('general-purpose', session('old3', '2026-01-01T00:00:00.000Z')).err) ? 1 : 0, 0);
   expect('the ignore file lifts the warning', /WARNING: agent type/.test(runRaw(ignoreFile(repo, 'agent-registry-stale'), JSON.stringify({ tool_name: 'Agent', transcript_path: session('old4', '2026-01-01T00:00:00.000Z'), tool_input: { subagent_type: 'claude-kit:newbie', model: 'sonnet', prompt: 'x [job: fix]' } })).err) ? 1 : 0, 0);
   delete process.env.DG_LADDER_ROOT;
+}
+
+// prior-work-checked (KIT-T1553): a build or fix brief into paths holding untracked source files or stashes names what it read.
+{
+  const committed = (dir) => {
+    mkdirSync(join(dir, 'src'), { recursive: true });
+    writeFileSync(join(dir, 'src', 'kept.rs'), 'pub fn kept() {}\n');
+    execFileSync('git', ['add', '-A'], { cwd: dir });
+    execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'seed'], { cwd: dir });
+    return dir;
+  };
+  const brief = (dir, prompt, extra = {}) => run(dir, { subagent_type: 'general-purpose', model: 'opus', prompt, ...extra });
+  const blockedBy = (r) => (r.code === 2 && r.err.includes('prior-work-checked') ? 2 : r.code);
+
+  const clean = committed(makeRepo());
+  expect('prior-work: a checkout with no untracked source file or stash passes', blockedBy(brief(clean, 'Fix the wall. [paths: src]')), 0);
+
+  const untracked = committed(makeRepo());
+  writeFileSync(join(untracked, 'src', 'through_class.rs'), 'pub fn through_class() {}\n');
+  const refused = brief(untracked, 'Fix the hamlet class. [paths: src]');
+  expect('prior-work: an untracked source file under the declared paths blocks a fix brief', blockedBy(refused), 2);
+  expect('prior-work: the block names the file with its age and the tag form', /untracked src\/through_class\.rs \(\d+m old\)/.test(refused.err) && refused.err.includes('[prior-work-checked: <stashes, untracked files, patches, switched-off features read>]') ? 1 : 0, 1);
+  expect('prior-work: the block is listed in q gates agent', gateText('agent').includes('prior-work-checked') ? 1 : 0, 1);
+  expect('prior-work: the tag clears it', blockedBy(brief(untracked, 'Fix the hamlet class. [paths: src] [prior-work-checked: read src/through_class.rs, merged it]')), 0);
+  expect('prior-work: an empty tag does not clear it', blockedBy(brief(untracked, 'Fix the hamlet class. [paths: src] [prior-work-checked: ]')), 2);
+  expect('prior-work: paths that miss the file pass', blockedBy(brief(untracked, 'Fix the docs. [paths: docs]')), 0);
+  expect('prior-work: a brief with no [paths:] is judged against every path', blockedBy(brief(untracked, 'Fix the hamlet class.')), 2);
+  expect('prior-work: a read-only brief passes', blockedBy(brief(untracked, 'Read src. [paths: src] [read-only: research only]')), 0);
+  expect('prior-work: a job that writes no code is not judged', brief(untracked, 'Look at src. [paths: src] [job: research]', { jobless: true }).err.includes('prior-work-checked') ? 1 : 0, 0);
+  expect('prior-work: the ignore file lifts the check', blockedBy(brief(ignoreFile(untracked, 'prior-work-checked'), 'Fix the hamlet class. [paths: src]')), 0);
+
+  const stashed = committed(makeRepo());
+  writeFileSync(join(stashed, 'src', 'kept.rs'), 'pub fn kept() { 1 }\n');
+  execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'stash', 'push', '-q', '-m', 'roadbugs-chain-class'], { cwd: stashed });
+  const stashRefused = brief(stashed, 'Fix the chain class. [paths: src]');
+  expect('prior-work: a stash touching the declared paths blocks a build brief', blockedBy(stashRefused), 2);
+  expect('prior-work: the block names the stash, its message and its age', /stash stash@\{0\} \(\d+m old\): .*roadbugs-chain-class/.test(stashRefused.err) ? 1 : 0, 1);
+  expect('prior-work: a stash that touches other paths passes', blockedBy(brief(stashed, 'Fix the docs. [paths: docs]')), 0);
 }
 
 finish();
