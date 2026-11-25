@@ -35,7 +35,7 @@ export const QUERY_SURFACE = `usage: q.mjs [--json] [--no-db] [--root <dir>] <qu
                               fixed, status moves, created — counts exact, lists capped
   topics                      the generated topic index — slug, first/last date, count, gist
   topic <slug>                one topic's items, oldest first (also: q --topic <slug>)
-  show <id> [--project <name>] print one item in full (ticket, decision, note, question) from any store; --project pins one project's store
+  show <id> [<id> ...] [--project <name>] print each item in full (ticket, decision, note, question) from any store, after a header line per id; an unknown id among several prints its miss line and exits 1; --project pins one project's store
   code <text> [filters]       SEARCH CODE/DOCS/CONFIG/TICKETS (the grep replacement): ranked, compact, verified
                               filters: --regex -i -w --fuzzy  --kind code|doc|config|ticket  --lang rust
                               --multiline (-U)  a regex over the whole file: . matches a newline, ^ $ per line, \n in the pattern;

@@ -384,7 +384,7 @@ function storeMsg(c, itemPath) {
     'Query the work graph instead — it knows the links/history a grep is blind to:',
     `  node "${Q}" governing <path>     # OPEN tickets/decisions governing a file`,
     `  node "${Q}" trail <id>           # walk UP an id to its governing decisions/origin`,
-    `  node "${Q}" show <id>            # one item, whole, by id`,
+    `  node "${Q}" show <id> [<id> ...] # items, whole, by id (several ids: one call, no loop)`,
     `  node "${Q}" fts <terms...>       # full-text search title+body across stores`,
     `  node "${Q}" open [scope]         # open items (todo|doing|review)`,
     `  node "${Q}" show <id> > <scratch file>   # a long item: write it out, then Read the file or scan it with node`,

@@ -58,7 +58,7 @@ import {
 import { orphanRows } from './provenance.mjs';
 import { resolveStoreRoot } from '../hooks/lib.mjs';
 import { searchScopes } from './q-framework.mjs';
-import { showArgs, showRows, withAsked } from './q-show.mjs';
+import { showArgs, showManyRows, withAsked } from './q-show.mjs';
 import { unsupportedFlags, reportGap, flagHint } from './q-gap.mjs';
 import { scopeFlagToPositional } from './q-scope-flag.mjs';
 import { basename } from 'node:path';
@@ -404,7 +404,7 @@ async function queryOnce(cmd, args, { root, cwdRoot = root || process.cwd(), noD
   // and no topic column), so
   // route them straight to the markdown scan over cwdRoot regardless of the engine — the
   // fail-open path IS the only path for them. `cached:false` is honest: no SQLite involved.
-  if (cmd === 'show') { const { id, project } = showArgs(args); return { rows: showRows(id, cwdRoot, { project }), cached: false }; }
+  if (cmd === 'show') { const { ids, project } = showArgs(args); return { ...showManyRows(ids, cwdRoot, { project }), cached: false }; }
   // code/sym/file answer from the code index (scripts/code-index.mjs), not the workflow cache.
   if (cmd === 'code' || cmd === 'sym' || cmd === 'file') {
     const crate = takeRegistry(args).spec !== undefined;
@@ -534,10 +534,14 @@ async function main() {
     return;
   }
 
-  const { rows, relaxed, servedSnapshot } = await query(cmd, args, { root, cwdRoot, noDb, dbPath });
+  const { rows, relaxed, servedSnapshot, misses } = await query(cmd, args, { root, cwdRoot, noDb, dbPath });
   if (servedSnapshot) process.stderr.write(STALE_SNAPSHOT_NOTE);
   if (relaxed) process.stderr.write('q: no item holds every term — showing items with any term, best match first.\n');
   printRows(rows, json);
+  if (cmd === 'show' && misses > 0 && showArgs(args).ids.length > 1) {
+    process.stderr.write(`q show: ${misses} of ${showArgs(args).ids.length} ids not found (listed above).\n`);
+    process.exitCode = 1;
+  }
   if (cmd === 'fts' && !json) await printFtsExtras(splitFts(args.join(' ')).query, cwdRoot, rows.length > 0 && !relaxed);
 }
 

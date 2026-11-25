@@ -44,7 +44,7 @@ export function findItemFile(id, root) {
   return null;
 }
 
-/** Splits `q show` arguments into { id, project }: `--project <name|key>` (or `--scope`, `--flag=value`) may sit anywhere. */
+/** Splits `q show` arguments into { ids, id, project }: `--project <name|key>` (or `--scope`, `--flag=value`) may sit anywhere; `id` is the first of `ids`. */
 export function showArgs(args) {
   const rest = [];
   let project;
@@ -56,7 +56,7 @@ export function showArgs(args) {
     if (value === undefined || value === '') throw new Error(`${inline ? `--${inline[1]}` : a} takes a value`);
     project = value;
   }
-  return { id: rest[0], project };
+  return { ids: rest, id: rest[0], project };
 }
 
 /** Where `id` is looked up under `--project`: that project's store alone. Throws on an unknown project. */
@@ -65,13 +65,39 @@ function pinnedFile(id, project) {
   return { file: existsSync(aiDir) ? findIn(aiDir, id) : null, name };
 }
 
+const MISS = Symbol('miss');
+
 /** Lines to print for `id`, or a one-line miss message. A ticket with landed commits gets a LANDED COMMITS line. */
 export function showRows(id, root, { project } = {}) {
+  return itemRows(id, root, { project });
+}
+
+/**
+ * `q show A B C`: every item whole, each after a `===== <id> =====` header line (one id prints as `showRows` does).
+ * `misses` counts the ids no store holds; each prints its miss line in place and the others still print.
+ */
+export function showManyRows(ids, root, { project } = {}) {
+  const wanted = ids.map((id) => String(id || '').trim()).filter(Boolean);
+  if (wanted.length < 2) {
+    const rows = itemRows(wanted[0], root, { project });
+    return { rows, misses: rows[MISS] ? 1 : 0 };
+  }
+  const rows = [];
+  let misses = 0;
+  for (const id of wanted) {
+    const item = itemRows(id, root, { project });
+    if (item[MISS]) misses++;
+    rows.push(`===== ${id} =====`, ...item, '');
+  }
+  return { rows, misses };
+}
+
+function itemRows(id, root, { project } = {}) {
   const want = String(id || '').trim();
-  if (!want) return ['usage: q show <id> [--project <name>]   (e.g. q show KIT-T287)'];
+  if (!want) return ['usage: q show <id> [<id> ...] [--project <name>]   (e.g. q show KIT-T287 KIT-T288)'];
   const pinned = project ? pinnedFile(want, project) : null;
   const file = pinned ? pinned.file : findItemFile(want, root);
-  if (!file) return [`q show: no item '${want}' in ${pinned ? `project ${pinned.name}` : 'the project, framework or registered stores'}`];
+  if (!file) return Object.assign([`q show: no item '${want}' in ${pinned ? `project ${pinned.name}` : 'the project, framework or registered stores'}`], { [MISS]: true });
   const text = readFileSync(file, 'utf8').replace(/\r\n/g, '\n').trimEnd();
   const landed = landedLine(text);
   const asked = askedLabel(text);

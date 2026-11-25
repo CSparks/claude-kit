@@ -123,3 +123,24 @@ test('control: --project with no id prints the usage line', () => {
 test('control: a plain q show still finds another registered project\'s id with no flag', () => {
   assert.match(q(['GGX-T001'], kit).out, /real body/);
 });
+
+test('several ids print each item whole after a header line and exit 0', () => {
+  const r = q(['GGX-T001', 'KIT-INBOX-2026-11-09-2140-note-kit-capture'], kit);
+  assert.equal(r.code, 0);
+  assert.match(r.out, /===== GGX-T001 =====[\s\S]*real body[\s\S]*===== KIT-INBOX-2026-11-09-2140-note-kit-capture =====[\s\S]*a kit store capture/);
+});
+
+test('an unknown id among valid ones: the valid ones print, the miss is named, exit 1', () => {
+  const r = q(['GGX-T001', 'GGX-T999', 'KIT-INBOX-2026-11-09-2140-note-kit-capture'], kit);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /real body/);
+  assert.match(r.out, /a kit store capture/);
+  assert.match(r.out, /no item 'GGX-T999'/);
+  assert.match(r.out, /1 of 3 ids not found/);
+});
+
+test('control: a single unknown id keeps the one-line miss and exit 0, with no header', () => {
+  const r = q(['GGX-T999'], kit);
+  assert.equal(r.code, 0);
+  assert.doesNotMatch(r.out, /=====/);
+});
