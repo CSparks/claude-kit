@@ -9,9 +9,11 @@
 // a live writer source-shell-gate-discard-live.test.mjs, split so each finishes inside one foreground call (KIT-T1246).
 // Run: node hooks/source-shell-gate-discard.test.mjs
 
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { discardHarness } from './source-shell-gate-discard-harness.mjs';
 
-const { check, passes_, stops, freshHolders, seed, finish } = discardHarness();
+const { check, git, toolWrite, passes_, stops, freshHolders, seed, finish } = discardHarness();
 
 try {
   seed();
@@ -64,6 +66,18 @@ try {
   check('an ambiguous quoting line with git clean is blocked', stops("echo it's; git clean -fd"));
   check('an ambiguous quoting line with git stash -u is blocked', stops("echo it's; git stash -u"));
   check('KIT-T1266: an ambiguous quoting line with a plain git stash is blocked too', stops("echo it's; git stash"));
-  check('KIT-T1266 control: an ambiguous quoting line with git stash list passes', passes_("echo it's; git stash list"));} finally {
+  check('KIT-T1266 control: an ambiguous quoting line with git stash list passes', passes_("echo it's; git stash list"));
+
+  // KIT-T1539: git puts a stashed file back with CRLF endings (core.autocrlf), yet the caller's own text is still its own.
+  git('config', 'core.autocrlf', 'true');
+  const AGENT = 'agentA1234567890';
+  toolWrite('popped.rs', 'fn popped() {}\nfn again() {}\n', 'S1', AGENT);
+  git('stash', 'push', '-u', '--', 'popped.rs');
+  git('stash', 'pop');
+  check("KIT-T1539: a second stash of the caller's own file after a stash and pop passes", passes_('git stash push -u -- popped.rs', 'S1', AGENT));
+  check('KIT-T1539 control: the same restored file is still blocked for another writer', stops('git stash push -u -- popped.rs', 'S2'));
+  writeFileSync(join(git('rev-parse', '--show-toplevel'), 'popped.rs'), 'fn other() {}\r\n');
+  check('KIT-T1539 control: a file rewritten after the pop is blocked', stops('git stash push -u -- popped.rs', 'S1', AGENT));
+} finally {
   finish();
 }

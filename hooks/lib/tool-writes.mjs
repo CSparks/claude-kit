@@ -18,7 +18,8 @@
 //   sameWriterId(a, b)                                               -> one writer: a subagent by agent id alone (its session id can change mid-life), the main thread by session
 //   recordToolWrite(root, rel, hash, now, writer)                    -> add a confirmed entry
 //   recordPredictedWrite(root, rel, file, toolInput, writer, now)    -> add the unconfirmed entries for the content `toolInput` leaves
-//   toolWriteProves(root, rel, sinceMs, currentHash, byWriter, { ownConfirmed }) -> true when another writer's tool (or, with ownConfirmed, `byWriter`'s confirmed one) left `currentHash` in `rel` since `sinceMs`
+//   toolWriteProves(root, rel, sinceMs, currentHash, byWriter, { ownConfirmed }) -> true when another writer's tool (or, with ownConfirmed, `byWriter`'s confirmed one) left `currentHash` (one hash or a list) in `rel` since `sinceMs`
+//   contentHashVariants(root, rel)                                   -> the file's hash as is, with LF and with CRLF endings (git rewrites endings on a stash pop)
 //   movedWrite(root, rel, session)                                   -> true when git stages `rel` as the rename of a path whose confirmed entry holds exactly the staged content
 //   cleanWriters(root, rel, currentHash)                             -> writers whose predicted write left `currentHash` and started from committed or their own clean-based text
 //   predictedHashes(current, toolInput)                             -> hashes of the content an Edit or Write leaves ([] when unknown)
@@ -26,6 +27,7 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { gitTry } from './exec.mjs';
 import { appendToolWriteEntries, toolWriteEntries } from './tool-write-ledger.mjs';
 
@@ -136,6 +138,25 @@ export function movedWrite(root, rel, session) {
  * With `ownConfirmed`, `byWriter`'s own CONFIRMED entry counts too: the tool landed the file, as an Edit issued in
  * parallel with a shell call does (KIT-T1212); the delete rule keeps the strict reading, where another writer's entry blocks.
  */
-export const toolWriteProves = (root, rel, sinceMs, currentHash, byWriter = '', { ownConfirmed = false } = {}) => Boolean(currentHash)
-  && toolWriteEntries(root, rel).some((e) => e.h === currentHash && !(byWriter && sameWriterId(e.w, byWriter) && !(ownConfirmed && e.c === true))
+export function toolWriteProves(root, rel, sinceMs, currentHash, byWriter = '', { ownConfirmed = false } = {}) {
+  const hashes = [currentHash].flat().filter(Boolean);
+  return hashes.length > 0 && toolWriteEntries(root, rel).some((e) => hashes.includes(e.h) && !(byWriter && sameWriterId(e.w, byWriter) && !(ownConfirmed && e.c === true))
     && (e.ts || 0) >= sinceMs - (e.c ? CONFIRMED_SLACK_MS : 0));
+}
+
+/**
+ * The hashes one file's text can carry on disk: its bytes as they are, with LF endings and with CRLF endings. Git rewrites line
+ * endings when it puts a file back (`core.autocrlf`, `eol`), so a stash pop leaves the tool's text under another byte hash.
+ * [] when the file is missing or too large to hash.
+ */
+export function contentHashVariants(root, rel) {
+  try {
+    const file = join(root, rel);
+    if (statSync(file).size > HASH_MAX_BYTES) return [];
+    const bytes = readFileSync(file);
+    const text = bytes.toString('utf8');
+    return [...new Set([hashOf(bytes), hashOf(toLf(text)), hashOf(toCrlf(text))])];
+  } catch {
+    return [];
+  }
+}

@@ -5,15 +5,15 @@
 //
 //   deleteRefusal(root, rel, writer) -> '' when the caller may delete, else why not: one of DELETE_REFUSALS
 //   ownsUntrackedFile(root, rel, writer) -> boolean   deleteRefusal(...) === ''; any failure answers false
-//   ledgerRefusal(root, rel, writer) -> '' when the file's bytes are exactly what this writer's tool left and no other writer's
+//   ledgerRefusal(root, rel, writer) -> '' when the file's text (its bytes under LF or CRLF endings: git rewrites them when it
+//     puts a stashed file back) is exactly what this writer's tool left and no other writer's
 //     tool left them too, else unrecorded or other-writer (the part of a delete judgement every discard verb shares)
 //   isTracked(root, rel) -> boolean
 
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitTry } from './exec.mjs';
-import { contentHashOf } from './shell-snapshot.mjs';
-import { toolWriteProves } from './tool-writes.mjs';
+import { contentHashVariants, toolWriteProves } from './tool-writes.mjs';
 
 const ANY_TIME_MS = 0;
 const GLOB_CHARS = /[*?[\]]/;
@@ -40,7 +40,7 @@ export function isTracked(root, rel) {
 }
 
 export function ledgerRefusal(root, rel, writer) {
-  const hash = contentHashOf(root, rel);
+  const hash = contentHashVariants(root, rel);
   if (!toolWriteProves(root, rel, ANY_TIME_MS, hash)) return DELETE_REFUSALS.unrecorded;
   return toolWriteProves(root, rel, ANY_TIME_MS, hash, writer) ? DELETE_REFUSALS.otherWriter : '';
 }
