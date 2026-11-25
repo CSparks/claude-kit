@@ -14,6 +14,7 @@
 
 import { gitRoot, adopted, payload, recordAgent, updateAgent, readAgents, ID_CITE_SRC } from './lib.mjs';
 import { endAgent } from './lib/agent-roster.mjs';
+import { agentRef } from './lib/agent-format.mjs';
 import { triageFooter } from './lib/block-triage.mjs';
 import { dispatchTargetRoot } from './dispatch-target.mjs';
 import { declaredReadOnly } from './dispatch-readonly.mjs';
@@ -116,13 +117,14 @@ function recordStop(root, p) {
     const id = firstString(p.agent_id, p.agentId, p.task_id, p.id);
     if (!id) return; // no handle to reconcile against — leave the in-flight row for the stale-age flag
     releaseAgent(id);
-    reportOrphanShells(root, id, p);
     const scope = firstString(p.agent_type, p.agentType);
     const outcome = outcomeFromTranscript(firstString(p.agent_transcript_path, p.agentTranscriptPath));
     const rosterRow = readAgents(root).find((r) => r.id === id) || {};
-    updateAgent(root, id, { status: 'done', ...(scope ? { scope } : {}), ...outcome, source: 'subagentstop' });
+    reportOrphanShells(root, { ...rosterRow, id, ...outcome }, p);
+    const model = rosterRow.model || outcome.resolvedModel;
+    updateAgent(root, id, { status: 'done', ...(scope ? { scope } : {}), ...(model ? { model } : {}), ...outcome, source: 'subagentstop' });
     const flag = wasteFlag({ ...rosterRow, id, ...outcome, transcript: firstString(p.agent_transcript_path, p.agentTranscriptPath) });
-    if (flag) process.stderr.write(`RETIRE ${id}:${flag}
+    if (flag) process.stderr.write(`RETIRE ${agentRef({ ...rosterRow, id, ...outcome })}:${flag}
 `);
     appendOutcome(root, outcomeRow({ id, rosterRow, stop: p, outcome }));
   } catch {
@@ -149,10 +151,11 @@ function recordKill(root, p) {
 // The stopped agent's background shells that never exited: printed for the orchestrator and kept
 // on the roster row so orient shows them until stopped (KIT-T455). Their Bash-tool shell trees are
 // ended here: the subagent is gone and cannot TaskStop them (KIT-T699).
-function reportOrphanShells(root, id, p) {
+function reportOrphanShells(root, row, p) {
+  const { id } = row;
   const orphans = subagentOrphans(p, root);
   if (!orphans.length) return;
-  process.stderr.write(`AGENT ${id} ENDED WITH ${orphans.length} LIVE BACKGROUND TASK(S) (KIT-D115): an agent writes its handoff and ends with nothing running.\n${orphanLines(orphans).join('\n')}\n`);
+  process.stderr.write(`AGENT ${agentRef(row)} ENDED WITH ${orphans.length} LIVE BACKGROUND TASK(S) (KIT-D115): an agent writes its handoff and ends with nothing running.\n${orphanLines(orphans).join('\n')}\n`);
   updateAgent(root, id, { orphan_shells: orphans.map((o) => o.id) });
   const killed = killOrphanTasks(orphans);
   if (!killed.length) return;

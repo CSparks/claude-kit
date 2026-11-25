@@ -16,6 +16,7 @@
 import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { reconcileAgents } from './agent-reconcile.mjs';
+import { modelDisplay } from '../model-tag.mjs';
 
 export const AGENT_ROSTER_REL = '.ai/agents.jsonl';
 // An in-flight row older than this with no terminal row is "uncollected" — surfaced loudly on
@@ -35,7 +36,8 @@ export function agentsPath(root) {
 export function recordAgent(root, rec) {
   try {
     if (!root || !rec) return;
-    const row = { ts: new Date().toISOString(), ...rec };
+    const modelLabel = rec.modelLabel || modelDisplay(rec.model) || modelDisplay(rec.resolvedModel);
+    const row = { ts: new Date().toISOString(), ...rec, ...(modelLabel ? { modelLabel } : {}) };
     const p = agentsPath(root);
     mkdirSync(dirname(p), { recursive: true });
     appendFileSync(p, JSON.stringify(row) + '\n');
@@ -87,6 +89,7 @@ export function readAgents(root, tail = AGENT_ROSTER_TAIL, { reconcile = true } 
       merged.ts = prev.ts;
       if (prev.source) merged.source = prev.source;
     }
+    if (prev && row.resumed) merged.ts = prev.ts;
     byId.set(row.id, merged);
   }
   const rows = [...byId.values()].sort((a, b) => String(a.firstSeen).localeCompare(String(b.firstSeen)));
@@ -101,7 +104,7 @@ export function endAgent(root, id, patch) {
   if (!id) return false;
   const row = readAgents(root, AGENT_ROSTER_TAIL, { reconcile: false }).find((r) => r.id === id);
   if (!row || AGENT_TERMINAL.has(row.status)) return false;
-  updateAgent(root, id, patch);
+  updateAgent(root, id, { ...(row.model ? { model: row.model } : {}), ...patch });
   return true;
 }
 

@@ -134,6 +134,14 @@ try {
     rows = readAgents(d);
     ok('hook: SubagentStop marks the matching agent done', rows.length === 1 && rows[0].status === 'done');
 
+    // KIT-T1545 — every raw row names the model, the done row included.
+    const raw = readFileSync(agentsPath(d), 'utf8').split(NL).filter(Boolean).map((l) => JSON.parse(l));
+    ok('KIT-T1545: the dispatch row carries a readable model label', raw[0].modelLabel === 'Opus 5.5');
+    ok('KIT-T1545: the done row carries the model and its label carried from the dispatch row', raw[1].status === 'done' && raw[1].model === 'opus' && raw[1].modelLabel === 'Opus 5.5');
+    const dt = makeRepo();
+    updateAgent(dt, 'orphan1', { status: 'done', resolvedModel: 'claude-opus-5-5' });
+    ok('KIT-T1545: a done row with only the harness-reported model is labelled', JSON.parse(readFileSync(agentsPath(dt), 'utf8').trim().split(NL).pop()).modelLabel === 'Opus 5.5');
+
     // No handle anywhere -> still recorded (minted id) so the row is trackable, not dropped.
     const d2 = makeRepo();
     hook(ROSTER_HOOK, { hook_event_name: 'PostToolUse', tool_name: 'Task', tool_input: { prompt: 'a foreground task with no id', model: 'sonnet' } }, d2);

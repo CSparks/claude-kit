@@ -17,7 +17,7 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-import { formatAgentLine } from './lib/agent-format.mjs';
+import { formatAgentLine, agentRef } from './lib/agent-format.mjs';
 import { recordAgent, agentsPath, readAgents } from './lib.mjs';
 import { modelDisplay, resolveDispatchModel, tagDescription, stripModelTag, pinnedModel, latestAssistantModel } from './model-tag.mjs';
 import { readLadder } from '../scripts/dispatch-ladder.mjs';
@@ -273,6 +273,9 @@ try {
     const line = formatAgentLine({ id: 'a1', scope: 'general-purpose', status: 'in-flight', task: 'do it', model: 'opus', ts: new Date().toISOString() });
     ok('formatter: the model tag comes first on the line', /^ {2}\[Opus 5\.5\] general-purpose  a1  in-flight/.test(line));
     ok('formatter: no model prints [model?], never blank', formatAgentLine({ id: 'a2', status: 'done', task: 't' }).trimStart().startsWith('[model?]'));
+    ok('KIT-T1545: a done row with only the harness-reported model shows its tag', formatAgentLine({ id: 'a3', status: 'done', resolvedModel: 'claude-opus-5-5' }).trimStart().startsWith('[Opus 5.5]'));
+    ok('KIT-T1545: a resumed row says so beside its status', /done \(resumed\)/.test(formatAgentLine({ id: 'a4', status: 'done', model: 'opus', resumed: true })));
+    ok('KIT-T1545: a notice names an agent with its tag', agentRef({ id: 'a5', model: 'sonnet' }) === 'a5 [Sonnet 5.5]');
   }
 
   // ===== 7. wiring parity (both install paths) ==============================

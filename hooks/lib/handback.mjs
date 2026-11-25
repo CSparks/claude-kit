@@ -36,6 +36,7 @@ import { readFinished } from '../../scripts/broker/finished-log.mjs';
 import { readSubmissions, submittedJob } from '../../scripts/broker/submissions.mjs';
 import { ticketNotes } from '../../scripts/broker/red-run.mjs';
 import { wasteFlag, handoffCount, hasHandoff } from './agent-context.mjs';
+import { agentRef } from './agent-format.mjs';
 import { isLive } from './subagent-transcript.mjs';
 import { ticketsCited } from '../dispatch-context.mjs';
 import { CLOSED, dispatchedTickets, handoffClosed, openTicketStatus, recent, retiredAt, succeeded, ticketText } from './successor.mjs';
@@ -95,20 +96,20 @@ function describe(item, row) {
   if (item.kind === 'result-ready') {
     const landed = item.landed ? ` (landed ${item.landed.slice(0, SHA_SHOWN)})` : '';
     const purged = item.purged ? ' [result file purged; finished.log holds the verdict]' : '';
-    const lead = `RESULT READY: ${item.job} ${item.verdict}${landed}${ctx}${purged}; agent ${row.id} finished it`;
+    const lead = `RESULT READY: ${item.job} ${item.verdict}${landed}${ctx}${purged}; agent ${agentRef(row)} finished it`;
     const signed = 'If the maintainer signs it:';
     if (item.step === 'ack') return `${lead} and is not resumable here. ${signed} verify ${item.landed.slice(0, SHA_SHOWN)} is on main and recorded in ${item.ticket || 'the ticket'}, then node "${ACK}" ${item.job}`;
     if (item.step === 'fresh-worker') return `${lead} and is not resumable here. ${signed} a fresh worker citing ${item.ticket || 'the job'}, briefed from its Handoff`;
     return `${lead}. ${signed} SendMessage ${row.id} to finish from its Handoff (acks the job)`;
   }
   if (item.kind === 'job-lost') {
-    if (item.step === 'resubmit') return `JOB LOST: ${item.job}${ctx} left the queue with no result (agent ${row.id} ended); a kept copy exists. If the maintainer signs it: node "${RESUBMIT}" ${item.job}`;
-    if (item.step === 'fresh-worker') return `JOB LOST: ${item.job}${ctx}, no kept copy (agent ${row.id} ended). If the maintainer signs it: a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
-    return `JOB LOST, UNRECOVERABLE: ${item.job} (agent ${row.id}) has no result, no kept copy and no ticket to rebuild from`;
+    if (item.step === 'resubmit') return `JOB LOST: ${item.job}${ctx} left the queue with no result (agent ${agentRef(row)} ended); a kept copy exists. If the maintainer signs it: node "${RESUBMIT}" ${item.job}`;
+    if (item.step === 'fresh-worker') return `JOB LOST: ${item.job}${ctx}, no kept copy (agent ${agentRef(row)} ended). If the maintainer signs it: a fresh worker citing ${item.ticket}, briefed from the ticket Notes and git log --grep=${item.ticket}`;
+    return `JOB LOST, UNRECOVERABLE: ${item.job} (agent ${agentRef(row)}) has no result, no kept copy and no ticket to rebuild from`;
   }
-  if (item.kind === 'reopened') return `REOPENED, SILENT: ${item.ticket} (${row.id}) was resumed by SendMessage and has written nothing for ${SILENT_MS / MS_PER_MIN} min`;
-  if (item.kind === 'successor') return `RETIRED WITH HANDOFF: ${item.ticket} (${row.id}) has open work and no dispatch has cited it. The ticket may be superseded or stale: the maintainer decides. If its Handoff shows nothing is owed: node "${ACK}" --handoff ${row.id} --reason "<why>"`;
-  return `AGENT ${row.status.toUpperCase()}: ${row.id} left ${item.ticket} open with no Handoff. The ticket may be superseded or stale: the maintainer decides. If its files stay locked against a successor or a restore: claims --release ${row.id} --reason "<why>"`;
+  if (item.kind === 'reopened') return `REOPENED, SILENT: ${item.ticket} (${agentRef(row)}) was resumed by SendMessage and has written nothing for ${SILENT_MS / MS_PER_MIN} min`;
+  if (item.kind === 'successor') return `RETIRED WITH HANDOFF: ${item.ticket} (${agentRef(row)}) has open work and no dispatch has cited it. The ticket may be superseded or stale: the maintainer decides. If its Handoff shows nothing is owed: node "${ACK}" --handoff ${row.id} --reason "<why>"`;
+  return `AGENT ${row.status.toUpperCase()}: ${agentRef(row)} left ${item.ticket} open with no Handoff. The ticket may be superseded or stale: the maintainer decides. If its files stay locked against a successor or a restore: claims --release ${row.id} --reason "<why>"`;
 }
 
 // Reopen needs a transcript SendMessage can reach; without one, a landed result is acknowledged and anything else

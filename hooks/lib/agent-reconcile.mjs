@@ -44,7 +44,7 @@ export function reconcileAgents(root, rows, { update, nowMs = Date.now(), wipOf 
     let wip = [];
     try { wip = wipOf(r.targetRoot || root).slice(0, WIP_MAX); } catch { /* wip is advisory */ }
     const patch = { ...verdict, ...(wip.length ? { wip } : {}), source: 'orient-reconcile' };
-    update(root, r.id, { status: patch.status, ...patch });
+    update(root, r.id, { status: patch.status, ...(r.model ? { model: r.model } : {}), ...patch });
     release(r.id);
     done.push({ ...r, ...patch });
   }

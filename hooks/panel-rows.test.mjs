@@ -75,6 +75,8 @@ try {
   const warn = hook('resume-check.mjs', pre('SendMessage', { to: 'aunlabelled1', message: 'continue' }), d);
   ok('SendMessage to an unlabelled agent warns and does not block', warn.code === 0 && /aunlabelled1/.test(warn.out) && /no model/.test(warn.out));
   ok('SendMessage to a labelled agent is silent', hook('resume-check.mjs', pre('SendMessage', { to: 'alabelled001', message: 'continue' }), d).out.trim() === '');
+  const resumedRows = readFileSync(join(d, '.ai', 'agents.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((r) => r.resumed);
+  ok('KIT-T1545: a resumed agent gets a row naming its model carried from its dispatch row', resumedRows.length === 1 && resumedRows[0].id === 'alabelled001' && resumedRows[0].model === 'opus' && resumedRows[0].modelLabel === 'Opus 5.5');
 
   // registrations
   const registered = (file, name) => readFileSync(join(ROOT, file), 'utf8').includes(name);

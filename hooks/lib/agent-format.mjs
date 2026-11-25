@@ -7,10 +7,18 @@ import { wasteFlag } from './agent-context.mjs';
 
 export const MODEL_UNKNOWN = '[model?]';
 
+// The display form of the model a row ran on: the dispatch's `model`, else the `resolvedModel` the harness reported.
+export function rowModelDisplay(row) {
+  return modelDisplay(row && row.model) || modelDisplay(row && row.resolvedModel);
+}
+
 export function modelTag(row) {
-  const display = modelDisplay(row && row.model);
+  const display = rowModelDisplay(row);
   return display ? `[${display}]` : MODEL_UNKNOWN;
 }
+
+// How a notice names an agent: its id, then its model tag.
+export const agentRef = (row) => `${row.id} ${modelTag(row)}`;
 
 function ageText(row, nowMs) {
   const t = Date.parse((row && (row.firstSeen || row.ts)) || '');
@@ -22,7 +30,7 @@ function ageText(row, nowMs) {
 // `clipTask` shortens the label to the caller's line budget; `nowMs` is injectable for tests.
 export function formatAgentLine(row, { nowMs = Date.now(), clipTask = (s) => s, indent = '  ' } = {}) {
   const task = clipTask(row.task || row.summary || '?');
-  const status = `${row.status || 'in-flight'}${row.reason && row.status === 'killed' ? `: ${row.reason}` : ''}`;
+  const status = `${row.status || 'in-flight'}${row.reason && row.status === 'killed' ? `: ${row.reason}` : ''}${row.resumed ? ' (resumed)' : ''}`;
   const wip = Array.isArray(row.wip) && row.wip.length ? `  WIP: ${row.wip.join(', ')}` : '';
   return `${indent}${modelTag(row)} ${row.scope || '?'}  ${row.id}  ${status}${ageText(row, nowMs)}${row.background ? ' bg' : ''}  ${task}${wip}${wasteFlag(row)}`;
 }
@@ -32,7 +40,7 @@ export function formatAgentLine(row, { nowMs = Date.now(), clipTask = (s) => s, 
 export const isDispatchRow = (r) => Boolean(r && String(r.task || '').trim());
 
 // Dispatch rows the lint must flag: no model recorded. Status-only rows are never dispatches.
-export const unlabelledAgents = (rows) => rows.filter((r) => isDispatchRow(r) && !String(r.model || '').trim());
+export const unlabelledAgents = (rows) => rows.filter((r) => isDispatchRow(r) && !rowModelDisplay(r));
 
 // Status-only rows: counted separately so they never read as unlabelled dispatches.
 export const statusOnlyAgents = (rows) => rows.filter((r) => r && !isDispatchRow(r));
