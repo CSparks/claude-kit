@@ -9,6 +9,7 @@ import { chmodSync, unlinkSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { answersElsewhere, codeVerbRows } from './code-index-query.mjs';
 import { resolveStoreRoot } from '../hooks/lib/unbounded.mjs';
+import { checkoutOfStoreRoot } from '../hooks/lib/store-link.mjs';
 import { unsupportedFlags } from './q-gap.mjs';
 import { endpoint, kitEnv, SERVED_VERBS, stamp } from './q-server-proto.mjs';
 import { Session } from './q-server-session.mjs';
@@ -56,7 +57,7 @@ async function answer(req) {
   const [cmd, ...args] = req.argv;
   if (!SERVED_VERBS.has(cmd) || unsupportedFlags(cmd, args).length || args.includes('--project') || args.some((a) => String(a).startsWith('--registry'))) return { fallback: true };
   return asCaller(req.env || {}, async () => {
-    const root = req.root || resolveStoreRoot(req.cwd) || req.cwd;
+    const root = checkoutOfStoreRoot(req.root || resolveStoreRoot(req.cwd) || req.cwd);
     if (answersElsewhere(args, root)) return { fallback: true };
     const session = await sessionFor(root);
     return { rows: await codeVerbRows(cmd, args, root, (_r, o) => session.index(o)) };
