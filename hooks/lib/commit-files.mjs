@@ -1,8 +1,6 @@
 // The files a `git commit` would include, from `git status --porcelain -uall -- <paths>` (KIT-T1020, KIT-T1158, KIT-T1159).
 //   pathspecFiles(porcelain, { staged })  -> string[]  the entries a pathspec commit takes; untracked entries only when `staged`
 //   pathspecStatus(root, paths)           -> string  the porcelain of `paths`, untracked directories listed file by file
-//   addSpecs(command)                     -> string[]  the add pathspecs as written, an expansion kept raw (pin-reach.mjs)
-//   pathspecStatusStrict(root, paths)     -> string | null  pathspecStatus, null when git's status fails
 //   sameCommandAdds(command)              -> string[]  the pathspecs of every `git add` or `git stage` in the command
 //     ('.' for a bare add, -A or -u with no pathspec, a --pathspec-from-file add, a pathspec holding a variable or a find `{}`, and any add the
 //     parser cannot place: it fails closed; a grouping `(`, `$(` or backtick around the add is read through)
@@ -30,12 +28,9 @@ const FROM_FILE = /^--pathspec-from-file(?:=|$)/;
 const FIND_PLACEHOLDER = '{}';
 const UNRESOLVED_SPEC = /[$`]|\{\}/;
 const GROUPING_AROUND_WORD = /^(?:\$\(|[({]|`(?=git\b))+|[)}]+$/g;
-const ARG_GROUPING = /^[({]+|[)}]+$/g;
 const STATUS_MAX_BYTES = 256 * 1024 * 1024;
 
 const baseName = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
-// An add's argument keeps a leading `$(` or backtick (an expansion, unresolved) and loses only the grouping that closes the call.
-const argWord = (word) => (word === FIND_PLACEHOLDER ? word : word.replace(ARG_GROUPING, ''));
 const ungrouped = (word) => (word === FIND_PLACEHOLDER ? word : word.replace(GROUPING_AROUND_WORD, ''));
 
 export function pathspecFiles(porcelain, { staged = false } = {}) {
@@ -57,8 +52,7 @@ function statusOf(root, flags, paths) {
 }
 
 /** The porcelain of `paths`, untracked directories listed file by file; an output too large for -uall falls back to git's collapsed `dir/` entries. */
-export const pathspecStatusStrict = (root, paths) => statusOf(root, ['-uall'], paths) ?? statusOf(root, [], paths);
-export const pathspecStatus = (root, paths) => pathspecStatusStrict(root, paths) ?? '';
+export const pathspecStatus = (root, paths) => statusOf(root, ['-uall'], paths) ?? statusOf(root, [], paths) ?? '';
 
 // `-A`, `--all`, `-u` and `--update` widen an add to the whole tree only when no pathspec follows: `git add -A crates/a
 // crates/b` stages every change under those two folders and nothing else (KIT-T1392). A bare `.` is the whole tree.
@@ -66,7 +60,7 @@ function addPathspecs(args) {
   if (args.some((t) => FROM_FILE.test(t))) return WHOLE_TREE;
   const dashAt = args.indexOf('--');
   const paths = dashAt === -1 ? args.filter((t) => !t.startsWith('-')) : args.slice(dashAt + 1);
-  return paths.length ? paths : WHOLE_TREE;
+  return paths.length ? paths.map((t) => (UNRESOLVED_SPEC.test(t) ? '.' : t)) : WHOLE_TREE;
 }
 
 // The subcommand index after git's global options, -1 when the walk meets an option it cannot place.
@@ -82,27 +76,20 @@ function subcommandAt(words, from) {
 }
 
 function segmentAdds(text) {
-  const entries = shellArgs(text).map((raw) => ({ raw, word: ungrouped(raw) })).filter((e) => e.word);
-  const words = entries.map((e) => e.word);
-  const argsAfter = (at) => entries.slice(at).map((e) => argWord(e.raw)).filter(Boolean);
+  const words = shellArgs(text).map(ungrouped).filter(Boolean);
   const gitAt = words.findIndex((w) => baseName(w) === 'git');
-  if (gitAt === -1) return words.filter((w) => SHELL_STRING.test(w) && /\bgit\b/.test(w)).flatMap(rawAdds);
+  if (gitAt === -1) return words.filter((w) => SHELL_STRING.test(w) && /\bgit\b/.test(w)).flatMap(sameCommandAdds);
   const subAt = subcommandAt(words, gitAt + 1);
   if (subAt === -1) return words.slice(gitAt + 1).some((w) => ADD_VERBS.has(w)) ? WHOLE_TREE : [];
   const sub = words[subAt];
   if (sub === undefined) return [];
   if (UNRESOLVED_WORD.test(sub)) return WHOLE_TREE;
-  return ADD_VERBS.has(sub) ? addPathspecs(argsAfter(subAt + 1)) : [];
+  return ADD_VERBS.has(sub) ? addPathspecs(words.slice(subAt + 1)) : [];
 }
 
-function rawAdds(command) {
+export function sameCommandAdds(command) {
   const text = String(command);
   const parts = segments(text);
   const pieces = parts.ambiguous ? blindSegments(text) : parts;
   return [...new Set([...pieces].flatMap(({ text: segment }) => segmentAdds(segment)))];
 }
-
-export const sameCommandAdds = (command) => [...new Set(rawAdds(command).map((t) => (UNRESOLVED_SPEC.test(t) ? '.' : t)))];
-
-/** The pathspecs of every add of the command as written (an expansion kept raw); a bare or tree-wide add is '.'. */
-export const addSpecs = (command) => rawAdds(command);
