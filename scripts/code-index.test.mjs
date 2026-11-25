@@ -416,7 +416,7 @@ await test('q code answers a grep-style pattern, a --lang list, an absolute --pa
     assert.match((await run(['x', '--path', 'crates/nonexistent']))[0].text, /no indexed file passes --path crates\/nonexistent/);
     assert.deepEqual(locs(await run(['name = "bevy_gltf"', '--path', 'pins/versions.pin', '-A', '1'])), ['pins/versions.pin:5', 'pins/versions.pin-6'], 'a named file the index skips is searched from disk (KIT-T452)');
     assert.deepEqual(locs(await run(['^name = "bevy"$', '--regex', '--path', 'pins/versions.pin'])), ['pins/versions.pin:2']);
-    assert.match((await run(['zzz_nowhere', '--path', 'pins/versions.pin']))[0].text, /no indexed file passes --path pins\/versions\.pin/, 'a miss in a named unindexed file still says why');
+    assert.match((await run(['zzz_nowhere', '--path', 'pins/versions.pin']))[0].text, /searched 1 file under .*\/pins\/versions\.pin/, 'a miss in a named unindexed file says what was read (KIT-T1563)');
     const miss = await run(['zzz_nowhere', '--path', 'src']);
     assert.deepEqual(locs(miss), [], 'a real miss has no hit rows');
     assert.match(miss[0].text, /gitignored build directories and trees outside the repo are not indexed; search one with --dir/, 'and says where an unindexed tree is searched (KIT-T749)');

@@ -3,9 +3,9 @@
 // VERIFIED against the file text held in the index (current after every refresh), so an answer
 // is exactly what grep would print: the trigram table only narrows candidate files. Flags: see QUERY_HELP in q.mjs.
 
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { extractSymbols, langsOfToken } from './code-index-extract.mjs';
-import { basename, resolve } from 'node:path';
+import { basename } from 'node:path';
 import { refreshIndex } from './code-index.mjs';
 import { scanSummary } from './q-scan-dir.mjs';
 import { isAbsolutePath, resolveTarget, scansOnDemand } from './q-code-target.mjs';
@@ -13,7 +13,8 @@ import { isTestPath } from './q-test-path.mjs';
 import { uncheckedFrameworks } from './q-framework.mjs';
 import { globToRegExp } from '../hooks/lib/exclusions.mjs';
 import { grepPattern } from './q-grep-pattern.mjs';
-import { addPath, pathHintRows, strayPathRows } from './q-code-paths.mjs';
+import { addPath, pathHintRows, strayPathRows, unindexedPath } from './q-code-paths.mjs';
+import { scanPathRows } from './q-scan-path.mjs';
 import { dropLegacy, legacyTest } from './q-legacy.mjs';
 import { multilineRegex, multilineSpans, renderSpans } from './q-multiline.mjs';
 
@@ -21,7 +22,6 @@ export const DEFAULT_LIMIT = 40;
 const MIN_LITERAL = 3;
 const DOC_LINE_LIMIT = 5;
 const LINE_CLIP = 160;
-const NAMED_FILE_MAX_BYTES = 8 * 1024 * 1024;
 const UNRANKED = 9;
 const GAP = '\u0000';
 const DEFAULT_KINDS = ['code', 'doc', 'config'];
@@ -289,25 +289,8 @@ async function emptyResult(root, text, flags, refresh, filtered) {
     const rows = await codeVerb(root, parts.map(escapeRe).join('|'), { ...flags, regex: true }, refresh);
     if (rows.length) return [{ loc: '', text: `no literal "${text}"; matched as ${parts.length} alternatives (--regex)` }, ...rows];
   }
-  if (!filtered) return scanNamedFile(root, text, flags) || [{ loc: '', text: `(no results: no indexed file passes ${filterSummary(flags)})` }];
+  if (!filtered) return [{ loc: '', text: `(no results: no indexed file passes ${filterSummary(flags)})` }];
   return [];
-}
-
-// `--path <file>` naming an existing file the index skips (Cargo.lock, an unknown extension) is
-// searched straight from disk, so the answer never has to come from grep. null when the path is not
-// one literal file, the file is too big to read whole, or nothing matches.
-function scanNamedFile(root, text, flags) {
-  const matcher = buildMatcher(text, flags);
-  if (!flags.path || /[*?]/.test(flags.path) || !matcher) return null;
-  try {
-    const file = resolve(root, flags.path);
-    const stat = statSync(file);
-    if (!stat.isFile() || stat.size > NAMED_FILE_MAX_BYTES) return null;
-    const body = readFileSync(file, 'utf8');
-    const hits = [];
-    splitLines(body).forEach((l, i) => { if (matcher(l)) hits.push(i); });
-    return hits.length ? renderHits([{ path: flags.path, text: body, hits }], flags, flags.only ? buildExtractor(text, flags) : null) : null;
-  } catch { return null; }
 }
 
 const filterSummary = (flags) => [flags.path && `--path ${flags.path}`, flags.anyPaths && `--path ${flags.anyPaths.join(' --path ')}`,flags.langs && `--lang ${flags.langs.join(',')}`, flags.kinds && `--kind ${flags.kinds.join(',')}`]
@@ -460,11 +443,16 @@ async function unknownFlagRows(cmd, args, unknown, root) {
 
 /**
  * Entry for q.mjs: cmd is 'code' | 'sym' | 'file'. `refresh(root, { tickets })` yields the index
- * to answer from (default refreshIndex; the resident server passes its own).
+ * to answer from (default refreshIndex; the resident server passes its own). `scanDisk: false` (the resident
+ * server) answers a `--path` that only a scan of the disk can reach with one row marked `fallback`.
  */
-export async function codeVerbRows(cmd, args, root, refresh = refreshIndex) {
-  const rows = await answerRows(cmd, args, root, refresh);
-  if (rows.some((r) => r.loc)) return rows;
+export async function codeVerbRows(cmd, args, root, refresh = refreshIndex, { scanDisk = true } = {}) {
+  const rows = await answerRows(cmd, args, root, refresh, scanDisk);
+  if (rows.some((r) => r.fallback)) return rows;
+  const scanned = rows.some((r) => r.scanned);
+  const plain = scanned ? rows.map(({ scanned: _marker, ...r }) => r) : rows;
+  if (plain.some((r) => r.loc)) return plain;
+  if (scanned) return [...plain, ...emptyHint()];
   const missing = uncheckedFrameworks(root);
   const names = missing.map((m) => `${m.name} (${m.path})`).join(', ');
   const notChecked = missing.length ? [{ loc: '', text: `NOT searched: framework submodule ${names} is not checked out here, so "no results" proves nothing about it (git submodule update --init)` }] : [];
@@ -481,7 +469,7 @@ function outsideIndexHint(args) {
   return named ? [] : [{ loc: '', text: 'NOT searched: gitignored build directories and trees outside the repo are not indexed; search one with --dir <path> or an absolute --path <dir> (q scans it on demand), never grep' }];
 }
 
-async function answerRows(cmd, args, root, refresh) {
+async function answerRows(cmd, args, root, refresh, scanDisk) {
   const { text, flags } = parseCodeArgs(args);
   if (flags.unknown.length) return unknownFlagRows(cmd, args, flags.unknown, root);
   const target = await resolveTarget(flags, root, refresh);
@@ -489,6 +477,9 @@ async function answerRows(cmd, args, root, refresh) {
   flags.path = target.path;
   dropLegacy(flags, target.root);
   const found = await verbRows(cmd, text, flags, target.root, target.refresh);
+  const onDisk = cmd === 'code' && !target.scanned && !target.prefix && !found.some((r) => r.loc) && await unindexedPath(flags, target.root, target.refresh);
+  if (onDisk && !scanDisk) return [{ loc: '', text: '', fallback: true }];
+  if (onDisk) return scanPathRows(onDisk, target.root, (idx) => verbRows(cmd, text, { ...flags, path: undefined }, onDisk, async () => idx));
   const rows = target.prefix ? found.map((r) => (r.loc ? { ...r, loc: `${target.prefix}/${r.loc}` } : r)) : found;
   const note = target.scanned && (target.scanned.truncated || !rows.some((r) => r.loc));
   const empty = !rows.some((r) => r.loc);

@@ -4,6 +4,7 @@
 //
 //   addPath(flags, value, next)  records one `--path <value>`; `next` is the argv token after it
 //   strayPathRows(flags, root)   the answer rows explaining `--path a b`: `b` became search text although it names a path under root
+//   unindexedPath(flags, root, refresh)  the on-disk path a lone `--path` names when the index holds nothing at or under it
 
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -46,6 +47,20 @@ export async function pathHintRows(flags, root, refresh) {
     const mean = near.length ? ` did you mean ${near.map((n) => `--path ${n}`).join(' or ')}?` : '';
     return { loc: '', text: `q: --path ${p} matches no indexed file under ${root.replace(/\\/g, '/')} (--path is relative to the repo root, not the cwd).${mean}` };
   });
+}
+
+/**
+ * The absolute path a lone literal `--path` names when it exists on disk below root and no indexed file is at or under it
+ * (a gitignored log, build output), else null: that path is scanned on demand (q-scan-path).
+ */
+export async function unindexedPath(flags, root, refresh) {
+  const p = flags.path?.replace(/\/+$/, '');
+  if (!p || flags.anyPaths || GLOB.test(p)) return null;
+  const abs = resolve(root, p);
+  if (abs === resolve(root) || !existsSync(abs)) return null;
+  const idx = await refresh(root);
+  idx.handle?.close();
+  return idx.files.some((f) => f.rel === p || f.rel.startsWith(`${p}/`)) ? null : abs;
 }
 
 export function strayPathRows(flags, root) {

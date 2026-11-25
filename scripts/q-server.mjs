@@ -60,7 +60,8 @@ async function answer(req) {
     const root = checkoutOfStoreRoot(req.root || resolveStoreRoot(req.cwd) || req.cwd);
     if (answersElsewhere(args, root)) return { fallback: true };
     const session = await sessionFor(root);
-    return { rows: await codeVerbRows(cmd, args, root, (_r, o) => session.index(o)) };
+    const rows = await codeVerbRows(cmd, args, root, (_r, o) => session.index(o), { scanDisk: false });
+    return rows.some((r) => r.fallback) ? { fallback: true } : { rows };
   });
 }
 

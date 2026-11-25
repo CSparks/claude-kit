@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// KIT-T852 / KIT-T850 / KIT-T848: `q code --test|--not-test`, `--repo`, and `--dir` on another git
+// KIT-T852 / KIT-T850 / KIT-T848 / KIT-T1563: `q code --test|--not-test`, `--repo`, and `--dir` on another git
 // checkout (answered from its index, paths absolute) versus a gitignored or plain directory
-// (scanned on demand, bounded). Run: node scripts/q-code-target.test.mjs
+// (scanned on demand, bounded), and a `--path` naming a gitignored file or directory (scanned the same way,
+// paths repo-relative). Run: node scripts/q-code-target.test.mjs
 
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -66,6 +67,36 @@ await test('--dir / --repo on another git checkout answers from its index with a
 
 await test('--dir on a gitignored directory inside a checkout is scanned on demand', async () => {
   assert.deepEqual(locs(await codeVerbRows('code', ['sibling_marker', '--dir', join(sibling, 'logs')], home)), [`${posix(sibling)}/logs/run.log:1`]);
+});
+
+const rowsIn = (args, options) => codeVerbRows('code', args, sibling, undefined, options);
+const saidIn = async (args) => (await rowsIn(args)).map((r) => r.text || '').join('\n');
+
+await test('--path naming a gitignored file or directory is scanned on demand; answer paths stay repo-relative (KIT-T1563)', async () => {
+  assert.deepEqual(locs(await rowsIn(['sibling_marker', '--path', 'logs/run.log'])), ['logs/run.log:1']);
+  assert.deepEqual(locs(await rowsIn(['sibling_marker', '--path', `${posix(sibling)}/logs/run.log`])), ['logs/run.log:1']);
+  assert.deepEqual(locs(await rowsIn(['sibling_marker', '--path', 'logs'])), ['logs/run.log:1']);
+  assert.deepEqual((await rowsIn(['sibling_marker', '--path', 'logs', '-c'])).filter((r) => r.loc).map((r) => [r.loc, r.text]), [['logs/run.log', '1']]);
+});
+
+await test('a miss in a scanned --path names what was read, not "no indexed file" (KIT-T1563)', async () => {
+  const text = await saidIn(['zz_absent_text', '--path', 'logs/run.log']);
+  assert.match(text, /searched 1 file under .*\/logs\/run\.log/);
+  assert.doesNotMatch(text, /no indexed file passes|matches no indexed file|NOT searched/);
+  assert.ok((await rowsIn(['zz_absent_text', '--path', 'logs/run.log'])).every((r) => Object.keys(r).join() === 'loc,text'), 'printed rows carry only loc and text');
+});
+
+await test('control: logs/ is not indexed; an indexed --path answers from the index as before', async () => {
+  assert.deepEqual(locs(await codeVerbRows('file', ['run.log'], sibling)), [], 'the gitignored log is outside the index');
+  assert.deepEqual(locs(await rowsIn(['sibling_marker', '--path', 'src/sib.rs'])), ['src/sib.rs:1']);
+  const miss = await saidIn(['zz_absent_text', '--path', 'src/sib.rs']);
+  assert.match(miss, /NOT searched: gitignored build directories/);
+  assert.doesNotMatch(miss, /searched 1 file/);
+});
+
+await test('the resident server hands an on-disk --path scan back to the caller (KIT-T1563)', async () => {
+  assert.ok((await rowsIn(['zz_absent_text', '--path', 'logs/run.log'], { scanDisk: false })).some((r) => r.fallback));
+  assert.ok(!(await rowsIn(['zz_absent_text', '--path', 'src/sib.rs'], { scanDisk: false })).some((r) => r.fallback), 'control: an indexed path stays served');
 });
 
 await test('the resident server leaves --dir, --repo and an outside --path to the caller', () => {
