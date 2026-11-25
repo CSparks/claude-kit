@@ -64,7 +64,6 @@ function endWord(s, at) {
 function closeQuote(s, i, doubled) {
   if (s.rules.doubled && s.src[i + 1] === doubled) { add(s, i, i + 2, doubled); s.quoteAt = i + 1; return i + 2; }
   s.quote = '';
-  s.quoteTick = false;
   add(s, i, i + 1, '');
   return i + 1;
 }
@@ -90,11 +89,7 @@ function quoted(s, i) {
   const substitution = ch === '$' && next === '(';
   if (substitution || (ch === '`' && rules.backtick)) mark(s, REASON.quotedSubstitution, i);
   if (substitution && rules.subs && substitutionHoldsQuote(src, i, rules.escape || '\\')) mark(s, REASON.quoteInSubstitution, i);
-  if (ch === '`' && rules.backtick) {
-    // Only the backtick that opens a span is checked: the one that closes it ends the span the opener's scan already covered.
-    if (!s.quoteTick && backtickHoldsQuote(src, i)) mark(s, REASON.quoteInSubstitution, i);
-    s.quoteTick = !s.quoteTick;
-  }
+  if (ch === '`' && rules.backtick && backtickHoldsQuote(src, i)) mark(s, REASON.quoteInSubstitution, i);
   add(s, i, i + 1, ch);
   return i + 1;
 }
@@ -246,8 +241,7 @@ function step(s, i) {
   const ch = src[i];
   const next = src[i + 1] ?? '';
   if (s.inert) return inert(s, i);
-  const closesBacktick = ch === '`' && rules.backtick && (s.quoteTick || s.backtick >= 0);
-  if (rules.flags?.includes(ch) && s.quote !== "'" && s.quote !== "$'" && QUOTE.test(next) && !closesBacktick) mark(s, REASON.escape, i);
+  if (rules.flags?.includes(ch) && s.quote !== "'" && s.quote !== "$'" && QUOTE.test(next)) mark(s, REASON.escape, i);
   if (s.quote) return quoted(s, i);
   if (rules.escape && ch === rules.escape && i + 1 < src.length) return escaped(s, i);
   if (rules.hereStrings && ch === '@' && opensHereString(src, i)) {
