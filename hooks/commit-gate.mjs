@@ -8,7 +8,7 @@ import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SR
 import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
-import { addsNamed, pathspecFiles, pathspecStatus, sameCommandAdds } from './lib/commit-files.mjs';
+import { literalAdds, pathspecFiles, pathspecStatus, sameCommandAdds } from './lib/commit-files.mjs';
 import { commitSpec } from './lib/commit-spec.mjs';
 import { commitCall, firstGitCall } from './lib/git-calls.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
@@ -152,7 +152,11 @@ if (!adopted(root)) process.exit(0);
 try {
   const links = new Set(gitlinkPaths(root));
   const pins = changed.filter((f) => links.has(f) && !pathExcluded(root, 'pin-sha', f));
-  const fromWorktree = (f) => spec.mode !== 'staged' || addsNamed(command, f);
+  // A bare commit records the index; the work tree counts only for a same-command add git matches to the pointer by its own
+  // pathspec rules. An add holding a shell expansion cannot be resolved here and is left to the index.
+  const literal = literalAdds(command);
+  const addedPins = new Set(literal.length ? pathspecFiles(statusAll(literal), { staged: true }) : []);
+  const fromWorktree = (f) => spec.mode !== 'staged' || addedPins.has(f);
   const unnamed = pins.length ? pinCiteProblems({ root, paths: pins, message: cited, fromWorktree }) : [];
   if (unnamed.length) {
     process.stderr.write(pinCiteMessage(unnamed, excludeFooter('pin-sha')));

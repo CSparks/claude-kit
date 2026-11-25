@@ -5,7 +5,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { adopted, cleanup, git, hook, identify, reporter, repo, tmpDir } from './test-harness.mjs';
-import { addsNamed } from './lib/commit-files.mjs';
+import { literalAdds, sameCommandAdds } from './lib/commit-files.mjs';
 
 const { ok, done } = reporter('pin-sha-push');
 
@@ -71,20 +71,19 @@ try {
   const variable = (add) => commit(`${add} && git commit -m "more: ${MSG}"`);
   const expansions = ['git add -- "$P/more.rs"', 'git add -- "${DIR}/more.rs"', 'git add -- $P/more.rs', 'git add -- "$P"', 'git add -- "$P/*"',
     'git add -- "$P/sub"', 'git add -- "$D"/../more.rs', 'git add -- "$X"', 'git add -- $(git ls-files -m)'];
-  ok('a pathspec holding an expansion stages nothing the hook can read: the unstaged pointer is not judged', expansions.every((add) => variable(add).code === 0));
+  ok('a pathspec holding an expansion is not read for the pin: the unstaged pointer never blocks the commit', expansions.every((add) => variable(add).code === 0));
   ok('a tree-wide add stages the pointer: judged by the work tree', variable('git add .').code === 2 && variable('git add -A').code === 2);
   ok('a literal add naming the submodule stages the pointer: judged by the work tree', variable('git add -- sub').code === 2);
+  ok('a glob or magic pathspec git matches to the submodule is judged by the work tree', variable('git add -- "su*"').code === 2 && variable('git add -- ":(glob)su*"').code === 2);
   ok('a literal add of other files leaves the unstaged pointer alone', variable('git add -- more.rs').code === 0);
   git(['add', '--', 'sub'], parent);
-  ok('a pointer staged in the index is judged whatever the add says: a wrong sha is refused', variable('git add -- "$P/more.rs"').code === 2);
+  ok('a pointer staged in the index is judged whatever the add says: a wrong sha is refused', expansions.every((add) => variable(add).code === 2) && variable('git add -- more.rs').code === 2);
   git(['reset', '-q', '--', 'sub'], parent);
 
-  const named = (add, path = 'rapid-game') => addsNamed(`${add} && git commit -m x`, path);
-  ok('addsNamed: an expansion names nothing, whatever it follows or holds', ['git add -- "$D/rapid-game"', 'git add -- $D/x', 'git add -- "$D"/../other', 'git add -- "$X"', 'git add -- ${D}/x'].every((add) => !named(add)));
-  ok('addsNamed: a literal pathspec names the path or a parent of it, else it names nothing', named('git add -- rapid-game') && named('git add -- a', 'a/b') && !named('git add -- other') && !named('git add -- other/rapid-game'));
-  ok('addsNamed: magic, a glob, a backslash, .., ./ and an absolute start name it', ['git add -- ":(glob)x/*.rs"', 'git add -- ":!x"', 'git add -- "x\\y"', 'git add -- "x*"', 'git add -- ../x', 'git add -- ./other', 'git add -- /abs/other', 'git add -- C:/abs/other'].every((add) => named(add)));
-  ok('addsNamed: names compare without case, as a case-insensitive checkout does', named('git add -- Rapid-Game'));
-  ok('addsNamed: a bare add names every path', named('git add .') && named('git add -A'));
+  const adds = (add) => sameCommandAdds(`${add} && git commit -m x`);
+  ok('sameCommandAdds: a pathspec holding an expansion covers the whole tree, the pin path and every other', ['git add -- $D/x', 'git add -- "$X"', 'git add -- "${D}/rapid-game"', 'git add -- $(git ls-files -m)'].every((add) => adds(add).includes('.')) && adds('git add -- "$X"').join() === '.');
+  ok('literalAdds: only the pathspecs without an expansion remain, a bare add stays the whole tree',
+    literalAdds('git add -- a "$X" b').join() === 'a,b' && literalAdds('git add -- "$X"').length === 0 && literalAdds('git add .').join() === '.');
 } finally {
   cleanup();
   done();

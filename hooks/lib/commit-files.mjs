@@ -1,7 +1,7 @@
 // The files a `git commit` would include, from `git status --porcelain -uall -- <paths>` (KIT-T1020, KIT-T1158, KIT-T1159).
 //   pathspecFiles(porcelain, { staged })  -> string[]  the entries a pathspec commit takes; untracked entries only when `staged`
 //   pathspecStatus(root, paths)           -> string  the porcelain of `paths`, untracked directories listed file by file
-//   addsNamed(command, path)              -> boolean  whether a `git add` of the command stages `path` (a pathspec holding an expansion names nothing)
+//   literalAdds(command)                  -> string[]  the add pathspecs holding no shell expansion, for git to match as written (the pin check)
 //   sameCommandAdds(command)              -> string[]  the pathspecs of every `git add` or `git stage` in the command
 //     ('.' for a bare add, -A or -u with no pathspec, a --pathspec-from-file add, a pathspec holding a variable or a find `{}`, and any add the
 //     parser cannot place: it fails closed; a grouping `(`, `$(` or backtick around the add is read through)
@@ -31,8 +31,6 @@ const UNRESOLVED_SPEC = /[$`]|\{\}/;
 const GROUPING_AROUND_WORD = /^(?:\$\(|[({]|`(?=git\b))+|[)}]+$/g;
 const ARG_GROUPING = /^[({]+|[)}]+$/g;
 const STATUS_MAX_BYTES = 256 * 1024 * 1024;
-const MAGIC_OR_ABSOLUTE = /^(?::|\/|~|[A-Za-z]:)/;
-const UNPLAIN_PATH = /[*?[\]${}()`\\<>|;&]/;
 
 const baseName = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
 // An add's argument keeps a leading `$(` or backtick (an expansion, unresolved) and loses only the grouping that closes the call.
@@ -104,27 +102,5 @@ function rawAdds(command) {
 
 export const sameCommandAdds = (command) => [...new Set(rawAdds(command).map((t) => (UNRESOLVED_SPEC.test(t) ? '.' : t)))];
 
-// Path components of a pathspec, null when git or the shell may read it as more than those names: a magic, absolute or
-// home-relative start, a glob, a backslash, a `.` or `..` component.
-function plainComponents(spec) {
-  if (MAGIC_OR_ABSOLUTE.test(spec) || UNPLAIN_PATH.test(spec)) return null;
-  const parts = spec.split('/').filter(Boolean);
-  return parts.some((c) => c === '.' || c === '..') ? null : parts;
-}
-
-const lower = (parts) => parts.map((c) => c.toLowerCase());
-
-/**
- * True when a `git add` of the command stages `path`: a bare or tree-wide add, or a pathspec naming it or a parent of it
- * (names compare without case). A pathspec git may read as more than names (magic, glob, backslash, `..`, absolute) counts
- * as naming it. A pathspec holding a shell expansion is not read: the hook cannot resolve it, so it never names a path.
- */
-export function addsNamed(command, path) {
-  const target = lower(String(path).replace(/\\/g, '/').split('/').filter(Boolean));
-  return rawAdds(command).some((spec) => {
-    if (spec === WHOLE_TREE[0]) return true;
-    if (UNRESOLVED_SPEC.test(spec)) return false;
-    const own = plainComponents(spec);
-    return own === null || lower(own).every((c, i) => target[i] === c);
-  });
-}
+/** The pathspecs of the command's adds that hold no shell expansion: git can match each as written. A bare or tree-wide add is '.'. */
+export const literalAdds = (command) => rawAdds(command).filter((spec) => !UNRESOLVED_SPEC.test(spec));
