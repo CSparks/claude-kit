@@ -113,9 +113,18 @@ const SPELLINGS = {
   'a call to releaseAgent': `node -e "import('hooks/lib/checkout-holder.mjs').then((m) => m.releaseAgent('a55dead0'))"`,
   'a read of the stamp folder': 'ls /tmp/claude-kit-turnstate/claims-stamps',
   'an unpaired quote': `claims --release a55dead0 --reason "it's`,
+  'sudo before the shim': 'sudo claims --release a55dead0 --reason x',
+  'env assignments before the shim': 'env X=1 claims --release a55dead0 --reason x',
+  'a backtick substitution inside double quotes': 'echo "$(claims --release a55dead0 --reason x)" done',
+  'a backtick span inside double quotes': 'echo "`claims --release a55dead0 --reason x`"',
 };
 for (const [name, command] of Object.entries(SPELLINGS)) check(`a subagent is refused: ${name}`, releaseGate(command, 'subAgent1').status === 2, command);
-const READS = ['echo claims', 'git status', 'q code "claims --release"', "t notes KIT-T1288 'claims --release is main thread only'", 'cat hooks/lib/agent-claims.mjs', 'node hooks/claims-release-verb.test.mjs', 'cargo build --release', 'node scripts/claims.mjs'];
+const READS = ['echo claims', 'git status', 'q code "claims --release"', "t notes KIT-T1288 'claims --release is main thread only'", 'cat hooks/lib/agent-claims.mjs', 'node hooks/claims-release-verb.test.mjs', 'cargo build --release', 'node scripts/claims.mjs',
+  // KIT-T1537: the word `claims` as an argument or inside prose invokes nothing.
+  'cargo test -p rg-claims --test claims --release', 'cargo test --release claims', 'cargo test -p rg-claims --release -- claims',
+  'git commit -m "claims --release is main-thread only"', 'sudo git commit -m "claims --release"',
+  't notes RDG-T1 "`rg-claims` core: `cargo test --release` passes; claims table"',
+  'cd rapid-game/rust/core/rg-claims && cargo test --release && t notes X "claims done"'];
 for (const command of READS) check(`a subagent's ${command.split(' ').slice(0, 3).join(' ')} passes`, releaseGate(command, 'subAgent1').status === 0 && releaseGate(command, 'subAgent1').stdout === '', command);
 
 const nonceOf = (command) => (command.match(/CLAUDE_KIT_CLAIMS_STAMP='([0-9a-f]{32})'/) || [])[1];
@@ -123,6 +132,7 @@ const stamped = JSON.parse(releaseGate(ASK).stdout || '{}').hookSpecificOutput?.
 check('the main thread\'s plain call is stamped: the nonce is exported ahead of the unchanged command', /^export CLAUDE_KIT_CLAIMS_STAMP='[0-9a-f]{32}'; claims --release a55dead0 --reason "x"$/.test(stamped), stamped);
 check('PowerShell gets its own syntax, and an unrelated main-thread command or a subagent gets no stamp', /^\$env:CLAUDE_KIT_CLAIMS_STAMP = '[0-9a-f]{32}'; claims/.test(JSON.parse(spawnSync(process.execPath, [here('claims-release-gate.mjs')], { cwd: repo, env: process.env, encoding: 'utf8', input: JSON.stringify({ session_id: 'S1', tool_name: 'PowerShell', tool_input: { command: ASK } }) }).stdout).hookSpecificOutput.updatedInput.command)
   && releaseGate('git status').stdout === '' && releaseGate(ASK, 'subAgent1').stdout === '' && releaseGate('echo claims').stdout === '');
+check('the main thread\'s cargo test with a claims argument and --release is not stamped', releaseGate('cargo test --release claims 123').stdout === '' && releaseGate('cargo test --test claims --release -p rg-claims').stdout === '');
 
 const GHOST = 'a55dead0cccccdddd';
 claimFile({ tree: top, session: 'S4', agent: GHOST, label: 'ghost', rel: 'src/e.rs', head, now: Date.now() - 20 * MINUTE });
