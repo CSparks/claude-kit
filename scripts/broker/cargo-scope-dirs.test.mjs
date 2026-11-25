@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { acquireBuildSlot } from './build-slot.mjs';
 import { compiledPaths, compiledScope, inScope, scopeVia, selection } from './cargo-scope-dirs.mjs';
 
@@ -177,6 +177,24 @@ test('KIT-T1147: metadata that fails for every platform is read again for the ho
   const { scope, reason } = compiledScope(['test', '-p', 'x'], root, stub);
   assert.equal(reason, '');
   assert.ok(covers(scope, join(root, 'inner/z/src/lib.rs')) && !covers(scope, join(root, 'inner/y/src/lib.rs')), 'the platform-filtered read scopes the closure, not the directory');
+});
+
+test('KIT-T1549: a cargo wrapper under a path with a space, and a manifest path with a space, are read', () => {
+  const root = twoWorkspaces();
+  const stubDir = mkdtempSync(join(tmpdir(), 'csd spaced stub '));
+  const script = join(stubDir, 'stub.mjs');
+  writeFileSync(script, `import { spawnSync } from 'node:child_process';\nconst r = spawnSync('cargo', process.argv.slice(2), { stdio: 'inherit' });\nprocess.exit(r.status ?? 1);\n`);
+  const stub = join(stubDir, process.platform === 'win32' ? 'cargo.cmd' : 'cargo');
+  writeFileSync(stub, process.platform === 'win32' ? `@node "%~dp0stub.mjs" %*\r\n` : '#!/bin/sh\nexec node "$(dirname "$0")/stub.mjs" "$@"\n', { mode: 0o755 });
+  const viaManifest = join(mkdtempSync(join(tmpdir(), 'csd spaced ws ')), 'Cargo.toml');
+  writeFileSync(viaManifest, readFileSync(join(root, 'inner', 'z', 'Cargo.toml'), 'utf8'));
+  mkdirSync(join(dirname(viaManifest), 'src'));
+  writeFileSync(join(dirname(viaManifest), 'src', 'lib.rs'), '');
+  const wrapped = compiledScope(['test', '-p', 'x'], root, stub);
+  assert.equal(wrapped.reason, '', 'the wrapper at a spaced path runs');
+  assert.ok(covers(wrapped.scope, join(root, 'inner/z/src/lib.rs')) && !covers(wrapped.scope, join(root, 'inner/y/src/lib.rs')), 'the closure is read, not the whole workspace');
+  const manifest = compiledScope(['check', '--manifest-path', viaManifest], root, stub);
+  assert.equal(manifest.reason, '', 'a manifest path with a space reaches cargo as one argument');
 });
 
 test('a build hold carries the scope and writer it was acquired with', () => {

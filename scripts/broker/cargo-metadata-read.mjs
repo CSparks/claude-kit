@@ -42,8 +42,16 @@ function hostTriple() {
   return r.status === 0 ? (HOST_LINE.exec(r.stdout) || [])[1] || '' : '';
 }
 
+const NEEDS_QUOTES = /[\s"&|<>^()%]/;
+// cmd.exe reads one command line: a wrapper path or an argument holding a space (`C:\Users\Chris Sparks\...`) must be quoted.
+const cmdQuoted = (word) => (NEEDS_QUOTES.test(word) ? `"${word.replace(/"/g, '""')}"` : word);
+
 function run(cargo, cwd, extra) {
-  const r = spawnSync(cargo, ['metadata', '--offline', '--format-version', '1', ...extra], { cwd, encoding: 'utf8', timeout: METADATA_TIMEOUT_MS, maxBuffer: METADATA_BUFFER_BYTES, windowsHide: true, shell: /\.(cmd|bat)$/i.test(cargo) });
+  const viaShell = /\.(cmd|bat)$/i.test(cargo);
+  const args = ['metadata', '--offline', '--format-version', '1', ...extra];
+  const r = viaShell
+    ? spawnSync(cmdQuoted(cargo), args.map(cmdQuoted), { cwd, encoding: 'utf8', timeout: METADATA_TIMEOUT_MS, maxBuffer: METADATA_BUFFER_BYTES, windowsHide: true, shell: true })
+    : spawnSync(cargo, args, { cwd, encoding: 'utf8', timeout: METADATA_TIMEOUT_MS, maxBuffer: METADATA_BUFFER_BYTES, windowsHide: true });
   if (r.status !== 0) return { meta: null, reason: String(r.stderr || r.error || 'no output').split('\n').find((l) => l.trim()) || 'no output' };
   try { return { meta: JSON.parse(r.stdout), reason: '' }; } catch { return { meta: null, reason: 'unparseable output' }; }
 }
