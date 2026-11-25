@@ -267,6 +267,21 @@ try {
     ['KIT-T935 control: an escaped-quote q call then a node -e source write blocks', `q code "a \\"b\\"" && node -e "require('fs').writeFileSync('hooks/x.mjs','x')"`],
   ];
   for (const [name, command] of afterKit) check(name, blocked(command), run(command).stderr.slice(0, 100));
+  // KIT-T1546: backticks inside a quoted store-verb note are prose to the lexer, not an unpaired quote.
+  const noteReads = [
+    ['a t notes whose text holds a backticked redirect', 't notes KIT-T1 "the `cat > src/a.rs` form"'],
+    ['a t notes whose text opens and closes on a backticked word', 't notes KIT-T1 "`rg-claims` core: `cargo test --release` ok > src/a.rs"'],
+    ['a t notes whose whole text is one backticked word', 't notes KIT-T1 "`a`"'],
+    ['a cap bug with a backticked path', 'cap bug "the `scripts/a.mjs` gate misfired"'],
+    ['a t notes with several backticked words and a chained echo', 't notes KIT-T1 "a `b` c `d`" && echo done'],
+  ];
+  for (const [name, command] of noteReads) check(`KIT-T1546: ${name} passes`, !blocked(command), run(command).stderr.slice(0, 100));
+  const noteControls = [
+    ['a real redirect after a backticked note', 't notes KIT-T1 "a `b` c" > src/a.rs'],
+    ['a real sed -i after a backticked note', 't notes KIT-T1 "a `b`" && sed -i s/a/b/ src/lib.rs'],
+    ['an unclosed backtick before a quote is still unpaired', 'echo "a `b" > src/a.rs'],
+  ];
+  for (const [name, command] of noteControls) check(`KIT-T1546 control: ${name} blocks`, blocked(command), run(command).stderr.slice(0, 100));
   check('fail-open: a malformed payload exits 0', spawnSync(process.execPath, [HOOK], { cwd: repo, input: 'not json', encoding: 'utf8' }).status === 0);
 } finally {
   rmSync(repo, { recursive: true, force: true });
