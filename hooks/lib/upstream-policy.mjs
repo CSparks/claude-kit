@@ -33,14 +33,16 @@ export function slugOf(url) {
 
 export const isOwnSlug = (slug) => OWN_OWNERS.includes(String(slug).split('/')[0].toLowerCase());
 
+const REPO_EQUALS = '--repo=';
 const ghRepoFlag = (toks) => {
+  let repo = '';
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
-    if (t === '-R' || t === '--repo') return toks[i + 1] || '';
-    if (t.startsWith('--repo=')) return t.slice(7);
-    if (/^-R\S/.test(t)) return t.slice(2);
+    if (t === '-R' || t === '--repo') repo = toks[++i] || '';
+    else if (t.startsWith(REPO_EQUALS)) repo = t.slice(REPO_EQUALS.length);
+    else if (/^-R\S/.test(t)) repo = t.slice(2);
   }
-  return '';
+  return repo;
 };
 
 const urlSlug = (toks) => {
@@ -98,7 +100,7 @@ function collectSubmissions(command, cwd, ctx, out, depth, every, shell = ctx.sh
     if (!seg) continue;
     const cd = cdTarget(seg);
     if (cd) { dir = ctx.resolveDir(dir, cd); continue; }
-    if (depth < MAX_NESTING) commandRuns(seg, '').forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1, every, run.shell || ''));
+    if (depth < MAX_NESTING) commandRuns(seg, shell).forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1, every, run.shell || ''));
     const toks = tokenize(seg);
     const env = {};
     while (toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[0])) { const [k, ...v] = toks.shift().split('='); env[k] = v.join('='); }

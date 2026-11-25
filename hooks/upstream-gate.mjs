@@ -20,7 +20,8 @@
 
 import { resolve } from 'node:path';
 import { payload, git, gitRoot, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
-import { AMBIGUOUS_MESSAGE, segments, shellOfTool } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, shellOfTool } from './lib/shell-segments.mjs';
+import { quotingHidesSubmission } from './lib/escaped-quote-gate.mjs';
 import { foreignSubmissions, policyToken, pushedRepos, slugOf, CLAUDE_TRAILER, POLICY_URLS } from './lib/upstream-policy.mjs';
 import { pushHookStatus, wireCommand } from './lib/push-hooks.mjs';
 import { unpushedPinMessage, unpushedPins } from './lib/push-pins.mjs';
@@ -177,7 +178,7 @@ try {
   const marks = markerExcludedLines(command, CHECK_ID);
   const upstreamMarked = marks.wholeFile || marks.lines.size;
 
-  if (segments(command, { shell }).ambiguous && !upstreamMarked) {
+  if (quotingHidesSubmission(command, shell) && !upstreamMarked) {
     process.stderr.write(`\nBLOCKED: a gh or git submission cannot be matched to its target repo (KIT-T395). ${AMBIGUOUS_MESSAGE}\n${excludeFooter(CHECK_ID)}`);
     process.exit(2);
   }

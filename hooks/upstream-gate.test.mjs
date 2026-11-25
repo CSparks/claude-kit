@@ -53,6 +53,16 @@ try {
     hook('upstream-gate.mjs', { tool_name: 'PowerShell', tool_input: { command: prose } }, fork).code === 2);
   ok('KIT-T1564: a real foreign push chained after such a note still blocks under Bash', bash(`${prose} && gh pr create --repo bevyengine/bevy --title t`));
   ok('KIT-T1564: a foreign submission hidden behind an escaped quote still blocks under Bash', hiddenBehindQuotes('gh pr create --repo bevyengine/bevy --title t').every((c) => bash(c)));
+  const ownGh = 'gh pr create --repo CSparks/bevy --title ';
+  ok('control: an own-repo submission with plain quotes passes under Bash', !bash(`${ownGh}"t"`));
+  ok('KIT-T1564 review: a nested bash -c string holding an escaped quote keeps the blanket block', bash(`bash -c "${ownGh}\\"t\\""`) && bash(`sh -c '${ownGh}\\"t\\"'`));
+  ok('KIT-T1564 review: eval, ssh and su -c strings holding an escaped quote keep the blanket block',
+    bash(`eval "${ownGh}\\"t\\""`) && bash(`ssh host "${ownGh}\\"t\\""`) && bash(`su -c "${ownGh}\\"t\\"" root`));
+  ok('KIT-T1564 review: a segment other than a kit verb holding an escaped quote keeps the blanket block', bash(`echo \\"x\\" && ${ownGh}"t"`));
+  ok('KIT-T1564 review: a kit verb whose argument holds a command substitution with an escaped quote keeps the blanket block',
+    bash('t notes KIT-T1 "$(gh pr create --repo bevyengine/bevy --title \\"x\\")"') && bash(`t notes KIT-T1 "\`${ownGh}\\"x\\"\`"`));
+  ok('KIT-T1564 review: nested foreign submissions without an escaped quote block under Bash', bash('bash -c "gh pr create --repo bevyengine/bevy --title t"') && bash('eval "gh pr create --repo bevyengine/bevy --title t"'));
+  ok('KIT-T1564 review: the last -R names the target, as gh reads repeated flags', bash('gh pr create -R CSparks/bevy -R bevyengine/bevy --title t') && !bash('gh pr create -R bevyengine/bevy -R CSparks/bevy --title t') && bash('gh pr create --repo=CSparks/bevy --repo bevyengine/bevy --title t'));
   ok('chained segment blocks', blocks('git status && gh pr create --repo bevyengine/bevy --title t'));
 
   ok('token with ai-allowed: yes clears', !blocks(`gh pr create --repo bevyengine/bevy --title t  # ${TOKEN_YES}`));
