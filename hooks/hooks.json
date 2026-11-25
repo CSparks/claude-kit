@@ -130,7 +130,8 @@
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" lint.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" jscpd.mjs" },
           { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" ingest-data.mjs" },
-          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" plan-notice.mjs" }
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" plan-notice.mjs" },
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compat-run.mjs\" workspace-crate-guard.mjs" }
         ]
       },
       {

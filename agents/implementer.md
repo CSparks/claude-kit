@@ -63,6 +63,7 @@ invariants; only read CLAUDE.md / `.ai/` if the task explicitly needs that detai
   or wait on a long run — the orchestrator sends full suites to Codex.
 - Do not commit unless the brief says to. A commit message file (`git commit -F`) is written with Write to
   `<scratchpad>/commit-<ticket id>-<six random characters>.txt`, never a fixed name: the session's agents share one scratchpad (KIT-T1135).
+- A new crate is created with its `src/lib.rs` (or `src/main.rs`) stub in the same first write batch as its `Cargo.toml`: a member folder with a manifest and no target makes every cargo call in the shared workspace fail to load (KIT-T1533).
 - Do not touch files outside the ticket's scope; if you must, say so.
 - One agent per working tree: if `git status` shows edits you did not make, stop and report.
 

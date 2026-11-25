@@ -10,12 +10,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 
-const MANIFEST = 'Cargo.toml';
-const WORKSPACE_TABLE = /^\s*\[workspace\]/m;
-const slash = (p) => String(p).replace(/\\/g, '/');
+export const MANIFEST = 'Cargo.toml';
+export const WORKSPACE_TABLE = /^\s*\[workspace\]/m;
+export const slash = (p) => String(p).replace(/\\/g, '/');
 const quoted = (text) => [...text.replace(/#.*$/gm, '').matchAll(/(["'])([^"']*)\1/g)].map((m) => m[2]);
 
-function listOf(text, key) {
+export function listOf(text, key) {
   const section = text.slice(text.search(WORKSPACE_TABLE));
   const found = new RegExp(`^\\s*${key}\\s*=\\s*\\[([^\\]]*)\\]`, 'm').exec(section);
   return found ? quoted(found[1]).map((p) => slash(p).replace(/^\.\//, '').replace(/\/+$/, '')) : [];
@@ -28,7 +28,7 @@ function patternToRegExp(pattern) {
   return new RegExp(`^${source}$`);
 }
 
-function matching(patterns, rel) {
+export function matching(patterns, rel) {
   return patterns.find((pattern) => { const re = patternToRegExp(pattern); return re ? re.test(rel) : false; });
 }
 
