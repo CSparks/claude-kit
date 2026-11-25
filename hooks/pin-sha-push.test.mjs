@@ -5,6 +5,7 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { adopted, cleanup, git, hook, identify, reporter, repo, tmpDir } from './test-harness.mjs';
+import { addsReach } from './lib/commit-files.mjs';
 
 const { ok, done } = reporter('pin-sha-push');
 
@@ -68,14 +69,24 @@ try {
   ok('setup: the work-tree pointer differs from the index', unstaged !== git(['ls-files', '-s', '--', 'sub'], parent).split(/\s+/)[1]);
   writeFileSync(join(parent, 'more.rs'), 'pub fn more() -> u32 { 1 }\n');
   const variable = (add) => commit(`${add} && git commit -m "more: ${MSG}"`);
-  ok('an add of a variable path with a file tail cannot stage the pointer: the unstaged pointer is not judged', variable('git add -- $P/more.rs').code === 0);
-  ok('a braced variable with a file tail passes the same way', variable('git add -- ${DIR}/more.rs').code === 0);
-  ok('a variable path whose tail can name the submodule is judged by the work tree', variable('git add -- $P/sub').code === 2);
-  ok('a bare variable path may be anything: judged by the work tree', variable('git add -- $P').code === 2);
-  ok('a variable path with a glob tail may be anything: judged by the work tree', variable('git add -- $P/*').code === 2);
+  ok('a double-quoted variable path with a file tail cannot stage the pointer: the unstaged pointer is not judged', variable('git add -- "$P/more.rs"').code === 0);
+  ok('a braced double-quoted variable with a file tail passes the same way', variable('git add -- "${DIR}/more.rs"').code === 0);
+  ok('a quoted variable path whose tail names the submodule is judged by the work tree', variable('git add -- "$P/sub"').code === 2);
+  ok('an unquoted variable path may split or glob into anything: judged by the work tree', variable('git add -- $P/more.rs').code === 2);
+  ok('a bare variable path may be anything: judged by the work tree', variable('git add -- "$P"').code === 2);
+  ok('a variable path with a glob tail may be anything: judged by the work tree', variable('git add -- "$P/*"').code === 2);
   ok('a command substitution path may be anything: judged by the work tree', variable('git add -- $(git ls-files -m)').code === 2);
   ok('a tree-wide add stages the pointer: judged by the work tree', variable('git add .').code === 2);
   ok('a literal add of other files leaves the unstaged pointer alone', variable('git add -- more.rs').code === 0);
+
+  const reach = (add, path = 'rapid-game') => addsReach(`${add} && git commit -m x`, path);
+  ok('addsReach: a quoted variable then a file name reaches only a path that ends with it', !reach('git add -- "$D/x"') && reach('git add -- "$D/rapid-game"') && reach('git add -- "$D/rapid-game"', 'a/rapid-game'));
+  ok('addsReach: a tail with .. fails closed', reach('git add -- "$D"/../other') && reach('git add -- "$D/../other"') && reach('git add -- "$D/./other"'));
+  ok('addsReach: an unquoted expansion fails closed', reach('git add -- $D/x') && reach('git add -- ${D}/x'));
+  ok('addsReach: pathspec magic, a backslash and a glob fail closed', reach('git add -- ":(glob)x/*.rs"') && reach('git add -- ":!x"') && reach('git add -- "$D\\x"') && reach('git add -- "$D/x*"'));
+  ok('addsReach: a literal pathspec names the path or a parent of it, else it is not reached', reach('git add -- rapid-game') && reach('git add -- a', 'a/b') && !reach('git add -- other') && !reach('git add -- other/rapid-game'));
+  ok('addsReach: a literal pathspec with .., ./ or an absolute start fails closed', reach('git add -- ../x') && reach('git add -- ./other') && reach('git add -- /abs/other') && reach('git add -- C:/abs/other'));
+  ok('addsReach: names compare without case, as a case-insensitive checkout does', reach('git add -- "$D/Rapid-Game"') && reach('git add -- Rapid-Game'));
 } finally {
   cleanup();
   done();

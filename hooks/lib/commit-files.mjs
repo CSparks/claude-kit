@@ -12,8 +12,7 @@
 // `git` plus an add or stage word the walk cannot place counts as an add of the whole tree.
 
 import { execFileSync } from 'node:child_process';
-import { blindSegments, segments, shellArgs } from './shell-segments.mjs';
-import { overlaps } from './path-overlap.mjs';
+import { blindSegments, segments, shellTokens } from './shell-segments.mjs';
 
 const UNTRACKED = '??';
 const STATUS_COLUMNS = 'XY '.length;
@@ -32,8 +31,11 @@ const UNRESOLVED_SPEC = /[$`]|\{\}/;
 const GROUPING_AROUND_WORD = /^(?:\$\(|[({]|`(?=git\b))+|[)}]+$/g;
 const ARG_GROUPING = /^[({]+|[)}]+$/g;
 const STATUS_MAX_BYTES = 256 * 1024 * 1024;
-const EXPANSION = /\$\{[^}]*\}|\$[A-Za-z_]\w*|\$\(|`/g;
-const GLOB_OR_SYNTAX = /[*?[\]${}()`]/;
+const PLAIN_EXPANSION = /^\$(?:\{[A-Za-z_]\w*\}|[A-Za-z_]\w*)/;
+const MAGIC_OR_ABSOLUTE = /^(?::|\/|~|[A-Za-z]:)/;
+const UNPLAIN_PATH = /[*?[\]${}()`\\"'<>|;&]/;
+const QUOTE_CHARS = /["']/g;
+const unquoted = (token) => token.replace(QUOTE_CHARS, '');
 
 const baseName = (word) => word.replace(/.*[\\/]/, '').replace(/\.exe$/i, '');
 // An add's argument keeps a leading `$(` or backtick (an expansion, unresolved) and loses only the grouping that closes the call.
@@ -63,10 +65,14 @@ export const pathspecStatus = (root, paths) => statusOf(root, ['-uall'], paths) 
 
 // `-A`, `--all`, `-u` and `--update` widen an add to the whole tree only when no pathspec follows: `git add -A crates/a
 // crates/b` stages every change under those two folders and nothing else (KIT-T1392). A bare `.` is the whole tree.
+// `args` keep their quotes: a pathspec holding an expansion stays quoted as written, so its quoting can be judged (addsReach).
 function addPathspecs(args) {
-  if (args.some((t) => FROM_FILE.test(t))) return WHOLE_TREE;
-  const dashAt = args.indexOf('--');
-  const paths = dashAt === -1 ? args.filter((t) => !t.startsWith('-')) : args.slice(dashAt + 1);
+  const plain = args.map(unquoted);
+  if (plain.some((t) => FROM_FILE.test(t))) return WHOLE_TREE;
+  const dashAt = plain.indexOf('--');
+  const from = dashAt === -1 ? 0 : dashAt + 1;
+  const paths = args.slice(from).filter((t, i) => dashAt !== -1 || !plain[from + i].startsWith('-'))
+    .map((t) => (UNRESOLVED_SPEC.test(t) ? t : unquoted(t)));
   return paths.length ? paths : WHOLE_TREE;
 }
 
@@ -83,9 +89,9 @@ function subcommandAt(words, from) {
 }
 
 function segmentAdds(text) {
-  const entries = shellArgs(text).map((raw) => ({ raw, word: ungrouped(raw) })).filter((e) => e.word);
+  const entries = shellTokens(text).map((raw) => ({ raw, word: ungrouped(unquoted(raw)) })).filter((e) => e.word);
   const words = entries.map((e) => e.word);
-  const argsAfter = (at) => entries.slice(at).map((e) => argWord(e.raw)).filter(Boolean);
+  const argsAfter = (at) => entries.slice(at).map((e) => argWord(e.raw)).filter((t) => unquoted(t));
   const gitAt = words.findIndex((w) => baseName(w) === 'git');
   if (gitAt === -1) return words.filter((w) => SHELL_STRING.test(w) && /\bgit\b/.test(w)).flatMap(rawAdds);
   const subAt = subcommandAt(words, gitAt + 1);
@@ -105,22 +111,47 @@ function rawAdds(command) {
 
 export const sameCommandAdds = (command) => [...new Set(rawAdds(command).map((t) => (UNRESOLVED_SPEC.test(t) ? '.' : t)))];
 
-// The literal path components an unresolved pathspec ends with, [] when the end of it is itself unresolved or a glob.
-function literalTail(spec) {
-  const tail = spec.slice(Math.max(...[...spec.matchAll(EXPANSION)].map((m) => m.index + m[0].length), 0));
-  if (!tail.startsWith('/') || GLOB_OR_SYNTAX.test(tail)) return [];
-  return tail.split('/').filter(Boolean);
+// Path components of a pathspec, null when git or the shell may read it as more than those names: a magic or absolute or
+// home-relative start, a glob, a backslash, a `.` or `..` component, an expansion.
+function plainComponents(spec) {
+  if (MAGIC_OR_ABSOLUTE.test(spec) || UNPLAIN_PATH.test(spec)) return null;
+  const parts = spec.split('/').filter(Boolean);
+  return parts.some((c) => c === '.' || c === '..') ? null : parts;
 }
 
+// The literal path components a pathspec ends with after its last expansion, null when the pathspec cannot be narrowed.
+// Narrowing needs each expansion to be a plain `$NAME` or `${NAME}` inside double quotes (no word splitting or globbing).
+function literalTail(spec) {
+  if (MAGIC_OR_ABSOLUTE.test(unquoted(spec)) || /[`\\]|\$\(/.test(spec)) return null;
+  let quote = '';
+  let tailAt = 0;
+  for (let i = 0; i < spec.length; i++) {
+    const c = spec[i];
+    if (c === '"' || c === "'") quote = quote === c ? '' : quote || c;
+    else if (c === '$') {
+      const name = spec.slice(i).match(PLAIN_EXPANSION);
+      if (!name || quote !== '"') return null;
+      i += name[0].length - 1;
+      tailAt = i + 1;
+    }
+  }
+  const tail = unquoted(spec.slice(tailAt));
+  return tail.startsWith('/') ? plainComponents(tail.slice(1)) : null;
+}
+
+const lower = (parts) => parts.map((c) => c.toLowerCase());
 const hasRun = (parts, run) => run.length > 0 && parts.some((_, at) => run.every((c, i) => parts[at + i] === c));
 
-/** True when a `git add` of the command may stage `path`: a bare or tree-wide add, a pathspec naming it, or an unresolved pathspec whose literal tail can name it (fail-closed otherwise). */
+/** True when a `git add` of the command may stage `path`: a bare or tree-wide add, a plain pathspec naming it or a parent of it, or a double-quoted-expansion pathspec whose literal tail can name it; any other pathspec fails closed. */
 export function addsReach(command, path) {
-  const parts = String(path).replace(/\\/g, '/').split('/').filter(Boolean);
+  const target = lower(String(path).replace(/\\/g, '/').split('/').filter(Boolean));
   return rawAdds(command).some((spec) => {
     if (spec === WHOLE_TREE[0]) return true;
-    if (!UNRESOLVED_SPEC.test(spec)) return overlaps([spec], [path]);
+    if (!UNRESOLVED_SPEC.test(spec)) {
+      const own = plainComponents(spec.replace(/\\/g, '/'));
+      return own === null || lower(own).every((c, i) => target[i] === c);
+    }
     const tail = literalTail(spec);
-    return tail.length === 0 || hasRun(parts, tail);
+    return tail === null || tail.length === 0 || hasRun(target, lower(tail));
   });
 }
