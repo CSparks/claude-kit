@@ -6,12 +6,13 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
-import { ENV, HOOKS, cleanup, git, reporter, repo } from './test-harness.mjs';
+import { ENV, HOOKS, cleanup, git, reporter, repo, tmpDir } from './test-harness.mjs';
 import { handWriteHarness } from './hand-write-harness.mjs';
 
 const { ok, done } = reporter('hand-write-detect');
+process.env.CLAUDE_KIT_HOLDERS_DIR = ENV.CLAUDE_KIT_HOLDERS_DIR = tmpDir('hw-holders-');
 
 try {
   const wiring = JSON.parse(readFileSync(join(HOOKS, 'hooks.json'), 'utf8'));
@@ -284,6 +285,24 @@ try {
   writeFileSync(join(excluded, '.claude-kit-ignore.yaml'), 'source-shell-write:\n  - "src/**"\n');
   const lifted = call(excluded, 'S5', 'node scratch.js', () => rewrite(excluded, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
   ok('the documented exclusion lifts the block', lifted.status === 0);
+
+  // KIT-T1541: a file another live writer holds, changed during a call that is not the holder's, is the holder's concurrent work.
+  const { claimFile } = await import('./lib/checkout-holder.mjs');
+  const claimed = (d2, session, agent) => {
+    const tree = execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: d2, encoding: 'utf8' }).trim();
+    claimFile({ tree, session, agent, label: 'a roadnet writer', rel: 'src/a.mjs', head: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: d2, encoding: 'utf8' }).trim() });
+  };
+  const others = fresh();
+  claimed(others, 'SW', 'agentW1234567890');
+  const heldElsewhere = call(others, 'S2', 'node scratch.js', () => rewrite(others, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
+  ok('KIT-T1541: a file another live writer holds, changed while this call ran, is not blamed on the call', heldElsewhere.status === 0);
+  const sharing = fresh();
+  claimed(sharing, 'SW', 'agentW1234567890');
+  claimed(sharing, 'S2', '');
+  const heldByBoth = call(sharing, 'S2', 'node scratch.js', () => rewrite(sharing, "fs.writeFileSync(p, 'export const a = 9;\\n')"));
+  ok('KIT-T1541 control: a file the caller also holds is still flagged', heldByBoth.status === 2 && heldByBoth.stderr.includes('src/a.mjs'));
+  const unheld = call(others, 'S2', 'node scratch.js', () => node(others, "require('fs').writeFileSync('src/b.mjs', 'export const b = 9;\\n')"));
+  ok('KIT-T1541 control: a file no other writer holds is still flagged', unheld.status === 2 && unheld.stderr.includes('src/b.mjs'));
 
   const plain = repo();
   writeFileSync(join(plain, 'x.mjs'), 'x\n');

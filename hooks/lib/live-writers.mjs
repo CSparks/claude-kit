@@ -5,6 +5,7 @@
 //                                             claim on it (agent-claims.mjs), another live session whose write ledger still lists
 //                                             it dirty (live-claims.mjs), and every live writer whose Edit or Write left the bytes
 //                                             on disk now (the ledger), whether or not it claimed the file
+//   heldByOthersOnly(root, rel, caller)    -> true when another live writer holds `rel` and `caller` has no claim on it (hand-write-detect)
 //   otherLiveWriters(root, caller, opts)   -> descriptions of every live writer of the checkout other than `caller`
 //   liveWritersFor(root, rel, caller)      -> fileHolders, else otherLiveWriters: who a file with no recorded writer may belong to
 //   liveWriterNames(root, rel, caller)     -> liveWritersFor for a block text, [] when the registry cannot be read
@@ -48,6 +49,20 @@ export function fileHolders(root, rel, caller) {
   const claiming = claimants.filter((c) => !sameWriter(c, session, agent) && Object.hasOwn(c.claims || {}, rel) && !committedSince(root, rel, c.claims[rel]));
   const sessions = overlappingHolders({ tree: root, session, paths: [rel] }).map(({ holder }) => describeSession(holder.session, holder.label));
   return unique([...claiming.map(describeWriter), ...sessions, ...liveLedgerWriters(root, rel, caller, claimants, holders)]);
+}
+
+/**
+ * True when `rel` is another live writer's and not the caller's: another writer holds it and the caller has no standing claim
+ * on it, so a change the caller's shell call saw there is not the caller's to answer for. An unreadable registry answers false.
+ */
+export function heldByOthersOnly(root, rel, caller) {
+  try {
+    const [session, agent] = [writerSession(caller), writerAgent(caller)];
+    const mine = liveClaimants(root, Date.now(), STRICT).some((c) => sameWriter(c, session, agent) && Object.hasOwn(c.claims || {}, rel));
+    return !mine && fileHolders(root, rel, caller).length > 0;
+  } catch {
+    return false;
+  }
 }
 
 export function otherLiveWriters(root, caller, opts = {}) {
