@@ -8,7 +8,7 @@ import { payload, git, gitRoot, adopted, pathExcluded, excludeFooter, ID_CITE_SR
 import { isDataRepo, dataProjectsSpanned } from './data-repo.mjs';
 import { turnWrites, turnStartMs, foreignPaths, recordSubmoduleActivity } from './turn-writes.mjs';
 import { pendingHandWrites } from './lib/hand-writes.mjs';
-import { addsReach, pathspecFiles, pathspecStatus, sameCommandAdds } from './lib/commit-files.mjs';
+import { addsNamed, pathspecFiles, pathspecStatus, sameCommandAdds } from './lib/commit-files.mjs';
 import { commitSpec } from './lib/commit-spec.mjs';
 import { commitCall, firstGitCall } from './lib/git-calls.mjs';
 import { foreignCiteProblem } from './lib/commit-cite-keys.mjs';
@@ -152,7 +152,7 @@ if (!adopted(root)) process.exit(0);
 try {
   const links = new Set(gitlinkPaths(root));
   const pins = changed.filter((f) => links.has(f) && !pathExcluded(root, 'pin-sha', f));
-  const fromWorktree = (f) => spec.mode !== 'staged' || addsReach(command, f);
+  const fromWorktree = (f) => spec.mode !== 'staged' || addsNamed(command, f);
   const unnamed = pins.length ? pinCiteProblems({ root, paths: pins, message: cited, fromWorktree }) : [];
   if (unnamed.length) {
     process.stderr.write(pinCiteMessage(unnamed, excludeFooter('pin-sha')));
