@@ -40,9 +40,10 @@ try {
   for (const f of ['agents/analyst.md', 'agents/analyst-max.md']) ok(`${f} names the escalate tag for the dispatcher (KIT-T940)`, /\[escalate: <reason>\]/.test(read(f)));
   ok('the owning commands carry the promotion protocol', read('commands/cap.md').includes('RULING CAPTURED') && read('commands/decide.md').includes('--from <inbox id>') && read('commands/triage.md').includes('t decide --file <draft.md> --from <cap id>'));
   const MESSAGE_FILE_NAME = 'commit-<ticket id>-<six random characters>.txt';
+  const RG_AGENTS = ['rg-implementer', 'rg-roads', 'rg-terrain-mesh', 'rg-townplan', 'rg-claims'];
   const delegation = read('docs/delegation.md');
   ok('the base contract names the unique commit message file and the delegation doc tells agents to write it in the shared scratchpad (KIT-T1135)', base.includes(MESSAGE_FILE_NAME) && base.includes('docs/delegation.md') && /agents of one session share one\s+scratchpad/.test(delegation));
-  for (const f of ['agents/README.md', 'agents/implementer.md', 'agents/perf-tuner.md', 'agents/rg-ui-engineer.md']) {
+  for (const f of ['agents/README.md', 'agents/implementer.md', 'agents/perf-tuner.md', 'agents/rg-ui-engineer.md', ...RG_AGENTS.map((a) => `agents/${a}.md`)]) {
     ok(`${f} names the unique commit message file (KIT-T1135)`, read(f).includes(MESSAGE_FILE_NAME));
   }
   ok('the base contract names the prose-ask gate and his rule that a need from him is a questionnaire (KIT-D168)',
@@ -60,9 +61,9 @@ try {
       .every((s) => base.includes(s)) && !base.includes('RDG-D063'));
   const waitRule = read('docs/wait-rule.md');
   ok('the wait rule says a targeted test runs without asking and a whole suite needs his approval in a Cargo workspace, and every agent carries it', /In a Cargo workspace no test run is implicit/.test(waitRule) && waitRule.includes('[tests: periodic batch]') && !waitRule.includes('RDG-D063')
-    && ['implementer', 'perf-tuner', 'refactorer', 'game-asset-artist', 'light-and-shadow', 'rg-ui-engineer', 'test-author'].every((a) => read(`agents/${a}.md`).includes(waitRule)));
+    && ['implementer', 'perf-tuner', 'refactorer', 'game-asset-artist', 'light-and-shadow', 'rg-ui-engineer', 'test-author', ...RG_AGENTS].every((a) => read(`agents/${a}.md`).includes(waitRule)));
 
-  for (const a of ['implementer', 'perf-tuner', 'refactorer', 'game-asset-artist', 'light-and-shadow', 'rg-ui-engineer', 'test-author', 'audio-synthesist', 'editor-workbench']) {
+  for (const a of ['implementer', 'perf-tuner', 'refactorer', 'game-asset-artist', 'light-and-shadow', 'rg-ui-engineer', 'test-author', 'audio-synthesist', 'editor-workbench', ...RG_AGENTS]) {
     const text = read(`agents/${a}.md`);
     ok(`agents/${a}.md carries the shell delete rule: named files, never a directory or rm -r, git rm for tracked (KIT-T1213)`,
       text.includes('## Shell deletes (KIT-T1213)') && text.includes('one named file per operand: never a directory, `rm -r` or a glob') && text.includes('`git rm -- <path>`'));

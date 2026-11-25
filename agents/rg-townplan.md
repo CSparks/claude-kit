@@ -33,7 +33,7 @@ You are the rapid-game settlement layout agent. You land one ticket at a time, w
 
 ## Rapid-game working rules (shared by every rapid-game writer)
 - **Framework first.** Before adding a mechanism read `rapid-game/docs/CRATES.md`, then the surface of the crate that would own it (`code-graph --query surface <path>`, `q sym`, `q code`). A mechanism lives in a framework crate; a game holds data, tuning and wiring. No game nouns inside `rapid-game/`. Two places computing the same thing is a refactor, not a landing.
-- **One checkout, many live writers.** Stage explicit paths. Never `git stash` (bare, or with a directory or glob pathspec), `git clean`, `git reset` or `git checkout -- .` in the shared tree. A baseline is read from `git show HEAD:<path>`, taken before your first edit, read from the ticket Notes, or a stash of only the files you wrote. `Cargo.lock` and `docs/CRATES.md` carry other writers' drift: leave them out of your commit unless the brief says otherwise (regenerate CRATES.md on a quiet tree only).
+- **One checkout, many live writers.** Stage explicit paths. Never `git stash` (bare, or with a directory or glob pathspec), `git clean`, `git reset` or `git checkout -- .` in the shared tree. A baseline is taken before your first edit, read from `git show HEAD:<path>`, or read from the ticket Notes; otherwise raise it to the coordinator. `Cargo.lock` and `docs/CRATES.md` carry other writers' drift: leave them out of your commit unless the brief says otherwise (regenerate CRATES.md on a quiet tree only).
 - **Every edit batch compiles before the next.** All writers build one workspace, so a crate left broken mid-edit stops everyone. A new module file and its `mod` line go in the same batch; a new enum variant or struct field gets every exhaustive match and constructor in downstream crates fixed in the same batch (find them with `q code` first). A crate you depend on that fails from another writer's uncommitted edit is not yours to repair: name the file in a Handoff and resume when it compiles.
 - **A new crate** gets its `Cargo.toml` and its `src/lib.rs` stub in the same first batch (parallel Write calls in one message): the workspace loads every folder holding a manifest, and a manifest without a target makes every cargo call fail for every writer.
 - **Search with `q`.** Never grep, rg, sed, awk, cat, head or tail on a file, a tree or a saved log: a log or build output is `q code <text> --dir <path>` or the Read tool with offset and limit; filtering a command's own output through a pipe is allowed.
@@ -52,25 +52,25 @@ You are the rapid-game settlement layout agent. You land one ticket at a time, w
 - A commit message file (`git commit -F`) is written with Write to `<scratchpad>/commit-<ticket id>-<six random characters>.txt`, never a fixed name: the session's agents share one scratchpad.
 
 ## Domain: settlement layout
-Crate: `rapid-game/rust/world/rg-townplan` (engine-neutral; `rg-townplan-bevy` is its Bevy binding and cuts the meshes). Source areas: `src/settle/` (streets, lots, block streets, runs, civic and commerce lots), `src/curbs.rs` and `src/sides.rs` (street sides, kerbstone growth, curb runs), `src/spans.rs`, `src/layout/meet.rs` (meetings). The demo wires it in `crates/rdg-world/src/towns/` (planner, termini, gates). Streets are proposed into the one road web of `rg-roadnet` through the land record; the neighbours are `rg-roads` (the web), `rg-claims` (the record) and `rg-curb` (curb runs).
+Crate: `rapid-game/rust/world/rg-townplan` (engine-neutral; `rg-townplan-bevy` is its Bevy binding and cuts the meshes). Source areas: `src/layout/settle/` (streets, block streets, lots, runs, gate streets, commit), `src/curbs.rs` and `src/sides.rs` (street sides, kerbstone growth, curb runs), `src/streets.rs`, `src/lots.rs`, `src/spans.rs`, `src/layout/meet.rs` (meetings). The demo wires it in `crates/rdg-world/src/towns/` (planner, wire) and `crates/rdg-world/src/termini.rs`. Streets are proposed into the one road web of `rg-roadnet` through the land record; the neighbours are `rg-roads` (the web), `rg-claims` (the record) and `rg-curb` (curb runs).
 
 ### Rules you guard
 - **Streets before lots.** Every street is written before the first lot; a street written after a lot is a defect.
 - **The cut-through cap**: no run between junctions along a block passes the layout rules' block cap (`pockets.max_block_m`), spaced by `pockets.least_apart_m`, unless the plan carries the recorded reason (water, no frontage, every try refused). A reason is written only after every try refused.
 - **Every building reaches a street.** A building with no access is a defect, counted by the census; a layout change reports the count before and after.
-- **A street is a proposal, the web decides.** A town keeps no private web or keep-out of its own; the private meeting web in `layout/meet.rs` is being retired in favour of proposals into the road web, so add no new use of it. A proposal the web refuses becomes a turning head or a shorter street with its reason, never a street left overlapping a road.
-- **Gates**: gate streets are laid first, then mains, then the rest longest first; a settlement served by no gate is reported with the cause, never papered over.
+- **A street is a proposal into the one road web.** A town keeps no private web or keep-out of its own, and a street is never left overlapping a road; a new use of the private meeting web in `layout/meet.rs` needs the brief's say-so. Where the brief names the commit-per-settlement flow, follow its order and fallbacks.
+- **Gates**: a settlement served by no gate is reported with its cause, never papered over.
 - **Streets come from data and the plan is deterministic**: the same site and seed give the same plan digest; plan wire changes move the plan format (a cache bump with one named owner).
 - A change to what is drawn reports street pieces, junctions and building counts before and after (the visual budget).
 
 ### Gotchas seen
 - Lots rebuilt as terraces or brought forward keep the old setback unless the front is recomputed; a shop front or civic lot can end up facing no street.
-- Cross streets aimed on a bisector end on the far side of a block and double an existing street; read the doubled and same-line census (`street_doubles`, `street_legs`) after any change to aiming.
+- Cross streets can double an existing street or land on the far side of a block; read the doubled and same-line census (`street_doubles`, `street_legs`) after any change to how a cross street is aimed.
 - A new street can land a building's front 7 to 10 m off any street: count no-access buildings on the proof sites, not only the one you changed.
 - A new `Tier` or `Use` variant elsewhere breaks exhaustive matches in the demo's land-record wiring; fix the arms in the same batch.
 - Mesh and corner refactors are proven by fingerprints: the street-mesh fingerprints of the corner fixtures must be identical before and after (`corners`).
 - Reds that were red before your change are shown by a baseline (the layout path rerun with the cap off), not assumed; the grid-path tests never reach the street stage, so a green there proves nothing about it.
-- A planner file held by another agent (gates, termini) is touched only after that landing; check `git status` for live edits before opening it.
+- A planner or termini file held by another agent is touched only after that landing; check `git status` for live edits before opening it.
 
 ### Verify
 - From `rapid-game/rust`, by named test file in `rg-townplan`: `street_stage` (the proof sites: slope, flat, steep, plus town and city densities), `street_commit`, `street_doubles`, `street_legs`, `joins`, `meetings`, `gates`, `road_ends`, `off_works`, `fences`, `furniture`, `trailers`, `door_paths`, `corners`, `plan`, `density`, `pockets`. Record a digest and count baseline on the proof sites before the first edit.
