@@ -9,12 +9,19 @@
 
 import { segments } from './shell-segments.mjs';
 import { msysToNative } from './msys-path.mjs';
-import { tokenize } from './branch-ops.mjs';
+import { words } from './shell-lexer.mjs';
+import { commandName, leadIndex } from './command-lead.mjs';
 import { gitCommand } from './git-subcommand.mjs';
 import { MAX_NESTING, commandRuns } from './lead-command-walk.mjs';
 
 export const OWN_OWNERS = (process.env.CLAUDE_KIT_OWN_OWNERS || 'CSparks').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
 
+const SUBMITTERS = new Set(['gh', 'git']);
+const GROUP_OPEN = /^\{$/;
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
+// The words of a segment as the shell passes them, a redirection and its target left out.
+const commandWords = (text, shell) => words(text, { shell }).filter((w) => !w.redirect).map((w) => w.value);
 const GH_SUBMIT = new Set(['pr create', 'issue create', 'pr comment', 'issue comment']);
 const GH_REMOTE_RANK = ['upstream', 'github', 'origin'];
 const PUSH_OPTS_WITH_VALUE = new Set(['-o', '--push-option', '--receive-pack', '--exec', '--repo', '--signed']);
@@ -117,13 +124,15 @@ function collectSubmissions(command, cwd, ctx, out, depth, every, shell = ctx.sh
   for (const { text } of segments(command, { shell })) {
     const seg = text.trim();
     if (!seg) continue;
-    const toks = tokenize(seg, shell);
-    const cd = cdOperand(toks);
+    const all = commandWords(seg, shell);
+    const cd = cdOperand(all);
     if (cd) { dir = ctx.resolveDir(dir, msysToNative(cd)); continue; }
     if (depth < MAX_NESTING) commandRuns(seg, shell).forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1, every, run.shell || ''));
+    const leadAt = leadIndex(all, (name) => SUBMITTERS.has(name), { extraWrapper: GROUP_OPEN });
+    const toks = leadAt < 0 ? [] : all.slice(leadAt);
     const env = {};
-    while (toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[0])) { const [k, ...v] = toks.shift().split('='); env[k] = v.join('='); }
-    const bin = (toks.shift() || '').replace(/^.*[\\/]/, '').replace(/\.exe$/i, '');
+    for (const assignment of all.slice(0, Math.max(leadAt, 0)).filter((w) => ASSIGNMENT.test(w))) { const [k, ...v] = assignment.split('='); env[k] = v.join('='); }
+    const bin = commandName(toks.shift() || '');
     let found = null;
     if (bin === 'gh' && GH_SUBMIT.has(`${toks[0]} ${toks[1]}`)) {
       const slug = ghTargetSlug(toks, env);

@@ -72,6 +72,15 @@ try {
   ok('control: a flag value that merely resembles a repo flag does not change an own target', !bash('gh pr create -R CSparks/bevy --title "-R x"'));
   ok('KIT-T1564 review: an escaped quote in an assignment or in the verb word of a kit segment keeps the blanket block',
     bash('T_NOTE=\\"x\\" t notes KIT-T1 "git push"') && bash('"t" notes KIT-T1 "\\"git push\\""') && bash('t\\" notes KIT-T1 "git push"'));
+  const foreign = 'gh pr create --repo bevyengine/bevy --title t';
+  ok('KIT-T1564 review: a redirection or wrapper before gh does not hide the submission',
+    ['>x', '2>/dev/null', '</dev/null'].every((r) => bash(`${r} ${foreign}`)) && ['sudo', 'time', 'env A=1', 'command', 'nohup', 'xargs'].every((w) => bash(`${w} ${foreign}`)));
+  ok('KIT-T1564 review: a compound keyword or group before gh does not hide the submission',
+    [`if ${foreign}; then true; fi`, `{ ${foreign}; }`, `( ${foreign} )`, `while ${foreign}; do true; done`, `true && ! ${foreign}`].every((c) => bash(c)));
+  ok('KIT-T1564 review: a function definition, for loop or case arm holding a submission is refused as unwalked',
+    [`f() { ${foreign}; }; f`, `for i in 1; do ${foreign}; done`, `case x in x) ${foreign};; esac`].every((c) => bash(c)));
+  ok('control: a redirection before a kit verb with a git word in its prose passes', !bash('>out t notes KIT-T1 "git push"') && !bash('2>/dev/null t notes KIT-T1 "baseline \\"git stash push\\" x"'));
+  ok('KIT-T1564 review: an escaped quote in the redirection before a kit verb keeps the blanket block', bash('>\\"out t notes KIT-T1 "git push"'));
   ok('control: a kit verb behind plain assignments with an escaped quote in its prose passes', !bash('FOO=1 t notes KIT-T1 "baseline \\"git stash push\\" x"'));
   ok('chained segment blocks', blocks('git status && gh pr create --repo bevyengine/bevy --title t'));
 
