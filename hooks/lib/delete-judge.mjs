@@ -23,7 +23,6 @@ import { gitTry } from './exec.mjs';
 import { liveWritersFor, fileHolders, otherLiveWriters } from './live-writers.mjs';
 import { DELETE_REFUSALS as R, deleteRefusal, isTracked, ledgerRefusal } from './owns-untracked-file.mjs';
 import { isMainThread } from './tool-writes.mjs';
-import { inheritedRefusal } from './inherited-files.mjs';
 
 const CLEAN_VERB = 'git clean';
 // A registry that cannot be read throws, and the caller refuses: "no writer seen" is never "no writer live" (KIT-T1271).
@@ -69,15 +68,9 @@ function discardRefusal(root, rel, caller, verb) {
 
 const ledgerOrNone = (root, rel, caller) => (caller ? ledgerRefusal(root, rel, caller) : R.noWriter);
 
-// A successor agent may stash the files its brief's paths cover that only ended agents wrote (inherited-files.mjs, KIT-T1565).
-const STASH_VERBS = new Set(['git stash', 'git stash -u']);
-function inheritedStash(verb, root, rel, caller, refusal) {
-  return STASH_VERBS.has(verb) && refusal === R.otherWriter ? inheritedRefusal(root, rel, caller) : refusal;
-}
-
 export function deleteJudgement(found, root, rel, caller) {
   if (found.unresolved) return R.unresolved;
   if (found.sweep) return found.always || otherLiveWriters(root, caller, STRICT_REGISTRY).length ? R.sweep : '';
-  if (found.discard) return inheritedStash(found.discard, root, rel, caller, mainThreadRestore(found.discard, root, rel, caller, discardRefusal(root, rel, caller, found.discard)));
+  if (found.discard) return mainThreadRestore(found.discard, root, rel, caller, discardRefusal(root, rel, caller, found.discard));
   return found.deletes ? mainThreadDelete(root, rel, caller, deleteRefusal(root, rel, caller)) : '';
 }
