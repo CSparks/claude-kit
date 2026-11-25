@@ -85,6 +85,7 @@ const writeHold = () => writeFileSync(join(slots, 'slot-1'), JSON.stringify({ pi
 const refuse = (agent) => hook('holder-beat.mjs', { agent_id: agent, tool_input: { file_path: lib } }, half.tree);
 writeHold();
 expect('KIT-T1247 control: a refused edit by a writer with no earlier edit of the crate carries no half-edited line', /HALF EDITED/.test(refuse('agentFresh').stderr) ? 1 : 0, 0);
+writeFileSync(join(half.crate, 'src', 'other.rs'), 'pub fn other() {}\n');
 recordToolWrite(half.tree, 'crates/a/src/other.rs', 'h2', Date.now() - 30000, 'S1|agentHalf');
 expect('KIT-T1251 control: while no writer\'s check was ever recorded, the refusal claims nothing about unchecked crates', /HALF EDITED/.test(refuse('agentHalf').stderr) ? 1 : 0, 0);
 recordCheck(half.tree, { writer: 'S1|agentOther', ok: true, scope: [join(half.tree, 'elsewhere')], ts: Date.now() - 100000 });
@@ -125,6 +126,8 @@ expect('a refused edit\'s predicted ledger entry does not make its writer the la
 const crateB = join(half.tree, 'crates', 'b');
 mkdirSync(join(crateB, 'src'), { recursive: true });
 writeFileSync(join(crateB, 'Cargo.toml'), '[package]\nname = "b"\nversion = "0.1.0"\nedition = "2021"\n');
+writeFileSync(join(crateB, 'src', 'lib.rs'), 'pub fn b() {}\n');
+writeFileSync(join(crateB, 'src', 'other.rs'), 'pub fn other() {}\n');
 recordToolWrite(half.tree, 'crates/b/src/lib.rs', 'h3', Date.now() - 30000, 'S1|agentTwoCrates');
 const twoCrates = refuse('agentTwoCrates');
 expect('KIT-T1247: a refusal mid-change names the other crate the writer left unchecked', /crates[\\/]b/.test(twoCrates.stderr) && /LEFT HALF EDITED/.test(twoCrates.stderr) ? 1 : 0, 1);

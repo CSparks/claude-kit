@@ -19,7 +19,7 @@ import { shellOfTool } from './lib/shell-segments.mjs';
 import { compiledScope } from '../scripts/broker/cargo-scope-dirs.mjs';
 import { findReal } from '../scripts/broker/build-run.mjs';
 import { blockedText, brokenFor, brokenIn, clearCovered, culpritText, markBroken, markTold, packageCrates } from './lib/broken-crates.mjs';
-import { crateCheckArgs, culprits, errorFiles, nudgeText, outcomeOf, readChecks, recordCheck, unverifiedCrates } from './lib/crate-checks.mjs';
+import { cargoCompile, culprits, errorFiles, nudgeText, outcomeOf, readChecks, recordCheck, unverifiedCrates } from './lib/crate-checks.mjs';
 
 const CHECK = 'crate-check';
 
@@ -44,11 +44,12 @@ function submodulePaths(root) {
 
 function afterCheck(p, root, writer) {
   const command = String((p.tool_input && p.tool_input.command) || '');
-  const args = crateCheckArgs(command);
-  if (!args) return;
+  const compile = cargoCompile(command);
+  if (!compile) return;
+  const { args, compileOnly } = compile;
   const cwd = commandCwd(command, p.cwd || process.cwd(), { shell: shellOfTool(p.tool_name) });
   const output = textOf(p.tool_response);
-  const { failed } = outcomeOf(output);
+  const { failed } = outcomeOf(output, { compileOnly });
   const scope = scopeOf(args, cwd);
   recordCheck(root, { writer, ok: !failed, scope });
   if (!failed) {

@@ -9,38 +9,53 @@
 //                                                 message format, `path:line:col: error` lines
 //   recordCheck(root, { writer, ok, scope, ts }) / readChecks(root)   the append-only record of finished checks
 //   culprits({ files, writer, claimants })     -> [{ file, claimant }] other live writers claiming a failing file
+//   cargoCompile(command)                      -> { args, compileOnly } for a `cargo check|build|clippy|test` line, or null; a test run
+//                                                 is a check of its packages that fails only on a compile error
 //   unverifiedCrates({ trees, writer, checks, notAfter?, since? }) -> [{ crate, failed }] crates the writer edited after, or that
 //     failed in, its last covering check; a check covers a crate when the crate directory is inside its recorded scope; an edit
-//     newer than `notAfter` or older than `since` (ms) is not counted
+//     newer than `notAfter` or older than `since` (ms) is not counted, nor is an edit of a file no uncommitted change holds
+//     (a commit landed it)
 //   crateDirOf(file)                           -> nearest directory holding a Cargo.toml, or ''
 //   nudgeText(unverified)                      -> the stop message naming each crate
 
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { appendTurnRecord, readTurnRecords } from './turn-state.mjs';
+import { gitTry } from './exec.mjs';
 import { segments } from './shell-segments.mjs';
 import { inScope } from '../../scripts/broker/cargo-scope-dirs.mjs';
 import { sameWriterId, writerId } from './tool-writes.mjs';
 
 const SLOT = 'cratechecks';
 const CHECK_VERB = /^(?:check|c|clippy|build|b)$/;
+const TEST_VERB = /^(?:test|t)$/;
+const CHECK_ARG = 'check';
+const NO_RUN = '--no-run';
 const FAILED = /\berror(?:\[E\d+\])?:|could not compile|aborting due to/;
+const COMPILE_FAILED = /\berror\[E\d+\]:|could not compile|aborting due to/;
 const ERROR_SITE = /-->\s+(\S+?):\d+:\d+|^(\S+?):\d+:\d+:\s+error/gm;
 const REDIRECT = /^\d*>/;
 const RECORDS_MAX = 400;
 const LEADING = /^(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*/;
 
-export function crateCheckArgs(command) {
+/** The compile a cargo line did: { args, compileOnly } for check, build, clippy (any error fails it) and test (only a compile error fails it: a failing test compiled), else null. */
+export function cargoCompile(command) {
   for (const { text } of segments(String(command || ''), { shell: '' })) {
     const words = text.trim().replace(LEADING, '').split(/\s+/);
     const cargo = /(?:^|[\\/])cargo(?:\.exe)?$/i.test(words[0] || '');
     const verb = words.slice(1).find((w) => !w.startsWith('+'));
-    if (cargo && CHECK_VERB.test(verb || '')) return words.slice(words.indexOf(verb)).filter((w) => !REDIRECT.test(w));
+    const compileOnly = TEST_VERB.test(verb || '');
+    if (!cargo || !(CHECK_VERB.test(verb || '') || compileOnly)) continue;
+    const args = words.slice(words.indexOf(verb)).filter((w) => !REDIRECT.test(w));
+    const cargoArgs = args.includes('--') ? args.slice(0, args.indexOf('--')) : args;
+    return { args: compileOnly ? [CHECK_ARG, ...cargoArgs.slice(1).filter((w) => w !== NO_RUN)] : args, compileOnly };
   }
   return null;
 }
 
-export const outcomeOf = (output) => ({ failed: FAILED.test(String(output || '')) });
+export const crateCheckArgs = (command) => cargoCompile(command)?.args ?? null;
+
+export const outcomeOf = (output, { compileOnly = false } = {}) => ({ failed: (compileOnly ? COMPILE_FAILED : FAILED).test(String(output || '')) });
 
 export function errorFiles(output, cwd) {
   const found = new Set();
@@ -72,11 +87,22 @@ export function crateDirOf(file) {
   }
 }
 
+const STATUS_PATH_AT = 3;
+
+// The files of `tree` with changes no commit holds yet (tracked changes and untracked files), as lower-case slash paths; null when git cannot say.
+function uncommittedFiles(tree) {
+  const status = gitTry(['-c', 'core.quotepath=off', 'status', '--porcelain', '-uall'], tree);
+  if (!status.ok) return null;
+  return new Set(status.out.split('\n').filter(Boolean).map((l) => slash(l.slice(STATUS_PATH_AT).split(' -> ').pop().replace(/^"|"$/g, ''))));
+}
+
 export function unverifiedCrates({ trees, writer, checks, notAfter = Infinity, since = 0 }) {
   const lastEdit = new Map();
   for (const tree of trees) {
+    const dirty = uncommittedFiles(tree);
     for (const e of readTurnRecords(tree, 'toolwrites')) {
       if (e.w !== writer || !/\.rs$/i.test(e.p || '') || (e.ts || 0) > notAfter || (e.ts || 0) < since) continue;
+      if (dirty && !dirty.has(slash(e.p))) continue;
       const crate = crateDirOf(join(tree, e.p));
       if (crate) lastEdit.set(crate, Math.max(lastEdit.get(crate) || 0, e.ts || 0));
     }
