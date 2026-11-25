@@ -7,7 +7,8 @@
 //   ctx.defaultRemote(dir)  -> name | ''                  where a bare `git push` goes
 //   ctx.ghResolved(dir)     -> 'owner/repo' | remote name | ''   `gh repo set-default` choice
 
-import { segments, cdTarget, toPath } from './shell-segments.mjs';
+import { segments } from './shell-segments.mjs';
+import { msysToNative } from './msys-path.mjs';
 import { tokenize } from './branch-ops.mjs';
 import { gitCommand } from './git-subcommand.mjs';
 import { MAX_NESTING, commandRuns } from './lead-command-walk.mjs';
@@ -34,15 +35,30 @@ export function slugOf(url) {
 export const isOwnSlug = (slug) => OWN_OWNERS.includes(String(slug).split('/')[0].toLowerCase());
 
 const REPO_EQUALS = '--repo=';
-const ghRepoFlag = (toks) => {
-  let repo = '';
+const AMBIGUOUS_TARGET = 'several repos named:';
+// gh flags of pr and issue create or comment that take their value as the next word: that word is text, never a repo flag.
+const GH_VALUE_FLAGS = new Set(['--title', '-t', '--body', '-b', '--body-file', '-F', '--head', '-H', '--base', '-B', '--label', '-l',
+  '--assignee', '-a', '--reviewer', '-r', '--milestone', '-m', '--project', '-p', '--template', '-T', '--recover']);
+
+// Every repo a gh call's flags name, in order: the value of each -R or --repo, skipping the values of flags that take one.
+const ghRepoFlags = (toks) => {
+  const repos = [];
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
-    if (t === '-R' || t === '--repo') repo = toks[++i] || '';
-    else if (t.startsWith(REPO_EQUALS)) repo = t.slice(REPO_EQUALS.length);
-    else if (/^-R\S/.test(t)) repo = t.slice(2);
+    if (t === '-R' || t === '--repo') repos.push(toks[++i] || '');
+    else if (t.startsWith(REPO_EQUALS)) repos.push(t.slice(REPO_EQUALS.length));
+    else if (/^-R\S/.test(t)) repos.push(t.slice(2));
+    else if (GH_VALUE_FLAGS.has(t)) i++;
   }
-  return repo;
+  return repos;
+};
+
+// The target repo of a gh call: its only candidate (flags, GH_REPO, a pull or issue URL). More than one distinct candidate is
+// returned joined, which is no account's own slug, so the call counts as foreign.
+const ghTargetSlug = (toks, env) => {
+  const found = [...ghRepoFlags(toks), env.GH_REPO, urlSlug(toks)].filter(Boolean);
+  const distinct = found.filter((c, i) => found.findIndex((o) => o.toLowerCase() === c.toLowerCase()) === i);
+  return distinct.length > 1 ? `${AMBIGUOUS_TARGET} ${distinct.join(', ')}` : distinct[0] || '';
 };
 
 const urlSlug = (toks) => {
@@ -91,6 +107,9 @@ export function pushedRepos(command, cwd, ctx) {
   return out.filter((f) => f.kind === 'git push').map(({ dir }) => ({ dir }));
 }
 
+// The directory a lexed `cd [/d] <dir>` segment moves to, '' when the words are not a cd.
+const cdOperand = (words) => (words[0] === 'cd' ? (words[1] === '/d' ? words[2] : words[1]) || '' : '');
+
 // One command text: each segment, then the command strings it runs (`bash -c`, `ssh`, `eval`, substitutions), each from
 // the directory the segments before it reached.
 function collectSubmissions(command, cwd, ctx, out, depth, every, shell = ctx.shell || '') {
@@ -98,21 +117,21 @@ function collectSubmissions(command, cwd, ctx, out, depth, every, shell = ctx.sh
   for (const { text } of segments(command, { shell })) {
     const seg = text.trim();
     if (!seg) continue;
-    const cd = cdTarget(seg);
-    if (cd) { dir = ctx.resolveDir(dir, cd); continue; }
+    const toks = tokenize(seg, shell);
+    const cd = cdOperand(toks);
+    if (cd) { dir = ctx.resolveDir(dir, msysToNative(cd)); continue; }
     if (depth < MAX_NESTING) commandRuns(seg, shell).forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1, every, run.shell || ''));
-    const toks = tokenize(seg);
     const env = {};
     while (toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[0])) { const [k, ...v] = toks.shift().split('='); env[k] = v.join('='); }
     const bin = (toks.shift() || '').replace(/^.*[\\/]/, '').replace(/\.exe$/i, '');
     let found = null;
     if (bin === 'gh' && GH_SUBMIT.has(`${toks[0]} ${toks[1]}`)) {
-      const slug = ghRepoFlag(toks) || env.GH_REPO || urlSlug(toks);
+      const slug = ghTargetSlug(toks, env);
       const base = slug ? { slug, remote: ctx.remotes(dir).find((r) => slugOf(r.url).toLowerCase() === slug.toLowerCase()) || null } : ghDefaultRemote(dir, ctx);
       found = { kind: `gh ${toks[0]} ${toks[1]}`, ...base };
     } else if (bin === 'git') {
       const call = gitCommand(toks);
-      const segDir = call.options.filter(({ flag }) => flag === '-C').reduce((d, { value }) => ctx.resolveDir(d, toPath(value)), dir);
+      const segDir = call.options.filter(({ flag }) => flag === '-C').reduce((d, { value }) => ctx.resolveDir(d, msysToNative(value)), dir);
       if (call.sub === 'push') found = { kind: 'git push', ...pushTarget(call.args, segDir, ctx) };
       if (found) found.dir = segDir;
     }

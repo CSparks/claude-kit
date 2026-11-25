@@ -62,7 +62,17 @@ try {
   ok('KIT-T1564 review: a kit verb whose argument holds a command substitution with an escaped quote keeps the blanket block',
     bash('t notes KIT-T1 "$(gh pr create --repo bevyengine/bevy --title \\"x\\")"') && bash(`t notes KIT-T1 "\`${ownGh}\\"x\\"\`"`));
   ok('KIT-T1564 review: nested foreign submissions without an escaped quote block under Bash', bash('bash -c "gh pr create --repo bevyengine/bevy --title t"') && bash('eval "gh pr create --repo bevyengine/bevy --title t"'));
-  ok('KIT-T1564 review: the last -R names the target, as gh reads repeated flags', bash('gh pr create -R CSparks/bevy -R bevyengine/bevy --title t') && !bash('gh pr create -R bevyengine/bevy -R CSparks/bevy --title t') && bash('gh pr create --repo=CSparks/bevy --repo bevyengine/bevy --title t'));
+  ok('KIT-T1564 review: more than one distinct repo candidate is foreign, in either order',
+    bash('gh pr create -R CSparks/bevy -R bevyengine/bevy --title t') && bash('gh pr create -R bevyengine/bevy -R CSparks/bevy --title t')
+    && bash('gh pr create --repo=CSparks/bevy --repo bevyengine/bevy --title t') && bash('gh pr create -R CSparks/bevy -R CSparks/other --title t'));
+  ok('KIT-T1564 review: a repeated own repo is one candidate and passes', !bash('gh pr create -R CSparks/bevy -R csparks/bevy --title t'));
+  ok('KIT-T1564 review: GH_REPO and a flag naming different repos are foreign', bash('GH_REPO=bevyengine/bevy gh pr create -R CSparks/bevy --title t'));
+  ok('KIT-T1564 review: the value of --title, --body or --head is text, never a repo flag',
+    bash('gh pr create --title -R CSparks/bevy') && bash('gh pr create --body -R --title CSparks/bevy') && bash('gh pr create --head -R CSparks/bevy'));
+  ok('control: a flag value that merely resembles a repo flag does not change an own target', !bash('gh pr create -R CSparks/bevy --title "-R x"'));
+  ok('KIT-T1564 review: an escaped quote in an assignment or in the verb word of a kit segment keeps the blanket block',
+    bash('T_NOTE=\\"x\\" t notes KIT-T1 "git push"') && bash('"t" notes KIT-T1 "\\"git push\\""') && bash('t\\" notes KIT-T1 "git push"'));
+  ok('control: a kit verb behind plain assignments with an escaped quote in its prose passes', !bash('FOO=1 t notes KIT-T1 "baseline \\"git stash push\\" x"'));
   ok('chained segment blocks', blocks('git status && gh pr create --repo bevyengine/bevy --title t'));
 
   ok('token with ai-allowed: yes clears', !blocks(`gh pr create --repo bevyengine/bevy --title t  # ${TOKEN_YES}`));
