@@ -4,7 +4,8 @@
 //   leadCommandHits(text, ctx, { isLead, hitsOf }, depth) -> [hit]
 //     text:    one segment's text
 //     ctx:     the caller's context, passed to hitsOf with `text`, `lead` (the words before the command: wrappers, env
-//              assignments) and, inside a nested command, that command's `shell`
+//              assignments) and, inside a nested command, that command's `shell`, `nested: true` and `cwd` moved by the
+//              `cd` segments of the nested command text before the segment
 //     isLead(name, restWords) -> boolean       the command the caller looks for
 //     hitsOf(words, ctx) -> [hit]              the hits of the command found; `words` start at the command word
 //   nestedSegments(text, shell) -> [{ text, after, shell }]   every segment of the command and of each command text it runs
@@ -19,6 +20,7 @@
 
 import { commandName, leadIndex } from './command-lead.mjs';
 import { runnerTexts } from './runner-texts.mjs';
+import { commandCwd } from './shell-cwd.mjs';
 import { segments, shellArgs, shellTokens } from './shell-segments.mjs';
 
 export const MAX_NESTING = 4;
@@ -130,5 +132,8 @@ export function leadCommandHits(text, ctx, lead, depth = 0) {
     ...(at >= 0 ? [] : runnerCommands(cleaned(commandTokens(text)), ctx.shell)),
     ...substitutions(text, ctx.shell).map((inner) => ({ text: inner, shell: ctx.shell })),
   ];
-  return [...own, ...runs.flatMap((run) => [...segments(run.text, { shell: run.shell })].flatMap((seg) => leadCommandHits(seg.text, { ...ctx, shell: run.shell }, lead, depth + 1)))];
+  return [...own, ...runs.flatMap((run) => [...segments(run.text, { shell: run.shell })].flatMap((seg, i) => {
+    const cwd = ctx.cwd ? commandCwd(run.text, ctx.cwd, { upto: i, shell: run.shell }) : ctx.cwd;
+    return leadCommandHits(seg.text, { ...ctx, cwd, nested: true, shell: run.shell }, lead, depth + 1);
+  }))];
 }

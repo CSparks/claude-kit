@@ -33,6 +33,7 @@ import { blindSegments, toPath } from './shell-segments.mjs';
 import { expandVariables } from './shell-variables.mjs';
 
 const GLOB_OR_MAGIC = /[*?[\]]|^:/;
+const ABSOLUTE_PATH = /^(?:[A-Za-z]:)?[\\/]/;
 const UNRESOLVED = /[$`]/;
 const STASH_ACTIONS = new Set(['list', 'show', 'pop', 'apply', 'drop', 'clear', 'branch', 'create', 'store', 'export', 'import']);
 const SUBSTITUTION_START = /[<>$]?\(|`/;
@@ -211,10 +212,11 @@ function hitsOfCall(words, ctx) {
   const outside = problem ? [sweep(OUTSIDE_ALLOW_LIST, problem)] : [];
   const found = gitDiscard(git, { dir: git.dir, cwd: ctx.cwd });
   if (!found) return outside;
-  const at = (p) => (git.dir ? `${git.dir}/${p}` : p);
+  const at = (p) => (git.dir && !ABSOLUTE_PATH.test(p) ? `${git.dir}/${p}` : p);
   const files = found.files.map((p) => ctx.hit(at(p))).filter(Boolean).map((h) => ({ ...h, deletes: true, discard: found.verb }));
   const wide = found.sweep || (open ? WHOLE_TREE : '');
-  return [...outside, ...files, ...(wide ? [sweep(found.verb, wide, found.always)] : [])];
+  const hits = [...outside, ...files, ...(wide ? [sweep(found.verb, wide, found.always)] : [])];
+  return ctx.nested ? hits.map((h) => ({ ...h, from: h.from || ctx.cwd })) : hits;
 }
 
 export const discardHits = (text, ctx) => leadCommandHits(expandVariables(text, ctx.vars, ctx.shell), ctx, { isLead: (name) => /^git$/i.test(name), hitsOf: hitsOfCall });
