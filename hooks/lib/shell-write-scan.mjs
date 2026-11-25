@@ -40,7 +40,7 @@ import { KIT_TOOL, kitLed } from './kit-led.mjs';
 import { moveLinesCall } from './move-lines-call.mjs';
 import { discardHits, discardsBlind } from './git-discards.mjs';
 import { copyTargets } from './shell-copy-target.mjs';
-import { commandCwd, cwdsBefore } from './shell-cwd.mjs';
+import { commandCwd } from './shell-cwd.mjs';
 import { touchTargets } from './touch-target.mjs';
 import { touchPlaceKnown } from './touch-place.mjs';
 import { appliesPatch, patchApplyHits } from './patch-apply.mjs';
@@ -198,7 +198,7 @@ function judgeSegment(segmentText, ctx) {
     const own = problem ? [{ path: RUN_FLAG, launcherProblem: problem }] : [];
     if (buildsRun.length || problem) {
       const nested = buildsRun.flatMap((run) => scanAllShellWrites(run.text, { ...ctx, shell: run.shell })
-        .flatMap((found) => (found.from ? [found] : cwdsBefore(run.text, ctx.cwd, { upto: found.segment, shell: run.shell }).map((from) => ({ ...found, from })))));
+        .map((found) => ({ ...found, from: found.from || commandCwd(run.text, ctx.cwd, { upto: found.segment, shell: run.shell }) })));
       return [...hits, ...own, ...nested];
     }
   }
