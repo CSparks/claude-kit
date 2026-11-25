@@ -68,7 +68,7 @@ const ALLOWED = [
   ['q output through head', 'q code foo | head -20'],
   ['git log through grep', 'git log --oneline | grep physics'],
   ['cat of one file into wc', 'cat crates/rdg-world/src/lib.rs | wc -l'],
-  ['head of one file', 'head -n 40 crates/rdg-world/src/lib.rs'],
+  ['head of piped output', 'git log --oneline | head -n 40'],
   ['cat of one file','cat crates/road-generator/assets/roads/roads.ron'],
   ['cat of two named files into grep', 'cat crates/a/src/lib.rs crates/b/src/lib.rs | grep fn'],
   ['ls of a source dir', 'ls crates/rdg-world/src'],
@@ -108,6 +108,7 @@ expect('KIT-T1342 control: PowerShell passes a build output piped into Select-St
 expect('KIT-T1121: blocks a non-recursive grep of a TS glob', run(d, 'grep -n useState src/*.ts').code, 2);
 expect('KIT-T1121 control: a markdown glob grep passes', run(d, 'grep -n usage docs/*.md').code, 0);
 expect('KIT-T1342: a grep of one TS file blocks', run(d, 'grep -n useState src/App.ts').code, 2);
+expect('KIT-T1551: a head of one named file blocks (Read has offset and limit)', run(d, 'head -n 40 crates/rdg-world/src/lib.rs').code, 2);
 
 expect('KIT-T1121 control: an unadopted repo is never gated', run(un, 'cat crates/*/src/*.rs | grep fn').code, 0);
 

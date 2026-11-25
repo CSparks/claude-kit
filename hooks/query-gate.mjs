@@ -38,7 +38,7 @@ import { registryLine, registryTarget } from './lib/registry-target.mjs';
 import { grepToolCommand } from './lib/grep-tool-command.mjs';
 import { grepToolLines, targetedLookLines } from './lib/grep-tool-note.mjs';
 import { pipedTreeMsg, pipedTreeSearch, targetsOnlyScratch } from './lib/pipe-tree-search.mjs';
-import { exemptFiles, fedFile, fedSearch, oneFileMsg, oneFileSearch } from './lib/one-file-search.mjs';
+import { exemptFiles, fedFile, fedSearch, oneFileMsg, oneFileSearch, readFileMsg, readsOneFile } from './lib/one-file-search.mjs';
 import { resolvedSegments, targetsOutsideRepos, unresolvedTargetNote } from './lib/search-outside.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { FAMILIES } from '../scripts/code-graph-families.mjs';
@@ -196,12 +196,12 @@ function cwdBefore(command, at, toolName) {
 
 // The block for a search a one-file search names or a pipe feeds `file`; null when its files are exempt (scratch, outside every repo).
 // After a `cd` the files are resolved against the directory it chose, so the printed q line holds a path that works from anywhere.
-function oneFileVerdict(c, found) {
+function oneFileVerdict(c, found, message = oneFileMsg) {
   const where = { root: repoRoot, cwd: segmentCwd };
   const files = segmentCwd === process.cwd() ? found.files : found.files.map((f) => resolve(segmentCwd, f).replace(/\\/g, '/'));
   if (grepInput || exemptFiles(files, where)) return null;
   const pattern = found.pattern ?? (callOf(c) || {}).pattern ?? null;
-  return { id: 'one-file-search', msg: oneFileMsg({ ...found, files, pattern, command: c, q: Q, ...where }) + unresolvedTargetNote(files) };
+  return { id: 'one-file-search', msg: message({ ...found, files, pattern, command: c, q: Q, ...where }) + unresolvedTargetNote(files) };
 }
 
 function fedSearchVerdict(c, file) {
@@ -339,6 +339,12 @@ function judge(c, piped = false, base = '') {
   if (isSearch && !STORE.test(naming)) {
     const found = oneFileSearch(tool, argv, { git: gitGrep });
     const block = found && oneFileVerdict(c, found);
+    if (block) return block;
+  }
+  // RULE 4 — a line-range read of ONE named file (head, tail, sed -n) is the Read tool's (KIT-T1551); a read of piped output passed above.
+  if ((isRead || tool === 'sed') && !STORE.test(naming)) {
+    const found = readsOneFile(tool, argv);
+    const block = found && oneFileVerdict(c, found, readFileMsg);
     if (block) return block;
   }
   // A `find … -name/-path` is a FILENAME lookup — OUTSIDE code-graph's coverage entirely (it answers
