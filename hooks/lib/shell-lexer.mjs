@@ -160,6 +160,13 @@ function openQuote(s, i) {
   return i + 1;
 }
 
+// True when the character at `at` follows an odd run of the shell's escape character: it is part of a word, never a separator.
+function escapedAt(src, at, escape) {
+  let run = 0;
+  while (escape && at - run - 1 >= 0 && src[at - run - 1] === escape) run++;
+  return run % 2 === 1;
+}
+
 // Marks a case statement, and a comment or heredoc inside a group; a heredoc's delimiter (none inside `$((` or `((`)
 // waits for its body, a hash that starts a word starts an inert comment (a PowerShell or unknown shell's `<#` one to `#>`).
 function markUnbounded(s, i) {
@@ -178,7 +185,7 @@ function markUnbounded(s, i) {
   const prev = src[i - 1];
   const block = rules.blockComments && prev === '<';
   const wordStart = i === 0 || COMMENT_LEAD.test(prev) || (rules.backtick && prev === '`') || block;
-  if (src[i] !== '#' || !wordStart) return;
+  if (src[i] !== '#' || !wordStart || escapedAt(src, i - 1, rules.escape)) return;
   s.inert = block ? 'block' : 'line';
   const end = s.inert === 'block' ? src.indexOf('#>', i) : src.indexOf('\n', i);
   s.tokens.push({ kind: 'comment', start: i, end: end < 0 ? src.length : end });

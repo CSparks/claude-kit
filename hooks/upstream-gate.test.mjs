@@ -79,6 +79,13 @@ try {
     [`if ${foreign}; then true; fi`, `{ ${foreign}; }`, `( ${foreign} )`, `while ${foreign}; do true; done`, `true && ! ${foreign}`].every((c) => bash(c)));
   ok('KIT-T1564 review: a function definition, for loop or case arm holding a submission is refused as unwalked',
     [`f() { ${foreign}; }; f`, `for i in 1; do ${foreign}; done`, `case x in x) ${foreign};; esac`].every((c) => bash(c)));
+  ok('KIT-T1564 review: a wrapper option value that names gh is not the command, the command after it is',
+    ['env -u gh', 'nice -n 5', 'time -p', 'timeout 5', 'sudo -u gh'].every((w) => bash(`${w} ${foreign}`)) && !bash('env -u gh echo create') && !bash('nice -n 5 echo create push'));
+  ok('KIT-T1564 review: a hash after an escaped space or inside a word is no comment and hides no repo flag',
+    bash('gh pr create -R CSparks/bevy --title a\\ #x -R bevyengine/bevy') && bash('gh pr create -R CSparks/bevy --title a#x -R bevyengine/bevy') && bash('gh pr create -R CSparks/bevy --title \\#x -R bevyengine/bevy'));
+  ok('control: a real comment after the command hides nothing that runs', !bash('gh pr create -R CSparks/bevy --title t # -R bevyengine/bevy'));
+  ok('KIT-T1564 review: a compound or function behind !, a brace or a group is refused as unwalked',
+    [`! for i in 1; do ${foreign}; done`, `{ case x in x) ${foreign};; esac; }`, `( function g { ${foreign}; }; g )`].every((c) => bash(c)));
   ok('control: a redirection before a kit verb with a git word in its prose passes', !bash('>out t notes KIT-T1 "git push"') && !bash('2>/dev/null t notes KIT-T1 "baseline \\"git stash push\\" x"'));
   ok('KIT-T1564 review: an escaped quote in the redirection before a kit verb keeps the blanket block', bash('>\\"out t notes KIT-T1 "git push"'));
   ok('control: a kit verb behind plain assignments with an escaped quote in its prose passes', !bash('FOO=1 t notes KIT-T1 "baseline \\"git stash push\\" x"'));

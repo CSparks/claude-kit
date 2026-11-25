@@ -35,6 +35,12 @@ const cases = [
   ['su -c "argv a" root'], ['bash -c "argv {BS}{DQ}a{BS}{DQ}; argv b"', BLOCKED], ["eval 'argv \"a b\"'"], ["bash -lc 'argv a'"],
   ['argv {BS}{DQ}x{BS}{DQ} {BS}\'y{BS}\'', BLOCKED], ['FOO={BS}{DQ}x{BS}{DQ} argv a', BLOCKED], ['t notes KIT-T1 "text {BS}{DQ}git push{BS}{DQ} more"', CLEAR],
   ['FOO=1 t notes "a b"'], ['t notes a{BS}{DQ}b', CLEAR],
+  ['argv a{BS} #b c'], ['argv a {BS}#b c'], ['argv a#b c'], ['argv a-#b c'], ['argv a "#b" c'], ["argv a '#b' c"], ['argv a;#x'], ['argv a{BS};#b'],
+  ['argv a #b c'], ['argv a;argv b #c'], ['argv "a #b" c'],
+  ['time -p argv a'], ['time -p time -p argv a'],
+  ['! for i in 1; do argv a; done', BLOCKED], ['{ for i in 1; do argv a; done; }', BLOCKED], ['( for i in 1; do argv a; done )', BLOCKED],
+  ['{ case x in x) argv a;; esac; }', BLOCKED, false], ['! f() { argv x; }; f', BLOCKED, false], ['if true; then for i in 1; do argv a; done; fi', BLOCKED],
+  ['if true; then argv a; fi; function g { argv b; }; g', BLOCKED, false],
 ].map(([line, gate = CLEAR, compare = true]) => ({ line: esc(line), gate, compare }));
 
 const PRELUDE = 'argv() { { echo "--"; for a in "$@"; do printf "A:%s\\n" "$a"; done; } >>"$ARGV_LOG"; }; bash() { argv "$@"; }; sh() { argv "$@"; }; eval() { argv "$@"; }; ssh() { argv "$@"; }; su() { argv "$@"; }; t() { argv "$@"; };';

@@ -9,6 +9,7 @@
 //     assignment, a redirection or the verb word itself keeps the refusal. A kit verb's quoted arguments are data
 //     (kit-led.mjs); every other segment with an escaped quote, a nested `bash -c` or `eval` string included, keeps the refusal.
 
+import { fromCommandWord } from './command-lead.mjs';
 import { KIT_TOOL } from './kit-led.mjs';
 import { words } from './shell-lexer.mjs';
 import { segments } from './shell-segments.mjs';
@@ -18,6 +19,7 @@ const SUBSTITUTION = /\$\(|`|[<>]\(/;
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const PROGRAM_NAME = /^[A-Za-z][\w.-]*$/;
 const UNWALKED_COMPOUND = /^\s*(?:(?:for|case|select|function|coproc)\b|[\w.-]+\s*\(\s*\))/;
+const unwalked = (text) => UNWALKED_COMPOUND.test(fromCommandWord(text));
 
 // A segment led by a kit verb whose redirections, assignments and verb hold no escaped quote.
 function kitVerbLeads(text, shell) {
@@ -32,7 +34,7 @@ function kitVerbLeads(text, shell) {
 export function quotingHidesSubmission(command, shell) {
   const parts = segments(command, { shell });
   if (parts.ambiguous) return true;
-  if ([...parts].some(({ text }) => UNWALKED_COMPOUND.test(text))) return true;
+  if ([...parts].some(({ text }) => unwalked(text))) return true;
   if (!segments(command).ambiguous) return false;
   return [...parts].some(({ text }) => ESCAPED_QUOTE.test(text) && !(kitVerbLeads(text, shell) && !SUBSTITUTION.test(text)));
 }
