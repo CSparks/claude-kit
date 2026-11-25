@@ -4,11 +4,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describeRun, readRun, startRun, waitRun } from './detached-run.mjs';
+import { describeRun, locateRun, missingRunText, readRun, startRun, waitRun } from './detached-run.mjs';
 import { readFinished } from './finished-log.mjs';
 import { launcherProblem, limitProblem } from '../../hooks/lib/builds-run-args.mjs';
 
@@ -58,6 +58,28 @@ test('a command longer than the wait window keeps running after the launcher sto
   const later = waitRun(root, record.id, { capS: 20 });
   assert.equal(later.status, 'ended', 'the worker needed no launcher to finish');
   assert.match(finishedLog(root), new RegExp(`${record.id} exit0`));
+});
+
+test('KIT-T1559: a run started in a submodule is found from the superproject, and an unknown id names where it looked', () => {
+  const top = checkout();
+  const sub = join(top, 'rapid-game');
+  mkdirSync(sub);
+  execFileSync('git', ['init', '-q'], { cwd: sub });
+  writeFileSync(join(top, '.gitmodules'), '[submodule "rapid-game"]\n\tpath = rapid-game\n\turl = ../rapid-game\n');
+  const record = startRun({ command: script(top, 'process.exit(0);'), cwd: sub });
+  const same = (a, b) => realpathSync.native(a).toLowerCase() === realpathSync.native(b).toLowerCase();
+  assert.ok(same(record.root, sub), 'the run is recorded under the checkout it started in');
+  const fromTop = locateRun(top, record.id);
+  assert.equal(fromTop.record?.id, record.id, 'looked up from the superproject');
+  assert.equal(locateRun(sub, record.id).record?.id, record.id, 'looked up from the checkout it started in');
+  waitRun(record.root, record.id, { capS: 20 });
+  const missing = locateRun(top, 'run-00000000000000-none');
+  assert.equal(missing.record, null);
+  const text = missingRunText('run-00000000000000-none', missing.roots);
+  assert.match(text, /no such run record run-00000000000000-none/);
+  assert.ok(missing.roots.length >= 2 && missing.roots.every((r) => text.replace(/\\/g, '/').toLowerCase().includes(r.replace(/\\/g, '/').toLowerCase())), 'every folder looked in is named');
+  assert.ok(missing.roots.some((r) => same(r, sub)), 'the submodule is among them');
+  assert.match(text, /call builds --result from that folder/);
 });
 
 test('a command past its limit is stopped and recorded as a timeout', () => {

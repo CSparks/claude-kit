@@ -17,6 +17,8 @@
 //
 //   startRun({ command, cwd, out, writer, limitS, root }) -> record     the record written, the worker spawned detached
 //   readRun(root, id)                                      -> record | null
+//   locateRun(cwd, id)                                     -> { record, roots }  the record under the caller's checkout, else under a superproject or submodule of it
+//   missingRunText(id, roots)                              -> the answer for an unknown id: names every folder looked in and where to call from
 //   waitRun(root, id, { capS, pollMs, now, sleep })        -> record     the record once ended, or when capS passes
 //   describeRun(record, tailLines?)                        -> text for the caller
 //   runCli(argv)                                           -> exit code, printing the outcome
@@ -61,6 +63,30 @@ function repoRoot(cwd) {
 }
 
 export const readRun = (root, id) => { try { return JSON.parse(readFileSync(recordPath(root, id), 'utf8')); } catch { return null; } };
+
+const git = (cwd, args) => { try { return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return ''; } };
+
+// The checkouts a run started from `cwd`'s tree may have recorded in: its own root, the superprojects above it and the
+// submodules of each (a run started in rapid-game/rust keeps its record under rapid-game, looked up from the demo root).
+function runRoots(cwd) {
+  const own = repoRoot(cwd);
+  const roots = [own];
+  for (let up = git(own, ['rev-parse', '--show-superproject-working-tree']); up && !roots.includes(up); up = git(up, ['rev-parse', '--show-superproject-working-tree'])) roots.push(up);
+  for (const root of [...roots]) {
+    const paths = git(root, ['config', '-f', '.gitmodules', '--get-regexp', '^submodule\\..*\\.path$']).split('\n').map((l) => l.trim().split(/\s+/)[1]).filter(Boolean);
+    for (const sub of paths) if (existsSync(join(root, sub)) && !roots.includes(resolve(root, sub))) roots.push(resolve(root, sub));
+  }
+  return roots;
+}
+
+/** The record of run `id` and the roots searched: the caller's checkout first, then its superprojects and their submodules. */
+export function locateRun(cwd, id) {
+  const roots = runRoots(cwd);
+  const root = roots.find((r) => readRun(r, id));
+  return { record: root ? readRun(root, id) : null, roots };
+}
+
+export const missingRunText = (id, roots) => [`builds --result: no such run record ${id}, looked in:`, ...roots.map((r) => `  ${runsDir(r)}`), 'A run is recorded under the checkout it started in: call builds --result from that folder (or one inside the same checkout).'].join('\n');
 
 export function startRun({ command, cwd = process.cwd(), out = '', writer = '', limitS = DEFAULT_LIMIT_S, why = '', root = repoRoot(cwd) }) {
   mkdirSync(runsDir(root), { recursive: true });
@@ -146,8 +172,8 @@ export async function runCli(argv) {
   const flags = parseFlags(argv);
   const subagent = true;
   if (typeof flags.result === 'string') {
-    const record = readRun(repoRoot(process.cwd()), flags.result);
-    console.log(describeRun(record));
+    const { record, roots } = locateRun(process.cwd(), flags.result);
+    console.log(record ? describeRun(record) : missingRunText(flags.result, roots));
     return record ? (record.status === STATUS.RUNNING ? EXIT.RUNNING : record.exit ?? EXIT.ENDED_OK) : EXIT.USAGE;
   }
   if (typeof flags.run !== 'string') {
