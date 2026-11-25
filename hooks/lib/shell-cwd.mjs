@@ -43,9 +43,11 @@ export function cwdsBefore(command, start = process.cwd(), { upto = Infinity, sh
     const text = part.text.trim();
     const bare = text.replace(LEADING_FLOW, '').replace(/\s*[)}]+$/, '');
     if (FLOW_OPEN.test(bare)) flow = true;
-    const piped = part.after === '|' || parts[k + 1]?.after === '|';
     const joined = part.after === 'start' || part.after === ';' || (part.after === '&&' && cannotFail);
-    const sure = joined && !piped && !flow && bare === text;
+    // The operator after the segment must be one that runs the next command in this shell once it finished: `|`, `|&`, `&` and `||` do not.
+    const next = parts[k + 1]?.after;
+    const settled = next === undefined || next === ';' || next === '&&';
+    const sure = joined && settled && !flow && bare === text;
     const target = cdTarget(bare);
     [...dirs].forEach((dir) => madeDirectories(bare, dir).forEach((dirMade) => made.add(dirMade)));
     const moved = target ? [...dirs].map((dir) => resolve(dir, target)).filter((next) => isDirectory(next) || made.has(next)) : [];

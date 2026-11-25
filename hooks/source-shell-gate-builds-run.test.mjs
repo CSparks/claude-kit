@@ -132,7 +132,11 @@ check('KIT-T1313 control: a real hand write keeps the Write-tool advice and no l
     'a cd in a subshell': 'bash -c "(cd sub); git stash push -u -- own.rs"',
     'a cd in a pipeline': 'bash -c "cd sub | true; git stash push -u -- own.rs"',
     'a cd in an if branch': 'bash -c "if true; then cd sub; fi; git stash push -u -- own.rs"',
-    'a cd in a group': 'bash -c "{ cd sub; }; git stash push -u -- own.rs"',
+    'a backgrounded cd': 'bash -c "cd sub & git stash push -u -- own.rs"',
+    'a cd piped with |&': 'bash -c "cd sub |& cat; git stash push -u -- own.rs"',
+    'a cd backgrounded before a later segment': 'bash -c "cd sub & echo hi; git stash push -u -- own.rs"',
+    'a cd before ||': 'bash -c "cd sub || git stash push -u -- own.rs"',
+    'a cd in a group':'bash -c "{ cd sub; }; git stash push -u -- own.rs"',
   };
   for (const [name, command] of Object.entries(unsure)) check(`${name} judges the hit in both directories`, JSON.stringify(distinct(command)) === JSON.stringify(both));
   check('control: a git stash in a direct call is unchanged', shellSourceWrites('git stash push -u -- own.rs', { shell: 'bash' }).some((h) => h.path === 'own.rs' && !h.from));
