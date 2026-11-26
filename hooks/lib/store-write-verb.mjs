@@ -1,4 +1,4 @@
-// store-write-verb.mjs — the one command that makes a refused hand Edit of an existing store item (KIT-T1596).
+// store-write-verb.mjs — the one command that makes a refused hand Edit of an existing ticket (KIT-T1596).
 // The store-write block lists every verb of the item's folder; this names the verb for the part the Edit touches,
 // with the item's id filled in, so the right command is the first line the writer reads.
 //

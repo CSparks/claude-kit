@@ -99,6 +99,10 @@ try {
   }
   const whole = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: sectioned, content: '# x\n' } }), cwd: root, encoding: 'utf8' });
   check('control: a Write of the whole item gets the menu only', whole.status === 2 && !whole.stderr.includes('This edit changes') && whole.stderr.includes('Use: t status <id>'));
+  const decision = join(ai, 'decisions', 'ZZ-D002-s.md');
+  writeFileSync(decision, '---\nid: ZZ-D002\nstatus: accepted\n---\n\n## Notes\nx\n');
+  const decisionEdit = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: decision, old_string: 'status: accepted', new_string: 'status: superseded' } }), cwd: root, encoding: 'utf8' });
+  check('control: a decision status Edit gets its own menu (t revise), never the ticket verb', decisionEdit.status === 2 && !decisionEdit.stderr.includes('This edit changes') && decisionEdit.stderr.includes('Use: t revise'));
   check('control: an Edit whose old text is not in the file gets the menu only', !editOf('not in the file').stderr.includes('This edit changes'));
   const tHelp = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/t.mjs', import.meta.url)), '--help'], { encoding: 'utf8' });
   check('t --help lists the edit verb the block names', /t <new\|note\|notes\|edit\|/.test(tHelp.stdout) && tHelp.stdout.includes('t edit <id> --section Description|Plan|Notes --file <path>'));

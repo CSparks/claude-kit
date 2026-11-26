@@ -6,7 +6,7 @@
 // Templates and READMEs are not items. Every refusal names the verb that makes the change.
 //
 //   storeWriteViolation(file, { exists, toolInput }) -> null | { rel, command, why, exact }
-//     exact  for a change of an existing item, the one verb for the part the Edit touches (store-write-verb.mjs), else null
+//     exact  for an Edit of an existing ticket, the one verb for the part it touches (store-write-verb.mjs), else null
 //   ITEM_VERBS                  the verbs that change an existing item, by store folder
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -80,7 +80,7 @@ export function storeWriteViolation(file, { exists = existsSync(file), toolInput
   }
   const change = ITEM_VERBS[dir];
   if (change && rel.includes('/') && exists && !NON_ITEMS.has(basename(rel))) {
-    return { rel, command: change, why: `${create[1]} is changed by its command, which stamps History and refreshes the cache (KIT-D120)`, exact: exactVerb(file, toolInput) };
+    return { rel, command: change, why: `${create[1]} is changed by its command, which stamps History and refreshes the cache (KIT-D120)`, exact: dir === 'tickets' ? exactVerb(file, toolInput) : null };
   }
   return null;
 }
