@@ -85,6 +85,18 @@ try {
   ok('the block names Read, the allowed forms and its check id', /Read tool/.test(block) && /own output/.test(block) && /one-file-search/.test(block) && /HARD STOP/.test(block));
   ok('the block no longer advises a plain grep of one file', !/stays a plain|is allowed/.test(block));
 
+  // KIT-T1439: a chain that writes a log by redirect, then searches or reads it, is refused whole; the block says so first.
+  const written = exact('node hooks/x.test.mjs > target/t1594-before.txt 2>&1; echo exit=$?; grep -E "FAIL|passed" target/t1594-before.txt | head');
+  ok('KIT-T1439: a log written and grepped in one chain leads with "Nothing ran" and the one-call filter of the producer',
+    /Nothing ran: the gate refuses the whole command/.test(written) && written.includes("One call, the producer's own output filtered:  node hooks/x.test.mjs 2>&1 | grep -E 'FAIL|passed'"));
+  ok('KIT-T1439: it also names the keep-the-log route, producer then the Grep tool',
+    written.includes('Or keep the log: run  node hooks/x.test.mjs > target/t1594-before.txt 2>&1; echo exit=$?  then the Grep tool on target/t1594-before.txt.'));
+  const tailed = exact('cargo test -p x > target/out.txt 2>&1 ; tail -n 30 target/out.txt');
+  ok('KIT-T1439: a log written then tailed in one chain names the tail filter and the Read tool',
+    tailed.includes('cargo test -p x 2>&1 | tail -n 40') && tailed.includes('then the Read tool on target/out.txt'));
+  ok('KIT-T1439 control: a grep of a log no segment writes carries no "Nothing ran" lead', !/Nothing ran/.test(exact('grep -c ERROR target/build.log')));
+  ok('KIT-T1439 control: a redirect into another file is not the producer', !/Nothing ran/.test(exact('cargo build > target/a.txt 2>&1; grep -c ERROR target/build.log')));
+
   mkdirSync(join(repo, 'crates', 'x', 'src'), { recursive: true });
   const outsideDir = slashed(outside);
   ok('a cd outside every repo then a grep of a bare file name passes', gate(`cd ${outsideDir} && grep -n Town run.log`).code === PASS);

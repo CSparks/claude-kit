@@ -112,6 +112,7 @@ function targetsOnlyNonIndexedExtensions(c) {
 
 let repoRoot = '';
 let segmentCwd = process.cwd(); // where the judged segment runs: the hook's cwd, or the directory an earlier `cd` of the command chose
+let wholeCommand = ''; // every segment of the call: a block names the segment that wrote the file it searches (KIT-T1439)
 let grepInput = null; // the Grep tool's own fields: its pattern is read from here, never parsed back out of the rendered `rg` line
 const callOf = (c) => (grepInput ? classifyCalls('Grep', grepInput) : classifyCalls('Bash', { command: c }))[0];
 main().catch(() => process.exit(0)); // fail-open — never wedge a tool call on a parse slip
@@ -122,6 +123,7 @@ async function main() {
   grepInput = p.tool_name === 'Grep' ? input : null;
   const cmd = (grepInput ? grepToolCommand(input) : input.command || '').trim();
   if (!cmd) process.exit(0);
+  wholeCommand = cmd;
   const root = gitRoot();
   if (!adopted(root)) process.exit(0); // opt-in: only KIT-adopted repos
   repoRoot = root;
@@ -201,7 +203,7 @@ function oneFileVerdict(c, found, message = oneFileMsg) {
   const files = segmentCwd === process.cwd() ? found.files : found.files.map((f) => resolve(segmentCwd, f).replace(/\\/g, '/'));
   if (grepInput || exemptFiles(files, where)) return null;
   const pattern = found.pattern ?? (callOf(c) || {}).pattern ?? null;
-  return { id: 'one-file-search', msg: message({ ...found, files, pattern, command: c, q: Q, ...where }) + unresolvedTargetNote(files) };
+  return { id: 'one-file-search', msg: message({ ...found, files, pattern, command: c, chain: wholeCommand, named: found.files, q: Q, ...where }) + unresolvedTargetNote(files) };
 }
 
 function fedSearchVerdict(c, file) {

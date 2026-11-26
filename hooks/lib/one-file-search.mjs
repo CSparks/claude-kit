@@ -10,6 +10,7 @@
 //   fedSearch(tool, argv, file) -> { files, pattern } | null            the grep that filters that file
 //   exemptFiles(files, { root, cwd }) -> boolean                        session scratch and files outside every adopted repo, never a dependency file
 //   oneFileMsg({ command, files, pattern, q, root, cwd }) -> string    the block text with the exact q equivalent
+//     both messages take `chain` (the whole call) and `named` (the files as written) to name a segment that wrote the file
 
 import { searchPaths, targetsOnlyFiles, isConcreteFile } from './search-targets.mjs';
 import { fileOperands } from './store-search.mjs';
@@ -18,6 +19,7 @@ import { registryFileTarget, registryLine } from './registry-target.mjs';
 import { targetsOnlyScratch } from './pipe-tree-search.mjs';
 import { targetsOutsideRepos } from './search-outside.mjs';
 import { grepToolCall } from './agent-gate-guide.mjs';
+import { producerLines } from './chain-producer.mjs';
 
 const GREP = /^(?:grep|egrep|fgrep|rg|ag|ack)$/;
 const SED_QUIET = /^-[A-Za-z]*n[A-Za-z]*$|^--(?:quiet|silent)$/;
@@ -86,12 +88,13 @@ export function readsOneFile(tool, argv) {
   return file ? { files: [file], pattern: null, regex: false } : null;
 }
 
-export function readFileMsg({ command, files, q }) {
+export function readFileMsg({ command, files, q, chain = command, named = files }) {
   return [
     '',
     'BLOCKED: a line-range read of a named file with a shell text tool (Read shows any line range of it).',
     `  ${trunc(command)}`,
     '',
+    ...producerLines({ command: chain, files: named, filter: 'tail -n 40', tool: 'Read' }),
     ...logLeadLines(files),
     'Instead, call a tool, not Bash:',
     `  Read tool: file_path ${JSON.stringify(files[0])}, offset and limit for the lines wanted (the end of a file: its last lines by offset).`,
@@ -143,12 +146,13 @@ const searchedPattern = ({ pattern, command, q, root, cwd }) => pattern || index
 const CHAINED_LINE = 'In a chained command (&&, ;, |) keep the other segments in Bash as written; only the search segment becomes the call above.';
 
 export function oneFileMsg(call) {
-  const { command, files, q } = call;
+  const { command, files, q, chain = command, named = files } = call;
   return [
     '',
     'BLOCKED: a pattern search of a named file with a text tool (q code searches any file; Read shows it).',
     `  ${trunc(command)}`,
     '',
+    ...producerLines({ command: chain, files: named, filter: `grep -E ${quote(searchedPattern(call) || '<pattern>')}`, tool: 'Grep' }),
     ...logLeadLines(files),
     'Instead, call a tool, not Bash:',
     `  ${grepToolCall(files, searchedPattern(call))}`,
