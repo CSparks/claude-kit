@@ -29,7 +29,9 @@ first seen in fleet-desktop. Filed automatically (KIT-T286): every kit bug is a 
 
 ## Notes
 Fixed in hooks/lib/question-ready.mjs: text after the last question mark in the tail that carries sign-off (SIGN_OFF) and no floated-idea word makes the message ready. Same-message answer text cannot be counted: Claude Code writes the call's reply after PreToolUse hooks run (KIT-T881, KIT-D152); the block message now says so. Tests: hooks/question-brief-gate.test.mjs 30 passed 1 failed before the fix (the ticket's message), 31 passed after; controls (question last, hedge after the question, sign-off with a hedge) block. gate-protocol.test.mjs 64/1 both with and without this change (filed KIT-T1595).
+Tightened after review: bare yes/yeah/do it/proceed dropped from SIGN_OFF and a WITHHELD negation/hold guard added; four negated or bare-answer trailers now block as controls. question-brief-gate 32 passed 0 failed; question-gates-first-try 41/0; block-triage 13/0.
 
 ## History
 - [2026-11-26 01:08] (created) bug — question-ready gate: a maintainer message that both asks a question and signs off work ('Can this live view integrate into Herder? Yeah, let
 - [2026-11-26 01:14] (status) todo → review
+- [2026-11-26 01:14] (landed) 5e5ae272 question-ready gate: a maintainer message whose words after its last question sign off work ("Yeah, let's do the whole f

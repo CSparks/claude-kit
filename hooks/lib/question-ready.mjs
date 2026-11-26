@@ -43,11 +43,13 @@ function rhetorical(tail) {
 }
 
 // Sign-off of named work after his last question settles the message: the questionnaire may ask about what he signed (KIT-T1594).
-const SIGN_OFF = /\b(?:let['’]?s (?:do|go|ship|build|start|proceed|make)|go ahead|go with|do it|ship it|sounds? (?:good|great|fine|right)|good plans?|approved?|signed off|sign off on|yes|yeah|yep|agreed|proceed)\b/i;
+// A negation or hold in that trailer withholds the sign-off.
+const SIGN_OFF = /\b(?:let['’]?s (?:do|go|ship|build|start|proceed|make)|go ahead|go with|just do it|ship it|sounds? (?:good|great|fine|right)|good plans?|approved|signed off|sign off on|agreed)\b/i;
+const WITHHELD = /\b(?:not|no|never|until|unless|wait|hold off)\b|n['’]t\b/i;
 
 function signedAfterQuestion(tail) {
   const trailer = tail.slice(tail.lastIndexOf('?') + 1);
-  return tail.includes('?') && SIGN_OFF.test(trailer) && !EXPLORING.test(trailer);
+  return tail.includes('?') && SIGN_OFF.test(trailer) && !WITHHELD.test(trailer) && !EXPLORING.test(trailer);
 }
 
 const isExploring = (tail) => {

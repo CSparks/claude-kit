@@ -73,6 +73,8 @@ try {
   ok('KIT-T1594 control: the same sign-off with the question last still blocks', ask(transcript(SIGNED_THEN_ASKED)).code === 2);
   ok('KIT-T1594 control: a question followed by a floated idea still blocks', ask(transcript('Can this live view integrate into Herder? Maybe the fleet launch too.')).code === 2);
   ok('KIT-T1594 control: a question followed by a sign-off that floats an idea still blocks', ask(transcript("Can this integrate into Herder? Let's do it, or maybe wait.")).code === 2);
+  const UNSIGNED = ["Is this safe? Don't go ahead until I know.", 'Can this integrate into Herder? Yes or no.', "How would you do it? I can't see how to do it.", 'Can this integrate into Herder? Not approved yet.'];
+  ok('KIT-T1594 control: a negated, held or bare yes/no trailer after the question still blocks', UNSIGNED.every((said) => ask(transcript(said)).code === 2));
 
   const RESTATED ='Keep the daemon restart limit at three minutes with the shared cache.';
   const restated = ask(transcript(RESTATED), [{ question: `${RESTATED.replace('.', '?')}`, header: 'Restart', options: OPTIONS }]);
