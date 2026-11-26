@@ -35,3 +35,6 @@ Cause: hooks/lib/upstream-policy.mjs:99 (collectSubmissions) moved its directory
 - [2026-11-26 06:16] (landed) 13b83133 upstream-gate: a push after Set-Location, sl, pushd or Push-Location (popd and Pop-Location return) is judged in the rep
 - [2026-11-26 06:17] (comment) @claude: (fixed) 13b83133; push-drift 29 pass (4 failed before); runtime 13b83133
 - [2026-11-26 06:17] (status) todo → review
+- [2026-11-26 06:17] (landed) f8053925 tickets: KIT-T1601 to review (fix 13b83133); KIT-T1593 remedy text landed 9439a6bc, the ended-writer lift and stash pari
+- [2026-11-26 06:22] (landed) c6b61e51 upstream-gate: a location verb moves the judged repo only when the tool's shell runs it, so under Bash a push after Set-
+- [2026-11-26 06:22] (comment) @claude: (fixed) c6b61e51 follow-up: location verbs count only for the tool's shell (Bash Set-Location into an owned repo no longer passes a foreign push); upstream-gate 48 pass; runtime c6b61e51
