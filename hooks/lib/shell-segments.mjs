@@ -80,3 +80,15 @@ export const toPath = (p) => msysToNative(String(p).replace(/^["']|["']$/g, ''))
 
 // The directory a `cd [/d] <dir>` segment moves to, or '' when the segment is not a cd.
 export const cdTarget = (seg) => { const m = seg.match(/^cd\s+(?:\/d\s+)?(\S.*)$/s); return m ? toPath(m[1].trim()) : ''; };
+
+// How a segment moves the shell's directory, for the push gates (KIT-T1601): `cd`, `chdir`, `pushd`, `Set-Location`, `sl` or
+// `Push-Location` (with `/d`, `-Path` or `-LiteralPath`, any case) -> { to, push }; `popd` or `Pop-Location` -> { pop: true };
+// anything else -> null. cdTarget's other callers keep reading only `cd` until the one-lexer job (KIT-T1585).
+const LOCATION_MOVE = /^(cd|chdir|pushd|set-location|sl|push-location)\s+(?:(?:\/d|-path|-literalpath)\s+)?(\S.*)$/is;
+const LOCATION_POP = /^(?:popd|pop-location)$/i;
+const PUSHES = /^(?:pushd|push-location)$/i;
+export function locationMove(seg) {
+  if (LOCATION_POP.test(seg)) return { pop: true };
+  const m = seg.match(LOCATION_MOVE);
+  return m ? { to: toPath(m[2].trim()), push: PUSHES.test(m[1]) } : null;
+}

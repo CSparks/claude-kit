@@ -7,7 +7,7 @@
 //   ctx.defaultRemote(dir)  -> name | ''                  where a bare `git push` goes
 //   ctx.ghResolved(dir)     -> 'owner/repo' | remote name | ''   `gh repo set-default` choice
 
-import { segments, cdTarget, toPath } from './shell-segments.mjs';
+import { segments, locationMove, toPath } from './shell-segments.mjs';
 import { tokenize } from './branch-ops.mjs';
 import { gitCommand } from './git-subcommand.mjs';
 import { MAX_NESTING, commandRuns } from './lead-command-walk.mjs';
@@ -93,11 +93,16 @@ export function pushedRepos(command, cwd, ctx) {
 // the directory the segments before it reached.
 function collectSubmissions(command, cwd, ctx, out, depth, every) {
   let dir = cwd;
+  const pushed = [];
   for (const { text } of segments(command)) {
     const seg = text.trim();
     if (!seg) continue;
-    const cd = cdTarget(seg);
-    if (cd) { dir = ctx.resolveDir(dir, cd); continue; }
+    const move = locationMove(seg);
+    if (move) {
+      if (move.pop) dir = pushed.pop() ?? dir;
+      else { if (move.push) pushed.push(dir); dir = ctx.resolveDir(dir, move.to); }
+      continue;
+    }
     if (depth < MAX_NESTING) commandRuns(seg, '').forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1, every));
     const toks = tokenize(seg);
     const env = {};

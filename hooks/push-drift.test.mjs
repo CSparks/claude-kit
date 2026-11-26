@@ -47,6 +47,20 @@ try {
   ok('a subagent push is refused as the main thread is', gate(`git -C "${parent}" push`, parent, { agent_id: 'sub1' }).code === 2);
   ok('a push after a cd is refused', gate(`cd "${parent}" && git push origin main`, tmpDir('drift-cd-')).code === 2);
 
+  // KIT-T1601: the pushed repo is the one the command's last Set-Location, cd or pushd reached, never the session's cwd.
+  const clean = identify(repo());
+  writeFileSync(join(clean, 'c.rs'), 'pub fn c() -> u32 { 1 }\n');
+  git(['add', '--', 'c.rs'], clean);
+  git(['commit', '-q', '-m', 'c'], clean);
+  const ps = (command, cwd) => gate(command, cwd, { tool_name: 'PowerShell' });
+  ok('KIT-T1601: a push after Set-Location into a clean repo is judged there, not in the drifted session cwd', ps(`Set-Location "${clean}"; git status; git push origin main`, parent).code === 0);
+  ok('KIT-T1601: a push after Set-Location into the drifted repo from a clean cwd is refused', ps(`Set-Location "${parent}"; git push origin main`, clean).code === 2);
+  ok('KIT-T1601: set-location -Path, in any case, is followed', ps(`set-location -Path "${parent}"; git push`, clean).code === 2);
+  ok('KIT-T1601: a push after pushd into the drifted repo is refused', gate(`pushd "${parent}" && git push`, clean).code === 2);
+  ok('KIT-T1601: popd returns to the directory before pushd', gate(`pushd "${parent}" && popd && git push`, clean).code === 0);
+  ok('KIT-T1601: Push-Location then Pop-Location return too', ps(`Push-Location "${parent}"; Pop-Location; git push`, clean).code === 0);
+  ok('KIT-T1601: git -C names the pushed repo whatever the location before it', ps(`Set-Location "${clean}"; git -C "${parent}" push`, clean).code === 2);
+
   git(['push', '-q', 'origin', 'HEAD:main'], sub);
   git(['fetch', '-q', 'origin'], sub);
   const pushedDrift = push();
