@@ -23,7 +23,7 @@ import { isDeadCodeTrace } from './lib/dead-code-trace.mjs';
 import { crateFolderViolation } from './lib/crate-folder-gate.mjs';
 import { scratchOnlyViolation } from './lib/scratch-only.mjs';
 import { uiPixelViolation } from './lib/ui-pixel-gate.mjs';
-import { firstMagicLiteral, MAGIC_NUMBER_RULE } from './lib/pre-write-numbers.mjs';
+import { cutNamedLiterals, firstMagicLiteral, isDeclaration, MAGIC_NUMBER_RULE } from './lib/pre-write-numbers.mjs';
 
 // Fail-open guard (KIT-T055): an unexpected throw anywhere below must never wedge a
 // write. The HOOK CONTRACT requires EXPLICIT fail-open; before this, an uncaught throw
@@ -499,13 +499,11 @@ if (!NATIVE_LINTED.has(ext) && !SHELL_LIKE.has(ext) && !isTest && !isMig && !scr
     const code = codeLines[i] ?? '';
     if (!/\d/.test(code)) continue; // no numerics survived stripping → all prose/comment
     if (excludedAt('magic-numbers', i + 1)) continue; // glob/marker-excluded line
-    if (/\b(const|constexpr|let|var|final|#define|enum|static|readonly)\b/.test(raw)) continue; // declaration
-    if (/^\s*[A-Za-z_]\w*\s*[:=][^=]/.test(raw)) continue; // name: / name=
+    if (isDeclaration(raw, code)) continue;
     // KIT-T077 precision: values that are NAMED at the use site, or pure data rows.
     if (/^[\s\d.,;[\]{}()-]+$/.test(raw)) continue; // continuation row of a multi-line initializer
-    if (/[A-Za-z_$][\w$.\])]*\s*(?<![=!<>])[:=](?!=)\s*-?\.?\d/.test(raw)) continue; // `opts.timeout = 5000`, `(attempts = 5)`, `{retries: 3}` — comparisons excluded
     if (/\b(parseInt|toString)\s*\([^)]*\d+\s*\)/.test(raw)) continue; // radix argument
-    const stripped = code.replace(URL_PATH_TOKEN, '').replace(/\d+(px|em|rem)/g, '');
+    const stripped = cutNamedLiterals(code).replace(URL_PATH_TOKEN, '').replace(/\d+(px|em|rem)/g, '');
     if (firstMagicLiteral(stripped)) hits.push(`${i + 1}: ${raw.trim()}`);
   }
   if (hits.length) {
