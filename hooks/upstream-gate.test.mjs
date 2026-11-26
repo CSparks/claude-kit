@@ -107,6 +107,10 @@ try {
   ok('KIT-T1601: under Bash, Set-Location, sl, chdir, Push-Location and CD are no commands: the push still runs in the fork and blocks',
     ['Set-Location', 'sl', 'chdir', 'Push-Location', 'CD'].every((verb) => blocksIn('Bash', `${verb} "${own}"; git push upstream main`, fork)));
   ok('KIT-T1601: under Bash a push after pushd into the fork blocks, and popd returns', blocksIn('Bash', `pushd "${fork}" && git push upstream main`, own) && !blocksIn('Bash', `pushd "${fork}" && popd && git push upstream main`, own));
+  ok('KIT-T1601 finding 2: a pwsh -Command string run from Bash follows its Set-Location into the fork', blocksIn('Bash', `pwsh -Command "Set-Location '${fork}'; git push upstream main"`, own));
+  ok('KIT-T1601 finding 2: a location command the gate cannot resolve judges the fork too', blocksIn('Bash', `cd "${own}" && cd "$X" && git push upstream main`, fork) && blocksIn('PowerShell', `Set-Location "${own}"; Set-Location (Get-Item x); git push upstream main`, fork));
+  const { locationMove } = await import('./lib/location-move.mjs');
+  ok('KIT-T1601 finding 2: an unknown shell reads the union of every location verb', ['Set-Location x', 'sl x', 'chdir x', 'pushd x', 'Push-Location x', 'CD x'].every((seg) => locationMove(seg, '')?.to === 'x') && locationMove('Pop-Location', '')?.pop === true);
   const bare = identify(repo());
   ok('a repo with no remote and no -R fails open', !blocks('gh pr create --title t', bare));
 

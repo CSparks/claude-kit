@@ -61,6 +61,21 @@ try {
   ok('KIT-T1601: Push-Location then Pop-Location return too', ps(`Push-Location "${parent}"; Pop-Location; git push`, clean).code === 0);
   ok('KIT-T1601: git -C names the pushed repo whatever the location before it', ps(`Set-Location "${clean}"; git -C "${parent}" push`, clean).code === 2);
 
+  // KIT-T1601 security findings: location commands are read on tokens, and one the gate cannot resolve judges every candidate.
+  const bash = (command, cwd) => gate(command, cwd);
+  ok('finding 1: a redirection after the cd target does not hide the move', bash(`cd "${parent}" 2>/dev/null && git push`, clean).code === 2 && ps(`Set-Location "${parent}" 2>$null; git push`, clean).code === 2);
+  ok('finding 1: popd with arguments is a location command (here it returns to the drifted repo)', bash(`pushd "${clean}" && popd +0 && git push`, parent).code === 2 && ps(`Push-Location "${clean}"; Pop-Location -PassThru; git push`, parent).code === 2);
+  ok('finding 1: a bare pushd swaps back to the drifted repo', bash(`pushd "${clean}" && pushd && git push`, parent).code === 2);
+  ok('finding 1: cd - and Set-Location - return to the drifted repo', bash(`cd "${clean}" && cd - && git push`, parent).code === 2 && ps(`Set-Location "${clean}"; Set-Location -; git push`, parent).code === 2);
+  ok('finding 1: a variable, a substitution, a wildcard or -StackName makes the directory unknown, so every candidate is judged',
+    [`cd "${clean}" && cd "$X" && git push`, `cd "${clean}" && cd $(echo x) && git push`, `cd "${clean}" && cd "${clean}"* && git push`].every((c) => bash(c, parent).code === 2)
+    && ps(`Set-Location "${clean}"; Pop-Location -StackName s; git push`, parent).code === 2);
+  ok('finding 1: a cd into a missing directory judges where the shell stays too', bash(`cd "${clean}/missing"; git push`, parent).code === 2);
+  ok('finding 1 control: a resolved move into the clean repo still passes', bash(`cd "${clean}" 2>/dev/null && git push`, parent).code === 0 && ps(`Set-Location -LiteralPath "${clean}"; git push`, parent).code === 0);
+  ok('finding 2: a pwsh -Command string run from Bash follows its Set-Location', bash(`pwsh -Command "Set-Location '${parent}'; git push"`, clean).code === 2);
+  ok('finding 2: a bash -c string run from PowerShell follows its pushd', ps(`bash -c "pushd '${parent}' && git push"`, clean).code === 2);
+  ok('finding 2 control: a bash -c string ignores Set-Location, which bash does not run', ps(`bash -c "Set-Location '${clean}'; git push"`, parent).code === 2);
+
   git(['push', '-q', 'origin', 'HEAD:main'], sub);
   git(['fetch', '-q', 'origin'], sub);
   const pushedDrift = push();

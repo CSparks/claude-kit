@@ -80,21 +80,3 @@ export const toPath = (p) => msysToNative(String(p).replace(/^["']|["']$/g, ''))
 
 // The directory a `cd [/d] <dir>` segment moves to, or '' when the segment is not a cd.
 export const cdTarget = (seg) => { const m = seg.match(/^cd\s+(?:\/d\s+)?(\S.*)$/s); return m ? toPath(m[1].trim()) : ''; };
-
-// How a segment moves the directory of the shell that runs it, for the push gates (KIT-T1601):
-//   locationMove(seg, shell) -> { to, push } | { pop: true } | null
-// Only the verbs that shell runs count: PowerShell `cd`, `chdir`, `pushd`, `Set-Location`, `sl`, `Push-Location` (with `-Path`
-// or `-LiteralPath`, any case) and `popd`, `Pop-Location`; bash `cd`, `pushd`, `popd`; an unknown shell `cd` alone, as
-// cdTarget. A verb the shell lacks fails there, and the next segment runs where the last one was. cdTarget's other callers keep
-// reading only `cd` until the one-lexer job (KIT-T1585).
-const LOCATION_VERBS = {
-  powershell: { move: /^(cd|chdir|pushd|set-location|sl|push-location)\s+(?:-(?:path|literalpath)\s+)?(\S.*)$/is, pop: /^(?:popd|pop-location)$/i, push: /^(?:pushd|push-location)$/i },
-  bash: { move: /^(cd|pushd)\s+(?:\/d\s+)?(\S.*)$/s, pop: /^popd$/, push: /^pushd$/ },
-  unknown: { move: /^(cd)\s+(?:\/d\s+)?(\S.*)$/s, pop: null, push: null },
-};
-export function locationMove(seg, shell = '') {
-  const verbs = LOCATION_VERBS[shell] || LOCATION_VERBS.unknown;
-  if (verbs.pop && verbs.pop.test(seg)) return { pop: true };
-  const m = seg.match(verbs.move);
-  return m ? { to: toPath(m[2].trim()), push: Boolean(verbs.push && verbs.push.test(m[1])) } : null;
-}
