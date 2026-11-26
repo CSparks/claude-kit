@@ -10,7 +10,7 @@ import { resolve } from 'node:path';
 import { DELETE_REFUSALS as R } from './owns-untracked-file.mjs';
 import { BASELINE_ROUTE } from './agent-gate-guide.mjs';
 
-export const DELETE_RULE = 'a shell delete (rm, del, Remove-Item) of source, or a git call that deletes or hides files (git clean, git rm -f, git stash -u), passes only for a file this caller wrote with Write or Edit and has not changed since, one named file per operand, whose name the command spells out or assigns to a variable as one literal; a tracked file is removed with `git rm -- <path>`; a git call that may take files it does not name (no path, a directory, a glob) passes only while no other writer is live in the checkout; a file another session or agent wrote, or no tool wrote, is left to the main thread: a subagent raises it there, and the main thread removes an untracked one with the plain `rm <path>` (PowerShell: `Remove-Item <path>`) once no live writer holds it, no git discard verb';
+export const DELETE_RULE = 'a shell delete (rm, del, Remove-Item) of source, or a git call that deletes or hides files (git clean, git rm -f, git stash -u), passes only for a file this caller wrote with Write or Edit and has not changed since, one named file per operand, whose name the command spells out or assigns to a variable as one literal; a tracked file is removed with `git rm -- <path>`; a git stash naming files passes only for this caller\'s own files, for the main thread too; a git call that may take files it does not name (no path, a directory, a glob) passes only while no other writer is live in the checkout; a file another session or agent wrote, or no tool wrote, is left to the main thread: a subagent raises it there, and the main thread removes an untracked one with the plain `rm <path>` (PowerShell: `Remove-Item <path>`) once no live writer holds it, no git discard verb';
 
 // A pull, rebase, stash or autostash moves every writer's tracked changes out of the shared work tree (KIT-T1266).
 const INTEGRATION_VERB = /^git (?:pull|rebase|stash|merge|config$)/;
@@ -40,6 +40,13 @@ const raiseToMainThread = ({ mainThread, path, verb }) => {
     : `Raise it to the main thread: once no live writer holds it, the main thread removes an untracked file with ${MAIN_THREAD_DELETE(path)}. A subagent has no sanctioned way.`} ${STRAY_HINT}`;
 };
 
+// A named-path stash of a file this caller did not write is refused to every caller, the main thread included, whether or not
+// its writer has ended (delete-judge.mjs; RDG-D191 holds any lift); the pathless stash passes only while no other writer is live.
+const STASH_VERB = /^git stash/;
+const STASH_REFUSALS = new Set([R.unrecorded, R.otherWriter]);
+const STASH_WHY = { [R.unrecorded]: 'No Edit or Write of this caller left these bytes (never written by a tool, or changed since)', [R.otherWriter]: 'Another session or agent wrote this file' };
+const stashWayOut = (refusal, verb) => `${STASH_WHY[refusal]}. A stash naming files passes only for files this caller wrote with Write or Edit and has not changed since; no caller, the main thread included, may stash another writer's file by name, even one whose writer has ended. The pathless \`git stash push -m <note>\` (every tracked change of this checkout) passes only while no other writer is live in it: the main thread runs it then, and a subagent raises it to the main thread. Meanwhile commit your own work by explicit path, or read the old code with \`git show HEAD:<path>\`.${baselineRoute(verb)}`;
+
 const WAYS_OUT = {
   [R.noWriter]: () => 'This call carries no session id, so no Write can be attributed to it.',
   [R.glob]: () => 'A glob is not expanded: name each file.',
@@ -55,6 +62,7 @@ const WAYS_OUT = {
 };
 
 export function deleteGuidance(refusal, ctx) {
-  const wayOut = WAYS_OUT[refusal];
+  const stash = STASH_VERB.test(ctx.verb || '') && STASH_REFUSALS.has(refusal);
+  const wayOut = stash ? () => stashWayOut(refusal, ctx.verb) : WAYS_OUT[refusal];
   return wayOut ? `  Delete rule: ${DELETE_RULE}.\n  ${wayOut(ctx)}\n` : '';
 }
