@@ -82,6 +82,27 @@ try {
   }
   const notesEdit = edit(join(ai, 'tickets', 'ZZ-T001-x.md'));
   check('an Edit confined to an existing ticket Notes is refused and names t notes and t edit --section Notes', notesEdit.status === 2 && notesEdit.stderr.includes('t notes <id>') && /t edit <id> --section Description\|Plan\|Notes/.test(notesEdit.stderr));
+  // KIT-T1596: the block names the one verb for the part the Edit touches, id filled in, above the folder's menu.
+  const sectioned = join(ai, 'tickets', 'ZZ-T003-z.md');
+  writeFileSync(sectioned, '---\nid: ZZ-T003\nstatus: todo\n---\n\n## Description\nwrong sha 6f21f8e\n\n## Acceptance Criteria\n- [ ] one\n\n## Plan\n1. step\n\n## Notes\nnote text\n');
+  const editOf = (old_string) => spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: sectioned, old_string, new_string: 'x' } }), cwd: root, encoding: 'utf8' });
+  const exactCases = [
+    ['a Description line', 'wrong sha 6f21f8e', 'This edit changes Description; run instead: t edit ZZ-T003 --section Description --file'],
+    ['the status line', 'status: todo', 'This edit changes frontmatter; run instead: t status ZZ-T003 <state>'],
+    ['a criterion', '- [ ] one', 'This edit changes Acceptance Criteria; run instead: t criterion ZZ-T003'],
+    ['a Plan step', '1. step', 'This edit changes Plan; run instead: t edit ZZ-T003 --section Plan --file'],
+    ['Notes prose', 'note text', 'This edit changes Notes; run instead: t notes ZZ-T003 "<prose>"'],
+  ];
+  for (const [name, old, line] of exactCases) {
+    const r = editOf(old);
+    check(`an Edit of ${name} names its one verb with the id, then every verb`, r.status === 2 && r.stderr.includes(line) && r.stderr.includes('Every verb: t status <id>'), `(exit ${r.status}) ${r.stderr.slice(0, 200)}`);
+  }
+  const whole = spawnSync(process.execPath, [HOOK], { input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: sectioned, content: '# x\n' } }), cwd: root, encoding: 'utf8' });
+  check('control: a Write of the whole item gets the menu only', whole.status === 2 && !whole.stderr.includes('This edit changes') && whole.stderr.includes('Use: t status <id>'));
+  check('control: an Edit whose old text is not in the file gets the menu only', !editOf('not in the file').stderr.includes('This edit changes'));
+  const tHelp = spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/t.mjs', import.meta.url)), '--help'], { encoding: 'utf8' });
+  check('t --help lists the edit verb the block names', /t <new\|note\|notes\|edit\|/.test(tHelp.stdout) && tHelp.stdout.includes('t edit <id> --section Description|Plan|Notes --file <path>'));
+
   for (const doc of ['CLAUDE.md', 'project-template/CLAUDE.snippet.md']) {
     const text = readFileSync(fileURLToPath(new URL(`../${doc}`, import.meta.url)), 'utf8');
     check(`${doc} states a hand Edit of an existing item is refused (KIT-D120), never allowed`, !/stays allowed/.test(text) && /hand Edit of an existing item is refused, KIT-D120/.test(text));

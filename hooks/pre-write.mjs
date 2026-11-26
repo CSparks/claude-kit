@@ -313,11 +313,12 @@ ${excludeFooter('crate-folder')}`);
 
 // Convention (KIT-T509): store writes go through the t/cap/rem commands, not a hand Write/Edit.
 if (!excludedFile('store-write')) {
-  const v = storeWriteViolation(file);
+  const v = storeWriteViolation(file, { toolInput: p.tool_input });
   if (v) {
+    const exact = v.exact ? `  This edit changes ${v.exact.part}; run instead: ${v.exact.command}\n` : '';
     process.stderr.write(`
 BLOCKED: hand write into the .ai store (${v.rel}): ${v.why}.
-  Use: ${v.command}
+${exact}  ${v.exact ? 'Every verb' : 'Use'}: ${v.command}
 ` + excludeFooter('store-write'));
     process.exit(2);
   }

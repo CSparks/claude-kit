@@ -5,11 +5,13 @@
 //   - any write to SESSION.md, the generated views and the hook-owned logs.
 // Templates and READMEs are not items. Every refusal names the verb that makes the change.
 //
-//   storeWriteViolation(file, { exists }) -> null | { rel, command, why }
+//   storeWriteViolation(file, { exists, toolInput }) -> null | { rel, command, why, exact }
+//     exact  for a change of an existing item, the one verb for the part the Edit touches (store-write-verb.mjs), else null
 //   ITEM_VERBS                  the verbs that change an existing item, by store folder
 
 import { existsSync, readFileSync } from 'node:fs';
 import { basename } from 'node:path';
+import { exactVerb } from './store-write-verb.mjs';
 
 const PROSE = 't notes <id> "<prose>" (append) | t edit <id> --section Description|Plan|Notes --file <path> (replace)';
 
@@ -64,7 +66,7 @@ function roadmapGenerated(base) {
   try { return /^roadmap_mode:[ \t]*generated/m.test(readFileSync(`${base}/config.yml`, 'utf8')); } catch { return false; }
 }
 
-export function storeWriteViolation(file, { exists = existsSync(file) } = {}) {
+export function storeWriteViolation(file, { exists = existsSync(file), toolInput } = {}) {
   const norm = String(file).split(String.fromCharCode(92)).join('/');
   const store = splitStore(norm);
   if (!store) return null;
@@ -78,7 +80,7 @@ export function storeWriteViolation(file, { exists = existsSync(file) } = {}) {
   }
   const change = ITEM_VERBS[dir];
   if (change && rel.includes('/') && exists && !NON_ITEMS.has(basename(rel))) {
-    return { rel, command: change, why: `${create[1]} is changed by its command, which stamps History and refreshes the cache (KIT-D120)` };
+    return { rel, command: change, why: `${create[1]} is changed by its command, which stamps History and refreshes the cache (KIT-D120)`, exact: exactVerb(file, toolInput) };
   }
   return null;
 }

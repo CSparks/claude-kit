@@ -2,7 +2,7 @@
 id: KIT-T1596
 title: process failure (fix agent for KIT-T1594, 2026-11-26): the agent hand-edited a fresh ticket's Description with the Edit tool to correct a wr
 type: bug
-status: todo
+status: review
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,7 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-26T01:16:49Z
-updated: 2026-11-26T01:16:49Z
+updated: 2026-11-26T01:21:43Z
 ---
 
 ## Description
@@ -27,5 +27,9 @@ first seen in claude-kit. Filed automatically (KIT-T286): every kit bug is a tic
 ## Plan
 1.
 
+## Notes
+Fixed: hooks/lib/store-write-verb.mjs reads the Edit's old text, finds the frontmatter or ## section it sits in, and the store-write block prints 'This edit changes <part>; run instead: <command with the id>' above the folder's verb menu. t --help listed no edit verb although the block named it; the usage line now carries t edit. Not built: the cap-side check that a hex token is a commit in the target repo (separate concern). Tests: store-write-gate 52 passed 0 failed, t-edit 16 passed 0 failed.
+
 ## History
 - [2026-11-26 01:16] (created) bug — process failure (fix agent for KIT-T1594, 2026-11-26): the agent hand-edited a fresh ticket's Description with the Edit tool to correct a wr
+- [2026-11-26 01:21] (status) todo → review
