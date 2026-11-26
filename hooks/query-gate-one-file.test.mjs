@@ -91,6 +91,9 @@ try {
     /Nothing ran: the gate refuses the whole command/.test(written) && written.includes("One call, the producer's own output filtered:  node hooks/x.test.mjs 2>&1 | grep -E 'FAIL|passed'"));
   ok('KIT-T1439: it also names the keep-the-log route, producer then the Grep tool',
     written.includes('Or keep the log: run  node hooks/x.test.mjs > target/t1594-before.txt 2>&1; echo exit=$?  then the Grep tool on target/t1594-before.txt.'));
+  const afterCdChain = exact('cd crates && mkdir -p target && node x.test.mjs > target/t.txt 2>&1; echo exit=$?; grep -E "FAIL|passed" target/t.txt');
+  ok('KIT-T1439: the rewrite keeps the segments ahead of the producer (a leading cd and mkdir)',
+    afterCdChain.includes("cd crates && mkdir -p target && node x.test.mjs 2>&1 | grep -E 'FAIL|passed'"));
   const tailed = exact('cargo test -p x > target/out.txt 2>&1 ; tail -n 30 target/out.txt');
   ok('KIT-T1439: a log written then tailed in one chain names the tail filter and the Read tool',
     tailed.includes('cargo test -p x 2>&1 | tail -n 40') && tailed.includes('then the Read tool on target/out.txt'));

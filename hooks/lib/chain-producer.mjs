@@ -2,8 +2,8 @@
 // segment (KIT-T1439). The retrieval gate refuses the whole command, so the producing segment never runs either; the
 // block leads with the one-call rewrite that filters the producer's own output, and the two-call form that keeps the log.
 //
-//   chainProducer(command, file) -> the producing segment with its redirect removed, or null when no segment of the
-//                                   command redirects into `file`
+//   chainProducer(command, file) -> the command through the producing segment, earlier segments kept and the redirect
+//                                   cut; null when no segment of the command redirects into `file`
 //   producerLines({ command, files, filter, tool }) -> block lines (empty when no producer writes the file)
 //     filter  the output filter the rewrite pipes into (`grep -E '<pattern>'`, `tail -n 40`)
 //     tool    the tool that then reads the kept log ('Grep' or 'Read')
@@ -18,10 +18,13 @@ function redirectInto(file) {
   return new RegExp(`\\s*(?:1|&)?>>?\\s*["']?(?:\\./)?${target}["']?(?=\\s|$)`);
 }
 
+// The command up to the end of the producing segment, so a leading `cd` or `mkdir` stays in the rewrite.
 export function chainProducer(command, file) {
-  const into = redirectInto(file);
-  const segment = String(command).split(SEGMENT_SPLIT).map((s) => s.replace(/\\/g, '/')).find((s) => into.test(s));
-  return segment ? segment.replace(into, '').replace(STDERR_MERGE, '').trim() || null : null;
+  const text = String(command).replace(/\\/g, '/');
+  const m = redirectInto(file).exec(text);
+  if (!m) return null;
+  const rest = text.slice(m.index + m[0].length).split(SEGMENT_SPLIT)[0];
+  return `${text.slice(0, m.index)} ${rest}`.replace(STDERR_MERGE, '').replace(/\s+/g, ' ').trim() || null;
 }
 
 export function producerLines({ command, files, filter, tool }) {
