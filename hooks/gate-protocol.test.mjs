@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ENV, ROOT, adopted, cleanup, hook, reporter, tmpDir } from './test-harness.mjs';
+import { ENV, ROOT, adopted, cleanup, fixtureKit as ladderKit, hook, isoDaysAgo, reporter, tmpDir } from './test-harness.mjs';
 import { TOKENS } from './lib/gate-tokens.mjs';
 import { GATES, gateText } from './lib/gate-protocol.mjs';
 import { FIELDS as DIFFICULTY_FIELDS, RUBRIC_LINES, TIERS, parseDifficulty } from './lib/difficulty.mjs';
@@ -132,10 +132,12 @@ try {
   ok('orient points at q gates in the identity block', orient.out.includes('q gates agent|plan|question'));
 
   const repo = adopted(false);
-  const twoWrong = hook('dispatch-guard.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'general-purpose', model: 'sonnet', isolation: 'worktree', description: 'x', prompt: 'do a thing' } }, repo);
+  // A fresh capability table: the live kit's table ages past its refresh period and would block every dispatch here (KIT-T1595).
+  const freshTable = { CLAUDE_KIT_LADDER_ROOT: ladderKit(isoDaysAgo(0)) };
+  const twoWrong = hook('dispatch-guard.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'general-purpose', model: 'sonnet', isolation: 'worktree', description: 'x', prompt: 'do a thing' } }, repo, freshTable);
   ok('a dispatch with no job, a worktree and an untagged description is rejected once with every cause',
     twoWrong.code === 2 && twoWrong.out.includes('names no job') && twoWrong.out.includes('worktree / separate-checkout') && twoWrong.out.includes('resend description as "[Sonnet 5.5] x"'));
-  const labelOnly = hook('dispatch-guard.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'general-purpose', model: 'sonnet', description: 'x', prompt: 'do a thing [job: fix]' } }, repo);
+  const labelOnly = hook('dispatch-guard.mjs', { tool_name: 'Agent', tool_input: { subagent_type: 'general-purpose', model: 'sonnet', description: 'x', prompt: 'do a thing [job: fix]' } }, repo, freshTable);
   ok('a label-only problem is the dispatch-label hook\'s block, not the guard\'s', labelOnly.code === 0);
 
   const file = join(dir, 'turn.jsonl');
