@@ -66,7 +66,15 @@ try {
   const tail = ask(transcript(`${'Context that is long and settled. '.repeat(12)}Which lane should carry the second lead?`));
   ok('KIT-T929: the block prints the end of the message that tripped the check', tail.code === 2 && tail.out.includes('Which lane should carry the second lead?'));
 
-  const RESTATED = 'Keep the daemon restart limit at three minutes with the shared cache.';
+  // KIT-T1594: no prose line here, since the call's own reply is not on disk when the pre-call gate reads the transcript.
+  const SIGNED = "Can this live view integrate into Herder? Yeah, let's do the whole fleet launch. Tidy, close a session. Activity, notificaitons. Those sound like good plans.";
+  ok('KIT-T1594: a question followed by sign-off of named work passes', ask(transcript(SIGNED)).code === 0);
+  const SIGNED_THEN_ASKED = "Yeah, let's do the whole fleet launch. Tidy, close a session. Those sound like good plans. Can this live view integrate into Herder?";
+  ok('KIT-T1594 control: the same sign-off with the question last still blocks', ask(transcript(SIGNED_THEN_ASKED)).code === 2);
+  ok('KIT-T1594 control: a question followed by a floated idea still blocks', ask(transcript('Can this live view integrate into Herder? Maybe the fleet launch too.')).code === 2);
+  ok('KIT-T1594 control: a question followed by a sign-off that floats an idea still blocks', ask(transcript("Can this integrate into Herder? Let's do it, or maybe wait.")).code === 2);
+
+  const RESTATED ='Keep the daemon restart limit at three minutes with the shared cache.';
   const restated = ask(transcript(RESTATED), [{ question: `${RESTATED.replace('.', '?')}`, header: 'Restart', options: OPTIONS }]);
   ok('a question restating his words is blocked', restated.code === 2 && restated.out.includes('- stated:'));
   ok('control: a new question on the same topic passes', ask(transcript(RESTATED)).code === 0);
