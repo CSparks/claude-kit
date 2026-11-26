@@ -4,7 +4,7 @@
 // blocked the same way (KIT-T1551); cat of a whole file and any command's own output filtered through head or tail stay allowed.
 //
 //   oneFileSearch(tool, argv, { git }) -> { files, pattern } | null   grep/rg/ag/ack, git grep, `sed -n '/x/p'`, `awk '/x/'`, Select-String
-//   readsOneFile(tool, argv) -> { files } | null                        head, tail (not -f/-F) or `sed -n` of one named file
+//   readsOneFile(tool, argv) -> { files } | null                        head, tail (not -f/-F), `sed -n` or `awk 'NR==n'` of one named file
 //   readFileMsg({ command, files, q }) -> string                        the block text for that read
 //   fedFile(tool, argv) -> path | null                                  the one named file a cat/head/tail/type/sed-range reads (it feeds `| grep`)
 //   fedSearch(tool, argv, file) -> { files, pattern } | null            the grep that filters that file
@@ -74,12 +74,25 @@ export function fedFile(tool, argv) {
 }
 
 const LINE_READERS = /^(?:head|tail)$/;
+// An awk program that only selects lines by number and prints them: `NR==377`, `NR>=10 && NR<=20 {print NR": "$0}`.
+const LINE_TEST = String.raw`F?NR\s*(?:==|>=|<=|>|<)\s*\d+`;
+const PRINT_ONLY = String.raw`\{\s*print(?:\s+(?:\$0|F?NR|"[^"]*"|,|\s)*)?\s*;?\s*\}`;
+const AWK_LINE_READ = new RegExp(String.raw`^\s*${LINE_TEST}(?:\s*(?:&&|\|\|)\s*${LINE_TEST})*\s*(?:${PRINT_ONLY})?\s*$`);
+const AWK_PROGRAM_FILE = /^-[A-Za-z]*f$|^--file\b/;
+
+function awkLineRead(argv) {
+  if (argv.some((a) => AWK_PROGRAM_FILE.test(a))) return null;
+  const [program = '', ...files] = argv.filter((a) => !a.startsWith('-')).map(unquote);
+  return AWK_LINE_READ.test(program) && files.length === 1 && isConcreteFile(files[0]) ? { files, pattern: null, regex: false } : null;
+}
 
 /**
- * A line-range read of ONE named file with a shell text tool: `head`, a `tail` that does not follow, or a quiet `sed -n` range or
- * line. The Read tool (offset, limit) does it. A read of a command's own output has no file operand and is no match.
+ * A line-range read of ONE named file with a shell text tool: `head`, a `tail` that does not follow, a quiet `sed -n` range or
+ * line, or an awk program that selects lines by number (KIT-T1600). The Read tool (offset, limit) does it. A read of a
+ * command's own output has no file operand and is no match.
  */
 export function readsOneFile(tool, argv) {
+  if (tool === 'awk') return awkLineRead(argv);
   const flags = argv.filter((a) => a.startsWith('-'));
   if (tool === 'sed' && (!flags.some((a) => SED_QUIET.test(a)) || flags.some((a) => SED_IN_PLACE.test(a) || SED_SCRIPT_FLAG.test(a)))) return null;
   if (tool !== 'sed' && !LINE_READERS.test(tool)) return null;

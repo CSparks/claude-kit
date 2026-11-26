@@ -343,8 +343,8 @@ function judge(c, piped = false, base = '') {
     const block = found && oneFileVerdict(c, found);
     if (block) return block;
   }
-  // RULE 4 — a line-range read of ONE named file (head, tail, sed -n) is the Read tool's (KIT-T1551); a read of piped output passed above.
-  if ((isRead || tool === 'sed') && !STORE.test(naming)) {
+  // RULE 4 — a line-range read of ONE named file (head, tail, sed -n, awk 'NR==n') is the Read tool's (KIT-T1551, KIT-T1600); a read of piped output passed above.
+  if ((isRead || tool === 'sed' || tool === 'awk') && !STORE.test(naming)) {
     const found = readsOneFile(tool, argv);
     const block = found && oneFileVerdict(c, found, readFileMsg);
     if (block) return block;
