@@ -121,10 +121,14 @@ export function readFileMsg({ command, files, q, chain = command, named = files 
   ].join('\n');
 }
 
-/** A grep-family or Select-String search with no file operand, fed `file` by the previous segment, searches that file. */
+/**
+ * A grep-family, Select-String, `sed -n '/x/…'` or `awk '/x/'` search with no file operand, fed `file` by the previous segment,
+ * searches that file (KIT-T1606 adds the sed and awk address forms).
+ */
 export function fedSearch(tool, argv, file) {
   if (GREP.test(tool)) return searchPaths(argv).length === 0 ? { files: [file], pattern: null, regex: false } : null;
   const positionals = argv.filter((a) => !a.startsWith('-'));
+  if (tool === 'sed' || tool === 'awk') return positionals.length === 1 ? addressSearch(tool, [...argv, file]) : null;
   const pathless = !argv.some((a) => PS_PATH.test(a)) && positionals.length <= 1;
   return (tool === 'select-string' || tool === 'sls') && pathless ? { files: [file], pattern: flagValue(argv, PS_PATTERN) || unquote(positionals[0] || '') || null, regex: true } : null;
 }
