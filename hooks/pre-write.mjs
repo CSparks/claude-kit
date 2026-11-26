@@ -19,6 +19,7 @@ import { newUnitMissingHeader } from './lib/doc-tree-gates.mjs';
 import { FILE_HARD, FILE_SOFT, fileLengthVerdict } from './lib/limits.mjs';
 import { commentFindings } from './lib/comment-gate.mjs';
 import { storeWriteViolation } from './lib/store-write-gate.mjs';
+import { isDeadCodeTrace } from './lib/dead-code-trace.mjs';
 import { crateFolderViolation } from './lib/crate-folder-gate.mjs';
 import { scratchOnlyViolation } from './lib/scratch-only.mjs';
 import { uiPixelViolation } from './lib/ui-pixel-gate.mjs';
@@ -455,12 +456,14 @@ const lines = content.split('\n');
 const viols = []; // { id, msg } — id names the check so excludeFooter can cite it
 const warns = [];
 // Line-keyed pick: gathers [lineNo, line] hits, dropping any line excluded for `id`
-// (path-glob OR in-source marker), capped at `cap`.
-const pick = (id, re, cap = MAX_SHOWN) => {
+// (path-glob OR in-source marker), capped at `cap`. `match` is a regex, or (lines, i) => boolean
+// for a check that reads the neighbouring lines.
+const pick = (id, match, cap = MAX_SHOWN) => {
   if (excludedFile(id)) return [];
+  const hit = typeof match === 'function' ? (i) => match(lines, i) : (i) => match.test(lines[i]);
   const out = [];
   for (let i = 0; i < lines.length && out.length < cap; i++) {
-    if (re.test(lines[i]) && !excludedAt(id, i + 1)) out.push([i + 1, lines[i]]);
+    if (hit(i) && !excludedAt(id, i + 1)) out.push([i + 1, lines[i]]);
   }
   return out;
 };
@@ -476,7 +479,7 @@ const todo = pick('todo-markers', /\b(TODO|FIXME|XXX|HACK)\b/);
 if (todo.length) viols.push({ id: 'todo-markers', msg: 'TODO/FIXME/XXX/HACK markers are not allowed in source:\n' + show(todo) });
 
 // 2. dead-code trace comments
-const dead = pick('dead-code', /^\s*(\/\/|#|--)\s*(removed|was:|deprecated:|old:|previously:)/i);
+const dead = pick('dead-code', isDeadCodeTrace);
 if (dead.length) viols.push({ id: 'dead-code', msg: 'Dead-code trace comments (delete it; git is the record):\n' + show(dead) });
 
 // 3. magic numbers — skip native-linted langs, tests, migrations.
