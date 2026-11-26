@@ -76,10 +76,17 @@ try {
   const UNSIGNED = ["Is this safe? Don't go ahead until I know.", 'Can this integrate into Herder? Yes or no.', "How would you do it? I can't see how to do it.", 'Can this integrate into Herder? Not approved yet.'];
   ok('KIT-T1594 control: a negated, held or bare yes/no trailer after the question still blocks', UNSIGNED.every((said) => ask(transcript(said)).code === 2));
 
-  const RESTATED ='Keep the daemon restart limit at three minutes with the shared cache.';
+  const RESTATED = 'Keep the daemon restart limit at three minutes with the shared cache.';
   const restated = ask(transcript(RESTATED), [{ question: `${RESTATED.replace('.', '?')}`, header: 'Restart', options: OPTIONS }]);
   ok('a question restating his words is blocked', restated.code === 2 && restated.out.includes('- stated:'));
   ok('control: a new question on the same topic passes', ask(transcript(RESTATED)).code === 0);
+  const scope = (question, header = 'Fleet launch') => [{ question, header, options: OPTIONS }];
+  ok('KIT-T1598: a question about a detail he did not state (the commodore) passes after he approved the item',
+    ask(transcript(SIGNED), scope('What should whole-fleet launch do on the commodore?')).code === 0);
+  const confirmBack = ask(transcript(RESTATED), scope(`Confirm: ${RESTATED.replace('.', '?')}`, 'Restart'));
+  ok('KIT-T1598 control: asking his words back behind "Confirm:" still blocks as stated', confirmBack.code === 2 && confirmBack.out.includes('- stated:'));
+  const headed = ask(transcript(RESTATED), scope(RESTATED.replace('.', '?'), 'Decision'));
+  ok('KIT-T1598 control: a verbatim ask-back under an unrelated header still blocks as stated', headed.code === 2 && headed.out.includes('- stated:'));
 
   ok('no transcript fails open', ask(null).code === 0);
   ok('an unreadable transcript fails open', ask(join(dir, 'missing.jsonl')).code === 0);

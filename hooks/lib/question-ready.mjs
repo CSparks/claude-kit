@@ -10,7 +10,8 @@ import { stems } from './stems.mjs';
 const EXPLORING = /\?|\b(?:should we|should i|what if|maybe|perhaps|thoughts|wondering|could we|how about|what do you think|what about|trade-?offs?)\b/i;
 const INVITES = /\b(?:ask me|questionnaire|AskUserQuestion|\/decide|let'?s decide|pick (?:what|the|one)|what'?s next|which (?:one )?(?:do|should) (?:we|you)|your recommendation)\b/i;
 const MIN_STATED_STEMS = 4;
-const STATED_SHARE = 0.75;
+// Words that ask for a yes rather than name a detail: "Confirm: <his words>?" still restates him.
+const ASKING_STEMS = stems('confirm proceed approve agree correct right please');
 const QUOTE_CHARS = 140;
 const TAIL_CHARS = 240;
 
@@ -18,14 +19,15 @@ const askText = (q) => [q?.header, q?.question].filter(Boolean).join(' ');
 
 export const READINESS_STANDARD = [
   'exploring: the newest maintainer message is not a question or a floated idea; answer those in prose and let the discussion converge, ask once the choice is his (a message that says "ask me" or invokes /decide invites the questionnaire; a message whose words after its last question sign off work ("let\'s do X", "sounds good") is ready; a turn whose prose says work waits on him ("waiting on you", "your call") also passes; prose in the same reply as the call is not on disk before the call, so an answer to his question goes in an earlier reply)',
-  `stated: no question restates what his newest message already says (${Math.round(STATED_SHARE * 100)}% of a question's words, at least ${MIN_STATED_STEMS}); act on his words`,
+  `stated: no question restates what his newest message already says (every distinctive word of the question sentence, at least ${MIN_STATED_STEMS}, is in his message; a question that names a detail he did not state asks something new); act on his words`,
 ];
 
+// A question restates him when its sentence (the header is a label) names nothing he did not say (KIT-T1598).
 function statedQuestions(lastUser, questions) {
   const said = stems(lastUser);
   return questions.filter((q) => {
-    const wanted = [...stems(askText(q))];
-    return wanted.length >= MIN_STATED_STEMS && wanted.filter((w) => said.has(w)).length / wanted.length >= STATED_SHARE;
+    const wanted = [...stems(q?.question || '')].filter((w) => !ASKING_STEMS.has(w));
+    return wanted.length >= MIN_STATED_STEMS && wanted.every((w) => said.has(w));
   });
 }
 
