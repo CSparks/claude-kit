@@ -29,6 +29,8 @@ first seen in road-generator. Filed automatically (KIT-T286): every kit bug is a
 
 ## Notes
 Cause: hooks/lib/upstream-policy.mjs:99 (collectSubmissions) moved its directory only on cdTarget (hooks/lib/shell-segments.mjs:82), which reads a bash cd alone, so 'Set-Location D:/dev/claude-kit; ...; git push origin main' from a road-generator session was judged in the session cwd by push-drift, push-pin, pre-push wiring and the upstream policy alike. Landed 13b83133: new shell-segments.mjs locationMove reads cd, chdir, pushd, Set-Location, sl, Push-Location (/d, -Path, -LiteralPath, any case) and popd/Pop-Location (a stack returns the directory); used only by collectSubmissions, cdTarget's other five callers unchanged until KIT-T1585. git -C still names the repo. Test: hooks/push-drift.test.mjs 4 of 29 failed before (Set-Location both directions, set-location -Path, pushd), 29 pass; upstream-gate 44, upstream-gate-pre-push 25 pass. Runtime 13b83133.
+### comment #3 [2026-11-26 07:11] @claude
+(fixed) d681c499 security findings: location commands on tokens without redirections, stacks, swap and cd - modelled, unresolvable moves judge every reached directory, nested shell from its binary; push-drift 39, upstream-gate 51, pre-push 25 pass
 
 ## History
 - [2026-11-26 06:00] (created) bug — upstream-gate push-drift (KIT-T1447) judges the wrong repo: a PowerShell command 'Set-Location D:/dev/claude-kit; ...; git push origin main'
@@ -38,3 +40,6 @@ Cause: hooks/lib/upstream-policy.mjs:99 (collectSubmissions) moved its directory
 - [2026-11-26 06:17] (landed) f8053925 tickets: KIT-T1601 to review (fix 13b83133); KIT-T1593 remedy text landed 9439a6bc, the ended-writer lift and stash pari
 - [2026-11-26 06:22] (landed) c6b61e51 upstream-gate: a location verb moves the judged repo only when the tool's shell runs it, so under Bash a push after Set-
 - [2026-11-26 06:22] (comment) @claude: (fixed) c6b61e51 follow-up: location verbs count only for the tool's shell (Bash Set-Location into an owned repo no longer passes a foreign push); upstream-gate 48 pass; runtime c6b61e51
+- [2026-11-26 06:22] (landed) 3c2ca763 tickets: KIT-T1601 follow-up fix c6b61e51 recorded, runtime c6b61e51 (implements KIT-T1601)
+- [2026-11-26 07:11] (landed) d681c499 upstream-gate: location commands are read on tokens and a nested command takes the shell that launches it; a move the ga
+- [2026-11-26 07:11] (comment) @claude: (fixed) d681c499 security findings: location commands on tokens without redirections, stacks, swap and cd - modelled, un (full comment #3 in ## Notes)
