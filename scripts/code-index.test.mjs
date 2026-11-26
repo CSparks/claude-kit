@@ -244,6 +244,14 @@ await test('a dash-led token that is not flag-shaped is search text, so it files
   assert.deepEqual(parseCodeArgs(['x', '-foo']).flags.unknown, ['-foo'], 'control: a flag-shaped unknown token is still reported');
 });
 
+await test('the only search text, flag-shaped (a CSS variable), is the text and files no gap (KIT-T1605)', () => {
+  const css = parseCodeArgs(['--color-text', '--path', 'src/styles']);
+  assert.equal(css.text, '--color-text');
+  assert.deepEqual(css.flags.unknown, []);
+  assert.deepEqual(parseCodeArgs(['x', '--color-text']).flags.unknown, ['--color-text'], 'control: beside other text it is still an unknown flag');
+  assert.deepEqual(parseCodeArgs(['--foo', '--bar']).flags.unknown, ['--foo', '--bar'], 'control: two unknown flags and no text stay unknown');
+});
+
 await test('the unknown-flag answer tells how to search for text that starts with a dash (KIT-T923)', async () => {
   process.env.CLAUDE_KIT_BUG_STORE = 'off';
   const [row] = await rows('code', ['camp', '-foo']);

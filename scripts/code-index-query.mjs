@@ -90,6 +90,8 @@ export function parseCodeArgs(rawArgs) {
     else if (FLAG_SHAPE.test(a)) flags.unknown.push(a);
     else words.push(a);
   }
+  // With no other text, one flag-shaped token is the search text (a CSS variable such as --color-text, KIT-T1605).
+  if (!words.length && flags.unknown.length === 1) words.push(flags.unknown.pop());
   const text = words.join(' ');
   return { text: flags.regex ? grepPattern(text) : text, flags };
 }
