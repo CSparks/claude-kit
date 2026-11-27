@@ -2,7 +2,7 @@
 id: KIT-T1609
 title: process failure: a rapid-game push brief told a subagent to run 'git config core.hooksPath .githooks' in the shared checkout; source-shell-g
 type: bug
-status: todo
+status: done
 priority: high
 milestone:
 labels: [kit-bug]
@@ -11,7 +11,8 @@ files: []
 supersedes:
 superseded_by:
 created: 2026-11-27T17:18:09Z
-updated: 2026-11-27T17:18:09Z
+updated: 2026-11-27T19:04:36Z
+fixed_commit: f2132fbc
 ---
 
 ## Description
@@ -37,3 +38,5 @@ Judged: not a bug. The refusal is intended (KIT-T1266): git configuration is sha
 - [2026-11-27 19:03] (comment) criterion added: the block names the read form and the route for the write: the coordinator runs it once no other writer is live; asserted in source-shell-gate-discard-live.test.mjs
 - [2026-11-27 19:04] (comment) ticked: the refusal of a git config write beside a live writer is judged intended and recorded on the ticket
 - [2026-11-27 19:04] (comment) ticked: the block names the read form and the route for the write: the coordinator runs it once no other writer is live; asserted in source-shell-gate-discard-live.test.mjs
+- [2026-11-27 19:04] (landed) f2132fbc source-shell-gate: the refusal of a git config write beside a live writer names the route for the write, the coordinator
+- [2026-11-27 19:04] (status) todo → done
