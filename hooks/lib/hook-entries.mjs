@@ -7,7 +7,8 @@
 //   runsHookEntry(command, toolName, names?) -> true when a segment runs one: node/bun/deno whose script (first non-flag
 //        argument), `-e` code or `--import` module names an entry (a pipe into it too), an entry run as the command, or
 //        a quoted body (`bash -c`, `eval`, `builds --run`) that does either. A test file (`agent-roster.test.mjs`), a node
-//        script given an entry's path as an argument, a git or read command, and a lone print command pass.
+//        script given an entry's path as an argument, a git or read command, and a lone print command pass, and so does
+//        exactly `node --check <one .mjs path>` (a parse, no run; no other word, flag, redirect or chained command).
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +24,10 @@ const QUOTE_MARKS = /["'`^]/g;
 const COMMAND_EXTENSION = /\.(?:exe|cmd)$/i;
 const CODE_FLAGS = new Set(['-e', '--eval', '-p', '--print']);
 const MODULE_FLAGS = new Set(['-r', '--require', '--import', '--loader']);
+const PARSE_ONLY_ARITY = 3;
+const NODE_WORD = /^node(?:\.exe)?$/i;
+const CHECK_FLAG = '--check';
+const PLAIN_MJS_PATH = /^[\w./\\:-]+\.mjs$/;
 
 export function hookEntryNames(hooksJsonPath = HOOKS_JSON) {
   const names = new Set(LAUNCHERS);
@@ -66,14 +71,25 @@ function runtimeRuns(tokens, at, names) {
 
 function runs(tokens, names, toolName) {
   if (named(tokens[0], names)) return true;
-  if (tokens.some((t) => /\s/.test(unquoteSpans(t)) && runsHookEntry(unquoteSpans(t), toolName, names))) return true;
+  if (tokens.some((t) => /\s/.test(unquoteSpans(t)) && commandRuns(unquoteSpans(t), toolName, names))) return true;
   return tokens.some((t, i) => baseNames(t).some((b) => RUNTIMES.has(b)) && runtimeRuns(tokens, i, names));
 }
 
-export function runsHookEntry(command, toolName, names = hookEntryNames()) {
-  const text = String(command || '');
+// `node --check <one .mjs path>` and nothing else: node parses the file and runs none of it (KIT-T1613).
+function parseOnly(segs) {
+  if (segs.length !== 1) return false;
+  const tokens = shellTokens(segs[0].text);
+  return tokens.length === PARSE_ONLY_ARITY && NODE_WORD.test(tokens[0]) && tokens[1] === CHECK_FLAG && PLAIN_MJS_PATH.test(unquoteSpans(tokens[2]));
+}
+
+// A quoted body (`bash -c "..."`) is judged here, without the parse-only allowance.
+function commandRuns(text, toolName, names, { allowParseOnly = false } = {}) {
   const segs = segments(text, { shell: shellOfTool(toolName) });
   if (segs.ambiguous) return runs(text.split(/\s+/), names, toolName);
-  if (printsOnly(segs)) return false;
+  if (printsOnly(segs) || (allowParseOnly && parseOnly(segs))) return false;
   return segs.some((s) => runs(shellTokens(s.text), names, toolName));
+}
+
+export function runsHookEntry(command, toolName, names = hookEntryNames()) {
+  return commandRuns(String(command || ''), toolName, names, { allowParseOnly: true });
 }

@@ -39,6 +39,16 @@ const REFUSED = {
   'after a cd': 'cd D:/dev/kit && node hooks/agent-roster.mjs < p.json',
   'the hook that shares a CLI name, run from hooks/': 'node hooks/code-graph.mjs < p.json',
   'a bare name run from inside hooks/': 'cd hooks && node agent-roster.mjs < p.json',
+  'a plain run of the entry a syntax check names': 'node hooks/dispatch-guard.mjs',
+  'a syntax check chained to a run': 'node --check hooks/dispatch-guard.mjs && node hooks/dispatch-guard.mjs',
+  'a syntax check piped from another command': 'echo x | node --check hooks/dispatch-guard.mjs',
+  'a syntax check with a redirect': 'node --check hooks/dispatch-guard.mjs < p.json',
+  'a syntax check of two files': 'node --check hooks/dispatch-guard.mjs hooks/flush.mjs',
+  'a syntax check behind an env prefix': 'CLAUDE_PLUGIN_ROOT=x node --check hooks/dispatch-guard.mjs',
+  'a syntax check with an --import module': 'node --check --import ./hooks/agent-roster.mjs hooks/dispatch-guard.mjs',
+  'a syntax check with -e code': `node --check -e "import('./hooks/dispatch-guard.mjs')"`,
+  'node -c, not the exact --check': 'node -c hooks/dispatch-guard.mjs',
+  'a syntax check inside bash -c': 'bash -c "node --check hooks/dispatch-guard.mjs"',
 };
 for (const [name, command] of Object.entries(REFUSED)) {
   const r = gate(command);
@@ -57,6 +67,9 @@ const PASSED = [
   'node scripts/code-graph.mjs --query importers-of hooks/agent-roster.mjs',
   'wc -l hooks/agent-roster.mjs',
   'npm run publish:runtime',
+  'node --check hooks/dispatch-guard.mjs',
+  'node --check "D:/dev/kit/hooks/agent-roster.mjs"',
+  'node.exe --check hooks\\flush.mjs',
 ];
 for (const command of PASSED) check(`a subagent's command passes: ${command}`, gate(command).status === 0, String(gate(command).stderr).slice(0, 200));
 check('the main thread may run a hook by hand', gate('node hooks/dispatch-guard.mjs < p.json', { agent: '' }).status === 0);
