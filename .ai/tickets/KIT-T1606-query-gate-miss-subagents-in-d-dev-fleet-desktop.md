@@ -29,7 +29,9 @@ first seen in fleet-desktop. Filed automatically (KIT-T286): every kit bug is a 
 
 ## Notes
 Two causes, from the fleet-desktop subagent transcripts (agent-a100323833101e60a, agent-ad601e68d544a8540) replayed through query-gate. (1) cat src-tauri/Cargo.toml | sed -n '/dependencies/,$p' passed even in an adopted repo: fedSearch handled grep and Select-String only. Fixed: a sed or awk address search fed one named file is that file's search. Tests: query-gate-one-file 83 passed 2 failed before, 85 passed 0 failed after; query-gate-pipes all pass. (2) The tail and grep of src-tauri/target logs block in an adopted repo but fleet-desktop has no .ai store, and query-gate exits on an unadopted repo per the hook contract (hooks no-op unless the repo has .ai). Not changed: widening the gate to every git repo, or adopting fleet-desktop, is the maintainer's decision.
+Unfixed half closed as not applicable under KIT-D180 (the maintainer: fleet-desktop will never be administered by the kit). The tail/grep of src-tauri/target logs passed because fleet-desktop has no .ai store; it now sits in the registry's excluded list, so the kit's gates stay out of it by design. The gate is not widened to every git repo (rejected in KIT-D180). The fixed half (cat f | sed/awk address search) landed in 522b97be.
 
 ## History
 - [2026-11-26 20:29] (created) bug — query-gate miss: subagents in D:\dev\fleet-desktop read a source file with 'cat Cargo.toml | sed ...' and grepped a saved test log with shel
 - [2026-11-26 20:32] (status) todo → review
+- [2026-11-26 20:32] (landed) 522b97be retrieval gate: cat of one named file piped into a sed address search (cat Cargo.toml | sed -n '/dependencies/,$p') or a

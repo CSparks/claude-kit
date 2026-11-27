@@ -4,12 +4,14 @@
 //
 //   node scripts/registry-set.mjs data-root <path>            the central data repo
 //   node scripts/registry-set.mjs project <name> <repo path>  where a project's checkout is
+//   node scripts/registry-set.mjs exclude <path>              a tree the kit stays out of (KIT-T447): hooks inert, q/cap/t refuse
 //
-//   setDataRoot(path) / setProject(name, path) -> the registry written
+//   setDataRoot(path) / setProject(name, path) / addExcluded(path) -> the registry written
 
 import { resolve } from 'node:path';
 import { isMain } from './is-main.mjs';
 import { readRegistry, registryPath, writeRegistry } from '../hooks/lib/registry.mjs';
+import { excludedRoot } from '../hooks/lib/excluded-trees.mjs';
 
 export const PROJECT_NAME = /^\w[\w.-]*$/;
 
@@ -29,12 +31,23 @@ export function setProject(name, path) {
   return reg;
 }
 
+// A root already under an excluded tree is left as it is.
+export function addExcluded(path) {
+  if (!path) throw new Error('registry-set: exclude needs a path');
+  const reg = readRegistry();
+  if (excludedRoot(path)) return reg;
+  reg.excluded = [...reg.excluded, resolve(path).replace(/\\/g, '/')];
+  writeRegistry(reg);
+  return reg;
+}
+
 if (isMain(import.meta.url)) {
   const [verb, ...rest] = process.argv.slice(2);
   try {
     if (verb === 'data-root') setDataRoot(rest[0]);
     else if (verb === 'project') setProject(rest[0], rest[1]);
-    else throw new Error('usage: registry-set.mjs data-root <path> | project <name> <repo path>');
+    else if (verb === 'exclude') addExcluded(rest[0]);
+    else throw new Error('usage: registry-set.mjs data-root <path> | project <name> <repo path> | exclude <path>');
     console.log(`registry: updated (${registryPath()})`);
   } catch (e) {
     console.error(e.message);
