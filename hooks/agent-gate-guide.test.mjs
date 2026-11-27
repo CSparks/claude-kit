@@ -23,6 +23,9 @@ try {
   const added = parsed.hookSpecificOutput.additionalContext;
   ok('SubagentStart: an adopted repo gets additionalContext under the SubagentStart event', guide.code === 0 && parsed.hookSpecificOutput.hookEventName === 'SubagentStart');
   ok('the guide names Read, the Grep tool on one file, q for a tree, Edit for a write and the baseline route', /Read \(file_path, offset, limit\)/.test(added) && /Grep tool \(pattern, path = that one file\)/.test(added) && /q code <text>/.test(added) && /Edit tool/.test(added) && /never a stash of the shared tree/.test(added));
+  ok('KIT-T1616: the guide sends a saved log to Read or the Grep tool in a call of its own, and own output to an inline filter',
+    /saved log or build output is one named file: Read it \(offset, limit\) or search it with the Grep tool on that one file, in a call after the Bash call that wrote it/.test(added)
+    && /own output inline stays allowed, with no file in between/.test(added));
   const bare = tmpDir('agg-unadopted-');
   execFileSync('git', ['init', '-q'], { cwd: bare, stdio: 'ignore' });
   const quiet = hook('subagent-gate-guide.mjs', { hook_event_name: 'SubagentStart', cwd: bare }, bare);

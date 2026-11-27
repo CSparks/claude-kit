@@ -21,8 +21,9 @@ export const BASELINE_ROUTE = [
 export const GATE_GUIDE = [
   'Shell forms the kit refuses, and what to call instead (check ids one-file-search, source-shell-write):',
   '- One named file: Read (file_path, offset, limit) shows it; the Grep tool (pattern, path = that one file) searches it. Never `grep`, `rg`, `awk \'/x/\'` or `sed -n \'/x/p\'` on it in Bash.',
-  '- A directory, tree or glob: `q code <text> [--path <dir>] [--lang <l>] [--regex -i -w -C 2]`, `q sym <name>`, `q file <glob>`. A log or build output: Read it, or `q code <text> --dir <path>`.',
-  '- Filtering a command\'s own output stays allowed: `cargo test 2>&1 | grep -E \'test result|FAILED\' | tail -20`.',
+  '- A directory, tree or glob: `q code <text> [--path <dir>] [--lang <l>] [--regex -i -w -C 2]`, `q sym <name>`, `q file <glob>`.',
+  '- A saved log or build output is one named file: Read it (offset, limit) or search it with the Grep tool on that one file, in a call after the Bash call that wrote it; never grep, sed, awk or tail it in Bash.',
+  '- Filtering a command\'s own output inline stays allowed, with no file in between: `cargo test 2>&1 | grep -E \'test result|FAILED\' | tail -20`.',
   '- Changing source: the Edit tool (old_string, new_string; replace_all for a rename) or the Write tool. Never sed -i, perl -i, a redirect, tee, a heredoc or `node -e` on a repo file.',
   ...BASELINE_ROUTE.map((line, i) => (i === 0 ? `- ${line}` : line)),
   '- Before an AskUserQuestion: write the draft to a scratch file and run `q gates question --draft <file.json>` ({ "summary": "<text above the call>", "questions": [...] }); it prints EVERY failing questionnaire check at once, each with its fix. The real call is refused once with the same list.',

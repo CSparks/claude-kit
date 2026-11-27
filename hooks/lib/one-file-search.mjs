@@ -3,7 +3,9 @@
 // blocks the shell form. A line-range read of one named file (head, a non-following tail, `sed -n 1,40p`) is Read's, and is
 // blocked the same way (KIT-T1551); cat of a whole file and any command's own output filtered through head or tail stay allowed.
 //
-//   oneFileSearch(tool, argv, { git }) -> { files, pattern } | null   grep/rg/ag/ack, git grep, `sed -n '/x/p'`, `awk '/x/'`, Select-String
+//   oneFileSearch(tool, argv, { git }) -> { files, pattern } | null   grep/rg/ag/ack, git grep, `sed -n '/x/p'`, an awk regex
+//                                                                      pattern (any awk over a log), Select-String; `tool` is
+//                                                                      the awk family's canonical 'awk' (awkTool)
 //   readsOneFile(tool, argv) -> { files } | null                        head, tail (not -f/-F), `sed -n` or `awk 'NR==n'` of one named file
 //   readFileMsg({ command, files, q }) -> string                        the block text for that read
 //   fedFile(tool, argv) -> path | null                                  the one named file a cat/head/tail/type/sed-range reads (it feeds `| grep`)
@@ -20,6 +22,7 @@ import { targetsOnlyScratch } from './pipe-tree-search.mjs';
 import { targetsOutsideRepos } from './search-outside.mjs';
 import { grepToolCall } from './agent-gate-guide.mjs';
 import { producerLines } from './chain-producer.mjs';
+import { awkArgs, awkRegex } from './awk-program.mjs';
 
 const GREP = /^(?:grep|egrep|fgrep|rg|ag|ack)$/;
 const SED_QUIET = /^-[A-Za-z]*n[A-Za-z]*$|^--(?:quiet|silent)$/;
@@ -32,12 +35,24 @@ const COUNT_ARG = /^\d+$/;
 const unquote = (a) => a.replace(/^["']|["']$/g, '');
 const flagValue = (argv, name) => unquote(argv[argv.findIndex((a) => name.test(a)) + 1] || '');
 
-function addressSearch(tool, argv) {
+function sedAddressSearch(argv) {
   const flags = argv.filter((a) => a.startsWith('-'));
-  if (tool === 'sed' && (!flags.some((a) => SED_QUIET.test(a)) || flags.some((a) => SED_IN_PLACE.test(a) || SED_SCRIPT_FLAG.test(a)))) return null;
+  if (!flags.some((a) => SED_QUIET.test(a)) || flags.some((a) => SED_IN_PLACE.test(a) || SED_SCRIPT_FLAG.test(a))) return null;
   const [script = '', ...files] = argv.filter((a) => !a.startsWith('-')).map(unquote);
   const address = ADDRESS_PATTERN.exec(script);
   return address && targetsOnlyFiles(files) ? { files, pattern: address[1], regex: true } : null;
+}
+
+// An awk program over named files searches them when a pattern selects lines by a regex (`/x/`, `$2 ~ /x/`, `!/x/`); over a
+// saved log or build output any program does (KIT-T1617). `filter` is the program, piped onto the producer in the block.
+function awkSearch(argv) {
+  const parsed = awkArgs(argv);
+  if (!parsed || !targetsOnlyFiles(parsed.files)) return null;
+  const { program, files } = parsed;
+  const pattern = awkRegex(program);
+  const filter = `awk ${quote(program)}`;
+  if (pattern) return { files, pattern, regex: true, filter };
+  return files.some((f) => LOG_FILE.test(f)) ? { files, pattern: null, regex: false, filter } : null;
 }
 
 function powershellSearch(argv) {
@@ -54,7 +69,8 @@ export function oneFileSearch(tool, argv, { git = false } = {}) {
     const files = searchPaths(argv, { git });
     return targetsOnlyFiles(files) ? { files, pattern: null, regex: false } : null;
   }
-  if (tool === 'sed' || tool === 'awk') return addressSearch(tool, argv);
+  if (tool === 'sed') return sedAddressSearch(argv);
+  if (tool === 'awk') return awkSearch(argv);
   return tool === 'select-string' || tool === 'sls' ? powershellSearch(argv) : null;
 }
 
@@ -78,11 +94,10 @@ const LINE_READERS = /^(?:head|tail)$/;
 const LINE_TEST = String.raw`F?NR\s*(?:==|>=|<=|>|<)\s*\d+`;
 const PRINT_ONLY = String.raw`\{\s*print(?:\s+(?:\$0|F?NR|"[^"]*"|,|\s)*)?\s*;?\s*\}`;
 const AWK_LINE_READ = new RegExp(String.raw`^\s*${LINE_TEST}(?:\s*(?:&&|\|\|)\s*${LINE_TEST})*\s*(?:${PRINT_ONLY})?\s*$`);
-const AWK_PROGRAM_FILE = /^-[A-Za-z]*f$|^--file\b/;
-
 function awkLineRead(argv) {
-  if (argv.some((a) => AWK_PROGRAM_FILE.test(a))) return null;
-  const [program = '', ...files] = argv.filter((a) => !a.startsWith('-')).map(unquote);
+  const parsed = awkArgs(argv);
+  if (!parsed) return null;
+  const { program, files } = parsed;
   return AWK_LINE_READ.test(program) && files.length === 1 && isConcreteFile(files[0]) ? { files, pattern: null, regex: false } : null;
 }
 
@@ -128,7 +143,8 @@ export function readFileMsg({ command, files, q, chain = command, named = files 
 export function fedSearch(tool, argv, file) {
   if (GREP.test(tool)) return searchPaths(argv).length === 0 ? { files: [file], pattern: null, regex: false } : null;
   const positionals = argv.filter((a) => !a.startsWith('-'));
-  if (tool === 'sed' || tool === 'awk') return positionals.length === 1 ? addressSearch(tool, [...argv, file]) : null;
+  if (tool === 'sed') return positionals.length === 1 ? sedAddressSearch([...argv, file]) : null;
+  if (tool === 'awk') return awkArgs(argv)?.files.length === 0 ? awkSearch([...argv, file]) : null;
   const pathless = !argv.some((a) => PS_PATH.test(a)) && positionals.length <= 1;
   return (tool === 'select-string' || tool === 'sls') && pathless ? { files: [file], pattern: flagValue(argv, PS_PATTERN) || unquote(positionals[0] || '') || null, regex: true } : null;
 }
@@ -169,7 +185,7 @@ export function oneFileMsg(call) {
     'BLOCKED: a pattern search of a named file with a text tool (q code searches any file; Read shows it).',
     `  ${trunc(command)}`,
     '',
-    ...producerLines({ command: chain, files: named, filter: `grep -E ${quote(searchedPattern(call) || '<pattern>')}`, tool: 'Grep' }),
+    ...producerLines({ command: chain, files: named, filter: call.filter || `grep -E ${quote(searchedPattern(call) || '<pattern>')}`, tool: call.filter && !call.pattern ? 'Read' : 'Grep' }),
     ...logLeadLines(files),
     'Instead, call a tool, not Bash:',
     `  ${grepToolCall(files, searchedPattern(call))}`,

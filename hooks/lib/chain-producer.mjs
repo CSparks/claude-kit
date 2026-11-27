@@ -15,7 +15,7 @@ const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function redirectInto(file) {
   const target = escape(norm(file));
-  return new RegExp(`\\s*(?:1|&)?>>?\\s*["']?(?:\\./)?${target}["']?(?=\\s|$)`);
+  return new RegExp(`\\s*(?:1|&)?>>?\\s*["']?(?:\\./)?${target}["']?(?=[\\s);&|]|$)`);
 }
 
 // The command up to the end of the producing segment, so a leading `cd` or `mkdir` stays in the rewrite.

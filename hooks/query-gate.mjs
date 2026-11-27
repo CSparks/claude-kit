@@ -39,6 +39,7 @@ import { grepToolCommand } from './lib/grep-tool-command.mjs';
 import { grepToolLines, targetedLookLines } from './lib/grep-tool-note.mjs';
 import { pipedTreeMsg, pipedTreeSearch, targetsOnlyScratch } from './lib/pipe-tree-search.mjs';
 import { exemptFiles, fedFile, fedSearch, oneFileMsg, oneFileSearch, readFileMsg, readsOneFile } from './lib/one-file-search.mjs';
+import { awkTool } from './lib/awk-program.mjs';
 import { resolvedSegments, targetsOutsideRepos, unresolvedTargetNote } from './lib/search-outside.mjs';
 import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { FAMILIES } from '../scripts/code-graph-families.mjs';
@@ -48,7 +49,7 @@ const Q = join(KIT, 'scripts', 'q.mjs');
 const GRAPH = join(KIT, 'scripts', 'code-graph.mjs');
 
 // Text tools that READ/SEARCH file CONTENT (the wrong path for store + discovery).
-const SEARCH = /^(?:grep|egrep|fgrep|rg|ag|ack|sed|awk|findstr|select-string|sls)$/;
+const SEARCH = /^(?:grep|egrep|fgrep|rg|ag|ack|sed|[gmn]?awk|findstr|select-string|sls)$/;
 const READ = /^(?:cat|head|tail|type|get-content|gc)$/;
 const leadsSearch = (cmd) => commandLeads(cmd).some(({ tool, args }) => SEARCH.test(tool) || (tool === 'git' && gitCommand(args).sub === 'grep'));
 // Anything in the .ai work store — the data `q` owns. Tickets/decisions/etc. may also
@@ -177,7 +178,7 @@ function readsItemFile(c) {
   return (READ.test(tool) || tool === 'sed') && fileOperands(tool, tok.slice(1)).some((a) => STORE.test(a) && isItemPath(a));
 }
 
-const toolOf = (tok) => (tok[0] || '').replace(/.*[\\/]/, '').toLowerCase();
+const toolOf = (tok) => awkTool((tok[0] || '').replace(/.*[\\/]/, '').toLowerCase());
 
 // The one named non-store file a cat/head/tail/sed-range segment reads, or ''.
 function readsSourceFile(c) {
@@ -253,14 +254,14 @@ function judge(c, piped = false, base = '') {
   let tok = shellTokens(c);
   while (tok.length && (ENV_ASSIGNMENT.test(tok[0]) || tok[0] === 'env')) tok = tok.slice(1);
   if (!tok.length) return null;
-  let tool = tok[0].replace(/.*[\\/]/, '').toLowerCase(); // basename, lower
+  let tool = toolOf(tok); // basename, lower; gawk/mawk/nawk judged as awk
   // xargs feeds stdin as FILENAMES to its command — that command reads files, so
   // unwrap and judge IT, un-piped (`find ... | xargs grep x` is discovery, not a filter).
   if (tool === 'xargs') {
     tok = tok.slice(1);
     while (tok.length && tok[0].startsWith('-')) tok.shift();
     if (!tok.length) return null;
-    tool = tok[0].replace(/.*[\\/]/, '').toLowerCase();
+    tool = toolOf(tok);
     c = tok.join(' ');
     piped = false;
   }

@@ -1,5 +1,6 @@
 // KIT-T1342 (KIT-D134): a pattern search of ONE named file with a Bash text tool is q code --dir's, and reading a file is
-// Read's. The retrieval gate blocks grep/rg/git grep/sed -n '/x/p'/awk '/x/'/Select-String of one file (and cat f | grep f)
+// Read's. The retrieval gate blocks grep/rg/git grep/sed -n '/x/p'/an awk-family regex pattern (any awk over a saved log,
+// KIT-T1617)/Select-String of one file (and cat f | grep f)
 // with the exact q line; reads, output filters, scratch and outside-repo files, config/state store files, the Grep tool on
 // ONE file and the Read tool pass. Run: node hooks/query-gate-one-file.test.mjs
 
@@ -62,6 +63,20 @@ try {
     ['KIT-T1600: awk NR read after a cd chain', "cd crates && awk 'NR==5' x/src/lib.rs", BLOCK],
     ['KIT-T1600 control: awk NR read of piped output', "git log --oneline | awk 'NR==2'", PASS],
     ['KIT-T1600 control: awk NR with a field computation is not a plain read', "awk 'NR>1 {sum += $2} END {print sum}' data/a.csv", PASS],
+    ['KIT-T1617: awk field print of a saved log (the w2-moves form)', "awk '{print $6, $7}' target/w2-moves.txt | sort | uniq -c | sort -rn | head", BLOCK],
+    ['KIT-T1617: mawk field print of a .log file', "mawk '{print $2}' build.log", BLOCK],
+    ['KIT-T1617: gawk address search of one file', "gawk '/usePhysics/' src/a.cpp", BLOCK],
+    ['KIT-T1617: gawk NR line read of one file', "gawk 'NR==5' crates/x/src/lib.rs", BLOCK],
+    ['KIT-T1617: awk field match against a regex', "awk '$2 ~ /usePhysics/' src/a.cpp", BLOCK],
+    ['KIT-T1617: awk negated address', "awk '!/usePhysics/' src/a.cpp", BLOCK],
+    ['KIT-T1617: awk address after a BEGIN block', "awk 'BEGIN { n = 0 } /usePhysics/ { n++ } END { print n }' src/a.cpp", BLOCK],
+    ['KIT-T1617: awk -F with a separate value, then an address', "awk -F ',' '/usePhysics/' src/a.cpp", BLOCK],
+    ['KIT-T1617: awk -v with a separate value, then a line read', "awk -v want=5 'NR==5' crates/x/src/lib.rs", BLOCK],
+    ['KIT-T1617: cat of a saved log into an awk field print', "cat target/out.txt | awk '{print $2}'", BLOCK],
+    ['KIT-T1617: cat of one file into a gawk address search', "cat crates/x/src/lib.rs | gawk '/usePhysics/'", BLOCK],
+    ['KIT-T1617 control: awk field print of a command\'s own output', "cargo test -p x 2>&1 | awk '{print $6, $7}' | sort | uniq -c", PASS],
+    ['KIT-T1617 control: a regex inside an awk action is a substitution, not a search', "awk '{ gsub(/a/, \"b\"); print }' crates/x/src/lib.rs", PASS],
+    ['KIT-T1617 control: gawk field print of a source file', "gawk '{print $1}' crates/x/src/lib.rs", PASS],
     ['cargo output through grep and tail', "cargo test -p x 2>&1 | grep -E 'test result|FAILED' | tail -20", PASS],
     ['cargo output through grep -c', 'cargo build 2>&1 | grep -c warning', PASS],
     ['git log through grep', 'git log --oneline | grep physics', PASS],
@@ -106,7 +121,10 @@ try {
   const tailed = exact('cargo test -p x > target/out.txt 2>&1 ; tail -n 30 target/out.txt');
   ok('KIT-T1439: a log written then tailed in one chain names the tail filter and the Read tool',
     tailed.includes('cargo test -p x 2>&1 | tail -n 40') && tailed.includes('then the Read tool on target/out.txt'));
-  ok('KIT-T1439 control: a grep of a log no segment writes carries no "Nothing ran" lead', !/Nothing ran/.test(exact('grep -c ERROR target/build.log')));
+  const w2 = exact("cd rust && (cargo test -p t --test pairs -- --nocapture 2>&1 | grep -E 'W2 move' > target/w2-moves.txt); wc -l target/w2-moves.txt; awk '{print $6, $7}' target/w2-moves.txt | sort | uniq -c");
+  ok('KIT-T1617: an awk over a log written in the same chain names the awk program as the inline filter of the producer',
+    w2.includes("One call, the producer's own output filtered:") && w2.includes("2>&1 | awk '{print $6, $7}'") && /Read tool/.test(w2));
+  ok('KIT-T1439 control: a grep of a log no segment writes carries no "Nothing ran" lead',!/Nothing ran/.test(exact('grep -c ERROR target/build.log')));
   ok('KIT-T1439 control: a redirect into another file is not the producer', !/Nothing ran/.test(exact('cargo build > target/a.txt 2>&1; grep -c ERROR target/build.log')));
 
   mkdirSync(join(repo, 'crates', 'x', 'src'), { recursive: true });
