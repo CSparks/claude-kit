@@ -35,6 +35,8 @@ try {
   changed.agent.checks.push({ check: 'new-check', wants: ['x'], tokens: [{ form: '[new-tag: <x>]', meaning: 'y' }] });
   const text = gateDigest(changed).join('\n');
   ok('the digest follows the gate definitions: a changed or added check changes it', text.includes('patch-worker-discipline: [roots: <dirs>]') && text.includes('new-check: [new-tag: <x>]') && !text.includes('patch-worker-discipline: [paths:'));
+  const long = gateDigest({ g: { checks: [{ check: 'long', wants: ['x'], tokens: [{ form: '[long: <q inbox or q fts run>]', meaning: 'y' }], digest: [{ form: '[long: <q inbox or q fts run>]' }, { form: '[short: <his words>]' }, { form: '[list: <stashes, untracked files, patches read>]' }] }] } }).join('\n');
+  ok('a placeholder over three words keeps its first three, a dangling "or" or comma cut; a short one is whole', long.includes('[long: <q inbox …>] or [short: <his words>] or [list: <stashes, untracked files …>]'), long);
   const shared = { checks: [{ check: 'shared-check', wants: ['x'], tokens: [{ form: '[shared: <x>]', meaning: 'y' }] }] };
   const dedup = gateDigest({ one: shared, two: shared });
   ok('an entry two gates share is listed once, under the first', dedup.length === 2 && dedup[1].startsWith('one: shared-check:'));

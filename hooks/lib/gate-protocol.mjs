@@ -5,7 +5,7 @@
 //   gateText(name, { root }) -> the printable protocol, or null for an unknown name; with a root, the conformance row
 //     names the test the check matches in that checkout (KIT-T1098); the agent gate ends with the capability table's jobs
 //     and each agent type's default job (KIT-T1105);  gateNames() -> the gate names
-//   gateDigest(gates?) -> the few lines a compaction start prints: per gate, each check's tag form (KIT-T1053)
+//   gateDigest(gates?) -> the few lines a compaction start prints: per gate, each check's tag form, a long placeholder cut to its first words (KIT-T1053, KIT-T1615)
 
 import { LABEL_CHECK, LABEL_REQUIREMENTS } from './dispatch-label.mjs';
 import { TOKENS } from './gate-tokens.mjs';
@@ -146,6 +146,15 @@ function checkLines({ check, wants, tokens }, root) {
 
 const DIGEST_WIDTH = 128;
 const MODEL_HINT = /pass (model:[^;]*?) on every call/;
+const PLACEHOLDER = /<([^<>]*)>/g;
+const DIGEST_PLACEHOLDER_WORDS = 3;
+const DANGLING_JOINER = /(?:,|\s+or)$/;
+
+// A digest placeholder keeps its first few words (`<stashes, untracked files …>`); `q gates <name>` prints the whole form.
+const digestForm = (form) => form.replace(PLACEHOLDER, (whole, text) => {
+  const words = text.split(' ');
+  return words.length > DIGEST_PLACEHOLDER_WORDS ? `<${words.slice(0, DIGEST_PLACEHOLDER_WORDS).join(' ').replace(DANGLING_JOINER, '')} …>` : whole;
+});
 
 function wrapWords(words, width, indent) {
   const lines = [];
@@ -162,7 +171,7 @@ function digestEntries(gate) {
   for (const { check, wants, tokens, digest } of gate.checks) {
     if (!tokens.length) continue;
     const model = check === LADDER_CHECK ? (MODEL_HINT.exec(wants[0]) || [])[1] : null;
-    const form = `${model ? `${model} or ` : ''}${(digest || [tokens[0]]).map((t) => t.form).join(' or ')}`;
+    const form = `${model ? `${model} or ` : ''}${(digest || [tokens[0]]).map((t) => digestForm(t.form)).join(' or ')}`;
     byForm.set(form, [...(byForm.get(form) || []), check]);
   }
   return [...byForm].map(([form, checks]) => `${checks.join('/')}: ${form}`);
