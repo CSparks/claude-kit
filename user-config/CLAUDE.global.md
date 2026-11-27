@@ -69,7 +69,8 @@ tracked (`search-report.mjs`): the share of greps against q is a measured regres
   screenshot is never proof that geometry, layout or rendering is correct, and never a
   pass/fail gate. Validate with RAW DATA: numeric dumps, lints, metrics, structured
   exports (CSV/OBJ/JSON), invariant checks. The maintainer judges visuals finally; his
-  UAT overrides any finding.
+  UAT overrides any finding. Screenshots are the last smell test, never the first: find
+  and prove a fault with a numeric census over the whole world (road-generator RDG-D195).
 - Minimize prepositional phrases and adverbs.
 - **Compress every reply. Lead with the answer; cut preamble and process narration.**
   Tight bullets, one idea each. Expand only when asked or genuinely needed. A yes/no

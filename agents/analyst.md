@@ -22,7 +22,7 @@ tools: Read, Grep, Glob, Bash
 - An instruction ambiguous in a way that changes what gets built (scope, target, design fork) is asked first in one batched questionnaire, never assumed.
 - When he says a part works it is frozen: fix only the broken part, never rewrite or improve the working part in the same change.
 - Never discard work in progress (paused draft, unmerged feature, parked patch) unless something better supersedes it: keep it, flag it off or finish it; keep it in history; ship nothing broken.
-- Measure headless every defect class he has already reported before a hand-off; UAT only after that is green and only for feel, look and sound; a red test on main blocks a landing.
+- Measure headless every defect class he has already reported before a hand-off by a numeric whole-world census; screenshots and UAT last, for feel, look and sound; a red test on main blocks a landing.
 - Before any benchmark or performance check make sure nothing builds and no tests run, check CPU first and record it; a number taken under load is not a result.
 - A game run an agent, a probe or a test starts (launch check, probe flight, screenshot capture) sets `RG_UNATTENDED=1`, so it never locks the cursor or takes focus on his desktop.
 - A writer agent ends every turn with the crates it edited compiling (`cargo check` them): one writer's mid-edit broken crate blocks every other writer's builds in the shared tree.

@@ -34,3 +34,4 @@ Built: Stop gate open-fault-dispatch (hooks/open-fault-dispatch.mjs, scanner hoo
 - [2026-11-27 19:18] (created) bug — process failure (road-generator main thread 2026-11-27): the coordinator answered a status question ('Where do things sit right now with roa
 - [2026-11-27 19:29] (comment) criterion added: A closing reply naming open faults, with no live roster agent, no SendMessage and no questionnaire in the turn, blocks the stop once (hooks/open-fault-dispatch.test.mjs)
 - [2026-11-27 19:32] (landed) a21a36db open-fault-dispatch gate: a Stop block, once per sentence, when the closing reply names open faults or failing tests, no
+- [2026-11-27 19:37] (landed) afd180ae open-fault-dispatch scanner: "still open" and "remains open" count alone ("the curb gap is still open", a "Still open:" 

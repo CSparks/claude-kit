@@ -18,7 +18,7 @@ const REQUIRED = [
   /no ticket, decision, lever or run ids/, /commit hash only in the landing receipt/, /plain summary.*directly above AskUserQuestion, never inside it/,
   /Anything you need from the maintainer is a questionnaire/, /Record a rule or decision/, /process failure and kit bug.*dispatch a fix agent/,
   /ambiguous in a way that changes what gets built.*asked first in one batched questionnaire, never assumed/, /When he says a part works it is frozen/, /Never discard work in progress.*ship nothing broken/,
-  /Measure headless every defect class he has already reported.*red test on main blocks a landing/, /Before any benchmark or performance check make sure nothing builds and no tests run.*not a result/,
+  /Measure headless every defect class he has already reported.*numeric whole-world census.*screenshots and UAT last.*red test on main blocks a landing/, /Before any benchmark or performance check make sure nothing builds and no tests run.*not a result/,
   /Relay an agent's or hook's report in plain words/, /Tag values and forms.*come from `q gates agent`/, /Every path, id or number you write is one you just read/,
   /game run an agent, a probe or a test starts.*sets `RG_UNATTENDED=1`.*never locks the cursor or takes focus/,
   /writer agent ends every turn with the crates it edited compiling.*`cargo check` them.*blocks every other writer's builds/,
