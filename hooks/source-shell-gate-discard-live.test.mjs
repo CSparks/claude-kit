@@ -30,6 +30,11 @@ try {
   for (const command of everyday) check(`control: ${command} passes beside a live writer`, passes_(command));
   check('control: a config read beside a built-in command passes', passes_('git config --get user.name && git commit -m wip'));
   check('KIT-T1266: a config change stops beside a live writer: agents have no need to change shared git configuration', stops('git config user.name x && git commit -m wip'));
+  const wire = 'git config core.hooksPath .githooks';
+  const wireBlock = run(wire, 'S1', 'subAgent1').stderr;
+  check('KIT-T1609: a hooks-path write stops for an agent beside a live writer', blocked(run(wire, 'S1', 'subAgent1')), wireBlock);
+  check('KIT-T1609: its block names the read form and the route for the write', /--get <key>[^]*coordinator, who runs the same call once no other writer is live/.test(wireBlock), wireBlock);
+  check('KIT-T1609 control: the same write passes once no other writer is live', passes_(wire, 'S9', ''));
   check('control: a git call with no subcommand runs nothing and passes', passes_('git --version') && passes_('git'));
   const blockText = run('git frobnicate', 'S1').stderr;
   check('the block of an unknown subcommand names the part and the way out', /outside the allow-list[^]*git frobnicate, which is not a built-in[^]*written plainly/.test(blockText), blockText);
