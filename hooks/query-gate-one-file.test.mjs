@@ -124,6 +124,8 @@ try {
   const w2 = exact("cd rust && (cargo test -p t --test pairs -- --nocapture 2>&1 | grep -E 'W2 move' > target/w2-moves.txt); wc -l target/w2-moves.txt; awk '{print $6, $7}' target/w2-moves.txt | sort | uniq -c");
   ok('KIT-T1617: an awk over a log written in the same chain names the awk program as the inline filter of the producer',
     w2.includes("One call, the producer's own output filtered:") && w2.includes("2>&1 | awk '{print $6, $7}'") && /Read tool/.test(w2));
+  ok('KIT-T1617: the rewrite keeps a stderr merge inside the producer, so its stderr still passes its own filter',
+    w2.includes("--nocapture 2>&1 | grep -E 'W2 move' )"));
   ok('KIT-T1439 control: a grep of a log no segment writes carries no "Nothing ran" lead',!/Nothing ran/.test(exact('grep -c ERROR target/build.log')));
   ok('KIT-T1439 control: a redirect into another file is not the producer', !/Nothing ran/.test(exact('cargo build > target/a.txt 2>&1; grep -c ERROR target/build.log')));
 

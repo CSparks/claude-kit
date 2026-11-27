@@ -24,7 +24,7 @@ export function chainProducer(command, file) {
   const m = redirectInto(file).exec(text);
   if (!m) return null;
   const rest = text.slice(m.index + m[0].length).split(SEGMENT_SPLIT)[0];
-  return `${text.slice(0, m.index)} ${rest}`.replace(STDERR_MERGE, '').replace(/\s+/g, ' ').trim() || null;
+  return `${text.slice(0, m.index)} ${rest.replace(STDERR_MERGE, '')}`.replace(/\s+/g, ' ').trim() || null;
 }
 
 export function producerLines({ command, files, filter, tool }) {
