@@ -20,7 +20,7 @@
 
 import { resolve } from 'node:path';
 import { payload, git, gitRoot, pathExcluded, markerExcludedLines, excludeFooter } from './lib.mjs';
-import { AMBIGUOUS_MESSAGE, segments, shellOfTool } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, segments } from './lib/shell-segments.mjs';
 import { foreignSubmissions, policyToken, pushedRepos, slugOf, CLAUDE_TRAILER, POLICY_URLS } from './lib/upstream-policy.mjs';
 import { pushHookStatus, wireCommand } from './lib/push-hooks.mjs';
 import { unpushedPinMessage, unpushedPins } from './lib/push-pins.mjs';
@@ -112,10 +112,10 @@ const wiringBlock = (lines) => {
 
 // A `git push` whose repo tracks a pre-push gate that git is not set to run is blocked with the command that wires it; a git
 // call that fails is blocked too (KIT-T1300). A repo with no tracked pre-push is untouched.
-function checkPushHooks(command, shell) {
+function checkPushHooks(command) {
   let repos;
   try {
-    repos = pushedRepos(command, process.cwd(), ctx, { shell });
+    repos = pushedRepos(command, process.cwd(), ctx);
   } catch (e) {
     if (/\bgit(?:\.exe)?\b[^\n]*\bpush\b/.test(command)) wiringBlock([`the repo of this git push could not be found, so its pre-push wiring was not checked (${e.message}).`]);
     return;
@@ -140,9 +140,9 @@ function checkPushHooks(command, shell) {
 
 // A `git push` of a superproject whose HEAD points a submodule at a commit the submodule's remote lacks is blocked, naming
 // the submodule push to do first (KIT-T1363). A repo with no submodule is untouched; a git error never blocks.
-function checkPushPins(command, shell) {
+function checkPushPins(command) {
   let repos = [];
-  try { repos = pushedRepos(command, process.cwd(), ctx, { shell }); } catch { return; }
+  try { repos = pushedRepos(command, process.cwd(), ctx); } catch { return; }
   for (const { dir } of repos) {
     const top = gitRoot(dir);
     const pins = top ? unpushedPins(top).filter((pin) => !pathExcluded(top, PIN_CHECK_ID, pin.path)) : [];
@@ -154,11 +154,11 @@ function checkPushPins(command, shell) {
 
 // A `git push` of a superproject whose submodule checkout is not at the commit HEAD records is blocked, naming the steps in
 // order (KIT-T1447). A repo with no submodule drift is untouched; any error never blocks.
-function checkPushDrift(command, shell) {
+function checkPushDrift(command) {
   try {
     const marks = markerExcludedLines(command, DRIFT_CHECK_ID);
     if (marks.wholeFile || marks.lines.size) return;
-    for (const { dir } of pushedRepos(command, process.cwd(), ctx, { shell })) {
+    for (const { dir } of pushedRepos(command, process.cwd(), ctx)) {
       const top = gitRoot(dir);
       const drifts = top ? submoduleDrift(top).filter((d) => !pathExcluded(top, DRIFT_CHECK_ID, d.path)) : [];
       if (!drifts.length) continue;
@@ -181,8 +181,7 @@ try {
   }
 
   const token = policyToken(command);
-  const shell = shellOfTool(p.tool_name);
-  for (const sub of upstreamMarked ? [] : foreignSubmissions(command, process.cwd(), ctx, { shell })) {
+  for (const sub of upstreamMarked ? [] : foreignSubmissions(command, process.cwd(), ctx)) {
     if (pathExcluded(gitRoot(sub.dir), CHECK_ID, sub.slug)) continue;
     if (!token) { process.stderr.write(NO_TOKEN(sub) + excludeFooter(CHECK_ID)); process.exit(2); }
     if (token.aiAllowed) continue;
@@ -191,9 +190,9 @@ try {
     if (hits.length) { process.stderr.write(AI_FOUND(sub, hits) + excludeFooter(CHECK_ID)); process.exit(2); }
     process.stderr.write(`upstream-policy: ${sub.kind} to ${sub.slug} is ai-allowed: no. The title, body and comments must be the maintainer's own words.\n`);
   }
-  checkPushHooks(command, shell);
-  checkPushPins(command, shell);
-  checkPushDrift(command, shell);
+  checkPushHooks(command);
+  checkPushPins(command);
+  checkPushDrift(command);
   process.exit(0);
 } catch {
   process.exit(0);

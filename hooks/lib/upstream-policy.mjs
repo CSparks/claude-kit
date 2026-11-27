@@ -7,9 +7,7 @@
 //   ctx.defaultRemote(dir)  -> name | ''                  where a bare `git push` goes
 //   ctx.ghResolved(dir)     -> 'owner/repo' | remote name | ''   `gh repo set-default` choice
 
-import { segments, toPath } from './shell-segments.mjs';
-import { locationMove, locationWalk } from './location-move.mjs';
-import { isDirectory } from './shell-cwd.mjs';
+import { segments, cdTarget, toPath } from './shell-segments.mjs';
 import { tokenize } from './branch-ops.mjs';
 import { gitCommand } from './git-subcommand.mjs';
 import { MAX_NESTING, commandRuns } from './lead-command-walk.mjs';
@@ -77,54 +75,47 @@ function pushTarget(toks, dir, ctx) {
 }
 
 // Every submission in `command` aimed at a repo the account does not own:
-// [{ kind: 'gh pr create' | 'git push' | ..., slug, remote, dir }]. `shell` (shellOfTool) names the shell that runs the
-// command: only its own location verbs move the directory (KIT-T1601); '' reads every shell's.
-export function foreignSubmissions(command, cwd, ctx, { shell = '' } = {}) {
+// [{ kind: 'gh pr create' | 'git push' | ..., slug, remote, dir }].
+export function foreignSubmissions(command, cwd, ctx) {
   const out = [];
-  collectSubmissions(String(command), cwd, ctx, out, 0, false, shell);
+  collectSubmissions(String(command), cwd, ctx, out, 0, false);
   return out;
 }
 
 // The directory of every `git push` in `command`, whoever owns the remote: [{ dir }] (the pre-push wiring check, KIT-T1300).
-export function pushedRepos(command, cwd, ctx, { shell = '' } = {}) {
+export function pushedRepos(command, cwd, ctx) {
   const out = [];
-  collectSubmissions(String(command), cwd, ctx, out, 0, true, shell);
+  collectSubmissions(String(command), cwd, ctx, out, 0, true);
   return out.filter((f) => f.kind === 'git push').map(({ dir }) => ({ dir }));
 }
 
-// One command text: each segment, then the command strings it runs (`bash -c`, `pwsh -Command`, `ssh`, `eval`, substitutions),
-// each with the shell that runs it, from every directory the segments before it may have reached (location-move.mjs): a
-// submission is judged once per candidate directory, so any candidate that refuses refuses the command.
-function collectSubmissions(command, start, ctx, out, depth, every, shell) {
-  const walk = locationWalk(start, { resolveDir: ctx.resolveDir, isDirectory: ctx.isDirectory || isDirectory });
+// One command text: each segment, then the command strings it runs (`bash -c`, `ssh`, `eval`, substitutions), each from
+// the directory the segments before it reached.
+function collectSubmissions(command, cwd, ctx, out, depth, every) {
+  let dir = cwd;
   for (const { text } of segments(command)) {
     const seg = text.trim();
     if (!seg) continue;
-    if (depth < MAX_NESTING) commandRuns(seg, shell).forEach((run) => collectSubmissions(run.text, walk.dirs(), ctx, out, depth + 1, every, run.shell));
-    const move = locationMove(seg, shell);
-    if (move) { walk.step(move); continue; }
-    for (const dir of walk.dirs()) {
-      const found = submissionIn(seg, dir, ctx);
-      if (found && (every || (found.slug && !isOwnSlug(found.slug)))) out.push(found);
+    const cd = cdTarget(seg);
+    if (cd) { dir = ctx.resolveDir(dir, cd); continue; }
+    if (depth < MAX_NESTING) commandRuns(seg, '').forEach((run) => collectSubmissions(run.text, dir, ctx, out, depth + 1, every));
+    const toks = tokenize(seg);
+    const env = {};
+    while (toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[0])) { const [k, ...v] = toks.shift().split('='); env[k] = v.join('='); }
+    const bin = (toks.shift() || '').replace(/^.*[\\/]/, '').replace(/\.exe$/i, '');
+    let found = null;
+    if (bin === 'gh' && GH_SUBMIT.has(`${toks[0]} ${toks[1]}`)) {
+      const slug = ghRepoFlag(toks) || env.GH_REPO || urlSlug(toks);
+      const base = slug ? { slug, remote: ctx.remotes(dir).find((r) => slugOf(r.url).toLowerCase() === slug.toLowerCase()) || null } : ghDefaultRemote(dir, ctx);
+      found = { kind: `gh ${toks[0]} ${toks[1]}`, ...base };
+    } else if (bin === 'git') {
+      const call = gitCommand(toks);
+      const segDir = call.options.filter(({ flag }) => flag === '-C').reduce((d, { value }) => ctx.resolveDir(d, toPath(value)), dir);
+      if (call.sub === 'push') found = { kind: 'git push', ...pushTarget(call.args, segDir, ctx) };
+      if (found) found.dir = segDir;
     }
+    if (found && (every || (found.slug && !isOwnSlug(found.slug)))) out.push({ ...found, dir: found.dir || dir });
   }
-}
-
-// The submission one segment makes when run in `dir`: { kind, slug, remote, dir } or null.
-function submissionIn(seg, dir, ctx) {
-  const toks = tokenize(seg);
-  const env = {};
-  while (toks.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(toks[0])) { const [k, ...v] = toks.shift().split('='); env[k] = v.join('='); }
-  const bin = (toks.shift() || '').replace(/^.*[\\/]/, '').replace(/\.exe$/i, '');
-  if (bin === 'gh' && GH_SUBMIT.has(`${toks[0]} ${toks[1]}`)) {
-    const slug = ghRepoFlag(toks) || env.GH_REPO || urlSlug(toks);
-    const base = slug ? { slug, remote: ctx.remotes(dir).find((r) => slugOf(r.url).toLowerCase() === slug.toLowerCase()) || null } : ghDefaultRemote(dir, ctx);
-    return { kind: `gh ${toks[0]} ${toks[1]}`, ...base, dir };
-  }
-  if (bin !== 'git') return null;
-  const call = gitCommand(toks);
-  const segDir = call.options.filter(({ flag }) => flag === '-C').reduce((d, { value }) => ctx.resolveDir(d, toPath(value)), dir);
-  return call.sub === 'push' ? { kind: 'git push', ...pushTarget(call.args, segDir, ctx), dir: segDir } : null;
 }
 
 export const CLAUDE_TRAILER = /^(?:co-authored-by:\s*claude\b|claude-session:)|noreply@anthropic\.com|generated with \[?claude code|claude\.ai\/code\/session/im;
