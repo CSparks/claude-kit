@@ -39,7 +39,10 @@ const REPORTS = [
   ['open bugs', 'There are three open bugs in the lane builder.'],
   ['outstanding issues', 'Outstanding issues: the kerb return overlap and the bridge seam.'],
   ['unfixed', 'The white rectangle at launch is unfixed.'],
-  ['the incident status answer', 'Roads: the junction kerbs land; the known faults still open are the start-up freeze and the curb gap.'],
+  ['a named fault still open with no fault noun', 'The curb gap at the junction is still open.'],
+  ['a still-open heading with a list', 'Still open:\n- the curb gap\n- the kerb return overlap'],
+  ['a not-fixed fault beside a fixed one', 'The bridge seam is fixed, but the curb gap is not fixed.'],
+  ['the incident status answer','Roads: the junction kerbs land; the known faults still open are the start-up freeze and the curb gap.'],
 ];
 const NOT_REPORTS = [
   ['no known faults', 'There are no known faults on the roads.'],
@@ -51,6 +54,9 @@ const NOT_REPORTS = [
   ['the gate named by id', 'The open-fault-dispatch gate landed.'],
   ['a plain landing', 'The lane host now caches its output.'],
   ['all fixed', 'All three bugs are fixed.'],
+  ['a known fault described as fixed', 'The known fault at the junction is fixed.'],
+  ['a fix of an open bug', 'Fixed the open bug in the lane builder.'],
+  ['a pull request still open', 'The pull request is still open.'],
 ];
 
 try {

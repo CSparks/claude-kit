@@ -4,28 +4,35 @@
 //
 //   openFaultReports(text) -> [{ sentence, phrase }] the sentences that say a fault is open, oldest first
 //
-// A sentence counts when it names an open state of a fault: "known faults", "open bugs", "the freeze is still open",
-// "not fixed", "unfixed", "still broken". "still open", "outstanding" and "remains" count beside a fault noun only, so
-// "the questionnaire is still open" is no report. The reply is read in its own voice (lib/prose-ask.mjs ownVoice):
-// fenced and inline code, blockquotes and double-quoted text never count. A negated fault ("no known faults", "nothing
-// open") and talk about the gate itself are no report. Red tests are read by lib/red-test-report.mjs, not here.
+// A sentence counts when it names an open state of a fault: "known faults", "open bugs", "the curb gap is still open",
+// "Still open:", "not fixed", "unfixed", "still broken". "outstanding", "open" and "remains" count beside a fault noun
+// only. The reply is read in its own voice (lib/prose-ask.mjs ownVoice): fenced and inline code, blockquotes and
+// double-quoted text never count. No report: a negated fault ("no known faults", "nothing open"), a fix description
+// ("the known fault is fixed") with no still-open phrase, a non-fault thing still open ("the questionnaire is still
+// open"), and talk about the gate itself. Red tests are read by lib/red-test-report.mjs, not here.
 
 import { ownVoice } from './prose-ask.mjs';
 
 const FAULT_NOUN = '(?:faults?|bugs?|defects?|regressions?|issues?|crash(?:es)?|freezes?|hangs?|panics?|glitch(?:es)?|breakages?|problems?)';
 const FAULT = new RegExp(`\\b${FAULT_NOUN}\\b`, 'i');
 
+const STILL_OPEN = /\bnot (?:yet )?(?:fixed|resolved|repaired)\b|\bunfixed\b|\bunresolved\b|\bstill (?:open|broken|failing|crash\w*|freez\w*|hang\w*)\b|\bremains? open\b/i;
 const ALWAYS_OPEN = [
   new RegExp(`\\b(?:known|open|outstanding|unfixed|unresolved|remaining)\\s+(?:\\w+\\s+){0,2}?${FAULT_NOUN}\\b`, 'i'),
-  /\bnot (?:yet )?(?:fixed|resolved|repaired)\b|\bunfixed\b|\bunresolved\b|\bstill (?:broken|failing|crash\w*|freez\w*|hang\w*)\b/i,
+  STILL_OPEN,
 ];
-const OPEN_BESIDE_FAULT = /\bstill open\b|\bremains? open\b|\bremain(?:s|ing)?\b|\boutstanding\b|\bopen\b/i;
+const OPEN_BESIDE_FAULT = /\bremain(?:s|ing)?\b|\boutstanding\b|\bopen\b/i;
+const FIXED = /\b(?:fixed|resolved|repaired|closed)\b/i;
+const OPEN_THING = /\b(?:questionnaires?|questions?|decisions?|pull requests?|PRs?|prompts?|dialogs?|windows?|tabs?|sessions?|branch(?:es)?|polls?|ports?|connections?|discussions?|threads?|files?)\b[^.!?;]{0,30}\b(?:still|remains?) open\b/i;
 
 const NOT_A_REPORT = [
   new RegExp(`\\b(?:no|zero|none|nothing|without|never|0)\\s+(?:\\w+\\s+){0,2}?(?:${FAULT_NOUN}|open|outstanding|remain\\w*)\\b`, 'i'),
   /\b(?:all|every|each)\s+(?:\w+\s+){0,2}?(?:fixed|resolved|closed)\b/i,
+  OPEN_THING,
   /\bopen[- ]faults?[- ](?:gate|check|hook|rule|report|scanner)\b|\bidle[- ]turn (?:gate|check)\b/i,
 ];
+
+const isFixDescription = (sentence) => FIXED.test(sentence) && !STILL_OPEN.test(sentence);
 
 const KEBAB_ID = /\b[\w]+(?:-[\w]+){2,}\b/g;
 const SENTENCE_BREAK = /(?<=[.!?;])\s+|\n+/;
@@ -33,7 +40,7 @@ const squash = (s) => s.replace(/\s+/g, ' ').trim();
 
 function phraseOf(sentence) {
   const bare = sentence.replace(KEBAB_ID, ' ');
-  if (NOT_A_REPORT.some((re) => re.test(bare))) return null;
+  if (isFixDescription(bare) || NOT_A_REPORT.some((re) => re.test(bare))) return null;
   for (const re of ALWAYS_OPEN) {
     const m = re.exec(bare);
     if (m) return m[0];

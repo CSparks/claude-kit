@@ -32,3 +32,4 @@ Fixed narrowly: a command that is the subject of a describing present-tense verb
 
 ## History
 - [2026-11-27 19:19] (created) bug — readonly-orders dispatch check misfires on a descriptive mention: a brief to claude-kit:analyst saying 'Today cargo r builds these into the
+- [2026-11-27 19:34] (landed) d20c6473 readonly-orders: a command that is the subject of a describing verb ("Today cargo r builds these into the maintainer's g
