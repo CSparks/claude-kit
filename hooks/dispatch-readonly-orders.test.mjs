@@ -23,6 +23,10 @@ const ORDERS = [
   ['npm test', 'Then npm test in the app folder.'],
   ['a test file', 'Run node hooks/foo.test.mjs once.'],
   ['a run order beside a cited command', 'The log shows cargo test failed. Now run cargo test -p x and report.'],
+  ['a run order beside a described command', 'Today cargo r builds these into the maintainer\'s game. Run cargo r and report what it builds.'],
+  ['a run order whose command is followed by a verb', 'Run cargo test -p x prints nothing; read the output.'],
+  ['an order to verify what a command builds', 'Check that cargo r builds these into the maintainer\'s game.'],
+  ['an order to confirm a command passes', 'Confirm cargo test -p x passes on main.'],
 ];
 for (const [name, prompt] of ORDERS) {
   for (const type of ['claude-kit:analyst', 'claude-kit:analyst-max', 'claude-kit:researcher', 'claude-kit:code-reviewer', 'analyst']) {
@@ -40,6 +44,9 @@ const PASSING = [
   ['a blockquote of command output', '> cargo test -p x\n> test result: FAILED. 3 passed; 4 failed\n\nExplain the failure from the source.'],
   ['a sentence with no command', 'Trace how the lane host caches its output and name the file that owns it.'],
   ['the word cargo as a noun', 'Trace the cargo manifest handling in the workspace loader.'],
+  ['the incident: a sentence describing what cargo r builds', 'Today cargo r builds these into the maintainer\'s game.'],
+  ['a described command with flags', 'cargo build -p road-generator --release produces the shipped exe.'],
+  ['a described restore-tree', 'restore-tree puts the named folder back at an old commit.'],
 ];
 for (const [name, prompt] of PASSING) check(`passes ${name} for analyst-max`, block('claude-kit:analyst-max', prompt) === null);
 

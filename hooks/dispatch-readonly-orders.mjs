@@ -4,7 +4,8 @@
 // dispatch. The brief is refused up front and pointed at the writer-capable types (implementer, perf-tuner).
 //
 // An order is `cargo <verb>`, `builds --run`, `restore-tree`, "run the tests", `npm test`, `node x.test.mjs`. A clause that forbids
-// it ("do not run cargo"), a clause that cites it as evidence or says another agent runs it, and a blockquote line are no order.
+// it ("do not run cargo"), a clause that cites it as evidence or says another agent runs it, a command that is the subject of a
+// describing verb ("cargo r builds these into the game", KIT-T1612) and a blockquote line are no order.
 //
 //   readOnlyOrders(prompt)                          -> the ordered commands found, [] when none
 //   readOnlyOrdersBlock({ type, prompt, footer })   -> block message | null (check `readonly-orders`)
@@ -37,6 +38,16 @@ const EVIDENCE = [
   /\b(?:another agent|the (?:coordinator|orchestrator|implementer|perf-tuner|main thread|maintainer)|a writer)\s+(?:will\s+|already\s+|then\s+)?(?:run|runs|ran|has run)\b/i,
 ];
 
+// A command that is the subject of a present-tense verb describes what it does ("cargo r builds these into the game",
+// "cargo build -p x --release produces the exe"), unless a run word stands right before it or the clause asks the agent to
+// verify it ("check that cargo r builds the game").
+const DESCRIBING_VERBS = 'builds|compiles|runs|produces|prints|writes|makes|creates|emits|outputs|generates|bakes|packs|loads|starts|launches|opens|puts|turns|takes|reads|ships|links|does';
+const DESCRIBED = new RegExp(String.raw`^(?:\s+-{1,2}[\w-]+(?:[= ][^\s-][^\s.,;]*)?)*\s+(?:${DESCRIBING_VERBS})\b`, 'i');
+const RUN_WORD_BEFORE = new RegExp(String.raw`\b${RUN_WORDS}\s*$`, 'i');
+const VERIFY_ORDER = /\b(?:check|confirm|verify|ensure|make sure|see (?:if|whether)|test (?:that|whether)|prove)\b/i;
+
+const described = (text, m, before) => DESCRIBED.test(text.slice(m.index + m[0].length)) && !RUN_WORD_BEFORE.test(before) && !VERIFY_ORDER.test(before);
+
 const clauseAround = (text, index, length) => {
   const before = text.slice(0, index).split(CLAUSE_END).pop();
   const after = text.slice(index + length).split(CLAUSE_END)[0];
@@ -45,7 +56,7 @@ const clauseAround = (text, index, length) => {
 
 function ordered(text, m) {
   const { before, clause } = clauseAround(text, m.index, m[0].length);
-  return !NEGATION.test(before.slice(-NEGATION_REACH)) && !EVIDENCE.some((re) => re.test(clause));
+  return !NEGATION.test(before.slice(-NEGATION_REACH)) && !EVIDENCE.some((re) => re.test(clause)) && !described(text, m, before);
 }
 
 export function readOnlyOrders(prompt) {
