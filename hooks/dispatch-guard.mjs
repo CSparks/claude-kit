@@ -31,7 +31,7 @@
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { payload, gitRoot, adopted, pathExcluded, excludeFooter, readAgents, partitionAgents } from './lib.mjs';
+import { payload, gitRoot, adopted, pathExcluded, excludeFooter } from './lib.mjs';
 import { isWorktreeIsolation, dispatchTarget, dispatchTargetRoot, rowSharesTree } from './dispatch-target.mjs';
 import { declaredReadOnly, ownsWork, readOnlyDispatch, readOnlyRow } from './dispatch-readonly.mjs';
 import { ladderRoot } from '../scripts/dispatch-ladder.mjs';
@@ -43,7 +43,7 @@ import { BROKER_OWNED_CHECK, blockingLane, brokerOwnedMessage, brokerConfig } fr
 import { WORKER_CHECK, overlapOnlyBlocker, workerAdvice, workerBlock, workerPaths } from './dispatch-worker.mjs';
 import { queueDispatch } from './lib/queued-dispatch.mjs';
 import { sharedTreeBlock } from './dispatch-shared-tree.mjs';
-import { stoppedByHarness } from './lib/subagent-transcript.mjs';
+import { liveRosterRows } from './lib/live-roster.mjs';
 import { SUPERSEDED_CHECK, supersededCitationWarning } from './dispatch-superseded.mjs';
 import { DIFFICULTY_CHECK, difficultyCheck } from './dispatch-difficulty.mjs';
 import { TREE_PROJECT_CHECK, treeProjectBlock } from './dispatch-tree-project.mjs';
@@ -74,10 +74,6 @@ import { labelBlockText, labelProblems } from './lib/dispatch-label.mjs';
 // a worktree or a second writer; an empty token does not count.
 const MAINTAINER_PARALLEL = TOKENS.maintainerParallel.pattern;
 const MAINTAINER_WORKTREE = TOKENS.maintainerWorktree.pattern;
-// An in-flight roster row older than this is treated as abandoned, not as a live colleague: the
-// harness cannot always report a background agent's completion, so an uncollected row would
-// otherwise wedge every later dispatch in the repo.
-const SHARED_TREE_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 try {
   const p = await payload();
@@ -469,24 +465,13 @@ function namesWorktree(prompt) {
   return false;
 }
 
-// The roster's rows that are genuine COLLEAGUES IN `tree`: in-flight (no terminal row), young
-// enough to still be running, and landing in this same checkout — not off in their own worktree,
-// not aimed at another repo (KIT-T177; the roster is session-scoped, the rule is tree-scoped).
-// Reads through lib's roster accessor — the same path agent-roster.mjs writes, so a centralized
-// .ai/ (junction to the data repo) resolves identically. FAIL-OPEN: a missing/corrupt roster,
-// or a row with no parseable timestamp, yields nothing to block on.
-//
-// A row whose agent the harness stopped (its transcript ends on the interruption turn) is not counted, decided at read
-// time so a SendMessage resume counts again (KIT-T1356). RESIDUAL: a row whose agent died with no such trace still counts
-// until the stale window ages it out; the block message names the main thread's `claims --release` to end it.
+// The roster's live rows (lib/live-roster.mjs) that are genuine COLLEAGUES IN `tree`: landing in this same checkout,
+// not off in their own worktree, not aimed at another repo (KIT-T177; the roster is session-scoped, the rule is
+// tree-scoped). A row whose agent died with no trace still counts until the live window ages it out; the block message
+// names the main thread's `claims --release` to end it.
 function liveAgents(root, nowMs, tree) {
   try {
-    const { inFlight } = partitionAgents(readAgents(root), nowMs);
-    return inFlight.filter((r) => {
-      const t = Date.parse(r.firstSeen || r.ts || '');
-      if (!Number.isFinite(t) || nowMs - t >= SHARED_TREE_WINDOW_MS) return false;
-      return rowSharesTree(r, tree) && !stoppedByHarness(r);
-    });
+    return liveRosterRows(root, nowMs).filter((r) => rowSharesTree(r, tree));
   } catch {
     return [];
   }

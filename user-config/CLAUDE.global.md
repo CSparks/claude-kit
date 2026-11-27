@@ -319,6 +319,8 @@ Ground before you propose: query the store, code graph and manifest and assume i
 anchoring a port, enumerate every candidate implementation and pick the reference on evidence.
 A red test in a hand-back or capture is a fault, not a note: dispatch a fix agent per failure group the same turn, or say the fix
 agent already runs; the Stop gate `red-test-dispatch` blocks once on a reply or capture naming failing tests with no dispatch (KIT-T1484).
+While known faults are open, keep an agent on them; a status answer or a relayed report never ends the turn idle: the Stop gate
+`open-fault-dispatch` blocks once on a reply naming open faults with no live agent and no questionnaire (KIT-T1611, RDG-D194).
 ONE standing kit agent (a writer in the claude-kit checkout, reused warm) takes kit fixes whole (diagnosis, fix, tests,
 publish); the orchestrator does no inline kit diagnosis: it files, dispatches and relays the runtime sha. Orient lists
 open kit tickets as OPEN notices: dispatch each now.
