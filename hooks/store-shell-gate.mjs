@@ -6,8 +6,8 @@
 // exit 2 = block, 0 = allow. No-ops on unadopted repos. Fails open on any error.
 
 import { payload, gitRoot, adopted, excludeFooter, pathExcluded } from './lib.mjs';
-import { describeAmbiguity, shellStoreWrite } from './lib/store-shell-write.mjs';
-import { AMBIGUOUS_MESSAGE, shellOfTool } from './lib/shell-segments.mjs';
+import { shellStoreWrite } from './lib/store-shell-write.mjs';
+import { AMBIGUOUS_MESSAGE, describeAmbiguity, shellOfTool } from './lib/shell-segments.mjs';
 
 const CHECK = 'store-shell-write';
 

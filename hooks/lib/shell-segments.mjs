@@ -26,6 +26,10 @@ export { readsTypographicQuote, TYPOGRAPHIC_QUOTE } from './shell-lexer.mjs';
 
 export const AMBIGUOUS_MESSAGE = 'Ambiguous shell quoting: rewrite the command without escaped quotes, or put the code in a scratchpad file.';
 
+// The one line a block prints for an ambiguity = { reason, at, span, trigger }: the construct, where it starts,
+// its text, and the write word or operator the scan saw ('' when there is none).
+export const describeAmbiguity = (a) => (a ? `Ambiguous span: ${a.reason} at character ${a.at}, near "${a.span}"; the write word that made it a hit: "${a.trigger}".` : '');
+
 // The text between the operator tokens, each piece tagged with the operator before it.
 function pieces(text, tokens) {
   const out = [];

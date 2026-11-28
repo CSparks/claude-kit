@@ -32,7 +32,7 @@ import { gitRootOfFileChecked } from './lib/paths.mjs';
 import { isGeneratedPath, isSourcePath, shellSourceWrites } from './lib/shell-source-write.mjs';
 import { hitPathResolver } from './lib/hit-path-variables.mjs';
 import { buildOutputJudge, ignoreEditMentioned, markerMentioned } from './lib/build-output.mjs';
-import { AMBIGUOUS_MESSAGE, shellOfTool, toPath } from './lib/shell-segments.mjs';
+import { AMBIGUOUS_MESSAGE, describeAmbiguity, shellOfTool, toPath } from './lib/shell-segments.mjs';
 import { commandCwd } from './lib/shell-cwd.mjs';
 import { landsOutsideRepo } from './lib/lands-outside-repo.mjs';
 import { deleteJudgement } from './lib/delete-judge.mjs';
@@ -48,6 +48,7 @@ import { subagentId } from './lib/subagent-id.mjs';
 import { repoRelative } from './turn-writes.mjs';
 
 const CHECK = 'source-shell-write';
+const SINGLE_QUOTE_WORKAROUND = 'Workaround: put the whole command text inside single quotes, with no backticks or escaped quotes in it.';
 
 try {
   const p = await payload();
@@ -92,7 +93,7 @@ try {
       : `a shell command ${found.deletes ? 'deletes' : 'writes'} a source file by hand (${found.path})${found.token ? `, matched the word \`${found.token}\`` : ''}.`;
     const couldNot = incomplete ? `  The check could not complete (${incomplete}), and a check that cannot complete refuses. Retry once git runs and the registry of live writers reads.\n` : '';
     process.stderr.write(`
-BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}` : what}
+BLOCKED: ${found.ambiguous ? `a shell command may write a source file by hand. ${AMBIGUOUS_MESSAGE}\n  ${describeAmbiguity(found.ambiguity)}\n  ${SINGLE_QUOTE_WORKAROUND}` : what}
 ${couldNot}${copyVariableAdvice(found.copyVariable, shell)}${deleteGuidance(refusal, { path: found.path, cwd, operand: found.unresolved, verb: found.discard, what: found.sweep, mainThread: isMainThread(caller), holders: refusal === DELETE_REFUSALS.liveWriter ? liveWriterNames(root, rel, caller) : [] })}${found.launcherProblem ? LAUNCHER_ADVICE : writeAdvice(found, file)}
 ${excludeFooter(CHECK)}`);
     process.exit(2);

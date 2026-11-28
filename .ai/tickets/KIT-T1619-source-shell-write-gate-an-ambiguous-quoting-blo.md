@@ -8,7 +8,7 @@ milestone:
 labels: [kit-bug]
 links: []
 files: []
-supersedes:
+supersedes: KIT-T1620
 superseded_by:
 created: 2026-11-27T23:18:11Z
 updated: 2026-11-27T23:18:11Z

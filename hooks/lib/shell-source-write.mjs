@@ -4,7 +4,7 @@
 // This is the shell twin of pre-write's code checks (check-id source-shell-write, KIT-T648).
 //
 //   shellSourceWrites(command, { readScript, tempDir, shell }) -> [{ path, ambiguous?, outsideTo? }]   every hit
-//     ambiguous: the quoting could not be split and the command holds a write token (KIT-T705)
+//     ambiguous: the quoting could not be split and the command holds a write token (KIT-T705); ambiguity = { reason, at, span, trigger }
 //     outsideTo: a proven cp/mv source operand; the gate lifts it when that destination leaves the repo
 //     deletes: an operand of rm, del, erase, unlink or Remove-Item, or of a git call that deletes or hides files (`discard`: the
 //       verb, git-discards.mjs); the gate lifts it for an untracked file the caller wrote
@@ -46,7 +46,7 @@ export function shellSourceWrites(command, { readScript = readTempScript, tempDi
     for (const m of code.replace(MODULE_SPECIFIER, ' ').matchAll(QUOTED_SOURCE)) { const h = hit(m[1]); if (h) return h; }
     return null;
   };
-  return scanAllShellWrites(command, { hit, codeHit, readScript, exemptByDestination: true, removals: REMOVALS, shell, ambiguous: () => ({ path: AMBIGUOUS_PATH, ambiguous: true }) });
+  return scanAllShellWrites(command, { hit, codeHit, readScript, exemptByDestination: true, removals: REMOVALS, shell, ambiguous: (ambiguity) => ({ path: AMBIGUOUS_PATH, ambiguous: true, ambiguity }) });
 }
 
 /** The first hit no destination can lift, or null: what a scan alone proves. */

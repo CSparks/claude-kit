@@ -5,7 +5,6 @@
 //   shellStoreWrite(command, { readScript, shell }) -> null | { path, hint, ambiguous?, ambiguity? }
 //     shell ('bash' | 'powershell', shellOfTool of the hook payload): the escape rules that settle quoting; omitted, any escape before a quote is ambiguous
 //   ambiguity (quoting that could not be split) = { reason, at, span, trigger }: the construct, where, its text, the write word found
-//   describeAmbiguity(ambiguity) -> the one line a block prints to name the offending span
 
 import { FS_WRITE, readTempScript, scanShellWrites } from './shell-write-scan.mjs';
 import { ITEM_VERBS } from './store-write-gate.mjs';
@@ -44,8 +43,6 @@ function codeWrites(code) {
   if (!named && !BUILT_PATH.test(code)) return null;
   return { path: named ? named[0] : '.ai/…', hint: named ? hintFor(named[0]) : HINTS.other };
 }
-
-export const describeAmbiguity = (a) => (a ? `Ambiguous span: ${a.reason} at character ${a.at}, near "${a.span}"; the write word that made it a hit: "${a.trigger}".` : '');
 
 export function shellStoreWrite(command, { readScript = readTempScript, shell = '' } = {}) {
   return scanShellWrites(command, { hit, codeHit: codeWrites, readScript, shell, judgeMoveSources: true, ambiguous: (ambiguity) => ({ path: '.ai/…', hint: HINTS.other, ambiguous: true, ambiguity }) });
