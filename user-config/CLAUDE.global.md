@@ -171,7 +171,7 @@ Write the summary as reply text, not commentary: Claude Code stores commentary w
 (a 170-word summary was recorded as 37 words); the audit judges such a copy at 20 words and prints the counted text.
 Dry-run a draft first: `q gates question --draft <file.json>` runs every questionnaire gate and prints
 all failures and their fixes at once (KIT-T1451). `q gates question` prints every other requirement.
-In a questionnaire, name the parties "Chris" and "Claude", never you, your, I, my, we, our or us, in the question text, option
+In a questionnaire, name the parties "Chris" and "Claude", never you, your, yours, I, my, me, we, our or us, in the question text, option
 labels and descriptions (RDG-D177, KIT-T1624); the summary above it and ordinary replies may use you and I. The question gate
 `speaker-names` refuses it in a project whose store holds that decision.
 
